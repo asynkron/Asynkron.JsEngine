@@ -1,0 +1,529 @@
+#region
+
+using System.Runtime.CompilerServices;
+using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.StdLib;
+using Microsoft.Extensions.Logging;
+
+#endregion
+
+#pragma warning disable CS0618 // Obsolete AST evaluation methods are used intentionally here
+
+namespace Asynkron.JsEngine.Ast;
+
+public static partial class TypedAstEvaluator
+{
+    private static JsValue ResolveThisValue(JsEnvironment environment, EvaluationContext context)
+    {
+        try
+        {
+            // Check if we're in an arrow function that has a lexical this environment.
+            // If so, read `this` from the original owning environment, not the arrow's local copy.
+            // This ensures that after super() updates the constructor's `this`, subsequent
+            // reads of `this` inside the arrow function see the updated value.
+            if (environment.TryFindBindingJsValue(Symbol.LexicalThisEnvironment, true, out _,
+                    out var lexicalEnvValue) &&
+                lexicalEnvValue.TryGetObject<JsEnvironment>(out var lexicalThisEnv))
+            {
+                return lexicalThisEnv.GetJsValue(Symbol.This);
+            }
+
+            return environment.GetJsValue(Symbol.This);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
+                                                       StringComparison.Ordinal))
+        {
+            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
+            throw new ThrowSignal(errorObject);
+        }
+    }
+
+    /// <summary>
+    ///     Evaluates an import.meta expression. Returns the import.meta object for the current module.
+    /// </summary>
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateImportMeta(JsEnvironment environment, EvaluationContext context)
+    {
+        // Try to get the import.meta object from the environment
+        // If running in module context, this should be set by the module loader
+        if (environment.TryGetJsValue(Symbol.ImportMeta, out var importMeta))
+        {
+            return importMeta;
+        }
+
+        // Return a basic import.meta object with a url property
+        var metaObject = new JsObject();
+        metaObject.RealmState = context.RealmState;
+        metaObject.SetPrototype(null);
+        // Set a default URL if we can determine it from the environment
+        metaObject.SetProperty("url", string.Empty);
+        return (JsValue)metaObject;
+    }
+
+    private static (IJsEnvironmentAwareCallable? Constructor, IJsPropertyAccessor? Prototype) ResolveSuperclass(this ExpressionNode? extendsExpression, JsEnvironment environment, EvaluationContext context)
+    {
+        if (extendsExpression is null)
+        {
+            return (null, null);
+        }
+
+        var baseJsValue = extendsExpression.EvaluateExpression(environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return (null, null);
+        }
+
+        if (baseJsValue.IsNullOrUndefined)
+        {
+            return (null, null);
+        }
+
+        // Only objects can be constructors - extract ObjectValue directly
+        var baseValue = baseJsValue.Kind == JsValueKind.Object ? baseJsValue.ObjectValue : null;
+
+        if (!JsOps.IsConstructor(JsValue.FromObjectUnsafe(baseValue)))
+        {
+            throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                "Class extends value is not a constructor or null", context, context.RealmState));
+        }
+
+        // Proxy cannot be subclassed because its prototype is undefined.
+        if (baseValue is IJsPropertyAccessor accessorWithMarker &&
+            JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(accessorWithMarker), "__proxyHasNoPrototype__",
+                out var marker, context) &&
+            JsOps.ToBoolean(marker))
+        {
+            throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                "Class extends value does not have a valid prototype",
+                context,
+                context.RealmState));
+        }
+
+        if (baseValue is not (IJsEnvironmentAwareCallable callable and IJsPropertyAccessor))
+        {
+            throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                "Class extends value is not a constructor or null", context, context.RealmState));
+        }
+
+        var hasPrototype = JsOps.TryGetPropertyValue(baseJsValue, "prototype", out var prototypeValue, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return (null, null);
+        }
+
+        if (!hasPrototype)
+        {
+            throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                "Class extends value does not have a valid prototype",
+                context,
+                context.RealmState));
+        }
+
+        // Per ES spec 15.7.14 step 7.c.iii: only null is acceptable, not undefined
+        if (prototypeValue.IsNull)
+        {
+            return (callable, null);
+        }
+
+        if (prototypeValue.TryGetObject<IJsPropertyAccessor>(out var prototype))
+        {
+            return (callable, prototype);
+        }
+
+        throw new ThrowSignal(StandardLibrary.CreateTypeError(
+            "Class extends value does not have a valid prototype",
+            context,
+            context.RealmState));
+    }
+
+    /// <summary>
+    /// Ultra-thin hot path for expression evaluation - designed to be inlined.
+    /// Uses explicit if statements instead of switch for minimal IL size.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateExpression(this ExpressionNode expression, JsEnvironment environment,
+        EvaluationContext context)
+    {
+#if DEBUG
+        // Guard: detect AST evaluation during IR-only execution (see #398, #415, #364)
+        if (EvaluationContext.AssertNoAstEvaluation)
+        {
+            throw new InvalidOperationException(
+                $"AST evaluation invoked for {expression.GetType().Name} during IR execution");
+        }
+#endif
+        return expression switch
+        {
+            // Explicit if statements generate less IL than switch expressions
+            LiteralExpression literal => literal.Value,
+            IdentifierExpression identifier => identifier.EvaluateIdentifier(environment, context),
+            BinaryExpression binary => binary.EvaluateBinary(environment, context),
+            AssignmentExpression assignment => assignment.EvaluateAssignment(environment, context),
+            UnaryExpression unary => unary.EvaluateUnary(environment, context),
+            CallExpression call => call.EvaluateCall(environment, context),
+            _ => expression.EvaluateExpressionSlow(environment, context)
+        };
+    }
+
+    /// <summary>
+    /// Slow path for less common expression types. Marked NoInlining to keep hot path small.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateExpressionSlow(this ExpressionNode expression, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        // Second tier of common expressions
+        switch (expression)
+        {
+            case UnaryExpression unary:
+                return unary.EvaluateUnary(environment, context);
+            case AssignmentExpression assignment:
+                return assignment.EvaluateAssignment(environment, context);
+            case MemberExpression member:
+                return member.EvaluateMember(environment, context);
+            case CallExpression call:
+                return call.EvaluateCall(environment, context);
+        }
+
+        // Slowest path - set source reference and optionally trace
+        context.SourceReference = expression.Source;
+
+        return expression switch
+        {
+            RegexLiteralExpression regex => regex.EvaluateRegexLiteral(context),
+            ConditionalExpression conditional => conditional.EvaluateConditional(environment, context),
+            FunctionExpression functionExpression => JsValue.FromObjectUnsafe(
+                functionExpression.CreateFunctionValue(environment, context)),
+            DestructuringAssignmentExpression destructuringAssignment => destructuringAssignment
+                .EvaluateDestructuringAssignment(environment, context),
+            PropertyAssignmentExpression propertyAssignment => propertyAssignment.EvaluatePropertyAssignment(
+                environment, context),
+            IndexAssignmentExpression indexAssignment => indexAssignment.EvaluateIndexAssignment(environment,
+                context),
+            SequenceExpression sequence => sequence.EvaluateSequence(environment, context),
+            NewExpression newExpression => newExpression.EvaluateNew(environment, context),
+            NewTargetExpression => environment.TryGetJsValue(Symbol.NewTarget, out var newTarget)
+                ? newTarget
+                : JsValue.Undefined,
+            ImportMetaExpression => EvaluateImportMeta(environment, context),
+            ArrayExpression array => array.EvaluateArray(environment, context),
+            ObjectExpression obj => obj.EvaluateObject(environment, context),
+            ClassExpression classExpression => classExpression.EvaluateClassExpression(environment, context),
+            DecoratorExpression => throw new NotSupportedException("Decorators are not supported."),
+            TemplateLiteralExpression template => template.EvaluateTemplateLiteral(environment, context),
+            TaggedTemplateExpression taggedTemplate => taggedTemplate.EvaluateTaggedTemplate(environment, context),
+            AwaitExpression awaitExpression => awaitExpression.EvaluateAwait(environment, context),
+            YieldExpression yieldExpression => yieldExpression.EvaluateYield(environment, context),
+            ThisExpression => ResolveThisValue(environment, context),
+            SuperExpression => throw new InvalidOperationException(
+                $"Super is not available in this context.{context.GetSourceInfo(expression.Source)}"),
+            _ => throw new NotSupportedException(
+                $"Typed evaluator does not yet support '{expression.GetType().Name}'.")
+        };
+    }
+
+    private static string DescribeCallee(this ExpressionNode expression)
+    {
+        return expression switch
+        {
+            IdentifierExpression id => id.Name.Name,
+            MemberExpression member => $"{member.Target.DescribeCallee()}.{member.Property.DescribeMemberName()}",
+            CallExpression call => $"{call.Callee.DescribeCallee()}(...)",
+            _ => expression.GetType().Name
+        };
+    }
+
+    private static bool IsAnonymousFunctionDefinition(this ExpressionNode expression)
+    {
+        return expression.IsAnonymousFunctionDefinitionNode();
+    }
+
+    private static bool IsAnonymousFunctionDefinitionNode(this ExpressionNode node)
+    {
+        // Per ES spec, sequence expressions (comma operator) do not qualify for name inference
+        // e.g., `const x = (0, function() {})` should not infer name
+        if (node is SequenceExpression)
+        {
+            return false;
+        }
+
+        return node switch
+        {
+            FunctionExpression func => func.Name is null,
+            ClassExpression classExpression => classExpression.Name is null,
+            _ => false
+        };
+    }
+
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static (JsValue Callee, JsValue thisValue, bool SkippedOptional) EvaluateCallTarget(this ExpressionNode callee, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        switch (callee)
+        {
+            case SuperExpression superExpression:
+                {
+                    var logger = environment.RealmState?.Logger;
+                    logger?.LogInformation(
+                        "Super call target env={Env} hasThisInit={HasThisInit} hasSuper={HasSuper}",
+                        environment.GetHashCode(),
+                        environment.HasBinding(Symbol.ThisInitialized),
+                        environment.HasBinding(Symbol.Super));
+                    var binding = environment.ExpectSuperBinding(context);
+
+                    // Per ES spec 12.3.5.1 SuperCall, the super constructor should be looked up
+                    // dynamically via GetSuperConstructor() which gets activeFunction.[[Prototype]].
+                    // For a constructor, the active function is available via NewTarget when it's
+                    // a constructor being invoked via 'new'.
+                    object? dynamicSuperConstructor = binding.Constructor;
+                    if (dynamicSuperConstructor is null &&
+                        environment.TryGetObject<IJsObjectLike>(Symbol.NewTarget, out var activeFunction))
+                    {
+                        // Get the current [[Prototype]] of the active function (constructor)
+                        // This respects Object.setPrototypeOf changes made after class definition
+                        // Use PrototypeAccessor to handle non-JsObject prototypes (e.g., HostFunction)
+                        dynamicSuperConstructor = (activeFunction as IPrototypeAccessorProvider)?.PrototypeAccessor
+                                                  ?? activeFunction.Prototype;
+                        logger?.LogInformation(
+                            "Super call: dynamic lookup newTargetType={NewTargetType} protoType={ProtoType}",
+                            activeFunction.GetType().Name,
+                            dynamicSuperConstructor?.GetType().Name ?? "null");
+                    }
+
+                    if (dynamicSuperConstructor is null)
+                    {
+                        throw new InvalidOperationException(
+                            $"Super constructor is not available in this context.{context.GetSourceInfo(superExpression.Source)}");
+                    }
+
+                    var superThis = binding.ThisValue.IsUninitialized
+                        ? JsValue.Undefined
+                        : binding.ThisValue;
+
+                    return (JsValue.FromObjectUnsafe(dynamicSuperConstructor), superThis, false);
+                }
+            case MemberExpression { Target: SuperExpression } member:
+                {
+                    var (memberValue, binding) = member.ResolveSuperMember(environment, context);
+                    return context.ShouldStopEvaluation
+                        ? (JsValue.Undefined, thisValue: binding.ThisValue, true)
+                        : (memberValue, thisValue: binding.ThisValue, false);
+                }
+            case MemberExpression member:
+                {
+                    var targetJs = member.Target.EvaluateExpression(environment, context);
+                    if (context.ShouldStopEvaluation
+                        || (member.IsOptional && targetJs.IsNullOrUndefined)
+                        || (targetJs.IsNullOrUndefined && HasOptionalChaining(member.Target)))
+                    {
+                        return (JsValue.Undefined, JsValue.Undefined, true);
+                    }
+
+                    if (targetJs.IsNullOrUndefined)
+                    {
+                        var error = StandardLibrary.CreateTypeError(
+                            "Cannot read properties of null or undefined",
+                            context,
+                            context.RealmState);
+                        context.SetThrow(error);
+                        return (JsValue.Undefined, JsValue.Undefined, true);
+                    }
+
+                    string propertyName;
+                    if (member.IsComputed)
+                    {
+                        var propertyJs = member.Property.EvaluateExpression(environment, context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            return (JsValue.Undefined, JsValue.Undefined, true);
+                        }
+
+                        propertyName = JsOps.GetRequiredPropertyName(propertyJs, context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            return (JsValue.Undefined, JsValue.Undefined, true);
+                        }
+                    }
+                    else
+                    {
+                        propertyName = member.Property switch
+                        {
+                            IdentifierExpression id => id.Name.Name,
+                            LiteralExpression { Value.IsString: true } lit => lit.Value.AsString(),
+                            _ => JsOps.GetRequiredPropertyName(member.Property.EvaluateExpression(environment, context),
+                                context)
+                        };
+                    }
+
+                    if (member.IsComputed || !propertyName.IsPrivateName())
+                    {
+                        if (targetJs.TryGetObject<IJsPropertyAccessor>(out var accessor))
+                        {
+                            try
+                            {
+                                if (accessor.TryGetProperty(propertyName, targetJs, out var directJsValue))
+                                {
+                                    return (directJsValue, targetJs, false);
+                                }
+                            }
+                            catch (ThrowSignal signal)
+                            {
+                                context.SetThrow(signal.ThrownValue);
+                                return (JsValue.Undefined, JsValue.Undefined, true);
+                            }
+                        }
+
+                        if (JsOps.TryGetPropertyValue(targetJs, propertyName, out var directValue, context))
+                        {
+                            if (context.ShouldStopEvaluation)
+                            {
+                                return (JsValue.Undefined, JsValue.Undefined, true);
+                            }
+
+                            return (directValue, targetJs, false);
+                        }
+
+                        if (context.ShouldStopEvaluation)
+                        {
+                            return (JsValue.Undefined, JsValue.Undefined, true);
+                        }
+
+                        return (JsValue.Undefined, targetJs, false);
+                    }
+
+                    var handle = PropertyHandle.Resolve(
+                        targetJs,
+                        propertyName,
+                        context,
+                        context.CurrentScope.IsStrict,
+                        !member.IsComputed);
+                    var value = handle.GetJsValue();
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return (JsValue.Undefined, JsValue.Undefined, true);
+                    }
+
+                    return (value, targetJs, false);
+                }
+            case IdentifierExpression identifier
+                when environment.TryResolveWithBinding(identifier.Name, context, out var withBinding):
+                try
+                {
+                    var withValue = JsEnvironment.GetWithBindingValueJsValue(withBinding);
+                    return (withValue, JsValue.FromObjectUnsafe(withBinding.BindingObject), false);
+                }
+                catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
+                                                               StringComparison.Ordinal))
+                {
+                    // Convert to JavaScript ReferenceError so it can be caught by JavaScript try-catch
+                    var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
+                    throw new ThrowSignal(errorObject);
+                }
+
+            // Fast path: use slot-based lookup when available
+            case IdentifierExpression identifier:
+                {
+                    if (identifier is { SlotIndex: >= 0, ScopeId: >= 0 })
+                    {
+                        if (environment.TryReadIdentifierWithSlot(
+                                identifier.Name,
+                                identifier.ScopeId,
+                                identifier.SlotIndex,
+                                context,
+                                out var slotCallee))
+                        {
+                            return (slotCallee, JsValue.Undefined, false);
+                        }
+                    }
+
+                    // Fallback: dictionary-based lookup
+                    var reference = environment.ResolveIdentifierAssignmentReference(identifier.Name, context);
+                    if (reference.IsUnresolvable)
+                    {
+                        var error = StandardLibrary.CreateReferenceError(
+                            $"{identifier.Name.Name} is not defined",
+                            context,
+                            context.RealmState);
+                        context.SetThrow(error);
+                        return (JsValue.Undefined, JsValue.Undefined, true);
+                    }
+
+                    var calleeValue = AssignmentReferenceResolver.ReadIdentifierValue(reference.GetJsValue, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return (JsValue.Undefined, JsValue.Undefined, true);
+                    }
+
+                    return (calleeValue, JsValue.Undefined, false);
+                }
+            default:
+                {
+                    var directCallee = callee.EvaluateExpression(environment, context);
+                    return (directCallee, JsValue.Undefined, false);
+                }
+        }
+    }
+
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static bool EvaluateDelete(this ExpressionNode operand, JsEnvironment environment, EvaluationContext context)
+    {
+        switch (operand)
+        {
+            case MemberExpression member:
+                {
+                    if (member.Target is SuperExpression)
+                    {
+                        throw StandardLibrary.ThrowReferenceError(
+                            "Cannot delete property on super reference",
+                            context,
+                            context.RealmState);
+                    }
+
+                    var targetJs = member.Target.EvaluateExpression(environment, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return false;
+                    }
+
+                    var propertyValueJs = member.Property.EvaluateExpression(environment, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return false;
+                    }
+
+                    var handle = PropertyHandle.Resolve(
+                        targetJs,
+                        propertyValueJs,
+                        context,
+                        context.CurrentScope.IsStrict,
+                        !member.IsComputed);
+                    return handle.Delete();
+                }
+            case IdentifierExpression when context.CurrentScope.IsStrict:
+                throw StandardLibrary.ThrowSyntaxError(
+                    "Delete of an unqualified identifier is not allowed in strict mode.",
+                    context,
+                    context.RealmState);
+            case IdentifierExpression identifier:
+                {
+                    var outcome = environment.DeleteBinding(identifier.Name);
+                    return outcome is DeleteBindingResult.Deleted or DeleteBindingResult.NotFound;
+                }
+            default:
+                _ = operand.EvaluateExpression(environment, context);
+                return true;
+        }
+    }
+
+    private static string DescribeMemberName(this ExpressionNode property)
+    {
+        return property switch
+        {
+            LiteralExpression { Value.IsString: true } lit => lit.Value.AsString(),
+            IdentifierExpression id => id.Name.Name,
+            _ => property.GetType().Name
+        };
+    }
+}

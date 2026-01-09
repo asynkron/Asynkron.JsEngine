@@ -250,13 +250,15 @@ internal static class SwitchEmitter
                 execBuilder.Add(new ExpressionStatement(statement.Source, setDoneAssignment, true));
             }
 
-            // Case bodies do NOT get their own block scope - statements go directly into innerStatements
-            // This is wrapped in if() to guard execution based on match index
-            foreach (var s in execBuilder)
+            // Case bodies do NOT get their own block scope - but we need to wrap ALL statements
+            // from this case in a SINGLE guard to preserve completion values during fallthrough.
+            // We cannot use IfStatement here because TryEmitIf adds SetCompletionValue instructions
+            // that reset the completion value, breaking fallthrough behavior.
+            // Instead, we lower to a synthetic if-like structure ourselves.
+            if (execBuilder.Count > 0)
             {
-                // Create if guard for this statement (or group of statements from this case)
-                innerStatements.Add(new IfStatement(statement.Source, execCondition,
-                    new BlockStatement(body.Source, [s], body.IsStrict), null));
+                var caseBlock = new BlockStatement(body.Source, execBuilder.ToImmutable(), body.IsStrict);
+                innerStatements.Add(new IfStatement(statement.Source, execCondition, caseBlock, null));
             }
         }
 

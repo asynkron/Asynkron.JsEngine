@@ -29,12 +29,40 @@ public static partial class TypedAstEvaluator
                 // const binding for its name (the binding is handled by environment.Define below).
                 var functionValue = funcDecl.Function.CreateFunctionValue(environment, ctx,
                     skipInternalNameBinding: true);
-                environment.DefineJsValue(
-                    funcDecl.Name,
-                    JsValue.FromObjectUnsafe(functionValue),
-                    true,
-                    isLexicalBinding: true,
-                    blocksFunctionScopeOverride: true);
+                var fnValueJs = JsValue.FromObjectUnsafe(functionValue);
+
+                // Check if we're at the function/global scope level (no nested block environment).
+                // - If we're at the function scope level: function was hoisted, use var-like binding
+                // - If we're in a nested block: create block-scoped lexical binding
+                var functionScope = environment.GetFunctionScope();
+                var isAtFunctionScope = ReferenceEquals(functionScope, environment);
+
+                if (isAtFunctionScope)
+                {
+                    // Function-scoped: function was hoisted during entry, just update the value.
+                    // Use isLexicalBinding: false to allow re-evaluation without conflict.
+                    environment.DefineJsValue(
+                        funcDecl.Name,
+                        fnValueJs,
+                        isLexicalBinding: false);
+                }
+                else
+                {
+                    // Block-scoped: create lexical binding in the current block environment.
+                    environment.DefineJsValue(
+                        funcDecl.Name,
+                        fnValueJs,
+                        isLexicalBinding: true,
+                        blocksFunctionScopeOverride: true);
+
+                    // For hoisted functions in sloppy mode, also update the function-scope binding.
+                    // This implements Annex B semantics where block-scoped functions also
+                    // update the outer function-scope binding.
+                    if (functionScope.HasFunctionScopedBinding(funcDecl.Name))
+                    {
+                        functionScope.AssignJsValue(funcDecl.Name, fnValueJs);
+                    }
+                }
             }
 
             runner._programCounter = instruction.Next;

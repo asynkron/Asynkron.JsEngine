@@ -417,8 +417,8 @@ public static partial class TypedAstEvaluator
                     tryStatement.TryBlock.CollectLexicalNamesFromStatement(names);
                     if (tryStatement.Catch is { } catchClause)
                     {
-                        catchClause.Binding?.CollectSymbolsFromBinding(names);
-
+                        // Per ES spec 13.15.7, catch parameters create their own lexical environment
+                        // and should NOT be collected as lexical names of the outer (try statement's) scope.
                         catchClause.Body.CollectLexicalNamesFromStatement(names);
                     }
 

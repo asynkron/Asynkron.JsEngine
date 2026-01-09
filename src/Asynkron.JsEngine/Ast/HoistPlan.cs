@@ -222,11 +222,9 @@ internal sealed class HoistPlan
                     CollectLexical(tryStatement.TryBlock, names, lexicalKindMap, ref hasFunctionDeclarations);
                     if (tryStatement.Catch is { } catchClause)
                     {
-                        if (catchClause.Binding is not null)
-                        {
-                            CollectBindingSymbols(catchClause.Binding, names, lexicalKindMap, true);
-                        }
-
+                        // Per ES spec 13.15.7, catch parameters create their own lexical environment
+                        // and should NOT be collected as lexical names of the outer (try statement's) scope.
+                        // The catch parameter binding is handled separately by CollectCatchNames/CollectSimpleCatchNames.
                         CollectLexical(catchClause.Body, names, lexicalKindMap, ref hasFunctionDeclarations);
                     }
 

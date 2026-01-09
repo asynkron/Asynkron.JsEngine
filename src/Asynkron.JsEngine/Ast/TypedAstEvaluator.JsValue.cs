@@ -309,6 +309,15 @@ public static partial class TypedAstEvaluator
             return JsValue.Undefined;
         }
 
+        // Guard against infinite recursion if ToPrimitive returns an object
+        // (broken valueOf/toString that returns 'this')
+        if (primitive.Kind == JsValueKind.Object)
+        {
+            throw StandardLibrary.ThrowTypeError(
+                "Cannot convert object to primitive value (valueOf/toString returned non-primitive)",
+                context);
+        }
+
         return ToNumericValue(primitive, context);
     }
 

@@ -308,6 +308,9 @@ public static partial class TypedAstEvaluator
                 }
             } while (continueAfterCatch);
 
+            _realmState.Logger?.LogInformation(
+                "[ASYNC-ITER-DEBUG] ExecuteInstructionLoop exiting normally: PC={PC}, instructionsLength={Len}",
+                _programCounter, instructionsLength);
             _state = GeneratorState.Completed;
             _done = true;
             TryCatchStateRef.TryStack.Clear();

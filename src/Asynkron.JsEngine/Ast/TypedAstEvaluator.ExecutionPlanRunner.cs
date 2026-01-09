@@ -828,6 +828,9 @@ public static partial class TypedAstEvaluator
 
                         IteratorStateRef.CurrentDriverState = null;
                         _programCounter = instruction.BreakIndex;
+                        _realmState.Logger?.LogInformation(
+                            "[ASYNC-ITER-DEBUG] AsyncIterator done=true, jumping to BreakIndex={BreakIndex}, instructionsLength={Length}",
+                            instruction.BreakIndex, _plan!.Instructions.Length);
                         returnValue = default;
                         return InstructionResult.Continue;
                     }

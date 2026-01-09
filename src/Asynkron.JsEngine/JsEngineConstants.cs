@@ -25,5 +25,5 @@ public static class JsEngineConstants
     /// - Pool.Return() is a no-op (objects go to GC)
     /// Use this to establish a clean baseline - all tests should pass with pooling disabled.
     /// </summary>
-    public const bool DisablePooling = false;
+    public const bool DisablePooling = true;
 }

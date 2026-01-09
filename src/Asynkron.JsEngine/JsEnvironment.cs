@@ -3636,7 +3636,7 @@ public sealed class JsEnvironment : IRentable
     /// <param name="scopeId">Unique ID for this scope from scope analysis.</param>
     /// <param name="slotMap">Mapping from symbol names to slot indices.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Initialize(int scopeId, System.Collections.Immutable.ImmutableDictionary<Symbol, int> slotMap)
+    public void Initialize(int scopeId, ImmutableDictionary<Symbol, int> slotMap)
     {
         ValidateScopeId(scopeId);
         ScopeId = scopeId;
@@ -3670,7 +3670,7 @@ public sealed class JsEnvironment : IRentable
     /// Preserves existing slots that already have names (e.g., Symbol.This from GlobalEnvironment).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void SetSlotMap(System.Collections.Immutable.ImmutableDictionary<Symbol, int> slotMap)
+    internal void SetSlotMap(ImmutableDictionary<Symbol, int> slotMap)
     {
         var count = slotMap.Count;
 

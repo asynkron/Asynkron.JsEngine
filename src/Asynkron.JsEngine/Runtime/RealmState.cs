@@ -1,7 +1,6 @@
 #region
 
 using System.Collections.Concurrent;
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Parser;
 using Microsoft.Extensions.Logging;
 
@@ -37,13 +36,6 @@ public sealed class RealmState
     /// Scopes are stored here instead of a static dictionary to allow GC when the realm is disposed.
     /// </summary>
     internal ConcurrentDictionary<int, PrivateNameScope> PrivateNameScopes { get; } = new();
-
-    /// <summary>
-    /// Per-realm registry of JsSymbol instances by their ID.
-    /// Used to resolve symbol property keys (e.g., "@@symbol:123") back to the original symbol.
-    /// Stored here instead of a static dictionary to allow GC when the realm is disposed.
-    /// </summary>
-    internal ConcurrentDictionary<int, JsSymbol> JsSymbolRegistry { get; } = new();
 
     public JsObject? ObjectPrototype { get; set; }
     public IJsObjectLike? FunctionPrototype { get; set; }
@@ -146,18 +138,4 @@ public sealed class RealmState
     /// Returns an EvaluationContext to the pool for reuse.
     /// </summary>
     public void ReturnContext(EvaluationContext context) => _contextPool.Return(context);
-
-    public EvaluationContext CreateStrictContext(
-        ScopeKind kind = ScopeKind.Function,
-        CancellationToken cancellationToken = default,
-        ExecutionKind executionKind = ExecutionKind.Script,
-        bool pushScope = true)
-    {
-        return CreateContext(
-            kind,
-            ScopeMode.Strict,
-            cancellationToken,
-            executionKind,
-            pushScope);
-    }
 }

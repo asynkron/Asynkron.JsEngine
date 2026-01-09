@@ -18,4 +18,12 @@ public static class JsEngineConstants
     /// WARNING: Very verbose output - only enable for debugging specific issues.
     /// </summary>
     public const bool TraceIrExecution = true;
+
+    /// <summary>
+    /// Disable all object pooling. When true:
+    /// - Pool.Rent() always creates fresh instances
+    /// - Pool.Return() is a no-op (objects go to GC)
+    /// Use this to establish a clean baseline - all tests should pass with pooling disabled.
+    /// </summary>
+    public const bool DisablePooling = false;
 }

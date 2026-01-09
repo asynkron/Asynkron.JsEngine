@@ -718,4 +718,134 @@ public static partial class TypedAstEvaluator
         // Use JsValue overload directly - avoids boxing
         return UnsignedRightShiftJsValue(left, right, context);
     }
+
+    #region Public API for JsOps
+
+    /// <summary>
+    /// Public wrapper for Add operation.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static JsValue Add(in JsValue a, in JsValue b, EvaluationContext ctx)
+    {
+        return AddValue(a, b, ctx);
+    }
+
+    /// <summary>
+    /// Public wrapper for Subtract operation.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static JsValue Subtract(in JsValue a, in JsValue b, EvaluationContext ctx)
+    {
+        return SubtractValue(a, b, ctx);
+    }
+
+    /// <summary>
+    /// Public wrapper for Multiply operation.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static JsValue Multiply(in JsValue a, in JsValue b, EvaluationContext ctx)
+    {
+        return MultiplyValue(a, b, ctx);
+    }
+
+    /// <summary>
+    /// Public wrapper for Divide operation.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static JsValue Divide(in JsValue a, in JsValue b, EvaluationContext ctx)
+    {
+        return DivideValue(a, b, ctx);
+    }
+
+    /// <summary>
+    /// Public wrapper for Modulo operation.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static JsValue Modulo(in JsValue a, in JsValue b, EvaluationContext ctx)
+    {
+        return ModuloValue(a, b, ctx);
+    }
+
+    /// <summary>
+    /// Public wrapper for Power operation.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static JsValue Power(in JsValue a, in JsValue b, EvaluationContext ctx)
+    {
+        return PowerValue(a, b, ctx);
+    }
+
+    /// <summary>
+    /// Public wrapper for Negate operation.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static JsValue Negate(in JsValue a, EvaluationContext ctx)
+    {
+        return NegateValue(a, ctx);
+    }
+
+    /// <summary>
+    /// Public wrapper for BitwiseAnd operation.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static JsValue BitwiseAnd(in JsValue a, in JsValue b, EvaluationContext ctx)
+    {
+        return BitwiseAndValue(a, b, ctx);
+    }
+
+    /// <summary>
+    /// Public wrapper for BitwiseOr operation.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static JsValue BitwiseOr(in JsValue a, in JsValue b, EvaluationContext ctx)
+    {
+        return BitwiseOrValue(a, b, ctx);
+    }
+
+    /// <summary>
+    /// Public wrapper for BitwiseXor operation.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static JsValue BitwiseXor(in JsValue a, in JsValue b, EvaluationContext ctx)
+    {
+        return BitwiseXorValue(a, b, ctx);
+    }
+
+    /// <summary>
+    /// Public wrapper for BitwiseNot operation.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static JsValue BitwiseNot(in JsValue a, EvaluationContext ctx)
+    {
+        return BitwiseNotJsValue(a, ctx);
+    }
+
+    /// <summary>
+    /// Public wrapper for LeftShift operation.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static JsValue LeftShift(in JsValue a, in JsValue b, EvaluationContext ctx)
+    {
+        return LeftShiftValue(a, b, ctx);
+    }
+
+    /// <summary>
+    /// Public wrapper for RightShift operation.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static JsValue RightShift(in JsValue a, in JsValue b, EvaluationContext ctx)
+    {
+        return RightShiftValue(a, b, ctx);
+    }
+
+    /// <summary>
+    /// Public wrapper for UnsignedRightShift operation.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static JsValue UnsignedRightShift(in JsValue a, in JsValue b, EvaluationContext ctx)
+    {
+        return UnsignedRightShiftValue(a, b, ctx);
+    }
+
+    #endregion
 }

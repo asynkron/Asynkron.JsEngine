@@ -111,8 +111,6 @@ public static partial class TypedAstEvaluator
                     }
                 case ObjectMemberKind.Getter:
                     {
-                        // Mark environment as captured since the getter holds a reference to it
-                        environment.Capture();
                         var getter = new SyncFunctionInvoker(
                             member.Function!,
                             environment,
@@ -133,8 +131,6 @@ public static partial class TypedAstEvaluator
                     }
                 case ObjectMemberKind.Setter:
                     {
-                        // Mark environment as captured since the setter holds a reference to it
-                        environment.Capture();
                         var setter = new SyncFunctionInvoker(
                             member.Function!,
                             environment,

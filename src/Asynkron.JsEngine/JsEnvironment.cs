@@ -2772,7 +2772,8 @@ public sealed class JsEnvironment : IRentable
         }
 
         ref var slot = ref current.TryGetSlotRef(Symbol.This);
-        if (!Unsafe.IsNullRef(ref slot))
+        var slotFound = !Unsafe.IsNullRef(ref slot);
+        if (slotFound)
         {
             var slotValue = slot.HasSpecialBinding
                 ? ((ISpecialBinding)slot.Value.ObjectValue!).GetJsValue()
@@ -2781,18 +2782,26 @@ public sealed class JsEnvironment : IRentable
             {
                 return globalObject;
             }
+            // Slot found but value is not a JsObject - log this case
+            RealmState?.Logger?.LogWarning(
+                "GetRootGlobalObject: Symbol.This slot found but value is not JsObject. ValueKind={Kind}, SlotFlags={Flags}, " +
+                "ObjectValueType={ObjectType}, ObjectValue={ObjectValue}",
+                slotValue.Kind, slot.Flags,
+                slotValue.ObjectValue?.GetType().Name ?? "null",
+                slotValue.ObjectValue?.ToString() ?? "null");
         }
 
-        // Debug: Log when we can't find Symbol.This
+        // Debug: Log when we can't find Symbol.This or value is wrong
         // This helps diagnose "JSON is not defined" type errors
         if (RealmState?.Logger is { } logger)
         {
             var slot0Name = current._slots?[0].Name;
             var isRefEqual = ReferenceEquals(slot0Name, Symbol.This);
             logger.LogWarning(
-                "GetRootGlobalObject: Could not find Symbol.This. SlotCount={SlotCount}, Hops={Hops}, " +
+                "GetRootGlobalObject: Failed. SlotFound={SlotFound}, SlotCount={SlotCount}, Hops={Hops}, " +
                 "Slot0NameRef={Slot0Ref}, SymbolThisRef={ThisRef}, RefEqual={RefEqual}, " +
                 "Slot0NameStr={Slot0Str}, SymbolThisStr={ThisStr}",
+                slotFound,
                 current._slotCount, hops,
                 slot0Name?.GetHashCode() ?? -1, Symbol.This.GetHashCode(), isRefEqual,
                 slot0Name?.Name ?? "(null)", Symbol.This.Name);
@@ -3586,16 +3595,19 @@ public sealed class JsEnvironment : IRentable
     /// Populates slot names for synthetic variables (internal loop iterators, etc.)
     /// Used after InitializeSlots to set up slot metadata for TryValidateSlotTarget verification.
     /// </summary>
-    internal void PopulateSyntheticSlotNames(ImmutableArray<Symbol> slotSymbols)
+    /// <param name="slotSymbols">The symbols to populate.</param>
+    /// <param name="offset">Starting index for writing synthetic slots. When appending to existing slots,
+    /// this should be the original slot count before InitializeSlots was called.</param>
+    internal void PopulateSyntheticSlotNames(ImmutableArray<Symbol> slotSymbols, int offset = 0)
     {
         if (_slots is null || slotSymbols.IsDefaultOrEmpty)
         {
             return;
         }
 
-        for (var i = 0; i < slotSymbols.Length && i < _slots.Length; i++)
+        for (var i = 0; i < slotSymbols.Length && (i + offset) < _slots.Length; i++)
         {
-            _slots[i] = new JsSlot(slotSymbols[i], JsValue.Undefined, SlotFlags.None);
+            _slots[i + offset] = new JsSlot(slotSymbols[i], JsValue.Undefined, SlotFlags.None);
         }
     }
 
@@ -4063,6 +4075,11 @@ public sealed class JsEnvironment : IRentable
     /// Checks if this environment has slot storage initialized.
     /// </summary>
     public bool HasSlots => _slots is not null && _slotCount > 0;
+
+    /// <summary>
+    /// Gets the current number of slots in use.
+    /// </summary>
+    internal int SlotCount => _slotCount;
 
     /// <summary>
     /// Gets a direct reference to a slot's value. This enables zero-overhead read/write

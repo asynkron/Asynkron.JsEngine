@@ -133,13 +133,13 @@ public static partial class TypedAstEvaluator
 
             if (instruction.IteratorSlotIndex >= 0 && iteratorEnv.HasSlots)
             {
-                iteratorState.IteratorVariable = new JsVariable(iteratorEnv, instruction.IteratorSlotIndex);
+                iteratorState.IteratorVariable = runner.CreateSlotVariable(iteratorEnv, instruction.IteratorSlotIndex);
             }
 
             iteratorState.LoopScopeEnvironment = environment;
             runner.IteratorStateRef.CurrentDriverState = iteratorState;
 
-            StoreValueBySlot(iteratorEnv, instruction.IteratorSlot,
+            runner.StoreValueBySlot(iteratorEnv, instruction.IteratorSlot,
                 instruction.IteratorSlotIndex,
                 JsValue.FromObjectUnsafe(iteratorState));
 
@@ -215,7 +215,7 @@ public static partial class TypedAstEvaluator
                     slotEnv ??= environment;
                 }
 
-                if (slotEnv is null || !TryGetValueBySlot(slotEnv,
+                if (slotEnv is null || !runner.TryGetValueBySlot(slotEnv,
                         instruction.IteratorSlot,
                         slotIdx, out var iteratorStateValue))
                 {
@@ -248,7 +248,7 @@ public static partial class TypedAstEvaluator
                 var loopScopeEnv = iterVar.IsValid ? iterVar.Environment : environment;
                 if (loopScopeEnv.HasSlots && loopScopeEnv._slots!.Length > instruction.ValueSlotIndex)
                 {
-                    valueVar = new JsVariable(loopScopeEnv, instruction.ValueSlotIndex);
+                    valueVar = runner.CreateSlotVariable(loopScopeEnv, instruction.ValueSlotIndex);
                     driverState.ValueVariable = valueVar;
                 }
             }

@@ -138,8 +138,8 @@ public static partial class TypedAstEvaluator
                 Enumerator = enumerator
             };
 
-            // Store state in slot
-            StoreValueBySlot(environment, instruction.IteratorSlot, instruction.IteratorSlotIndex,
+            // Store state in slot (use runner instance method to apply slot offset)
+            runner.StoreValueBySlot(environment, instruction.IteratorSlot, instruction.IteratorSlotIndex,
                 JsValue.FromObjectUnsafe(state));
 
             runner._programCounter = instruction.Next;
@@ -156,8 +156,8 @@ public static partial class TypedAstEvaluator
         {
             var instruction = Unsafe.As<ArrayDestructuringElementInstruction>(instr);
 
-            // Get state from slot
-            if (!TryGetValueBySlot(environment, instruction.IteratorSlot, instruction.IteratorSlotIndex, out var stateValue) ||
+            // Get state from slot (use runner instance method to apply slot offset)
+            if (!runner.TryGetValueBySlot(environment, instruction.IteratorSlot, instruction.IteratorSlotIndex, out var stateValue) ||
                 !stateValue.TryGetObject<ArrayDestructuringState>(out var state))
             {
                 throw new InvalidOperationException("Array destructuring state not found");
@@ -200,8 +200,8 @@ public static partial class TypedAstEvaluator
         {
             var instruction = Unsafe.As<ArrayDestructuringRestInstruction>(instr);
 
-            // Get state from slot
-            if (!TryGetValueBySlot(environment, instruction.IteratorSlot, instruction.IteratorSlotIndex, out var stateValue) ||
+            // Get state from slot (use runner instance method to apply slot offset)
+            if (!runner.TryGetValueBySlot(environment, instruction.IteratorSlot, instruction.IteratorSlotIndex, out var stateValue) ||
                 !stateValue.TryGetObject<ArrayDestructuringState>(out var state))
             {
                 throw new InvalidOperationException("Array destructuring state not found");
@@ -254,8 +254,8 @@ public static partial class TypedAstEvaluator
         {
             var instruction = Unsafe.As<ArrayDestructuringCloseInstruction>(instr);
 
-            // Get state from slot and close/dispose
-            if (TryGetValueBySlot(environment, instruction.IteratorSlot, instruction.IteratorSlotIndex, out var stateValue) &&
+            // Get state from slot and close/dispose (use runner instance method to apply slot offset)
+            if (runner.TryGetValueBySlot(environment, instruction.IteratorSlot, instruction.IteratorSlotIndex, out var stateValue) &&
                 stateValue.TryGetObject<ArrayDestructuringState>(out var state))
             {
                 // If we have a JavaScript iterator, call IteratorClose to invoke return() method

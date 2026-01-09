@@ -91,6 +91,14 @@ public static partial class TypedAstEvaluator
         private GeneratorState _state = GeneratorState.Start;
         private bool _rootScopeLogged;
 
+        /// <summary>
+        /// Offset applied to slot indices when running in script mode on GlobalEnvironment.
+        /// IR instructions use 0-based slot indices, but GlobalEnvironment may already have
+        /// slots (like Symbol.This at slot 0). This offset ensures synthetic slots don't
+        /// overwrite existing GlobalEnvironment slots.
+        /// </summary>
+        private readonly int _slotOffset;
+
         // Lazy state objects - only allocated when needed
         // TryCatchState needs explicit backing field for hot-path null check without allocation
         private TryCatchState? _tryCatchState;

@@ -82,17 +82,17 @@ public static partial class TypedAstEvaluator
                 stateEnv ??= environment;
             }
 
-            // Cache the JsVariable for fast slot access
+            // Cache the JsVariable for fast slot access (use helper to apply offset for script mode)
             if (instruction.StateSlotIndex >= 0 && stateEnv.HasSlots)
             {
-                forInState.StateVariable = new JsVariable(stateEnv, instruction.StateSlotIndex);
+                forInState.StateVariable = runner.CreateSlotVariable(stateEnv, instruction.StateSlotIndex);
             }
 
             forInState.LoopScopeEnvironment = environment;
             runner.ForInStateRef.CurrentDriverState = forInState;
 
-            // Store the state
-            StoreValueBySlot(stateEnv, instruction.StateSlot,
+            // Store the state (use runner instance method to apply slot offset)
+            runner.StoreValueBySlot(stateEnv, instruction.StateSlot,
                 instruction.StateSlotIndex,
                 JsValue.FromObjectUnsafe(forInState));
 
@@ -143,7 +143,7 @@ public static partial class TypedAstEvaluator
                     slotEnv ??= environment;
                 }
 
-                if (slotEnv is null || !TryGetValueBySlot(slotEnv,
+                if (slotEnv is null || !runner.TryGetValueBySlot(slotEnv,
                         instruction.StateSlot,
                         slotIdx, out var stateValue))
                 {
@@ -168,13 +168,13 @@ public static partial class TypedAstEvaluator
             var stateVar = driverState.StateVariable;
             var valueVar = driverState.ValueVariable;
 
-            // Capture value JsVariable on first execution
+            // Capture value JsVariable on first execution (use helper to apply offset for script mode)
             if (!valueVar.IsValid && instruction.ValueSlotIndex >= 0)
             {
                 var loopScopeEnv = stateVar.IsValid ? stateVar.Environment : environment;
                 if (loopScopeEnv.HasSlots && loopScopeEnv._slots!.Length > instruction.ValueSlotIndex)
                 {
-                    valueVar = new JsVariable(loopScopeEnv, instruction.ValueSlotIndex);
+                    valueVar = runner.CreateSlotVariable(loopScopeEnv, instruction.ValueSlotIndex);
                     driverState.ValueVariable = valueVar;
                 }
             }
@@ -202,7 +202,7 @@ public static partial class TypedAstEvaluator
             else
             {
                 var loopScopeEnv = stateVar.IsValid ? stateVar.Environment : environment;
-                StoreValueBySlot(loopScopeEnv, instruction.ValueSlot,
+                runner.StoreValueBySlot(loopScopeEnv, instruction.ValueSlot,
                     instruction.ValueSlotIndex, currentKey);
             }
 

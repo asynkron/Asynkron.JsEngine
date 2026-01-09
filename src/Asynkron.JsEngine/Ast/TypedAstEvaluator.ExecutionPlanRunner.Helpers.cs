@@ -3,6 +3,7 @@
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.StdLib;
+using Microsoft.Extensions.Logging;
 
 #endregion
 
@@ -78,15 +79,36 @@ public static partial class TypedAstEvaluator
         }
 
         /// <summary>
+        /// Gets the actual slot index, applying offset for GlobalEnvironment access in script mode.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private int GetActualSlotIndex(JsEnvironment environment, int slotIndex)
+        {
+            // Apply offset only when accessing the GlobalEnvironment (stored in _closure for scripts).
+            // Child environments created during execution have their own fresh slots.
+            var isClosure = ReferenceEquals(environment, _closure);
+            if (_slotOffset > 0 && !isClosure)
+            {
+                _realmState.Logger?.LogWarning(
+                    "[DEBUG] GetActualSlotIndex: _slotOffset={Offset} but env != _closure. env.ScopeId={EnvScope}, _closure?.ScopeId={ClosureScope}, sameRef={Same}",
+                    _slotOffset, environment.ScopeId, _closure?.ScopeId, isClosure);
+            }
+            return _slotOffset > 0 && isClosure
+                ? slotIndex + _slotOffset
+                : slotIndex;
+        }
+
+        /// <summary>
         /// Stores a value using pre-resolved slot index for O(1) access.
         /// Falls back to dictionary-based storage if slot index is invalid.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void StoreValueBySlot(JsEnvironment environment, Symbol symbol, int slotIndex, JsValue value)
+        private void StoreValueBySlot(JsEnvironment environment, Symbol symbol, int slotIndex, JsValue value)
         {
             if (slotIndex >= 0 && environment.HasSlots)
             {
-                environment.SetSlotDirect(slotIndex, value);
+                var actualSlotIndex = GetActualSlotIndex(environment, slotIndex);
+                environment.SetSlotDirect(actualSlotIndex, value);
                 // Also update dictionary for symbol-based lookups elsewhere
                 environment.DefineOrAssignJsValue(symbol, value);
             }
@@ -101,16 +123,27 @@ public static partial class TypedAstEvaluator
         /// Falls back to dictionary-based lookup if slot index is invalid.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool TryGetValueBySlot(JsEnvironment environment, Symbol symbol, int slotIndex,
+        private bool TryGetValueBySlot(JsEnvironment environment, Symbol symbol, int slotIndex,
             out JsValue value)
         {
             if (slotIndex >= 0 && environment.HasSlots)
             {
-                value = environment.GetSlotRef(slotIndex);
+                var actualSlotIndex = GetActualSlotIndex(environment, slotIndex);
+                value = environment.GetSlotRef(actualSlotIndex);
                 return true;
             }
 
             return TryGetSymbolValueJsValue(environment, symbol, out value);
+        }
+
+        /// <summary>
+        /// Creates a JsVariable for slot-based access, applying offset for GlobalEnvironment.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsVariable CreateSlotVariable(JsEnvironment environment, int slotIndex)
+        {
+            var actualSlotIndex = GetActualSlotIndex(environment, slotIndex);
+            return new JsVariable(environment, actualSlotIndex);
         }
 
         private static bool TryGetSymbolValueJsValue(JsEnvironment environment, Symbol symbol, out JsValue value)

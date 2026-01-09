@@ -60,10 +60,15 @@ public static partial class TypedAstEvaluator
         /// Private constructor for script execution mode.
         /// Used by RunScript() to create a minimal runner without function context.
         /// </summary>
+        /// <param name="plan">The execution plan to run.</param>
+        /// <param name="environment">The pre-configured script environment.</param>
+        /// <param name="context">The evaluation context.</param>
+        /// <param name="slotOffset">Offset to apply to slot indices to avoid overwriting existing GlobalEnvironment slots.</param>
         private ExecutionPlanRunner(
             ExecutionPlan plan,
             JsEnvironment environment,
-            EvaluationContext context)
+            EvaluationContext context,
+            int slotOffset)
         {
             _plan = plan;
             _programCounter = plan.EntryPoint;
@@ -83,6 +88,7 @@ public static partial class TypedAstEvaluator
             _allowIdentifierCache = context.AllowIdentifierCache;
             _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
             _isScriptMode = true;
+            _slotOffset = slotOffset;
         }
 
         /// <summary>
@@ -99,6 +105,11 @@ public static partial class TypedAstEvaluator
             JsEnvironment environment,
             EvaluationContext context)
         {
+            // Capture existing slot count before InitializeSlots appends new slots.
+            // This offset is used to adjust IR slot indices at runtime for the GlobalEnvironment.
+            // IR uses 0-based indices, but GlobalEnvironment already has slots (Symbol.This at 0, etc.)
+            var existingSlotCount = environment.SlotCount;
+
             // For scripts with synthetic variables (loop iterators, etc.), initialize slots
             // even though user variables aren't slot-based. This enables slot-based access
             // for internal variables like __forIn_value_X, __forOf_iter_X, etc.
@@ -106,14 +117,12 @@ public static partial class TypedAstEvaluator
             {
                 environment.InitializeSlots(plan.SlotCount, plan.RootScopeId);
 
-                // Populate slot metadata (names) from the plan so TryValidateSlotTarget can verify them.
-                // We can't use DefineSlot here because it increments _slotCount,
-                // but we've already set the count via InitializeSlots.
-                // Instead, directly populate the slot names for validation.
-                environment.PopulateSyntheticSlotNames(plan.SlotSymbols);
+                // Populate slot metadata (names) from the plan at the offset position
+                // so they don't overwrite existing slot names (Symbol.This, etc.)
+                environment.PopulateSyntheticSlotNames(plan.SlotSymbols, existingSlotCount);
             }
 
-            var runner = new ExecutionPlanRunner(plan, environment, context);
+            var runner = new ExecutionPlanRunner(plan, environment, context, existingSlotCount);
             return runner.RunScriptInternal();
         }
 

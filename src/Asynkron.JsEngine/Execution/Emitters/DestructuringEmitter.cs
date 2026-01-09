@@ -138,11 +138,6 @@ internal static class DestructuringEmitter
         }
 
         // Rest element must be identifier (if present)
-        if (binding.RestElement is not null && binding.RestElement is not IdentifierBinding)
-        {
-            return false;
-        }
-
-        return true;
+        return binding.RestElement is null || binding.RestElement is IdentifierBinding;
     }
 }

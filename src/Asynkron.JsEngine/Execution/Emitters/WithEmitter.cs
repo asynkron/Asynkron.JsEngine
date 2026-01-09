@@ -37,7 +37,7 @@ internal static class WithEmitter
         }
 
         // Build the enter with instruction (comes before the body)
-        entryIndex = ctx.Append(new EnterWithInstruction(statement.Object, withScopeSlot, bodyEntry));
+        entryIndex = ctx.Append(new EnterWithInstruction(withScopeSlot, bodyEntry, ObjectExpression: statement.Object));
         return true;
     }
 }

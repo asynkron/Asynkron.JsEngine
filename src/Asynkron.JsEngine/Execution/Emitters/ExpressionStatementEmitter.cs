@@ -50,8 +50,8 @@ internal static class ExpressionStatementEmitter
                 ctx.SuppressCompletionValue || expressionStatement.SuppressCompletionValue;
             entryIndex = ctx.Append(new EvaluateAndDiscardInstruction(
                 nextIndex,
-                expressionStatement.Expression,
-                suppressCompletionFallback));
+                Expression: expressionStatement.Expression,
+                SuppressCompletionValue: suppressCompletionFallback));
             return true;
         }
 
@@ -123,15 +123,17 @@ internal static class ExpressionStatementEmitter
                 nextIndex,
                 compoundAssign.Target,
                 compoundBinary.Operator,
-                compoundBinary.Right,
-                suppressCompletion));
+                RhsExpression: compoundBinary.Right,
+                SuppressCompletionValue: suppressCompletion));
             return true;
         }
 
         // Use native EvaluateAndDiscardInstruction - evaluates expression and discards result
         entryIndex =
-            ctx.Append(new EvaluateAndDiscardInstruction(nextIndex, expressionStatement.Expression,
-                suppressCompletion));
+            ctx.Append(new EvaluateAndDiscardInstruction(
+                nextIndex,
+                Expression: expressionStatement.Expression,
+                SuppressCompletionValue: suppressCompletion));
         return true;
     }
 }

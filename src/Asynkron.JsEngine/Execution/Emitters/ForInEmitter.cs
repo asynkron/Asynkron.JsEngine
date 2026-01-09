@@ -76,14 +76,14 @@ internal static class ForInEmitter
 
         // Create ForInInit instruction
         var initIndex = ctx.Append(new ForInInitInstruction(
-            statement.Iterable,
             stateSymbol,
             stateSlotIndex,
             valueSymbol,
             valueSlotIndex,
-            -1, // Will be wired later
-            tdzBindings,
-            tdzIsConst));
+            Next: -1, // Will be wired later
+            ObjectExpression: statement.Iterable,
+            TdzBindings: tdzBindings,
+            TdzIsConst: tdzIsConst));
 
         // Create ForInMoveNext instruction
         var moveNextIndex = ctx.Append(new ForInMoveNextInstruction(

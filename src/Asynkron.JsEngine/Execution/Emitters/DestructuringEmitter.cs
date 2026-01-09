@@ -98,10 +98,10 @@ internal static class DestructuringEmitter
 
         // Init instruction
         var initIndex = ctx.Append(new ArrayDestructuringInitInstruction(
-            sourceExpression,
             iteratorSymbol,
             iteratorSlotIndex,
-            currentNext));
+            currentNext,
+            SourceExpression: sourceExpression));
 
         entryIndex = initIndex;
         return true;

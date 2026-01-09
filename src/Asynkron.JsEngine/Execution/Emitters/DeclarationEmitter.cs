@@ -242,8 +242,8 @@ internal static class DeclarationEmitter
                 currentNext,
                 declaration.Kind,
                 targetSymbol!,
-                declarator.Initializer,
-                isScriptLevel));
+                Initializer: declarator.Initializer,
+                IsScriptLevel: isScriptLevel));
 
             currentNext = instructionIndex;
             if (i == 0)

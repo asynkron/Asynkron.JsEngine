@@ -105,24 +105,21 @@ public static partial class TypedAstEvaluator
             JsEnvironment environment,
             EvaluationContext context)
         {
-            // Capture existing slot count before InitializeSlots appends new slots.
-            // This offset is used to adjust IR slot indices at runtime for the GlobalEnvironment.
-            // IR uses 0-based indices, but GlobalEnvironment already has slots (Symbol.This at 0, etc.)
-            var existingSlotCount = environment.SlotCount;
-
-            // For scripts with synthetic variables (loop iterators, etc.), initialize slots
-            // even though user variables aren't slot-based. This enables slot-based access
-            // for internal variables like __forIn_value_X, __forOf_iter_X, etc.
-            if (plan.SlotCount > 0)
+            var irEnvironment = environment;
+            if (plan.SlotCount > 0 && environment.HasSlots)
             {
-                environment.InitializeSlots(plan.SlotCount, plan.RootScopeId);
-
-                // Populate slot metadata (names) from the plan at the offset position
-                // so they don't overwrite existing slot names (Symbol.This, etc.)
-                environment.PopulateSyntheticSlotNames(plan.SlotSymbols, existingSlotCount);
+                // Create child environment for IR slots to avoid clobbering GlobalEnvironment
+                irEnvironment = new JsEnvironment(environment, false, false, null, "ir-script-wrapper");
+                irEnvironment.InitializeSlots(plan.SlotCount, plan.RootScopeId);
+                irEnvironment.PopulateSyntheticSlotNames(plan.SlotSymbols);
+            }
+            else if (plan.SlotCount > 0)
+            {
+                irEnvironment.InitializeSlots(plan.SlotCount, plan.RootScopeId);
+                irEnvironment.PopulateSyntheticSlotNames(plan.SlotSymbols);
             }
 
-            var runner = new ExecutionPlanRunner(plan, environment, context, existingSlotCount);
+            var runner = new ExecutionPlanRunner(plan, irEnvironment, context, 0);
             return runner.RunScriptInternal();
         }
 

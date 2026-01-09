@@ -10,6 +10,7 @@ public sealed class Symbol : IEquatable<Symbol>
 {
     private static readonly ConcurrentDictionary<string, Symbol> Cache = new(StringComparer.Ordinal);
     private static int NextId;
+    private static int NextSyntheticId;
 
     public static readonly Symbol Undefined = Intern("undefined");
     public static readonly Symbol This = Intern("this");
@@ -69,6 +70,16 @@ public sealed class Symbol : IEquatable<Symbol>
         }
 
         return Cache.GetOrAdd(name, n => new Symbol(n));
+    }
+
+    /// <summary>
+    ///     Creates a globally unique synthetic symbol with the given prefix.
+    ///     Each call returns a new symbol even with the same prefix.
+    /// </summary>
+    public static Symbol Synthetic(string prefix)
+    {
+        var id = Interlocked.Increment(ref NextSyntheticId);
+        return Intern($"{prefix}_{id}");
     }
 
     public override bool Equals(object? obj)

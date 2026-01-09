@@ -41,10 +41,8 @@ internal static class DestructuringEmitter
             return false;
         }
 
-        var instructionStart = ctx.InstructionCount;
-
-        // Create iterator slot
-        var iteratorSymbol = Symbol.Intern($"__arrDestr_iter_{instructionStart}");
+        // Create iterator slot with globally unique symbol
+        var iteratorSymbol = Symbol.Synthetic("__arrDestr_iter");
         var iteratorSlotIndex = ctx.AllocateSlot(iteratorSymbol);
 
         // Build instruction chain bottom-up:

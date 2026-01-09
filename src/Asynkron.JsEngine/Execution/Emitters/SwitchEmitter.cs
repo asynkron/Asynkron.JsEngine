@@ -68,9 +68,11 @@ internal static class SwitchEmitter
         }
 
         var instructionStart = ctx.InstructionCount;
-        var discriminantSymbol = Symbol.Intern($"__switch_disc_{instructionStart}");
-        var matchIndexSymbol = Symbol.Intern($"__switch_match_{instructionStart}");
-        var doneSymbol = Symbol.Intern($"__switch_done_{instructionStart}");
+
+        // Use Synthetic() for globally unique symbols
+        var discriminantSymbol = Symbol.Synthetic("__switch_disc");
+        var matchIndexSymbol = Symbol.Synthetic("__switch_match");
+        var doneSymbol = Symbol.Synthetic("__switch_done");
 
         // Outer block statements (discriminant, match vars - these capture outer scope)
         var outerStatements = ImmutableArray.CreateBuilder<StatementNode>();

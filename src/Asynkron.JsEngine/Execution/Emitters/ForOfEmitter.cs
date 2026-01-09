@@ -50,12 +50,13 @@ internal static class ForOfEmitter
         // 7. IteratorInit -> EnterTry
 
         // Pre-create symbols and allocate slots for O(1) access
-        var iteratorSymbol = Symbol.Intern(iteratorPlan.Kind == IteratorDriverKind.Await
-            ? $"__forAwait_iter_{instructionStart}"
-            : $"__forOf_iter_{instructionStart}");
-        var valueSymbol = Symbol.Intern(iteratorPlan.Kind == IteratorDriverKind.Await
-            ? $"__forAwait_value_{instructionStart}"
-            : $"__forOf_value_{instructionStart}");
+        // Use Synthetic() for globally unique symbols (Intern + instructionStart is only unique per-plan)
+        var iteratorSymbol = Symbol.Synthetic(iteratorPlan.Kind == IteratorDriverKind.Await
+            ? "__forAwait_iter"
+            : "__forOf_iter");
+        var valueSymbol = Symbol.Synthetic(iteratorPlan.Kind == IteratorDriverKind.Await
+            ? "__forAwait_value"
+            : "__forOf_value");
 
         var iteratorSlotIndex = ctx.AllocateSlot(iteratorSymbol);
         var valueSlotIndex = ctx.AllocateSlot(valueSymbol);

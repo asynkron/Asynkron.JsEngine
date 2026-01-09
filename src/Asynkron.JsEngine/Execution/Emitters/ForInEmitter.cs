@@ -50,8 +50,9 @@ internal static class ForInEmitter
             : iteratorPlan.PerIterationBindings.ToImmutableHashSet(ReferenceEqualityComparer<Symbol>.Instance);
 
         // Pre-create symbols and allocate slots for O(1) access
-        var stateSymbol = Symbol.Intern($"__forIn_state_{instructionStart}");
-        var valueSymbol = Symbol.Intern($"__forIn_value_{instructionStart}");
+        // Use Synthetic() for globally unique symbols (Intern + instructionStart is only unique per-plan)
+        var stateSymbol = Symbol.Synthetic("__forIn_state");
+        var valueSymbol = Symbol.Synthetic("__forIn_value");
 
         var stateSlotIndex = ctx.AllocateSlot(stateSymbol);
         var valueSlotIndex = ctx.AllocateSlot(valueSymbol);

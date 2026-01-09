@@ -8,58 +8,21 @@ on:
   workflow_dispatch:
 
 jobs:
-  discover-tests:
+  build-and-test:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      test-classes: ${{ steps.discover.outputs.test-classes }}
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Discover test classes
-      id: discover
-      run: |
-        # Find all public classes in test files
-        # 1. Extract "public class ClassName" declarations
-        # 2. Extract just the class name (remove everything after class name)
-        # 3. Exclude base classes, fixtures, collections, and helpers
-        # 4. Convert to JSON array for matrix
-        classes=$(grep -rh "public class " tests/Asynkron.JsEngine.Tests/*.cs \
-          | sed 's/.*public class //' \
-          | cut -d' ' -f1 \
-          | cut -d'(' -f1 \
-          | cut -d':' -f1 \
-          | cut -d'<' -f1 \
-          | grep -vE "Base$|Fixture$|Collection$|Helper$" \
-          | sort -u \
-          | jq -R -s -c 'split("\n") | map(select(length > 0))')
-        echo "test-classes=$classes" >> $GITHUB_OUTPUT
-        echo "Discovered $(echo $classes | jq '. | length') test classes"
-
-  test:
-    needs: discover-tests
     permissions:
       contents: read
       checks: write
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      max-parallel: 10
-      matrix:
-        test-class: ${{ fromJson(needs.discover-tests.outputs.test-classes) }}
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '10.0.x'
-        
+
     - name: Cache NuGet packages
       uses: actions/cache@v4
       with:
@@ -67,58 +30,41 @@ jobs:
         key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
         restore-keys: |
           ${{ runner.os }}-nuget-
-        
-    - name: Restore and Build
-      run: |
-        dotnet restore tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj
-        dotnet build tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj --configuration Release --no-restore
 
-    - name: Test ${{ matrix.test-class }}
+    - name: Restore dependencies
+      run: dotnet restore tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj
+
+    - name: Build
+      run: dotnet build tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj --configuration Release --no-restore
+
+    - name: Run all tests
       run: |
         dotnet test tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj \
           --configuration Release \
           --no-build \
           --verbosity normal \
-          --filter "FullyQualifiedName~Tests.${{ matrix.test-class }}." \
-          --logger "trx;LogFileName=${{ matrix.test-class }}.trx" \
+          --logger "trx;LogFileName=test-results.trx" \
           --results-directory TestResults
-      
+
     - name: Upload test results
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: test-results-${{ matrix.test-class }}
+        name: test-results
         path: TestResults/*.trx
         retention-days: 7
-        
+
     - name: Publish test results
       uses: dorny/test-reporter@v1
       if: always()
       with:
-        name: ${{ matrix.test-class }}
+        name: Test Results
         path: 'TestResults/*.trx'
         reporter: dotnet-trx
         fail-on-error: true
 
-  test-summary:
-    needs: test
-    if: always()
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      checks: write
-    
-    steps:
-    - name: Download all test results
-      uses: actions/download-artifact@v4
-      with:
-        pattern: test-results-*
-        path: TestResults
-        merge-multiple: true
-        
-    - name: Summary
+    - name: Test Summary
+      if: always()
       run: |
         echo "## Test Summary" >> $GITHUB_STEP_SUMMARY
-        echo "All test class jobs have completed." >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "To retry a specific test class, go to the failed job and click 'Re-run jobs' > 'Re-run failed jobs'" >> $GITHUB_STEP_SUMMARY
+        echo "All tests have completed." >> $GITHUB_STEP_SUMMARY

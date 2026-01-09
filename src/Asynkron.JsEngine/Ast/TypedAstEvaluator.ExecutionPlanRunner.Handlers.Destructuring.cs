@@ -121,7 +121,7 @@ public static partial class TypedAstEvaluator
                     throw new ThrowSignal(thrown);
                 }
 
-                var typeError = StandardLibrary.CreateTypeError("Value is not iterable.", context, context.RealmState);
+                var typeError = StandardLibrary.CreateTypeError($"Cannot destructure non-iterable value.{context.GetSourceInfo()}", context, context.RealmState);
                 if (runner.HandleAbruptCompletion(AbruptKind.Throw, typeError))
                 {
                     returnValue = default;

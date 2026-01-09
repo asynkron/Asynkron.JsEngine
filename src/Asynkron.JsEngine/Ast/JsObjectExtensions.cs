@@ -2,7 +2,6 @@
 
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.StdLib;
-using Microsoft.Extensions.Logging;
 
 #endregion
 
@@ -104,18 +103,6 @@ public static partial class TypedAstEvaluator
     internal static void IteratorClose(this IJsObjectLike iterator, EvaluationContext context, bool preserveExistingThrow = false)
     {
         var savedSignal = preserveExistingThrow ? context.CurrentSignal : null;
-        context.RealmState.Logger?.LogInformation(
-            "IteratorClose enter preserveExistingThrow={Preserve} savedSignal={SavedSignalType} savedValueType={SavedValueType}",
-            preserveExistingThrow,
-            savedSignal?.GetType().Name ?? "null",
-            savedSignal switch
-            {
-                ThrowFlowCompletionSignal throwSignal => throwSignal.JsValue.GetType().Name,
-                BreakCompletionSignal => "Break",
-                ContinueCompletionSignal => "Continue",
-                PendingAwaitCompletionSignal => "PendingAwait",
-                _ => "null"
-            });
 
         // Per ES spec 7.4.7 IteratorClose: we need to temporarily clear any existing
         // completion to invoke return(), then restore it. The existing throw state
@@ -164,9 +151,6 @@ public static partial class TypedAstEvaluator
         {
             if (!closeResult.TryGetObject<IJsObjectLike>(out var returnObject))
             {
-                context.RealmState.Logger?.LogInformation(
-                    "IteratorClose return non-object preserveExistingThrow={Preserve}",
-                    preserveExistingThrow);
                 if (preserveExistingThrow)
                 {
                     context.RestoreSignal(savedSignal);
@@ -175,9 +159,6 @@ public static partial class TypedAstEvaluator
 
                 var typeError = StandardLibrary.CreateTypeError("Iterator.return() must return an object",
                     context, context.RealmState);
-                context.RealmState.Logger?.LogInformation(
-                    "IteratorClose throwing: kind={Kind}", typeError.Kind);
-                // Throw the error as a ThrowSignal so callers that catch ThrowSignal can handle it
                 throw new ThrowSignal(typeError);
             }
 
@@ -193,9 +174,6 @@ public static partial class TypedAstEvaluator
         }
         catch (ThrowSignal)
         {
-            context.RealmState.Logger?.LogInformation(
-                "IteratorClose caught ThrowSignal preserveExistingThrow={Preserve}",
-                preserveExistingThrow);
             if (preserveExistingThrow)
             {
                 context.RestoreSignal(savedSignal);
@@ -209,12 +187,6 @@ public static partial class TypedAstEvaluator
         {
             context.RestoreSignal(savedSignal);
         }
-
-        context.RealmState.Logger?.LogInformation(
-            "IteratorClose exit preserveExistingThrow={Preserve} currentSignal={SignalType} valueType={ValueType}",
-            preserveExistingThrow,
-            context.CurrentSignal?.GetType().Name ?? "null",
-            context.FlowValue.GetType().Name);
     }
 
     private static void DefineAccessorProperty(this JsObject obj, string name, IJsCallable? getter, IJsCallable? setter)

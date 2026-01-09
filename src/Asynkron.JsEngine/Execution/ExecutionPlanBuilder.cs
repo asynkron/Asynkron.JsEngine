@@ -236,6 +236,7 @@ internal sealed partial class ExecutionPlanBuilder
 
         var collector = new ScopeSlotCollector(Instructions, seedSlots, AllocateSlot, entryIndex, function);
         var analysis = collector.Collect();
+
         rewriter = new SlotAssignmentRewriter(analysis, targetRootScopeId, analysisRootScopeId);
         var slotMapper = new Func<int, int>(rewriter.MapScopeId);
         _lexicalBindings = analysis.LexicalBindings.ToDictionary(
@@ -596,11 +597,11 @@ internal sealed partial class ExecutionPlanBuilder
     }
 
     internal static StatementNode CreateIteratorBindingStatement(IteratorDriverPlan plan, Symbol valueSymbol,
-        int valueSlotIndex)
+        int valueSlotIndex, int rootScopeId)
     {
         // Stamp the identifier expression with slot info for O(1) access
-        // ScopeId = 0 means the function's primary scope where execution plan slots live
-        var valueExpression = new IdentifierExpression(plan.Body.Source, valueSymbol) { SlotIndex = valueSlotIndex, ScopeId = 0, ScopeDepth = 0 };
+        // Use the actual root scope ID from the execution context
+        var valueExpression = new IdentifierExpression(plan.Body.Source, valueSymbol) { SlotIndex = valueSlotIndex, ScopeId = rootScopeId, ScopeDepth = 0 };
         StatementNode bindingStatement;
 
         if (plan.DeclarationKind is null)

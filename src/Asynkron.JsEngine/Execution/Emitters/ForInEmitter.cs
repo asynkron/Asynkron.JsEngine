@@ -116,7 +116,7 @@ internal static class ForInEmitter
 
         // Build the loop body.
         // Create the binding statement for the loop variable
-        var bindingStatement = EmitContext.CreateIteratorBindingStatement(iteratorPlan, valueSymbol, valueSlotIndex);
+        var bindingStatement = ctx.CreateIteratorBindingStatement(iteratorPlan, valueSymbol, valueSlotIndex);
         var targetScopeId = iteratorPlan.IterationScopeId >= 0 ? iteratorPlan.IterationScopeId : -1;
 
         if (!LoopEmitterHelpers.TryBuildLoopBody(ctx, iteratorPlan, iteratorPlan.Body, bindingStatement,

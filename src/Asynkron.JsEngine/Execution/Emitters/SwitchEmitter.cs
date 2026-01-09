@@ -172,6 +172,11 @@ internal static class SwitchEmitter
         var initCompletionExpr = new IdentifierExpression(statement.Source, Symbol.Undefined);
         innerStatements.Add(new ExpressionStatement(statement.Source, initCompletionExpr));
 
+        // Set flag to prevent TryEmitIf from adding SetCompletionValueInstruction for case guards.
+        // This preserves completion values during fallthrough.
+        var previousSuppressFlag = ctx.SuppressIfCompletionReset;
+        ctx.SuppressIfCompletionReset = true;
+
         for (var caseIndex = 0; caseIndex < statement.Cases.Length; caseIndex++)
         {
             var switchCase = statement.Cases[caseIndex];
@@ -252,15 +257,17 @@ internal static class SwitchEmitter
 
             // Case bodies do NOT get their own block scope - but we need to wrap ALL statements
             // from this case in a SINGLE guard to preserve completion values during fallthrough.
-            // We cannot use IfStatement here because TryEmitIf adds SetCompletionValue instructions
-            // that reset the completion value, breaking fallthrough behavior.
-            // Instead, we lower to a synthetic if-like structure ourselves.
+            // With SuppressIfCompletionReset=true, TryEmitIf will NOT add SetCompletionValueInstruction,
+            // allowing completion values to flow through fallthrough cases correctly.
             if (execBuilder.Count > 0)
             {
                 var caseBlock = new BlockStatement(body.Source, execBuilder.ToImmutable(), body.IsStrict);
                 innerStatements.Add(new IfStatement(statement.Source, execCondition, caseBlock, null));
             }
         }
+
+        // Restore the suppress flag
+        ctx.SuppressIfCompletionReset = previousSuppressFlag;
 
         // Create inner block (switch scope) containing all case body statements
         var isStrict = statement.Cases.Length > 0 && statement.Cases[0].Body.IsStrict;

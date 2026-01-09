@@ -3583,6 +3583,23 @@ public sealed class JsEnvironment : IRentable
     }
 
     /// <summary>
+    /// Populates slot names for synthetic variables (internal loop iterators, etc.)
+    /// Used after InitializeSlots to set up slot metadata for TryValidateSlotTarget verification.
+    /// </summary>
+    internal void PopulateSyntheticSlotNames(ImmutableArray<Symbol> slotSymbols)
+    {
+        if (_slots is null || slotSymbols.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        for (var i = 0; i < slotSymbols.Length && i < _slots.Length; i++)
+        {
+            _slots[i] = new JsSlot(slotSymbols[i], JsValue.Undefined, SlotFlags.None);
+        }
+    }
+
+    /// <summary>
     /// Ensures the slot layout matches the expected plan layout.
     /// If the layoutId or capacity does not match, the slots are rebuilt.
     /// </summary>

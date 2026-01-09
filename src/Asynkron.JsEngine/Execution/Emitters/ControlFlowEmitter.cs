@@ -41,8 +41,10 @@ internal static class ControlFlowEmitter
         {
             if (IsEmptyBlock(statement.Else))
             {
-                // Empty block - set completion to undefined per ES spec
-                elseEntry = ctx.Append(new SetCompletionValueInstruction(nextIndex));
+                // Empty block - set completion to undefined per ES spec (unless suppressed)
+                elseEntry = ctx.SuppressIfCompletionReset
+                    ? nextIndex
+                    : ctx.Append(new SetCompletionValueInstruction(nextIndex));
             }
             else
             {
@@ -57,22 +59,30 @@ internal static class ControlFlowEmitter
                 // Per ES spec 14.6.2, if statement returns UpdateEmpty(stmtCompletion, undefined).
                 // Prepend SetCompletionValue to ensure abrupt completions (break/continue) that
                 // bypass normal control flow leave the completion value as undefined.
-                elseEntry = ctx.Append(new SetCompletionValueInstruction(elseBodyEntry));
+                // Skip if ctx.SuppressIfCompletionReset is true (used for switch case guards).
+                elseEntry = ctx.SuppressIfCompletionReset
+                    ? elseBodyEntry
+                    : ctx.Append(new SetCompletionValueInstruction(elseBodyEntry));
             }
         }
         else
         {
             // No else branch - per ES spec 14.6.2, if condition is false, the result is
             // NormalCompletion(undefined). This DOES update the script completion value.
-            elseEntry = ctx.Append(new SetCompletionValueInstruction(nextIndex));
+            // Skip if ctx.SuppressIfCompletionReset is true (switch case guards fall through if false).
+            elseEntry = ctx.SuppressIfCompletionReset
+                ? nextIndex
+                : ctx.Append(new SetCompletionValueInstruction(nextIndex));
         }
 
         // Build then branch
         int thenEntry;
         if (IsEmptyBlock(statement.Then))
         {
-            // Empty block - set completion to undefined per ES spec
-            thenEntry = ctx.Append(new SetCompletionValueInstruction(nextIndex));
+            // Empty block - set completion to undefined per ES spec (unless suppressed)
+            thenEntry = ctx.SuppressIfCompletionReset
+                ? nextIndex
+                : ctx.Append(new SetCompletionValueInstruction(nextIndex));
         }
         else
         {
@@ -87,7 +97,10 @@ internal static class ControlFlowEmitter
             // Per ES spec 14.6.2, if statement returns UpdateEmpty(stmtCompletion, undefined).
             // Prepend SetCompletionValue to ensure abrupt completions (break/continue) that
             // bypass normal control flow leave the completion value as undefined.
-            thenEntry = ctx.Append(new SetCompletionValueInstruction(thenBodyEntry));
+            // Skip if ctx.SuppressIfCompletionReset is true (used for switch case guards).
+            thenEntry = ctx.SuppressIfCompletionReset
+                ? thenBodyEntry
+                : ctx.Append(new SetCompletionValueInstruction(thenBodyEntry));
         }
 
         // Emit branch instruction

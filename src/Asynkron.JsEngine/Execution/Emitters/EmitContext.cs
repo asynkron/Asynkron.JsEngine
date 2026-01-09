@@ -43,6 +43,12 @@ internal sealed class EmitContext(
     public bool SuppressCompletionValue { get; set; }
 
     /// <summary>
+    /// When true, TryEmitIf will NOT prepend SetCompletionValueInstruction before branches.
+    /// Used for switch case guards to preserve completion values during fallthrough.
+    /// </summary>
+    public bool SuppressIfCompletionReset { get; set; }
+
+    /// <summary>
     /// Whether this plan is being built for a top-level script (not a function body).
     /// Script-level var declarations must update the global object.
     /// </summary>
@@ -223,10 +229,10 @@ internal sealed class EmitContext(
     /// <summary>
     /// Create iterator binding statement.
     /// </summary>
-    public static StatementNode CreateIteratorBindingStatement(IteratorDriverPlan plan, Symbol valueSymbol,
+    public StatementNode CreateIteratorBindingStatement(IteratorDriverPlan plan, Symbol valueSymbol,
         int valueSlotIndex)
     {
-        return ExecutionPlanBuilder.CreateIteratorBindingStatement(plan, valueSymbol, valueSlotIndex);
+        return ExecutionPlanBuilder.CreateIteratorBindingStatement(plan, valueSymbol, valueSlotIndex, _rootScopeId);
     }
 
     /// <summary>

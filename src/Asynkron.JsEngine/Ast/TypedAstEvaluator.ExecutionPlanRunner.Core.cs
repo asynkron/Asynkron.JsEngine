@@ -99,6 +99,20 @@ public static partial class TypedAstEvaluator
             JsEnvironment environment,
             EvaluationContext context)
         {
+            // For scripts with synthetic variables (loop iterators, etc.), initialize slots
+            // even though user variables aren't slot-based. This enables slot-based access
+            // for internal variables like __forIn_value_X, __forOf_iter_X, etc.
+            if (plan.SlotCount > 0)
+            {
+                environment.InitializeSlots(plan.SlotCount, plan.RootScopeId);
+
+                // Populate slot metadata (names) from the plan so TryValidateSlotTarget can verify them.
+                // We can't use DefineSlot here because it increments _slotCount,
+                // but we've already set the count via InitializeSlots.
+                // Instead, directly populate the slot names for validation.
+                environment.PopulateSyntheticSlotNames(plan.SlotSymbols);
+            }
+
             var runner = new ExecutionPlanRunner(plan, environment, context);
             return runner.RunScriptInternal();
         }

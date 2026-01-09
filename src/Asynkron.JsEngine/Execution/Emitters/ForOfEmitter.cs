@@ -107,7 +107,7 @@ internal static class ForOfEmitter
         // declaration. That causes TryBuildStatement(BlockStatement) to fall back to StatementInstruction
         // (HoistPlan.NeedsEnvironment) which prevents the IR loop machinery from handling break/continue
         // correctly. Build the binding statement and the user body as a straight instruction chain instead.
-        var bindingStatement = EmitContext.CreateIteratorBindingStatement(iteratorPlan, iteratorInstructions.ValueSlot,
+        var bindingStatement = ctx.CreateIteratorBindingStatement(iteratorPlan, iteratorInstructions.ValueSlot,
             iteratorInstructions.ValueSlotIndex);
         var targetScopeId = iteratorPlan.IterationScopeId >= 0 ? iteratorPlan.IterationScopeId : -1;
 

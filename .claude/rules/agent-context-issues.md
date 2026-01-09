@@ -43,7 +43,7 @@ What remains to be done
 
 1. **Keep AgentContext issues closed** - they're hidden from users but still readable/writable
 2. Create closed: `gh issue create --title "AgentContext: ..." --body "..." && gh issue close <id>`
-3. **Update immediately on new insights** - don't batch updates. Every significant finding, hypothesis, or discovery should be persisted right away. If the session crashes, the context should already contain the latest state.
+3. Update the issue body whenever significant findings emerge
 4. Keep it concise but complete - this is your memory across sessions
 5. Use `gh issue edit` to update the body, not comments
 6. Search for existing AgentContext issues before creating new ones:

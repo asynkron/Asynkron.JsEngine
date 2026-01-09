@@ -106,15 +106,14 @@ public static partial class TypedAstEvaluator
             EvaluationContext context)
         {
             var irEnvironment = environment;
-            if (plan.SlotCount > 0 && environment.HasSlots)
+            if (plan.SlotCount > 0)
             {
-                // Create child environment for IR slots to avoid clobbering GlobalEnvironment
-                irEnvironment = new JsEnvironment(environment, false, false, null, "ir-script-wrapper");
-                irEnvironment.InitializeSlots(plan.SlotCount, plan.RootScopeId);
-                irEnvironment.PopulateSyntheticSlotNames(plan.SlotSymbols);
-            }
-            else if (plan.SlotCount > 0)
-            {
+                if (environment.HasSlots)
+                {
+                    // Create child environment for IR slots to avoid clobbering GlobalEnvironment
+                    irEnvironment = new JsEnvironment(environment, false, false, null, "ir-script-wrapper");
+                }
+                
                 irEnvironment.InitializeSlots(plan.SlotCount, plan.RootScopeId);
                 irEnvironment.PopulateSyntheticSlotNames(plan.SlotSymbols);
             }

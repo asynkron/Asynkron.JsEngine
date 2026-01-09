@@ -98,8 +98,7 @@ internal static class ForInDriverStatePool
     public static ForInDriverState Rent()
     {
         var state = Pool.Rent();
-        // CRITICAL: Reset ALL state before use - pooled objects must be fully clean
-        state.OnRent(null);
+        // ObjectPool calls OnRent() which resets all state
         return state;
     }
 

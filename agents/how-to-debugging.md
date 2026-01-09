@@ -1,5 +1,51 @@
 # Debugging Aids
 
+## AST-Free Execution Assertion (DEBUG-only)
+
+The `EvaluationContext.AssertNoAstEvaluation` flag enables runtime detection of AST evaluation during IR-only execution paths. This helps ensure that bytecode/IR implementations are complete and don't fall back to AST interpretation.
+
+### Usage
+
+```csharp
+#if DEBUG
+// Enable assertion before execution
+var originalValue = EvaluationContext.AssertNoAstEvaluation;
+try
+{
+    EvaluationContext.AssertNoAstEvaluation = true;
+    
+    // Execute code - will throw if AST evaluation is triggered
+    await engine.Evaluate(program);
+}
+catch (InvalidOperationException ex)
+{
+    // AST evaluation was invoked during IR execution
+    Console.WriteLine(ex.Message);
+    // Example: "AST evaluation invoked for BinaryExpression during IR execution"
+}
+finally
+{
+    EvaluationContext.AssertNoAstEvaluation = originalValue;
+}
+#endif
+```
+
+### How It Works
+
+- Flag is checked in `ExpressionNode.EvaluateExpression()` and `StatementNode.EvaluateStatementJsValue()`
+- When enabled, throws `InvalidOperationException` with node type information
+- Only available in DEBUG builds (compiled out in RELEASE)
+- Used to validate IR/bytecode coverage as it increases
+
+### Testing
+
+See `tests/Asynkron.JsEngine.Tests/AstFreeExecutionAssertionTests.cs` for comprehensive examples:
+- Verifying assertion triggers on expressions and statements
+- Testing flag can be toggled during execution
+- Validating error messages include node type information
+
+Related to issues #398, #415, #364, #401 (IR-only execution epic).
+
 ## Realm Logger Assertions
 - Use `FakeLogger` (`Microsoft.Extensions.Logging.Testing`) with `JsEngineOptions { DebugMode = true, Logger = fakeLogger }`.
 - After running, inspect `fakeLogger.Collector.Snapshot()`.

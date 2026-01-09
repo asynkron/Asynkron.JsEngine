@@ -285,7 +285,15 @@ internal static class SwitchEmitter
         // switch cases) can resolve their targets during IR building. ContinueTarget is -1
         // because switch statements do not support continue.
         ctx.PushLoopScope(activeLabel, -1, breakableExitIndex, -1);
+
+        // IMPORTANT: Re-enable SuppressIfCompletionReset while emitting the lowered block.
+        // This prevents SetCompletionValueInstruction from being added after case body statements,
+        // which would reset completion values and break fallthrough semantics.
+        var savedSuppressFlag = ctx.SuppressIfCompletionReset;
+        ctx.SuppressIfCompletionReset = true;
         var bodyBuilt = ctx.TryBuildStatement(lowered, breakableExitIndex, out var switchBodyEntry, activeLabel);
+        ctx.SuppressIfCompletionReset = savedSuppressFlag;
+
         ctx.PopLoopScope();
 
         if (!bodyBuilt)

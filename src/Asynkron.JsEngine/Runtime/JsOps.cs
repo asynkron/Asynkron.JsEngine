@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
 
 #endregion
@@ -2160,5 +2161,149 @@ internal static class JsOps
         Symbol,
         BigInt,
         Object
+    }
+
+    // ============================================================================
+    // Property Access and Call Helpers (Task 2.3.2.2)
+    // ============================================================================
+
+    /// <summary>
+    /// Gets a property value from a target using a PropertyKey (string).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue GetProperty(JsValue target, string key, EvaluationContext? ctx = null)
+    {
+        if (!TryGetPropertyValue(target, key, out var value, ctx))
+        {
+            return JsValue.Undefined;
+        }
+
+        return value;
+    }
+
+    /// <summary>
+    /// Gets a property value from a target using a JsValue key (converted to PropertyKey).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue GetProperty(JsValue target, JsValue key, EvaluationContext? ctx = null)
+    {
+        if (!TryGetPropertyValueJsValue(target, key, out var value, ctx))
+        {
+            return JsValue.Undefined;
+        }
+
+        return value;
+    }
+
+    /// <summary>
+    /// Sets a property value on a target using a PropertyKey (string).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void SetProperty(JsValue target, string key, JsValue value, EvaluationContext? ctx = null)
+    {
+        AssignPropertyValueByNameJsValue(target, key, value);
+    }
+
+    /// <summary>
+    /// Deletes a property from a target using a PropertyKey (string).
+    /// Returns true if the property was successfully deleted or didn't exist, false otherwise.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool DeleteProperty(JsValue target, string key, EvaluationContext? ctx = null)
+    {
+        // Convert string key to JsValue for DeletePropertyValueJsValue
+        var keyValue = new JsValue(key);
+        return DeletePropertyValueJsValue(target, keyValue, ctx);
+    }
+
+    /// <summary>
+    /// Calls a function with the specified thisValue and arguments.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue Call(IJsCallable fn, JsValue thisValue, ReadOnlySpan<JsValue> args, EvaluationContext? ctx = null)
+    {
+        // Convert span to array for interface compatibility
+        var argsArray = args.ToArray();
+        
+        // Use the existing InvokeCallableJsValue pattern from TypedAstEvaluator
+        return fn switch
+        {
+            TypedAstEvaluator.SyncFunctionInvoker typedFunc => typedFunc.InvokeWithContext(argsArray, thisValue, ctx, JsValue.Undefined),
+            HostFunction hostFunc => hostFunc.InvokeWithContext(argsArray, thisValue, ctx, JsValue.Undefined),
+            _ => fn.Invoke(argsArray, thisValue)
+        };
+    }
+
+    /// <summary>
+    /// Constructs a new object using a constructor function and arguments.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue New(IJsCallable constructor, ReadOnlySpan<JsValue> args, EvaluationContext? ctx = null)
+    {
+        if (!IsConstructor(JsValue.FromObjectUnsafe(constructor)))
+        {
+            var error = StandardLibrary.CreateTypeError(
+                "Value is not a constructor",
+                ctx,
+                ctx?.RealmState);
+            if (ctx is not null)
+            {
+                ctx.SetThrow(error);
+                return JsValue.Undefined;
+            }
+            throw new ThrowSignal(error);
+        }
+
+        var argsArray = args.ToArray();
+        var realm = ctx?.RealmState ?? throw new InvalidOperationException("Realm is required for construction.");
+        
+        // Use ReflectHelper.Construct like in CallExpression evaluator
+        return ReflectHelper.Construct(constructor, argsArray, constructor, realm);
+    }
+
+    /// <summary>
+    /// Calls a method on a target object.
+    /// This is a convenience method that combines property access and function invocation.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue CallMethod(JsValue target, string method, ReadOnlySpan<JsValue> args, EvaluationContext? ctx = null)
+    {
+        // Get the method from the target
+        if (!TryGetPropertyValue(target, method, out var methodValue, ctx))
+        {
+            var error = StandardLibrary.CreateTypeError(
+                $"Method '{method}' does not exist on target",
+                ctx,
+                ctx?.RealmState);
+            if (ctx is not null)
+            {
+                ctx.SetThrow(error);
+                return JsValue.Undefined;
+            }
+            throw new ThrowSignal(error);
+        }
+
+        if (ctx?.IsThrow == true)
+        {
+            return JsValue.Undefined;
+        }
+
+        // Check if the method is callable
+        if (!methodValue.TryGetObject<IJsCallable>(out var callable))
+        {
+            var error = StandardLibrary.CreateTypeError(
+                $"Property '{method}' is not a function",
+                ctx,
+                ctx?.RealmState);
+            if (ctx is not null)
+            {
+                ctx.SetThrow(error);
+                return JsValue.Undefined;
+            }
+            throw new ThrowSignal(error);
+        }
+
+        // Call the method with target as thisValue
+        return Call(callable, target, args, ctx);
     }
 }

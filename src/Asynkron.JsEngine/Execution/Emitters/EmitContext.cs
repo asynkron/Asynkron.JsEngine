@@ -25,6 +25,13 @@ internal sealed class EmitContext(
     public int CurrentScopeId => _scopeStack.Count > 0 ? _scopeStack.Peek() : _rootScopeId;
 
     /// <summary>
+    /// Whether we're currently in a nested scope (e.g., per-iteration scope for for-of).
+    /// When true, additional slot allocations won't work correctly because the slot count
+    /// was pre-computed. Used to fall back to AST walking for complex patterns.
+    /// </summary>
+    public bool IsInNestedScope => _scopeStack.Count > 0;
+
+    /// <summary>
     /// Current number of instructions (used for rollback on failure).
     /// </summary>
     public int InstructionCount => instructions.Count;

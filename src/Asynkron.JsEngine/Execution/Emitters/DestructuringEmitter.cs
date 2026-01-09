@@ -26,6 +26,14 @@ internal static class DestructuringEmitter
         int nextIndex,
         out int entryIndex)
     {
+        // Don't emit destructuring IR when in a nested scope (e.g., per-iteration scope for for-of).
+        // The slot count was pre-computed and additional slot allocations won't work correctly.
+        if (ctx.IsInNestedScope)
+        {
+            entryIndex = -1;
+            return false;
+        }
+
         // Phase 1: Only handle simple cases
         if (!IsSimpleArrayBinding(binding))
         {

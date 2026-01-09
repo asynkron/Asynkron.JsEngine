@@ -117,14 +117,14 @@ public static partial class TypedAstEvaluator
                     throw new ThrowSignal(thrown);
                 }
 
-                var typeError = StandardLibrary.ThrowTypeError("Value is not iterable.", context, context.RealmState);
-                if (runner.HandleAbruptCompletion(AbruptKind.Throw, JsValue.FromObjectUnsafe(typeError)))
+                var typeError = StandardLibrary.CreateTypeError("Value is not iterable.", context, context.RealmState);
+                if (runner.HandleAbruptCompletion(AbruptKind.Throw, typeError))
                 {
                     returnValue = default;
                     return InstructionResult.Continue;
                 }
                 runner.TryCatchStateRef.TryStack.Clear();
-                throw new ThrowSignal(JsValue.FromObjectUnsafe(typeError));
+                throw new ThrowSignal(typeError);
             }
 
             // Create state object

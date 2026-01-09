@@ -54,6 +54,74 @@ public sealed class DestructuringIteratorTests(ITestOutputHelper output) : Inter
         Assert.Equal("Error", thrownName);
     }
 
+    [Fact]
+    public async Task DeletedArrayIteratorThrowsTypeError()
+    {
+        // This mimics Test262's ary-init-iter-get-err-array-prototype.js test
+        await using var engine = CreateEngine();
+
+        var ex = await Assert.ThrowsAsync<ThrowSignal>(() => engine.Evaluate("""
+            delete Array.prototype[Symbol.iterator];
+            var [x, y, z] = [1, 2, 3];
+            """));
+
+        // Check that it's a TypeError with proper properties
+        string? thrownName = null;
+        string? message = null;
+        if (ex.ThrownValue.TryGetObject<JsObject>(out var obj))
+        {
+            if (obj.TryGetProperty("name", out var nameVal))
+            {
+                thrownName = JsOps.ToJsString(JsValue.FromObjectUnsafe(nameVal.ToObject()), null);
+            }
+            if (obj.TryGetProperty("message", out var msgVal))
+            {
+                message = JsOps.ToJsString(JsValue.FromObjectUnsafe(msgVal.ToObject()), null);
+            }
+        }
+
+        Output.WriteLine($"Error name: {thrownName}");
+        Output.WriteLine($"Error message: {message}");
+        Output.WriteLine($"ThrownValue kind: {ex.ThrownValue.Kind}");
+        Output.WriteLine($"ThrownValue.ObjectValue type: {ex.ThrownValue.ObjectValue?.GetType().Name ?? "null"}");
+
+        Assert.Equal("TypeError", thrownName);
+    }
+
+    [Fact]
+    public async Task DeletedArrayIteratorInForLoopThrowsTypeError()
+    {
+        // This mimics Test262's for loop version
+        await using var engine = CreateEngine();
+
+        var ex = await Assert.ThrowsAsync<ThrowSignal>(() => engine.Evaluate("""
+            delete Array.prototype[Symbol.iterator];
+            for (var [x, y, z] = [1, 2, 3]; false; ) { }
+            """));
+
+        // Check that it's a TypeError with proper properties
+        string? thrownName = null;
+        string? message = null;
+        if (ex.ThrownValue.TryGetObject<JsObject>(out var obj))
+        {
+            if (obj.TryGetProperty("name", out var nameVal))
+            {
+                thrownName = JsOps.ToJsString(JsValue.FromObjectUnsafe(nameVal.ToObject()), null);
+            }
+            if (obj.TryGetProperty("message", out var msgVal))
+            {
+                message = JsOps.ToJsString(JsValue.FromObjectUnsafe(msgVal.ToObject()), null);
+            }
+        }
+
+        Output.WriteLine($"Error name: {thrownName}");
+        Output.WriteLine($"Error message: {message}");
+        Output.WriteLine($"ThrownValue kind: {ex.ThrownValue.Kind}");
+        Output.WriteLine($"ThrownValue.ObjectValue type: {ex.ThrownValue.ObjectValue?.GetType().Name ?? "null"}");
+
+        Assert.Equal("TypeError", thrownName);
+    }
+
     [Theory]
     [InlineData("0, [ x ] = iterable;", 1, 0)]
     [InlineData("0, [...x] = iterable;", 1, 0)]

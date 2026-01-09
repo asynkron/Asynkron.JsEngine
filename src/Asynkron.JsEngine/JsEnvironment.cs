@@ -514,7 +514,7 @@ public sealed class JsEnvironment : IRentable
     void IRentable.OnReturn(ILogger? logger)
     {
         logger?.LogInformation("JsEnvironment.Reset description={Description}", _description);
-       // JsSlotArrayPool.Return(_slots); //<- only if we also Rent in OnRent
+        // JsSlotArrayPool.Return(_slots); //<- only if we also Rent in OnRent
         //TODO: anything else?
     }
 

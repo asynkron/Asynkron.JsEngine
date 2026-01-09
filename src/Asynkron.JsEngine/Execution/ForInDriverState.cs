@@ -62,7 +62,7 @@ internal sealed class ForInDriverState : IRentable, IAsJsValue
     /// <summary>
     /// Called when state is rented from pool.
     /// </summary>
-    public void OnRent(ILogger? logger=null)
+    public void OnRent(ILogger? logger = null)
     {
         logger?.LogInformation("ForInDriverState.Activate");
         PropertyKeys.Clear();

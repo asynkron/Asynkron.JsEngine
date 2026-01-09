@@ -11,7 +11,7 @@ namespace Asynkron.JsEngine.Tests;
 [Category(TestCategories.ScopeAnalysis)]
 public sealed class DebugScopeTests(ITestOutputHelper output) : InternalTestBase(output)
 {
-    [Fact(Skip = "Bug #481: ReferenceError undefined is not defined")]
+    [Fact]
     public async Task Step1_ProbeBeforeSimple()
     {
         await using var engine = CreateEngine();
@@ -23,7 +23,7 @@ public sealed class DebugScopeTests(ITestOutputHelper output) : InternalTestBase
         Assert.Equal(1d, result);
     }
 
-    [Fact(Skip = "Bug #481: ReferenceError undefined is not defined")]
+    [Fact]
     public async Task Step2_ProbeBeforeWithForOf()
     {
         await using var engine = CreateEngine();
@@ -36,7 +36,7 @@ public sealed class DebugScopeTests(ITestOutputHelper output) : InternalTestBase
         Assert.Equal(1d, result);
     }
 
-    [Fact(Skip = "Bug #481: ReferenceError undefined is not defined")]
+    [Fact]
     public async Task Step3_ProbeBeforeWithEvalInForOf()
     {
         await using var engine = CreateEngine();
@@ -49,7 +49,7 @@ public sealed class DebugScopeTests(ITestOutputHelper output) : InternalTestBase
         Assert.Equal(2d, result);
     }
 
-    [Fact(Skip = "Bug #481: ReferenceError undefined is not defined")]
+    [Fact]
     public async Task Step4_ProbeExprWithEvalInForOf()
     {
         await using var engine = CreateEngine();
@@ -62,7 +62,7 @@ public sealed class DebugScopeTests(ITestOutputHelper output) : InternalTestBase
         Assert.Equal(1d, result);
     }
 
-    [Fact(Skip = "Bug #481: ReferenceError undefined is not defined")]
+    [Fact]
     public async Task Step5_BothProbesWithEval()
     {
         await using var engine = CreateEngine();
@@ -75,7 +75,7 @@ public sealed class DebugScopeTests(ITestOutputHelper output) : InternalTestBase
         Assert.Equal(2d, result);
     }
 
-    [Fact(Skip = "Bug #481: ReferenceError undefined is not defined")]
+    [Fact]
     public async Task Step6_DestructuringDefaultWithClosure()
     {
         // The key difference: closure in destructuring DEFAULT, not just in the array
@@ -90,7 +90,7 @@ public sealed class DebugScopeTests(ITestOutputHelper output) : InternalTestBase
         Assert.Equal(1d, result);
     }
 
-    [Fact(Skip = "Bug #481: ReferenceError undefined is not defined")]
+    [Fact]
     public async Task Step7_DestructuringDefaultWithEval()
     {
         // Closure in destructuring default WITH eval in iterable
@@ -104,7 +104,7 @@ public sealed class DebugScopeTests(ITestOutputHelper output) : InternalTestBase
         Assert.Equal(2d, result);
     }
 
-    [Fact(Skip = "Bug #481: ReferenceError undefined is not defined")]
+    [Fact]
     public async Task Step8_FullTest()
     {
         // Full test - exactly like the failing test

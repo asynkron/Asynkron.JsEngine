@@ -1,5 +1,6 @@
 #region
 
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -693,6 +694,14 @@ public readonly struct JsValue : IEquatable<JsValue>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static JsValue FromObjectUnsafe(object? value)
     {
+        // DEBUG: Catch internal signal types that should NEVER be wrapped as JsValue.
+        // These are control flow signals, not JavaScript values.
+        // Common mistake: Using ThrowTypeError() (returns ThrowSignal) instead of CreateTypeError() (returns JsValue).
+        Debug.Assert(value is not ThrowSignal,
+            "ThrowSignal should not be wrapped as JsValue. Use StandardLibrary.CreateTypeError() instead of ThrowTypeError().");
+        Debug.Assert(value is not ICompletionSignal,
+            "ICompletionSignal types (Break/Continue/Throw/Yield/Await signals) should not be wrapped as JsValue.");
+
         // Check for JsEnvironment.Uninitialized sentinel before the switch
         if (ReferenceEquals(value, JsEnvironment.Uninitialized))
         {

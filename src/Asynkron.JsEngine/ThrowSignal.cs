@@ -1,5 +1,6 @@
 #region
 
+using System.Diagnostics;
 using Asynkron.JsEngine.Runtime;
 
 #endregion
@@ -11,9 +12,24 @@ namespace Asynkron.JsEngine;
 ///     Within the evaluator, throws are managed via EvaluationContext state machine.
 ///     This exception is thrown when a throw escapes a function boundary or reaches the top level.
 /// </summary>
-public sealed class ThrowSignal(JsValue thrownValue) : Exception(FormatThrowMessage(thrownValue))
+public sealed class ThrowSignal : Exception
 {
-    public JsValue ThrownValue { get; } = thrownValue;
+    public JsValue ThrownValue { get; }
+
+    public ThrowSignal(JsValue thrownValue) : base(FormatThrowMessage(thrownValue))
+    {
+        // DEBUG: Validate that the thrown value is properly formed.
+        // A common mistake is passing a ThrowSignal wrapped as JsValue instead of the actual error object.
+        // This catches cases like using ThrowTypeError() (returns ThrowSignal) vs CreateTypeError() (returns JsValue).
+        Debug.Assert(
+            thrownValue.Kind != JsValueKind.Object || thrownValue.ObjectValue is not ThrowSignal,
+            "ThrowSignal should not contain another ThrowSignal. Use CreateTypeError() instead of ThrowTypeError().");
+        Debug.Assert(
+            thrownValue.Kind != JsValueKind.Object || thrownValue.ObjectValue is not ICompletionSignal,
+            "ThrowSignal should not contain ICompletionSignal. The thrown value should be a JavaScript error object.");
+
+        ThrownValue = thrownValue;
+    }
 
     private static string FormatThrowMessage(JsValue thrownValue)
     {

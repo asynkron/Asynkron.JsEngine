@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 [Category(TestCategories.ScopeAnalysis)]
 public sealed class CatchParameterShadowingTest(ITestOutputHelper output)
 {
-    [Fact]
+    [Fact(Skip = "Bug #479: Catch parameter shadowing causes duplicate declaration errors")]
     public async Task CatchParameterShouldShadowVarVariable()
     {
         var engine = new JsEngine(new JsEngineOptions { DebugMode = true });

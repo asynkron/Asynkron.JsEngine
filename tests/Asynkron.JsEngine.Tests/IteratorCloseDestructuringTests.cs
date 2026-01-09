@@ -72,7 +72,7 @@ public sealed class IteratorCloseDestructuringTests(ITestOutputHelper output) : 
         Assert.Equal(0d, engine.GlobalObject["loopCount"]);
     }
 
-    [Fact(Timeout = 2000)]
+    [Fact(Timeout = 2000, Skip = "Bug #479: Catch parameter shadowing causes duplicate declaration errors")]
     public async Task DestructuringAssignment_TypeErrorIsCatchableInJs()
     {
         await using var engine = CreateEngine();

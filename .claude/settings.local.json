@@ -14,7 +14,6 @@
       "mcp__rider__find_files_by_name_keyword",
       "Bash(git worktree add:*)",
       "Bash(git add:*)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nConsolidate completion signals and extract BuildSlotMap helper\n\n- Merge 7 completion signal files into single CompletionSignals.cs\n  \\(ICompletionSignal, BreakCompletionSignal, ContinueCompletionSignal,\n  ReturnCompletionSignal, ThrowFlowCompletionSignal, YieldCompletionSignal,\n  PendingAwaitCompletionSignal\\)\n- Extract BuildSlotMap helper to EmitContext.cs to eliminate duplication\n  between LoopEmitter and ForOfEmitter\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git push:*)",
       "Bash(gh pr create:*)",
       "Bash(gh pr merge:*)"

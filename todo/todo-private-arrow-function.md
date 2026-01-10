@@ -1,6 +1,0 @@
-## Findings (private fields + arrow functions)
-
-- Fast-path invocations in `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs` (`InvokeSimpleFast*` / `InvokeSimpleFastCore*`, e.g. around lines 1890–2260) never enter `EvaluationContext.EnterPrivateNameScope` or `EnterPrivateNameScopes`, so the private name scope stack stays empty during fast-path execution.
-- When a class method (or any function) is eligible for the fast path and creates an inner arrow function that touches `#private` fields, the arrow captures an empty private-scope list; later property access (`this.#count`) resolves with no scope and fails to find the brand.
-- The fast-path gate `_canUseFastPathBase` is only flipped to false when `SetPrivateNameScope` / `SetCapturedPrivateNameScopes` are called. If a function still hits the fast path (e.g., private scopes not captured or `_canUseFastPathBase` stays true), it will run without private scopes, causing the above failure.
-- Current repro test is `tests/Asynkron.JsEngine.Tests/PrivateFieldsTests.cs::PrivateField_ArrowFunction_DebugTest` (cases 2b–4 cover arrow + private field); local test run was interrupted before completion (long-running), so failure output still needs confirmation.

@@ -1534,9 +1534,14 @@ internal static class GeneratorYieldLowerer
         /// <summary>
         /// Lowers an array binding pattern with yield defaults into explicit iterator operations.
         /// </summary>
+        /// <param name="arrayBinding">The array binding pattern to lower.</param>
+        /// <param name="varKind">The variable kind for declarations, or null for assignment context.</param>
+        /// <param name="sourceSymbol">The source value symbol.</param>
+        /// <param name="statements">The statement builder to add lowered statements to.</param>
+        /// <param name="isStrict">Whether this is in strict mode.</param>
         private bool TryLowerArrayBindingWithYieldDefaults(
             ArrayBinding arrayBinding,
-            VariableKind varKind,
+            VariableKind? varKind,
             IdentifierBinding sourceSymbol,
             ImmutableArray<StatementNode>.Builder statements,
             bool isStrict)
@@ -1665,9 +1670,14 @@ internal static class GeneratorYieldLowerer
         /// <summary>
         /// Lowers an object binding pattern with yield defaults.
         /// </summary>
+        /// <param name="objectBinding">The object binding pattern to lower.</param>
+        /// <param name="varKind">The variable kind for declarations, or null for assignment context.</param>
+        /// <param name="sourceSymbol">The source value symbol.</param>
+        /// <param name="statements">The statement builder to add lowered statements to.</param>
+        /// <param name="isStrict">Whether this is in strict mode.</param>
         private bool TryLowerObjectBindingWithYieldDefaults(
             ObjectBinding objectBinding,
-            VariableKind varKind,
+            VariableKind? varKind,
             IdentifierBinding sourceSymbol,
             ImmutableArray<StatementNode>.Builder statements,
             bool isStrict)
@@ -1727,11 +1737,18 @@ internal static class GeneratorYieldLowerer
         ///   if (__val === undefined) { targetName = yield expr; } else { targetName = __val; }
         /// Otherwise, generates:
         ///   let targetName = __val === undefined ? defaultExpr : __val;
+        /// For assignment context (varKind is null), uses assignment instead of declaration.
         /// </summary>
+        /// <param name="target">The binding target.</param>
+        /// <param name="defaultValue">Optional default value expression.</param>
+        /// <param name="varKind">The variable kind for declarations, or null for assignment context.</param>
+        /// <param name="valueSymbol">The symbol holding the value to destructure.</param>
+        /// <param name="statements">The statement builder.</param>
+        /// <param name="isStrict">Whether in strict mode.</param>
         private bool TryLowerBindingTargetWithOptionalDefault(
             BindingTarget target,
             ExpressionNode? defaultValue,
-            VariableKind varKind,
+            VariableKind? varKind,
             IdentifierBinding valueSymbol,
             ImmutableArray<StatementNode>.Builder statements,
             bool isStrict)
@@ -1817,21 +1834,38 @@ internal static class GeneratorYieldLowerer
         /// <summary>
         /// Lowers an identifier binding with an optional default value.
         /// </summary>
+        /// <param name="identifierBinding">The identifier to bind to.</param>
+        /// <param name="defaultValue">Optional default value expression.</param>
+        /// <param name="varKind">The variable kind for declarations, or null for assignment context.</param>
+        /// <param name="valueSymbol">The symbol holding the source value.</param>
+        /// <param name="statements">The statement builder.</param>
+        /// <param name="isStrict">Whether in strict mode.</param>
         private bool TryLowerIdentifierBindingWithDefault(
             IdentifierBinding identifierBinding,
             ExpressionNode? defaultValue,
-            VariableKind varKind,
+            VariableKind? varKind,
             IdentifierBinding valueSymbol,
             ImmutableArray<StatementNode>.Builder statements,
             bool isStrict)
         {
+            // Assignment context (varKind is null): use assignment expressions instead of declarations
+            if (varKind is null)
+            {
+                return TryLowerIdentifierBindingWithDefaultAssignment(
+                    identifierBinding,
+                    defaultValue,
+                    valueSymbol,
+                    statements,
+                    isStrict);
+            }
+
             if (defaultValue is null)
             {
                 // No default: just assign the value
                 // let targetName = __val;
                 statements.Add(new VariableDeclaration(
                     null,
-                    varKind,
+                    varKind.Value,
                     [new VariableDeclarator(
                         null,
                         identifierBinding,
@@ -1855,7 +1889,7 @@ internal static class GeneratorYieldLowerer
 
                 statements.Add(new VariableDeclaration(
                     null,
-                    varKind,
+                    varKind.Value,
                     [new VariableDeclarator(null, identifierBinding, conditional)]));
                 return true;
             }
@@ -1868,6 +1902,62 @@ internal static class GeneratorYieldLowerer
                 VariableKind.Let,
                 [new VariableDeclarator(null, identifierBinding, null)]));
 
+            // if (__val === undefined) { targetName = yield expr; } else { targetName = __val; }
+            return EmitYieldDefaultConditional(
+                identifierBinding,
+                defaultValue,
+                valueSymbol,
+                statements,
+                isStrict);
+        }
+
+        /// <summary>
+        /// Lowers an identifier binding with default in assignment context (no new declaration).
+        /// </summary>
+        private bool TryLowerIdentifierBindingWithDefaultAssignment(
+            IdentifierBinding identifierBinding,
+            ExpressionNode? defaultValue,
+            IdentifierBinding valueSymbol,
+            ImmutableArray<StatementNode>.Builder statements,
+            bool isStrict)
+        {
+            if (defaultValue is null)
+            {
+                // No default: just assign the value
+                // targetName = __val;
+                statements.Add(new ExpressionStatement(
+                    null,
+                    new AssignmentExpression(
+                        null,
+                        identifierBinding.Name,
+                        new IdentifierExpression(null, valueSymbol.Name))));
+                return true;
+            }
+
+            if (!AstShapeAnalyzer.ContainsYield(defaultValue))
+            {
+                // No yield in default: use conditional expression
+                // targetName = __val === undefined ? defaultExpr : __val;
+                var conditional = new ConditionalExpression(
+                    null,
+                    new BinaryExpression(
+                        null,
+                        BinaryOperator.StrictEqual,
+                        new IdentifierExpression(null, valueSymbol.Name),
+                        new IdentifierExpression(null, Symbol.Intern("undefined"))),
+                    defaultValue,
+                    new IdentifierExpression(null, valueSymbol.Name));
+
+                statements.Add(new ExpressionStatement(
+                    null,
+                    new AssignmentExpression(
+                        null,
+                        identifierBinding.Name,
+                        conditional)));
+                return true;
+            }
+
+            // Has yield in default: use if statement (no declaration needed - variable already exists)
             // if (__val === undefined) { targetName = yield expr; } else { targetName = __val; }
             return EmitYieldDefaultConditional(
                 identifierBinding,
@@ -2328,14 +2418,17 @@ internal static class GeneratorYieldLowerer
         }
 
         /// <summary>
-        ///     Rewrites for-of/for-await-of statements that have yields in the binding target's default values.
-        ///     Example: for await ([ x = yield ] of [[]])
-        ///     Becomes:
-        ///       for await (let __iterTemp of [[]]) {
-        ///         let __yield0 = yield;
-        ///         let [x = __yield0] = __iterTemp;
+        ///     Rewrites for-of/for-await-of statements that have yields in the binding target.
+        ///     For yields in default values (e.g., for (let [x = yield 1] of iter)):
+        ///       for (let __iterTemp of iter) {
+        ///         let __iter = __iterTemp[Symbol.iterator]();
+        ///         let __next0 = __iter.next();
+        ///         let __val0 = __next0.done ? undefined : __next0.value;
+        ///         let x;
+        ///         if (__val0 === undefined) { x = yield 1; } else { x = __val0; }
         ///         // original body
         ///       }
+        ///     For yields in non-default positions, yields are extracted to prefix statements.
         /// </summary>
         private bool TryRewriteForEachWithYield(
             StatementNode statement,
@@ -2355,16 +2448,7 @@ internal static class GeneratorYieldLowerer
                 return false;
             }
 
-            // If yields are in default values, we CANNOT safely extract them.
-            // Default values are only evaluated if the element is undefined, so extracting them
-            // would change when the yield happens relative to iterator operations.
-            // Let AST evaluation handle this case via BindArrayPattern's state-saving mechanism.
-            if (AstShapeAnalyzer.BindingTargetContainsYieldInDefaultValue(forEachStatement.Target))
-            {
-                return false;
-            }
-
-            // If yields are in assignment target expressions (like [ ...{}[yield] ]), we also
+            // If yields are in assignment target expressions (like [ ...{}[yield] ]), we
             // cannot extract them. The yield must happen AFTER the for-of's outer iterator
             // begins so that iterator close semantics work correctly.
             if (BindingTargetContainsYieldInAssignmentTarget(forEachStatement.Target))
@@ -2372,50 +2456,106 @@ internal static class GeneratorYieldLowerer
                 return false;
             }
 
-            // Create a temporary identifier for the iteration value
-            var iterTemp = CreateResumeIdentifier();
+            // Check if yields are in default values - requires full destructuring lowering
+            var hasYieldInDefaults = AstShapeAnalyzer.BindingTargetContainsYieldInDefaultValue(forEachStatement.Target);
 
-            // Extract yields from the binding target and rewrite the target
-            var prefixStatements = ImmutableArray.CreateBuilder<StatementNode>();
-            var changed = false;
-            var rewrittenTarget = RewriteBindingTarget(forEachStatement.Target, prefixStatements, ref changed);
-
-            if (!changed)
+            // For for-of loops, we can't safely lower nested binding patterns (ArrayBinding/ObjectBinding)
+            // that have yields in their defaults, because the iterator close semantics are complex.
+            // When generator.return() is called while suspended at a yield, both the for-of iterator
+            // AND any nested destructuring iterators need to be closed properly.
+            // The AST evaluation path handles this correctly via state-saving.
+            // Example: for ([ {} = yield ] of [iterable]) - the {} creates a nested iterator
+            if (hasYieldInDefaults && BindingHasNestedPatternWithYieldInDefault(forEachStatement.Target))
             {
                 return false;
             }
 
-            // Build the new loop body:
-            // 1. Prefix statements (yield extractions)
-            // 2. Destructuring assignment from temp to original target
-            // 3. Original body
+            // Create a temporary identifier for the iteration value
+            var iterTemp = CreateResumeIdentifier();
+
+            // Build the new loop body statements
             var newBodyStatements = ImmutableArray.CreateBuilder<StatementNode>();
 
-            // Add the prefix statements that extract yields
-            newBodyStatements.AddRange(prefixStatements);
-
-            // Add destructuring assignment: let [x = __yield0] = __iterTemp;
-            // or for non-declaration for-of: [x = __yield0] = __iterTemp;
-            if (forEachStatement.DeclarationKind is not null)
+            if (hasYieldInDefaults)
             {
-                // For 'for (let/const/var [x = yield] of ...)' - use variable declaration
-                var destructuringDeclarator = new VariableDeclarator(
-                    forEachStatement.Source,
-                    rewrittenTarget,
-                    new IdentifierExpression(forEachStatement.Source, iterTemp.Name));
-                newBodyStatements.Add(new VariableDeclaration(
-                    forEachStatement.Source,
-                    forEachStatement.DeclarationKind.Value,
-                    [destructuringDeclarator]));
+                // For yields in defaults, we need to fully lower the destructuring using
+                // the same approach as TryRewriteDestructuringWithYieldDefaults.
+                // This generates explicit iterator/property access with conditional yields.
+                // Pass null for varKind when this is an assignment (non-declaration) for-of,
+                // so that TryLowerIdentifierBindingWithDefault uses assignment instead of declaration.
+                var varKind = forEachStatement.DeclarationKind;
+
+                switch (forEachStatement.Target)
+                {
+                    case ArrayBinding arrayBinding:
+                        if (!TryLowerArrayBindingWithYieldDefaults(
+                                arrayBinding,
+                                varKind,
+                                iterTemp,
+                                newBodyStatements,
+                                isStrict))
+                        {
+                            return false;
+                        }
+
+                        break;
+
+                    case ObjectBinding objectBinding:
+                        if (!TryLowerObjectBindingWithYieldDefaults(
+                                objectBinding,
+                                varKind,
+                                iterTemp,
+                                newBodyStatements,
+                                isStrict))
+                        {
+                            return false;
+                        }
+
+                        break;
+
+                    default:
+                        // IdentifierBinding with yield in default is not possible
+                        return false;
+                }
             }
             else
             {
-                // For 'for ([x = yield] of ...)' - use destructuring assignment expression
-                var destructuringAssignment = new DestructuringAssignmentExpression(
-                    forEachStatement.Source,
-                    rewrittenTarget,
-                    new IdentifierExpression(forEachStatement.Source, iterTemp.Name));
-                newBodyStatements.Add(new ExpressionStatement(forEachStatement.Source, destructuringAssignment));
+                // Extract yields from the binding target and rewrite the target
+                var prefixStatements = ImmutableArray.CreateBuilder<StatementNode>();
+                var changed = false;
+                var rewrittenTarget = RewriteBindingTarget(forEachStatement.Target, prefixStatements, ref changed);
+
+                if (!changed)
+                {
+                    return false;
+                }
+
+                // Add the prefix statements that extract yields
+                newBodyStatements.AddRange(prefixStatements);
+
+                // Add destructuring assignment: let [x = __yield0] = __iterTemp;
+                // or for non-declaration for-of: [x = __yield0] = __iterTemp;
+                if (forEachStatement.DeclarationKind is not null)
+                {
+                    // For 'for (let/const/var [x = yield] of ...)' - use variable declaration
+                    var destructuringDeclarator = new VariableDeclarator(
+                        forEachStatement.Source,
+                        rewrittenTarget,
+                        new IdentifierExpression(forEachStatement.Source, iterTemp.Name));
+                    newBodyStatements.Add(new VariableDeclaration(
+                        forEachStatement.Source,
+                        forEachStatement.DeclarationKind.Value,
+                        [destructuringDeclarator]));
+                }
+                else
+                {
+                    // For 'for ([x = yield] of ...)' - use destructuring assignment expression
+                    var destructuringAssignment = new DestructuringAssignmentExpression(
+                        forEachStatement.Source,
+                        rewrittenTarget,
+                        new IdentifierExpression(forEachStatement.Source, iterTemp.Name));
+                    newBodyStatements.Add(new ExpressionStatement(forEachStatement.Source, destructuringAssignment));
+                }
             }
 
             // Add the original body
@@ -2541,6 +2681,65 @@ internal static class GeneratorYieldLowerer
 
                 default:
                     // IdentifierBinding doesn't have expressions
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// Checks if a binding target has nested patterns (ArrayBinding/ObjectBinding) where
+        /// the element or property has a yield in its default value.
+        /// Example: [ {} = yield ] - the {} is an ObjectBinding with a yield default
+        /// These cases are complex for iterator close semantics in for-of loops and should
+        /// fall back to AST evaluation.
+        /// </summary>
+        private static bool BindingHasNestedPatternWithYieldInDefault(BindingTarget target)
+        {
+            switch (target)
+            {
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
+                    {
+                        // Check if this element has a nested pattern with yield in default
+                        if (element.Target is (ArrayBinding or ObjectBinding) &&
+                            element.DefaultValue is not null &&
+                            AstShapeAnalyzer.ContainsYield(element.DefaultValue))
+                        {
+                            return true;
+                        }
+
+                        // Recursively check nested bindings
+                        if (element.Target is not null && BindingHasNestedPatternWithYieldInDefault(element.Target))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return arrayBinding.RestElement is not null &&
+                        BindingHasNestedPatternWithYieldInDefault(arrayBinding.RestElement);
+
+                case ObjectBinding objectBinding:
+                    foreach (var prop in objectBinding.Properties)
+                    {
+                        // Check if this property has a nested pattern with yield in default
+                        if (prop.Target is (ArrayBinding or ObjectBinding) &&
+                            prop.DefaultValue is not null &&
+                            AstShapeAnalyzer.ContainsYield(prop.DefaultValue))
+                        {
+                            return true;
+                        }
+
+                        // Recursively check nested bindings
+                        if (BindingHasNestedPatternWithYieldInDefault(prop.Target))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return objectBinding.RestElement is not null &&
+                        BindingHasNestedPatternWithYieldInDefault(objectBinding.RestElement);
+
+                default:
+                    // IdentifierBinding and AssignmentTargetBinding don't have nested patterns
                     return false;
             }
         }

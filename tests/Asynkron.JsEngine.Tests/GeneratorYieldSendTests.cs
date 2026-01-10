@@ -289,4 +289,190 @@ public sealed class GeneratorYieldSendTests(ITestOutputHelper output) : Internal
         Assert.Equal("middle", captured.Items[1].AsString()); // b
         Assert.Equal("CCC", captured.Items[2].AsString());    // c
     }
+
+    /// <summary>
+    /// Test for #410: Basic yield in for-of array binding default.
+    /// Verifies: for (let [x = yield 1] of [[]])
+    /// </summary>
+    [Fact]
+    public async Task YieldInForOfArrayBindingDefault()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            let captured = [];
+
+            function* gen() {
+                for (let [x = yield 'waiting'] of [[]]) {
+                    captured.push(x);
+                }
+            }
+
+            let iter = gen();
+            let r1 = iter.next();        // should yield 'waiting' (element is undefined)
+            let r2 = iter.next('hello'); // x = 'hello', loop body runs
+
+            [r1.value, r1.done, r2.done, captured];
+        ");
+
+        var steps = Assert.IsType<JsArray>(result);
+        Assert.Equal("waiting", steps.Items[0].AsString());  // r1.value
+        Assert.False(steps.Items[1].AsBoolean());            // r1.done
+        Assert.True(steps.Items[2].AsBoolean());             // r2.done
+
+        var captured = Assert.IsType<JsArray>(steps.Items[3].ToObject());
+        Assert.Single(captured.Items);
+        Assert.Equal("hello", captured.Items[0].AsString()); // x = 'hello'
+    }
+
+    /// <summary>
+    /// Test for #410: Multiple yields in for-of array binding defaults.
+    /// Verifies: for (let [a = yield 1, b = yield 2] of [[]])
+    /// </summary>
+    [Fact]
+    public async Task YieldInForOfMultipleArrayBindingDefaults()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            let captured = [];
+
+            function* gen() {
+                for (let [a = yield 1, b = yield 2] of [[]]) {
+                    captured.push(a, b);
+                }
+            }
+
+            let iter = gen();
+            let r1 = iter.next();     // should yield 1
+            let r2 = iter.next(10);   // a = 10, should yield 2
+            let r3 = iter.next(20);   // b = 20, loop body runs
+
+            [
+                r1.value,     // 1
+                r1.done,      // false
+                r2.value,     // 2
+                r2.done,      // false
+                r3.done,      // true
+                captured      // [10, 20]
+            ];
+        ");
+
+        var steps = Assert.IsType<JsArray>(result);
+        Assert.Equal(1d, steps.Items[0].AsDouble());     // r1.value = 1
+        Assert.False(steps.Items[1].AsBoolean());        // r1.done = false
+        Assert.Equal(2d, steps.Items[2].AsDouble());     // r2.value = 2
+        Assert.False(steps.Items[3].AsBoolean());        // r2.done = false
+        Assert.True(steps.Items[4].AsBoolean());         // r3.done = true
+
+        var captured = Assert.IsType<JsArray>(steps.Items[5].ToObject());
+        Assert.Equal(10d, captured.Items[0].AsDouble()); // a = 10
+        Assert.Equal(20d, captured.Items[1].AsDouble()); // b = 20
+    }
+
+    /// <summary>
+    /// Test for #410: Yield in for-of object binding default.
+    /// Verifies: for (let { x = yield 1 } of [{}])
+    /// </summary>
+    [Fact]
+    public async Task YieldInForOfObjectBindingDefault()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            let captured = [];
+
+            function* gen() {
+                for (let { x = yield 'obj-wait' } of [{}]) {
+                    captured.push(x);
+                }
+            }
+
+            let iter = gen();
+            let r1 = iter.next();       // should yield 'obj-wait'
+            let r2 = iter.next('value'); // x = 'value', loop body runs
+
+            [r1.value, r1.done, r2.done, captured];
+        ");
+
+        var steps = Assert.IsType<JsArray>(result);
+        Assert.Equal("obj-wait", steps.Items[0].AsString());  // r1.value
+        Assert.False(steps.Items[1].AsBoolean());             // r1.done
+        Assert.True(steps.Items[2].AsBoolean());              // r2.done
+
+        var captured = Assert.IsType<JsArray>(steps.Items[3].ToObject());
+        Assert.Single(captured.Items);
+        Assert.Equal("value", captured.Items[0].AsString());  // x = 'value'
+    }
+
+    /// <summary>
+    /// Test for #410: Yield default in for-of NOT used when value is present.
+    /// Verifies: for (let [x = yield 1] of [[42]]) does NOT yield
+    /// </summary>
+    [Fact]
+    public async Task YieldInForOfBindingDefaultSkippedWhenValuePresent()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            let captured = [];
+
+            function* gen() {
+                for (let [x = yield 'should not happen'] of [[42]]) {
+                    captured.push(x);
+                }
+            }
+
+            let iter = gen();
+            let r1 = iter.next();  // should complete immediately without yielding
+
+            [r1.done, captured];
+        ");
+
+        var steps = Assert.IsType<JsArray>(result);
+        Assert.True(steps.Items[0].AsBoolean());           // r1.done = true (no yield)
+
+        var captured = Assert.IsType<JsArray>(steps.Items[1].ToObject());
+        Assert.Single(captured.Items);
+        Assert.Equal(42d, captured.Items[0].AsDouble());   // x = 42
+    }
+
+    /// <summary>
+    /// Test for #410: Multiple iterations with yield in for-of binding defaults.
+    /// Verifies yield/resume semantics work across loop iterations.
+    /// </summary>
+    [Fact]
+    public async Task YieldInForOfBindingDefaultMultipleIterations()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            let captured = [];
+
+            function* gen() {
+                // First iteration has undefined -> yields
+                // Second iteration has 99 -> doesn't yield
+                // Third iteration has undefined -> yields
+                for (let [x = yield 'need-value'] of [[undefined], [99], [undefined]]) {
+                    captured.push(x);
+                }
+            }
+
+            let iter = gen();
+            let r1 = iter.next();       // iter 1: yield 'need-value'
+            let r2 = iter.next('A');    // iter 1: x = 'A', body runs; iter 2: x = 99, body runs; iter 3: yield 'need-value'
+            let r3 = iter.next('C');    // iter 3: x = 'C', body runs; done
+
+            [r1.value, r1.done, r2.value, r2.done, r3.done, captured];
+        ");
+
+        var steps = Assert.IsType<JsArray>(result);
+        Assert.Equal("need-value", steps.Items[0].AsString());  // r1.value
+        Assert.False(steps.Items[1].AsBoolean());               // r1.done = false
+        Assert.Equal("need-value", steps.Items[2].AsString());  // r2.value (second yield)
+        Assert.False(steps.Items[3].AsBoolean());               // r2.done = false
+        Assert.True(steps.Items[4].AsBoolean());                // r3.done = true
+
+        var captured = Assert.IsType<JsArray>(steps.Items[5].ToObject());
+        Assert.Equal(3, captured.Items.Count);
+        Assert.Equal("A", captured.Items[0].AsString());        // first iteration
+        Assert.Equal(99d, captured.Items[1].AsDouble());        // second iteration (no yield)
+        Assert.Equal("C", captured.Items[2].AsString());        // third iteration
+    }
+
 }

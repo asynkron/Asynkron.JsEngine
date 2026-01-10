@@ -14,17 +14,13 @@ public static partial class TypedAstEvaluator
 {
     private sealed partial class ExecutionPlanRunner
     {
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static InstructionResult HandleYield(
-            ExecutionPlanRunner runner,
-            ExecutionInstruction instr,
-            ref JsEnvironment environment,
-            EvaluationContext context,
-            out JsValue returnValue)
+                    ExecutionPlanRunner runner,
+                    ExecutionInstruction instr,
+                    ref JsEnvironment environment,
+                    EvaluationContext context,
+                    out JsValue returnValue)
         {
             var instruction = Unsafe.As<YieldInstruction>(instr);
             var yieldedValue = JsValue.Undefined;
@@ -93,17 +89,13 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Return;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static InstructionResult HandleStoreResumeValue(
-            ExecutionPlanRunner runner,
-            ExecutionInstruction instr,
-            ref JsEnvironment environment,
-            EvaluationContext context,
-            out JsValue returnValue)
+                    ExecutionPlanRunner runner,
+                    ExecutionInstruction instr,
+                    ref JsEnvironment environment,
+                    EvaluationContext context,
+                    out JsValue returnValue)
         {
             var instruction = Unsafe.As<StoreResumeValueInstruction>(instr);
             var (resumeKind, resumePayload) = runner.ConsumeResumeValue();
@@ -161,17 +153,13 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static InstructionResult HandleYieldStar(
-            ExecutionPlanRunner runner,
-            ExecutionInstruction instr,
-            ref JsEnvironment environment,
-            EvaluationContext context,
-            out JsValue returnValue)
+                    ExecutionPlanRunner runner,
+                    ExecutionInstruction instr,
+                    ref JsEnvironment environment,
+                    EvaluationContext context,
+                    out JsValue returnValue)
         {
             var instruction = Unsafe.As<YieldStarInstruction>(instr);
             var currentIndex = runner._programCounter;

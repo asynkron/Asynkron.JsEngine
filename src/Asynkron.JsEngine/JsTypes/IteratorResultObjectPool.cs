@@ -17,7 +17,7 @@ internal static class IteratorResultObjectPool
     /// <summary>
     /// Rents a pooled iterator result object and initializes it with the given values.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static IteratorResultObject Rent(JsValue value, bool done)
     {
         var result = Pool.Rent();
@@ -29,7 +29,7 @@ internal static class IteratorResultObjectPool
     /// Returns an iterator result object to the pool.
     /// Objects that have been captured (assigned to variables, etc.) are not pooled.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static void Return(IteratorResultObject result)
     {
         // Don't return captured objects or the shared singleton

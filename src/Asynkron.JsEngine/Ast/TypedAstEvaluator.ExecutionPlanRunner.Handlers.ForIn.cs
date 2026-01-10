@@ -15,17 +15,13 @@ public static partial class TypedAstEvaluator
 {
     private sealed partial class ExecutionPlanRunner
     {
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static InstructionResult HandleForInInit(
-            ExecutionPlanRunner runner,
-            ExecutionInstruction instr,
-            ref JsEnvironment environment,
-            EvaluationContext context,
-            out JsValue returnValue)
+                    ExecutionPlanRunner runner,
+                    ExecutionInstruction instr,
+                    ref JsEnvironment environment,
+                    EvaluationContext context,
+                    out JsValue returnValue)
         {
             var instruction = Unsafe.As<ForInInitInstruction>(instr);
             var objectEnv = environment;
@@ -103,17 +99,13 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static InstructionResult HandleForInMoveNext(
-            ExecutionPlanRunner runner,
-            ExecutionInstruction instr,
-            ref JsEnvironment environment,
-            EvaluationContext __,
-            out JsValue returnValue)
+                    ExecutionPlanRunner runner,
+                    ExecutionInstruction instr,
+                    ref JsEnvironment environment,
+                    EvaluationContext __,
+                    out JsValue returnValue)
         {
             var instruction = Unsafe.As<ForInMoveNextInstruction>(instr);
 

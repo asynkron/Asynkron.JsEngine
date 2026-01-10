@@ -22,7 +22,7 @@ internal sealed class StringPooledEnumerator : IEnumerator<JsValue>, IRentable
     {
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static StringPooledEnumerator Rent(string value)
     {
         var enumerator = Pool.Rent();
@@ -34,7 +34,7 @@ internal sealed class StringPooledEnumerator : IEnumerator<JsValue>, IRentable
 
     public JsValue Current
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get
         {
             AssertOwnership(nameof(Current));
@@ -44,7 +44,7 @@ internal sealed class StringPooledEnumerator : IEnumerator<JsValue>, IRentable
 
     object IEnumerator.Current => _current;
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public bool MoveNext()
     {
         AssertOwnership(nameof(MoveNext));

@@ -30,7 +30,7 @@ internal sealed record IteratorDriverPlan(
     /// Gets or creates the cached slot map for iteration environments.
     /// The slot map is identical for every iteration, so we compute it once.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public ImmutableDictionary<Symbol, int>? GetOrCreateSlotMap()
     {
         var cached = Volatile.Read(ref _slotMapCache);
@@ -46,7 +46,7 @@ internal sealed record IteratorDriverPlan(
     /// <summary>
     /// Gets the required slot count for iteration environments.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public int GetRequiredSlots()
     {
         var cached = Volatile.Read(ref _slotMapCache);

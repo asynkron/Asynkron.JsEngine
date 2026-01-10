@@ -73,17 +73,13 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static InstructionResult HandleIteratorInit(
-            ExecutionPlanRunner runner,
-            ExecutionInstruction instr,
-            ref JsEnvironment environment,
-            EvaluationContext context,
-            out JsValue returnValue)
+                    ExecutionPlanRunner runner,
+                    ExecutionInstruction instr,
+                    ref JsEnvironment environment,
+                    EvaluationContext context,
+                    out JsValue returnValue)
         {
             var instruction = Unsafe.As<IteratorInitInstruction>(instr);
             var iterableEnv = environment;
@@ -168,17 +164,13 @@ public static partial class TypedAstEvaluator
             throw new ThrowSignal(initThrown);
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static InstructionResult HandleIteratorMoveNext(
-            ExecutionPlanRunner runner,
-            ExecutionInstruction instr,
-            ref JsEnvironment environment,
-            EvaluationContext context,
-            out JsValue returnValue)
+                    ExecutionPlanRunner runner,
+                    ExecutionInstruction instr,
+                    ref JsEnvironment environment,
+                    EvaluationContext context,
+                    out JsValue returnValue)
         {
             var instruction = Unsafe.As<IteratorMoveNextInstruction>(instr);
             var iteratorIndex = runner._programCounter;

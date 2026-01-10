@@ -382,7 +382,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         State.PrivateBrands.Add(brand);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public bool HasPrivateBrand(object brand)
     {
         return _state?.PrivateBrands.Contains(brand) ?? false;
@@ -556,7 +556,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
     /// Used by JsArray to detect custom property descriptors (getters/setters) on numeric indices.
     /// Uses cached flag for O(1) lookup instead of iterating descriptor keys.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal bool HasNumericDescriptorKeys()
     {
         return _state?.HasNumericDescriptorKey ?? false;
@@ -565,7 +565,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
     /// <summary>
     /// Checks if a property name is a valid array index (non-negative integer string).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static bool IsArrayIndex(string name)
     {
         // Fast path: empty or single char check
@@ -610,7 +610,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
     /// <summary>
     /// Updates the cached HasNumericDescriptorKey flag when a descriptor is added.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private void TrackNumericDescriptorAdd(JsObjectState state, string name)
     {
         if (!state.HasNumericDescriptorKey && IsArrayIndex(name))

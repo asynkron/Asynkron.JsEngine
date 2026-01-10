@@ -1,5 +1,6 @@
 #region
 
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using Asynkron.JsEngine.Ast;
@@ -40,9 +41,11 @@ internal static class ExecutionPlanPrinter
 
     /// <summary>
     /// Prints a single instruction during execution trace with environment depth indentation.
+    /// Only compiled when TRACE_IR_EXECUTION is defined.
     /// </summary>
+    [Conditional("TRACE_IR_EXECUTION")]
     public static void TraceInstruction(
-        ILogger logger,
+        ILogger? logger,
         int instructionIndex,
         ExecutionInstruction instruction,
         int envDepth,
@@ -51,6 +54,11 @@ internal static class ExecutionPlanPrinter
         string? extraInfo = null
     )
     {
+        if (logger is null)
+        {
+            return;
+        }
+
         var indent = new string(' ', envDepth * 2);
 
         var envInfo = $"[env:{envHashCode:X8} scope:{envScopeId,2} d:{envDepth}]";
@@ -58,16 +66,23 @@ internal static class ExecutionPlanPrinter
         var formatted = FormatInstruction(instruction);
         var extra = extraInfo != null ? $" // {extraInfo}" : "";
 
-        logger?.LogDebug("{Indent}[{InstructionIndex}] {Formatted} {EnvInfo}{Extra}", indent, instructionIndex,
+        logger.LogDebug("{Indent}[{InstructionIndex}] {Formatted} {EnvInfo}{Extra}", indent, instructionIndex,
             formatted, envInfo, extra);
     }
 
     /// <summary>
     /// Traces a variable definition with environment info.
+    /// Only compiled when TRACE_IR_EXECUTION is defined.
     /// </summary>
-    public static void TraceDefine(ILogger logger, string kind, string name, string value, int envDepth, int envScopeId,
+    [Conditional("TRACE_IR_EXECUTION")]
+    public static void TraceDefine(ILogger? logger, string kind, string name, string value, int envDepth, int envScopeId,
         int envHashCode)
     {
+        if (logger is null)
+        {
+            return;
+        }
+
         var indent = new string(' ', envDepth * 2);
         var depthMarker = envDepth > 0 ? $"│{"".PadLeft(envDepth, '·')}" : "";
         logger.LogDebug(
@@ -77,10 +92,17 @@ internal static class ExecutionPlanPrinter
 
     /// <summary>
     /// Traces a variable lookup with environment info.
+    /// Only compiled when TRACE_IR_EXECUTION is defined.
     /// </summary>
-    public static void TraceLookup(ILogger logger, string name, bool found, int envDepth, int envScopeId,
+    [Conditional("TRACE_IR_EXECUTION")]
+    public static void TraceLookup(ILogger? logger, string name, bool found, int envDepth, int envScopeId,
         int envHashCode, string? foundIn = null)
     {
+        if (logger is null)
+        {
+            return;
+        }
+
         var indent = new string(' ', envDepth * 2);
         var status = found ? $"FOUND in {foundIn}" : "NOT FOUND";
         logger.LogDebug("{Indent}     LOOKUP '{Name}' -> {Status} [env:{EnvHashCode:X8} scope:{EnvScopeId}]", indent,
@@ -89,7 +111,9 @@ internal static class ExecutionPlanPrinter
 
     /// <summary>
     /// Traces environment push/pop operations.
+    /// Only compiled when TRACE_IR_EXECUTION is defined.
     /// </summary>
+    [Conditional("TRACE_IR_EXECUTION")]
     public static void TraceEnvChange(string operation, int oldDepth, int newDepth, int oldScopeId, int newScopeId,
         int oldHash, int newHash)
     {

@@ -11,18 +11,18 @@ namespace Asynkron.JsEngine;
 /// A zero-allocation wrapper for a single JsValue that implements IReadOnlyList.
 /// Used to avoid array allocations when invoking callables with a single argument.
 /// </summary>
-[method: MethodImpl(MethodImplOptions.AggressiveInlining)]
+[method: MethodImpl(JsEngineConstants.Inlining)]
 public readonly struct SingleValueArgs(JsValue value) : IReadOnlyList<JsValue>
 {
     public int Count
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => 1;
     }
 
     public JsValue this[int index]
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get
         {
             ArgumentOutOfRangeException.ThrowIfNotEqual(index, 0);

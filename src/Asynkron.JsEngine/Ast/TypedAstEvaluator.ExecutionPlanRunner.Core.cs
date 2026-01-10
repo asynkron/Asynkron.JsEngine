@@ -161,7 +161,7 @@ public static partial class TypedAstEvaluator
         /// <summary>
         /// Gets the final completion value, converting Unit sentinel to undefined.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private JsValue GetFinalCompletionValue()
         {
             return _scriptCompletionValue.IsUnit ? JsValue.Undefined : _scriptCompletionValue;

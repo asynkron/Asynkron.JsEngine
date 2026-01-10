@@ -16,14 +16,14 @@ internal readonly struct RentedEnvironment : IDisposable
     public readonly JsEnvironment? Value;
     private readonly ILogger? _logger;
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal RentedEnvironment(JsEnvironment? value, ILogger? logger)
     {
         Value = value;
         _logger = logger;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public void Dispose()
     {
         if (Value is not null)
@@ -33,7 +33,7 @@ internal readonly struct RentedEnvironment : IDisposable
     }
 
     // Allow implicit conversion to JsEnvironment for convenience
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static implicit operator JsEnvironment?(RentedEnvironment rented) => rented.Value;
 }
 
@@ -50,7 +50,7 @@ internal static class JsEnvironmentPool
     /// <summary>
     /// Rents a pooled environment wrapped in a disposable. Use with 'using' for automatic return.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static RentedEnvironment RentScoped(
         JsEnvironment? enclosing,
         bool isFunctionScope,
@@ -69,7 +69,7 @@ internal static class JsEnvironmentPool
     /// <summary>
     /// Rents a pooled environment. Caller MUST call Return() when done.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsEnvironment Rent(
         JsEnvironment? enclosing,
         bool isFunctionScope,
@@ -94,7 +94,7 @@ internal static class JsEnvironmentPool
     /// <summary>
     /// Returns an environment to the pool. Safe to call on captured or null environments (no-op).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static void Return(JsEnvironment? environment, ILogger? logger = null)
     {
         if (environment is null)

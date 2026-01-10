@@ -15,7 +15,7 @@ public static partial class TypedAstEvaluator
     private sealed partial class ExecutionPlanRunner
     {
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static InstructionResult HandleEnterWith(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,

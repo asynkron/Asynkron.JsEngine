@@ -14,7 +14,7 @@ public static partial class TypedAstEvaluator
     /// <summary>
     /// JsValue-returning version for use in hot paths.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static JsValue EvaluateForJsValue(this ForStatement statement, JsEnvironment environment, EvaluationContext context,
         Symbol? loopLabel)

@@ -19,16 +19,12 @@ public static partial class TypedAstEvaluator
         // Change to AggressiveInlining after profiling is complete
         // ═══════════════════════════════════════════════════════════════════════════
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+        [MethodImpl(JsEngineConstants.Inlining)]
         private bool ProfileReadOperand(
-            JsEnvironment environment,
-            EvaluationContext context,
-            ExpressionNode expr,
-            out JsValue value)
+                    JsEnvironment environment,
+                    EvaluationContext context,
+                    ExpressionNode expr,
+                    out JsValue value)
         {
             if (expr is LiteralExpression lit)
             {
@@ -53,16 +49,12 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static JsValue ProfileBranchCompare(
-            BinaryOperator op,
-            JsValue leftVal,
-            JsValue rightVal,
-            EvaluationContext context)
+                    BinaryOperator op,
+                    JsValue leftVal,
+                    JsValue rightVal,
+                    EvaluationContext context)
         {
             return op switch
             {
@@ -73,109 +65,73 @@ public static partial class TypedAstEvaluator
             };
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static int ProfileHandleJump(JumpInstruction jumpInstruction)
         {
             return jumpInstruction.TargetIndex;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static JsValue ProfileEvaluateExpression(
-            ExpressionNode expression,
-            JsEnvironment environment,
-            EvaluationContext context)
+                    ExpressionNode expression,
+                    JsEnvironment environment,
+                    EvaluationContext context)
         {
             return expression.EvaluateExpression(environment, context);
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static JsValue ProfileEvaluateStatement(
-            StatementNode statement,
-            JsEnvironment environment,
-            EvaluationContext context)
+                    StatementNode statement,
+                    JsEnvironment environment,
+                    EvaluationContext context)
         {
             return statement.EvaluateStatementJsValue(environment, context);
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static JsValue ProfileApplyBinaryOperator(
-            BinaryOperator op,
-            JsValue left,
-            JsValue right,
-            EvaluationContext context)
+                    BinaryOperator op,
+                    JsValue left,
+                    JsValue right,
+                    EvaluationContext context)
         {
             return ApplyBinaryOperator(op, left, right, context);
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static JsValue ProfileGetIdentifier(
-            JsEnvironment environment,
-            Symbol symbol,
-            EvaluationContext context)
+                    JsEnvironment environment,
+                    Symbol symbol,
+                    EvaluationContext context)
         {
             return environment.GetIdentifierJsValueDirect(symbol, context);
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static void ProfileAssignJsValue(
-            JsEnvironment environment,
-            Symbol symbol,
-            JsValue value)
+                    JsEnvironment environment,
+                    Symbol symbol,
+                    JsValue value)
         {
             environment.AssignJsValue(symbol, value);
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static ExecutionInstruction ProfileFetchInstruction(
-            ref ExecutionInstruction instructionsRef,
-            int programCounter)
+                    ref ExecutionInstruction instructionsRef,
+                    int programCounter)
         {
             return Unsafe.Add(ref instructionsRef, programCounter);
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static int ProfileBranchDecision(bool isTruthy, int consequent, int alternate)
         {
             return isTruthy ? consequent : alternate;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static JsValue ProfileIncrementMath(JsValue currentValue, bool isIncrement)
         {
             // Fast path for numbers (most common case)
@@ -188,11 +144,7 @@ public static partial class TypedAstEvaluator
             return JsValue.Undefined;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static JsValue ProfileCompoundAdd(JsValue left, JsValue right)
         {
             // Fast path for number + number (most common in loops)

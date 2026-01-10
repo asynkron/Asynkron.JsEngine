@@ -75,7 +75,7 @@ internal sealed class ForInDriverState : IRentable, IAsJsValue
     /// <summary>
     /// Resets the state for reuse from pool.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public void OnReturn(ILogger? logger = null)
     {
         logger?.LogInformation("ForInDriverState.Reset");
@@ -94,7 +94,7 @@ internal static class ForInDriverStatePool
 {
     private static readonly ObjectPool<ForInDriverState> Pool = new(32, static () => new ForInDriverState());
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static ForInDriverState Rent()
     {
         var state = Pool.Rent();
@@ -102,7 +102,7 @@ internal static class ForInDriverStatePool
         return state;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static void Return(ForInDriverState state)
     {
         Pool.Return(state);

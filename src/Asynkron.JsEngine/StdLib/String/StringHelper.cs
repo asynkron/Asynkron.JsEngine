@@ -15,7 +15,7 @@ public static class StringHelper
     /// Reads a Unicode code point from the string at the given index, handling surrogate pairs.
     /// Advances the index past the code point (by 1 for BMP, by 2 for surrogate pairs).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal static string ReadCodePoint(string str, ref int index)
     {
         var ch = str[index];

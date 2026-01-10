@@ -23,7 +23,7 @@ internal static class JsOps
     private static readonly string[] StringHintMethods = ["toString", "valueOf"];
     private static readonly string[] DefaultHintMethods = ["valueOf", "toString"];
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal static double MathPow(double baseValue, double exponent)
     {
         switch (exponent)
@@ -67,7 +67,7 @@ internal static class JsOps
         return sign < 0 && IsOddInteger(exponent) ? NegativeZero : 0.0;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static bool IsOddInteger(double value)
     {
         return double.IsFinite(value) && value % 1 == 0 && Math.Abs(value % 2) == 1;
@@ -77,7 +77,7 @@ internal static class JsOps
     /// ECMAScript-compliant modulo operation that properly handles negative zero.
     /// Per ES spec 13.15.3: The result of a remainder operation preserves the sign of the dividend.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal static double MathMod(double dividend, double divisor)
     {
         // If either operand is NaN, return NaN
@@ -118,7 +118,7 @@ internal static class JsOps
     /// <summary>
     ///     ECMAScript-like ToBoolean semantics for engine values.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static bool ToBoolean(in JsValue value)
     {
         return value.Kind switch
@@ -135,7 +135,7 @@ internal static class JsOps
         };
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static double ToNumber(in JsValue value, EvaluationContext? context = null)
     {
         var result = ToNumericAsJsValue(in value, context);
@@ -164,7 +164,7 @@ internal static class JsOps
     /// Converts a JsValue to numeric as JsValue without boxing. Use this for internal arithmetic operations.
     /// Returns JsValue with Number or BigInt kind. On error, returns JsValue.Undefined (check context.IsThrow).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue ToNumericAsJsValue(in JsValue value, EvaluationContext? context = null)
     {
         if (value.IsNumber || value.IsBigInt)
@@ -183,7 +183,7 @@ internal static class JsOps
         };
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static JsValue ToNumericCore(
         object? value,
         EvaluationContext? context)
@@ -319,7 +319,7 @@ internal static class JsOps
         }
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static bool TryConvertToNumericPrimitiveJsValue(IJsPropertyAccessor accessor, out JsValue primitive,
         EvaluationContext? context)
     {
@@ -573,7 +573,7 @@ internal static class JsOps
         return value;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static string ToJsString(in JsValue value, EvaluationContext? context = null)
     {
         var realm = context?.RealmState;
@@ -596,7 +596,7 @@ internal static class JsOps
     /// ECMAScript SameValue comparison for JsValue types.
     /// Unlike StrictEquals: NaN === NaN is true, -0 !== +0 is true.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static bool SameValue(in JsValue left, in JsValue right)
     {
         // Different types are never equal
@@ -621,7 +621,7 @@ internal static class JsOps
         };
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static bool SameValueNumber(double left, double right)
     {
         return left switch
@@ -637,7 +637,7 @@ internal static class JsOps
     /// <summary>
     /// ECMAScript strict equality comparison for JsValue types.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static bool StrictEquals(in JsValue left, in JsValue right)
     {
         // Different types are never strictly equal
@@ -663,7 +663,7 @@ internal static class JsOps
         };
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static bool LooseEquals(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
         // Fast path for same-type comparisons
@@ -772,7 +772,7 @@ internal static class JsOps
         }
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static bool GreaterThan(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
         // Fast path for comparing two numbers
@@ -789,7 +789,7 @@ internal static class JsOps
         return PerformComparisonOperation(left, right, ComparisonOperator.GreaterThan, context);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static bool GreaterThanOrEqual(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
         // Fast path for comparing two numbers
@@ -806,7 +806,7 @@ internal static class JsOps
         return PerformComparisonOperation(left, right, ComparisonOperator.GreaterThanOrEqual, context);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static bool LessThan(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
 
@@ -824,7 +824,7 @@ internal static class JsOps
         return PerformComparisonOperation(left, right, ComparisonOperator.LessThan, context);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static bool LessThanOrEqual(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
 
@@ -842,7 +842,7 @@ internal static class JsOps
         return PerformComparisonOperation(left, right, ComparisonOperator.LessThanOrEqual, context);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static bool PerformComparisonOperation(
         JsValue left,
         JsValue right,
@@ -1083,7 +1083,7 @@ internal static class JsOps
         };
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     // Helper method to compare a BigInteger to a double without precision loss
     private static int CompareBigIntToDouble(BigInteger bigInt, double number)
     {
@@ -1116,7 +1116,7 @@ internal static class JsOps
         return -1;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static string? ToPropertyName(JsValue value, EvaluationContext? context = null)
     {
         while (true)
@@ -1236,7 +1236,7 @@ internal static class JsOps
         return $"{sign}{mantissa}e{expStr}";
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static bool TryInvokePropertyMethodJsValue(IJsPropertyAccessor accessor, string methodName,
         out JsValue result,
         EvaluationContext? context)
@@ -1267,7 +1267,7 @@ internal static class JsOps
     /// Primitives are: undefined, null, boolean, number, string, symbol, bigint.
     /// Objects wrapped as JsValue with ObjectValue being Symbol or TypedAstSymbol are also considered primitives.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static bool IsPrimitiveValue(JsValue value)
     {
         return value.Kind switch
@@ -1282,7 +1282,7 @@ internal static class JsOps
     /// <summary>
     /// JsValue overload for GetPrototypePointer.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static IJsPropertyAccessor? GetPrototypePointer(JsValue value)
     {
         // Only objects have prototypes
@@ -1382,7 +1382,7 @@ internal static class JsOps
     /// <summary>
     /// JsValue overload for GetTypeofString. Returns the typeof string for a JsValue.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static string GetTypeofString(JsValue value)
     {
         return value.Kind switch
@@ -1405,7 +1405,7 @@ internal static class JsOps
         };
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static JsValueType GetJsType(JsValue value)
     {
         // Special case: IIsHtmlDda objects report as undefined for typeof
@@ -1428,7 +1428,7 @@ internal static class JsOps
         };
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static bool NumberEqualsBigInt(JsValue numberValue, JsBigInt bigInt)
     {
         var num = ToNumber(numberValue, null);
@@ -1445,7 +1445,7 @@ internal static class JsOps
         return new BigInteger(num) == bigInt.Value;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static bool TryParseJsBigInt(string text, out JsBigInt? value)
     {
         value = null;
@@ -1477,7 +1477,7 @@ internal static class JsOps
 
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static bool TryParsePrefixedBigInt(ReadOnlySpan<char> span, int radix, NumberStyles styles,
         out BigInteger value)
     {
@@ -1522,7 +1522,7 @@ internal static class JsOps
     /// Per ES spec, [[HasProperty]] uses [[GetOwnProperty]] to check for existence,
     /// it does NOT invoke getters like [[Get]] would.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static bool HasProperty(JsValue target, string propertyName)
     {
         // Fast path: only objects can have properties via prototype chain
@@ -1575,7 +1575,7 @@ internal static class JsOps
         return false;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static bool TryGetPropertyValue(JsValue target, string propertyName, out JsValue value,
         EvaluationContext? context = null)
     {
@@ -1620,7 +1620,7 @@ internal static class JsOps
     /// JsValue overload for property access with JsValue property key.
     /// Avoids boxing when both target and key are JsValue.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static bool TryGetPropertyValueJsValue(JsValue target, JsValue propertyKey, out JsValue value,
         EvaluationContext? context = null)
     {
@@ -1668,7 +1668,7 @@ internal static class JsOps
         }
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static bool TryGetArrayLikeValueJsValue(JsValue target, JsValue propertyKey, out JsValue value,
         EvaluationContext? context)
     {
@@ -1704,7 +1704,7 @@ internal static class JsOps
         return false;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static bool TryGetPropertyValueObject(object? target, string propertyName, out JsValue value,
         EvaluationContext? context)
     {
@@ -1846,7 +1846,7 @@ internal static class JsOps
         }
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static bool TryResolveArrayIndexJsValue(JsValue propertyKey, out int index, EvaluationContext? context)
     {
         // Fast path for numbers
@@ -2167,7 +2167,7 @@ internal static class JsOps
     /// <summary>
     /// Addition operation (a + b).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue Add(JsValue a, JsValue b, EvaluationContext ctx)
     {
         return TypedAstEvaluator.Add(a, b, ctx);
@@ -2176,7 +2176,7 @@ internal static class JsOps
     /// <summary>
     /// Subtraction operation (a - b).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue Sub(JsValue a, JsValue b, EvaluationContext ctx)
     {
         return TypedAstEvaluator.Subtract(a, b, ctx);
@@ -2185,7 +2185,7 @@ internal static class JsOps
     /// <summary>
     /// Multiplication operation (a * b).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue Mul(JsValue a, JsValue b, EvaluationContext ctx)
     {
         return TypedAstEvaluator.Multiply(a, b, ctx);
@@ -2194,7 +2194,7 @@ internal static class JsOps
     /// <summary>
     /// Division operation (a / b).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue Div(JsValue a, JsValue b, EvaluationContext ctx)
     {
         return TypedAstEvaluator.Divide(a, b, ctx);
@@ -2203,7 +2203,7 @@ internal static class JsOps
     /// <summary>
     /// Modulo operation (a % b).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue Mod(JsValue a, JsValue b, EvaluationContext ctx)
     {
         return TypedAstEvaluator.Modulo(a, b, ctx);
@@ -2212,7 +2212,7 @@ internal static class JsOps
     /// <summary>
     /// Exponentiation operation (a ** b).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue Exp(JsValue a, JsValue b, EvaluationContext ctx)
     {
         return TypedAstEvaluator.Power(a, b, ctx);
@@ -2225,7 +2225,7 @@ internal static class JsOps
     /// <summary>
     /// Loose equality comparison (a == b).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue Eq(JsValue a, JsValue b, EvaluationContext ctx)
     {
         return LooseEquals(a, b, ctx) ? JsValue.True : JsValue.False;
@@ -2234,7 +2234,7 @@ internal static class JsOps
     /// <summary>
     /// Strict equality comparison (a === b).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue StrictEq(JsValue a, JsValue b)
     {
         return StrictEquals(a, b) ? JsValue.True : JsValue.False;
@@ -2243,7 +2243,7 @@ internal static class JsOps
     /// <summary>
     /// Less than comparison (a &lt; b).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue Lt(JsValue a, JsValue b, EvaluationContext ctx)
     {
         return LessThan(a, b, ctx) ? JsValue.True : JsValue.False;
@@ -2252,7 +2252,7 @@ internal static class JsOps
     /// <summary>
     /// Less than or equal comparison (a &lt;= b).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue Lte(JsValue a, JsValue b, EvaluationContext ctx)
     {
         return LessThanOrEqual(a, b, ctx) ? JsValue.True : JsValue.False;
@@ -2261,7 +2261,7 @@ internal static class JsOps
     /// <summary>
     /// Greater than comparison (a &gt; b).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue Gt(JsValue a, JsValue b, EvaluationContext ctx)
     {
         return GreaterThan(a, b, ctx) ? JsValue.True : JsValue.False;
@@ -2270,7 +2270,7 @@ internal static class JsOps
     /// <summary>
     /// Greater than or equal comparison (a &gt;= b).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue Gte(JsValue a, JsValue b, EvaluationContext ctx)
     {
         return GreaterThanOrEqual(a, b, ctx) ? JsValue.True : JsValue.False;
@@ -2283,7 +2283,7 @@ internal static class JsOps
     /// <summary>
     /// Unary negation (-a).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue Neg(JsValue a, EvaluationContext ctx)
     {
         return TypedAstEvaluator.Negate(a, ctx);
@@ -2292,7 +2292,7 @@ internal static class JsOps
     /// <summary>
     /// Logical NOT (!a).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue Not(JsValue a)
     {
         return ToBoolean(a) ? JsValue.False : JsValue.True;
@@ -2301,7 +2301,7 @@ internal static class JsOps
     /// <summary>
     /// Typeof operator (typeof a).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue TypeOf(JsValue a)
     {
         return new JsValue(GetTypeofString(a));
@@ -2314,7 +2314,7 @@ internal static class JsOps
     /// <summary>
     /// Bitwise AND (a &amp; b).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue BitAnd(JsValue a, JsValue b, EvaluationContext ctx)
     {
         return TypedAstEvaluator.BitwiseAnd(a, b, ctx);
@@ -2323,7 +2323,7 @@ internal static class JsOps
     /// <summary>
     /// Bitwise OR (a | b).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue BitOr(JsValue a, JsValue b, EvaluationContext ctx)
     {
         return TypedAstEvaluator.BitwiseOr(a, b, ctx);
@@ -2332,7 +2332,7 @@ internal static class JsOps
     /// <summary>
     /// Bitwise XOR (a ^ b).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue BitXor(JsValue a, JsValue b, EvaluationContext ctx)
     {
         return TypedAstEvaluator.BitwiseXor(a, b, ctx);
@@ -2341,7 +2341,7 @@ internal static class JsOps
     /// <summary>
     /// Bitwise NOT (~a).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue BitNot(JsValue a, EvaluationContext ctx)
     {
         return TypedAstEvaluator.BitwiseNot(a, ctx);
@@ -2350,7 +2350,7 @@ internal static class JsOps
     /// <summary>
     /// Left shift (a &lt;&lt; b).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue LeftShift(JsValue a, JsValue b, EvaluationContext ctx)
     {
         return TypedAstEvaluator.LeftShift(a, b, ctx);
@@ -2359,7 +2359,7 @@ internal static class JsOps
     /// <summary>
     /// Right shift (a &gt;&gt; b).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue RightShift(JsValue a, JsValue b, EvaluationContext ctx)
     {
         return TypedAstEvaluator.RightShift(a, b, ctx);
@@ -2368,7 +2368,7 @@ internal static class JsOps
     /// <summary>
     /// Unsigned right shift (a &gt;&gt;&gt; b).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue UnsignedRightShift(JsValue a, JsValue b, EvaluationContext ctx)
     {
         return TypedAstEvaluator.UnsignedRightShift(a, b, ctx);

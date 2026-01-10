@@ -99,25 +99,25 @@ public sealed class PropertyDescriptor
 
     public bool IsAccessorDescriptor
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => HasGet || HasSet;
     }
 
     public bool IsDataDescriptor
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => HasValue || HasWritable;
     }
 
     public bool IsGenericDescriptor
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => !IsAccessorDescriptor && !IsDataDescriptor;
     }
 
     public bool IsEmpty
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => !HasValue && !HasWritable && !HasEnumerable && !HasConfigurable && !HasGet && !HasSet;
     }
 

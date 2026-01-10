@@ -12,7 +12,7 @@ public static partial class TypedAstEvaluator
     /// Invokes a callable with a single argument and returns the result as JsValue.
     /// This overload avoids array allocation for the common single-argument case.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static JsValue InvokeCallableSingleArg(
         IJsCallable callable,
         JsValue argument,
@@ -27,7 +27,7 @@ public static partial class TypedAstEvaluator
     /// <summary>
     /// Generic overload that avoids boxing for struct argument lists like SingleValueArgs.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static JsValue InvokeCallableJsValueGeneric<TArgs>(
         IJsCallable callable,
         TArgs arguments,
@@ -73,7 +73,7 @@ public static partial class TypedAstEvaluator
     /// Invokes a callable and returns the result as JsValue.
     /// This is the preferred method to avoid boxing.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal static JsValue InvokeCallableJsValue(
         IJsCallable callable,
         IReadOnlyList<JsValue> arguments,

@@ -18,7 +18,7 @@ internal static class AwaitScheduler
     // Reusable callback delegates to avoid allocations in hot path
     [ThreadStatic] private static PromiseAwaitState? CachedState;
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static PromiseAwaitState RentState()
     {
         var state = CachedState;
@@ -32,14 +32,14 @@ internal static class AwaitScheduler
         return new PromiseAwaitState();
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static void ReturnState(PromiseAwaitState state)
     {
         state.Reset();
         CachedState = state;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static bool IsPromiseLike(JsValue candidate)
     {
         // Fast path: check internal promise slot/marker without property lookups
@@ -61,7 +61,7 @@ internal static class AwaitScheduler
     ///     Fast path: Try to get the resolved value from an already-settled promise
     ///     without any allocations or microtask processing.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static bool TryGetSettledValueFast(JsValue candidate, out JsValue value, out bool isRejected)
     {
         // Direct JsPromise check (fastest path)

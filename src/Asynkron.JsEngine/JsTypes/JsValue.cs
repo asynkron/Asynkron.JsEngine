@@ -68,7 +68,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// This avoids struct initialization for cached values.
     /// Note: We must not cache -0.0 since it's semantically different from +0.0 in JavaScript.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue FromDouble(double value)
     {
         // Fast path: check if it's a cached non-negative integer
@@ -88,7 +88,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// This avoids 24-byte struct copies for cached values.
     /// Note: We must not cache -0.0 since it's semantically different from +0.0 in JavaScript.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static ref readonly JsValue FromDoubleRef(double value, ref JsValue scratch)
     {
         // Fast path: check if it's a cached non-negative integer
@@ -164,7 +164,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     #region Constructors
 
     /// <summary>Internal constructor for full control (used by Binding for special bindings).</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal JsValue(JsValueKind kind, double numberValue, object? objectValue)
     {
         Kind = kind;
@@ -173,7 +173,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     }
 
     /// <summary>Creates a number value.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public JsValue(double value)
     {
         Kind = JsValueKind.Number;
@@ -182,7 +182,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     }
 
     /// <summary>Creates an integer number value.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public JsValue(int value)
     {
         Kind = JsValueKind.Number;
@@ -191,7 +191,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     }
 
     /// <summary>Creates a long number value.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public JsValue(long value)
     {
         Kind = JsValueKind.Number;
@@ -200,7 +200,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     }
 
     /// <summary>Creates a boolean value.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public JsValue(bool value)
     {
         Kind = JsValueKind.Boolean;
@@ -209,7 +209,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     }
 
     /// <summary>Creates a string value.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public JsValue(string value)
     {
         Kind = JsValueKind.String;
@@ -218,7 +218,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     }
 
     /// <summary>Creates a BigInt value.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public JsValue(JsBigInt value)
     {
         Kind = JsValueKind.BigInt;
@@ -227,7 +227,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     }
 
     /// <summary>Creates a Symbol value.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public JsValue(Symbol value)
     {
         // Special case: Symbol.Undefined represents the undefined value
@@ -246,7 +246,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     }
 
     /// <summary>Creates an object value (JsObject, JsArray, JsFunction, etc.).</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public JsValue(JsObject value)
     {
         Kind = JsValueKind.Object;
@@ -261,91 +261,91 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// <summary>True if this is the undefined value.</summary>
     public bool IsUndefined
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => Kind == JsValueKind.Undefined;
     }
 
     /// <summary>True if this is the null value.</summary>
     public bool IsNull
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => Kind == JsValueKind.Null;
     }
 
     /// <summary>True if this is undefined or null.</summary>
     public bool IsNullish
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => Kind <= JsValueKind.Null; // Undefined = 0, Null = 1
     }
 
     /// <summary>True if this is undefined or null (alias for IsNullish).</summary>
     public bool IsNullOrUndefined
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => Kind <= JsValueKind.Null;
     }
 
     /// <summary>True if this is an uninitialized binding (TDZ).</summary>
     public bool IsUninitialized
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => Kind == JsValueKind.Uninitialized;
     }
 
     /// <summary>True if this is a boolean value.</summary>
     public bool IsBoolean
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => Kind == JsValueKind.Boolean;
     }
 
     /// <summary>True if this is a number value.</summary>
     public bool IsNumber
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => Kind == JsValueKind.Number;
     }
 
     /// <summary>True if this is a BigInt value.</summary>
     public bool IsBigInt
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => Kind == JsValueKind.BigInt;
     }
 
     /// <summary>True if this is a string value.</summary>
     public bool IsString
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => Kind == JsValueKind.String;
     }
 
     /// <summary>True if this is a Symbol value.</summary>
     public bool IsSymbol
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => Kind == JsValueKind.Symbol;
     }
 
     /// <summary>True if this is an object value.</summary>
     public bool IsObject
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => Kind == JsValueKind.Object;
     }
 
     /// <summary>True if this is a primitive value (not an object).</summary>
     public bool IsPrimitive
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => Kind != JsValueKind.Object;
     }
 
     /// <summary>True if this is the Unit value (empty completion / no value).</summary>
     public bool IsUnit
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => Kind == JsValueKind.Unit;
     }
 
@@ -355,7 +355,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// </summary>
     public bool IsNumberLike
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => IsKindNumberLike(Kind);
     }
 
@@ -366,7 +366,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// </summary>
     public bool IsHeapValue
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => IsKindHeapValue(Kind);
     }
 
@@ -374,7 +374,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// Static helper to check if a kind stores its data in NumberValue (Boolean or Number).
     /// Uses range check: (uint)(kind - Boolean) &lt;= 1, which the JIT optimizes to a single comparison.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static bool IsKindNumberLike(JsValueKind kind)
         => (uint)(kind - JsValueKind.Boolean) <= 1;
 
@@ -384,7 +384,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// Note: BigInt also uses ObjectValue but is not included in this check.
     /// Uses range check: kind >= String, which the JIT optimizes to a single comparison.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static bool IsKindHeapValue(JsValueKind kind)
         => kind >= JsValueKind.String;
 
@@ -393,21 +393,21 @@ public readonly struct JsValue : IEquatable<JsValue>
     #region Value Accessors
 
     /// <summary>Gets the double value. Only valid when IsNumber is true.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public double AsDouble()
     {
         return NumberValue;
     }
 
     /// <summary>Gets the boolean value. Only valid when IsBoolean is true.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public bool AsBoolean()
     {
         return NumberValue != 0.0;
     }
 
     /// <summary>Gets the string value. Only valid when IsString is true.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public string AsString()
     {
         return ObjectValue switch
@@ -419,28 +419,28 @@ public readonly struct JsValue : IEquatable<JsValue>
     }
 
     /// <summary>Gets the BigInt value. Only valid when IsBigInt is true.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public JsBigInt AsBigInt()
     {
         return (JsBigInt)ObjectValue!;
     }
 
     /// <summary>Gets the Symbol value. Only valid when IsSymbol is true.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public Symbol AsSymbol()
     {
         return (Symbol)ObjectValue!;
     }
 
     /// <summary>Gets the object value. Only valid when IsObject is true.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public JsObject? AsObject()
     {
         return (JsObject)ObjectValue!;
     }
 
     /// <summary>Gets the object value as a specific type. Only valid when IsObject is true.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public T AsObject<T>() where T : class
     {
         return (T)ObjectValue!;
@@ -451,7 +451,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     #region TryGet Methods (for pattern matching)
 
     /// <summary>Tries to get the double value. Returns true if this is a number.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public bool TryGetDouble(out double value)
     {
         if (Kind == JsValueKind.Number)
@@ -465,7 +465,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     }
 
     /// <summary>Tries to get the boolean value. Returns true if this is a boolean.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public bool TryGetBoolean(out bool value)
     {
         if (Kind == JsValueKind.Boolean)
@@ -479,7 +479,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     }
 
     /// <summary>Tries to get the string value. Returns true if this is a string.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public bool TryGetString([NotNullWhen(true)] out string? value)
     {
         if (Kind == JsValueKind.String)
@@ -498,7 +498,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     }
 
     /// <summary>Tries to get the Symbol value. Returns true if this is a Symbol.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public bool TryGetSymbol([NotNullWhen(true)] out Symbol? value)
     {
         if (Kind == JsValueKind.Symbol)
@@ -512,7 +512,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     }
 
     /// <summary>Tries to get the BigInt value. Returns true if this is a BigInt.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public bool TryGetBigInt([NotNullWhen(true)] out JsBigInt? value)
     {
         if (Kind == JsValueKind.BigInt)
@@ -526,7 +526,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     }
 
     /// <summary>Tries to get the object value. Returns true if this is an object.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public bool TryGetObject([NotNullWhen(true)] out JsObject? value)
     {
         if (Kind == JsValueKind.Object && ObjectValue is JsObject obj)
@@ -540,7 +540,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     }
 
     /// <summary>Tries to get the object value as a specific type. Returns true if this is an object of that type.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public bool TryGetObject<T>([NotNullWhen(true)] out T? value) where T : class
     {
         if (Kind == JsValueKind.Object && ObjectValue is T obj)
@@ -554,7 +554,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     }
 
     /// <summary>Tries to unwrap the value to a specific type from ObjectValue. Works for any kind.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public bool TryUnwrap<T>([NotNullWhen(true)] out T? value) where T : class
     {
         if (ObjectValue is T obj)
@@ -571,7 +571,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// Tries to get the value as a callable. Uses enum check first to avoid runtime type checks for non-objects.
     /// This is more efficient than TryGetObject&lt;IJsCallable&gt; in hot paths.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public bool TryGetCallable([NotNullWhen(true)] out IJsCallable? value)
     {
         if (Kind == JsValueKind.Object && ObjectValue is IJsCallable callable)
@@ -588,7 +588,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// Tries to get the value as a property accessor. Uses enum check first to avoid runtime type checks for non-objects.
     /// This is more efficient than TryGetObject&lt;IJsPropertyAccessor&gt; in hot paths.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public bool TryGetPropertyAccessor([NotNullWhen(true)] out IJsPropertyAccessor? value)
     {
         if (Kind == JsValueKind.Object && ObjectValue is IJsPropertyAccessor accessor)
@@ -605,7 +605,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// Tries to get the value as an object-like type. Uses enum check first to avoid runtime type checks for non-objects.
     /// This is more efficient than TryGetObject&lt;IJsObjectLike&gt; in hot paths.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public bool TryGetObjectLike([NotNullWhen(true)] out IJsObjectLike? value)
     {
         if (Kind == JsValueKind.Object && ObjectValue is IJsObjectLike objLike)
@@ -621,7 +621,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// <summary>
     /// Tries to get the value as a JsPromise. Uses enum check first to avoid runtime type checks for non-objects.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public bool TryGetPromise([NotNullWhen(true)] out JsPromise? value)
     {
         if (Kind == JsValueKind.Object && ObjectValue is JsPromise promise)
@@ -637,7 +637,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// <summary>
     /// Tries to get the value as a JsArray. Uses enum check first to avoid runtime type checks for non-objects.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public bool TryGetArray([NotNullWhen(true)] out JsArray? value)
     {
         if (Kind == JsValueKind.Object && ObjectValue is JsArray array)
@@ -659,7 +659,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// Used for interop with existing code that uses object?.
     /// </summary>
    // [Obsolete("Do not use!, make API accept JsValue")]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public object? ToObject()
     {
         return Kind switch
@@ -691,7 +691,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// is genuinely unknown at compile time (e.g., values from dictionaries, reflection, etc.).
     /// Prefer typed overloads when the type is known.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue FromObjectUnsafe(object? value)
     {
         // DEBUG: Catch internal signal types that should NEVER be wrapped as JsValue.
@@ -753,7 +753,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// Typed overload for IAsJsValue - returns the cached JsValue directly without runtime type checks.
     /// Use this when you know the type implements IAsJsValue at compile time.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue FromObjectUnsafe(IAsJsValue value) => value.AsJsValue;
 
     #endregion
@@ -763,14 +763,14 @@ public readonly struct JsValue : IEquatable<JsValue>
     #region Factory Methods
 
     /// <summary>Creates a boolean JsValue.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue FromBoolean(bool value)
     {
         return value ? True : False;
     }
 
     /// <summary>Creates a number JsValue, using cache for common values.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue FromNumber(double value)
     {
         return value switch
@@ -784,7 +784,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     }
 
     /// <summary>Creates a number JsValue from an integer.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue FromNumber(int value)
     {
         return value switch
@@ -797,7 +797,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     }
 
     /// <summary>Creates a string JsValue.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue FromString(string value)
     {
         return value.Length == 0 ? EmptyString : new JsValue(value);
@@ -813,7 +813,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// </summary>
     public bool IsTruthy
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get
         {
             // Fast path for boolean (most common in loop conditions)
@@ -845,14 +845,14 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// <summary>Returns true if this value is falsy according to JavaScript semantics.</summary>
     public bool IsFalsy
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => !IsTruthy;
     }
 
     /// <summary>
     /// Gets the length of a string value without flattening ropes.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static int GetStringLength(object? value)
     {
         return value switch

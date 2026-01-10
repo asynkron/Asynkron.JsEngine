@@ -140,7 +140,7 @@ public static partial class TypedAstEvaluator
     /// Ultra-thin hot path for expression evaluation - designed to be inlined.
     /// Uses explicit if statements instead of switch for minimal IL size.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static JsValue EvaluateExpression(this ExpressionNode expression, JsEnvironment environment,
         EvaluationContext context)

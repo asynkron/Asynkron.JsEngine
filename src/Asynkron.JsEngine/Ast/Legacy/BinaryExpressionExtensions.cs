@@ -51,7 +51,7 @@ public static partial class TypedAstEvaluator
     /// <summary>
     /// Hot path for binary expressions - handles common arithmetic and comparison operators.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static JsValue EvaluateBinary(this BinaryExpression expression, JsEnvironment environment,
         EvaluationContext context)

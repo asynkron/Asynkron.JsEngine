@@ -162,11 +162,7 @@ public static partial class TypedAstEvaluator
             return ExecuteInstructionLoop(ref environment, context);
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+        [MethodImpl(JsEngineConstants.Inlining)]
         private JsValue ExecuteInstructionLoop(ref JsEnvironment environment, EvaluationContext context)
         {
             // Cache debug mode check outside the hot loop - avoid virtual property access per iteration
@@ -218,20 +214,15 @@ public static partial class TypedAstEvaluator
                                 ExecutionPlanPrinter.FormatInstruction(instruction));
                         }
 
-                        // Detailed IR execution trace with environment depth
-#pragma warning disable CS0162 // Unreachable code detected (TraceIrExecution is compile-time constant)
-                        if (JsEngineConstants.TraceIrExecution && _realmState.Logger is not null)
-                        {
-                            ExecutionPlanPrinter.TraceInstruction(
-                                _realmState.Logger,
-                                _programCounter,
-                                instruction,
-                                environment.Depth,
-                                environment.ScopeId,
-                                environment.GetHashCode()
-                            );
-                        }
-#pragma warning restore CS0162
+                        // Detailed IR execution trace with environment depth (compiled out when TRACE_IR_EXECUTION not defined)
+                        ExecutionPlanPrinter.TraceInstruction(
+                            _realmState.Logger,
+                            _programCounter,
+                            instruction,
+                            environment.Depth,
+                            environment.ScopeId,
+                            environment.GetHashCode()
+                        );
 
                         // ═══════════════════════════════════════════════════════════════════════════
                         // FAST PATH: Handle the hottest instructions before switch dispatch

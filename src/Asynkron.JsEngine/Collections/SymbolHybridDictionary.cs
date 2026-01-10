@@ -34,7 +34,7 @@ public sealed class SymbolHybridDictionary<TValue>
 
     public TValue this[Symbol key]
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get
         {
             if (_dictionary is not null)
@@ -52,7 +52,7 @@ public sealed class SymbolHybridDictionary<TValue>
 
             throw new KeyNotFoundException($"Key not found: {key}");
         }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         set
         {
             if (_dictionary is not null)
@@ -97,7 +97,7 @@ public sealed class SymbolHybridDictionary<TValue>
         }
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private void AddInternal(Symbol key, TValue value)
     {
         if (_count >= CutoverPoint)
@@ -128,7 +128,7 @@ public sealed class SymbolHybridDictionary<TValue>
     /// Gets a reference to the value for the given key, or returns a null ref if not found.
     /// This mirrors CollectionsMarshal.GetValueRefOrNullRef for Dictionary.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public ref TValue GetValueRefOrNullRef(Symbol key)
     {
         if (_dictionary is not null)
@@ -159,7 +159,7 @@ public sealed class SymbolHybridDictionary<TValue>
         _count = 0;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public bool ContainsKey(Symbol key)
     {
         if (_dictionary is not null)
@@ -178,7 +178,7 @@ public sealed class SymbolHybridDictionary<TValue>
         return false;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public bool TryGetValue(Symbol key, [MaybeNullWhen(false)] out TValue value)
     {
         if (_dictionary is not null)

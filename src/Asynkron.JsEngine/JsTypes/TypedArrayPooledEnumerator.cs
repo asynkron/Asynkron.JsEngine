@@ -25,7 +25,7 @@ internal sealed class TypedArrayPooledEnumerator : IEnumerator<JsValue>, IRentab
     {
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static TypedArrayPooledEnumerator Rent(TypedArrayBase typedArray)
     {
         var enumerator = Pool.Rent();
@@ -37,7 +37,7 @@ internal sealed class TypedArrayPooledEnumerator : IEnumerator<JsValue>, IRentab
 
     public JsValue Current
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get
         {
             AssertOwnership(nameof(Current));
@@ -47,7 +47,7 @@ internal sealed class TypedArrayPooledEnumerator : IEnumerator<JsValue>, IRentab
 
     object IEnumerator.Current => _current;
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public bool MoveNext()
     {
         AssertOwnership(nameof(MoveNext));

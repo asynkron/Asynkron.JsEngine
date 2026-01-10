@@ -169,7 +169,7 @@ public sealed class JsEnvironment : IRentable
     ///     We must capture the entire scope chain because closures can reference
     ///     variables from any ancestor environment.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal void Capture()
     {
         // Fast path: if already captured, ancestors are too
@@ -728,7 +728,7 @@ public sealed class JsEnvironment : IRentable
     /// Use this when you don't know if the binding exists yet and want to avoid
     /// the overhead of HasBinding + Assign/Define pattern.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public void DefineOrAssignJsValue(Symbol name, JsValue value)
     {
         ref var slot = ref TryGetSlotRef(name);
@@ -764,7 +764,7 @@ public sealed class JsEnvironment : IRentable
     /// - No binding observers
     /// Use only for function parameter binding in fresh environments.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal void DefineParameterFast(Symbol name, JsValue value)
     {
         DefineSlot(name, value, SlotFlags.None);
@@ -1189,13 +1189,13 @@ public sealed class JsEnvironment : IRentable
         return false;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal bool HasOwnBinding(Symbol name)
     {
         return FindSlotIndex(name) >= 0;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal bool HasOwnLexicalBinding(Symbol name)
     {
         var index = FindSlotIndex(name);
@@ -1413,7 +1413,7 @@ public sealed class JsEnvironment : IRentable
     /// Fast path identifier resolution - no 'with' statement check.
     /// Only use when AllowIdentifierCache is true (no with/eval in scope).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal JsValue GetIdentifierJsValueDirect(Symbol name, EvaluationContext context)
     {
         if (TryGetCachedDeclarativeBinding(name, context, out var cached))
@@ -1445,7 +1445,7 @@ public sealed class JsEnvironment : IRentable
     /// Returns false if the identifier is not found (instead of throwing).
     /// This is the fast path for identifier evaluation in hot loops.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal bool TryGetIdentifierJsValue(Symbol name, EvaluationContext context, out JsValue value)
     {
         // Ultra-fast path: check the current environment first for local variables
@@ -1521,7 +1521,7 @@ public sealed class JsEnvironment : IRentable
     /// <summary>
     /// Slot-aware identifier read. Attempts to use the provided scope/slot hint, then falls back to regular resolution.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal bool TryReadIdentifierWithSlot(
         Symbol name,
         int scopeId,
@@ -1576,7 +1576,7 @@ public sealed class JsEnvironment : IRentable
     /// <summary>
     /// Overload for convenience when call sites already have the identifier node.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal bool TryReadIdentifierWithSlot(IdentifierExpression identifier, EvaluationContext context,
         out JsValue value)
     {
@@ -1586,7 +1586,7 @@ public sealed class JsEnvironment : IRentable
     /// <summary>
     /// Slot-aware identifier write. Uses slot hint when possible; otherwise falls back to normal write resolution.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private bool TryWriteIdentifierWithSlot(
         Symbol name,
         int scopeId,
@@ -1659,13 +1659,13 @@ public sealed class JsEnvironment : IRentable
     /// <summary>
     /// Overload for convenience when call sites already have the identifier node.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal bool TryWriteIdentifierWithSlot(IdentifierExpression identifier, JsValue value, EvaluationContext context)
     {
         return TryWriteIdentifierWithSlot(identifier.Name, identifier.ScopeId, identifier.SlotIndex, value, context);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal bool TryReadSlotValue(Symbol name, int slotIndex, EvaluationContext context, out JsValue value)
     {
         var shouldLogSlots = context.RealmState.Options.DebugMode;
@@ -1706,7 +1706,7 @@ public sealed class JsEnvironment : IRentable
         return true;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal bool TryWriteSlotValue(Symbol name, int slotIndex, JsValue value, EvaluationContext context)
     {
         var slots = _slots;
@@ -1904,7 +1904,7 @@ public sealed class JsEnvironment : IRentable
             value.Kind);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private bool TryLocateBinding(
         Symbol name,
         out JsEnvironment bindingEnvironment,
@@ -1943,7 +1943,7 @@ public sealed class JsEnvironment : IRentable
     /// Direct binding value read for fast accumulator patterns.
     /// Assumes the binding exists in this environment (caller verified via TryLocateBindingInternal).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal JsValue GetBindingValueDirect(Symbol name)
     {
         ref var slot = ref TryGetSlotRef(name);
@@ -1962,7 +1962,7 @@ public sealed class JsEnvironment : IRentable
     /// Direct binding value write for fast accumulator patterns.
     /// Assumes the binding exists in this environment and is mutable.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal void SetBindingValueDirect(Symbol name, JsValue value)
     {
         ref var slot = ref TryGetSlotRef(name);
@@ -1983,7 +1983,7 @@ public sealed class JsEnvironment : IRentable
     /// Internal method to locate a binding's environment for fast accumulator patterns.
     /// Returns just the environment, not the binding itself.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal bool TryLocateBindingInternal(Symbol name, out JsEnvironment? bindingEnvironment)
     {
         var current = this;
@@ -2012,7 +2012,7 @@ public sealed class JsEnvironment : IRentable
         return false;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private bool TryResolveGlobalObjectBinding(
         Symbol name,
         EvaluationContext context,
@@ -2498,7 +2498,7 @@ public sealed class JsEnvironment : IRentable
     /// <summary>
     /// JsValue overload that avoids boxing.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public void AssignJsValue(Symbol name, JsValue value)
     {
         var isStrictContext = IsStrict;
@@ -2966,7 +2966,7 @@ public sealed class JsEnvironment : IRentable
         return false;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal static JsValue GetWithBindingValueJsValue(in ObjectEnvironmentBinding binding)
     {
         var propertyName = binding.PropertyName;
@@ -3512,7 +3512,7 @@ public sealed class JsEnvironment : IRentable
     /// Internal use only - prefer Initialize() for public API.
     /// </summary>
     /// <param name="slotCount">Number of slots needed for this scope.</param>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal void InitializeSlots(int slotCount)
     {
         _slotCount = slotCount;
@@ -3539,7 +3539,7 @@ public sealed class JsEnvironment : IRentable
     /// </summary>
     /// <param name="slotCount">Number of slots needed for this scope.</param>
     /// <param name="scopeId">Unique ID for this scope from scope analysis.</param>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal void InitializeSlots(int slotCount, int scopeId)
     {
         ValidateScopeId(scopeId);
@@ -3615,7 +3615,7 @@ public sealed class JsEnvironment : IRentable
     /// Ensures the slot layout matches the expected plan layout.
     /// If the layoutId or capacity does not match, the slots are rebuilt.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal void ResetSlotLayoutForPlan(
         int requiredSlots,
         ImmutableDictionary<Symbol, int> slotMap,
@@ -3664,7 +3664,7 @@ public sealed class JsEnvironment : IRentable
     /// </summary>
     /// <param name="scopeId">Unique ID for this scope from scope analysis.</param>
     /// <param name="slotMap">Mapping from symbol names to slot indices.</param>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public void Initialize(int scopeId, ImmutableDictionary<Symbol, int> slotMap)
     {
         ValidateScopeId(scopeId);
@@ -3698,7 +3698,7 @@ public sealed class JsEnvironment : IRentable
     /// Sets slot names from a slot map. Used for compatibility with old API.
     /// Preserves existing slots that already have names (e.g., Symbol.This from GlobalEnvironment).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal void SetSlotMap(ImmutableDictionary<Symbol, int> slotMap)
     {
         var count = slotMap.Count;
@@ -3745,7 +3745,7 @@ public sealed class JsEnvironment : IRentable
     /// Fast slot name initialization using a pre-computed array.
     /// Avoids ImmutableDictionary iteration which is slow.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal void SetSlotNames(ImmutableArray<(Symbol Name, int SlotIndex)> slotNames)
     {
         if (slotNames.IsDefaultOrEmpty || _slots is null)
@@ -3765,7 +3765,7 @@ public sealed class JsEnvironment : IRentable
     /// <summary>
     /// Marks the provided symbols as lexical/uninitialized in the current slots (TDZ).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal void MarkSlotsLexicalUninitialized(IEnumerable<Symbol> symbols)
     {
         if (_slots is null)
@@ -3792,7 +3792,7 @@ public sealed class JsEnvironment : IRentable
     /// Returns -1 if not found. Fast for typical JS scopes (1-10 bindings).
     /// Uses bounds-check-free access via Unsafe.Add for hot path performance.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal int FindSlotIndex(Symbol name)
     {
         var slots = _slots;
@@ -3818,7 +3818,7 @@ public sealed class JsEnvironment : IRentable
     /// Tries to get the slot index for a symbol from this environment.
     /// Uses linear scan over slot names.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal bool TryGetSlotIndex(Symbol name, out int slotIndex)
     {
         slotIndex = FindSlotIndex(name);
@@ -3829,7 +3829,7 @@ public sealed class JsEnvironment : IRentable
     /// Gets a reference to a slot by index. Caller must ensure index is valid.
     /// Uses Unsafe.Add to bypass bounds check since caller guarantees validity.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal ref JsSlot GetSlotByIndex(int index)
     {
         return ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(_slots!), index);
@@ -3839,7 +3839,7 @@ public sealed class JsEnvironment : IRentable
     /// Marks a slot as lexical/uninitialized by index for TDZ enforcement.
     /// Caller must ensure index is valid.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal void SetSlotLexicalUninitialized(int index)
     {
         ref var slot = ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(_slots!), index);
@@ -3850,7 +3850,7 @@ public sealed class JsEnvironment : IRentable
     /// Defines a new slot with the given name, value, and flags.
     /// Returns the index of the new slot.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal int DefineSlot(Symbol name, JsValue value, SlotFlags flags)
     {
         var index = _slotCount;
@@ -3886,7 +3886,7 @@ public sealed class JsEnvironment : IRentable
     /// <summary>
     /// Gets a reference to an existing slot by name, or adds a new slot if not found.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal ref JsSlot GetOrDefineSlotRef(Symbol name, JsValue value, SlotFlags flags)
     {
         var index = FindSlotIndex(name);
@@ -3903,7 +3903,7 @@ public sealed class JsEnvironment : IRentable
     /// Tries to get a reference to an existing slot by name.
     /// Returns Unsafe.NullRef if not found.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal ref JsSlot TryGetSlotRef(Symbol name)
     {
         var index = FindSlotIndex(name);
@@ -3932,7 +3932,7 @@ public sealed class JsEnvironment : IRentable
     /// <summary>
     /// Checks if a binding exists in this environment.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal bool HasBindingLocal(Symbol name)
     {
         return FindSlotIndex(name) >= 0;
@@ -3941,7 +3941,7 @@ public sealed class JsEnvironment : IRentable
     /// <summary>
     /// Builds SlotFlags from individual boolean parameters.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static SlotFlags BuildSlotFlags(
         bool isConst,
         bool isGlobalConstant,
@@ -3996,7 +3996,7 @@ public sealed class JsEnvironment : IRentable
     /// </summary>
     /// <param name="scopeId">The scope ID to find.</param>
     /// <returns>The environment with matching ScopeId, or null if not found.</returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal JsEnvironment? FindByScopeId(int scopeId)
     {
         var env = this;
@@ -4019,7 +4019,7 @@ public sealed class JsEnvironment : IRentable
     /// <param name="scopeDepth">How many function scopes up (0 = this scope).</param>
     /// <param name="slotIndex">Index into the slots array.</param>
     /// <returns>The value at the specified slot.</returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public JsValue GetSlot(int scopeDepth, int slotIndex)
     {
         var env = this;
@@ -4042,7 +4042,7 @@ public sealed class JsEnvironment : IRentable
     /// <param name="scopeDepth">How many function scopes up (0 = this scope).</param>
     /// <param name="slotIndex">Index into the slots array.</param>
     /// <param name="value">The value to set.</param>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public void SetSlot(int scopeDepth, int slotIndex, JsValue value)
     {
         var env = this;
@@ -4065,7 +4065,7 @@ public sealed class JsEnvironment : IRentable
     /// </summary>
     /// <param name="slotIndex">Index into the slots array.</param>
     /// <param name="value">The value to set.</param>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal void SetSlot(int slotIndex, JsValue value)
     {
         SetSlotDirect(slotIndex, value);
@@ -4086,7 +4086,7 @@ public sealed class JsEnvironment : IRentable
     /// when the caller has already resolved the target environment.
     /// WARNING: Caller must ensure slotIndex is valid and _slots is initialized.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal ref JsValue GetSlotRef(int slotIndex)
     {
         AssertSlotIndexValid(slotIndex, nameof(GetSlotRef));
@@ -4097,7 +4097,7 @@ public sealed class JsEnvironment : IRentable
     /// Checks if a slot is a const binding.
     /// Used by fast path handlers to throw TypeError on const reassignment.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal bool IsSlotConst(int slotIndex)
     {
         return _slots![slotIndex].IsConst;
@@ -4108,7 +4108,7 @@ public sealed class JsEnvironment : IRentable
     /// Used for fast per-iteration binding copies in generators.
     /// WARNING: Caller must ensure slotIndex is valid and _slots is initialized.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal void SetSlotDirect(int slotIndex, JsValue value)
     {
         AssertSlotIndexValid(slotIndex, nameof(SetSlotDirect));
@@ -4126,7 +4126,7 @@ public sealed class JsEnvironment : IRentable
     /// Resolves an identifier to its target environment and slot index.
     /// Returns true if the identifier can be accessed via slots, false if dictionary fallback is needed.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal bool TryResolveSlot(Symbol name, int scopeId, int slotIndex, out JsEnvironment? targetEnv)
     {
         AssertScopeChain(nameof(TryResolveSlot));

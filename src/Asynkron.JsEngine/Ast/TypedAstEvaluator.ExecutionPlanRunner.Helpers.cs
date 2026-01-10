@@ -63,7 +63,7 @@ public static partial class TypedAstEvaluator
             };
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static void StoreSymbolValue(JsEnvironment environment, Symbol symbol, object? /* intentional */ value)
         {
             // Handle case where value is already a boxed JsValue
@@ -71,7 +71,7 @@ public static partial class TypedAstEvaluator
             StoreSymbolValueJsValue(environment, symbol, jsVal);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static void StoreSymbolValueJsValue(JsEnvironment environment, Symbol symbol, JsValue value)
         {
             // DefineOrAssignJsValue is O(1) on the current environment -
@@ -83,7 +83,7 @@ public static partial class TypedAstEvaluator
         /// <summary>
         /// Gets the actual slot index, applying offset for GlobalEnvironment access in script mode.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private int GetActualSlotIndex(JsEnvironment environment, int slotIndex)
         {
             // Apply offset only when accessing the GlobalEnvironment (stored in _closure for scripts).
@@ -104,7 +104,7 @@ public static partial class TypedAstEvaluator
         /// Stores a value using pre-resolved slot index for O(1) access.
         /// Falls back to dictionary-based storage if slot index is invalid.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private void StoreValueBySlot(JsEnvironment environment, Symbol symbol, int slotIndex, JsValue value)
         {
             if (slotIndex >= 0 && environment.HasSlots)
@@ -124,7 +124,7 @@ public static partial class TypedAstEvaluator
         /// Reads a value using pre-resolved slot index for O(1) access.
         /// Falls back to dictionary-based lookup if slot index is invalid.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private bool TryGetValueBySlot(JsEnvironment environment, Symbol symbol, int slotIndex,
             out JsValue value)
         {
@@ -141,7 +141,7 @@ public static partial class TypedAstEvaluator
         /// <summary>
         /// Creates a JsVariable for slot-based access, applying offset for GlobalEnvironment.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private JsVariable CreateSlotVariable(JsEnvironment environment, int slotIndex)
         {
             var actualSlotIndex = GetActualSlotIndex(environment, slotIndex);

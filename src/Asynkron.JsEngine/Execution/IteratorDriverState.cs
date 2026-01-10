@@ -118,7 +118,7 @@ internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAs
     /// <summary>
     /// Resets the state for reuse from pool.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public void OnReturn(ILogger? logger = null)
     {
         logger?.LogInformation("IteratorDriverState.OnReturn");
@@ -216,7 +216,7 @@ internal static class IteratorDriverStatePool
 {
     private static readonly ObjectPool<IteratorDriverState> Pool = new(32, static () => new IteratorDriverState());
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static IteratorDriverState Rent()
     {
         var state = Pool.Rent();
@@ -229,7 +229,7 @@ internal static class IteratorDriverStatePool
         return state;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static void Return(IteratorDriverState state)
     {
         state.MarkReturned();

@@ -123,7 +123,7 @@ internal static class NumericStringParser
         return BigInteger.TryParse(digits, styles, CultureInfo.InvariantCulture, out value);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal static bool TryParseBinary(ReadOnlySpan<char> span, out BigInteger value)
     {
         value = BigInteger.Zero;
@@ -156,7 +156,7 @@ internal static class NumericStringParser
         return true;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal static bool TryParseOctal(ReadOnlySpan<char> span, out BigInteger value)
     {
         value = BigInteger.Zero;

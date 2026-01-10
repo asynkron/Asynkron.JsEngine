@@ -417,16 +417,12 @@ public static partial class TypedAstEvaluator
         // Change to AggressiveInlining after profiling is complete
         // ═══════════════════════════════════════════════════════════════════════════
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+        [MethodImpl(JsEngineConstants.Inlining)]
         private InstructionResult HandleBranchFastPath(
-            BranchInstruction instruction,
-            JsEnvironment environment,
-            EvaluationContext context,
-            out JsValue returnValue)
+                    BranchInstruction instruction,
+                    JsEnvironment environment,
+                    EvaluationContext context,
+                    out JsValue returnValue)
         {
             // Fast path for simple binary comparisons (e.g., i < 1000000)
             JsValue testValue;
@@ -484,18 +480,14 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+        [MethodImpl(JsEngineConstants.Inlining)]
         private InstructionResult HandleSyncIteratorMoveNext(
-            IteratorMoveNextInstruction instruction,
-            ref JsEnvironment environment,
-            EvaluationContext context,
-            IteratorDriverState driverState,
-            JsVariable valueVar,
-            out JsValue returnValue)
+                    IteratorMoveNextInstruction instruction,
+                    ref JsEnvironment environment,
+                    EvaluationContext context,
+                    IteratorDriverState driverState,
+                    JsVariable valueVar,
+                    out JsValue returnValue)
         {
             // If we're resuming this iterator site with an abrupt completion (return/throw),
             // propagate it immediately instead of calling iterator.next() again.
@@ -657,20 +649,16 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+        [MethodImpl(JsEngineConstants.Inlining)]
         private InstructionResult HandleAsyncIteratorMoveNext(
-            IteratorMoveNextInstruction instruction,
-            ref JsEnvironment environment,
-            EvaluationContext context,
-            IteratorDriverState driverState,
-            JsVariable iterVar,
-            JsVariable valueVar,
-            int iteratorIndex,
-            out JsValue returnValue)
+                    IteratorMoveNextInstruction instruction,
+                    ref JsEnvironment environment,
+                    EvaluationContext context,
+                    IteratorDriverState driverState,
+                    JsVariable iterVar,
+                    JsVariable valueVar,
+                    int iteratorIndex,
+                    out JsValue returnValue)
         {
             var awaitedValue = JsValue.Undefined;
             var awaitedNextResult = JsValue.Undefined;

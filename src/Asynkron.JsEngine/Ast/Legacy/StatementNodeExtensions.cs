@@ -14,7 +14,7 @@ public static partial class TypedAstEvaluator
     /// Evaluates a statement and returns the completion value as JsValue.
     /// Tiny hot path for inlining - only handles the most common cases.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static JsValue EvaluateStatementJsValue(this StatementNode statement, JsEnvironment environment,
         EvaluationContext context,

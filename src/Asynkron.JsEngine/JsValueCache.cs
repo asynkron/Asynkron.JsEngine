@@ -109,7 +109,7 @@ public static class JsValueCache
     /// <summary>
     /// Gets a cached boxed integer if within cache range, otherwise boxes fresh.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static object GetInteger(int value)
     {
         if ((uint)value < IntegerCacheSize)
@@ -124,7 +124,7 @@ public static class JsValueCache
     /// Gets a cached JsValue for an integer if within cache range, otherwise creates new.
     /// Avoids boxing entirely.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue GetIntegerJsValue(int value)
     {
         if ((uint)value < IntegerCacheSize)
@@ -138,7 +138,7 @@ public static class JsValueCache
     /// <summary>
     /// Gets a cached boxed double for common values, otherwise boxes fresh.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static object GetNumber(double value)
     {
         // Check for common integer values first
@@ -182,7 +182,7 @@ public static class JsValueCache
     /// Gets a cached JsValue for a number if within cache range, otherwise creates new.
     /// Avoids boxing entirely.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue GetNumberJsValue(double value)
     {
         // Check for common integer values first
@@ -206,7 +206,7 @@ public static class JsValueCache
     /// <summary>
     /// Gets a cached boxed boolean.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static object GetBoolean(bool value)
     {
         return value ? BoxedTrue : BoxedFalse;
@@ -216,7 +216,7 @@ public static class JsValueCache
     /// Gets a cached string representation of an integer index if within cache range.
     /// This avoids allocations for common array index operations.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static string GetIndexString(int index)
     {
         if ((uint)index < IndexStringCacheSize)
@@ -230,7 +230,7 @@ public static class JsValueCache
     /// <summary>
     /// Gets a cached string representation of a long integer index if within cache range.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static string GetIndexString(long index)
     {
         if ((ulong)index < IndexStringCacheSize)
@@ -245,7 +245,7 @@ public static class JsValueCache
     /// Gets a cached string representation of a double if it's a valid array index.
     /// Returns null if not a valid index or out of cache range - caller should format manually.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static string? TryGetIndexString(double value)
     {
         // Check if it's a valid non-negative integer within cache range
@@ -260,7 +260,7 @@ public static class JsValueCache
     /// <summary>
     /// Interns a string if it's a well-known value, otherwise returns as-is.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static string InternString(string value)
     {
         if (value.Length == 0)
@@ -280,7 +280,7 @@ public static class JsValueCache
     /// Rents an argument array of the specified size from the pool.
     /// Uses lock-free pooling for sizes 1-4 with 15 cached arrays per size.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static object?[] RentArgumentArray(int size)
     {
         return size switch
@@ -298,7 +298,7 @@ public static class JsValueCache
     /// Returns an argument array to the pool. Arrays larger than 4 are not pooled.
     /// Clears array contents before returning to allow GC of referenced objects.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static void ReturnArgumentArray(object?[] array)
     {
         var length = array.Length;
@@ -339,7 +339,7 @@ public static class JsValueCache
     /// <summary>
     /// Creates a pooled single-element argument array.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static object?[] CreateArgs(object? arg0)
     {
         var array = RentArgumentArray(1);
@@ -350,7 +350,7 @@ public static class JsValueCache
     /// <summary>
     /// Creates a pooled two-element argument array.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static object?[] CreateArgs(object? arg0, object? arg1)
     {
         var array = RentArgumentArray(2);
@@ -362,7 +362,7 @@ public static class JsValueCache
     /// <summary>
     /// Creates a pooled three-element argument array.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static object?[] CreateArgs(object? arg0, object? arg1, object? arg2)
     {
         var array = RentArgumentArray(3);
@@ -376,7 +376,7 @@ public static class JsValueCache
     /// Rents a JsValue argument array of the specified size from the pool.
     /// Avoids boxing when passing arguments to functions.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue[] RentJsValueArray(int size)
     {
         return size switch
@@ -392,7 +392,7 @@ public static class JsValueCache
     /// <summary>
     /// Returns a JsValue argument array to the pool. Arrays larger than 4 are not pooled.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static void ReturnJsValueArray(JsValue[] array)
     {
         var length = array.Length;

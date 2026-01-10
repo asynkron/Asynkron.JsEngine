@@ -150,7 +150,48 @@ EOF
 )"
 ```
 
-Return the PR URL when done.
+8. **Monitor CI Pipeline** - After creating the PR, wait for CI to complete:
+
+```bash
+# Wait for CI checks to complete (poll every 30 seconds, max 20 minutes)
+gh pr checks --watch --interval 30
+```
+
+If `gh pr checks` shows failures:
+
+a. **Get the failed check details**:
+```bash
+gh pr checks --json name,state,conclusion,detailsUrl
+```
+
+b. **Fetch the CI logs** for failed checks:
+```bash
+# Get the run ID from the PR checks
+gh run view <run-id> --log-failed
+```
+
+c. **Analyze the failure**:
+   - Build errors: Read the error messages, fix the code
+   - Test failures: Identify which tests failed and why, fix the issues
+
+d. **Fix the issues** in your worktree
+
+e. **Run local verification** again:
+   - `dotnet build src/Asynkron.JsEngine`
+   - `dotnet test tests/Asynkron.JsEngine.Tests`
+
+f. **Commit and push the fix**:
+```bash
+git add -A
+git commit -m "Fix CI failures: [brief description of fix]"
+git push
+```
+
+g. **Repeat from step 8** - Monitor CI again until all checks pass
+
+**IMPORTANT**: Continue this loop until ALL CI checks pass. Do not return until CI is green.
+
+9. **Return the PR URL** only after CI passes successfully.
 ```
 
 ## Output
@@ -159,6 +200,7 @@ After both agents complete, report:
 - Issue: #$ISSUE_NUMBER
 - Implementation plan comment: [URL]
 - Pull request: [URL]
+- CI status: ✅ All checks passed
 - Worktree location: ../Asynkron.JsEngine-issue-$ISSUE_NUMBER
 
 Remind user to review the PR and clean up the worktree after merge:

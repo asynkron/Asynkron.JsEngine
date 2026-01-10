@@ -46,7 +46,7 @@ public struct JsSlot
     /// <summary>
     /// Creates a new slot with the given name, value, and flags.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public JsSlot(Symbol name, JsValue value, SlotFlags flags)
     {
         Name = name;
@@ -57,7 +57,7 @@ public struct JsSlot
     /// <summary>
     /// Creates an uninitialized slot (for let/const before initialization).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsSlot Uninitialized(Symbol name, SlotFlags flags)
     {
         return new JsSlot(name, JsValue.Undefined, flags | SlotFlags.Uninitialized);
@@ -68,7 +68,7 @@ public struct JsSlot
     /// </summary>
     public readonly bool IsUninitialized
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => (Flags & SlotFlags.Uninitialized) != 0;
     }
 
@@ -77,7 +77,7 @@ public struct JsSlot
     /// </summary>
     public readonly bool IsConst
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => (Flags & SlotFlags.Const) != 0;
     }
 
@@ -86,7 +86,7 @@ public struct JsSlot
     /// </summary>
     public readonly bool IsLexical
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => (Flags & SlotFlags.Lexical) != 0;
     }
 
@@ -95,7 +95,7 @@ public struct JsSlot
     /// </summary>
     public readonly bool IsGlobalConstant
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => (Flags & SlotFlags.GlobalConstant) != 0;
     }
 
@@ -104,7 +104,7 @@ public struct JsSlot
     /// </summary>
     public readonly bool BlocksFunctionScopeOverride
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => (Flags & SlotFlags.BlocksFunctionScopeOverride) != 0;
     }
 
@@ -113,7 +113,7 @@ public struct JsSlot
     /// </summary>
     public readonly bool CanDelete
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => (Flags & SlotFlags.CanDelete) != 0;
     }
 
@@ -122,7 +122,7 @@ public struct JsSlot
     /// </summary>
     public readonly bool IsImmutableBinding
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => (Flags & SlotFlags.ImmutableBinding) != 0;
     }
 
@@ -132,14 +132,14 @@ public struct JsSlot
     /// </summary>
     public readonly bool HasSpecialBinding
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => (Flags & SlotFlags.HasSpecialBinding) != 0;
     }
 
     /// <summary>
     /// Clears the uninitialized flag (called when binding is initialized).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public void MarkInitialized()
     {
         Flags &= ~SlotFlags.Uninitialized;
@@ -148,7 +148,7 @@ public struct JsSlot
     /// <summary>
     /// Sets the value and clears the uninitialized flag.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public void Initialize(JsValue value)
     {
         Value = value;
@@ -159,7 +159,7 @@ public struct JsSlot
     /// Sets the value and clears the TDZ flag if the value is not uninitialized.
     /// Use this when assigning to a binding that might be in TDZ.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public void SetValueAndClearTdz(JsValue value)
     {
         Value = value;
@@ -173,7 +173,7 @@ public struct JsSlot
     /// </summary>
     public readonly bool IsEmpty
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => Name is null;
     }
 }

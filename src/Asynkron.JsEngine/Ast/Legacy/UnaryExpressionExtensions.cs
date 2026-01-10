@@ -57,7 +57,7 @@ public static partial class TypedAstEvaluator
     /// <summary>
     /// Hot path for unary expressions - handles common operators without try/catch.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static JsValue EvaluateUnary(this UnaryExpression expression, JsEnvironment environment,
         EvaluationContext context)

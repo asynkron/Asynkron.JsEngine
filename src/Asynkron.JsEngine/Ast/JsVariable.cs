@@ -18,17 +18,17 @@ internal readonly struct JsVariable(JsEnvironment environment, int slotIndex)
     /// </summary>
     public bool IsConst
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => Environment.IsSlotConst(SlotIndex);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public JsValue Read()
     {
         return Environment.GetSlotRef(SlotIndex);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public void Write(JsValue value)
     {
         Environment.SetSlotDirect(SlotIndex, value);

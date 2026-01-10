@@ -20,7 +20,7 @@ public static partial class TypedAstEvaluator
     /// Rents an iteration environment from the pool with slots initialized.
     /// Avoids Func&lt;JsEnvironment&gt; lambda allocation.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static JsEnvironment RentIterationEnvironment(this IteratorDriverPlan plan, JsEnvironment loopEnvironment, ILogger? logger = null)
     {
         var env = JsEnvironmentPool.Rent(loopEnvironment, false, false, plan.Body.Source, "for-each-iteration",
@@ -32,7 +32,7 @@ public static partial class TypedAstEvaluator
     /// <summary>
     /// Selects or creates the appropriate iteration environment for the current iteration.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static JsEnvironment SelectIterationEnvironment(this IteratorDriverPlan plan, JsEnvironment? reusableIterationEnvironment,
         JsEnvironment loopEnvironment,
         bool useIterationSlots,
@@ -60,7 +60,7 @@ public static partial class TypedAstEvaluator
     /// Handles the first iteration assignment for let/const bindings with reusable environment.
     /// Sets up the const flag and syncs iteration slots.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static void HandleFirstIterationAssignment(this IteratorDriverPlan plan, JsValue value,
         JsEnvironment reusableIterationEnvironment,
         JsEnvironment outerEnvironment,
@@ -640,7 +640,7 @@ public static partial class TypedAstEvaluator
 
         return true;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         static JsValue RunAccumulatorLoop(
             IEnumerator<JsValue> enumerator,
             double initialValue,
@@ -721,7 +721,7 @@ public static partial class TypedAstEvaluator
     /// Initializes an iteration environment so slot-based lookups hit the correct bindings.
     /// Uses cached slot map from the plan to avoid rebuilding it every iteration.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static void InitializeIterationEnvironmentLayout(IteratorDriverPlan plan, JsEnvironment environment)
     {
         var requiredSlots = plan.GetRequiredSlots();

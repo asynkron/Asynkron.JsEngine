@@ -24,7 +24,7 @@ public static partial class TypedAstEvaluator
         /// Resets the completion value to Unit (sentinel) when entering a construct
         /// that has its own completion value (loops, try, catch).
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private void ResetCompletionValue()
         {
             if (_isScriptMode)
@@ -37,7 +37,7 @@ public static partial class TypedAstEvaluator
         /// Finalizes the completion value when exiting a construct.
         /// If still Unit (no value produced), converts to undefined.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private void FinalizeCompletionValue()
         {
             if (_isScriptMode && _scriptCompletionValue.IsUnit)
@@ -49,7 +49,7 @@ public static partial class TypedAstEvaluator
         /// <summary>
         /// Saves the current completion value to a TryFrame before entering finally.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private void SaveCompletionValueForFinally(TryFrame frame)
         {
             if (_isScriptMode)
@@ -62,7 +62,7 @@ public static partial class TypedAstEvaluator
         /// Restores the completion value from a TryFrame after finally completes normally.
         /// Applies Unit→undefined conversion.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private void RestoreCompletionValueFromFinally(TryFrame frame)
         {
             if (_isScriptMode)

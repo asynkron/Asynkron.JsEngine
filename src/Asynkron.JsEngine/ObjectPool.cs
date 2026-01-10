@@ -11,7 +11,7 @@ namespace Asynkron.JsEngine;
 /// A fast, lock-free object pool using a fixed-size array.
 /// Uses Interlocked operations for thread-safety with minimal contention.
 /// If T implements IRentable, OnRent() is called on rent, OnReturn() on return.
-/// When JsEngineConstants.DisablePooling is true, always creates new instances and Return is a no-op.
+/// When DISABLE_POOLING is defined, always creates new instances and Return is a no-op.
 /// </summary>
 internal sealed class ObjectPool<T>(int size, Func<T> factory)
     where T : class
@@ -20,20 +20,18 @@ internal sealed class ObjectPool<T>(int size, Func<T> factory)
 
     private readonly T?[] _items = new T?[size];
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public T Rent(ILogger? logger = null)
     {
+#if DISABLE_POOLING
         // Kill switch: always create fresh instance
-        if (JsEngineConstants.DisablePooling)
+        var freshItem = factory();
+        if (IsRentable)
         {
-            var freshItem = factory();
-            if (IsRentable)
-            {
-                ((IRentable)freshItem).OnRent(logger);
-            }
-            return freshItem;
+            ((IRentable)freshItem).OnRent(logger);
         }
-
+        return freshItem;
+#else
         var items = _items;
         for (var i = 0; i < items.Length; i++)
         {
@@ -56,17 +54,17 @@ internal sealed class ObjectPool<T>(int size, Func<T> factory)
         }
         PoolDebug.MarkLeased(newItem);
         return newItem;
+#endif
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public void Return(T item, ILogger? logger = null)
     {
+#if DISABLE_POOLING
         // Kill switch: do nothing, let GC handle it
-        if (JsEngineConstants.DisablePooling)
-        {
-            return;
-        }
-
+        _ = item;
+        _ = logger;
+#else
         if (IsRentable)
         {
             ((IRentable)item).OnReturn(logger);
@@ -82,5 +80,6 @@ internal sealed class ObjectPool<T>(int size, Func<T> factory)
             }
         }
         // Pool full, item will be GC'd
+#endif
     }
 }

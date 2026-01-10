@@ -22,7 +22,7 @@ public static partial class TypedAstEvaluator
         return errorObject;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static JsValue EvaluateIdentifier(this IdentifierExpression identifier, JsEnvironment environment,
         EvaluationContext context)
@@ -56,19 +56,15 @@ public static partial class TypedAstEvaluator
         }
 
         // Slow path: identifier not found - create proper error
-#pragma warning disable CS0162 // Unreachable code detected (TraceIrExecution is compile-time constant)
-        if (JsEngineConstants.TraceIrExecution && context.RealmState.Logger is not null)
-        {
-            ExecutionPlanPrinter.TraceLookup(
-                context.RealmState.Logger,
-                identifier.Name.Name,
-                false,
-                environment.Depth,
-                environment.ScopeId,
-                environment.GetHashCode(),
-                $"idScope={identifier.ScopeId} slot={identifier.SlotIndex}");
-        }
-#pragma warning restore CS0162
+        // Compiled out when TRACE_IR_EXECUTION not defined
+        ExecutionPlanPrinter.TraceLookup(
+            context.RealmState.Logger,
+            identifier.Name.Name,
+            false,
+            environment.Depth,
+            environment.ScopeId,
+            environment.GetHashCode(),
+            $"idScope={identifier.ScopeId} slot={identifier.SlotIndex}");
         return HandleIdentifierNotFound(identifier.Name, context);
     }
 }

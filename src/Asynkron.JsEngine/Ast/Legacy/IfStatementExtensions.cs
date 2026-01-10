@@ -13,7 +13,7 @@ public static partial class TypedAstEvaluator
     /// <summary>
     /// JsValue-returning version for use in hot loops to avoid boxing.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static JsValue EvaluateIfJsValue(this IfStatement statement, JsEnvironment environment, EvaluationContext context)
     {

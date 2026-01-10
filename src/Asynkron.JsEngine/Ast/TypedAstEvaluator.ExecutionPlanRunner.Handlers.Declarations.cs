@@ -72,7 +72,7 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static InstructionResult HandleClassDeclaration(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
@@ -121,7 +121,7 @@ public static partial class TypedAstEvaluator
             throw new ThrowSignal(classThrown);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static InstructionResult HandleSimpleVariableDeclaration(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
@@ -175,19 +175,15 @@ public static partial class TypedAstEvaluator
             else
             {
                 var isConst = instruction.VarKind == VariableKind.Const;
-#pragma warning disable CS0162
-                if (JsEngineConstants.TraceIrExecution && runner._realmState.Logger is not null)
-                {
-                    ExecutionPlanPrinter.TraceDefine(
-                        runner._realmState.Logger,
-                        instruction.VarKind.ToString(),
-                        instruction.TargetSymbol.Name,
-                        varValue.ToString() ?? "?",
-                        environment.Depth,
-                        environment.ScopeId,
-                        environment.GetHashCode());
-                }
-#pragma warning restore CS0162
+                // Compiled out when TRACE_IR_EXECUTION not defined
+                ExecutionPlanPrinter.TraceDefine(
+                    runner._realmState.Logger,
+                    instruction.VarKind.ToString(),
+                    instruction.TargetSymbol.Name,
+                    varValue.ToString() ?? "?",
+                    environment.Depth,
+                    environment.ScopeId,
+                    environment.GetHashCode());
                 environment.DefineJsValue(instruction.TargetSymbol, varValue,
                     isConst, isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
@@ -261,7 +257,7 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Return;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static InstructionResult HandleComplexVariableDeclaration(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,

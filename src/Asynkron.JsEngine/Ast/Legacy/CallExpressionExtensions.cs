@@ -17,7 +17,7 @@ public static partial class TypedAstEvaluator
     /// <summary>
     /// Hot path for call expressions - handles simple SyncFunctionInvoker calls without Activity overhead.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static JsValue EvaluateCall(this CallExpression expression, JsEnvironment environment, EvaluationContext context)
     {
@@ -708,7 +708,7 @@ public static partial class TypedAstEvaluator
     ///     Fast-path for plain Map/Set method calls.
     ///     Bypasses prototype lookup, host function creation, and argument array allocation.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static bool TryFastPathMapSetCall(
         this CallExpression callExpr,
         JsEnvironment environment,
@@ -831,7 +831,7 @@ public static partial class TypedAstEvaluator
 
     // ---- Map fast-path helpers ----
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static JsValue FastMapSet(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
@@ -851,7 +851,7 @@ public static partial class TypedAstEvaluator
         return JsValue.FromObjectUnsafe((IJsObjectLike)map);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static JsValue FastMapGet(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
@@ -864,7 +864,7 @@ public static partial class TypedAstEvaluator
         return map.Get(key);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static JsValue FastMapHas(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
@@ -877,7 +877,7 @@ public static partial class TypedAstEvaluator
         return map.Has(key) ? JsValue.True : JsValue.False;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static JsValue FastMapDelete(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
@@ -890,7 +890,7 @@ public static partial class TypedAstEvaluator
         return map.Delete(key) ? JsValue.True : JsValue.False;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static JsValue FastMapClear(JsMap map)
     {
         map.Clear();
@@ -899,7 +899,7 @@ public static partial class TypedAstEvaluator
 
     // ---- Set fast-path helpers ----
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static JsValue FastSetAdd(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
@@ -913,7 +913,7 @@ public static partial class TypedAstEvaluator
         return JsValue.FromObjectUnsafe(set);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static JsValue FastSetHas(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
@@ -926,7 +926,7 @@ public static partial class TypedAstEvaluator
         return set.Has(value) ? JsValue.True : JsValue.False;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static JsValue FastSetDelete(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
@@ -939,7 +939,7 @@ public static partial class TypedAstEvaluator
         return set.Delete(value) ? JsValue.True : JsValue.False;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static JsValue FastSetClear(JsSet set)
     {
         set.Clear();

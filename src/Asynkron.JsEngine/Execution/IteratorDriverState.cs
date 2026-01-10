@@ -95,19 +95,11 @@ internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAs
 
     /// <summary>
     /// Called when state is rented from pool.
+    /// Resets all state to ensure clean slate for new usage.
     /// </summary>
     void IRentable.OnRent(ILogger? logger)
     {
-        logger?.LogInformation("IteratorDriverState.Activate");
-    }
-
-    /// <summary>
-    /// Resets the state for reuse from pool.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void OnReturn(ILogger? logger = null)
-    {
-        logger?.LogInformation("IteratorDriverState.Reset");
+        logger?.LogInformation("IteratorDriverState.OnRent");
         IteratorObject = null;
         Enumerator = null;
         IsAsyncIterator = false;
@@ -126,10 +118,10 @@ internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAs
     /// <summary>
     /// Resets the state for reuse from pool.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void OnRent(ILogger? logger = null)
+    [MethodImpl(JsEngineConstants.Inlining)]
+    public void OnReturn(ILogger? logger = null)
     {
-        logger?.LogInformation("IteratorDriverState.Reset");
+        logger?.LogInformation("IteratorDriverState.OnReturn");
         IteratorObject = null;
         Enumerator = null;
         IsAsyncIterator = false;
@@ -224,12 +216,11 @@ internal static class IteratorDriverStatePool
 {
     private static readonly ObjectPool<IteratorDriverState> Pool = new(32, static () => new IteratorDriverState());
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static IteratorDriverState Rent()
     {
         var state = Pool.Rent();
-        // CRITICAL: Reset ALL state before use - pooled objects must be fully clean
-        state.OnRent(null);
+        // ObjectPool calls IRentable.OnRent() which resets all state
         if (PoolGuard.Enabled)
         {
             state.MarkLeased(PoolGuard.NextLeaseId());
@@ -238,7 +229,7 @@ internal static class IteratorDriverStatePool
         return state;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static void Return(IteratorDriverState state)
     {
         state.MarkReturned();

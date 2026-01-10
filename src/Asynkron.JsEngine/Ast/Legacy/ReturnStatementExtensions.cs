@@ -203,7 +203,7 @@ public static partial class TypedAstEvaluator
     /// For logical operators (&&, ||, ??), short-circuit evaluation must be done by the caller;
     /// this method just returns the right operand for those cases.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static JsValue ApplyBinaryOperator(BinaryOperator op, JsValue left, JsValue right,
         EvaluationContext context)
     {
@@ -237,7 +237,7 @@ public static partial class TypedAstEvaluator
         };
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static JsValue EvaluateReturnJsValue(this ReturnStatement statement, JsEnvironment environment,
         EvaluationContext context)

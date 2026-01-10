@@ -921,7 +921,7 @@ public static partial class TypedAstEvaluator
         return true;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static bool CheckCondition(double loopVar, double limit, FastLoopComparison comparison)
     {
         return comparison switch

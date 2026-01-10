@@ -19,7 +19,7 @@ internal static class JsSlotArrayPool
     /// Rents an array from the pool with at least the requested capacity.
     /// The actual array may be larger than requested (rounded up to bucket size).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsSlot[] Rent(int minimumLength) => Pool.Rent(minimumLength);
 
     /// <summary>
@@ -27,6 +27,6 @@ internal static class JsSlotArrayPool
     /// NOTE: We skip Array.Clear() here because InitializeSlots() always initializes
     /// all slots which overwrites all entries anyway.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static void Return(JsSlot[]? array) => Pool.Return(array);
 }

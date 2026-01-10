@@ -39,14 +39,14 @@ public sealed class JsRopeString
     /// </summary>
     public int Length
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get;
     }
 
     /// <summary>
     /// Concatenates two string values, returning either a rope or a direct string.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static object Concat(object left, object right)
     {
         var leftLen = GetLength(left);
@@ -75,7 +75,7 @@ public sealed class JsRopeString
     /// <summary>
     /// Gets the flattened string value, caching the result.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public string Flatten()
     {
         return _cached ?? FlattenSlow();
@@ -122,7 +122,7 @@ public sealed class JsRopeString
         }
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static int GetLength(object value)
     {
         return value switch
@@ -133,7 +133,7 @@ public sealed class JsRopeString
         };
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static int GetDepth(object value)
     {
         return value switch
@@ -146,7 +146,7 @@ public sealed class JsRopeString
     /// <summary>
     /// Gets the string value from either a raw string or a rope.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static string GetString(object value)
     {
         return value switch

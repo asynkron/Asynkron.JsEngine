@@ -14,7 +14,7 @@ public static partial class TypedAstEvaluator
     /// Evaluates a block statement and returns the completion value as JsValue.
     /// Returns JsValue.Undefined for empty blocks to match browser behavior.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static JsValue EvaluateBlockJsValue(this BlockStatement block, JsEnvironment environment,
         EvaluationContext context)
@@ -26,7 +26,7 @@ public static partial class TypedAstEvaluator
     /// Core block evaluation that returns JsValue directly.
     /// Returns JsValue.Undefined for empty blocks to match browser behavior.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static JsValue EvaluateBlockCore(this BlockStatement block, JsEnvironment environment,
         EvaluationContext context)
@@ -51,7 +51,7 @@ public static partial class TypedAstEvaluator
     /// <summary>
     /// Fast path for blocks that don't need a new environment.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static JsValue EvaluateBlockFast(this BlockStatement block, JsEnvironment environment,
         EvaluationContext context)

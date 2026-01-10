@@ -52,7 +52,7 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
         }
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal static bool TryGetInternalPromise(JsValue candidate, out JsPromise? promise)
     {
         if (!candidate.IsObject)
@@ -186,7 +186,7 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
         return nextPromise;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal bool TryGetSettled(out JsValue value, out bool isRejected)
     {
         if (_state == PromiseState.Pending)

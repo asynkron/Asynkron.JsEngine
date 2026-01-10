@@ -29,7 +29,7 @@ internal sealed class BucketedArrayPool<T>
     /// Rents an array from the pool with at least the requested capacity.
     /// The actual array may be larger than requested (rounded up to bucket size).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public T[] Rent(int minimumLength)
     {
         // Round up to nearest bucket size
@@ -53,7 +53,7 @@ internal sealed class BucketedArrayPool<T>
     /// NOTE: We skip Array.Clear() here because callers are expected to
     /// reinitialize all elements which overwrites all entries anyway.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public void Return(T[]? array)
     {
         if (array is null)

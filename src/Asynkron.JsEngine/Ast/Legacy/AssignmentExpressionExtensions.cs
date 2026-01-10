@@ -35,7 +35,7 @@ public static partial class TypedAstEvaluator
     /// Core logic for evaluating compound assignment operators.
     /// Handles short-circuit evaluation for logical operators and applies binary operations.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static void EvaluateCompoundOperator(
         AssignmentExpression? assignment,
@@ -240,7 +240,7 @@ public static partial class TypedAstEvaluator
     /// Tries to evaluate a compound assignment and apply it to the reference.
     /// Combines TryEvaluateCompoundAssignmentJsValue with the common post-processing pattern.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal static bool TryApplyCompoundAssignment(
         AssignmentExpression? assignment,
         ExpressionNode candidate,
@@ -265,7 +265,7 @@ public static partial class TypedAstEvaluator
         return true;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static JsValue EvaluateAssignmentRhsWithNameHintJsValue(
         AssignmentExpression? assignment,
@@ -294,7 +294,7 @@ public static partial class TypedAstEvaluator
         return jsValue;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private static bool ShouldApplyAssignmentNameHint(AssignmentExpression? assignment, ExpressionNode rhs)
     {
         return assignment is not null && rhs.IsAnonymousFunctionDefinitionNode() &&

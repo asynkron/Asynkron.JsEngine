@@ -495,7 +495,7 @@ public static partial class TypedAstEvaluator
         /// Coerces 'this' value for non-strict mode function calls.
         /// In non-strict mode, primitives are boxed to objects and null/undefined become globalThis.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private JsValue CoerceThisValueForNonStrict(JsValue thisValue)
         {
             // Null/undefined → globalThis
@@ -547,7 +547,7 @@ public static partial class TypedAstEvaluator
             _properties.SeedIntrinsicConstructorKeys();
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         public JsValue InvokeWithContext(
             IReadOnlyList<JsValue> arguments,
             JsValue thisValue,
@@ -567,7 +567,7 @@ public static partial class TypedAstEvaluator
         /// <summary>
         /// Ultra-fast invoke for 1-argument calls - avoids array allocation.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         public JsValue InvokeWithContext1(
             JsValue arg0,
             JsValue thisValue,
@@ -585,7 +585,7 @@ public static partial class TypedAstEvaluator
         /// Ultra-fast invoke for 1-argument calls with environment reuse optimization.
         /// When reuseEnvironment is provided, the callee will reuse it instead of allocating a new one.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         public JsValue InvokeWithContext1Reuse(
             JsValue arg0,
             JsValue thisValue,
@@ -603,7 +603,7 @@ public static partial class TypedAstEvaluator
         /// <summary>
         /// Ultra-fast invoke for 2-argument calls - avoids array allocation.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         public JsValue InvokeWithContext2(
             JsValue arg0,
             JsValue arg1,
@@ -1831,7 +1831,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         /// <summary>
         /// Fast-path invocation for simple functions. Uses pooled EvaluationContext.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private JsValue InvokeSimpleFast(IReadOnlyList<JsValue> arguments, JsValue thisValue,
             EvaluationContext? callingContext)
         {
@@ -1849,7 +1849,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         /// <summary>
         /// Ultra-fast 1-argument invoke - avoids array allocation entirely.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private JsValue InvokeSimpleFast1(JsValue arg0, JsValue thisValue, EvaluationContext callingContext)
         {
             if (_canPoolInvocationEnvironment && !_usesArguments)
@@ -1864,7 +1864,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         /// Ultra-fast 1-argument invoke with environment reuse - avoids both array and environment allocation.
         /// The provided environment is reset and reused instead of allocating a new one.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private JsValue InvokeSimpleFast1Reuse(JsValue arg0, JsValue thisValue, EvaluationContext callingContext,
             JsEnvironment reuseEnvironment)
         {
@@ -1879,7 +1879,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         /// <summary>
         /// Ultra-fast 2-argument invoke - avoids array allocation entirely.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private JsValue InvokeSimpleFast2(JsValue arg0, JsValue arg1, JsValue thisValue,
             EvaluationContext callingContext)
         {
@@ -1895,7 +1895,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         /// Sets up the execution context and environment for ultra-fast function invocation.
         /// Shared by InvokeSimpleFastCore, InvokeSimpleFastCore1, and InvokeSimpleFastCore2.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private void SetupFastFunctionContext(
             JsValue thisValue,
             EvaluationContext callingContext,
@@ -1917,7 +1917,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         /// Binds parameters from the argument list to slots (fast path) or dictionary (fallback).
         /// Handles closure dictionary binding when needed.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private void BindParametersFromList(JsEnvironment env, IReadOnlyList<JsValue> arguments)
         {
             var slots = env._slots;
@@ -1974,7 +1974,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         /// Executes the function body, handles result/throw/return, and returns pooled resources.
         /// Shared by InvokeSimpleFastCore, InvokeSimpleFastCore1, and InvokeSimpleFastCore2.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private JsValue ExecuteFunctionAndReturnResources(
             JsEnvironment functionEnvironment,
             EvaluationContext context,
@@ -2008,7 +2008,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         /// Ultra-fast core invocation - no try/catch to allow JIT inlining.
         /// Only used when we can guarantee no ThrowSignal will escape (errors propagate via context).
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private JsValue InvokeSimpleFastCore(IReadOnlyList<JsValue> arguments, JsValue thisValue,
             EvaluationContext callingContext)
         {
@@ -2020,7 +2020,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         /// <summary>
         /// Ultra-fast 1-argument core invocation - no array allocation, no try/catch.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private JsValue InvokeSimpleFastCore1(JsValue arg0, JsValue thisValue, EvaluationContext callingContext)
         {
             SetupFastFunctionContext(thisValue, callingContext, out var context, out var functionEnvironment);
@@ -2063,7 +2063,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         /// Ultra-fast 1-argument core invocation with environment reuse.
         /// Reuses the provided environment AND the calling context - avoids all pooling allocations.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private JsValue InvokeSimpleFastCore1Reuse(JsValue arg0, JsValue thisValue, EvaluationContext callingContext,
             JsEnvironment reuseEnvironment)
         {
@@ -2152,7 +2152,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         /// <summary>
         /// Ultra-fast 2-argument core invocation - no array allocation, no try/catch.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private JsValue InvokeSimpleFastCore2(JsValue arg0, JsValue arg1, JsValue thisValue,
             EvaluationContext callingContext)
         {

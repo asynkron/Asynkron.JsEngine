@@ -15,7 +15,7 @@ public static partial class TypedAstEvaluator
 {
     private sealed partial class ExecutionPlanRunner
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static InstructionResult HandleBinaryOp(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
@@ -138,7 +138,7 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static InstructionResult HandleIncrementSlot(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
@@ -292,7 +292,7 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static InstructionResult HandleCompoundAssignmentSlot(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,

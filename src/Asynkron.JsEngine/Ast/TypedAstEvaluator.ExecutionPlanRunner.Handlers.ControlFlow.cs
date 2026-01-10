@@ -55,17 +55,13 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static InstructionResult HandleBreak(
-            ExecutionPlanRunner runner,
-            ExecutionInstruction instr,
-            ref JsEnvironment environment,
-            EvaluationContext __,
-            out JsValue returnValue)
+                    ExecutionPlanRunner runner,
+                    ExecutionInstruction instr,
+                    ref JsEnvironment environment,
+                    EvaluationContext __,
+                    out JsValue returnValue)
         {
             var instruction = Unsafe.As<BreakInstruction>(instr);
             return HandleAbruptControlJump(
@@ -136,7 +132,7 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static InstructionResult HandleReturn(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
@@ -210,24 +206,20 @@ public static partial class TypedAstEvaluator
             throw new ThrowSignal(pendingThrow);
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static InstructionResult HandleJump(
-            ExecutionPlanRunner runner,
-            ExecutionInstruction instr,
-            ref JsEnvironment _,
-            EvaluationContext __,
-            out JsValue returnValue)
+                    ExecutionPlanRunner runner,
+                    ExecutionInstruction instr,
+                    ref JsEnvironment _,
+                    EvaluationContext __,
+                    out JsValue returnValue)
         {
             runner._programCounter = Unsafe.As<JumpInstruction>(instr).TargetIndex;
             returnValue = default;
             return InstructionResult.Continue;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static InstructionResult HandleBranch(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,

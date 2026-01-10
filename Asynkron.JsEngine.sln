@@ -23,42 +23,13 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".meta", ".meta", "{77806389
 		README.md = README.md
 		.editorconfig = .editorconfig
 		CLAUDE.md = CLAUDE.md
-		spec.md = spec.md
 		.claude\settings.local.json = .claude\settings.local.json
-		.claude\agents\deep-thinker.md = .claude\agents\deep-thinker.md
-		.claude\agents\coordinator.md = .claude\agents\coordinator.md
-		.claude\agents\test-failure-analyzer.md = .claude\agents\test-failure-analyzer.md
-		.claude\commands\codex.md = .claude\commands\codex.md
-		.claude\commands\wt.md = .claude\commands\wt.md
-		todo\todo-environment-stack.md = todo\todo-environment-stack.md
-		todo\todo-async-for-of.md = todo\todo-async-for-of.md
-		todo\todo-large-iteration-async-bug.md = todo\todo-large-iteration-async-bug.md
-		todo\todo-builtins.md = todo\todo-builtins.md
-		todo\todo-universal-ir.md = todo\todo-universal-ir.md
-		todo\todo-failing.md = todo\todo-failing.md
-		todo\todo-sync-ir-investigation.md = todo\todo-sync-ir-investigation.md
-		todo\todo.md = todo\todo.md
-		todo\todo-array-iterator-hang.md = todo\todo-array-iterator-hang.md
-		todo\todo-intl.md = todo\todo-intl.md
-		todo\todo-nested-async-loop-bug.md = todo\todo-nested-async-loop-bug.md
-		todo\todo-csharp-transpiler.md = todo\todo-csharp-transpiler.md
-		todo\todo-emitter.md = todo\todo-emitter.md
-		todo\todo-toplevel-ir.md = todo\todo-toplevel-ir.md
-		todo\todo-ir-loops.md = todo\todo-ir-loops.md
-		todo\todo-private-arrow-function.md = todo\todo-private-arrow-function.md
 		Directory.Build.props = Directory.Build.props
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{CBE37AA6-AD59-4A21-A8B0-4208A190EF53}"
 	ProjectSection(SolutionItems) = preProject
-		docs\memory-profiling.md = docs\memory-profiling.md
-		docs\loops.md = docs\loops.md
 		docs\jint-vs-jsengine-comparison.md = docs\jint-vs-jsengine-comparison.md
-		docs\bytecode.md = docs\bytecode.md
-		docs\bytecode-migration.md = docs\bytecode-migration.md
-		docs\benchmarks\after-optimizations-2024-12-13.md = docs\benchmarks\after-optimizations-2024-12-13.md
-		docs\benchmarks\baseline-2024-12-13.md = docs\benchmarks\baseline-2024-12-13.md
-		docs\standardlibrary-source-generator.md = docs\standardlibrary-source-generator.md
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Asynkron.JsEngine.Tests.Test262", "tests\Asynkron.JsEngine.Tests.Test262\Asynkron.JsEngine.Tests.Test262.csproj", "{7527CADC-BF6A-4F99-846F-92122ACFB155}"

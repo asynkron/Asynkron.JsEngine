@@ -140,7 +140,7 @@ public sealed class EvaluationContext(
     /// </summary>
     public JsValue FlowValue
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get
         {
             if (IsReturn)
@@ -162,7 +162,7 @@ public sealed class EvaluationContext(
     /// </summary>
     public bool ShouldStopEvaluation
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => IsReturn || CurrentSignal is not null;
     }
 
@@ -171,7 +171,7 @@ public sealed class EvaluationContext(
     /// </summary>
     public bool IsReturn
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get;
         private set;
     }
@@ -223,7 +223,7 @@ public sealed class EvaluationContext(
     /// Resolves an identifier using the appropriate path based on whether 'with' statements
     /// are in scope. This branches once instead of checking per-identifier access.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal JsValue GetIdentifier(JsEnvironment environment, Symbol name)
     {
         AssertOwnership(nameof(GetIdentifier));
@@ -393,7 +393,7 @@ public sealed class EvaluationContext(
     /// <summary>
     ///     Sets the context to Return state with the given value.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public void SetReturn(JsValue value)
     {
         AssertOwnership(nameof(SetReturn));
@@ -498,7 +498,7 @@ public sealed class EvaluationContext(
     /// <summary>
     ///     Clears the Return signal (used when a function consumes it).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public void ClearReturn()
     {
         AssertOwnership(nameof(ClearReturn));
@@ -520,7 +520,7 @@ public sealed class EvaluationContext(
     /// <summary>
     ///     Saves the current completion state for later restoration (used by try-finally).
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public CompletionState SaveCompletionState()
     {
         AssertOwnership(nameof(SaveCompletionState));
@@ -530,7 +530,7 @@ public sealed class EvaluationContext(
     /// <summary>
     ///     Restores a previously saved completion state.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public void RestoreCompletionState(in CompletionState state)
     {
         AssertOwnership(nameof(RestoreCompletionState));

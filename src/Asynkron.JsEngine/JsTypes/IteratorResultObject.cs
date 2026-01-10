@@ -44,7 +44,7 @@ internal sealed class IteratorResultObject : IJsObjectLike, IAsJsValue, IJsSurfa
     /// Marks this result as captured, preventing it from being returned to the pool.
     /// Call this when the result is assigned to a JS variable or otherwise escapes.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal void Capture()
     {
         IsCaptured = true;
@@ -53,7 +53,7 @@ internal sealed class IteratorResultObject : IJsObjectLike, IAsJsValue, IJsSurfa
     /// <summary>
     /// Resets this instance for reuse from the pool.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal void Reset(JsValue value, bool done)
     {
         _value = value;
@@ -65,7 +65,7 @@ internal sealed class IteratorResultObject : IJsObjectLike, IAsJsValue, IJsSurfa
     /// Creates an iterator result. For done=true with undefined value, returns a cached singleton.
     /// Uses pooling for non-done results to reduce allocations in hot loops.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static JsValue Create(JsValue value, bool done)
     {
         if (done && value.IsUndefined)

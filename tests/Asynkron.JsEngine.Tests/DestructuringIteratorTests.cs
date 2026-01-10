@@ -362,7 +362,7 @@ public sealed class DestructuringIteratorTests(ITestOutputHelper output) : Inter
         // Check if Symbol.iterator exists on Array.prototype after delete
         if (arrayPrototypeAfter is IJsPropertyAccessor protoAfter)
         {
-            var hasIterator = protoAfter.TryGetProperty(SymbolKeys.Iterator, out var iterVal);
+            var hasIterator = protoAfter.TryGetProperty(SymbolKeys.Iterator, out _);
             Output.WriteLine($"  Has Symbol.iterator: {hasIterator}");
         }
 

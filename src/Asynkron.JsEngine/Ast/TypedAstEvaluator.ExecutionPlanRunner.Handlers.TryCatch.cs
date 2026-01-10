@@ -13,7 +13,7 @@ public static partial class TypedAstEvaluator
 {
     private sealed partial class ExecutionPlanRunner
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static InstructionResult HandleThrow(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
@@ -149,7 +149,7 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static InstructionResult HandleEnterCatchWithDestructuring(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,

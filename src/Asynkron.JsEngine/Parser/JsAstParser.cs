@@ -2779,7 +2779,7 @@ public sealed class JsAstParser(
             return arguments.ToImmutable();
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static bool IsImportCallee(ExpressionNode expression)
         {
             return expression is IdentifierExpression { Name.Name: "import" };

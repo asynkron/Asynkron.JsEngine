@@ -23,7 +23,7 @@ internal sealed class ResolvedPromiseValue : IJsPropertyAccessor, IAsJsValue
     /// <summary>
     /// Rents a ResolvedPromiseValue from the pool.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public static ResolvedPromiseValue Rent(JsValue value, JsEngine engine)
     {
         var instance = Pool.Rent();
@@ -35,7 +35,7 @@ internal sealed class ResolvedPromiseValue : IJsPropertyAccessor, IAsJsValue
     /// <summary>
     /// Returns this instance to the pool.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public void Return()
     {
         AssertOwnership(nameof(Return));

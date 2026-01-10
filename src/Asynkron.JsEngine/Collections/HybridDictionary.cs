@@ -29,7 +29,7 @@ public sealed class HybridDictionary<TValue> : IDictionary<string, TValue>
 
     public int Count
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get => _dictionary?.Count ?? _count;
     }
 
@@ -75,7 +75,7 @@ public sealed class HybridDictionary<TValue> : IDictionary<string, TValue>
 
     public TValue this[string key]
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         get
         {
             if (_dictionary is not null)
@@ -90,7 +90,7 @@ public sealed class HybridDictionary<TValue> : IDictionary<string, TValue>
 
             throw new KeyNotFoundException($"Key not found: {key}");
         }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(JsEngineConstants.Inlining)]
         set
         {
             if (_dictionary is not null)
@@ -109,7 +109,7 @@ public sealed class HybridDictionary<TValue> : IDictionary<string, TValue>
         }
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public void Add(string key, TValue value)
     {
         if (_dictionary is not null)
@@ -126,7 +126,7 @@ public sealed class HybridDictionary<TValue> : IDictionary<string, TValue>
         AddInternal(key, value);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public bool ContainsKey(string key)
     {
         if (_dictionary is not null)
@@ -137,7 +137,7 @@ public sealed class HybridDictionary<TValue> : IDictionary<string, TValue>
         return TryFindEntry(key, out _);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     public bool TryGetValue(string key, [MaybeNullWhen(false)] out TValue value)
     {
         if (_dictionary is not null)
@@ -255,7 +255,7 @@ public sealed class HybridDictionary<TValue> : IDictionary<string, TValue>
         return GetEnumerator();
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private void AddInternal(string key, TValue value)
     {
         if (_count >= CutoverPoint)
@@ -281,7 +281,7 @@ public sealed class HybridDictionary<TValue> : IDictionary<string, TValue>
         _count = 0;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(JsEngineConstants.Inlining)]
     private bool TryFindEntry(string key, out int index)
     {
         for (var i = 0; i < _count; i++)

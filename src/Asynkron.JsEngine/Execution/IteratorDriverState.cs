@@ -100,19 +100,7 @@ internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAs
     void IRentable.OnRent(ILogger? logger)
     {
         logger?.LogInformation("IteratorDriverState.OnRent");
-        IteratorObject = null;
-        Enumerator = null;
-        IsAsyncIterator = false;
-        AwaitingNextResult = false;
-        AwaitingValue = false;
-        NextMethod = null;
-        IteratorVariable = default;
-        ValueVariable = default;
-        CurrentIterationEnvironment = null;
-        LoopScopeEnvironment = null;
-        IteratorClosed = false;
-        HasEnteredLoop = false;
-        PoolLeaseId = 0;
+        ResetState();
     }
 
     /// <summary>
@@ -122,6 +110,15 @@ internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAs
     public void OnReturn(ILogger? logger = null)
     {
         logger?.LogInformation("IteratorDriverState.OnReturn");
+        ResetState();
+    }
+
+    /// <summary>
+    /// Resets all iterator state fields to their initial values.
+    /// </summary>
+    [MethodImpl(JsEngineConstants.Inlining)]
+    private void ResetState()
+    {
         IteratorObject = null;
         Enumerator = null;
         IsAsyncIterator = false;

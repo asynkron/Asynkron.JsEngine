@@ -11,11 +11,6 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    public static HostFunction CreateArrayConstructor(RealmState realm)
-    {
-        return ArrayConstructor.CreateConstructor(realm);
-    }
-
     internal static object? ArrayOf(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         const string MethodName = "Array.of";

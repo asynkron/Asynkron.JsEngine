@@ -111,7 +111,7 @@ public sealed class JsEngine : IAsyncDisposable
             GlobalObject.SetPrototype(RealmState.ObjectPrototype);
         }
 
-        SetGlobal("Function", FunctionHelper.CreateFunctionConstructor(RealmState, this));
+        SetGlobal("Function", FunctionConstructor.CreateConstructor(RealmState));
         SetGlobal("Number", NumberHelper.CreateNumberConstructor(RealmState));
         var bigIntFunction = BigIntHelper.CreateBigIntFunction(RealmState);
         SetGlobal("BigInt", bigIntFunction);

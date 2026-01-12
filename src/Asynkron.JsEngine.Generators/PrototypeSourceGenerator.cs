@@ -2033,7 +2033,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 
         try
         {
-            using var document = JsonDocument.Parse(content);
+            using var document = JsonDocument.Parse(content!);
             var root = document.RootElement;
             var sourceTag = string.Empty;
             if (root.TryGetProperty("source", out var sourceElement) &&
@@ -2099,7 +2099,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 var value = item.GetString();
                 if (!string.IsNullOrWhiteSpace(value))
                 {
-                    builder.Add(value);
+                    builder.Add(value!);
                 }
             }
         }

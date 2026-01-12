@@ -72,7 +72,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
             .Collect()
             .SelectMany((items, _) => items
                 .GroupBy(item => item.MethodSymbol.ContainingType, SymbolEqualityComparer.Default)
-                .Select(group => new HostFunctionContainerTarget(group.Key, ImmutableArray.CreateRange(group))))
+                .Select(group => new HostFunctionContainerTarget((INamedTypeSymbol)group.Key, ImmutableArray.CreateRange(group))))
             .Combine(wellKnownTypes)
             .Select<(HostFunctionContainerTarget, WellKnownTypes), HostFunctionContainerInfo?>((data, _) =>
                 TransformHostFunctionContainer(data.Item1, data.Item2))
@@ -408,8 +408,8 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                         continue;
                     }
 
-                    var target = GetHostFunctionTarget(attr);
-                    if (target != HostFunctionTarget.Constructor)
+                    var hostTarget = GetHostFunctionTarget(attr);
+                    if (hostTarget != HostFunctionTarget.Constructor)
                     {
                         continue;
                     }
@@ -421,7 +421,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                     }
 
                     var signature = GetHostFunctionSignature(member, jsValueType, readOnlyListType, realmStateType, evaluationContextType);
-                    var displayName = GetNamedValue(attr, "DisplayName") ?? functionName;
+                    var hostDisplayName = GetNamedValue(attr, "DisplayName") ?? functionName;
                     var length = GetNamedDouble(attr, "Length");
                     var enumerable = GetNamedBool(attr, "Enumerable");
                     var configurable = GetNamedBool(attr, "Configurable", true);
@@ -430,8 +430,8 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                     var throwOnMissingTarget = GetNamedBool(attr, "ThrowOnMissingTarget");
                     var returnsJsValue = jsValueType is not null && IsJsValue(member.ReturnType, jsValueType);
 
-                    hostFunctions.Add(new HostFunctionInfo(member.Name, functionName, displayName, length, enumerable, configurable,
-                        writable, deletePrototype, signature, returnsJsValue, member.IsStatic, UsesContext(signature), target,
+                    hostFunctions.Add(new HostFunctionInfo(member.Name, functionName, hostDisplayName, length, enumerable, configurable,
+                        writable, deletePrototype, signature, returnsJsValue, member.IsStatic, UsesContext(signature), hostTarget,
                         targetName, throwOnMissingTarget));
                 }
             }
@@ -1251,10 +1251,10 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                     }
                 }
 
-                if (global is JsObject realmObject)
-                {
-                    source.Append("        ").Append(functionVar).AppendLine(".Realm = realmObject;");
-                }
+                source.AppendLine("        if (global is JsObject realmObject)");
+                source.AppendLine("        {");
+                source.Append("            ").Append(functionVar).AppendLine(".Realm = realmObject;");
+                source.AppendLine("        }");
 
                 if (hostFunction.DeletePrototype)
                 {

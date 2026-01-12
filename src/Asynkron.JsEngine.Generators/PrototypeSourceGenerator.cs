@@ -878,7 +878,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         foreach (var alias in info.MethodAliases)
         {
             var varName = $"methodAliasTarget{methodAliasVarIndex++}";
-            membersSource.Append("        if (prototype.TryGetProperty(\"").Append(alias.TargetPropertyName).Append("\", out var ").Append(varName).AppendLine(")");
+            membersSource.Append("        if (prototype.TryGetProperty(\"").Append(alias.TargetPropertyName).Append("\", out var ").Append(varName).AppendLine("))");
             membersSource.AppendLine("        {");
             membersSource.Append("            prototype.DefineProperty(\"").Append(alias.AliasName).AppendLine("\",");
             membersSource.AppendLine("                new PropertyDescriptor");

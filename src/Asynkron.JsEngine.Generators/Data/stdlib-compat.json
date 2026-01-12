@@ -1,0 +1,1920 @@
+{
+  "source": {
+    "repository": "mdn/browser-compat-data",
+    "tag": "v7.2.3"
+  },
+  "generatedAt": "2026-01-12T07:16:16Z",
+  "builtins": {
+    "AggregateError": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Array": {
+      "constructor": {
+        "methods": [
+          "from",
+          "fromAsync",
+          "isArray",
+          "of"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [
+          "species"
+        ],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "at",
+          "concat",
+          "copyWithin",
+          "entries",
+          "every",
+          "fill",
+          "filter",
+          "find",
+          "findIndex",
+          "findLast",
+          "findLastIndex",
+          "flat",
+          "flatMap",
+          "forEach",
+          "includes",
+          "indexOf",
+          "join",
+          "keys",
+          "lastIndexOf",
+          "map",
+          "pop",
+          "push",
+          "reduce",
+          "reduceRight",
+          "reverse",
+          "shift",
+          "slice",
+          "some",
+          "sort",
+          "splice",
+          "toLocaleString",
+          "toReversed",
+          "toSorted",
+          "toSpliced",
+          "toString",
+          "unshift",
+          "values",
+          "with"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [
+          "iterator",
+          "unscopables"
+        ],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "ArrayBuffer": {
+      "constructor": {
+        "methods": [
+          "isView"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [
+          "species"
+        ],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "resize",
+          "slice",
+          "transfer",
+          "transferToFixedLength"
+        ],
+        "getters": [
+          "byteLength",
+          "detached",
+          "maxByteLength",
+          "resizable"
+        ],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "AsyncDisposableStack": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "adopt",
+          "defer",
+          "disposeAsync",
+          "move",
+          "use"
+        ],
+        "getters": [
+          "disposed"
+        ],
+        "setters": [],
+        "symbolMethods": [
+          "asyncDispose"
+        ],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "AsyncFunction": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "AsyncGenerator": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "next",
+          "return",
+          "throw"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "AsyncGeneratorFunction": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "AsyncIterator": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [
+          "asyncDispose",
+          "asyncIterator"
+        ],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Atomics": {
+      "constructor": {
+        "methods": [
+          "add",
+          "and",
+          "compareExchange",
+          "exchange",
+          "isLockFree",
+          "load",
+          "notify",
+          "or",
+          "pause",
+          "store",
+          "sub",
+          "wait",
+          "waitAsync",
+          "xor"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "BigInt": {
+      "constructor": {
+        "methods": [
+          "asIntN",
+          "asUintN"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "toLocaleString",
+          "toString",
+          "valueOf"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "BigInt64Array": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "BigUint64Array": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Boolean": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "toString",
+          "valueOf"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "DataView": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "getBigInt64",
+          "getBigUint64",
+          "getFloat16",
+          "getFloat32",
+          "getFloat64",
+          "getInt16",
+          "getInt32",
+          "getInt8",
+          "getUint16",
+          "getUint32",
+          "getUint8",
+          "setBigInt64",
+          "setBigUint64",
+          "setFloat16",
+          "setFloat32",
+          "setFloat64",
+          "setInt16",
+          "setInt32",
+          "setInt8",
+          "setUint16",
+          "setUint32",
+          "setUint8"
+        ],
+        "getters": [
+          "buffer",
+          "byteLength",
+          "byteOffset"
+        ],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Date": {
+      "constructor": {
+        "methods": [
+          "now",
+          "parse"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "getDate",
+          "getDay",
+          "getFullYear",
+          "getHours",
+          "getMilliseconds",
+          "getMinutes",
+          "getMonth",
+          "getSeconds",
+          "getTime",
+          "getTimezoneOffset",
+          "getUTCDate",
+          "getUTCDay",
+          "getUTCFullYear",
+          "getUTCHours",
+          "getUTCMilliseconds",
+          "getUTCMinutes",
+          "getUTCMonth",
+          "getUTCSeconds",
+          "getYear",
+          "setDate",
+          "setFullYear",
+          "setHours",
+          "setMilliseconds",
+          "setMinutes",
+          "setMonth",
+          "setSeconds",
+          "setTime",
+          "setUTCDate",
+          "setUTCFullYear",
+          "setUTCHours",
+          "setUTCMilliseconds",
+          "setUTCMinutes",
+          "setUTCMonth",
+          "setUTCSeconds",
+          "setYear",
+          "toDateString",
+          "toGMTString",
+          "toISOString",
+          "toJSON",
+          "toLocaleDateString",
+          "toLocaleString",
+          "toLocaleTimeString",
+          "toString",
+          "toTemporalInstant",
+          "toTimeString",
+          "toUTCString",
+          "valueOf"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [
+          "toPrimitive"
+        ],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "decodeURI": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "decodeURIComponent": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "DisposableStack": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "adopt",
+          "defer",
+          "dispose",
+          "move",
+          "use"
+        ],
+        "getters": [
+          "disposed"
+        ],
+        "setters": [],
+        "symbolMethods": [
+          "dispose"
+        ],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "encodeURI": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "encodeURIComponent": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Error": {
+      "constructor": {
+        "methods": [
+          "isError"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "message",
+          "toString"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "escape": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "eval": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "EvalError": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "FinalizationRegistry": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "register",
+          "unregister"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Float16Array": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Float32Array": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Float64Array": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Function": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "apply",
+          "bind",
+          "call",
+          "toString"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [
+          "hasInstance"
+        ],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Generator": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "next",
+          "return",
+          "throw"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "GeneratorFunction": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "globalThis": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Infinity": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Int16Array": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Int32Array": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Int8Array": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "InternalError": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Intl": {
+      "constructor": {
+        "methods": [
+          "getCanonicalLocales",
+          "supportedValuesOf"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "isFinite": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "isNaN": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Iterator": {
+      "constructor": {
+        "methods": [
+          "from"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "drop",
+          "every",
+          "filter",
+          "find",
+          "flatMap",
+          "forEach",
+          "map",
+          "reduce",
+          "some",
+          "take",
+          "toArray"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [
+          "dispose",
+          "iterator"
+        ],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "JSON": {
+      "constructor": {
+        "methods": [
+          "isRawJSON",
+          "json_superset",
+          "parse",
+          "rawJSON",
+          "stringify"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Map": {
+      "constructor": {
+        "methods": [
+          "groupBy"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [
+          "species"
+        ],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "clear",
+          "delete",
+          "entries",
+          "forEach",
+          "get",
+          "getOrInsert",
+          "getOrInsertComputed",
+          "has",
+          "keys",
+          "set",
+          "values"
+        ],
+        "getters": [
+          "size"
+        ],
+        "setters": [],
+        "symbolMethods": [
+          "iterator"
+        ],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Math": {
+      "constructor": {
+        "methods": [
+          "abs",
+          "acos",
+          "acosh",
+          "asin",
+          "asinh",
+          "atan",
+          "atan2",
+          "atanh",
+          "cbrt",
+          "ceil",
+          "clz32",
+          "cos",
+          "cosh",
+          "exp",
+          "expm1",
+          "f16round",
+          "floor",
+          "fround",
+          "hypot",
+          "imul",
+          "log",
+          "log10",
+          "log1p",
+          "log2",
+          "max",
+          "min",
+          "pow",
+          "random",
+          "round",
+          "sign",
+          "sin",
+          "sinh",
+          "sqrt",
+          "sumPrecise",
+          "tan",
+          "tanh",
+          "trunc"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "NaN": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Number": {
+      "constructor": {
+        "methods": [
+          "isFinite",
+          "isInteger",
+          "isNaN",
+          "isSafeInteger",
+          "NaN",
+          "parseFloat",
+          "parseInt"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "toExponential",
+          "toFixed",
+          "toLocaleString",
+          "toPrecision",
+          "toString",
+          "valueOf"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Object": {
+      "constructor": {
+        "methods": [
+          "assign",
+          "create",
+          "defineProperties",
+          "defineProperty",
+          "entries",
+          "freeze",
+          "fromEntries",
+          "getOwnPropertyDescriptor",
+          "getOwnPropertyDescriptors",
+          "getOwnPropertyNames",
+          "getOwnPropertySymbols",
+          "groupBy",
+          "hasOwn",
+          "is",
+          "isExtensible",
+          "isFrozen",
+          "isSealed",
+          "keys",
+          "preventExtensions",
+          "seal",
+          "values"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "defineGetter",
+          "defineSetter",
+          "getPrototypeOf",
+          "hasOwnProperty",
+          "isPrototypeOf",
+          "lookupGetter",
+          "lookupSetter",
+          "propertyIsEnumerable",
+          "proto",
+          "setPrototypeOf",
+          "toLocaleString",
+          "toString",
+          "valueOf"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "parseFloat": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "parseInt": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Promise": {
+      "constructor": {
+        "methods": [
+          "all",
+          "allSettled",
+          "any",
+          "race",
+          "reject",
+          "resolve",
+          "try",
+          "withResolvers"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [
+          "species"
+        ],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "catch",
+          "finally",
+          "then"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Proxy": {
+      "constructor": {
+        "methods": [
+          "revocable"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "RangeError": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "ReferenceError": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Reflect": {
+      "constructor": {
+        "methods": [
+          "apply",
+          "construct",
+          "defineProperty",
+          "deleteProperty",
+          "get",
+          "getOwnPropertyDescriptor",
+          "has",
+          "isExtensible",
+          "ownKeys",
+          "preventExtensions",
+          "set"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "getPrototypeOf",
+          "setPrototypeOf"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "RegExp": {
+      "constructor": {
+        "methods": [
+          "escape"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [
+          "species"
+        ],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "compile",
+          "exec",
+          "test",
+          "toString"
+        ],
+        "getters": [
+          "dotAll",
+          "flags",
+          "global",
+          "hasIndices",
+          "ignoreCase",
+          "multiline",
+          "source",
+          "sticky",
+          "unicode",
+          "unicodeSets"
+        ],
+        "setters": [],
+        "symbolMethods": [
+          "match",
+          "matchAll",
+          "replace",
+          "search",
+          "split"
+        ],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Set": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [
+          "species"
+        ],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "add",
+          "clear",
+          "delete",
+          "difference",
+          "entries",
+          "forEach",
+          "has",
+          "intersection",
+          "isDisjointFrom",
+          "isSubsetOf",
+          "isSupersetOf",
+          "keys",
+          "symmetricDifference",
+          "union",
+          "values"
+        ],
+        "getters": [
+          "size"
+        ],
+        "setters": [],
+        "symbolMethods": [
+          "iterator"
+        ],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "SharedArrayBuffer": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [
+          "species"
+        ],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "grow",
+          "slice"
+        ],
+        "getters": [
+          "byteLength",
+          "growable",
+          "maxByteLength"
+        ],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "String": {
+      "constructor": {
+        "methods": [
+          "fromCharCode",
+          "fromCodePoint",
+          "raw"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "anchor",
+          "at",
+          "big",
+          "blink",
+          "bold",
+          "charAt",
+          "charCodeAt",
+          "codePointAt",
+          "concat",
+          "endsWith",
+          "fixed",
+          "fontcolor",
+          "fontsize",
+          "includes",
+          "indexOf",
+          "isWellFormed",
+          "italics",
+          "lastIndexOf",
+          "link",
+          "localeCompare",
+          "match",
+          "matchAll",
+          "normalize",
+          "padEnd",
+          "padStart",
+          "repeat",
+          "replace",
+          "replaceAll",
+          "search",
+          "slice",
+          "small",
+          "split",
+          "startsWith",
+          "strike",
+          "sub",
+          "substr",
+          "substring",
+          "sup",
+          "toLocaleLowerCase",
+          "toLocaleUpperCase",
+          "toLowerCase",
+          "toString",
+          "toUpperCase",
+          "toWellFormed",
+          "trim",
+          "trimEnd",
+          "trimStart",
+          "valueOf"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [
+          "iterator"
+        ],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "SuppressedError": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Symbol": {
+      "constructor": {
+        "methods": [
+          "asyncIterator",
+          "for",
+          "hasInstance",
+          "isConcatSpreadable",
+          "iterator",
+          "keyFor",
+          "match",
+          "matchAll",
+          "replace",
+          "search",
+          "species",
+          "split",
+          "toPrimitive",
+          "toStringTag",
+          "unscopables"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "description",
+          "toString",
+          "valueOf"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [
+          "toPrimitive"
+        ],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "SyntaxError": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Temporal": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "TypedArray": {
+      "constructor": {
+        "methods": [
+          "from",
+          "of"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [
+          "species"
+        ],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "at",
+          "copyWithin",
+          "entries",
+          "every",
+          "fill",
+          "filter",
+          "find",
+          "findIndex",
+          "findLast",
+          "findLastIndex",
+          "forEach",
+          "includes",
+          "indexOf",
+          "join",
+          "keys",
+          "lastIndexOf",
+          "map",
+          "reduce",
+          "reduceRight",
+          "reverse",
+          "set",
+          "slice",
+          "some",
+          "sort",
+          "subarray",
+          "toLocaleString",
+          "toReversed",
+          "toSorted",
+          "toString",
+          "values",
+          "with"
+        ],
+        "getters": [
+          "buffer",
+          "byteLength",
+          "byteOffset"
+        ],
+        "setters": [],
+        "symbolMethods": [
+          "iterator"
+        ],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "TypeError": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Uint16Array": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Uint32Array": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Uint8Array": {
+      "constructor": {
+        "methods": [
+          "fromBase64",
+          "fromHex"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "setFromBase64",
+          "setFromHex",
+          "toBase64",
+          "toHex"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "Uint8ClampedArray": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "undefined": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "unescape": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "URIError": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "WeakMap": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "delete",
+          "get",
+          "getOrInsert",
+          "getOrInsertComputed",
+          "has",
+          "set"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "WeakRef": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "deref"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    },
+    "WeakSet": {
+      "constructor": {
+        "methods": [],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      },
+      "prototype": {
+        "methods": [
+          "add",
+          "delete",
+          "has"
+        ],
+        "getters": [],
+        "setters": [],
+        "symbolMethods": [],
+        "symbolGetters": [],
+        "symbolSetters": []
+      }
+    }
+  }
+}

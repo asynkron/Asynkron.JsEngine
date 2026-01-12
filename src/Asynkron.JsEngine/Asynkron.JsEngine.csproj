@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -32,6 +32,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Asynkron.JsEngine.Generators\Asynkron.JsEngine.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="..\Asynkron.JsEngine.Generators\Data\stdlib-compat.json" />
   </ItemGroup>
 
   <ItemGroup>

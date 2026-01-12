@@ -1,6 +1,8 @@
 using System.Collections.Immutable;
 using System.Globalization;
+using System.IO;
 using System.Text;
+using System.Text.Json;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -10,6 +12,14 @@ namespace Asynkron.JsEngine.Generators;
 [Generator]
 public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 {
+    private static readonly DiagnosticDescriptor MissingMembersDescriptor = new(
+        "JSGEN001",
+        "Missing standard library members",
+        "Missing standard library members for {0}: {1}",
+        "StandardLibrary",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var wellKnownTypes = context.CompilationProvider.Select<Compilation, WellKnownTypes>(
@@ -17,6 +27,23 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 
         var generatorRoot = context.AnalyzerConfigOptionsProvider.Select<AnalyzerConfigOptionsProvider, string?>(
             (options, _) => options.GlobalOptions.TryGetValue("build_property.PrototypeGeneratorRoot", out var value) ? value : null);
+
+        var compatData = context.AdditionalTextsProvider
+            .Where(static file => string.Equals(Path.GetFileName(file.Path), "stdlib-compat.json", StringComparison.OrdinalIgnoreCase))
+            .Select(static (text, _) => LoadCompatData(text))
+            .Collect()
+            .Select(static (items, _) => items.FirstOrDefault() ?? CompatData.Empty);
+
+        var emitCompatDiagnostics = context.AnalyzerConfigOptionsProvider.Select<AnalyzerConfigOptionsProvider, bool>(
+            static (options, _) =>
+            {
+                return options.GlobalOptions.TryGetValue("build_property.EmitStdlibCompatDiagnostics", out var value) &&
+                       bool.TryParse(value, out var enabled) &&
+                       enabled;
+            });
+
+        var compatContext = compatData.Combine(emitCompatDiagnostics)
+            .Select(static (data, _) => new CompatContext(data.Item1, data.Item2));
 
         var prototypeCandidates = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Asynkron.JsEngine.Runtime.Prototypes.JsPrototypeAttribute",
@@ -80,8 +107,11 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
             .Select<HostFunctionContainerInfo?, HostFunctionContainerInfo>((info, _) => info!)
             .WithComparer(HostFunctionContainerCacheKeyComparer.Instance);
 
-        context.RegisterSourceOutput(orderedPrototypes, Emit);
-        context.RegisterSourceOutput(orderedConstructors, EmitConstructor);
+        var prototypesWithCompat = orderedPrototypes.Combine(compatContext);
+        var constructorsWithCompat = orderedConstructors.Combine(compatContext);
+
+        context.RegisterSourceOutput(prototypesWithCompat, Emit);
+        context.RegisterSourceOutput(constructorsWithCompat, EmitConstructor);
         context.RegisterSourceOutput(hostFunctionContainers, EmitHostFunctions);
     }
 
@@ -263,12 +293,17 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 
         string? instanceTypeName = null;
         string? instanceTypeSimpleName = null;
-        string? intrinsicName = null;
+        var intrinsicName = prototypeAttr.ConstructorArguments.Length > 0
+            ? prototypeAttr.ConstructorArguments[0].Value as string
+            : null;
         if (instanceTypeSymbol is not null)
         {
             instanceTypeName = instanceTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             instanceTypeSimpleName = instanceTypeSymbol.Name;
-            intrinsicName = GetNamedValue(prototypeAttr, "IntrinsicName") ?? instanceTypeSimpleName;
+            if (string.IsNullOrWhiteSpace(intrinsicName))
+            {
+                intrinsicName = instanceTypeSimpleName;
+            }
         }
 
         var orderedGetters = OrderGetters(getters.ToImmutable());
@@ -331,6 +366,9 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         var lengthLiteral = GetNamedDouble(constructorAttr, "Length");
         var displayName = GetNamedValue(constructorAttr, "DisplayName") ?? typeSymbol.Name;
         var className = typeSymbol.Name;
+        var intrinsicName = constructorAttr.ConstructorArguments.Length > 0
+            ? constructorAttr.ConstructorArguments[0].Value as string
+            : null;
 
         // Scan for static methods with JsConstructorMethodAttribute or JsConstructorSymbolGetterAttribute
         var staticMethods = ImmutableArray.CreateBuilder<ConstructorMethodInfo>();
@@ -446,11 +484,11 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         var orderedStaticMethods = OrderConstructorMethods(staticMethods.ToImmutable());
         var orderedSymbolGetters = OrderConstructorSymbolGetters(symbolGetters.ToImmutable());
         var orderedHostFunctions = OrderHostFunctions(hostFunctions.ToImmutable());
-        var cacheKey = BuildConstructorCacheKey(className, namespaceName, prototypeTypeName, lengthLiteral, displayName,
+        var cacheKey = BuildConstructorCacheKey(className, namespaceName, prototypeTypeName, intrinsicName, lengthLiteral, displayName,
             orderedStaticMethods, orderedSymbolGetters, orderedHostFunctions);
 
-        return new ConstructorInfo(className, namespaceName, prototypeTypeName, lengthLiteral, displayName, orderedStaticMethods,
-            orderedSymbolGetters, orderedHostFunctions, cacheKey);
+        return new ConstructorInfo(className, namespaceName, intrinsicName, prototypeTypeName, lengthLiteral, displayName,
+            orderedStaticMethods, orderedSymbolGetters, orderedHostFunctions, cacheKey);
     }
 
     private static HostFunctionContainerInfo? TransformHostFunctionContainer(HostFunctionContainerTarget target, WellKnownTypes wellKnown)
@@ -584,8 +622,11 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         return false;
     }
 
-    private static void Emit(SourceProductionContext context, PrototypeInfo info)
+    private static void Emit(SourceProductionContext context, (PrototypeInfo Info, CompatContext Compat) data)
     {
+        var info = data.Info;
+        var compatData = data.Compat.Data;
+        var emitDiagnostics = data.Compat.EmitDiagnostics;
         var baseSource = new StringBuilder();
         baseSource.AppendLine("// <auto-generated />");
         baseSource.AppendLine("using Asynkron.JsEngine.Ast;");
@@ -837,7 +878,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         foreach (var alias in info.MethodAliases)
         {
             var varName = $"methodAliasTarget{methodAliasVarIndex++}";
-            membersSource.Append("        if (prototype.TryGetProperty(\"").Append(alias.TargetPropertyName).Append("\", out var ").Append(varName).AppendLine("))");
+            membersSource.Append("        if (prototype.TryGetProperty(\"").Append(alias.TargetPropertyName).Append("\", out var ").Append(varName).AppendLine(")");
             membersSource.AppendLine("        {");
             membersSource.Append("            prototype.DefineProperty(\"").Append(alias.AliasName).AppendLine("\",");
             membersSource.AppendLine("                new PropertyDescriptor");
@@ -850,7 +891,10 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
             membersSource.AppendLine("        }");
         }
 
+        EmitMissingPrototypeMembers(membersSource, info, compatData, emitDiagnostics, context);
+
         if (!string.IsNullOrEmpty(info.ToStringTag))
+
         {
             membersSource.AppendLine("        prototype.DefineProperty($\"@@symbol:{JsSymbol.For(\"Symbol.toStringTag\").GetHashCode()}\",");
             membersSource.AppendLine("            new PropertyDescriptor");
@@ -896,8 +940,11 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         context.AddSource($"{info.ClassName}.Prototype.Members.g.cs", membersSource.ToString());
     }
 
-    private static void EmitConstructor(SourceProductionContext context, ConstructorInfo info)
+    private static void EmitConstructor(SourceProductionContext context, (ConstructorInfo Info, CompatContext Compat) data)
     {
+        var info = data.Info;
+        var compatData = data.Compat.Data;
+        var emitDiagnostics = data.Compat.EmitDiagnostics;
         var baseSource = new StringBuilder();
         baseSource.AppendLine("// <auto-generated />");
         baseSource.AppendLine("using Asynkron.JsEngine.Ast;");
@@ -1138,6 +1185,8 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .AppendLine(" });");
         }
 
+        EmitMissingConstructorMembers(membersSource, info, compatData, emitDiagnostics, context);
+
         membersSource.AppendLine("    }");
         membersSource.AppendLine("}");
 
@@ -1322,6 +1371,370 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 
         context.AddSource($"{info.ClassName}.HostFunctions.g.cs", source.ToString());
     }
+
+    private static void EmitMissingPrototypeMembers(StringBuilder membersSource, PrototypeInfo info, CompatData compatData,
+        bool emitDiagnostics, SourceProductionContext context)
+    {
+        if (compatData.Builtins.IsEmpty)
+        {
+            return;
+        }
+
+        var intrinsicName = string.IsNullOrWhiteSpace(info.IntrinsicName)
+            ? info.ClassName
+            : info.IntrinsicName!;
+
+        if (!compatData.Builtins.TryGetValue(intrinsicName, out var builtin))
+        {
+            return;
+        }
+
+        var implementedMethods = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var method in info.Methods)
+        {
+            if (!method.IsStatic)
+            {
+                implementedMethods.Add(method.PropertyName);
+            }
+        }
+
+        foreach (var alias in info.MethodAliases)
+        {
+            implementedMethods.Add(alias.AliasName);
+        }
+
+        var implementedGetters = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var getter in info.Getters)
+        {
+            if (!getter.IsStatic)
+            {
+                implementedGetters.Add(getter.PropertyName);
+            }
+        }
+
+        var implementedSetters = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var setter in info.Setters)
+        {
+            if (!setter.IsStatic)
+            {
+                implementedSetters.Add(setter.PropertyName);
+            }
+        }
+
+        var implementedSymbolMethods = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var method in info.SymbolMethods)
+        {
+            if (!method.IsStatic)
+            {
+                implementedSymbolMethods.Add(method.SymbolName);
+            }
+        }
+
+        foreach (var alias in info.SymbolAliases)
+        {
+            implementedSymbolMethods.Add(alias.SymbolName);
+        }
+
+        var implementedSymbolGetters = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var getter in info.SymbolGetters)
+        {
+            if (!getter.IsStatic)
+            {
+                implementedSymbolGetters.Add(getter.SymbolName);
+            }
+        }
+
+        var missing = ComputeMissingMembers(builtin.Prototype, implementedMethods, implementedGetters, implementedSetters,
+            implementedSymbolMethods, implementedSymbolGetters, new HashSet<string>(StringComparer.Ordinal));
+        if (IsEmpty(missing))
+        {
+            return;
+        }
+
+        AppendMissingPrototypeStubs(membersSource, intrinsicName, missing);
+        if (emitDiagnostics)
+        {
+            ReportMissingMembers(context, $"{intrinsicName}.prototype", missing);
+        }
+    }
+
+    private static void EmitMissingConstructorMembers(StringBuilder membersSource, ConstructorInfo info, CompatData compatData,
+        bool emitDiagnostics, SourceProductionContext context)
+    {
+        if (compatData.Builtins.IsEmpty)
+        {
+            return;
+        }
+
+        var intrinsicName = string.IsNullOrWhiteSpace(info.IntrinsicName)
+            ? info.ClassName
+            : info.IntrinsicName!;
+
+        if (!compatData.Builtins.TryGetValue(intrinsicName, out var builtin))
+        {
+            return;
+        }
+
+        var implementedMethods = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var method in info.StaticMethods)
+        {
+            implementedMethods.Add(method.PropertyName);
+        }
+
+        var implementedGetters = new HashSet<string>(StringComparer.Ordinal);
+        var implementedSetters = new HashSet<string>(StringComparer.Ordinal);
+        var implementedSymbolMethods = new HashSet<string>(StringComparer.Ordinal);
+        var implementedSymbolGetters = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var getter in info.SymbolGetters)
+        {
+            implementedSymbolGetters.Add(getter.SymbolName);
+        }
+
+        var missing = ComputeMissingMembers(builtin.Constructor, implementedMethods, implementedGetters, implementedSetters,
+            implementedSymbolMethods, implementedSymbolGetters, new HashSet<string>(StringComparer.Ordinal));
+        if (IsEmpty(missing))
+        {
+            return;
+        }
+
+        AppendMissingConstructorStubs(membersSource, intrinsicName, missing);
+        if (emitDiagnostics)
+        {
+            ReportMissingMembers(context, intrinsicName, missing);
+        }
+    }
+
+    private static CompatMembers ComputeMissingMembers(
+        CompatMembers expected,
+        HashSet<string> implementedMethods,
+        HashSet<string> implementedGetters,
+        HashSet<string> implementedSetters,
+        HashSet<string> implementedSymbolMethods,
+        HashSet<string> implementedSymbolGetters,
+        HashSet<string> implementedSymbolSetters)
+    {
+        return new CompatMembers(
+            expected.Methods.Where(name => !implementedMethods.Contains(name)).ToImmutableArray(),
+            expected.Getters.Where(name => !implementedGetters.Contains(name)).ToImmutableArray(),
+            expected.Setters.Where(name => !implementedSetters.Contains(name)).ToImmutableArray(),
+            expected.SymbolMethods.Where(name => !implementedSymbolMethods.Contains(name)).ToImmutableArray(),
+            expected.SymbolGetters.Where(name => !implementedSymbolGetters.Contains(name)).ToImmutableArray(),
+            expected.SymbolSetters.Where(name => !implementedSymbolSetters.Contains(name)).ToImmutableArray());
+    }
+
+    private static bool IsEmpty(CompatMembers members)
+        => members.Methods.IsDefaultOrEmpty && members.Getters.IsDefaultOrEmpty && members.Setters.IsDefaultOrEmpty &&
+           members.SymbolMethods.IsDefaultOrEmpty && members.SymbolGetters.IsDefaultOrEmpty && members.SymbolSetters.IsDefaultOrEmpty;
+
+    private static void AppendMissingPrototypeStubs(StringBuilder membersSource, string intrinsicName, CompatMembers missing)
+    {
+        AppendMissingMethodStubs(membersSource, intrinsicName, missing.Methods, missing.SymbolMethods,
+            "prototype", "prototype");
+        AppendMissingAccessorStubs(membersSource, intrinsicName, missing.Getters, missing.Setters,
+            missing.SymbolGetters, missing.SymbolSetters, "prototype", "prototype");
+    }
+
+    private static void AppendMissingConstructorStubs(StringBuilder membersSource, string intrinsicName, CompatMembers missing)
+    {
+        AppendMissingMethodStubs(membersSource, intrinsicName, missing.Methods, missing.SymbolMethods,
+            "constructor", string.Empty);
+        AppendMissingAccessorStubs(membersSource, intrinsicName, missing.Getters, missing.Setters,
+            missing.SymbolGetters, missing.SymbolSetters, "constructor", string.Empty);
+    }
+
+    private static void AppendMissingMethodStubs(StringBuilder membersSource, string intrinsicName,
+        ImmutableArray<string> methodNames, ImmutableArray<string> symbolMethodNames, string targetVariable, string displayOwner)
+    {
+        var ownerPrefix = string.IsNullOrEmpty(displayOwner)
+            ? intrinsicName
+            : $"{intrinsicName}.{displayOwner}";
+
+        foreach (var methodName in methodNames)
+        {
+            var varName = $"missingMethod_{Sanitize(methodName)}";
+            var displayName = methodName;
+            var errorMessage = $"{ownerPrefix}.{methodName} is not yet implemented";
+            membersSource.Append("        var ").Append(varName)
+                .Append(" = new HostFunction((thisValue, args) => throw new System.NotImplementedException(\"")
+                .Append(EscapeString(errorMessage))
+                .AppendLine("\"), realm, isConstructor: false);");
+            membersSource.Append("        ").Append(varName)
+                .Append(".DefineProperty(\"length\", new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });")
+                .AppendLine();
+            membersSource.Append("        ").Append(varName)
+                .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
+                .Append(EscapeString(displayName))
+                .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
+            membersSource.Append("        ").Append(targetVariable).Append(".DefineProperty(\"")
+                .Append(methodName).Append("\", new PropertyDescriptor { Value = ").Append(varName)
+                .Append(", Writable = true, Enumerable = false, Configurable = true });")
+                .AppendLine();
+        }
+
+        foreach (var symbolName in symbolMethodNames)
+        {
+            var varName = $"missingSymbolMethod_{Sanitize(symbolName)}";
+            var displayName = $"[Symbol.{symbolName}]";
+            var errorMessage = $"{ownerPrefix}[Symbol.{symbolName}] is not yet implemented";
+            membersSource.Append("        var ").Append(varName)
+                .Append(" = new HostFunction((thisValue, args) => throw new System.NotImplementedException(\"")
+                .Append(EscapeString(errorMessage))
+                .AppendLine("\"), realm, isConstructor: false);");
+            membersSource.Append("        ").Append(varName)
+                .Append(".DefineProperty(\"length\", new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });")
+                .AppendLine();
+            membersSource.Append("        ").Append(varName)
+                .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
+                .Append(EscapeString(displayName))
+                .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
+            membersSource.Append("        ").Append(targetVariable)
+                .Append(".DefineProperty($\"@@symbol:{JsSymbol.For(\"Symbol.")
+                .Append(symbolName).Append("\").GetHashCode()}\", new PropertyDescriptor { Value = ")
+                .Append(varName)
+                .Append(", Writable = true, Enumerable = false, Configurable = true });")
+                .AppendLine();
+        }
+    }
+
+    private static void AppendMissingAccessorStubs(StringBuilder membersSource, string intrinsicName,
+        ImmutableArray<string> getterNames, ImmutableArray<string> setterNames,
+        ImmutableArray<string> symbolGetterNames, ImmutableArray<string> symbolSetterNames,
+        string targetVariable, string displayOwner)
+    {
+        var ownerPrefix = string.IsNullOrEmpty(displayOwner)
+            ? intrinsicName
+            : $"{intrinsicName}.{displayOwner}";
+
+        foreach (var getterName in getterNames)
+        {
+            var varName = $"missingGetter_{Sanitize(getterName)}";
+            var displayName = $"get {getterName}";
+            var errorMessage = $"{ownerPrefix}.{getterName} getter is not yet implemented";
+            membersSource.Append("        var ").Append(varName)
+                .Append(" = new HostFunction((thisValue, _) => throw new System.NotImplementedException(\"")
+                .Append(EscapeString(errorMessage))
+                .AppendLine("\"), realm, isConstructor: false);");
+            membersSource.Append("        ").Append(varName)
+                .Append(".DefineProperty(\"length\", new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });")
+                .AppendLine();
+            membersSource.Append("        ").Append(varName)
+                .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
+                .Append(EscapeString(displayName))
+                .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
+            membersSource.Append("        ").Append(targetVariable).Append(".DefineProperty(\"")
+                .Append(getterName)
+                .Append("\", new PropertyDescriptor { Get = ").Append(varName)
+                .Append(", Enumerable = false, Configurable = true });")
+                .AppendLine();
+        }
+
+        foreach (var setterName in setterNames)
+        {
+            var varName = $"missingSetter_{Sanitize(setterName)}";
+            var displayName = $"set {setterName}";
+            var errorMessage = $"{ownerPrefix}.{setterName} setter is not yet implemented";
+            membersSource.Append("        var ").Append(varName)
+                .Append(" = new HostFunction((thisValue, args) => throw new System.NotImplementedException(\"")
+                .Append(EscapeString(errorMessage))
+                .AppendLine("\"), realm, isConstructor: false);");
+            membersSource.Append("        ").Append(varName)
+                .Append(".DefineProperty(\"length\", new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });")
+                .AppendLine();
+            membersSource.Append("        ").Append(varName)
+                .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
+                .Append(EscapeString(displayName))
+                .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
+            membersSource.Append("        ").Append(targetVariable).Append(".DefineProperty(\"")
+                .Append(setterName)
+                .Append("\", new PropertyDescriptor { Set = ").Append(varName)
+                .Append(", Enumerable = false, Configurable = true });")
+                .AppendLine();
+        }
+
+        foreach (var symbolName in symbolGetterNames)
+        {
+            var varName = $"missingSymbolGetter_{Sanitize(symbolName)}";
+            var displayName = $"get [Symbol.{symbolName}]";
+            var errorMessage = $"{ownerPrefix}[Symbol.{symbolName}] getter is not yet implemented";
+            membersSource.Append("        var ").Append(varName)
+                .Append(" = new HostFunction((thisValue, _) => throw new System.NotImplementedException(\"")
+                .Append(EscapeString(errorMessage))
+                .AppendLine("\"), realm, isConstructor: false);");
+            membersSource.Append("        ").Append(varName)
+                .Append(".DefineProperty(\"length\", new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });")
+                .AppendLine();
+            membersSource.Append("        ").Append(varName)
+                .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
+                .Append(EscapeString(displayName))
+                .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
+            membersSource.Append("        ").Append(targetVariable)
+                .Append(".DefineProperty($\"@@symbol:{JsSymbol.For(\"Symbol.")
+                .Append(symbolName).Append("\").GetHashCode()}\", new PropertyDescriptor { Get = ")
+                .Append(varName)
+                .Append(", Enumerable = false, Configurable = true });")
+                .AppendLine();
+        }
+
+        foreach (var symbolName in symbolSetterNames)
+        {
+            var varName = $"missingSymbolSetter_{Sanitize(symbolName)}";
+            var displayName = $"set [Symbol.{symbolName}]";
+            var errorMessage = $"{ownerPrefix}[Symbol.{symbolName}] setter is not yet implemented";
+            membersSource.Append("        var ").Append(varName)
+                .Append(" = new HostFunction((thisValue, args) => throw new System.NotImplementedException(\"")
+                .Append(EscapeString(errorMessage))
+                .AppendLine("\"), realm, isConstructor: false);");
+            membersSource.Append("        ").Append(varName)
+                .Append(".DefineProperty(\"length\", new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });")
+                .AppendLine();
+            membersSource.Append("        ").Append(varName)
+                .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
+                .Append(EscapeString(displayName))
+                .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
+            membersSource.Append("        ").Append(targetVariable)
+                .Append(".DefineProperty($\"@@symbol:{JsSymbol.For(\"Symbol.")
+                .Append(symbolName).Append("\").GetHashCode()}\", new PropertyDescriptor { Set = ")
+                .Append(varName)
+                .Append(", Enumerable = false, Configurable = true });")
+                .AppendLine();
+        }
+    }
+
+    private static void ReportMissingMembers(SourceProductionContext context, string owner, CompatMembers missing)
+    {
+        var entries = new List<string>();
+        entries.AddRange(missing.Methods);
+        entries.AddRange(missing.Getters.Select(name => $"get {name}"));
+        entries.AddRange(missing.Setters.Select(name => $"set {name}"));
+        entries.AddRange(missing.SymbolMethods.Select(name => $"[Symbol.{name}]"));
+        entries.AddRange(missing.SymbolGetters.Select(name => $"get [Symbol.{name}]"));
+        entries.AddRange(missing.SymbolSetters.Select(name => $"set [Symbol.{name}]"));
+
+        if (entries.Count == 0)
+        {
+            return;
+        }
+
+        var formatted = FormatMissingList(entries);
+        context.ReportDiagnostic(Diagnostic.Create(MissingMembersDescriptor, Location.None, owner, formatted));
+    }
+
+    private static string FormatMissingList(IReadOnlyList<string> entries)
+    {
+        const int maxEntries = 40;
+        var count = entries.Count;
+        var visible = entries.Take(maxEntries).ToArray();
+        var formatted = string.Join(", ", visible);
+        if (count > maxEntries)
+        {
+            formatted += $" (+{(count - maxEntries).ToString(CultureInfo.InvariantCulture)} more)";
+        }
+
+        return $"{count.ToString(CultureInfo.InvariantCulture)} missing members: {formatted}";
+    }
+
+    private static string EscapeString(string value)
+        => value.Replace("\"", "\\\"");
 
     private static ImmutableArray<GetterInfo> OrderGetters(ImmutableArray<GetterInfo> source)
         => source.Length <= 1
@@ -1508,6 +1921,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         string className,
         string? namespaceName,
         string prototypeTypeName,
+        string? intrinsicName,
         string lengthLiteral,
         string displayName,
         ImmutableArray<ConstructorMethodInfo> staticMethods,
@@ -1518,6 +1932,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         AppendWithLength(builder, namespaceName ?? string.Empty);
         AppendWithLength(builder, className);
         AppendWithLength(builder, prototypeTypeName);
+        AppendWithLength(builder, intrinsicName ?? string.Empty);
         AppendWithLength(builder, lengthLiteral);
         AppendWithLength(builder, displayName);
         AppendWithLength(builder, staticMethods.Length.ToString(CultureInfo.InvariantCulture));
@@ -1601,6 +2016,95 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         }
 
         return builder.ToString();
+    }
+
+    private static CompatData LoadCompatData(AdditionalText text)
+    {
+        if (text is null)
+        {
+            return CompatData.Empty;
+        }
+
+        var content = text.GetText()?.ToString();
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return CompatData.Empty;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(content);
+            var root = document.RootElement;
+            var sourceTag = string.Empty;
+            if (root.TryGetProperty("source", out var sourceElement) &&
+                sourceElement.TryGetProperty("tag", out var tagElement) &&
+                tagElement.ValueKind == JsonValueKind.String)
+            {
+                sourceTag = tagElement.GetString() ?? string.Empty;
+            }
+
+            var builtins = ImmutableDictionary.CreateBuilder<string, CompatBuiltin>(StringComparer.Ordinal);
+            if (root.TryGetProperty("builtins", out var builtinsElement) &&
+                builtinsElement.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var builtinProperty in builtinsElement.EnumerateObject())
+                {
+                    var builtin = builtinProperty.Value;
+                    var constructor = builtin.TryGetProperty("constructor", out var constructorElement)
+                        ? ParseCompatMembers(constructorElement)
+                        : CompatMembers.Empty;
+                    var prototype = builtin.TryGetProperty("prototype", out var prototypeElement)
+                        ? ParseCompatMembers(prototypeElement)
+                        : CompatMembers.Empty;
+                    builtins[builtinProperty.Name] = new CompatBuiltin(constructor, prototype);
+                }
+            }
+
+            return new CompatData(sourceTag, builtins.ToImmutable());
+        }
+        catch (JsonException)
+        {
+            return CompatData.Empty;
+        }
+    }
+
+    private static CompatMembers ParseCompatMembers(JsonElement element)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            return CompatMembers.Empty;
+        }
+
+        return new CompatMembers(
+            ReadStringArray(element, "methods"),
+            ReadStringArray(element, "getters"),
+            ReadStringArray(element, "setters"),
+            ReadStringArray(element, "symbolMethods"),
+            ReadStringArray(element, "symbolGetters"),
+            ReadStringArray(element, "symbolSetters"));
+    }
+
+    private static ImmutableArray<string> ReadStringArray(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var arrayElement) || arrayElement.ValueKind != JsonValueKind.Array)
+        {
+            return ImmutableArray<string>.Empty;
+        }
+
+        var builder = ImmutableArray.CreateBuilder<string>();
+        foreach (var item in arrayElement.EnumerateArray())
+        {
+            if (item.ValueKind == JsonValueKind.String)
+            {
+                var value = item.GetString();
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    builder.Add(value);
+                }
+            }
+        }
+
+        return builder.ToImmutable();
     }
 
     private static void AppendWithLength(StringBuilder builder, string value)
@@ -1822,9 +2326,9 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
     private sealed record MethodAliasInfo(string AliasName, string TargetPropertyName,
         bool Enumerable, bool Writable, bool Configurable);
 
-    private sealed record ConstructorInfo(string ClassName, string? Namespace, string PrototypeTypeName, string LengthLiteral,
-        string DisplayName, ImmutableArray<ConstructorMethodInfo> StaticMethods, ImmutableArray<ConstructorSymbolGetterInfo> SymbolGetters,
-        ImmutableArray<HostFunctionInfo> HostFunctions, string CacheKey);
+    private sealed record ConstructorInfo(string ClassName, string? Namespace, string? IntrinsicName, string PrototypeTypeName,
+        string LengthLiteral, string DisplayName, ImmutableArray<ConstructorMethodInfo> StaticMethods,
+        ImmutableArray<ConstructorSymbolGetterInfo> SymbolGetters, ImmutableArray<HostFunctionInfo> HostFunctions, string CacheKey);
 
     private sealed record ConstructorMethodInfo(string MethodName, string PropertyName, string DisplayName,
         string LengthLiteral, bool Enumerable, bool Configurable, bool Writable, ConstructorMethodSignature Signature, bool ReturnsJsValue);
@@ -1839,6 +2343,32 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         bool Enumerable, bool Configurable, bool Writable, bool DeletePrototype, HostFunctionSignature Signature,
         bool ReturnsJsValue, bool IsStatic, bool UsesContext, HostFunctionTarget Target, string? TargetName,
         bool ThrowOnMissingTarget);
+
+    private sealed record CompatContext(CompatData Data, bool EmitDiagnostics);
+
+    private sealed record CompatData(string SourceTag, ImmutableDictionary<string, CompatBuiltin> Builtins)
+    {
+        public static readonly CompatData Empty = new(string.Empty, ImmutableDictionary<string, CompatBuiltin>.Empty);
+    }
+
+    private sealed record CompatBuiltin(CompatMembers Constructor, CompatMembers Prototype);
+
+    private sealed record CompatMembers(
+        ImmutableArray<string> Methods,
+        ImmutableArray<string> Getters,
+        ImmutableArray<string> Setters,
+        ImmutableArray<string> SymbolMethods,
+        ImmutableArray<string> SymbolGetters,
+        ImmutableArray<string> SymbolSetters)
+    {
+        public static readonly CompatMembers Empty = new(
+            ImmutableArray<string>.Empty,
+            ImmutableArray<string>.Empty,
+            ImmutableArray<string>.Empty,
+            ImmutableArray<string>.Empty,
+            ImmutableArray<string>.Empty,
+            ImmutableArray<string>.Empty);
+    }
 
     private sealed class PrototypeCacheKeyComparer : IEqualityComparer<PrototypeInfo>
     {

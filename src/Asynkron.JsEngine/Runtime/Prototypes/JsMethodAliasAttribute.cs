@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.Runtime.Prototypes;
 /// The alias will be set up after the target property is registered.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = true)]
-public sealed class JsMethodAliasAttribute(string aliasName, string targetPropertyName) : Attribute
+public sealed class JsMethodAliasAttribute(string aliasName, string targetPropertyName) : JsAliasAttribute
 {
     /// <summary>
     /// The name of the alias property (e.g., "toGMTString").
@@ -21,13 +21,4 @@ public sealed class JsMethodAliasAttribute(string aliasName, string targetProper
     /// </summary>
     [UsedImplicitly]
     public string TargetPropertyName { get; } = targetPropertyName;
-
-    [UsedImplicitly]
-    public bool Enumerable { get; set; }
-
-    [UsedImplicitly]
-    public bool Writable { get; set; } = true;
-
-    [UsedImplicitly]
-    public bool Configurable { get; set; } = true;
 }

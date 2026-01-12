@@ -8,24 +8,11 @@ namespace Asynkron.JsEngine.Runtime.Prototypes;
 /// </summary>
 [AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = true)]
 [UsedImplicitly]
-public sealed class JsSymbolGetterAttribute(string symbolName) : Attribute
+public sealed class JsSymbolGetterAttribute(string symbolName) : JsAccessorAttribute
 {
     /// <summary>
     /// The well-known symbol name (e.g., "iterator" for Symbol.iterator, "species" for Symbol.species).
     /// </summary>
     [UsedImplicitly]
     public string SymbolName { get; } = symbolName;
-
-    /// <summary>
-    /// Optional display name (e.g., "get [Symbol.iterator]") assigned to the generated getter function.
-    /// Defaults to "get [Symbol.{symbolName}]" when omitted.
-    /// </summary>
-    [UsedImplicitly]
-    public string? DisplayName { get; set; }
-
-    [UsedImplicitly]
-    public bool Enumerable { get; set; }
-
-    [UsedImplicitly]
-    public bool Configurable { get; set; } = true;
 }

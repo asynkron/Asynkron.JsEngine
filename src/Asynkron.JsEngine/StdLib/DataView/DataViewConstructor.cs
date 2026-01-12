@@ -3,7 +3,6 @@
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.ArrayBufferHelper;
-using static Asynkron.JsEngine.StdLib.DataViewHelper;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
@@ -88,7 +87,7 @@ public sealed partial class DataViewConstructor(IJsObjectLike prototype, RealmSt
             instance.SetPrototype(proto);
         }
 
-        StoreInternalDataView(instance, dataView);
+        instance.SetProperty("_internalDataView", dataView);
         return instance;
     }
 }

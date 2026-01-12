@@ -47,6 +47,7 @@ public static partial class TypedAstEvaluator
         private readonly ImmutableArray<Symbol> _simpleCatchParameterTemplate;
         private readonly HashSet<Symbol> _topLevelLexicalNames;
         private readonly bool _usesArguments;
+        private readonly int _functionScopeId;
 
         private readonly bool _wasAsyncFunction;
 
@@ -100,6 +101,7 @@ public static partial class TypedAstEvaluator
             // need to check with bindings at runtime)
             _allowIdentifierCache = AllowsIdentifierCaching(_function) && !closure.HasWithObjectInChain();
             _usesArguments = !IsArrowFunction && UsesArgumentsIdentifier(_function);
+            _functionScopeId = ResolveFunctionScopeId(function);
 
             // Detect simple functions for fast-path invocation
             // A simple function has: no async, no defaults, no destructuring, no body lexicals, no hoisting needed
@@ -1805,23 +1807,36 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         /// <summary>
         /// Checks if a function has only simple identifier parameters (no destructuring, no rest, no defaults).
         /// </summary>
+        private static int ResolveFunctionScopeId(FunctionExpression function)
+        {
+            if (function.ScopeId > 0)
+            {
+                return function.ScopeId;
+            }
+
+            var planCache = ((IAstCacheable<ExecutionPlanCache>)function).GetOrCreateCache();
+            if (planCache.Plan is { RootScopeId: > 0 } plan)
+            {
+                return plan.RootScopeId;
+            }
+
+            return function.ScopeId;
+        }
+
         private static bool HasOnlySimpleIdentifierParameters(FunctionExpression function)
         {
             HashSet<Symbol>? seenNames = null;
-            foreach (var param in function.Parameters)
+            for (var i = 0; i < function.Parameters.Length; i++)
             {
-                // Must have Name set and no Pattern/DefaultValue
-                if (param.Name is null || param.Pattern is not null || param.DefaultValue is not null || param.IsRest)
+                if (function.Parameters[i].Pattern is not IdentifierBinding param)
                 {
                     return false;
                 }
 
-                // Check for duplicate parameter names - can't use fast path since
-                // parameter count != slot count when duplicates exist
                 seenNames ??= new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
                 if (!seenNames.Add(param.Name))
                 {
-                    return false; // Duplicate parameter name
+                    return false;
                 }
             }
 
@@ -1945,7 +1960,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
         private void InitializeFunctionEnvironmentForThis(JsEnvironment functionEnvironment, JsValue thisValue)
         {
-            functionEnvironment.ScopeId = _function.ScopeId;
+            functionEnvironment.ScopeId = _functionScopeId;
             functionEnvironment.SetSlotMap(_function.SlotMap);
             if (_function.SlotCount > 0)
             {

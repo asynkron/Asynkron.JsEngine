@@ -196,7 +196,8 @@ try {
 
     private static JsEngine BuildTestExecutor(Test262File file)
     {
-        var logger = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("JSENGINE_TRACE_REALM"))
+        var debugMode = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("JSENGINE_TRACE_REALM"));
+        var logger = debugMode
             ? new TestLogger(minLogLevel: LogLevel.Debug, maxLogCount: 200000)
             : null;
 
@@ -206,8 +207,9 @@ try {
             {
                 Logger = logger,
                 AllowScriptSlotAnalysis = false,
+                DebugMode = debugMode,
             })
-            : new JsEngine(new JsEngineOptions { Logger = logger, AllowScriptSlotAnalysis = false })
+            : new JsEngine(new JsEngineOptions { Logger = logger, AllowScriptSlotAnalysis = false, DebugMode = debugMode })
             {
                 ExecutionTimeout = TimeSpan.FromSeconds(10)
             };

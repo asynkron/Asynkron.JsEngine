@@ -127,6 +127,35 @@ public static partial class TypedAstEvaluator
                                   !disableReuseForTypedArrayIterator;
         var letConstFirstIterationDone = false; // Track if we've done the first iteration setup
         var logger = context.RealmState.Logger;
+        var arrayIterator = iterator as JsArrayIterator;
+        var debugArrayIterator = context.RealmState.Options.DebugMode && arrayIterator is not null;
+        var isTypedArrayIterator = arrayIterator?.IsTypedArrayIterator == true;
+        if (context.RealmState.Options.DebugMode && iterator is not null)
+        {
+            logger?.LogInformation(
+                "ForOf iterator start type={IteratorType} loopEnv={LoopEnv} outerEnv={OuterEnv}",
+                iterator.GetType().Name,
+                loopEnvironment.GetStructureSignature(),
+                outerEnvironment.GetStructureSignature());
+        }
+
+        if (context.RealmState.Options.DebugMode && iterator is null && enumerator is not null)
+        {
+            logger?.LogInformation(
+                "ForOf enumerator start type={EnumeratorType} loopEnv={LoopEnv} outerEnv={OuterEnv}",
+                enumerator.GetType().Name,
+                loopEnvironment.GetStructureSignature(),
+                outerEnvironment.GetStructureSignature());
+        }
+
+        if (debugArrayIterator)
+        {
+            logger?.LogInformation(
+                "ForOf array-iterator start typedArray={IsTypedArray} accessor={AccessorType}",
+                isTypedArrayIterator,
+                arrayIterator!.AccessorTypeName);
+        }
+
         if (canReuseLetConstEnv)
         {
             // Create ONE iteration environment before the loop and cache JsVariable
@@ -139,6 +168,7 @@ public static partial class TypedAstEvaluator
         var reusableEnvLeaseId = PoolGuard.Enabled && reusableIterationEnvironment is not null
             ? reusableIterationEnvironment.PoolLeaseId
             : 0;
+        var iterationIndex = 0;
 
         // FAST PATH: Try tight loop for simple accumulator patterns like: for (const n of arr) { sum += n; }
         // This avoids calling EvaluateStatementJsValue per iteration
@@ -217,6 +247,19 @@ public static partial class TypedAstEvaluator
                     var iterationEnvironment = plan.SelectIterationEnvironment(
                         reusableIterationEnvironment, loopEnvironment, useIterationSlots, logger);
 
+                    if (debugArrayIterator)
+                    {
+                        logger?.LogInformation(
+                            "ForOf array-iterator iter={Iteration} iterEnv={IterEnv} loopEnv={LoopEnv} outerEnv={OuterEnv} reuseEnv={Reuse}",
+                            iterationIndex,
+                            iterationEnvironment.GetStructureSignature(),
+                            loopEnvironment.GetStructureSignature(),
+                            outerEnvironment.GetStructureSignature(),
+                            reusableIterationEnvironment is not null);
+                    }
+
+                    iterationIndex++;
+
                     // OPTIMIZATION: For simple identifier bindings, write directly to slot
                     // This avoids dictionary-based AssignLoopBinding and SyncIterationSlots
                     if (cachedVarVariable.IsValid)
@@ -258,6 +301,9 @@ public static partial class TypedAstEvaluator
                     {
                         break;
                     }
+
+                    iterationEnvironment = plan.EnsureIterationEnvironmentChain(iterationEnvironment, outerEnvironment,
+                        enumeratorValue, context, useIterationSlots, logger);
 
                     var bodyResult = plan.Body.EvaluateStatementJsValue(iterationEnvironment, context, loopLabel);
                     if (!bodyResult.IsUnit)
@@ -331,6 +377,19 @@ public static partial class TypedAstEvaluator
                     var iterationEnvironment = plan.SelectIterationEnvironment(
                         reusableIterationEnvironment, loopEnvironment, useIterationSlots, logger);
 
+                    if (debugArrayIterator)
+                    {
+                        logger?.LogInformation(
+                            "ForOf array-iterator iter={Iteration} iterEnv={IterEnv} loopEnv={LoopEnv} outerEnv={OuterEnv} reuseEnv={Reuse}",
+                            iterationIndex,
+                            iterationEnvironment.GetStructureSignature(),
+                            loopEnvironment.GetStructureSignature(),
+                            outerEnvironment.GetStructureSignature(),
+                            reusableIterationEnvironment is not null);
+                    }
+
+                    iterationIndex++;
+
                     try
                     {
                         // OPTIMIZATION: For simple identifier bindings, write directly to slot
@@ -373,10 +432,13 @@ public static partial class TypedAstEvaluator
                             break;
                         }
 
+                        iterationEnvironment = plan.EnsureIterationEnvironmentChain(iterationEnvironment, outerEnvironment,
+                            value, context, useIterationSlots, logger);
+
                         // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
                         // Only update V (completion value) if result.[[Value]] is not empty
-                        var bodyResult =
-                            plan.Body.EvaluateStatementJsValue(iterationEnvironment, context, loopLabel);
+                        var bodyResult = plan.Body.EvaluateStatementJsValue(iterationEnvironment, context, loopLabel);
+
                         if (!bodyResult.IsUnit)
                         {
                             lastValueJs = bodyResult;
@@ -520,8 +582,42 @@ public static partial class TypedAstEvaluator
         }
     }
 
+    private static JsEnvironment EnsureIterationEnvironmentChain(this IteratorDriverPlan plan,
+        JsEnvironment iterationEnvironment,
+        JsEnvironment outerEnvironment,
+        JsValue currentValue,
+        EvaluationContext context,
+        bool useIterationSlots,
+        ILogger? logger)
+    {
+        if (outerEnvironment.ScopeId < 0 || iterationEnvironment.FindByScopeId(outerEnvironment.ScopeId) is not null)
+        {
+            return iterationEnvironment;
+        }
+
+        var fallbackEnvironment = new JsEnvironment(outerEnvironment,
+            creatingSource: plan.Body.Source,
+            description: "for-each-iteration-fallback");
+        if (useIterationSlots)
+        {
+            InitializeIterationEnvironmentLayout(plan, fallbackEnvironment);
+        }
+
+        plan.Target.AssignLoopBinding(currentValue, fallbackEnvironment, outerEnvironment, context,
+            plan.DeclarationKind);
+        if (context.IsThrow)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        plan.SyncIterationSlots(fallbackEnvironment, context);
+        logger?.LogInformation("ForOf iteration env chain repaired scopeId={ScopeId}", outerEnvironment.ScopeId);
+        return fallbackEnvironment;
+    }
+
     /// <summary>
     /// Attempts to execute a fast for-of accumulator loop.
+
     /// Pattern: for (const n of arr) { sum += n; }
     /// This avoids calling EvaluateStatementJsValue per iteration.
     /// </summary>

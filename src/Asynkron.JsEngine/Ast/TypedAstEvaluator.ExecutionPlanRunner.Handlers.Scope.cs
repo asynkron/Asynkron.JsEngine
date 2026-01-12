@@ -2,6 +2,7 @@
 
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.JsTypes;
 using Microsoft.Extensions.Logging;
 
 #endregion
@@ -104,13 +105,20 @@ public static partial class TypedAstEvaluator
             var instruction = Unsafe.As<PushEnvironmentInstruction>(instr);
             var hasIterationBindings = !instruction.PerIterationBindings.IsDefaultOrEmpty;
             var iteratorDriverState = hasIterationBindings ? runner.IteratorStateRef.CurrentDriverState : null;
+            var allowPooling = instruction.AllowPooling;
+            var allowReuseIterationEnvironment = allowPooling;
+            if (allowReuseIterationEnvironment &&
+                iteratorDriverState?.IteratorObject is JsArrayIterator { IsTypedArrayIterator: true })
+            {
+                allowReuseIterationEnvironment = false;
+            }
             var isSubsequentIteration =
                 hasIterationBindings &&
                 ((instruction.ScopeId >= 0 && environment.ScopeId == instruction.ScopeId) ||
                  (instruction.ScopeId < 0 && environment.Description == "scope" && environment.Enclosing != null));
 
             if (isSubsequentIteration &&
-                instruction.AllowPooling &&
+                allowReuseIterationEnvironment &&
                 !instruction.PerIterationBindings.IsDefaultOrEmpty)
             {
                 if (iteratorDriverState is not null)
@@ -143,7 +151,6 @@ public static partial class TypedAstEvaluator
                 loopScope = environment;
             }
 
-            var allowPooling = instruction.AllowPooling;
             var description = instruction.PerIterationBindings.IsDefaultOrEmpty ? "loop-scope" : "scope";
             var newIterationEnv = allowPooling
                 ? JsEnvironmentPool.Rent(loopScope, false, false, null, description, logger: runner._realmState.Logger)

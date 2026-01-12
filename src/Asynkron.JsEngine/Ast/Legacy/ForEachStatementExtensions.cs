@@ -1,6 +1,7 @@
 #region
 
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
 
 #endregion
@@ -93,13 +94,19 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        var useLoopPool = !IsEnvEnabled(DisableForOfLoopEnvPoolVar);
+        var useTypedArrayLoopEnv = statement.Kind == ForEachKind.Of && iterableJsValue.TryGetObject<TypedArrayBase>(out _);
+        var useLoopPool = hasLexicalDeclaration && !useTypedArrayLoopEnv && !IsEnvEnabled(DisableForOfLoopEnvPoolVar);
+
         using var pooledLoopEnv = useLoopPool
             ? JsEnvironmentPool.RentScoped(environment, false, false, statement.Source, "for-each-loop", logger: logger)
             : default;
-        JsEnvironment loopEnvironment = useLoopPool
-            ? pooledLoopEnv
-            : new JsEnvironment(environment, false, false, statement.Source, "for-each-loop");
+        JsEnvironment loopEnvironment = hasLexicalDeclaration
+            ? useLoopPool
+                ? pooledLoopEnv
+                : useTypedArrayLoopEnv
+                    ? environment
+                    : new JsEnvironment(environment, false, false, statement.Source, "for-each-loop")
+            : environment;
 
         if (statement.Kind == ForEachKind.Of)
         {
@@ -224,13 +231,15 @@ public static partial class TypedAstEvaluator
                 context.RealmState);
         }
 
-        var useLoopPool = !IsEnvEnabled(DisableForOfLoopEnvPoolVar);
+        var useLoopPool = hasLexicalDeclaration && !IsEnvEnabled(DisableForOfLoopEnvPoolVar);
         using var pooledLoopEnv = useLoopPool
             ? JsEnvironmentPool.RentScoped(environment, false, false, statement.Source, "for-await-of loop", logger: logger)
             : default;
-        var loopEnvironment = useLoopPool
-            ? pooledLoopEnv.Value!
-            : new JsEnvironment(environment, false, false, statement.Source, "for-await-of loop");
+        var loopEnvironment = hasLexicalDeclaration
+            ? useLoopPool
+                ? pooledLoopEnv.Value!
+                : new JsEnvironment(environment, false, false, statement.Source, "for-await-of loop")
+            : environment;
 
         return ExecuteIteratorWithFastPath(statement, iterableJs, loopEnvironment, environment, context, loopLabel);
     }
@@ -248,6 +257,10 @@ public static partial class TypedAstEvaluator
                                 statement.DeclarationKind is VariableKind.Let or VariableKind.Const
                                     or VariableKind.Using
                                     or VariableKind.AwaitUsing;
+        if (iterableValue.TryGetObject<TypedArrayBase>(out _))
+        {
+            useIterationSlots = false;
+        }
 
         // FAST PATH: Use IEnumerator<JsValue> for known types
         var fastEnumerator = TryGetFastEnumeratorForIteration(iterableValue);

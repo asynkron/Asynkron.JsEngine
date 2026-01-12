@@ -1,5 +1,6 @@
 #region
 
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -20,6 +21,7 @@ public sealed class JsEnvironment : IRentable
 {
     private const int MaxDepth = 1_000;
     internal static readonly object Uninitialized = new();
+    private static readonly ConcurrentDictionary<int, WeakReference<JsEnvironment>> ScopeEnvironmentRegistry = new();
 
     private Dictionary<Symbol, List<Action<JsValue>>>? _bindingObservers;
     private HashSet<Symbol>? _bodyLexicalNames;
@@ -105,6 +107,32 @@ public sealed class JsEnvironment : IRentable
             throw new InvalidOperationException(
                 "JsEnvironment initialized with ScopeId=0; scope analysis likely missing or incorrect.");
         }
+    }
+
+    private static void RegisterScopeEnvironment(JsEnvironment environment)
+    {
+        if (environment.ScopeId < 0)
+        {
+            return;
+        }
+
+        ScopeEnvironmentRegistry[environment.ScopeId] = new WeakReference<JsEnvironment>(environment);
+    }
+
+    private static JsEnvironment? ResolveScopeEnvironment(int scopeId)
+    {
+        if (scopeId < 0)
+        {
+            return null;
+        }
+
+        if (ScopeEnvironmentRegistry.TryGetValue(scopeId, out var weakEnv) &&
+            weakEnv.TryGetTarget(out var environment))
+        {
+            return environment;
+        }
+
+        return null;
     }
 
     public string Description => _description ?? string.Empty;
@@ -311,6 +339,36 @@ public sealed class JsEnvironment : IRentable
 
         IsLeased = false;
         PoolLeaseId = 0;
+    }
+
+    internal string GetStructureSignature()
+    {
+        var hash = new HashCode();
+        hash.Add(ScopeId);
+        hash.Add(LayoutId);
+        hash.Add(_slotCount);
+        hash.Add(IsFunctionScope);
+        hash.Add(IsParameterEnvironment);
+        hash.Add(IsBodyEnvironment);
+        hash.Add(_isStrictEffective);
+        hash.Add(_inheritStrictness);
+        hash.Add(_treatAsGlobalFunctionScope);
+        hash.Add(_withObject is not null);
+        hash.Add(_varEnvironmentOverride is not null);
+        hash.Add(Depth);
+        if (Enclosing is not null)
+        {
+            hash.Add(Enclosing.ScopeId);
+            hash.Add(Enclosing.LayoutId);
+            hash.Add(Enclosing.Depth);
+        }
+
+        var parentId = Enclosing is null ? "null" : Enclosing.GetHashCode().ToString(CultureInfo.InvariantCulture);
+        return $"env={GetHashCode().ToString(CultureInfo.InvariantCulture)} scope={ScopeId.ToString(CultureInfo.InvariantCulture)} " +
+               $"layout={LayoutId.ToString(CultureInfo.InvariantCulture)} slots={_slotCount.ToString(CultureInfo.InvariantCulture)} " +
+               $"depth={Depth.ToString(CultureInfo.InvariantCulture)} func={IsFunctionScope} param={IsParameterEnvironment} " +
+               $"body={IsBodyEnvironment} strict={_isStrictEffective} with={(_withObject is not null)} " +
+               $"varOverride={(_varEnvironmentOverride is not null)} parent={parentId} hash={hash.ToHashCode().ToString(CultureInfo.InvariantCulture)}";
     }
 
     [Conditional("DEBUG")]
@@ -1533,10 +1591,28 @@ public sealed class JsEnvironment : IRentable
         var realmState = context.RealmState;
         var shouldLogSlots = realmState.Options.DebugMode;
         var logger = shouldLogSlots ? realmState.Logger : null;
+        var shouldLogIdentifier = shouldLogSlots && (name.Name == "values" || name.Name == "arrayValues");
+        if (shouldLogIdentifier)
+        {
+            logger?.LogInformation(
+                "Identifier slot lookup start name={Name} scopeId={ScopeId} slot={Slot} env={Env}",
+                name.Name,
+                scopeId,
+                slotIndex,
+                GetStructureSignature());
+        }
 
         if (TryValidateSlotTarget(name, scopeId, slotIndex, shouldLogSlots, logger, out var targetEnv,
                 out var slots))
         {
+            if (shouldLogIdentifier)
+            {
+                logger?.LogInformation(
+                    "Identifier slot lookup hit name={Name} targetEnv={TargetEnv}",
+                    name.Name,
+                    targetEnv?.GetStructureSignature());
+            }
+
             ref var slot = ref slots![slotIndex];
             if (slot.IsUninitialized)
             {
@@ -1564,10 +1640,34 @@ public sealed class JsEnvironment : IRentable
             return true;
         }
 
+        if (shouldLogIdentifier)
+        {
+            logger?.LogInformation(
+                "Identifier slot lookup fallback name={Name} env={Env}",
+                name.Name,
+                GetStructureSignature());
+        }
+
         if (TryGetIdentifierJsValue(name, context, out var resolved))
         {
             value = resolved;
+            if (shouldLogIdentifier)
+            {
+                logger?.LogInformation(
+                    "Identifier slot lookup resolved name={Name} env={Env}",
+                    name.Name,
+                    GetStructureSignature());
+            }
+
             return true;
+        }
+
+        if (shouldLogIdentifier)
+        {
+            logger?.LogInformation(
+                "Identifier slot lookup unresolved name={Name} env={Env}",
+                name.Name,
+                GetStructureSignature());
         }
 
         return false;
@@ -3531,7 +3631,9 @@ public sealed class JsEnvironment : IRentable
 
         // Clear all slots (set to empty)
         Array.Clear(_slots, 0, slotCount);
+        RegisterScopeEnvironment(this);
     }
+
 
     /// <summary>
     /// Initializes slot storage and scope ID for this environment.
@@ -3570,6 +3672,7 @@ public sealed class JsEnvironment : IRentable
             }
             // Keep _slotCount as the sum of existing + new
             _slotCount = neededCapacity;
+            RegisterScopeEnvironment(this);
             return;
         }
 
@@ -4172,6 +4275,7 @@ public sealed class JsEnvironment : IRentable
         }
 
         var resolvedEnv = ScopeId == scopeId ? this : FindByScopeId(scopeId);
+        resolvedEnv ??= ResolveScopeEnvironment(scopeId);
         var resolvedSlots = resolvedEnv?._slots;
         if (resolvedEnv is null || resolvedSlots is null || slotIndex >= resolvedEnv._slotCount)
         {

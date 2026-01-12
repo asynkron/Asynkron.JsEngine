@@ -111,13 +111,13 @@ public sealed class JsEngine : IAsyncDisposable
             GlobalObject.SetPrototype(RealmState.ObjectPrototype);
         }
 
-        SetGlobal("Function", FunctionHelper.CreateFunctionConstructor(RealmState, this));
-        SetGlobal("Number", NumberHelper.CreateNumberConstructor(RealmState));
-        var bigIntFunction = BigIntHelper.CreateBigIntFunction(RealmState);
+        SetGlobal("Function", FunctionConstructor.CreateConstructor(RealmState));
+        SetGlobal("Number", NumberConstructor.CreateConstructor(RealmState));
+        var bigIntFunction = BigIntConstructor.CreateConstructor(RealmState);
         SetGlobal("BigInt", bigIntFunction);
-        SetGlobal("Boolean", BooleanHelper.CreateBooleanConstructor(RealmState));
-        SetGlobal("String", StringHelper.CreateStringConstructor(RealmState));
-        var arrayConstructor = StandardLibrary.CreateArrayConstructor(RealmState);
+        SetGlobal("Boolean", BooleanConstructor.CreateConstructor(RealmState));
+        SetGlobal("String", StringConstructor.CreateConstructor(RealmState));
+        var arrayConstructor = ArrayConstructor.CreateConstructor(RealmState);
         arrayConstructor.RealmState = RealmState;
         SetGlobal("Array", arrayConstructor);
 
@@ -180,21 +180,21 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("TypedArray", typedArrayCtor);
 
         // Register Date constructor
-        SetGlobal("Date", DateHelper.CreateDateConstructor(RealmState));
+        SetGlobal("Date", DateConstructor.CreateConstructor(RealmState));
         SetGlobal("JSON", JsonPrototype.CreatePrototype(RealmState));
 
         // Register RegExp constructor
         SetGlobal("RegExp", RegExpConstructor.CreateConstructor(RealmState));
 
         // Error constructors
-        SetGlobal("Error", ErrorHelper.CreateErrorConstructor(RealmState));
-        SetGlobal("TypeError", ErrorHelper.CreateErrorConstructor(RealmState, "TypeError"));
-        SetGlobal("RangeError", ErrorHelper.CreateErrorConstructor(RealmState, "RangeError"));
-        SetGlobal("ReferenceError", ErrorHelper.CreateErrorConstructor(RealmState, "ReferenceError"));
-        SetGlobal("SyntaxError", ErrorHelper.CreateErrorConstructor(RealmState, "SyntaxError"));
-        SetGlobal("EvalError", ErrorHelper.CreateErrorConstructor(RealmState, "EvalError"));
-        SetGlobal("URIError", ErrorHelper.CreateErrorConstructor(RealmState, "URIError"));
-        SetGlobal("AggregateError", ErrorHelper.CreateErrorConstructor(RealmState, "AggregateError"));
+        SetGlobal("Error", ErrorConstructor.CreateConstructor(RealmState));
+        SetGlobal("TypeError", TypeErrorConstructor.CreateConstructor(RealmState));
+        SetGlobal("RangeError", RangeErrorConstructor.CreateConstructor(RealmState));
+        SetGlobal("ReferenceError", ReferenceErrorConstructor.CreateConstructor(RealmState));
+        SetGlobal("SyntaxError", SyntaxErrorConstructor.CreateConstructor(RealmState));
+        SetGlobal("EvalError", EvalErrorConstructor.CreateConstructor(RealmState));
+        SetGlobal("URIError", UriErrorConstructor.CreateConstructor(RealmState));
+        SetGlobal("AggregateError", AggregateErrorConstructor.CreateConstructor(RealmState));
 
         // Register Promise constructor
         IJsCallable? promiseConstructor = PromiseConstructor.CreateConstructor(RealmState);
@@ -202,7 +202,7 @@ public sealed class JsEngine : IAsyncDisposable
         RealmState.PromiseConstructor = promiseConstructor;
 
         // Register Symbol constructor
-        SetGlobal("Symbol", SymbolHelper.CreateSymbolConstructor(RealmState));
+        SetGlobal("Symbol", SymbolConstructor.CreateConstructor(RealmState));
 
         // Register Map constructor
         SetGlobal("Map", MapConstructor.CreateConstructor(RealmState));
@@ -219,7 +219,7 @@ public sealed class JsEngine : IAsyncDisposable
         // Register WeakSet constructor
         SetGlobal("WeakSet", WeakSetConstructor.CreateConstructor(RealmState));
 
-        SetGlobal("WeakRef", WeakRefHelper.CreateWeakRefConstructor(RealmState));
+        SetGlobal("WeakRef", WeakRefConstructor.CreateConstructor(RealmState));
 
         SetGlobal("DisposableStack", DisposableStackConstructor.CreateConstructor(RealmState));
         SetGlobal("AsyncDisposableStack", AsyncDisposableStackConstructor.CreateConstructor(RealmState));
@@ -234,9 +234,9 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("Reflect", ReflectPrototype.CreatePrototype(RealmState));
 
         // Register ArrayBuffer and TypedArray constructors
-        SetGlobal("ArrayBuffer", StandardLibrary.CreateArrayBufferConstructor(RealmState));
-        SetGlobal("SharedArrayBuffer", SharedArrayBufferHelper.CreateSharedArrayBufferConstructor(RealmState));
-        SetGlobal("DataView", StandardLibrary.CreateDataViewConstructor(RealmState));
+        SetGlobal("ArrayBuffer", ArrayBufferConstructor.CreateConstructor(RealmState));
+        SetGlobal("SharedArrayBuffer", SharedArrayBufferConstructor.CreateConstructor(RealmState));
+        SetGlobal("DataView", DataViewConstructor.CreateConstructor(RealmState));
         SetGlobal("Int8Array", TypedArrayHelper.CreateInt8ArrayConstructor(RealmState));
         SetGlobal("Uint8Array", TypedArrayHelper.CreateUint8ArrayConstructor(RealmState));
         SetGlobal("Uint8ClampedArray", TypedArrayHelper.CreateUint8ClampedArrayConstructor(RealmState));
@@ -252,12 +252,12 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("Temporal", TemporalHelper.CreateTemporalObject(RealmState));
 
         // Register Error constructors
-        SetGlobal("Error", ErrorHelper.CreateErrorConstructor(RealmState));
-        SetGlobal("TypeError", ErrorHelper.CreateErrorConstructor(RealmState, "TypeError"));
-        SetGlobal("RangeError", ErrorHelper.CreateErrorConstructor(RealmState, "RangeError"));
-        SetGlobal("ReferenceError", ErrorHelper.CreateErrorConstructor(RealmState, "ReferenceError"));
-        SetGlobal("SyntaxError", ErrorHelper.CreateErrorConstructor(RealmState, "SyntaxError"));
-        SetGlobal("EvalError", ErrorHelper.CreateErrorConstructor(RealmState, "EvalError"));
+        SetGlobal("Error", ErrorConstructor.CreateConstructor(RealmState));
+        SetGlobal("TypeError", TypeErrorConstructor.CreateConstructor(RealmState));
+        SetGlobal("RangeError", RangeErrorConstructor.CreateConstructor(RealmState));
+        SetGlobal("ReferenceError", ReferenceErrorConstructor.CreateConstructor(RealmState));
+        SetGlobal("SyntaxError", SyntaxErrorConstructor.CreateConstructor(RealmState));
+        SetGlobal("EvalError", EvalErrorConstructor.CreateConstructor(RealmState));
 
         // Register eval function as an environment-aware callable
         // This allows eval to execute code in the caller's scope without blocking the event loop

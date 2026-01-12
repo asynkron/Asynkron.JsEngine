@@ -181,7 +181,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         // Regular key - extract object for dictionary storage
-        var keyObj = ExtractKeyObject(key);
+        var keyObj = JsValueExtractor.Extract(key);
         if (!_map.ContainsKey(keyObj))
         {
             _insertionOrder.Add(keyObj);
@@ -209,7 +209,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         // Regular key - use dictionary
-        var keyObj = ExtractKeyObject(key);
+        var keyObj = JsValueExtractor.Extract(key);
         return _map.TryGetValue(keyObj, out var value) ? value : JsValue.Undefined;
     }
 
@@ -231,7 +231,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         // Regular key - use dictionary
-        var keyObj = ExtractKeyObject(key);
+        var keyObj = JsValueExtractor.Extract(key);
         return _map.ContainsKey(keyObj);
     }
 
@@ -270,7 +270,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         // Regular key - use dictionary
-        var keyObj = ExtractKeyObject(key);
+        var keyObj = JsValueExtractor.Extract(key);
         if (!_map.Remove(keyObj))
         {
             return false;
@@ -291,24 +291,6 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         _nullValue = JsValue.Undefined;
         _hasUndefinedKey = false;
         _undefinedValue = JsValue.Undefined;
-    }
-
-    /// <summary>
-    /// Extracts the key object from a JsValue for dictionary storage.
-    /// For primitives, returns a boxed value. For objects, returns the object reference.
-    /// </summary>
-    private static object ExtractKeyObject(JsValue key)
-    {
-        return key.Kind switch
-        {
-            JsValueKind.Boolean => key.NumberValue != 0, // Box boolean
-            JsValueKind.Number => key.NumberValue, // Box number
-            JsValueKind.String => key.ObjectValue ?? string.Empty,
-            JsValueKind.Symbol => key.ObjectValue ?? throw new InvalidOperationException("Symbol key cannot be null"),
-            JsValueKind.BigInt => key.ObjectValue ?? throw new InvalidOperationException("BigInt key cannot be null"),
-            JsValueKind.Object => key.ObjectValue ?? throw new InvalidOperationException("Object key cannot be null"),
-            _ => throw new InvalidOperationException($"Unexpected key kind: {key.Kind}")
-        };
     }
 
     /// <summary>
@@ -364,64 +346,5 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         return new JsArray(values);
-    }
-
-    /// <summary>
-    ///     Equality comparer implementing SameValueZero algorithm for Map keys.
-    ///     Similar to strict equality (===) but treats NaN as equal to NaN.
-    /// </summary>
-    private sealed class SameValueZeroComparer : IEqualityComparer<object>
-    {
-        public static readonly SameValueZeroComparer Instance = new();
-
-        private SameValueZeroComparer()
-        {
-        }
-
-        public new bool Equals(object? x, object? y)
-        {
-            // Handle null (shouldn't happen - we handle null/undefined separately)
-            if (x == null && y == null)
-            {
-                return true;
-            }
-
-            if (x == null || y == null)
-            {
-                return false;
-            }
-
-            // Handle NaN (NaN is equal to NaN in SameValueZero)
-            if (x is double and double.NaN && y is double and double.NaN)
-            {
-                return true;
-            }
-
-            // Handle strings - use ordinal value equality (JavaScript semantics)
-            if (x is string sx && y is string sy)
-            {
-                return string.Equals(sx, sy, StringComparison.Ordinal);
-            }
-
-            // For reference types, use reference equality
-            if (!x.GetType().IsValueType || !y.GetType().IsValueType)
-            {
-                return ReferenceEquals(x, y);
-            }
-
-            // For value types, use Equals
-            return x.Equals(y);
-        }
-
-        public int GetHashCode(object obj)
-        {
-            // Handle NaN - all NaN values should hash the same
-            if (obj is double and double.NaN)
-            {
-                return 0; // All NaN values get the same hash
-            }
-
-            return obj.GetHashCode();
-        }
     }
 }

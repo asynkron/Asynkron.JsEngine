@@ -168,7 +168,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         // Regular value - convert to object for HashSet storage
-        var value = ExtractValueObject(jsValue);
+        var value = JsValueExtractor.Extract(jsValue);
         if (_set.Add(value))
         {
             _insertionOrder.Add(value);
@@ -195,7 +195,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         // Regular value - use HashSet
-        var value = ExtractValueObject(jsValue);
+        var value = JsValueExtractor.Extract(jsValue);
         return _set.Contains(value);
     }
 
@@ -232,7 +232,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         // Regular value - use HashSet
-        var value = ExtractValueObject(jsValue);
+        var value = JsValueExtractor.Extract(jsValue);
         if (!_set.Remove(value))
         {
             return false;
@@ -240,27 +240,6 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
 
         _insertionOrder.Remove(value);
         return true;
-    }
-
-    /// <summary>
-    /// Extracts the underlying value from a JsValue for HashSet storage.
-    /// For primitives, returns a boxed value. For objects, returns the object reference.
-    /// </summary>
-    private static object ExtractValueObject(JsValue jsValue)
-    {
-        return jsValue.Kind switch
-        {
-            JsValueKind.Boolean => jsValue.NumberValue != 0, // Box boolean
-            JsValueKind.Number => jsValue.NumberValue, // Box number
-            JsValueKind.String => jsValue.ObjectValue ?? string.Empty,
-            JsValueKind.Symbol => jsValue.ObjectValue ??
-                                  throw new InvalidOperationException("Symbol value cannot be null"),
-            JsValueKind.BigInt => jsValue.ObjectValue ??
-                                  throw new InvalidOperationException("BigInt value cannot be null"),
-            JsValueKind.Object => jsValue.ObjectValue ??
-                                  throw new InvalidOperationException("Object value cannot be null"),
-            _ => throw new InvalidOperationException($"Unexpected value kind: {jsValue.Kind}")
-        };
     }
 
     /// <summary>
@@ -300,64 +279,5 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         return new JsArray(values);
-    }
-
-    /// <summary>
-    ///     Equality comparer implementing SameValueZero algorithm for Set values.
-    ///     Similar to strict equality (===) but treats NaN as equal to NaN.
-    /// </summary>
-    private sealed class SameValueZeroComparer : IEqualityComparer<object>
-    {
-        public static readonly SameValueZeroComparer Instance = new();
-
-        private SameValueZeroComparer()
-        {
-        }
-
-        public new bool Equals(object? x, object? y)
-        {
-            // Handle null (shouldn't happen - we handle null/undefined separately)
-            if (x == null && y == null)
-            {
-                return true;
-            }
-
-            if (x == null || y == null)
-            {
-                return false;
-            }
-
-            // Handle NaN (NaN is equal to NaN in SameValueZero)
-            if (x is double.NaN && y is double.NaN)
-            {
-                return true;
-            }
-
-            // Handle strings - use ordinal value equality (JavaScript semantics)
-            if (x is string sx && y is string sy)
-            {
-                return string.Equals(sx, sy, StringComparison.Ordinal);
-            }
-
-            // For reference types, use reference equality
-            if (!x.GetType().IsValueType || !y.GetType().IsValueType)
-            {
-                return ReferenceEquals(x, y);
-            }
-
-            // For value types, use Equals
-            return x.Equals(y);
-        }
-
-        public int GetHashCode(object obj)
-        {
-            // Handle NaN - all NaN values should hash the same
-            if (obj is double.NaN)
-            {
-                return 0; // All NaN values get the same hash
-            }
-
-            return obj.GetHashCode();
-        }
     }
 }

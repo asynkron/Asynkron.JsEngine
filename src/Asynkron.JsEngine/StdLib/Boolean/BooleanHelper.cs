@@ -9,14 +9,6 @@ namespace Asynkron.JsEngine.StdLib;
 public static class BooleanHelper
 {
     /// <summary>
-    ///     Creates the Boolean constructor function.
-    /// </summary>
-    public static HostFunction CreateBooleanConstructor(RealmState realm)
-    {
-        return BooleanConstructor.CreateConstructor(realm);
-    }
-
-    /// <summary>
     ///     Creates a wrapper object for a boolean primitive so that auto-boxed
     ///     booleans can see methods added to Boolean.prototype.
     /// </summary>

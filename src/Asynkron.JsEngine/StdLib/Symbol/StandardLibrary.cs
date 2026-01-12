@@ -10,11 +10,6 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static class SymbolHelper
 {
-    public static HostFunction CreateSymbolConstructor(RealmState realm)
-    {
-        return SymbolConstructor.CreateConstructor(realm);
-    }
-
     public static JsObject CreateSymbolWrapper(JsSymbol symbol, EvaluationContext? context = null,
         RealmState? realm = null)
     {

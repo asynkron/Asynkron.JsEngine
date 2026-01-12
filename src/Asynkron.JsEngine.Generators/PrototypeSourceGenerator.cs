@@ -1251,9 +1251,10 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                     }
                 }
 
-                source.AppendLine("        if (global is JsObject realmObject)");
+                source.Append("        if (global is JsObject realmObject_").Append(hostFunctionIndex).AppendLine(")");
                 source.AppendLine("        {");
-                source.Append("            ").Append(functionVar).AppendLine(".Realm = realmObject;");
+                source.Append("            ").Append(functionVar).Append(".Realm = realmObject_")
+                    .Append(hostFunctionIndex).AppendLine(";");
                 source.AppendLine("        }");
 
                 if (hostFunction.DeletePrototype)

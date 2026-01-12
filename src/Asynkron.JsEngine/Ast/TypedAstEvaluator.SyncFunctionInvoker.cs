@@ -1828,7 +1828,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             HashSet<Symbol>? seenNames = null;
             for (var i = 0; i < function.Parameters.Length; i++)
             {
-                if (function.Parameters[i].Pattern is not IdentifierBinding param)
+                var param = function.Parameters[i];
+                if (param.Name is null || param.Pattern is not null || param.DefaultValue is not null || param.IsRest)
                 {
                     return false;
                 }

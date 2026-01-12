@@ -16,11 +16,6 @@ public static class DateHelper
     internal const double MsPerMinute = 60000d;
     private const double MsPerSecond = 1000d;
 
-    public static HostFunction CreateDateConstructor(RealmState realm)
-    {
-        return DateConstructor.CreateConstructor(realm);
-    }
-
     internal static double ComputeDateTimeValue(
         IReadOnlyList<JsValue> args,
         RealmState realm,

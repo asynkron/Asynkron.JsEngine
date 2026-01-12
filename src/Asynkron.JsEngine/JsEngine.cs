@@ -180,7 +180,7 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("TypedArray", typedArrayCtor);
 
         // Register Date constructor
-        SetGlobal("Date", DateHelper.CreateDateConstructor(RealmState));
+        SetGlobal("Date", DateConstructor.CreateConstructor(RealmState));
         SetGlobal("JSON", JsonPrototype.CreatePrototype(RealmState));
 
         // Register RegExp constructor

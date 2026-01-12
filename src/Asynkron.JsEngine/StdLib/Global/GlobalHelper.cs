@@ -3,277 +3,263 @@
 using System.Globalization;
 using System.Text;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 #endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
-public static class GlobalHelper
+public static partial class GlobalHelper
 {
-    public static HostFunction CreateParseIntFunction()
+    [JsHostFunction("parseInt", Length = 2d, DeletePrototype = true)]
+    private static JsValue ParseInt(IReadOnlyList<JsValue> args)
     {
-        var fn = new HostFunction(args =>
+        if (args.Count == 0)
         {
-            if (args.Count == 0)
-            {
-                return JsValue.NaN;
-            }
+            return JsValue.NaN;
+        }
 
-            var str = JsOps.ToJsString(args[0]) ?? "";
-            str = str.Trim();
-            if (str.Length == 0)
-            {
-                return JsValue.NaN;
-            }
+        var str = JsOps.ToJsString(args[0]) ?? "";
+        str = str.Trim();
+        if (str.Length == 0)
+        {
+            return JsValue.NaN;
+        }
 
-            // Handle sign first (before hex prefix detection)
-            var sign = 1;
-            if (str.StartsWith('-'))
-            {
-                sign = -1;
-                str = str[1..];
-            }
-            else if (str.StartsWith('+'))
-            {
-                str = str[1..];
-            }
+        // Handle sign first (before hex prefix detection)
+        var sign = 1;
+        if (str.StartsWith('-'))
+        {
+            sign = -1;
+            str = str[1..];
+        }
+        else if (str.StartsWith('+'))
+        {
+            str = str[1..];
+        }
 
-            // Get radix - undefined means 0 (auto-detect)
-            int radix;
-            if (args.Count > 1 && !args[1].IsUndefined)
+        // Get radix - undefined means 0 (auto-detect)
+        int radix;
+        if (args.Count > 1 && !args[1].IsUndefined)
+        {
+            var radixNum = JsOps.ToNumber(args[1]);
+            radix = double.IsNaN(radixNum) ? 0 : (int)radixNum;
+        }
+        else
+        {
+            radix = 0; // Auto-detect
+        }
+
+        // Handle radix 0 (auto-detect) or explicit radix 16 with hex prefix
+        var stripPrefix = false;
+        if (radix == 0)
+        {
+            if (str.Length >= 2 && str[0] == '0' && (str[1] == 'x' || str[1] == 'X'))
             {
-                var radixNum = JsOps.ToNumber(args[1]);
-                radix = double.IsNaN(radixNum) ? 0 : (int)radixNum;
+                radix = 16;
+                stripPrefix = true;
             }
             else
             {
-                radix = 0; // Auto-detect
+                radix = 10;
             }
-
-            // Handle radix 0 (auto-detect) or explicit radix 16 with hex prefix
-            var stripPrefix = false;
-            if (radix == 0)
+        }
+        else if (radix == 16)
+        {
+            // For radix 16, optionally strip "0x" or "0X" prefix
+            if (str.Length >= 2 && str[0] == '0' && (str[1] == 'x' || str[1] == 'X'))
             {
-                if (str.Length >= 2 && str[0] == '0' && (str[1] == 'x' || str[1] == 'X'))
-                {
-                    radix = 16;
-                    stripPrefix = true;
-                }
-                else
-                {
-                    radix = 10;
-                }
+                stripPrefix = true;
             }
-            else if (radix == 16)
+        }
+
+        // Validate radix
+        if (radix is < 2 or > 36)
+        {
+            return JsValue.NaN;
+        }
+
+        // Strip hex prefix if needed
+        if (stripPrefix)
+        {
+            str = str[2..];
+        }
+
+        if (str.Length == 0)
+        {
+            return JsValue.NaN;
+        }
+
+        // Parse until we hit invalid character
+        double result = 0;
+        var hasDigits = false;
+        foreach (var c in str)
+        {
+            int digit;
+            if (char.IsDigit(c))
             {
-                // For radix 16, optionally strip "0x" or "0X" prefix
-                if (str.Length >= 2 && str[0] == '0' && (str[1] == 'x' || str[1] == 'X'))
-                {
-                    stripPrefix = true;
-                }
+                digit = c - '0';
             }
-
-            // Validate radix
-            if (radix is < 2 or > 36)
+            else if (char.IsLetter(c))
             {
-                return JsValue.NaN;
+                var upper = char.ToUpperInvariant(c);
+                digit = upper - 'A' + 10;
             }
-
-            // Strip hex prefix if needed
-            if (stripPrefix)
+            else
             {
-                str = str[2..];
+                break; // Stop at first invalid character
             }
 
-            if (str.Length == 0)
+            if (digit >= radix)
             {
-                return JsValue.NaN;
+                break;
             }
 
-            // Parse until we hit invalid character
-            double result = 0;
-            var hasDigits = false;
-            foreach (var c in str)
-            {
-                int digit;
-                if (char.IsDigit(c))
-                {
-                    digit = c - '0';
-                }
-                else if (char.IsLetter(c))
-                {
-                    var upper = char.ToUpperInvariant(c);
-                    digit = upper - 'A' + 10;
-                }
-                else
-                {
-                    break; // Stop at first invalid character
-                }
+            result = result * radix + digit;
+            hasDigits = true;
+        }
 
-                if (digit >= radix)
-                {
-                    break;
-                }
-
-                result = result * radix + digit;
-                hasDigits = true;
-            }
-
-            return hasDigits ? new JsValue(result * sign) : JsValue.NaN;
-        }, isConstructor: false);
-        fn.Properties.Delete("prototype");
-        return fn;
+        return hasDigits ? new JsValue(result * sign) : JsValue.NaN;
     }
 
     /// <summary>
     ///     Creates the global parseFloat function.
     /// </summary>
-    public static HostFunction CreateParseFloatFunction()
+    [JsHostFunction("parseFloat", Length = 1d, DeletePrototype = true)]
+    private static JsValue ParseFloat(IReadOnlyList<JsValue> args)
     {
-        var fn = new HostFunction(args =>
+        if (args.Count == 0)
         {
-            if (args.Count == 0)
-            {
-                return JsValue.NaN;
-            }
+            return JsValue.NaN;
+        }
 
-            var str = JsOps.ToJsString(args[0]) ?? "";
-            str = str.Trim();
-            if (str.Length == 0)
-            {
-                return JsValue.NaN;
-            }
+        var str = JsOps.ToJsString(args[0]) ?? "";
+        str = str.Trim();
+        if (str.Length == 0)
+        {
+            return JsValue.NaN;
+        }
 
-            // Try parsing the string as a double
-            if (double.TryParse(str, NumberStyles.Float,
-                    CultureInfo.InvariantCulture, out var result))
-            {
-                return new JsValue(result);
-            }
+        // Try parsing the string as a double
+        if (double.TryParse(str, NumberStyles.Float,
+                CultureInfo.InvariantCulture, out var result))
+        {
+            return new JsValue(result);
+        }
 
-            // JavaScript parseFloat allows partial parsing - parse as much as possible
-            var i = 0;
-            var hasDigits = false;
+        // JavaScript parseFloat allows partial parsing - parse as much as possible
+        var i = 0;
+        var hasDigits = false;
 
-            // Handle sign
-            if (i < str.Length && (str[i] == '+' || str[i] == '-'))
-            {
-                i++;
-            }
+        // Handle sign
+        if (i < str.Length && (str[i] == '+' || str[i] == '-'))
+        {
+            i++;
+        }
 
-            // Parse digits before decimal point
+        // Parse digits before decimal point
+        while (i < str.Length && char.IsDigit(str[i]))
+        {
+            hasDigits = true;
+            i++;
+        }
+
+        // Parse decimal point and digits after
+        if (i < str.Length && str[i] == '.')
+        {
+            i++;
             while (i < str.Length && char.IsDigit(str[i]))
             {
                 hasDigits = true;
                 i++;
             }
+        }
 
-            // Parse decimal point and digits after
-            if (i < str.Length && str[i] == '.')
+        // Parse exponent
+        if (i < str.Length && (str[i] == 'e' || str[i] == 'E'))
+        {
+            var j = i + 1;
+            if (j < str.Length && (str[j] == '+' || str[j] == '-'))
             {
-                i++;
-                while (i < str.Length && char.IsDigit(str[i]))
-                {
-                    hasDigits = true;
-                    i++;
-                }
+                j++;
             }
 
-            // Parse exponent
-            if (i < str.Length && (str[i] == 'e' || str[i] == 'E'))
+            var hasExpDigits = false;
+            while (j < str.Length && char.IsDigit(str[j]))
             {
-                var j = i + 1;
-                if (j < str.Length && (str[j] == '+' || str[j] == '-'))
-                {
-                    j++;
-                }
-
-                var hasExpDigits = false;
-                while (j < str.Length && char.IsDigit(str[j]))
-                {
-                    hasExpDigits = true;
-                    j++;
-                }
-
-                if (hasExpDigits)
-                {
-                    i = j;
-                }
+                hasExpDigits = true;
+                j++;
             }
 
-            if (!hasDigits)
+            if (hasExpDigits)
             {
-                return JsValue.NaN;
+                i = j;
             }
+        }
 
-            var parsed = str[..i];
-            if (double.TryParse(parsed, NumberStyles.Float,
-                    CultureInfo.InvariantCulture, out result))
-            {
-                return new JsValue(result);
-            }
-
+        if (!hasDigits)
+        {
             return JsValue.NaN;
-        }, isConstructor: false);
-        fn.Properties.Delete("prototype");
-        return fn;
+        }
+
+        var parsed = str[..i];
+        if (double.TryParse(parsed, NumberStyles.Float,
+                CultureInfo.InvariantCulture, out result))
+        {
+            return new JsValue(result);
+        }
+
+        return JsValue.NaN;
     }
 
     /// <summary>
     ///     Creates the global isNaN function.
     /// </summary>
-    public static HostFunction CreateIsNaNFunction()
+    [JsHostFunction("isNaN", Length = 1d)]
+    private static JsValue IsNaN(IReadOnlyList<JsValue> args)
     {
-        return new HostFunction(static args =>
+        if (args.Count == 0)
         {
-            if (args.Count == 0)
-            {
-                return JsValue.True;
-            }
+            return JsValue.True;
+        }
 
-            var value = args[0];
+        var value = args[0];
 
-            // Per ECMAScript spec, isNaN must first convert the argument to Number using ToNumber
-            var numericValue = JsOps.ToNumber(value);
-            return new JsValue(double.IsNaN(numericValue));
-        });
+        // Per ECMAScript spec, isNaN must first convert the argument to Number using ToNumber
+        var numericValue = JsOps.ToNumber(value);
+        return new JsValue(double.IsNaN(numericValue));
     }
 
-    /// <summary>
-    ///     Creates the global isFinite function.
-    /// </summary>
-    public static HostFunction CreateIsFiniteFunction()
+    [JsHostFunction("isFinite", Length = 1d)]
+    private static JsValue IsFinite(IReadOnlyList<JsValue> args)
     {
-        return new HostFunction(static args =>
+        if (args.Count == 0)
         {
-            if (args.Count == 0)
+            return JsValue.False;
+        }
+
+        var value = args[0];
+
+        // Convert to number first (this is what JavaScript does)
+        if (value.TryGetDouble(out var d))
+        {
+            return new JsValue(!double.IsNaN(d) && !double.IsInfinity(d));
+        }
+
+        if (value.TryGetString(out var s))
+        {
+            if (double.TryParse(s, CultureInfo.InvariantCulture, out var parsed))
             {
-                return JsValue.False;
+                return new JsValue(!double.IsNaN(parsed) && !double.IsInfinity(parsed));
             }
 
-            var value = args[0];
+            return JsValue.False; // Can't parse, so NaN, so not finite
+        }
 
-            // Convert to number first (this is what JavaScript does)
-            if (value.TryGetDouble(out var d))
-            {
-                return new JsValue(!double.IsNaN(d) && !double.IsInfinity(d));
-            }
-
-            if (value.TryGetString(out var s))
-            {
-                if (double.TryParse(s, CultureInfo.InvariantCulture, out var parsed))
-                {
-                    return new JsValue(!double.IsNaN(parsed) && !double.IsInfinity(parsed));
-                }
-
-                return JsValue.False; // Can't parse, so NaN, so not finite
-            }
-
-            // For other types, convert to number using ToNumber
-            var numericValue = JsOps.ToNumber(value);
-            return new JsValue(!double.IsNaN(numericValue) && !double.IsInfinity(numericValue));
-        });
+        // For other types, convert to number using ToNumber
+        var numericValue = JsOps.ToNumber(value);
+        return new JsValue(!double.IsNaN(numericValue) && !double.IsInfinity(numericValue));
     }
 
     // Characters that are NOT encoded by encodeURI (uriReserved + uriUnescaped + '#')
@@ -303,60 +289,32 @@ public static class GlobalHelper
         '-', '_', '.', '!', '~', '*', '\'', '(', ')'
     ];
 
-    /// <summary>
-    ///     Creates the global encodeURI function.
-    /// </summary>
-    public static HostFunction CreateEncodeURIFunction(RealmState realm)
+    [JsHostFunction("encodeURI", Length = 1d, DeletePrototype = true)]
+    private static JsValue EncodeURI(IReadOnlyList<JsValue> args, RealmState realm)
     {
-        var fn = new HostFunction(args =>
-        {
-            var str = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? "" : "undefined";
-            return EncodeUri(str, EncodeUriUnescaped, realm);
-        }, isConstructor: false);
-        fn.Properties.Delete("prototype");
-        return fn;
+        var str = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? "" : "undefined";
+        return EncodeUri(str, EncodeUriUnescaped, realm);
     }
 
-    /// <summary>
-    ///     Creates the global encodeURIComponent function.
-    /// </summary>
-    public static HostFunction CreateEncodeURIComponentFunction(RealmState realm)
+    [JsHostFunction("encodeURIComponent", Length = 1d, DeletePrototype = true)]
+    private static JsValue EncodeURIComponent(IReadOnlyList<JsValue> args, RealmState realm)
     {
-        var fn = new HostFunction(args =>
-        {
-            var str = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? "" : "undefined";
-            return EncodeUri(str, EncodeUriComponentUnescaped, realm);
-        }, isConstructor: false);
-        fn.Properties.Delete("prototype");
-        return fn;
+        var str = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? "" : "undefined";
+        return EncodeUri(str, EncodeUriComponentUnescaped, realm);
     }
 
-    /// <summary>
-    ///     Creates the global decodeURI function.
-    /// </summary>
-    public static HostFunction CreateDecodeURIFunction(RealmState realm)
+    [JsHostFunction("decodeURI", Length = 1d, DeletePrototype = true)]
+    private static JsValue DecodeURI(IReadOnlyList<JsValue> args, RealmState realm)
     {
-        var fn = new HostFunction(args =>
-        {
-            var str = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? "" : "undefined";
-            return DecodeUri(str, EncodeUriUnescaped, realm);
-        }, isConstructor: false);
-        fn.Properties.Delete("prototype");
-        return fn;
+        var str = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? "" : "undefined";
+        return DecodeUri(str, EncodeUriUnescaped, realm);
     }
 
-    /// <summary>
-    ///     Creates the global decodeURIComponent function.
-    /// </summary>
-    public static HostFunction CreateDecodeURIComponentFunction(RealmState realm)
+    [JsHostFunction("decodeURIComponent", Length = 1d, DeletePrototype = true)]
+    private static JsValue DecodeURIComponent(IReadOnlyList<JsValue> args, RealmState realm)
     {
-        var fn = new HostFunction(args =>
-        {
-            var str = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? "" : "undefined";
-            return DecodeUri(str, EncodeUriComponentUnescaped, realm);
-        }, isConstructor: false);
-        fn.Properties.Delete("prototype");
-        return fn;
+        var str = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? "" : "undefined";
+        return DecodeUri(str, EncodeUriComponentUnescaped, realm);
     }
 
     private static JsValue EncodeUri(string str, HashSet<char> unescapedSet, RealmState realm)
@@ -541,38 +499,8 @@ public static class GlobalHelper
         '@', '*', '_', '+', '-', '.', '/'
     ];
 
-    private static void DefineNameAndLength(HostFunction fn, string name, int length)
-    {
-        fn.DefineProperty("name", new PropertyDescriptor
-        {
-            Value = (JsValue)name,
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
-
-        fn.DefineProperty("length", new PropertyDescriptor
-        {
-            Value = JsValue.FromDouble(length),
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
-    }
-
-    /// <summary>
-    ///     Creates the legacy global escape function.
-    /// </summary>
-    public static HostFunction CreateEscapeFunction()
-    {
-        var fn = new HostFunction(args => EscapeFromArgs(args, null), isConstructor: false);
-        fn.SetInvokeWithContext((args, _, context, _) => EscapeFromArgs(args, context));
-        fn.Properties.Delete("prototype");
-        DefineNameAndLength(fn, "escape", 1);
-        return fn;
-    }
-
-    private static JsValue EscapeFromArgs(IReadOnlyList<JsValue> args, EvaluationContext? context)
+    [JsHostFunction("escape", Length = 1d, DeletePrototype = true)]
+    private static JsValue Escape(IReadOnlyList<JsValue> args, EvaluationContext? context)
     {
         var str = args.Count > 0 ? JsOps.ToJsString(args[0], context) : "undefined";
         return new JsValue(EscapeString(str));
@@ -603,19 +531,8 @@ public static class GlobalHelper
         return sb.ToString();
     }
 
-    /// <summary>
-    ///     Creates the legacy global unescape function.
-    /// </summary>
-    public static HostFunction CreateUnescapeFunction()
-    {
-        var fn = new HostFunction(args => UnescapeFromArgs(args, null), isConstructor: false);
-        fn.SetInvokeWithContext((args, _, context, _) => UnescapeFromArgs(args, context));
-        fn.Properties.Delete("prototype");
-        DefineNameAndLength(fn, "unescape", 1);
-        return fn;
-    }
-
-    private static JsValue UnescapeFromArgs(IReadOnlyList<JsValue> args, EvaluationContext? context)
+    [JsHostFunction("unescape", Length = 1d, DeletePrototype = true)]
+    private static JsValue Unescape(IReadOnlyList<JsValue> args, EvaluationContext? context)
     {
         var str = args.Count > 0 ? JsOps.ToJsString(args[0], context) : "undefined";
         var sb = new StringBuilder();
@@ -649,10 +566,12 @@ public static class GlobalHelper
                 }
             }
 
-            // If not a valid escape sequence, keep the original character
+            // If we get here, it wasn't a valid escape sequence, so just append the character
             sb.Append(c);
         }
 
         return new JsValue(sb.ToString());
     }
+
+
 }

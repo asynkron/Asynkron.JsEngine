@@ -20,6 +20,8 @@ run quickdup, get ideas on what potential code duplicates there are.
 2.
 get to work, refactor code, turn complicated code into simple code, remove needless
 abstractions, anything goes.
+Expression bodied members do not count, those are cheating.
+Extract methods, introduce base classes, default interface implementations, smarter algorithms,
 
 3. run tests, do we have more than the initial 2 failures? if yes, git revert, drop changes
 and end your task.

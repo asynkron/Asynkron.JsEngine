@@ -1007,6 +1007,96 @@ public sealed partial class TypedArrayPrototype
         return relative < 0 ? 0 : relative;
     }
 
+    [JsHostMethod("set", Length = 1d)]
+    private JsValue Set(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.set");
+        if (typedArray.IsDetachedOrOutOfBounds())
+        {
+            throw typedArray.CreateOutOfBoundsTypeError();
+        }
+
+        if (args.Count == 0)
+        {
+            return JsValue.Undefined;
+        }
+
+        var offsetNumber = args.Count > 1 && !args[1].IsUndefined
+            ? ToIntegerOrInfinity(args[1], Realm.CreateContext())
+            : 0d;
+        if (double.IsPositiveInfinity(offsetNumber) || double.IsNegativeInfinity(offsetNumber))
+        {
+            throw typedArray.CreateOutOfBoundsTypeError();
+        }
+
+        var offset = (int)offsetNumber;
+        if (offset < 0)
+        {
+            throw typedArray.CreateOutOfBoundsTypeError();
+        }
+
+        var source = args[0];
+        if (source.TryGetObject<TypedArrayBase>(out var sourceTypedArray))
+        {
+            if (sourceTypedArray.IsDetachedOrOutOfBounds())
+            {
+                throw sourceTypedArray.CreateOutOfBoundsTypeError();
+            }
+
+            typedArray.Set(sourceTypedArray, offset);
+            return JsValue.Undefined;
+        }
+
+        if (source.TryGetObject<JsArray>(out var sourceArray))
+        {
+            typedArray.Set(sourceArray, offset);
+            return JsValue.Undefined;
+        }
+
+        return JsValue.Undefined;
+    }
+
+    [JsHostMethod("slice", Length = 2d)]
+    private JsValue Slice(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.slice");
+        if (typedArray.IsDetachedOrOutOfBounds())
+        {
+            throw typedArray.CreateOutOfBoundsTypeError();
+        }
+
+        var length = typedArray.Length;
+        var startIndex = args.Count > 0 && !args[0].IsUndefined
+            ? ToIntegerOrInfinity(args[0], Realm.CreateContext())
+            : 0d;
+        var endIndex = args.Count > 1 && !args[1].IsUndefined
+            ? ToIntegerOrInfinity(args[1], Realm.CreateContext())
+            : length;
+
+        var start = ClampRelativeIndex(startIndex, length);
+        var end = ClampRelativeIndex(endIndex, length);
+        var count = Math.Max(end - start, 0);
+        var result = SpeciesCreate(typedArray, count);
+
+        for (var i = 0; i < count; i++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            var sourceIndex = start + i;
+            if (sourceIndex >= typedArray.Length)
+            {
+                break;
+            }
+
+            result.SetValue(i, typedArray.GetValueForIndex(sourceIndex));
+        }
+
+        return JsValue.FromObjectUnsafe(result);
+    }
+
     [JsHostMethod("subarray", Length = 2d)]
     public JsValue Subarray(JsValue thisValue, IReadOnlyList<JsValue> args)
     {

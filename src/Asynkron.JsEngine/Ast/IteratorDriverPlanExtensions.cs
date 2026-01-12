@@ -2,6 +2,7 @@
 
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
@@ -118,10 +119,12 @@ public static partial class TypedAstEvaluator
         // This allows JsVariable caching similar to 'var' bindings.
         JsEnvironment? reusableIterationEnvironment = null;
         var cachedLetConstVariable = default(JsVariable);
+        var disableReuseForTypedArrayIterator = iterator is JsArrayIterator { IsTypedArrayIterator: true };
         var canReuseLetConstEnv = canUseSlotFastPath &&
                                   plan.DeclarationKind is VariableKind.Let or VariableKind.Const &&
                                   plan.CanReuseIterationEnvironment &&
-                                  !IsEnvEnabled(DisableForOfReuseEnvVar);
+                                  !IsEnvEnabled(DisableForOfReuseEnvVar) &&
+                                  !disableReuseForTypedArrayIterator;
         var letConstFirstIterationDone = false; // Track if we've done the first iteration setup
         var logger = context.RealmState.Logger;
         if (canReuseLetConstEnv)

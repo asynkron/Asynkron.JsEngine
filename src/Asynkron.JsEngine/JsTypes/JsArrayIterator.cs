@@ -27,6 +27,8 @@ internal sealed class JsArrayIterator : JsIteratorBase
     private readonly ArrayIteratorKind _kind;
     private uint _index;
 
+    internal bool IsTypedArrayIterator => _accessor is TypedArrayBase;
+
     internal JsArrayIterator(IJsPropertyAccessor accessor, ArrayIteratorKind kind, RealmState? realm, JsObject? prototype)
         : base(realm, prototype)
     {

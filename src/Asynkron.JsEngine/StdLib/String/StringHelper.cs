@@ -88,11 +88,6 @@ public static class StringHelper
     /// <summary>
     ///     Creates the String constructor with static methods.
     /// </summary>
-    public static HostFunction CreateStringConstructor(RealmState realm)
-    {
-        return StringConstructor.CreateConstructor(realm);
-    }
-
     private sealed class StringVirtualPropertyProvider(string value) : IVirtualPropertyProvider
     {
         public bool TryGetOwnProperty(string name, out object? valueOut, out PropertyDescriptor? descriptor)

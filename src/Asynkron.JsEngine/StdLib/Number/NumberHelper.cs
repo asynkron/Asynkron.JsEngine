@@ -348,11 +348,6 @@ public static partial class NumberHelper
     /// <summary>
     ///     Creates the Number constructor with static methods.
     /// </summary>
-    public static HostFunction CreateNumberConstructor(RealmState realm)
-    {
-        return NumberConstructor.CreateConstructor(realm);
-    }
-
     [GeneratedRegex(@"^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?", RegexOptions.Compiled | RegexOptions.ExplicitCapture,
         5000)]
     internal static partial Regex FloatRegex();

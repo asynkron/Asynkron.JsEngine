@@ -24,7 +24,7 @@ public abstract class CollectionConstructorBase<TInstance>(
     /// <summary>
     ///     Gets the constructor name for error messages.
     /// </summary>
-    protected string ConstructorName { get; } = constructorName;
+    private string ConstructorName { get; } = constructorName;
 
     private HostFunction ConstructFallback =>
         _constructor ?? throw new InvalidOperationException($"{ConstructorName} constructor not initialized");

@@ -1,3 +1,5 @@
+using JetBrains.Annotations;
+
 namespace Asynkron.JsEngine.Runtime.Prototypes;
 
 /// <summary>
@@ -9,36 +11,43 @@ namespace Asynkron.JsEngine.Runtime.Prototypes;
 /// - () - no parameters
 /// </summary>
 [AttributeUsage(AttributeTargets.Method, Inherited = false)]
+[UsedImplicitly]
 public sealed class JsConstructorMethodAttribute(string propertyName) : Attribute
 {
     /// <summary>
     /// The JavaScript property name (e.g., "keys" for Object.keys).
     /// </summary>
+    [UsedImplicitly]
     public string PropertyName { get; } = propertyName;
 
     /// <summary>
     /// Function.length metadata for the method.
     /// </summary>
+    [UsedImplicitly]
     public double Length { get; set; }
 
     /// <summary>
     /// Whether the property is enumerable. Defaults to false.
     /// </summary>
+    [UsedImplicitly]
     public bool Enumerable { get; set; }
 
     /// <summary>
     /// Whether the property is writable. Defaults to true.
     /// </summary>
+    [UsedImplicitly]
     public bool Writable { get; set; } = true;
 
     /// <summary>
     /// Whether the property is configurable. Defaults to true.
     /// </summary>
+    [UsedImplicitly]
     public bool Configurable { get; set; } = true;
 
     /// <summary>
     /// Optional display name used for Function.prototype.name.
     /// Defaults to the property name when omitted.
     /// </summary>
+    [UsedImplicitly]
     public string? DisplayName { get; set; }
 }

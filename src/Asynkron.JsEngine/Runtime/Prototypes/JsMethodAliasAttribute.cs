@@ -1,3 +1,5 @@
+using JetBrains.Annotations;
+
 namespace Asynkron.JsEngine.Runtime.Prototypes;
 
 /// <summary>
@@ -11,16 +13,21 @@ public sealed class JsMethodAliasAttribute(string aliasName, string targetProper
     /// <summary>
     /// The name of the alias property (e.g., "toGMTString").
     /// </summary>
+    [UsedImplicitly]
     public string AliasName { get; } = aliasName;
 
     /// <summary>
     /// The name of the property to alias (e.g., "toUTCString").
     /// </summary>
+    [UsedImplicitly]
     public string TargetPropertyName { get; } = targetPropertyName;
 
+    [UsedImplicitly]
     public bool Enumerable { get; set; }
 
+    [UsedImplicitly]
     public bool Writable { get; set; } = true;
 
+    [UsedImplicitly]
     public bool Configurable { get; set; } = true;
 }

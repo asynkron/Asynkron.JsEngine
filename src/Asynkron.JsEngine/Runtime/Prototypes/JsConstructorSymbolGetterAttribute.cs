@@ -1,3 +1,5 @@
+using JetBrains.Annotations;
+
 namespace Asynkron.JsEngine.Runtime.Prototypes;
 
 /// <summary>
@@ -10,15 +12,19 @@ public sealed class JsConstructorSymbolGetterAttribute(string symbolName) : Attr
     /// <summary>
     /// The well-known symbol name (e.g., "species" for Symbol.species).
     /// </summary>
+    [UsedImplicitly]
     public string SymbolName { get; } = symbolName;
 
     /// <summary>
     /// Optional display name (e.g., "get [Symbol.species]") assigned to the generated getter function.
     /// Defaults to "get [Symbol.{symbolName}]" when omitted.
     /// </summary>
+    [UsedImplicitly]
     public string? DisplayName { get; set; }
+    [UsedImplicitly]
 
     public bool Enumerable { get; set; }
+    [UsedImplicitly]
 
     public bool Configurable { get; set; } = true;
 }

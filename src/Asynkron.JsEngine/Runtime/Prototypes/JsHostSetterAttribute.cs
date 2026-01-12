@@ -1,3 +1,5 @@
+using JetBrains.Annotations;
+
 namespace Asynkron.JsEngine.Runtime.Prototypes;
 
 /// <summary>
@@ -7,14 +9,18 @@ namespace Asynkron.JsEngine.Runtime.Prototypes;
 [AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = true)]
 public sealed class JsHostSetterAttribute(string propertyName) : Attribute
 {
+    [UsedImplicitly]
     public string PropertyName { get; } = propertyName;
 
     /// <summary>
     ///     Optional display name (e.g. "set __proto__") assigned to the generated setter function.
     /// </summary>
+    [UsedImplicitly]
     public string? DisplayName { get; set; }
 
+    [UsedImplicitly]
     public bool Enumerable { get; set; }
 
+    [UsedImplicitly]
     public bool Configurable { get; set; } = true;
 }

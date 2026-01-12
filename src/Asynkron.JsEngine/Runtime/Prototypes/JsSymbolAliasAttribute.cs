@@ -1,3 +1,5 @@
+using JetBrains.Annotations;
+
 namespace Asynkron.JsEngine.Runtime.Prototypes;
 
 /// <summary>
@@ -11,16 +13,20 @@ public sealed class JsSymbolAliasAttribute(string symbolName, string targetPrope
     /// <summary>
     /// The well-known symbol name (e.g., "iterator" for Symbol.iterator).
     /// </summary>
+    [UsedImplicitly]
     public string SymbolName { get; } = symbolName;
 
     /// <summary>
     /// The name of the property to alias (e.g., "values").
     /// </summary>
+    [UsedImplicitly]
     public string TargetPropertyName { get; } = targetPropertyName;
-
+    [UsedImplicitly]
     public bool Enumerable { get; set; }
 
+    [UsedImplicitly]
     public bool Writable { get; set; } = true;
 
+    [UsedImplicitly]
     public bool Configurable { get; set; } = true;
 }

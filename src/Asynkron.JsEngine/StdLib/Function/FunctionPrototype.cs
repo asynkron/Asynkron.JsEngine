@@ -1,5 +1,6 @@
 #region
 
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
@@ -39,6 +40,26 @@ public sealed partial class FunctionPrototype
         var thisArg = args.GetArgument(0);
         var callArgs = args.SliceFrom(1);
         return target.Invoke(callArgs, thisArg);
+    }
+
+    [JsHostMethod("bind", Length = 1d)]
+    private static JsValue Bind(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        if (!thisValue.TryGetObject<IJsCallable>(out var target))
+        {
+            var realmState = thisValue.TryGetObject<ICallableMetadata>(out var metadata)
+                ? metadata.RealmState
+                : null;
+            throw ThrowTypeError("Function.prototype.bind called on incompatible receiver", realm: realmState);
+        }
+
+        var boundThis = args.GetArgument(0);
+        var boundArgs = args.SliceFrom(1);
+        var targetIsConstructor = JsOps.IsConstructor(thisValue);
+        var targetRealmState = thisValue.TryGetObject<ICallableMetadata>(out var callableMetadata)
+            ? callableMetadata.RealmState
+            : null;
+        return (JsValue)HostFunction.CreateBoundFunction(target, boundThis, boundArgs, targetIsConstructor, targetRealmState);
     }
 
     [JsSymbolMethod("hasInstance", Length = 1d, Writable = false, Configurable = false)]

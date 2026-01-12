@@ -27,6 +27,7 @@ Expression bodied members do not count, those are cheating.
 - since we are trying to move away from AST walking, and use IR instead, are there entire areas of code that could be removed?
 - Are there concepts that are similar that could be unified?
 - Are there things with very few consumers, 3 or less? could those consumers be routed to something else? and the entire thing removed?
+- methods with only one line inside are prime candidates for inlining, unless they are part of an interface implementation.
 
 3. run tests, do we have more than the initial 2 failures? if yes, git revert, drop changes
 and end your task.

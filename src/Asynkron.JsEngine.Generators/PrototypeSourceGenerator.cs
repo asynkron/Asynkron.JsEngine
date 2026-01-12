@@ -1392,11 +1392,11 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         var implementedMethods = new HashSet<string>(StringComparer.Ordinal);
         foreach (var method in info.Methods)
         {
-            if (!method.IsStatic)
-            {
-                implementedMethods.Add(method.PropertyName);
-            }
+            implementedMethods.Add(method.PropertyName);
         }
+
+
+
 
         foreach (var alias in info.MethodAliases)
         {
@@ -1406,28 +1406,19 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         var implementedGetters = new HashSet<string>(StringComparer.Ordinal);
         foreach (var getter in info.Getters)
         {
-            if (!getter.IsStatic)
-            {
-                implementedGetters.Add(getter.PropertyName);
-            }
+            implementedGetters.Add(getter.PropertyName);
         }
 
         var implementedSetters = new HashSet<string>(StringComparer.Ordinal);
         foreach (var setter in info.Setters)
         {
-            if (!setter.IsStatic)
-            {
-                implementedSetters.Add(setter.PropertyName);
-            }
+            implementedSetters.Add(setter.PropertyName);
         }
 
         var implementedSymbolMethods = new HashSet<string>(StringComparer.Ordinal);
         foreach (var method in info.SymbolMethods)
         {
-            if (!method.IsStatic)
-            {
-                implementedSymbolMethods.Add(method.SymbolName);
-            }
+            implementedSymbolMethods.Add(method.SymbolName);
         }
 
         foreach (var alias in info.SymbolAliases)
@@ -1438,10 +1429,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         var implementedSymbolGetters = new HashSet<string>(StringComparer.Ordinal);
         foreach (var getter in info.SymbolGetters)
         {
-            if (!getter.IsStatic)
-            {
-                implementedSymbolGetters.Add(getter.SymbolName);
-            }
+            implementedSymbolGetters.Add(getter.SymbolName);
         }
 
         var missing = ComputeMissingMembers(builtin.Prototype, implementedMethods, implementedGetters, implementedSetters,

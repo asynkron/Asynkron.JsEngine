@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.Runtime.Prototypes;
 /// The alias will be set up after the target property is registered.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = true)]
-public sealed class JsSymbolAliasAttribute(string symbolName, string targetPropertyName) : Attribute
+public sealed class JsSymbolAliasAttribute(string symbolName, string targetPropertyName) : JsAliasAttribute
 {
     /// <summary>
     /// The well-known symbol name (e.g., "iterator" for Symbol.iterator).
@@ -21,12 +21,4 @@ public sealed class JsSymbolAliasAttribute(string symbolName, string targetPrope
     /// </summary>
     [UsedImplicitly]
     public string TargetPropertyName { get; } = targetPropertyName;
-    [UsedImplicitly]
-    public bool Enumerable { get; set; }
-
-    [UsedImplicitly]
-    public bool Writable { get; set; } = true;
-
-    [UsedImplicitly]
-    public bool Configurable { get; set; } = true;
 }

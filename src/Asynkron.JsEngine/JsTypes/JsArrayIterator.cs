@@ -53,22 +53,30 @@ internal sealed class JsArrayIterator : JsIteratorBase
             typedArray.AssertInvariants(nameof(Next));
         }
 
-        // Get length as JsValue, avoiding boxing from ternary expression
-        if (!_accessor.TryGetProperty("length", out var lenVal))
+        uint length;
+        if (typedArray is not null)
         {
-            lenVal = JsValue.Zero;
+            length = (uint)Math.Max(typedArray.Length, 0);
         }
-
-        var evalContext = _realm?.CreateContext();
-        var length = (uint)Math.Min(Math.Max(StandardLibrary.ToLengthOrZero(lenVal, evalContext), 0), uint.MaxValue);
-        if (evalContext?.IsThrow == true)
+        else
         {
-            throw new ThrowSignal(evalContext.FlowValue);
+            // Get length as JsValue, avoiding boxing from ternary expression
+            if (!_accessor.TryGetProperty("length", out var lenVal))
+            {
+                lenVal = JsValue.Zero;
+            }
+
+            var evalContext = _realm?.CreateContext();
+            length = (uint)Math.Min(Math.Max(StandardLibrary.ToLengthOrZero(lenVal, evalContext), 0), uint.MaxValue);
+            if (evalContext?.IsThrow == true)
+            {
+                throw new ThrowSignal(evalContext.FlowValue);
+            }
         }
 
         if (_index < length)
         {
-            var valueJs = ProjectIteratorValue();
+            var valueJs = ProjectIteratorValue(typedArray);
             _index++;
             if (typedArray?.Buffer.Resizable == true)
             {
@@ -84,19 +92,24 @@ internal sealed class JsArrayIterator : JsIteratorBase
         return IteratorResultObject.DoneUndefined.AsJsValue;
     }
 
-    private JsValue ProjectIteratorValue()
+    private JsValue ProjectIteratorValue(TypedArrayBase? typedArray)
     {
         return _kind switch
         {
             ArrayIteratorKind.Keys => new JsValue((double)_index),
-            ArrayIteratorKind.Values => GetElementOrUndefinedJsValue(_accessor, _index),
-            ArrayIteratorKind.Entries => CreateIteratorEntryPair(_index, _accessor, _realm),
+            ArrayIteratorKind.Values => GetElementOrUndefinedJsValue(_accessor, typedArray, _index),
+            ArrayIteratorKind.Entries => CreateIteratorEntryPair(_index, _accessor, typedArray, _realm),
             _ => JsValue.Undefined
         };
     }
 
-    private static JsValue GetElementOrUndefinedJsValue(IJsPropertyAccessor accessor, uint index)
+    private static JsValue GetElementOrUndefinedJsValue(IJsPropertyAccessor accessor, TypedArrayBase? typedArray, uint index)
     {
+        if (typedArray is not null)
+        {
+            return typedArray.GetValueForIndex((int)index);
+        }
+
         if (accessor.TryGetProperty(index.ToString(System.Globalization.CultureInfo.InvariantCulture), out var val))
         {
             return val;
@@ -105,11 +118,12 @@ internal sealed class JsArrayIterator : JsIteratorBase
         return JsValue.Undefined;
     }
 
-    private static JsValue CreateIteratorEntryPair(uint index, IJsPropertyAccessor accessor, RealmState? realm)
+    private static JsValue CreateIteratorEntryPair(uint index, IJsPropertyAccessor accessor, TypedArrayBase? typedArray,
+        RealmState? realm)
     {
         var pair = new JsArray(realm);
         pair.Push((double)index);
-        pair.Push(GetElementOrUndefinedJsValue(accessor, index));
+        pair.Push(GetElementOrUndefinedJsValue(accessor, typedArray, index));
         return JsValue.FromJsArray(pair);
     }
 }

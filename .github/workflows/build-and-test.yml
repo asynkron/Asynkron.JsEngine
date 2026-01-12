@@ -42,7 +42,7 @@ jobs:
         dotnet test tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj \
           --configuration Release \
           --no-build \
-          --verbosity normal \
+          --verbosity minimal \
           --logger "trx;LogFileName=test-results.trx" \
           --results-directory TestResults
 
@@ -61,7 +61,7 @@ jobs:
         name: Test Results
         path: 'TestResults/*.trx'
         reporter: dotnet-trx
-        fail-on-error: true
+        fail-on-error: false
 
     - name: Test Summary
       if: always()

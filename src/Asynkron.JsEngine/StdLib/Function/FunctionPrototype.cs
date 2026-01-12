@@ -1,5 +1,7 @@
 #region
 
+using System.Collections.Generic;
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
@@ -40,6 +42,41 @@ public sealed partial class FunctionPrototype
         var thisArg = args.GetArgument(0);
         var callArgs = args.SliceFrom(1);
         return target.Invoke(callArgs, thisArg);
+    }
+
+    [JsHostMethod("apply", Length = 2d)]
+    private static JsValue Apply(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        if (!thisValue.TryGetObject<IJsCallable>(out var target))
+        {
+            var realmState = thisValue.TryGetObject<ICallableMetadata>(out var metadata)
+                ? metadata.RealmState
+                : null;
+            throw ThrowTypeError("Function.prototype.apply called on incompatible receiver", realm: realmState);
+        }
+
+        var thisArg = args.GetArgument(0);
+        var argArray = args.Count > 1 ? args[1] : JsValue.Undefined;
+        if (argArray.IsNullOrUndefined)
+        {
+            return target.Invoke(ArgumentSlice.Empty, thisArg);
+        }
+
+        var realmStateForArray = (target as ICallableMetadata)?.RealmState;
+        var accessor = EnsureArrayLikeReceiver(argArray, "Function.prototype.apply", realmStateForArray);
+        var length = LengthOfArrayLike(accessor, realmStateForArray);
+        if (length > int.MaxValue)
+        {
+            throw ThrowRangeError("Function.prototype.apply arguments exceed supported length", realm: realmStateForArray);
+        }
+
+        var list = new List<JsValue>((int)length);
+        for (var i = 0L; i < length; i++)
+        {
+            list.Add(GetElementOrUndefinedJsValue(accessor, ToIndexString(i)));
+        }
+
+        return target.Invoke(list, thisArg);
     }
 
     [JsHostMethod("bind", Length = 1d)]

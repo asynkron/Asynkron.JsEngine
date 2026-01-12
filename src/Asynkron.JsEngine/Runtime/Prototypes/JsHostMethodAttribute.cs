@@ -51,3 +51,30 @@ public sealed class JsHostMethodAttribute(string propertyName) : JsFunctionAttri
     [UsedImplicitly]
     public string PropertyName { get; } = propertyName;
 }
+
+public enum JsHostFunctionTarget
+{
+    Global,
+    Constructor,
+    Prototype,
+    Custom
+}
+
+[AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = true)]
+public sealed class JsHostFunctionAttribute(string name) : JsFunctionAttribute
+{
+    [UsedImplicitly]
+    public string Name { get; } = name;
+
+    [UsedImplicitly]
+    public JsHostFunctionTarget Target { get; set; } = JsHostFunctionTarget.Global;
+
+    [UsedImplicitly]
+    public string? TargetName { get; set; }
+
+    [UsedImplicitly]
+    public bool ThrowOnMissingTarget { get; set; }
+
+    [UsedImplicitly]
+    public bool DeletePrototype { get; set; }
+}

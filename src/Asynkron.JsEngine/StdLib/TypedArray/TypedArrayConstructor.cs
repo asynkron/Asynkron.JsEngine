@@ -49,58 +49,12 @@ public sealed partial class TypedArrayConstructor(IJsObjectLike prototype, Realm
             throw ThrowTypeError("TypedArray is not a constructor", realm: Realm);
         });
 
-        // Add %TypedArray%.from static method
-        var fromFn = new HostFunction(TypedArrayFrom, isConstructor: false) { RealmState = Realm };
-        fromFn.DefineProperty("length", new PropertyDescriptor
-        {
-            Value = JsValue.FromDouble(1),
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
-        fromFn.DefineProperty("name", new PropertyDescriptor
-        {
-            Value = (JsValue)"from",
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
-        constructor.DefineProperty("from", new PropertyDescriptor
-        {
-            Value = (JsValue)fromFn,
-            Writable = true,
-            Enumerable = false,
-            Configurable = true
-        });
-
-        // Add %TypedArray%.of static method
-        var ofFn = new HostFunction(TypedArrayOf, isConstructor: false) { RealmState = Realm };
-        ofFn.DefineProperty("length", new PropertyDescriptor
-        {
-            Value = JsValue.FromDouble(0),
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
-        ofFn.DefineProperty("name", new PropertyDescriptor
-        {
-            Value = (JsValue)"of",
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
-        constructor.DefineProperty("of", new PropertyDescriptor
-        {
-            Value = (JsValue)ofFn,
-            Writable = true,
-            Enumerable = false,
-            Configurable = true
-        });
     }
 
     /// <summary>
     /// %TypedArray%.from ( source [ , mapfn [ , thisArg ] ] )
     /// </summary>
+    [JsHostFunction("from", Target = JsHostFunctionTarget.Constructor, Length = 1d)]
     private JsValue TypedArrayFrom(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         // 1. Let C be the this value.
@@ -226,6 +180,7 @@ public sealed partial class TypedArrayConstructor(IJsObjectLike prototype, Realm
     /// <summary>
     /// %TypedArray%.of ( ...items )
     /// </summary>
+    [JsHostFunction("of", Target = JsHostFunctionTarget.Constructor, Length = 0d)]
     private JsValue TypedArrayOf(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         // 1. Let len be the actual number of arguments passed to this function.

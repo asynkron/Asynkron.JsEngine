@@ -28,6 +28,11 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
             static (node, _) => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 },
             static (ctx, _) => new ConstructorTarget((INamedTypeSymbol)ctx.TargetSymbol, ctx.Attributes[0], ctx.TargetNode.SyntaxTree.FilePath ?? string.Empty));
 
+        var hostFunctionCandidates = context.SyntaxProvider.ForAttributeWithMetadataName(
+            "Asynkron.JsEngine.Runtime.Prototypes.JsHostFunctionAttribute",
+            static (node, _) => node is MethodDeclarationSyntax { AttributeLists.Count: > 0 },
+            static (ctx, _) => new HostFunctionCandidate((IMethodSymbol)ctx.TargetSymbol, ctx.Attributes[0], ctx.TargetNode.SyntaxTree.FilePath ?? string.Empty));
+
         var prototypes = prototypeCandidates
             .Combine(generatorRoot)
             .Where(pair => ShouldInclude(pair.Left.FilePath, pair.Right))
@@ -60,8 +65,24 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
             .Collect()
             .SelectMany<ImmutableArray<ConstructorInfo>, ConstructorInfo>((items, _) => items.OrderBy(c => c.CacheKey, StringComparer.Ordinal));
 
+        var hostFunctionContainers = hostFunctionCandidates
+            .Combine(generatorRoot)
+            .Where(pair => ShouldInclude(pair.Left.FilePath, pair.Right))
+            .Select<(HostFunctionCandidate Left, string? Right), HostFunctionCandidate>((pair, _) => pair.Left)
+            .Collect()
+            .SelectMany((items, _) => items
+                .GroupBy(item => item.MethodSymbol.ContainingType, SymbolEqualityComparer.Default)
+                .Select(group => new HostFunctionContainerTarget((INamedTypeSymbol)group.Key, ImmutableArray.CreateRange(group))))
+            .Combine(wellKnownTypes)
+            .Select<(HostFunctionContainerTarget, WellKnownTypes), HostFunctionContainerInfo?>((data, _) =>
+                TransformHostFunctionContainer(data.Item1, data.Item2))
+            .Where(info => info is not null)
+            .Select<HostFunctionContainerInfo?, HostFunctionContainerInfo>((info, _) => info!)
+            .WithComparer(HostFunctionContainerCacheKeyComparer.Instance);
+
         context.RegisterSourceOutput(orderedPrototypes, Emit);
         context.RegisterSourceOutput(orderedConstructors, EmitConstructor);
+        context.RegisterSourceOutput(hostFunctionContainers, EmitHostFunctions);
     }
 
     private static PrototypeInfo? TransformPrototype(PrototypeTarget target, WellKnownTypes wellKnown)
@@ -309,26 +330,29 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 
         var lengthLiteral = GetNamedDouble(constructorAttr, "Length");
         var displayName = GetNamedValue(constructorAttr, "DisplayName") ?? typeSymbol.Name;
+        var className = typeSymbol.Name;
 
         // Scan for static methods with JsConstructorMethodAttribute or JsConstructorSymbolGetterAttribute
         var staticMethods = ImmutableArray.CreateBuilder<ConstructorMethodInfo>();
         var symbolGetters = ImmutableArray.CreateBuilder<ConstructorSymbolGetterInfo>();
+        var hostFunctions = ImmutableArray.CreateBuilder<HostFunctionInfo>();
         var jsValueType = wellKnown.JsValueType;
         var readOnlyListType = wellKnown.ReadOnlyListType;
         var realmStateType = wellKnown.RealmStateType;
+        var evaluationContextType = wellKnown.EvaluationContextType;
 
         foreach (var member in typeSymbol.GetMembers().OfType<IMethodSymbol>())
         {
-            if (!member.IsStatic)
-            {
-                continue;
-            }
-
             foreach (var attr in member.GetAttributes())
             {
                 var attrName = attr.AttributeClass?.ToDisplayString();
                 if (string.Equals(attrName, "Asynkron.JsEngine.Runtime.Prototypes.JsConstructorMethodAttribute", StringComparison.Ordinal))
                 {
+                    if (!member.IsStatic)
+                    {
+                        continue;
+                    }
+
                     var propertyName = attr.ConstructorArguments.Length > 0
                         ? attr.ConstructorArguments[0].Value as string ?? string.Empty
                         : string.Empty;
@@ -350,6 +374,11 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 }
                 else if (string.Equals(attrName, "Asynkron.JsEngine.Runtime.Prototypes.JsConstructorSymbolGetterAttribute", StringComparison.Ordinal))
                 {
+                    if (!member.IsStatic)
+                    {
+                        continue;
+                    }
+
                     var symbolName = attr.ConstructorArguments.Length > 0
                         ? attr.ConstructorArguments[0].Value as string ?? string.Empty
                         : string.Empty;
@@ -369,11 +398,46 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 
                     symbolGetters.Add(new ConstructorSymbolGetterInfo(member.Name, symbolName, getterDisplayName, enumerable, configurable, takesThisValue));
                 }
+                else if (string.Equals(attrName, "Asynkron.JsEngine.Runtime.Prototypes.JsHostFunctionAttribute", StringComparison.Ordinal))
+                {
+                    var functionName = attr.ConstructorArguments.Length > 0
+                        ? attr.ConstructorArguments[0].Value as string ?? string.Empty
+                        : string.Empty;
+                    if (string.IsNullOrWhiteSpace(functionName))
+                    {
+                        continue;
+                    }
+
+                    var hostTarget = GetHostFunctionTarget(attr);
+                    if (hostTarget != HostFunctionTarget.Constructor)
+                    {
+                        continue;
+                    }
+
+                    var targetName = GetNamedValue(attr, "TargetName");
+                    if (!IsMatchingHostFunctionTarget(targetName, className, "Constructor"))
+                    {
+                        continue;
+                    }
+
+                    var signature = GetHostFunctionSignature(member, jsValueType, readOnlyListType, realmStateType, evaluationContextType);
+                    var hostDisplayName = GetNamedValue(attr, "DisplayName") ?? functionName;
+                    var length = GetNamedDouble(attr, "Length");
+                    var enumerable = GetNamedBool(attr, "Enumerable");
+                    var configurable = GetNamedBool(attr, "Configurable", true);
+                    var writable = GetNamedBool(attr, "Writable", true);
+                    var deletePrototype = GetNamedBool(attr, "DeletePrototype");
+                    var throwOnMissingTarget = GetNamedBool(attr, "ThrowOnMissingTarget");
+                    var returnsJsValue = jsValueType is not null && IsJsValue(member.ReturnType, jsValueType);
+
+                    hostFunctions.Add(new HostFunctionInfo(member.Name, functionName, hostDisplayName, length, enumerable, configurable,
+                        writable, deletePrototype, signature, returnsJsValue, member.IsStatic, UsesContext(signature), hostTarget,
+                        targetName, throwOnMissingTarget));
+                }
             }
         }
 
         // Extract string data from symbols for caching
-        var className = typeSymbol.Name;
         var namespaceName = typeSymbol.ContainingNamespace.IsGlobalNamespace
             ? null
             : typeSymbol.ContainingNamespace.ToDisplayString();
@@ -381,9 +445,90 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 
         var orderedStaticMethods = OrderConstructorMethods(staticMethods.ToImmutable());
         var orderedSymbolGetters = OrderConstructorSymbolGetters(symbolGetters.ToImmutable());
-        var cacheKey = BuildConstructorCacheKey(className, namespaceName, prototypeTypeName, lengthLiteral, displayName, orderedStaticMethods, orderedSymbolGetters);
+        var orderedHostFunctions = OrderHostFunctions(hostFunctions.ToImmutable());
+        var cacheKey = BuildConstructorCacheKey(className, namespaceName, prototypeTypeName, lengthLiteral, displayName,
+            orderedStaticMethods, orderedSymbolGetters, orderedHostFunctions);
 
-        return new ConstructorInfo(className, namespaceName, prototypeTypeName, lengthLiteral, displayName, orderedStaticMethods, orderedSymbolGetters, cacheKey);
+        return new ConstructorInfo(className, namespaceName, prototypeTypeName, lengthLiteral, displayName, orderedStaticMethods,
+            orderedSymbolGetters, orderedHostFunctions, cacheKey);
+    }
+
+    private static HostFunctionContainerInfo? TransformHostFunctionContainer(HostFunctionContainerTarget target, WellKnownTypes wellKnown)
+    {
+        var typeSymbol = target.TypeSymbol;
+        var hostFunctions = ImmutableArray.CreateBuilder<HostFunctionInfo>();
+        var jsValueType = wellKnown.JsValueType;
+        var readOnlyListType = wellKnown.ReadOnlyListType;
+        var realmStateType = wellKnown.RealmStateType;
+        var evaluationContextType = wellKnown.EvaluationContextType;
+
+        foreach (var candidate in target.Methods)
+        {
+            var method = candidate.MethodSymbol;
+            if (!method.IsStatic)
+            {
+                continue;
+            }
+
+            var attr = candidate.Attribute;
+            var functionName = attr.ConstructorArguments.Length > 0
+                ? attr.ConstructorArguments[0].Value as string ?? string.Empty
+                : string.Empty;
+            if (string.IsNullOrWhiteSpace(functionName))
+            {
+                continue;
+            }
+
+            var targetKind = GetHostFunctionTarget(attr);
+            var targetName = GetNamedValue(attr, "TargetName");
+            if ((targetKind == HostFunctionTarget.Constructor || targetKind == HostFunctionTarget.Prototype || targetKind == HostFunctionTarget.Custom) &&
+                string.IsNullOrWhiteSpace(targetName))
+            {
+                continue;
+            }
+
+            if (targetKind == HostFunctionTarget.Constructor && !IsMatchingHostFunctionTarget(targetName, typeSymbol.Name, "Constructor"))
+            {
+                continue;
+            }
+
+            if (targetKind == HostFunctionTarget.Prototype && !IsMatchingHostFunctionTarget(targetName, typeSymbol.Name, "Prototype"))
+            {
+                continue;
+            }
+
+            if (targetKind == HostFunctionTarget.Constructor || targetKind == HostFunctionTarget.Prototype ||
+                targetKind == HostFunctionTarget.Global || targetKind == HostFunctionTarget.Custom)
+            {
+                var signature = GetHostFunctionSignature(method, jsValueType, readOnlyListType, realmStateType, evaluationContextType);
+                var displayName = GetNamedValue(attr, "DisplayName") ?? functionName;
+                var length = GetNamedDouble(attr, "Length");
+                var enumerable = GetNamedBool(attr, "Enumerable");
+                var configurable = GetNamedBool(attr, "Configurable", true);
+                var writable = GetNamedBool(attr, "Writable", true);
+                var deletePrototype = GetNamedBool(attr, "DeletePrototype");
+                var throwOnMissingTarget = GetNamedBool(attr, "ThrowOnMissingTarget");
+                var returnsJsValue = jsValueType is not null && IsJsValue(method.ReturnType, jsValueType);
+
+                hostFunctions.Add(new HostFunctionInfo(method.Name, functionName, displayName, length, enumerable, configurable, writable,
+                    deletePrototype, signature, returnsJsValue, method.IsStatic, UsesContext(signature), targetKind, targetName,
+                    throwOnMissingTarget));
+            }
+        }
+
+        if (hostFunctions.Count == 0)
+        {
+            return null;
+        }
+
+        var orderedHostFunctions = OrderHostFunctions(hostFunctions.ToImmutable());
+        var namespaceName = typeSymbol.ContainingNamespace.IsGlobalNamespace
+            ? null
+            : typeSymbol.ContainingNamespace.ToDisplayString();
+        var isStatic = typeSymbol.IsStatic;
+        var cacheKey = BuildHostFunctionContainerCacheKey(typeSymbol.Name, namespaceName, isStatic, orderedHostFunctions);
+
+        return new HostFunctionContainerInfo(typeSymbol.Name, namespaceName, isStatic, orderedHostFunctions, cacheKey);
     }
 
     private static ConstructorMethodSignature GetConstructorMethodSignature(
@@ -861,6 +1006,106 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .AppendLine(" });");
         }
 
+        var hostFunctionIndex = 0;
+        foreach (var hostFunction in info.HostFunctions)
+        {
+            var functionVar = $"hostFunction_{Sanitize(hostFunction.Name)}_{hostFunctionIndex++}";
+            membersSource.Append("        var ").Append(functionVar).Append(" = new HostFunction(");
+
+            var target = hostFunction.IsStatic
+                ? info.ClassName
+                : "this";
+
+            var wrapOpen = hostFunction.ReturnsJsValue ? string.Empty : "JsValue.FromObjectUnsafe(";
+            var wrapClose = hostFunction.ReturnsJsValue ? string.Empty : ")";
+
+            switch (hostFunction.Signature)
+            {
+                case HostFunctionSignature.NoArgs:
+                    membersSource.Append("(_, _) => ").Append(wrapOpen).Append(target).Append(".")
+                        .Append(hostFunction.MethodName).Append("()")
+                        .Append(wrapClose).AppendLine(", realm, isConstructor: false);");
+                    break;
+                case HostFunctionSignature.ArgsOnly:
+                    membersSource.Append("args => ").Append(wrapOpen).Append(target).Append(".")
+                        .Append(hostFunction.MethodName).Append("(args)")
+                        .Append(wrapClose).AppendLine(", realm, isConstructor: false);");
+                    break;
+                case HostFunctionSignature.ThisOnly:
+                    membersSource.Append("(thisValue, _) => ").Append(wrapOpen).Append(target).Append(".")
+                        .Append(hostFunction.MethodName).Append("(thisValue)")
+                        .Append(wrapClose).AppendLine(", realm, isConstructor: false);");
+                    break;
+                case HostFunctionSignature.ArgsRealm:
+                    membersSource.Append("args => ").Append(wrapOpen).Append(target).Append(".")
+                        .Append(hostFunction.MethodName).Append("(args, realm)")
+                        .Append(wrapClose).AppendLine(", realm, isConstructor: false);");
+                    break;
+                case HostFunctionSignature.ThisArgsRealm:
+                    membersSource.Append("(thisValue, args) => ").Append(wrapOpen).Append(target).Append(".")
+                        .Append(hostFunction.MethodName).Append("(thisValue, args, realm)")
+                        .Append(wrapClose).AppendLine(", realm, isConstructor: false);");
+                    break;
+                case HostFunctionSignature.ArgsContext:
+                    membersSource.Append("args => ").Append(wrapOpen).Append(target).Append(".")
+                        .Append(hostFunction.MethodName).Append("(args, null)")
+                        .Append(wrapClose).AppendLine(", realm, isConstructor: false);");
+                    break;
+                case HostFunctionSignature.ThisArgsContext:
+                    membersSource.Append("(thisValue, args) => ").Append(wrapOpen).Append(target).Append(".")
+                        .Append(hostFunction.MethodName).Append("(thisValue, args, null)")
+                        .Append(wrapClose).AppendLine(", realm, isConstructor: false);");
+                    break;
+                default:
+                    membersSource.Append("(thisValue, args) => ").Append(wrapOpen).Append(target).Append(".")
+                        .Append(hostFunction.MethodName).Append("(thisValue, args)")
+                        .Append(wrapClose).AppendLine(", realm, isConstructor: false);");
+                    break;
+            }
+
+            if (hostFunction.UsesContext)
+            {
+                switch (hostFunction.Signature)
+                {
+                    case HostFunctionSignature.ArgsContext:
+                        membersSource.Append("        ").Append(functionVar)
+                            .Append(".SetInvokeWithContext((args, _, context, _) => ")
+                            .Append(wrapOpen).Append(target).Append(".")
+                            .Append(hostFunction.MethodName).Append("(args, context)")
+                            .Append(wrapClose).AppendLine(");");
+                        break;
+                    case HostFunctionSignature.ThisArgsContext:
+                        membersSource.Append("        ").Append(functionVar)
+                            .Append(".SetInvokeWithContext((args, thisValue, context, _) => ")
+                            .Append(wrapOpen).Append(target).Append(".")
+                            .Append(hostFunction.MethodName).Append("(thisValue, args, context)")
+                            .Append(wrapClose).AppendLine(");");
+                        break;
+                }
+            }
+
+            if (hostFunction.DeletePrototype)
+            {
+                membersSource.Append("        ").Append(functionVar).AppendLine(".Properties.Delete(\"prototype\");");
+            }
+
+            membersSource.Append("        ").Append(functionVar)
+                .Append(".DefineProperty(\"length\", new PropertyDescriptor { Value = ")
+                .Append(hostFunction.LengthLiteral).Append("d, Writable = false, Enumerable = false, Configurable = true });")
+                .AppendLine();
+            membersSource.Append("        ").Append(functionVar)
+                .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
+                .Append(hostFunction.DisplayName.Replace("\"", "\\\""))
+                .Append("\", Writable = false, Enumerable = false, Configurable = true });")
+                .AppendLine();
+            membersSource.Append("        constructor.DefineProperty(\"").Append(hostFunction.Name)
+                .Append("\", new PropertyDescriptor { Value = ").Append(functionVar)
+                .Append(", Writable = ").Append(hostFunction.Writable ? "true" : "false")
+                .Append(", Enumerable = ").Append(hostFunction.Enumerable ? "true" : "false")
+                .Append(", Configurable = ").Append(hostFunction.Configurable ? "true" : "false")
+                .AppendLine(" });");
+        }
+
         // Generate symbol-keyed getter registrations (e.g., [Symbol.species])
         foreach (var getter in info.SymbolGetters)
         {
@@ -898,6 +1143,184 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 
         context.AddSource($"{info.ClassName}.Constructor.g.cs", baseSource.ToString());
         context.AddSource($"{info.ClassName}.Constructor.Members.g.cs", membersSource.ToString());
+    }
+
+    private static void EmitHostFunctions(SourceProductionContext context, HostFunctionContainerInfo info)
+    {
+        var source = new StringBuilder();
+        source.AppendLine("// <auto-generated />");
+        source.AppendLine("using System;");
+        source.AppendLine("using Asynkron.JsEngine.JsTypes;");
+        source.AppendLine("using Asynkron.JsEngine.Runtime;");
+        source.AppendLine();
+        if (!string.IsNullOrEmpty(info.Namespace))
+        {
+            source.Append("namespace ").Append(info.Namespace).AppendLine(";");
+            source.AppendLine();
+        }
+
+        source.Append("public ");
+        if (info.IsStatic)
+        {
+            source.Append("static ");
+        }
+        source.Append("partial class ").Append(info.ClassName).AppendLine();
+        source.AppendLine("{");
+        source.Append("    public ");
+        if (info.IsStatic)
+        {
+            source.Append("static ");
+        }
+        source.AppendLine("void RegisterHostFunctions(IJsObjectLike global, RealmState realm)");
+        source.AppendLine("    {");
+
+        var hostFunctionIndex = 0;
+        foreach (var hostFunction in info.HostFunctions)
+        {
+            var functionVar = $"hostFunction_{Sanitize(hostFunction.Name)}_{hostFunctionIndex++}";
+            var methodTarget = hostFunction.IsStatic ? info.ClassName : "this";
+
+            void AppendHostFunction(string targetExpression)
+            {
+                var wrapOpen = hostFunction.ReturnsJsValue ? string.Empty : "JsValue.FromObjectUnsafe(";
+                var wrapClose = hostFunction.ReturnsJsValue ? string.Empty : ")";
+
+                source.Append("        var ").Append(functionVar).Append(" = new HostFunction(");
+                switch (hostFunction.Signature)
+                {
+                    case HostFunctionSignature.NoArgs:
+                        source.Append("(_, _) => ").Append(wrapOpen).Append(methodTarget).Append(".")
+                            .Append(hostFunction.MethodName).Append("()")
+                            .Append(wrapClose).AppendLine(", realm, isConstructor: false);");
+                        break;
+                    case HostFunctionSignature.ArgsOnly:
+                        source.Append("args => ").Append(wrapOpen).Append(methodTarget).Append(".")
+                            .Append(hostFunction.MethodName).Append("(args)")
+                            .Append(wrapClose).AppendLine(", realm, isConstructor: false);");
+                        break;
+                    case HostFunctionSignature.ThisOnly:
+                        source.Append("(thisValue, _) => ").Append(wrapOpen).Append(methodTarget).Append(".")
+                            .Append(hostFunction.MethodName).Append("(thisValue)")
+                            .Append(wrapClose).AppendLine(", realm, isConstructor: false);");
+                        break;
+                    case HostFunctionSignature.ArgsRealm:
+                        source.Append("args => ").Append(wrapOpen).Append(methodTarget).Append(".")
+                            .Append(hostFunction.MethodName).Append("(args, realm)")
+                            .Append(wrapClose).AppendLine(", realm, isConstructor: false);");
+                        break;
+                    case HostFunctionSignature.ThisArgsRealm:
+                        source.Append("(thisValue, args) => ").Append(wrapOpen).Append(methodTarget).Append(".")
+                            .Append(hostFunction.MethodName).Append("(thisValue, args, realm)")
+                            .Append(wrapClose).AppendLine(", realm, isConstructor: false);");
+                        break;
+                    case HostFunctionSignature.ArgsContext:
+                        source.Append("args => ").Append(wrapOpen).Append(methodTarget).Append(".")
+                            .Append(hostFunction.MethodName).Append("(args, null)")
+                            .Append(wrapClose).AppendLine(", realm, isConstructor: false);");
+                        break;
+                    case HostFunctionSignature.ThisArgsContext:
+                        source.Append("(thisValue, args) => ").Append(wrapOpen).Append(methodTarget).Append(".")
+                            .Append(hostFunction.MethodName).Append("(thisValue, args, null)")
+                            .Append(wrapClose).AppendLine(", realm, isConstructor: false);");
+                        break;
+                    default:
+                        source.Append("(thisValue, args) => ").Append(wrapOpen).Append(methodTarget).Append(".")
+                            .Append(hostFunction.MethodName).Append("(thisValue, args)")
+                            .Append(wrapClose).AppendLine(", realm, isConstructor: false);");
+                        break;
+                }
+
+                if (hostFunction.UsesContext)
+                {
+                    switch (hostFunction.Signature)
+                    {
+                        case HostFunctionSignature.ArgsContext:
+                            source.Append("        ").Append(functionVar)
+                                .Append(".SetInvokeWithContext((args, _, context, _) => ")
+                                .Append(wrapOpen).Append(methodTarget).Append(".")
+                                .Append(hostFunction.MethodName).Append("(args, context)")
+                                .Append(wrapClose).AppendLine(");");
+                            break;
+                        case HostFunctionSignature.ThisArgsContext:
+                            source.Append("        ").Append(functionVar)
+                                .Append(".SetInvokeWithContext((args, thisValue, context, _) => ")
+                                .Append(wrapOpen).Append(methodTarget).Append(".")
+                                .Append(hostFunction.MethodName).Append("(thisValue, args, context)")
+                                .Append(wrapClose).AppendLine(");");
+                            break;
+                    }
+                }
+
+                source.Append("        if (global is JsObject realmObject_").Append(hostFunctionIndex).AppendLine(")");
+                source.AppendLine("        {");
+                source.Append("            ").Append(functionVar).Append(".Realm = realmObject_")
+                    .Append(hostFunctionIndex).AppendLine(";");
+                source.AppendLine("        }");
+
+                if (hostFunction.DeletePrototype)
+                {
+                    source.Append("        ").Append(functionVar).AppendLine(".Properties.Delete(\"prototype\");");
+                }
+
+                source.Append("        ").Append(functionVar)
+                    .Append(".DefineProperty(\"length\", new PropertyDescriptor { Value = ")
+                    .Append(hostFunction.LengthLiteral).Append("d, Writable = false, Enumerable = false, Configurable = true });")
+                    .AppendLine();
+                source.Append("        ").Append(functionVar)
+                    .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
+                    .Append(hostFunction.DisplayName.Replace("\"", "\\\""))
+                    .Append("\", Writable = false, Enumerable = false, Configurable = true });")
+                    .AppendLine();
+                source.Append("        ").Append(targetExpression).Append(".DefineProperty(\"").Append(hostFunction.Name)
+                    .Append("\", new PropertyDescriptor { Value = ").Append(functionVar)
+                    .Append(", Writable = ").Append(hostFunction.Writable ? "true" : "false")
+                    .Append(", Enumerable = ").Append(hostFunction.Enumerable ? "true" : "false")
+                    .Append(", Configurable = ").Append(hostFunction.Configurable ? "true" : "false")
+                    .AppendLine(" });");
+            }
+
+            switch (hostFunction.Target)
+            {
+                case HostFunctionTarget.Global:
+                    AppendHostFunction("global");
+                    break;
+                case HostFunctionTarget.Custom:
+                    source.Append("        if (global.TryGetProperty(\"").Append(hostFunction.TargetName ?? string.Empty)
+                        .Append("\", out var targetValue) && targetValue.TryGetObject<IJsObjectLike>(out var targetCustom))");
+                    source.AppendLine();
+                    source.AppendLine("        {");
+                    AppendHostFunction("targetCustom");
+                    source.AppendLine("        }");
+                    if (hostFunction.ThrowOnMissingTarget)
+                    {
+                        source.Append("        else").AppendLine();
+                        source.Append("        { throw new InvalidOperationException(\"Missing host function target: ")
+                            .Append(hostFunction.TargetName?.Replace("\"", "\\\"") ?? string.Empty).Append("\"); }")
+                            .AppendLine();
+                    }
+                    break;
+                case HostFunctionTarget.Constructor:
+                case HostFunctionTarget.Prototype:
+                    source.Append("        if (realm.").Append(hostFunction.TargetName)
+                        .Append(" is IJsObjectLike targetRealm)").AppendLine();
+                    source.AppendLine("        {");
+                    AppendHostFunction("targetRealm");
+                    source.AppendLine("        }");
+                    if (hostFunction.ThrowOnMissingTarget)
+                    {
+                        source.Append("        else").AppendLine();
+                        source.Append("        { throw new InvalidOperationException(\"Missing host function target: ")
+                            .Append(hostFunction.TargetName?.Replace("\"", "\\\"") ?? string.Empty).Append("\"); }")
+                            .AppendLine();
+                    }
+                    break;
+            }
+        }
+
+        source.AppendLine("    }");
+        source.AppendLine("}");
+
+        context.AddSource($"{info.ClassName}.HostFunctions.g.cs", source.ToString());
     }
 
     private static ImmutableArray<GetterInfo> OrderGetters(ImmutableArray<GetterInfo> source)
@@ -961,6 +1384,13 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
             ? source
             : source.OrderBy(static g => g.SymbolName, StringComparer.Ordinal)
                 .ThenBy(static g => g.MethodName, StringComparer.Ordinal)
+                .ToImmutableArray();
+
+    private static ImmutableArray<HostFunctionInfo> OrderHostFunctions(ImmutableArray<HostFunctionInfo> source)
+        => source.Length <= 1
+            ? source
+            : source.OrderBy(static h => h.Name, StringComparer.Ordinal)
+                .ThenBy(static h => h.MethodName, StringComparer.Ordinal)
                 .ToImmutableArray();
 
     private static string BuildPrototypeCacheKey(
@@ -1081,7 +1511,8 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         string lengthLiteral,
         string displayName,
         ImmutableArray<ConstructorMethodInfo> staticMethods,
-        ImmutableArray<ConstructorSymbolGetterInfo> symbolGetters)
+        ImmutableArray<ConstructorSymbolGetterInfo> symbolGetters,
+        ImmutableArray<HostFunctionInfo> hostFunctions)
     {
         var builder = new StringBuilder();
         AppendWithLength(builder, namespaceName ?? string.Empty);
@@ -1113,6 +1544,60 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
             AppendBool(builder, getter.Enumerable);
             AppendBool(builder, getter.Configurable);
             AppendBool(builder, getter.TakesThisValue);
+        }
+
+        AppendWithLength(builder, hostFunctions.Length.ToString(CultureInfo.InvariantCulture));
+        foreach (var hostFunction in hostFunctions)
+        {
+            AppendWithLength(builder, hostFunction.Name);
+            AppendWithLength(builder, hostFunction.MethodName);
+            AppendWithLength(builder, hostFunction.DisplayName);
+            AppendWithLength(builder, hostFunction.LengthLiteral);
+            AppendBool(builder, hostFunction.Enumerable);
+            AppendBool(builder, hostFunction.Configurable);
+            AppendBool(builder, hostFunction.Writable);
+            AppendBool(builder, hostFunction.DeletePrototype);
+            AppendWithLength(builder, ((int)hostFunction.Signature).ToString(CultureInfo.InvariantCulture));
+            AppendBool(builder, hostFunction.ReturnsJsValue);
+            AppendBool(builder, hostFunction.IsStatic);
+            AppendBool(builder, hostFunction.UsesContext);
+            AppendWithLength(builder, ((int)hostFunction.Target).ToString(CultureInfo.InvariantCulture));
+            AppendWithLength(builder, hostFunction.TargetName ?? string.Empty);
+            AppendBool(builder, hostFunction.ThrowOnMissingTarget);
+        }
+
+        return builder.ToString();
+    }
+
+    private static string BuildHostFunctionContainerCacheKey(
+        string className,
+        string? namespaceName,
+        bool isStatic,
+        ImmutableArray<HostFunctionInfo> hostFunctions)
+    {
+        var builder = new StringBuilder();
+        AppendWithLength(builder, namespaceName ?? string.Empty);
+        AppendWithLength(builder, className);
+        AppendBool(builder, isStatic);
+        AppendWithLength(builder, hostFunctions.Length.ToString(CultureInfo.InvariantCulture));
+
+        foreach (var hostFunction in hostFunctions)
+        {
+            AppendWithLength(builder, hostFunction.Name);
+            AppendWithLength(builder, hostFunction.MethodName);
+            AppendWithLength(builder, hostFunction.DisplayName);
+            AppendWithLength(builder, hostFunction.LengthLiteral);
+            AppendBool(builder, hostFunction.Enumerable);
+            AppendBool(builder, hostFunction.Configurable);
+            AppendBool(builder, hostFunction.Writable);
+            AppendBool(builder, hostFunction.DeletePrototype);
+            AppendWithLength(builder, ((int)hostFunction.Signature).ToString(CultureInfo.InvariantCulture));
+            AppendBool(builder, hostFunction.ReturnsJsValue);
+            AppendBool(builder, hostFunction.IsStatic);
+            AppendBool(builder, hostFunction.UsesContext);
+            AppendWithLength(builder, ((int)hostFunction.Target).ToString(CultureInfo.InvariantCulture));
+            AppendWithLength(builder, hostFunction.TargetName ?? string.Empty);
+            AppendBool(builder, hostFunction.ThrowOnMissingTarget);
         }
 
         return builder.ToString();
@@ -1212,6 +1697,10 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
     private sealed record PrototypeTarget(INamedTypeSymbol TypeSymbol, AttributeData Attribute, string FilePath);
 
     private sealed record ConstructorTarget(INamedTypeSymbol TypeSymbol, AttributeData Attribute, string FilePath);
+
+    private sealed record HostFunctionCandidate(IMethodSymbol MethodSymbol, AttributeData Attribute, string FilePath);
+
+    private sealed record HostFunctionContainerTarget(INamedTypeSymbol TypeSymbol, ImmutableArray<HostFunctionCandidate> Methods);
 
     private sealed class PrototypeTargetComparer : IEqualityComparer<PrototypeTarget>
     {
@@ -1334,13 +1823,22 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         bool Enumerable, bool Writable, bool Configurable);
 
     private sealed record ConstructorInfo(string ClassName, string? Namespace, string PrototypeTypeName, string LengthLiteral,
-        string DisplayName, ImmutableArray<ConstructorMethodInfo> StaticMethods, ImmutableArray<ConstructorSymbolGetterInfo> SymbolGetters, string CacheKey);
+        string DisplayName, ImmutableArray<ConstructorMethodInfo> StaticMethods, ImmutableArray<ConstructorSymbolGetterInfo> SymbolGetters,
+        ImmutableArray<HostFunctionInfo> HostFunctions, string CacheKey);
 
     private sealed record ConstructorMethodInfo(string MethodName, string PropertyName, string DisplayName,
         string LengthLiteral, bool Enumerable, bool Configurable, bool Writable, ConstructorMethodSignature Signature, bool ReturnsJsValue);
 
     private sealed record ConstructorSymbolGetterInfo(string MethodName, string SymbolName, string DisplayName,
         bool Enumerable, bool Configurable, bool TakesThisValue);
+
+    private sealed record HostFunctionContainerInfo(string ClassName, string? Namespace, bool IsStatic,
+        ImmutableArray<HostFunctionInfo> HostFunctions, string CacheKey);
+
+    private sealed record HostFunctionInfo(string MethodName, string Name, string DisplayName, string LengthLiteral,
+        bool Enumerable, bool Configurable, bool Writable, bool DeletePrototype, HostFunctionSignature Signature,
+        bool ReturnsJsValue, bool IsStatic, bool UsesContext, HostFunctionTarget Target, string? TargetName,
+        bool ThrowOnMissingTarget);
 
     private sealed class PrototypeCacheKeyComparer : IEqualityComparer<PrototypeInfo>
     {
@@ -1388,6 +1886,29 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
             => StringComparer.Ordinal.GetHashCode(obj.CacheKey);
     }
 
+    private sealed class HostFunctionContainerCacheKeyComparer : IEqualityComparer<HostFunctionContainerInfo>
+    {
+        public static readonly HostFunctionContainerCacheKeyComparer Instance = new();
+
+        public bool Equals(HostFunctionContainerInfo? x, HostFunctionContainerInfo? y)
+        {
+            if (ReferenceEquals(x, y))
+            {
+                return true;
+            }
+
+            if (x is null || y is null)
+            {
+                return false;
+            }
+
+            return string.Equals(x.CacheKey, y.CacheKey, StringComparison.Ordinal);
+        }
+
+        public int GetHashCode(HostFunctionContainerInfo obj)
+            => StringComparer.Ordinal.GetHashCode(obj.CacheKey);
+    }
+
     private enum ConstructorMethodSignature
     {
         ThisArgsRealm = 0,  // (object?, IReadOnlyList<JsValue>, RealmState?)
@@ -1402,6 +1923,26 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         ThisOnly = 1,
         ArgsOnly = 2,
         NoArgs = 3
+    }
+
+    private enum HostFunctionSignature
+    {
+        ThisArgs = 0,
+        ThisOnly = 1,
+        ArgsOnly = 2,
+        NoArgs = 3,
+        ArgsRealm = 4,
+        ThisArgsRealm = 5,
+        ArgsContext = 6,
+        ThisArgsContext = 7
+    }
+
+    private enum HostFunctionTarget
+    {
+        Global = 0,
+        Constructor = 1,
+        Prototype = 2,
+        Custom = 3
     }
 
     private enum PrototypeObjectKind
@@ -1473,8 +2014,137 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         return HostMethodSignature.ThisAndArgs;
     }
 
+    private static HostFunctionSignature GetHostFunctionSignature(
+        IMethodSymbol method,
+        INamedTypeSymbol? jsValueType,
+        INamedTypeSymbol? readOnlyListType,
+        INamedTypeSymbol? realmStateType,
+        INamedTypeSymbol? evaluationContextType)
+    {
+        if (jsValueType is null || readOnlyListType is null)
+        {
+            return HostFunctionSignature.ThisArgs;
+        }
+
+        var parameters = method.Parameters;
+
+        if (parameters.Length == 0)
+        {
+            return HostFunctionSignature.NoArgs;
+        }
+
+        if (parameters.Length == 1)
+        {
+            if (IsJsValue(parameters[0].Type, jsValueType))
+            {
+                return HostFunctionSignature.ThisOnly;
+            }
+
+            if (IsReadOnlyListOfJsValue(parameters[0].Type, readOnlyListType, jsValueType))
+            {
+                return HostFunctionSignature.ArgsOnly;
+            }
+        }
+
+        if (parameters.Length == 2)
+        {
+            if (IsJsValue(parameters[0].Type, jsValueType) &&
+                IsReadOnlyListOfJsValue(parameters[1].Type, readOnlyListType, jsValueType))
+            {
+                return HostFunctionSignature.ThisArgs;
+            }
+
+            if (realmStateType is not null &&
+                IsReadOnlyListOfJsValue(parameters[0].Type, readOnlyListType, jsValueType) &&
+                IsNullableRealmState(parameters[1].Type, realmStateType))
+            {
+                return HostFunctionSignature.ArgsRealm;
+            }
+
+            if (evaluationContextType is not null &&
+                IsReadOnlyListOfJsValue(parameters[0].Type, readOnlyListType, jsValueType) &&
+                IsNullableEvaluationContext(parameters[1].Type, evaluationContextType))
+            {
+                return HostFunctionSignature.ArgsContext;
+            }
+        }
+
+        if (parameters.Length == 3 &&
+            IsJsValue(parameters[0].Type, jsValueType) &&
+            IsReadOnlyListOfJsValue(parameters[1].Type, readOnlyListType, jsValueType))
+        {
+            if (realmStateType is not null && IsNullableRealmState(parameters[2].Type, realmStateType))
+            {
+                return HostFunctionSignature.ThisArgsRealm;
+            }
+
+            if (evaluationContextType is not null && IsNullableEvaluationContext(parameters[2].Type, evaluationContextType))
+            {
+                return HostFunctionSignature.ThisArgsContext;
+            }
+        }
+
+        return HostFunctionSignature.ThisArgs;
+    }
+
+    private static bool UsesContext(HostFunctionSignature signature)
+        => signature is HostFunctionSignature.ArgsContext or HostFunctionSignature.ThisArgsContext;
+
+    private static HostFunctionTarget GetHostFunctionTarget(AttributeData attr)
+    {
+        foreach (var arg in attr.NamedArguments)
+        {
+            if (string.Equals(arg.Key, "Target", StringComparison.Ordinal))
+            {
+                var value = arg.Value.Value;
+                if (value is int intValue)
+                {
+                    return (HostFunctionTarget)intValue;
+                }
+
+                if (value is IConvertible convertible)
+                {
+                    return (HostFunctionTarget)convertible.ToInt32(CultureInfo.InvariantCulture);
+                }
+            }
+        }
+
+        return HostFunctionTarget.Global;
+    }
+
+    private static bool IsMatchingHostFunctionTarget(string? targetName, string className, string suffix)
+    {
+        if (string.IsNullOrWhiteSpace(targetName))
+        {
+            return true;
+        }
+
+        if (string.Equals(targetName, className, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return string.Equals(targetName, className + suffix, StringComparison.Ordinal);
+    }
+
     private static bool IsJsValue(ITypeSymbol type, INamedTypeSymbol jsValueType)
         => SymbolEqualityComparer.Default.Equals(type, jsValueType);
+
+    private static bool IsNullableEvaluationContext(ITypeSymbol type, INamedTypeSymbol evaluationContextType)
+    {
+        if (SymbolEqualityComparer.Default.Equals(type, evaluationContextType))
+        {
+            return true;
+        }
+
+        if (type.NullableAnnotation == NullableAnnotation.Annotated && type is INamedTypeSymbol namedType &&
+            SymbolEqualityComparer.Default.Equals(namedType.OriginalDefinition, evaluationContextType))
+        {
+            return true;
+        }
+
+        return false;
+    }
 
     private static bool IsReadOnlyListOfJsValue(
         ITypeSymbol type,
@@ -1498,14 +2168,16 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
     private sealed record WellKnownTypes(
         INamedTypeSymbol? JsValueType,
         INamedTypeSymbol? ReadOnlyListType,
-        INamedTypeSymbol? RealmStateType)
+        INamedTypeSymbol? RealmStateType,
+        INamedTypeSymbol? EvaluationContextType)
     {
         public static WellKnownTypes From(Compilation compilation)
         {
             var jsValueType = compilation.GetTypeByMetadataName("Asynkron.JsEngine.JsTypes.JsValue");
             var readOnlyListType = compilation.GetTypeByMetadataName("System.Collections.Generic.IReadOnlyList`1");
             var realmStateType = compilation.GetTypeByMetadataName("Asynkron.JsEngine.Runtime.RealmState");
-            return new WellKnownTypes(jsValueType, readOnlyListType, realmStateType);
+            var evaluationContextType = compilation.GetTypeByMetadataName("Asynkron.JsEngine.EvaluationContext");
+            return new WellKnownTypes(jsValueType, readOnlyListType, realmStateType, evaluationContextType);
         }
     }
 }

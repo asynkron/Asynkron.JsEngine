@@ -219,7 +219,7 @@ public sealed class JsEngine : IAsyncDisposable
         // Register WeakSet constructor
         SetGlobal("WeakSet", WeakSetConstructor.CreateConstructor(RealmState));
 
-        SetGlobal("WeakRef", WeakRefHelper.CreateWeakRefConstructor(RealmState));
+        SetGlobal("WeakRef", WeakRefConstructor.CreateConstructor(RealmState));
 
         SetGlobal("DisposableStack", DisposableStackConstructor.CreateConstructor(RealmState));
         SetGlobal("AsyncDisposableStack", AsyncDisposableStackConstructor.CreateConstructor(RealmState));

@@ -202,7 +202,7 @@ public sealed class JsEngine : IAsyncDisposable
         RealmState.PromiseConstructor = promiseConstructor;
 
         // Register Symbol constructor
-        SetGlobal("Symbol", SymbolHelper.CreateSymbolConstructor(RealmState));
+        SetGlobal("Symbol", SymbolConstructor.CreateConstructor(RealmState));
 
         // Register Map constructor
         SetGlobal("Map", MapConstructor.CreateConstructor(RealmState));

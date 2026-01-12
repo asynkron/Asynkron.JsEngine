@@ -8,11 +8,6 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static class BigIntHelper
 {
-    public static IJsCallable CreateBigIntFunction(RealmState realm)
-    {
-        return BigIntConstructor.CreateConstructor(realm);
-    }
-
     public static JsObject CreateBigIntWrapper(JsBigInt value, EvaluationContext? context = null,
         RealmState? realm = null)
     {

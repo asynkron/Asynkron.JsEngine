@@ -113,9 +113,9 @@ public sealed class JsEngine : IAsyncDisposable
 
         SetGlobal("Function", FunctionConstructor.CreateConstructor(RealmState));
         SetGlobal("Number", NumberHelper.CreateNumberConstructor(RealmState));
-        var bigIntFunction = BigIntHelper.CreateBigIntFunction(RealmState);
+        var bigIntFunction = BigIntConstructor.CreateConstructor(RealmState);
         SetGlobal("BigInt", bigIntFunction);
-        SetGlobal("Boolean", BooleanHelper.CreateBooleanConstructor(RealmState));
+        SetGlobal("Boolean", BooleanConstructor.CreateConstructor(RealmState));
         SetGlobal("String", StringHelper.CreateStringConstructor(RealmState));
         var arrayConstructor = StandardLibrary.CreateArrayConstructor(RealmState);
         arrayConstructor.RealmState = RealmState;

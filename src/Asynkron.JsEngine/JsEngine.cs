@@ -255,9 +255,7 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("eval", new EvalHostFunction(this));
 
         // Register internal helpers for async iteration
-        SetGlobal("__getAsyncIterator", IterationHelper.CreateGetAsyncIteratorHelper(this));
-        SetGlobal("__iteratorNext", IterationHelper.CreateIteratorNextHelper(this));
-        SetGlobal("__awaitHelper", IterationHelper.CreateAwaitHelper(this));
+        IterationHelper.RegisterHostFunctions(GlobalObject, RealmState);
         SetGlobal("$DETACHBUFFER", new HostFunction((_, args) =>
         {
             if (args.Count > 0 && args[0].TryGetObject<TypedArrayBase>(out var view))

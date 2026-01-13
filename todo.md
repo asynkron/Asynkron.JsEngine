@@ -1,11 +1,16 @@
 # TODO
 
 ## Migrate HostFunction Creations to JsHostFunction Annotations
-Identify helper methods that manually create HostFunction instances and wire up names/length/prototype. These should be migrated to generator‑annotated host functions. Search in *Helper.cs for patterns like public static HostFunction Create... and new HostFunction(...), then convert to a [JsHostFunction] method that returns JsValue directly.
+Identify helper methods that manually create HostFunction instances and
+wire up names/length/prototype. These should be migrated to generator‑annotated
+host functions. Search in *Helper.cs for patterns like public static HostFunction Create...
+and new HostFunction(...), then convert to a [JsHostFunction] method that returns JsValue directly.
+
 Before
 ```csharp
 public static HostFunction CreateParseIntFunction()
 {
+    //define lambda manuallt and return the HostFunction
     var fn = new HostFunction(args =>
     {
         // logic...
@@ -16,7 +21,7 @@ public static HostFunction CreateParseIntFunction()
 }
 ```
 
-After
+After, wired by source generators, looks almost like a normal method:
 ```csharp
 [JsHostFunction("parseInt", Length = 2d, DeletePrototype = true)]
 private static JsValue ParseInt(IReadOnlyList<JsValue> args)

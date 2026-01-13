@@ -8,7 +8,7 @@ using Asynkron.JsEngine.StdLib.Intl;
 
 namespace Asynkron.JsEngine.StdLib;
 
-public static class IntlHelper
+public static partial class IntlHelper
 {
     public static JsObject CreateIntlObject(RealmState realm)
     {

@@ -389,7 +389,7 @@ public static partial class TypedAstEvaluator
         if (!skipInternalNameBinding && functionExpression.Name is not null &&
             functionExpression is { IsArrow: false })
         {
-            functionNameEnvironment = new JsEnvironment(environment);
+            functionNameEnvironment = JsEnvironment.CreateInstance(environment);
             // Use scope ID from analysis if available, otherwise use a fallback that still allows lookup
             if (functionExpression.FunctionNameScopeId >= 0)
             {

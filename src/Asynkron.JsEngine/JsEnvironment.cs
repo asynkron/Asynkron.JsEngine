@@ -64,7 +64,7 @@ public sealed class JsEnvironment : IRentable
 
     private IJsObjectLike? _withObject;
 
-    public JsEnvironment(
+    private JsEnvironment(
         JsEnvironment? enclosing = null,
         bool isFunctionScope = false,
         bool isStrict = false,
@@ -98,6 +98,16 @@ public sealed class JsEnvironment : IRentable
             throw new InvalidOperationException(
                 $"Exceeded maximum environment depth of {MaxDepth}. Possible unbounded recursion detected.");
         }
+    }
+
+    [MethodImpl(JsEngineConstants.Inlining)]
+    public static JsEnvironment CreateInstance(JsEnvironment? enclosing = null, bool isFunctionScope = false,
+        bool isStrict = false, SourceReference? creatingSource = null, string? description = null,
+        IJsObjectLike? withObject = null, bool isParameterEnvironment = false, bool isBodyEnvironment = false,
+        bool treatAsGlobalFunctionScope = false, bool inheritStrictness = true)
+    {
+        return new JsEnvironment(enclosing, isFunctionScope, isStrict, creatingSource, description, withObject,
+            isParameterEnvironment, isBodyEnvironment, treatAsGlobalFunctionScope, inheritStrictness);
     }
 
     private static void ValidateScopeId(int scopeId)
@@ -1998,7 +2008,7 @@ public sealed class JsEnvironment : IRentable
         // configurable property on the global object rather than a declarative
         // binding so that `delete` can remove it (ES2024 9.1.1.3.4 SetMutableBinding).
         globalObject.SetProperty(name.Name, value);
-        context.RealmState?.Logger?.LogInformation(
+        context.RealmState.Logger?.LogInformation(
             "Sloppy assignment created unresolvable binding name={Name} valueKind={ValueKind}",
             name.Name,
             value.Kind);

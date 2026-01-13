@@ -14,7 +14,7 @@ public sealed class JsEnvironmentSlotTests(ITestOutputHelper output)
     [Fact]
     public void DefineSlot_CreatesSlot()
     {
-        var env = new JsEnvironment();
+        var env = JsEnvironment.CreateInstance();
         var name = Symbol.Intern("x");
 
         env.DefineSlot(name, JsValue.FromDouble(10), SlotFlags.None);
@@ -28,7 +28,7 @@ public sealed class JsEnvironmentSlotTests(ITestOutputHelper output)
     [Fact]
     public void TryGetSlotRef_ModifyValue_Persists()
     {
-        var env = new JsEnvironment();
+        var env = JsEnvironment.CreateInstance();
         var name = Symbol.Intern("x");
 
         env.DefineSlot(name, JsValue.FromDouble(0), SlotFlags.None);
@@ -53,7 +53,7 @@ public sealed class JsEnvironmentSlotTests(ITestOutputHelper output)
     [Fact]
     public void SetBindingValueDirect_Persists()
     {
-        var env = new JsEnvironment();
+        var env = JsEnvironment.CreateInstance();
         var name = Symbol.Intern("x");
 
         env.DefineSlot(name, JsValue.FromDouble(0), SlotFlags.None);
@@ -72,7 +72,7 @@ public sealed class JsEnvironmentSlotTests(ITestOutputHelper output)
     [Fact]
     public void MultipleWrites_AllPersist()
     {
-        var env = new JsEnvironment();
+        var env = JsEnvironment.CreateInstance();
         var name = Symbol.Intern("x");
 
         env.DefineSlot(name, JsValue.FromDouble(0), SlotFlags.None);
@@ -91,7 +91,7 @@ public sealed class JsEnvironmentSlotTests(ITestOutputHelper output)
     [Fact]
     public void ResolvedIdentifierBinding_WriteJsValue_Persists()
     {
-        var env = new JsEnvironment();
+        var env = JsEnvironment.CreateInstance();
         var name = Symbol.Intern("x");
 
         env.DefineSlot(name, JsValue.FromDouble(0), SlotFlags.None);
@@ -113,8 +113,8 @@ public sealed class JsEnvironmentSlotTests(ITestOutputHelper output)
     [Fact]
     public void TryLocateBinding_FindsCorrectEnvironment()
     {
-        var outer = new JsEnvironment();
-        var inner = new JsEnvironment(enclosing: outer);
+        var outer = JsEnvironment.CreateInstance();
+        var inner = JsEnvironment.CreateInstance(enclosing: outer);
 
         var outerName = Symbol.Intern("x");
         outer.DefineSlot(outerName, JsValue.FromDouble(10), SlotFlags.None);
@@ -131,8 +131,8 @@ public sealed class JsEnvironmentSlotTests(ITestOutputHelper output)
     [Fact]
     public void TryLocateBinding_WriteToFoundEnvironment_Persists()
     {
-        var outer = new JsEnvironment();
-        var inner = new JsEnvironment(enclosing: outer);
+        var outer = JsEnvironment.CreateInstance();
+        var inner = JsEnvironment.CreateInstance(enclosing: outer);
 
         var name = Symbol.Intern("x");
         outer.DefineSlot(name, JsValue.FromDouble(0), SlotFlags.None);
@@ -157,8 +157,8 @@ public sealed class JsEnvironmentSlotTests(ITestOutputHelper output)
     [Fact]
     public void ResolvedIdentifierBinding_ViaLocatedEnvironment_WritesPersist()
     {
-        var outer = new JsEnvironment();
-        var inner = new JsEnvironment(enclosing: outer);
+        var outer = JsEnvironment.CreateInstance();
+        var inner = JsEnvironment.CreateInstance(enclosing: outer);
 
         var name = Symbol.Intern("x");
         outer.DefineSlot(name, JsValue.FromDouble(0), SlotFlags.None);
@@ -186,8 +186,7 @@ public sealed class JsEnvironmentSlotTests(ITestOutputHelper output)
     public void GlobalEnvironment_VarBinding_WritesPersist()
     {
         // Simulate the environment structure for global scope
-        var globalEnv = new JsEnvironment(
-            isFunctionScope: true,
+        var globalEnv = JsEnvironment.CreateInstance(isFunctionScope: true,
             treatAsGlobalFunctionScope: true);
 
         var name = Symbol.Intern("b");
@@ -218,7 +217,7 @@ public sealed class JsEnvironmentSlotTests(ITestOutputHelper output)
     [Fact]
     public void TryFindBindingJsValue_Works()
     {
-        var env = new JsEnvironment();
+        var env = JsEnvironment.CreateInstance();
         var name = Symbol.Intern("x");
 
         env.DefineSlot(name, JsValue.FromDouble(0), SlotFlags.None);

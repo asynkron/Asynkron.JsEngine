@@ -22,7 +22,7 @@ public static partial class TypedAstEvaluator
 
         // Create a lexical environment for the entire switch block
         // This environment is shared by all case clause bodies
-        var switchEnv = new JsEnvironment(environment, false, instantiationPlan.IsStrict);
+        var switchEnv = JsEnvironment.CreateInstance(environment, false, instantiationPlan.IsStrict);
 
         // Push a scope context for the switch block
         var scopeMode = instantiationPlan.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy;

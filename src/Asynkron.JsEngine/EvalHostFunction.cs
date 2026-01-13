@@ -278,7 +278,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             // environment record (ES 18.2.1.1 EvalDeclarationInstantiation). In strict mode
             // the variable environment is that new declarative scope as well, so top-level
             // var/function declarations do not leak into the caller or global scope.
-            var indirectLexical = new JsEnvironment(environment, isStrictEval, isStrictEval,
+            var indirectLexical = JsEnvironment.CreateInstance(environment, isStrictEval, isStrictEval,
                 description: "indirect eval", inheritStrictness: false);
             if (!isStrictEval)
             {
@@ -291,8 +291,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             // Strict direct eval: fresh declarative environment for both lexical and var bindings
             // (PerformEval step 9.a).
-            lexicalEnv = new JsEnvironment(
-                environment,
+            lexicalEnv = JsEnvironment.CreateInstance(environment,
                 true,
                 true,
                 description: "strict direct eval",
@@ -303,8 +302,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             // Sloppy direct eval: fresh lexical environment whose outer is the caller, but var
             // declarations still target the caller's var environment (EvalDeclarationInstantiation step 8).
-            lexicalEnv = new JsEnvironment(
-                environment,
+            lexicalEnv = JsEnvironment.CreateInstance(environment,
                 false,
                 false,
                 description: "direct eval lexical",
@@ -482,8 +480,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         }
 
         var evalEnvironment = isStrictEval
-            ? new JsEnvironment(
-                lexicalEnv,
+            ? JsEnvironment.CreateInstance(lexicalEnv,
                 false,
                 true,
                 description: "eval",

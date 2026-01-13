@@ -272,12 +272,12 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             ? context.EnterFunctionNameHint(functionNameHint)
             : null;
         var executionEnvironment = program.IsStrict && createStrictEnvironment
-            ? new JsEnvironment(environment, true, true,
+            ? JsEnvironment.CreateInstance(environment, true, true,
                 treatAsGlobalFunctionScope: environment.IsGlobalFunctionScope)
             : environment;
         if (program.IsStrict && !executionEnvironment.IsStrict)
         {
-            executionEnvironment = new JsEnvironment(executionEnvironment, true, true,
+            executionEnvironment = JsEnvironment.CreateInstance(executionEnvironment, true, true,
                 treatAsGlobalFunctionScope: executionEnvironment.IsGlobalFunctionScope);
         }
 

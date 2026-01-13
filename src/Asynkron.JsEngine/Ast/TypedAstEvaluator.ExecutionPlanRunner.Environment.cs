@@ -50,14 +50,14 @@ public static partial class TypedAstEvaluator
 
             JsEnvironment parameterEnvironment;
             JsEnvironment varEnvironment;
-            var functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
+            var functionEnvironment = JsEnvironment.CreateInstance(_closure, true, _isStrict, _function.Source,
                 description);
             if (hasParameterExpressions)
             {
-                parameterEnvironment = new JsEnvironment(functionEnvironment, false, _isStrict, _function.Source,
+                parameterEnvironment = JsEnvironment.CreateInstance(functionEnvironment, false, _isStrict, _function.Source,
                     description, isParameterEnvironment: true);
 
-                varEnvironment = new JsEnvironment(parameterEnvironment, true, _isStrict, _function.Source,
+                varEnvironment = JsEnvironment.CreateInstance(parameterEnvironment, true, _isStrict, _function.Source,
                     description);
             }
             else
@@ -66,7 +66,7 @@ public static partial class TypedAstEvaluator
                 varEnvironment = functionEnvironment;
             }
 
-            var executionEnvironment = new JsEnvironment(varEnvironment, false, _isStrict,
+            var executionEnvironment = JsEnvironment.CreateInstance(varEnvironment, false, _isStrict,
                 _function.Source, description, isBodyEnvironment: true);
             executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
 

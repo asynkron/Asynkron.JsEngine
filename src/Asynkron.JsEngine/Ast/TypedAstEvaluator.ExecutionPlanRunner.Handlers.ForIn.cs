@@ -29,7 +29,7 @@ public static partial class TypedAstEvaluator
             // Create TDZ environment for lexical declarations if needed
             if (!instruction.TdzBindings.IsDefaultOrEmpty)
             {
-                objectEnv = new JsEnvironment(environment, false, false,
+                objectEnv = JsEnvironment.CreateInstance(environment, false, false,
                     instruction.ObjectExpression.Source, "for-in-head-tdz");
                 foreach (var tdzSymbol in instruction.TdzBindings)
                 {

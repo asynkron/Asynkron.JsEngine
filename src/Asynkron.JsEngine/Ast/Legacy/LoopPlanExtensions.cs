@@ -253,8 +253,7 @@ public static partial class TypedAstEvaluator
                 null,
                 "for-iteration",
                 logger: logger)
-            : new JsEnvironment(
-                outerEnvironment,
+            : JsEnvironment.CreateInstance(outerEnvironment,
                 false,
                 false,
                 null,

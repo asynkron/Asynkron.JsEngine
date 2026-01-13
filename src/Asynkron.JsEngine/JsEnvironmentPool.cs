@@ -45,7 +45,7 @@ internal readonly struct RentedEnvironment : IDisposable
 internal static class JsEnvironmentPool
 {
     private static readonly ObjectPool<JsEnvironment> Pool = new(32,
-        static () => new JsEnvironment(null, false, false));
+        static () => JsEnvironment.CreateInstance());
 
     /// <summary>
     /// Rents a pooled environment wrapped in a disposable. Use with 'using' for automatic return.
@@ -89,6 +89,13 @@ internal static class JsEnvironmentPool
         }
 
         return env;
+    }
+
+    [Obsolete("Use JsEnvironmentPool.Return(JsEnvironment) instead.", true)]
+    public static void Return(RentedEnvironment? environment, ILogger? logger = null)
+    {
+        throw new ArgumentException(
+            "Do not pass RentedEnvironment to Return - it is a disposable wrapper. Use JsEnvironmentPool.Return(JsEnvironment) instead.");
     }
 
     /// <summary>

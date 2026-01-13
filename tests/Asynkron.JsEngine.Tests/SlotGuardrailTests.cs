@@ -18,13 +18,13 @@ public sealed class SlotGuardrailTests : InternalTestBase
         var realm = new RealmState();
         var context = new EvaluationContext(realm);
 
-        var outer = new JsEnvironment(null, isFunctionScope: true);
+        var outer = JsEnvironment.CreateInstance(null, isFunctionScope: true);
         outer.InitializeSlots(1, scopeId: 1);
         var symbolA = Symbol.Intern("a");
         outer.DefineJsValue(symbolA, new JsValue(123), isLexicalBinding: true);
 
         // Inner environment has a different binding at slot 0 but shares the same scopeId (collision).
-        var inner = new JsEnvironment(outer, isFunctionScope: true);
+        var inner = JsEnvironment.CreateInstance(outer, isFunctionScope: true);
         inner.InitializeSlots(1, scopeId: 1);
         inner.ScopeId = 1;
         inner._slots![0] = new JsSlot(Symbol.Intern("other"), new JsValue(999), SlotFlags.Lexical);
@@ -39,12 +39,12 @@ public sealed class SlotGuardrailTests : InternalTestBase
         var realm = new RealmState();
         var context = new EvaluationContext(realm);
 
-        var outer = new JsEnvironment(null, isFunctionScope: true);
+        var outer = JsEnvironment.CreateInstance(null, isFunctionScope: true);
         outer.InitializeSlots(1, scopeId: 10);
         var symbolA = Symbol.Intern("a");
         outer._slots![0] = new JsSlot(symbolA, new JsValue(1), SlotFlags.Lexical);
 
-        var inner = new JsEnvironment(outer, isFunctionScope: true);
+        var inner = JsEnvironment.CreateInstance(outer, isFunctionScope: true);
         inner.InitializeSlots(1, scopeId: 10);
         inner.ScopeId = 10;
         inner._slots![0] = new JsSlot(Symbol.Intern("shadow"), new JsValue(5), SlotFlags.Lexical);

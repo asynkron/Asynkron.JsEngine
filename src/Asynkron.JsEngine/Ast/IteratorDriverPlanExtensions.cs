@@ -52,7 +52,7 @@ public static partial class TypedAstEvaluator
 
         return useIterationSlots
             ? plan.RentIterationEnvironment(loopEnvironment, logger)
-            : new JsEnvironment(loopEnvironment,
+            : JsEnvironment.CreateInstance(loopEnvironment,
                 creatingSource: plan.Body.Source,
                 description: "for-each-iteration");
     }
@@ -161,7 +161,7 @@ public static partial class TypedAstEvaluator
             // Create ONE iteration environment before the loop and cache JsVariable
             reusableIterationEnvironment = useIterationSlots
                 ? plan.RentIterationEnvironment(loopEnvironment, logger)
-                : new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source,
+                : JsEnvironment.CreateInstance(loopEnvironment, creatingSource: plan.Body.Source,
                     description: "for-each-iteration-reused");
             cachedLetConstVariable = new JsVariable(reusableIterationEnvironment, fastPathSlotIndex);
         }
@@ -595,7 +595,7 @@ public static partial class TypedAstEvaluator
             return iterationEnvironment;
         }
 
-        var fallbackEnvironment = new JsEnvironment(outerEnvironment,
+        var fallbackEnvironment = JsEnvironment.CreateInstance(outerEnvironment,
             creatingSource: plan.Body.Source,
             description: "for-each-iteration-fallback");
         if (useIterationSlots)

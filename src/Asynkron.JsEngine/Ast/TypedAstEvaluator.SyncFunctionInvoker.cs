@@ -793,7 +793,7 @@ public static partial class TypedAstEvaluator
                         if (instanceToInit is not null)
                         {
                             var initContext = runner.EnsureEvaluationContext();
-                            var initEnv = new JsEnvironment(_closure, isStrict: _isStrict);
+                            var initEnv = JsEnvironment.CreateInstance(_closure, isStrict: _isStrict);
                             InitializeInstance(instanceToInit, initEnv, initContext);
                             if (initContext.IsThrow)
                             {
@@ -838,23 +838,23 @@ public static partial class TypedAstEvaluator
             JsEnvironment varEnvironment;
             if (_hasParameterExpressions)
             {
-                functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
+                functionEnvironment = JsEnvironment.CreateInstance(_closure, true, _isStrict, _function.Source,
                     _functionDescription);
                 // Don't initialize slots for complex parameter expressions (destructuring, defaults)
                 // Values are bound via dictionary, not slots - only set scope metadata
                 functionEnvironment.ScopeId = _function.ScopeId;
                 functionEnvironment.SetSlotMap(_function.SlotMap);
 
-                parameterEnvironment = new JsEnvironment(functionEnvironment, false, _isStrict, _function.Source,
+                parameterEnvironment = JsEnvironment.CreateInstance(functionEnvironment, false, _isStrict, _function.Source,
                     _functionDescription, isParameterEnvironment: true);
                 parameterEnvironment.IsArrowFunctionEnvironment = IsArrowFunction;
 
-                varEnvironment = new JsEnvironment(parameterEnvironment, true, _isStrict, _function.Source,
+                varEnvironment = JsEnvironment.CreateInstance(parameterEnvironment, true, _isStrict, _function.Source,
                     _functionDescription);
             }
             else
             {
-                functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
+                functionEnvironment = JsEnvironment.CreateInstance(_closure, true, _isStrict, _function.Source,
                     _functionDescription);
                 // InvokeWithContext uses dictionary-based lookups (slow path).
                 // Set ScopeId for scope chain navigation but DON'T initialize slots.
@@ -866,7 +866,7 @@ public static partial class TypedAstEvaluator
                 varEnvironment = functionEnvironment;
             }
 
-            var executionEnvironment = new JsEnvironment(varEnvironment, false, _isStrict,
+            var executionEnvironment = JsEnvironment.CreateInstance(varEnvironment, false, _isStrict,
                 _function.Source, _functionDescription, isBodyEnvironment: true);
             executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
 
@@ -1615,7 +1615,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 }
 
                 using var classFieldInitScope = context.EnterClassFieldInitializer();
-                var initEnv = new JsEnvironment(environment, isStrict: true);
+                var initEnv = JsEnvironment.CreateInstance(environment, isStrict: true);
                 initEnv.DefineJsValue(EvalHostFunction.FieldInitializerEvalFlag, JsValue.True, true, isLexicalBinding: true,
                     blocksFunctionScopeOverride: true);
                 initEnv.DefineJsValue(Symbol.This, JsValue.FromObjectUnsafe(instance));
@@ -2250,7 +2250,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             // Create environment for function execution - use pooling when safe (no inner closures)
             var functionEnvironment = _canPoolInvocationEnvironment
                 ? JsEnvironmentPool.Rent(_closure, true, _isStrict, _function.Source, _functionDescription, logger: RealmState.Logger)
-                : new JsEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
+                : JsEnvironment.CreateInstance(_closure, true, _isStrict, _function.Source, _functionDescription);
 
             InitializeFunctionEnvironmentForThis(functionEnvironment, thisValue);
 

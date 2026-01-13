@@ -40,7 +40,7 @@ public static partial class TypedAstEvaluator
 
             if (TryConvertToWithBindingObject(objValueJs, context, out var withObject))
             {
-                var withEnv = new JsEnvironment(environment, false, context.CurrentScope.IsStrict,
+                var withEnv = JsEnvironment.CreateInstance(environment, false, context.CurrentScope.IsStrict,
                     instruction.ObjectExpression.Source, "with", withObject);
                 StoreSymbolValue(runner._executionEnvironment!, instruction.WithScopeSlot, withEnv);
                 runner.WithStateRef.ActiveWithScopes.Push(instruction.WithScopeSlot);
@@ -154,7 +154,7 @@ public static partial class TypedAstEvaluator
             var description = instruction.PerIterationBindings.IsDefaultOrEmpty ? "loop-scope" : "scope";
             var newIterationEnv = allowPooling
                 ? JsEnvironmentPool.Rent(loopScope, false, false, null, description, logger: runner._realmState.Logger)
-                : new JsEnvironment(loopScope, false, false, null, description);
+                : JsEnvironment.CreateInstance(loopScope, false, false, null, description);
             if (!allowPooling)
             {
                 newIterationEnv.MarkLeasedDebug();

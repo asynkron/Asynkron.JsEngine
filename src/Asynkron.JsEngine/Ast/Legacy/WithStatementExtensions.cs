@@ -18,7 +18,7 @@ public static partial class TypedAstEvaluator
             return JsValue.Undefined;
         }
 
-        var withEnv = new JsEnvironment(environment, false, context.CurrentScope.IsStrict, statement.Source, "with",
+        var withEnv = JsEnvironment.CreateInstance(environment, false, context.CurrentScope.IsStrict, statement.Source, "with",
             withObject);
         var completion = statement.Body.EvaluateStatementJsValue(withEnv, context);
 

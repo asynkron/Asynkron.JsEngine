@@ -324,7 +324,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     public JsObject GlobalObject { get; } = new();
 
-    internal JsEnvironment GlobalEnvironment { get; } = new(isFunctionScope: true);
+    internal JsEnvironment GlobalEnvironment { get; } = JsEnvironment.CreateInstance(isFunctionScope: true);
     internal JsEnvironment GlobalExecutionScope { get; private set; }
 
     internal RealmState RealmState { get; } = new();
@@ -620,7 +620,7 @@ public sealed class JsEngine : IAsyncDisposable
         }
     }
 
-    internal bool IsEventLoopDrained()
+    private bool IsEventLoopDrained()
     {
         var hasActiveTimers = Interlocked.CompareExchange(ref _activeTimerCount, 0, 0) > 0;
         var hasPendingTasks = Interlocked.CompareExchange(ref _pendingTaskCount, 0, 0) > 0;
@@ -1475,7 +1475,7 @@ public sealed class JsEngine : IAsyncDisposable
         else
         {
             entry = CreateModuleEntry(EnsureStrictProgram(program),
-                CreateModuleEnvironment(null),
+                CreateModuleEnvironment(),
                 new JsObject(),
                 string.Empty,
                 program.HasTopLevelAwait);
@@ -1639,7 +1639,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     private JsEnvironment CreateModuleEnvironment(string? modulePath = null)
     {
-        var moduleEnv = new JsEnvironment(GlobalEnvironment, true, true);
+        var moduleEnv = JsEnvironment.CreateInstance(GlobalEnvironment, true, true);
         // Per ECMAScript spec, `this` in module scope is undefined
         moduleEnv.DefineJsValue(Symbol.This, JsValue.Undefined);
         moduleEnv.ModulePath = modulePath;
@@ -2165,15 +2165,6 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    ///     Queues an Action as a microtask. The action is wrapped in a pooled ActionMicrotask.
-    ///     Use this for arbitrary callbacks that need to run as microtasks.
-    /// </summary>
-    internal void QueueMicrotask(Action task)
-    {
-        QueueMicrotask(ActionMicrotask.Rent(task));
-    }
-
-    /// <summary>
     ///     Advances the microtask epoch, marking a new execution phase.
     ///     Microtasks queued before this call will not be drained until
     ///     the epoch advances past them or a full drain is requested.
@@ -2483,8 +2474,6 @@ public sealed class JsEngine : IAsyncDisposable
 
         return JsValue.Undefined;
     }
-
-    internal ImportPhase GetImportPhase() => ImportPhase.Module;
 
     private JsValue DynamicImport(
         IReadOnlyList<JsValue> args,
@@ -3151,15 +3140,14 @@ public sealed class JsEngine : IAsyncDisposable
                         if (moduleEnv.IsAsyncModule)
                         {
                             exports[symbol.Name] = new LiveExportBinding(() => moduleEnv.GetJsValue(symbol));
-                            moduleEnv.DefineJsValue(symbol, JsValue.Uninitialized, isLexicalBinding: true,
-                                blocksFunctionScopeOverride: false);
                         }
                         else
                         {
                             exports[symbol.Name] = JsValue.Uninitialized;
-                            moduleEnv.DefineJsValue(symbol, JsValue.Uninitialized, isLexicalBinding: true,
-                                blocksFunctionScopeOverride: false);
                         }
+
+                        moduleEnv.DefineJsValue(symbol, JsValue.Uninitialized, isLexicalBinding: true,
+                            blocksFunctionScopeOverride: false);
                     }
 
                     break;
@@ -3288,7 +3276,7 @@ public sealed class JsEngine : IAsyncDisposable
             ExportDefaultDeclaration { Declaration: FunctionDeclaration(_, var symbol, _) } => symbol.Name.Length == 0
                 ? Symbol.Intern("*default*")
                 : symbol,
-            ExportDefaultDeclaration { Declaration: ClassDeclaration classDecl } => classDecl.Name.Name?.Length == 0
+            ExportDefaultDeclaration { Declaration: ClassDeclaration classDecl } => classDecl.Name.Name.Length == 0
                 ? Symbol.Intern("*default*")
                 : classDecl.Name,
             _ => Symbol.Intern("*default*")
@@ -4127,7 +4115,7 @@ public sealed class JsEngine : IAsyncDisposable
         {
             ClassDeclaration classDeclaration => new LiveExportBinding(() =>
             {
-                var bindingName = classDeclaration.Name.Name?.Length == 0
+                var bindingName = classDeclaration.Name.Name.Length == 0
                     ? Symbol.Intern("*default*")
                     : classDeclaration.Name;
                 return moduleEnv.GetJsValue(bindingName);
@@ -5204,7 +5192,7 @@ public sealed class JsEngine : IAsyncDisposable
             }
 
             var calleeValue =
-                JsOps.TryGetPropertyValueJsValue(thisValue, propertyKey, out var val, _engine.RealmState?.CreateContext())
+                JsOps.TryGetPropertyValueJsValue(thisValue, propertyKey, out var val, _engine.RealmState.CreateContext())
                     ? val
                     : JsValue.Undefined;
 
@@ -5458,7 +5446,7 @@ public sealed class JsEngine : IAsyncDisposable
         private bool TryEvaluateBlockStatementWithBreakSupport(BlockStatement blockStatement, JsEnvironment env,
             bool isStrict)
         {
-            var blockEnv = new JsEnvironment(env, false, isStrict);
+            var blockEnv = JsEnvironment.CreateInstance(env, false, isStrict);
 
             foreach (var stmt in blockStatement.Statements)
             {

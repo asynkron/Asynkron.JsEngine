@@ -210,8 +210,7 @@ public static partial class TypedAstEvaluator
                 thrownValue = runner.TryCatchStateRef.TryStack.Peek().ThrownValue;
             }
 
-            catchEnv = new JsEnvironment(
-                environment,
+            catchEnv = JsEnvironment.CreateInstance(environment,
                 false,
                 environment.IsStrict,
                 null,

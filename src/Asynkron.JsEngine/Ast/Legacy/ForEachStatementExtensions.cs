@@ -97,25 +97,24 @@ public static partial class TypedAstEvaluator
         var useTypedArrayLoopEnv = statement.Kind == ForEachKind.Of && iterableJsValue.TryGetObject<TypedArrayBase>(out _);
         var useLoopPool = hasLexicalDeclaration && !useTypedArrayLoopEnv && !IsEnvEnabled(DisableForOfLoopEnvPoolVar);
 
+
+        //TODO: are we renting an environment "just in case", if hasLexicalDeclaration is false, but useLoopPool is true?
+        //TODO: this goes out of scope at the end, and is returned
+        //TODO: but if other env is used, they are returned elsewhere?
         using var pooledLoopEnv = useLoopPool
             ? JsEnvironmentPool.RentScoped(environment, false, false, statement.Source, "for-each-loop", logger: logger)
             : default;
-        JsEnvironment? loopEnvironment;
-        if (hasLexicalDeclaration)
+        var loopEnvironment = hasLexicalDeclaration switch
         {
-            if (useLoopPool)
+            true => useLoopPool switch
             {
-                loopEnvironment = pooledLoopEnv;
-            }
-            else
-            {
-                loopEnvironment = useTypedArrayLoopEnv ? environment : new JsEnvironment(environment, false, false, statement.Source, "for-each-loop");
-            }
-        }
-        else
-        {
-            loopEnvironment = environment;
-        }
+                true => pooledLoopEnv,
+                _ => useTypedArrayLoopEnv
+                    ? environment
+                    : JsEnvironment.CreateInstance(environment, false, false, statement.Source, "for-each-loop")
+            },
+            _ => environment
+        };
 
         if (statement.Kind == ForEachKind.Of)
         {
@@ -125,6 +124,7 @@ public static partial class TypedAstEvaluator
         var values = statement.Kind switch
         {
             ForEachKind.In => EnumeratePropertyKeys(iterableJsValue),
+            ForEachKind.Of or ForEachKind.AwaitOf => throw new ArgumentOutOfRangeException(),
             _ => throw new ArgumentOutOfRangeException()
         };
 
@@ -147,7 +147,7 @@ public static partial class TypedAstEvaluator
             if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const
                 or VariableKind.Using or VariableKind.AwaitUsing)
             {
-                iterationEnvironment = new JsEnvironment(loopEnvironment, creatingSource: statement.Source,
+                iterationEnvironment = JsEnvironment.CreateInstance(loopEnvironment, creatingSource: statement.Source,
                     description: "for-each-iteration");
                 if (useIterationSlotsForIn)
                 {
@@ -242,7 +242,7 @@ public static partial class TypedAstEvaluator
         var loopEnvironment = hasLexicalDeclaration
             ? useLoopPool
                 ? pooledLoopEnv.Value!
-                : new JsEnvironment(environment, false, false, statement.Source, "for-await-of loop")
+                : JsEnvironment.CreateInstance(environment, false, false, statement.Source, "for-await-of loop")
             : environment;
 
         return ExecuteIteratorWithFastPath(statement, iterableJs, loopEnvironment, environment, context, loopLabel);

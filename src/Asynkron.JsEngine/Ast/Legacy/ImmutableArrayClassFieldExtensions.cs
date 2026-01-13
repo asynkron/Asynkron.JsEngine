@@ -31,7 +31,7 @@ public static partial class TypedAstEvaluator
     {
         // Per ES spec, static blocks are evaluated like function bodies - var declarations
         // should be scoped to the block, not leak to outer environments
-        var initEnv = new JsEnvironment(environment, true, true);
+        var initEnv = JsEnvironment.CreateInstance(environment, true, true);
         initEnv.DefineJsValue(Symbol.This, JsValue.FromObjectUnsafe(constructorAccessor));
         // Field/static initializers are evaluated outside any constructor body; shadow new.target with undefined.
         initEnv.DefineJsValue(Symbol.NewTarget, JsValue.Undefined, true, isLexicalBinding: true,

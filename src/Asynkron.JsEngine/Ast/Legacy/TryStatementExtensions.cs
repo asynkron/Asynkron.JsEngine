@@ -42,7 +42,7 @@ public static partial class TypedAstEvaluator
                 !context.FlowValue.IsUndefined ? context.FlowValue.GetType().Name : "undefined");
             var thrownValue = context.FlowValue;
             context.Clear();
-            var catchEnv = new JsEnvironment(environment, creatingSource: statement.Catch.Body.Source,
+            var catchEnv = JsEnvironment.CreateInstance(environment, creatingSource: statement.Catch.Body.Source,
                 description: "catch");
 
             // ES2019: Optional catch binding - only bind if a parameter was provided

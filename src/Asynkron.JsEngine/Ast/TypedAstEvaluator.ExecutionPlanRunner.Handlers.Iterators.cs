@@ -85,7 +85,7 @@ public static partial class TypedAstEvaluator
             var iterableEnv = environment;
             if (!instruction.TdzBindings.IsDefaultOrEmpty)
             {
-                iterableEnv = new JsEnvironment(environment, false, false,
+                iterableEnv = JsEnvironment.CreateInstance(environment, false, false,
                     instruction.IterableExpression.Source, "for-of-head-tdz");
                 foreach (var tdzSymbol in instruction.TdzBindings)
                 {

@@ -648,7 +648,7 @@ public static partial class StandardLibrary
                 return false;
             }
 
-            JsValue finalValue = resolved;
+            var finalValue = resolved;
 
             if (mapping && mapper is not null)
             {

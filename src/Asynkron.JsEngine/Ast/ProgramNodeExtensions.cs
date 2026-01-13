@@ -313,7 +313,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         var functionScope = executionEnvironment.GetFunctionScope();
         var reverseFunctionHoist = functionScope.IsGlobalFunctionScope &&
                                    executionKind == ExecutionKind.Script;
-        HashSet<Symbol>? functionHoistDedupe = reverseFunctionHoist
+        var functionHoistDedupe = reverseFunctionHoist
             ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
             : null;
         // Get the engine's true GlobalEnvironment for storing/checking lexical names.

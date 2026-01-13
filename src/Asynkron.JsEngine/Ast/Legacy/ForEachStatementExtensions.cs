@@ -100,13 +100,22 @@ public static partial class TypedAstEvaluator
         using var pooledLoopEnv = useLoopPool
             ? JsEnvironmentPool.RentScoped(environment, false, false, statement.Source, "for-each-loop", logger: logger)
             : default;
-        JsEnvironment loopEnvironment = hasLexicalDeclaration
-            ? useLoopPool
-                ? pooledLoopEnv
-                : useTypedArrayLoopEnv
-                    ? environment
-                    : new JsEnvironment(environment, false, false, statement.Source, "for-each-loop")
-            : environment;
+        JsEnvironment? loopEnvironment;
+        if (hasLexicalDeclaration)
+        {
+            if (useLoopPool)
+            {
+                loopEnvironment = pooledLoopEnv;
+            }
+            else
+            {
+                loopEnvironment = useTypedArrayLoopEnv ? environment : new JsEnvironment(environment, false, false, statement.Source, "for-each-loop");
+            }
+        }
+        else
+        {
+            loopEnvironment = environment;
+        }
 
         if (statement.Kind == ForEachKind.Of)
         {
@@ -138,16 +147,11 @@ public static partial class TypedAstEvaluator
             if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const
                 or VariableKind.Using or VariableKind.AwaitUsing)
             {
+                iterationEnvironment = new JsEnvironment(loopEnvironment, creatingSource: statement.Source,
+                    description: "for-each-iteration");
                 if (useIterationSlotsForIn)
                 {
-                    iterationEnvironment = new JsEnvironment(loopEnvironment, creatingSource: statement.Source,
-                        description: "for-each-iteration");
                     InitializeIterationEnvironmentLayout(cachedPlan, iterationEnvironment);
-                }
-                else
-                {
-                    iterationEnvironment = new JsEnvironment(loopEnvironment, creatingSource: statement.Source,
-                        description: "for-each-iteration");
                 }
             }
             else

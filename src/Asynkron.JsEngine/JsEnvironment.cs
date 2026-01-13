@@ -4009,26 +4009,27 @@ public sealed class JsEnvironment : IRentable
     internal ref JsSlot TryGetSlotRef(Symbol name)
     {
         var index = FindSlotIndex(name);
-        if (index >= 0)
+        if (index < 0)
         {
-            // Use Unsafe.Add to bypass bounds check - FindSlotIndex already validated the index
-            ref var slot = ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(_slots!), index);
-            var realmState = RealmState;
-            if (realmState?.Options.DebugMode == true)
-            {
-                realmState.Logger?.LogTrace(
-                    "Identifier slot read hit env={Env} name={Name} slotScope={ScopeId} slot={Slot} valueKind={Kind}",
-                    GetHashCode(),
-                    slot.Name.Name,
-                    FormatScopeIdForLog(ScopeId),
-                    index,
-                    slot.Value.Kind);
-            }
-
-            return ref slot;
+            return ref Unsafe.NullRef<JsSlot>();
         }
 
-        return ref Unsafe.NullRef<JsSlot>();
+        // Use Unsafe.Add to bypass bounds check - FindSlotIndex already validated the index
+        ref var slot = ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(_slots!), index);
+
+        if (RealmState?.Options.DebugMode == true)
+        {
+            RealmState.Logger?.LogTrace(
+                "Identifier slot read hit env={Env} name={Name} slotScope={ScopeId} slot={Slot} valueKind={Kind}",
+                GetHashCode(),
+                slot.Name.Name,
+                FormatScopeIdForLog(ScopeId),
+                index,
+                slot.Value.Kind);
+        }
+
+        return ref slot;
+
     }
 
     /// <summary>

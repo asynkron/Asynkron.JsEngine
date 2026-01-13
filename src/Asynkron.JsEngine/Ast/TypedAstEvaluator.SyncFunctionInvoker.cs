@@ -756,7 +756,7 @@ public static partial class TypedAstEvaluator
                         // when super() is called.
                         var needsInstanceInit = IsClassConstructor && !_isDerivedClassConstructor;
                         IJsObjectLike? instanceToInit = null;
-                        JsValue constructorThisValue = effectiveThisValue;
+                        var constructorThisValue = effectiveThisValue;
 
                         if (needsInstanceInit)
                         {

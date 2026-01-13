@@ -213,7 +213,7 @@ public class EvaluationOverheadBenchmarks
     public object? Simple_10xEvaluateSync()
     {
         object? result = null;
-        for (int i = 0; i < 10; i++)
+        for (var i = 0; i < 10; i++)
         {
             result = _reusableEngine.EvaluateSync(_simpleSource);
         }
@@ -228,7 +228,7 @@ public class EvaluationOverheadBenchmarks
     public object? Loop_10xEvaluateSync()
     {
         object? result = null;
-        for (int i = 0; i < 10; i++)
+        for (var i = 0; i < 10; i++)
         {
             result = _reusableEngine.EvaluateSync(_loopSource);
         }
@@ -246,7 +246,7 @@ public class EvaluationOverheadBenchmarks
     public async Task<object?> Simple_10xEvaluations_ReusedEngine()
     {
         object? result = null;
-        for (int i = 0; i < 10; i++)
+        for (var i = 0; i < 10; i++)
         {
             result = await _reusableEngine.Evaluate(_simpleSource);
         }
@@ -261,7 +261,7 @@ public class EvaluationOverheadBenchmarks
     public async Task<object?> Loop_10xEvaluations_ReusedEngine()
     {
         object? result = null;
-        for (int i = 0; i < 10; i++)
+        for (var i = 0; i < 10; i++)
         {
             result = await _reusableEngine.Evaluate(_loopSource);
         }

@@ -1,40 +1,31 @@
-Your goal is to clean up the codebase so it becomes smaller, to your
-disposal, you have:
+# TODO
 
-Run: `cloc ./src/Asynkron.JsEngine/`
-Gives you lines of C# code in the main project
-The goal is to drive the LOC lower, without breaking anything.
+## Migrate HostFunction Creations to JsHostFunction Annotations
+Identify helper methods that manually create HostFunction instances and wire up names/length/prototype. These should be migrated to generator‑annotated host functions. Search in *Helper.cs for patterns like public static HostFunction Create... and new HostFunction(...), then convert to a [JsHostFunction] method that returns JsValue directly.
+Before
+```csharp
+public static HostFunction CreateParseIntFunction()
+{
+    var fn = new HostFunction(args =>
+    {
+        // logic...
+        return new JsValue(result);
+    }, isConstructor: false);
+    fn.Properties.Delete("prototype");
+    return fn;
+}
+```
 
-Run: `quickdup --path ./src/Asynkron.JsEngine  --ext .cs --exclude ".g."`
-Gives you candidates for code duplication that could be refactored into smaller parts.
+After
+```csharp
+[JsHostFunction("parseInt", Length = 2d, DeletePrototype = true)]
+private static JsValue ParseInt(IReadOnlyList<JsValue> args)
+{
+    // same logic...
+    return new JsValue(result);
+}
+```
 
-Run: `dotnet test tests/Asynkron.JsEngine.Tests --nologo --verbosity minimal`
-To verify nothing has broken, there were 2 failing tests preexisting, do not go beyond that
-number.
+Success criteria is when you have converted at least 5 such functions in a *Helper.cs file to use the [JsHostFunction] annotation instead of manual HostFunction creation. the more the better.
 
-Workflow.
-1.
-run cloc, get a LoC that you can compare with.
-run quickdup, get ideas on what potential code duplicates there are.
-
-2.
-get to work, refactor code, turn complicated code into simple code, remove needless
-abstractions, anything goes.
-Expression bodied members do not count, those are cheating.
-- Think deep about what could be improved, do not just do surface level changes.
-- Extract methods, introduce base classes, default interface implementations, smarter algorithms.
-- Are there other things we can code generate? move repetitive code into the Asynkron.JsEngine.Generator project? Bootstrapping JS types in the JsEngine?
-- since we are trying to move away from AST walking, and use IR instead, are there entire areas of code that could be removed?
-- Are there concepts that are similar that could be unified?
-- Are there things with very few consumers, 3 or less? could those consumers be routed to something else? and the entire thing removed?
-- methods with only one line inside are prime candidates for inlining, unless they are part of an interface implementation.
-
-3. run tests, do we have more than the initial 2 failures? if yes, git revert, drop changes
-and end your task.
-
-4.
-completion, run cloc again, do we have more, ore less lines now?
-if we have more lines, git revert, drop changes, if we have less lines now, commit pending
-changes.
-
-The end..
+You can verify correctness by running existing unit tests (not the 262 kit) to ensure no regressions occur after the migration.

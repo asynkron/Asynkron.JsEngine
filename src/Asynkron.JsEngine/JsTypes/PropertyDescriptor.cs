@@ -35,7 +35,6 @@ public sealed class PropertyDescriptor
     public object? Value
     {
 
-
         set => JsValue = JsValue.FromObjectUnsafe(value);
     }
 

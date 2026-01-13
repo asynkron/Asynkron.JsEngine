@@ -1723,13 +1723,9 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                         throw StandardLibrary.ThrowTypeError("Cannot define class field", context, context.RealmState);
                     }
                 }
-                else if (instance != null)
-                {
-                    instance.DefineProperty(propertyName, descriptor);
-                }
                 else
                 {
-                    throw StandardLibrary.ThrowTypeError("Cannot define class field", context, context.RealmState);
+                    instance.DefineProperty(propertyName, descriptor);
                 }
             }
 

@@ -616,10 +616,7 @@ public abstract class AstVisitor
                 break;
             }
 
-            if (arg.Expression is not null)
-            {
-                VisitExpression(arg.Expression);
-            }
+            VisitExpression(arg.Expression);
         }
     }
 
@@ -716,10 +713,7 @@ public abstract class AstVisitor
                 break;
             }
 
-            if (arg.Expression is not null)
-            {
-                VisitExpression(arg.Expression);
-            }
+            VisitExpression(arg.Expression);
         }
     }
 

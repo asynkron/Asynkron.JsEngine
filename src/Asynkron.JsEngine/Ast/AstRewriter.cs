@@ -128,9 +128,7 @@ public abstract class AstRewriter
             CallExpression node => node with
             {
                 Callee = RewriteExpression(node.Callee),
-                Arguments = RewriteList(node.Arguments, a => a.Expression is not null
-                    ? a with { Expression = RewriteExpression(a.Expression) }
-                    : a)
+                Arguments = RewriteList(node.Arguments, a => a with { Expression = RewriteExpression(a.Expression) })
             },
             MemberExpression node => node with
             {
@@ -171,9 +169,7 @@ public abstract class AstRewriter
             NewExpression node => node with
             {
                 Constructor = RewriteExpression(node.Constructor),
-                Arguments = RewriteList(node.Arguments, a => a.Expression is not null
-                    ? a with { Expression = RewriteExpression(a.Expression) }
-                    : a)
+                Arguments = RewriteList(node.Arguments, a => a with { Expression = RewriteExpression(a.Expression) })
             },
             _ => expression // Literals, ThisExpression, SuperExpression, FunctionExpression, etc.
         };

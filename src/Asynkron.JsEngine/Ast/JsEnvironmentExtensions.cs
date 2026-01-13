@@ -38,10 +38,6 @@ public static partial class TypedAstEvaluator
             if (environment.TryGetSlotIndex(name, out var existingSlot))
             {
                 ref var slot = ref environment.GetSlotByIndex(existingSlot);
-                if (slot.Name is null)
-                {
-                    slot.Name = name;
-                }
 
                 if (!slot.Value.IsUninitialized && slot.Value.Kind != JsValueKind.Undefined)
                 {

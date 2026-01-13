@@ -137,16 +137,9 @@ public static partial class TypedAstEvaluator
                     slotEnv ??= environment;
                 }
 
-                if (slotEnv is null || !runner.TryGetValueBySlot(slotEnv,
+                if (!runner.TryGetValueBySlot(slotEnv,
                         instruction.StateSlot,
-                        slotIdx, out var stateValue))
-                {
-                    runner._programCounter = instruction.BreakIndex;
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                if (!stateValue.TryGetObject(out driverState))
+                        slotIdx, out var stateValue) || !stateValue.TryGetObject(out driverState))
                 {
                     runner._programCounter = instruction.BreakIndex;
                     returnValue = default;

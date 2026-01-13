@@ -71,10 +71,7 @@ public class FastPathBenchmarks
     [GlobalCleanup]
     public async Task Cleanup()
     {
-        if (_engine is not null)
-        {
-            await _engine.DisposeAsync();
-        }
+        await _engine.DisposeAsync();
     }
 
     [Benchmark]

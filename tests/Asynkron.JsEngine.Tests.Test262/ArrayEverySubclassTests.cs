@@ -3,7 +3,7 @@ using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Tests.Test262;
 
-public class ArrayEverySubclassTests
+public sealed class ArrayEverySubclassTests
 {
     [Test]
     public async Task SubclassedArrayPrototypeExposesEvery()

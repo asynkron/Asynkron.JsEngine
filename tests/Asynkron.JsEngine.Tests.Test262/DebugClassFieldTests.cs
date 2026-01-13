@@ -4,7 +4,7 @@ using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.Tests.Test262;
 
-public class DebugClassFieldTests
+public sealed class DebugClassFieldTests
 {
     [Test]
     public async Task GlobalLetDoesNotLeakToGlobalObject()

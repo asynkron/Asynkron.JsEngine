@@ -271,16 +271,13 @@ public static partial class TypedAstEvaluator
                     {
                         case ResumePayloadKind.Throw:
                             propagateThrow = true;
-                            sendValue = delegatedResumePayload;
                             break;
                         case ResumePayloadKind.Return:
                             propagateReturn = true;
-                            sendValue = delegatedResumePayload;
-                            break;
-                        default:
-                            sendValue = delegatedResumePayload;
                             break;
                     }
+
+                    sendValue = delegatedResumePayload;
                 }
 
                 var iteratorResult = yieldStarState.State!.MoveNext(

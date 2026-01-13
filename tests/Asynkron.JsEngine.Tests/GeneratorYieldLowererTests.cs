@@ -24,7 +24,7 @@ public sealed class GeneratorYieldLowererTests(ITestOutputHelper output) : Inter
             null,
             Symbol.Intern("gen"),
             ImmutableArray<FunctionParameter>.Empty,
-            new BlockStatement(null, ImmutableArray.Create<StatementNode>(declaration, returnStatement), false),
+            new BlockStatement(null, [declaration, returnStatement], false),
             false,
             true);
 
@@ -92,7 +92,7 @@ public sealed class GeneratorYieldLowererTests(ITestOutputHelper output) : Inter
             null,
             Symbol.Intern("gen"),
             ImmutableArray<FunctionParameter>.Empty,
-            new BlockStatement(null, ImmutableArray.Create<StatementNode>(ifStatement), false),
+            new BlockStatement(null, [ifStatement], false),
             false,
             true);
 
@@ -131,7 +131,7 @@ public sealed class GeneratorYieldLowererTests(ITestOutputHelper output) : Inter
             null,
             Symbol.Intern("gen"),
             ImmutableArray<FunctionParameter>.Empty,
-            new BlockStatement(null, ImmutableArray.Create<StatementNode>(ifStatement), false),
+            new BlockStatement(null, [ifStatement], false),
             false,
             true);
 
@@ -168,7 +168,7 @@ public sealed class GeneratorYieldLowererTests(ITestOutputHelper output) : Inter
             null,
             Symbol.Intern("gen"),
             ImmutableArray<FunctionParameter>.Empty,
-            new BlockStatement(null, ImmutableArray.Create<StatementNode>(ifStatement), false),
+            new BlockStatement(null, [ifStatement], false),
             false,
             true);
 
@@ -195,7 +195,7 @@ public sealed class GeneratorYieldLowererTests(ITestOutputHelper output) : Inter
             null,
             Symbol.Intern("inner"),
             ImmutableArray<FunctionParameter>.Empty,
-            new BlockStatement(null, ImmutableArray.Create<StatementNode>(innerReturn), false),
+            new BlockStatement(null, [innerReturn], false),
             false,
             true);
 
@@ -205,7 +205,7 @@ public sealed class GeneratorYieldLowererTests(ITestOutputHelper output) : Inter
             null,
             Symbol.Intern("gen"),
             ImmutableArray<FunctionParameter>.Empty,
-            new BlockStatement(null, ImmutableArray.Create<StatementNode>(expressionStatement), false),
+            new BlockStatement(null, [expressionStatement], false),
             false,
             true);
 
@@ -242,7 +242,7 @@ public sealed class GeneratorYieldLowererTests(ITestOutputHelper output) : Inter
             null,
             Symbol.Intern("gen"),
             ImmutableArray<FunctionParameter>.Empty,
-            new BlockStatement(null, ImmutableArray.Create<StatementNode>(ifStatement), false),
+            new BlockStatement(null, [ifStatement], false),
             false,
             true);
 
@@ -279,7 +279,7 @@ public sealed class GeneratorYieldLowererTests(ITestOutputHelper output) : Inter
             null,
             Symbol.Intern("gen"),
             ImmutableArray<FunctionParameter>.Empty,
-            new BlockStatement(null, ImmutableArray.Create<StatementNode>(whileStatement), false),
+            new BlockStatement(null, [whileStatement], false),
             false,
             true);
 
@@ -328,7 +328,7 @@ public sealed class GeneratorYieldLowererTests(ITestOutputHelper output) : Inter
             null,
             Symbol.Intern("gen"),
             ImmutableArray<FunctionParameter>.Empty,
-            new BlockStatement(null, ImmutableArray.Create<StatementNode>(doWhile), false),
+            new BlockStatement(null, [doWhile], false),
             false,
             true);
 
@@ -383,7 +383,7 @@ public sealed class GeneratorYieldLowererTests(ITestOutputHelper output) : Inter
             null,
             Symbol.Intern("gen"),
             ImmutableArray<FunctionParameter>.Empty,
-            new BlockStatement(null, ImmutableArray.Create<StatementNode>(forStatement), false),
+            new BlockStatement(null, [forStatement], false),
             false,
             true);
 
@@ -459,7 +459,7 @@ public sealed class GeneratorYieldLowererTests(ITestOutputHelper output) : Inter
             null,
             Symbol.Intern("gen"),
             ImmutableArray<FunctionParameter>.Empty,
-            new BlockStatement(null, ImmutableArray.Create<StatementNode>(forStatement), false),
+            new BlockStatement(null, [forStatement], false),
             false,
             true);
 
@@ -528,7 +528,7 @@ public sealed class GeneratorYieldLowererTests(ITestOutputHelper output) : Inter
             null,
             Symbol.Intern("gen"),
             ImmutableArray<FunctionParameter>.Empty,
-            new BlockStatement(null, ImmutableArray.Create<StatementNode>(declaration), false),
+            new BlockStatement(null, [declaration], false),
             false,
             true);
 

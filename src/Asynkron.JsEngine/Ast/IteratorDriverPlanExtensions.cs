@@ -618,6 +618,9 @@ public static partial class TypedAstEvaluator
     /// <summary>
     /// Attempts to execute a fast for-of accumulator loop.
 
+    /// <summary>
+    ///
+    /// </summary>
     /// Pattern: for (const n of arr) { sum += n; }
     /// This avoids calling EvaluateStatementJsValue per iteration.
     /// </summary>

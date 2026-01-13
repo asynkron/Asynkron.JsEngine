@@ -367,8 +367,8 @@ public sealed class JsEnvironment : IRentable
         return $"env={GetHashCode().ToString(CultureInfo.InvariantCulture)} scope={ScopeId.ToString(CultureInfo.InvariantCulture)} " +
                $"layout={LayoutId.ToString(CultureInfo.InvariantCulture)} slots={_slotCount.ToString(CultureInfo.InvariantCulture)} " +
                $"depth={Depth.ToString(CultureInfo.InvariantCulture)} func={IsFunctionScope} param={IsParameterEnvironment} " +
-               $"body={IsBodyEnvironment} strict={_isStrictEffective} with={(_withObject is not null)} " +
-               $"varOverride={(_varEnvironmentOverride is not null)} parent={parentId} hash={hash.ToHashCode().ToString(CultureInfo.InvariantCulture)}";
+               $"body={IsBodyEnvironment} strict={_isStrictEffective} with={_withObject is not null} " +
+               $"varOverride={_varEnvironmentOverride is not null} parent={parentId} hash={hash.ToHashCode().ToString(CultureInfo.InvariantCulture)}";
     }
 
     [Conditional("DEBUG")]
@@ -3633,7 +3633,6 @@ public sealed class JsEnvironment : IRentable
         Array.Clear(_slots, 0, slotCount);
         RegisterScopeEnvironment(this);
     }
-
 
     /// <summary>
     /// Initializes slot storage and scope ID for this environment.

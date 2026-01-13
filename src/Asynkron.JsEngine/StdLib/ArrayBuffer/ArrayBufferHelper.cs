@@ -90,7 +90,7 @@ public static class ArrayBufferHelper
     /// Parses the maxByteLength option from an options object.
     /// Shared by ArrayBuffer and SharedArrayBuffer constructors.
     /// </summary>
-    internal static long? GetRequestedMaxByteLength(JsValue options, RealmState realm)
+    private static long? GetRequestedMaxByteLength(JsValue options, RealmState realm)
     {
         if (options.IsUndefined || options.IsNull)
         {
@@ -125,7 +125,7 @@ public static class ArrayBufferHelper
     /// Validates that the length is allocatable (fits in int).
     /// Shared by ArrayBuffer and SharedArrayBuffer constructors.
     /// </summary>
-    internal static int RequireAllocatableLength(long length, RealmState realm)
+    private static int RequireAllocatableLength(long length, RealmState realm)
     {
         if (length > int.MaxValue)
         {

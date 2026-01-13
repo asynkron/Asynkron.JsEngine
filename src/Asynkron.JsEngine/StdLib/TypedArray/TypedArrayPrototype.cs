@@ -510,7 +510,7 @@ public sealed partial class TypedArrayPrototype
     private JsValue FindIndexImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var result = FindCore(thisValue, args, "TypedArray.prototype.findIndex", reverse: false);
-        return result is { } r ? (double)r.Index : -1d;
+        return result is { } r ? r.Index : -1d;
     }
 
     private JsValue FindLastImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
@@ -1047,13 +1047,14 @@ public sealed partial class TypedArrayPrototype
             return JsValue.Undefined;
         }
 
-        if (source.TryGetObject<JsArray>(out var sourceArray))
+        if (!source.TryGetObject<JsArray>(out var sourceArray))
         {
-            typedArray.Set(sourceArray, offset);
             return JsValue.Undefined;
         }
 
+        typedArray.Set(sourceArray, offset);
         return JsValue.Undefined;
+
     }
 
     [JsHostMethod("slice", Length = 2d)]
@@ -1098,7 +1099,7 @@ public sealed partial class TypedArrayPrototype
     }
 
     [JsHostMethod("subarray", Length = 2d)]
-    public JsValue Subarray(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue Subarray(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.subarray");
 

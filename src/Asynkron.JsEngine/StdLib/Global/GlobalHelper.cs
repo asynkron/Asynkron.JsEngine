@@ -573,5 +573,4 @@ public static partial class GlobalHelper
         return new JsValue(sb.ToString());
     }
 
-
 }

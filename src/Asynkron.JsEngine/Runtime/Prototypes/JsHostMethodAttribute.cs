@@ -41,9 +41,7 @@ public abstract class JsAccessorAttribute : JsDescriptorAttribute
     public string? DisplayName { get; set; }
 }
 
-public abstract class JsAliasAttribute : JsWritableDescriptorAttribute
-{
-}
+public abstract class JsAliasAttribute : JsWritableDescriptorAttribute;
 
 [AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = true)]
 public sealed class JsHostMethodAttribute(string propertyName) : JsFunctionAttribute

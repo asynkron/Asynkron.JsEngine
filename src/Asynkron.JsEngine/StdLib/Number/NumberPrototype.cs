@@ -106,7 +106,7 @@ public sealed partial class NumberPrototype
             return formatted;
         }
 
-        if (optionsArg.TryGetObject(out var options) && options is not null)
+        if (optionsArg.TryGetObject(out var options))
         {
             if (options.TryGetProperty("style", out var styleVal) && !styleVal.IsNullOrUndefined)
             {
@@ -148,7 +148,7 @@ public sealed partial class NumberPrototype
         }
 
         // Check if it's a Number object (with __value__ property that is a number)
-        if (receiver.TryGetObject(out object? obj) && obj is not null)
+        if (receiver.TryGetObject(out object? obj))
         {
             if (obj is JsObject jsObj && jsObj.TryGetProperty("__value__", out var inner))
             {

@@ -22,7 +22,7 @@ public static partial class TypedAstEvaluator
             string.Equals(symbolIdentifier.Name.Name, "Symbol", StringComparison.Ordinal) &&
             expression.Property is LiteralExpression { Value.IsString: true } symbolPropLit)
         {
-            var symbolProp = symbolPropLit.Value.AsString()!;
+            var symbolProp = symbolPropLit.Value.AsString();
             return symbolProp switch
             {
                 "iterator" => (JsValue)Symbols.Iterator,
@@ -101,21 +101,13 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        if (propertyName is null)
-        {
-            return JsValue.Undefined;
-        }
-
         if (expression.IsComputed || !propertyName.IsPrivateName())
         {
             if (JsOps.TryGetPropertyValue(targetJs, propertyName, out var directValue, context))
             {
-                if (context.ShouldStopEvaluation)
-                {
-                    return JsValue.Undefined;
-                }
-
-                return directValue;
+                return context.ShouldStopEvaluation
+                    ? JsValue.Undefined
+                    : directValue;
             }
 
             return JsValue.Undefined;

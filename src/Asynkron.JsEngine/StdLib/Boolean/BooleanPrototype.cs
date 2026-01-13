@@ -39,7 +39,7 @@ public sealed partial class BooleanPrototype
             return flag;
         }
 
-        if (receiver.TryGetObject<JsObject>(out var obj) && obj is not null &&
+        if (receiver.TryGetObject<JsObject>(out var obj) &&
             obj.TryGetProperty("__value__", out var inner))
         {
             if (inner.TryGetBoolean(out var boolVal))

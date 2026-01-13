@@ -71,10 +71,8 @@ public abstract class SimpleInstanceConstructorBase<TInstance>(
     {
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
         var instance = CreateInstance();
-        if (proto is not null)
-        {
-            instance.SetPrototype(proto);
-        }
+
+        instance.SetPrototype(proto);
 
         return instance;
     }

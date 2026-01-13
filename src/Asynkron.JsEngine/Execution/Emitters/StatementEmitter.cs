@@ -74,7 +74,7 @@ internal static class StatementEmitter
                     return TryEmitForIn(ctx, forInStatement, nextIndex, activeLabel, out entryIndex);
 
                 case ForEachStatement { Kind: ForEachKind.Of or ForEachKind.AwaitOf } forEachStatement
-                    when IsSimpleForOfBinding(forEachStatement):
+                    when true:
                     return TryEmitForEach(ctx, forEachStatement, nextIndex, activeLabel, out entryIndex);
 
                 case ReturnStatement returnStatement:
@@ -260,15 +260,5 @@ internal static class StatementEmitter
         // Always use EnterWith/LeaveWith instructions for proper IR execution.
         // This removes the StatementInstruction fallback for with statements.
         return WithEmitter.TryEmitWith(ctx, withStatement, nextIndex, activeLabel, out entryIndex);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Helper Methods
-    // ─────────────────────────────────────────────────────────────────────────
-
-    private static bool IsSimpleForOfBinding(ForEachStatement statement)
-    {
-        // We now allow identifier or destructuring targets for all declaration kinds.
-        return statement.Target is not null;
     }
 }

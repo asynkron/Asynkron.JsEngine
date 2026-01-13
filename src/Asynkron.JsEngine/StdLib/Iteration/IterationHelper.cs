@@ -26,7 +26,7 @@ public static partial class IterationHelper
 
         var iterable = args[0];
 
-        if (iterable.TryGetObject(out var jsObject) && jsObject is not null)
+        if (iterable.TryGetObject(out var jsObject))
         {
             if (HasCallableNext(jsObject))
             {
@@ -52,7 +52,7 @@ public static partial class IterationHelper
                 "Object is not iterable (no Symbol.asyncIterator or Symbol.iterator method)");
         }
 
-        if (iterable.TryGetObject<JsArray>(out var jsArray) && jsArray is not null)
+        if (iterable.TryGetObject<JsArray>(out var jsArray))
         {
             var iteratorObj = CreateArrayIterator(jsArray);
             engine.WriteAsyncIteratorTrace(
@@ -60,7 +60,7 @@ public static partial class IterationHelper
             return new JsValue(iteratorObj);
         }
 
-        if (iterable.TryGetString(out var str) && str is not null)
+        if (iterable.TryGetString(out var str))
         {
             var iteratorObj = CreateStringIterator(str);
             engine.WriteAsyncIteratorTrace(
@@ -75,10 +75,10 @@ public static partial class IterationHelper
     {
         var propertyName = JsSymbol.PropertyKey(symbol);
         if (target.TryGetProperty(propertyName, out var method) &&
-            method.TryGetObject<IJsCallable>(out var callable) && callable is not null)
+            method.TryGetObject<IJsCallable>(out var callable))
         {
             var result = callable.Invoke([], new JsValue(target));
-            if (result.TryGetObject(out var iteratorObj) && iteratorObj is not null)
+            if (result.TryGetObject(out var iteratorObj))
             {
                 iterator = iteratorObj;
                 return true;
@@ -189,7 +189,7 @@ public static partial class IterationHelper
 
             var iterable = args[0];
 
-            if (iterable.TryGetObject(out var jsObject) && jsObject is not null)
+            if (iterable.TryGetObject(out var jsObject))
             {
                 if (HasCallableNext(jsObject))
                 {
@@ -215,7 +215,7 @@ public static partial class IterationHelper
                     "Object is not iterable (no Symbol.asyncIterator or Symbol.iterator method)");
             }
 
-            if (iterable.TryGetObject<JsArray>(out var jsArray) && jsArray is not null)
+            if (iterable.TryGetObject<JsArray>(out var jsArray))
             {
                 var iteratorObj = CreateArrayIterator(jsArray);
                 engine.WriteAsyncIteratorTrace(
@@ -223,7 +223,7 @@ public static partial class IterationHelper
                 return new JsValue(iteratorObj);
             }
 
-            if (iterable.TryGetString(out var str) && str is not null)
+            if (iterable.TryGetString(out var str))
             {
                 var iteratorObj = CreateStringIterator(str);
                 engine.WriteAsyncIteratorTrace(
@@ -237,10 +237,10 @@ public static partial class IterationHelper
             {
                 var propertyName = JsSymbol.PropertyKey(symbol);
                 if (target.TryGetProperty(propertyName, out var method) &&
-                    method.TryGetObject<IJsCallable>(out var callable) && callable is not null)
+                    method.TryGetObject<IJsCallable>(out var callable))
                 {
                     var result = callable.Invoke([], new JsValue(target));
-                    if (result.TryGetObject(out var iteratorObj) && iteratorObj is not null)
+                    if (result.TryGetObject(out var iteratorObj))
                     {
                         iterator = iteratorObj;
                         return true;
@@ -349,14 +349,14 @@ public static partial class IterationHelper
         var engine = realm.Engine ?? throw new InvalidOperationException("Engine not available in RealmState");
 
         // args[0] should be the iterator object
-        if (args.Count == 0 || !args[0].TryGetObject(out var iterator) || iterator is null)
+        if (args.Count == 0 || !args[0].TryGetObject(out var iterator))
         {
             throw new InvalidOperationException("__iteratorNext requires an iterator object");
         }
 
         // Call iterator.next()
         if (!iterator.TryGetProperty("next", out var nextMethod) ||
-            !nextMethod.TryGetObject<IJsCallable>(out var nextCallable) || nextCallable is null)
+            !nextMethod.TryGetObject<IJsCallable>(out var nextCallable))
         {
             throw new InvalidOperationException("Iterator must have a 'next' method");
         }
@@ -385,7 +385,7 @@ public static partial class IterationHelper
 
         // Iterator.next must return an object; if it doesn't, surface a
         // rejection so async iteration can stop instead of recursing forever.
-        if (!result.TryGetObject(out var resultObject) || resultObject is null)
+        if (!result.TryGetObject(out var resultObject))
         {
             var rejectedPromise = new JsPromise(engine);
             AddPromiseInstanceMethods(rejectedPromise.JsObject, rejectedPromise, engine);
@@ -424,14 +424,14 @@ public static partial class IterationHelper
         JsValue IteratorNext(IReadOnlyList<JsValue> args)
         {
             // args[0] should be the iterator object
-            if (args.Count == 0 || !args[0].TryGetObject(out var iterator) || iterator is null)
+            if (args.Count == 0 || !args[0].TryGetObject(out var iterator))
             {
                 throw new InvalidOperationException("__iteratorNext requires an iterator object");
             }
 
             // Call iterator.next()
             if (!iterator.TryGetProperty("next", out var nextMethod) ||
-                !nextMethod.TryGetObject<IJsCallable>(out var nextCallable) || nextCallable is null)
+                !nextMethod.TryGetObject<IJsCallable>(out var nextCallable))
             {
                 throw new InvalidOperationException("Iterator must have a 'next' method");
             }
@@ -460,7 +460,7 @@ public static partial class IterationHelper
 
             // Iterator.next must return an object; if it doesn't, surface a
             // rejection so async iteration can stop instead of recursing forever.
-            if (!result.TryGetObject(out var resultObject) || resultObject is null)
+            if (!result.TryGetObject(out var resultObject))
             {
                 var rejectedPromise = new JsPromise(engine);
                 AddPromiseInstanceMethods(rejectedPromise.JsObject, rejectedPromise, engine);
@@ -499,7 +499,7 @@ public static partial class IterationHelper
         var value = args.Count > 0 ? args[0] : JsValue.Undefined;
 
         // Check if value is already a promise (has a "then" method)
-        if (value.TryGetObject(out var valueObj) && valueObj is not null &&
+        if (value.TryGetObject(out var valueObj) &&
             valueObj.TryGetProperty("then", out var thenMethod) &&
             thenMethod.TryGetObject<IJsCallable>(out _))
         {

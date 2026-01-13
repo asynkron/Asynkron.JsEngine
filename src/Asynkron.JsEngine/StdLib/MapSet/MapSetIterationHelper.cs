@@ -17,23 +17,22 @@ internal static class MapSetIterationHelper
         }
 
         // Strings are iterable, so synthesize a string iterator when needed.
-        if (iterable.TryGetString(out var str) && str is not null)
+        if (iterable.TryGetString(out var str))
         {
             return CreateStringIterator(str, realm);
         }
 
-        if (!iterable.TryGetObjectLike(out var obj) || obj is null)
+        if (!iterable.TryGetObjectLike(out var obj))
         {
             throw StandardLibrary.ThrowTypeError($"{operation} requires an iterable", realm: realm);
         }
 
         // Prefer Symbol.iterator if present.
         if (obj.TryGetProperty(SymbolKeys.Iterator, out var iterMethod) &&
-            iterMethod.TryGetObject<IJsCallable>(out var iterCallable) &&
-            iterCallable is not null)
+            iterMethod.TryGetObject<IJsCallable>(out var iterCallable))
         {
             var iteratorValue = iterCallable.Invoke([], iterable);
-            if (!iteratorValue.TryGetObjectLike(out var iteratorObj) || iteratorObj is null)
+            if (!iteratorValue.TryGetObjectLike(out var iteratorObj))
             {
                 throw StandardLibrary.ThrowTypeError($"{operation} iterator method must return an object", realm: realm);
             }
@@ -73,14 +72,13 @@ internal static class MapSetIterationHelper
     private static bool TryIteratorStep(IJsObjectLike iterator, RealmState realm, string operation, out JsValue value)
     {
         if (!iterator.TryGetProperty("next", out var nextProp) ||
-            !nextProp.TryGetObject<IJsCallable>(out var nextMethod) ||
-            nextMethod is null)
+            !nextProp.TryGetObject<IJsCallable>(out var nextMethod))
         {
             throw StandardLibrary.ThrowTypeError($"{operation} iterator must have a callable next method", realm: realm);
         }
 
         var resultValue = nextMethod.Invoke([], JsValue.FromObjectUnsafe(iterator));
-        if (!resultValue.TryGetObjectLike(out var resultObj) || resultObj is null)
+        if (!resultValue.TryGetObjectLike(out var resultObj))
         {
             throw StandardLibrary.ThrowTypeError($"{operation} iterator result must be an object", realm: realm);
         }

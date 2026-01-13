@@ -20,7 +20,7 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
     {
         // Iterator is an abstract class - it cannot be directly instantiated with 'new Iterator()'
         // However, subclasses can extend it
-        if (thisValue.TryGetObject(out var obj) && obj is not null && obj.GetType() != typeof(JsObject))
+        if (thisValue.TryGetObject(out var obj) && obj.GetType() != typeof(JsObject))
         {
             // Being called from a subclass constructor
             return thisValue;
@@ -29,7 +29,7 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
         // Check if this is being called as a base class (new.target !== Iterator)
         // For now, just create a basic iterator object
         var iteratorObj = PrepareThisObject(JsValue.Undefined, false);
-        if (Prototype is not null && iteratorObj.Prototype is null)
+        if (iteratorObj.Prototype is null)
         {
             iteratorObj.SetPrototype(Prototype);
         }
@@ -68,7 +68,7 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
         if (alreadyIterator)
         {
             // Check if the iterator already has Iterator.prototype in its prototype chain
-            if (iterator.TryGetObject(out var iteratorObj) && iteratorObj is not null)
+            if (iterator.TryGetObject(out var iteratorObj))
             {
                 if (HasIteratorPrototype(iteratorObj, realm))
                 {
@@ -112,7 +112,7 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
     {
         alreadyIterator = false;
 
-        if (!value.TryGetObject(out var obj) || obj is null)
+        if (!value.TryGetObject(out var obj))
         {
             throw StandardLibrary.ThrowTypeError("Iterator.from requires an object", null, realm);
         }
@@ -127,11 +127,10 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
 
         // Check for Symbol.iterator
         if (obj.TryGetProperty(SymbolKeys.Iterator, out var iterMethod) &&
-            iterMethod.TryGetObject<IJsCallable>(out var iterCallable) &&
-            iterCallable is not null)
+            iterMethod.TryGetObject<IJsCallable>(out var iterCallable))
         {
             var result = iterCallable.Invoke([], value);
-            if (!result.TryGetObject(out var iteratorObj) || iteratorObj is null)
+            if (!result.TryGetObject(out _))
             {
                 throw StandardLibrary.ThrowTypeError("Symbol.iterator must return an object", null, realm);
             }
@@ -173,7 +172,7 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
     /// </summary>
     private static bool IsIterable(JsValue value)
     {
-        if (!value.TryGetObject(out var obj) || obj is null)
+        if (!value.TryGetObject(out var obj))
         {
             // Strings are iterable
             return value.TryGetString(out _);
@@ -189,25 +188,24 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
     /// </summary>
     private static IJsObjectLike GetIteratorFromIterable(JsValue value)
     {
-        if (value.TryGetString(out var str) && str is not null)
+        if (value.TryGetString(out var str))
         {
             return CreateStringIterator(str);
         }
 
-        if (!value.TryGetObject(out var obj) || obj is null)
+        if (!value.TryGetObject(out var obj))
         {
             throw StandardLibrary.ThrowTypeError("Value is not iterable", null, null);
         }
 
         if (!obj.TryGetProperty(SymbolKeys.Iterator, out var iterMethod) ||
-            !iterMethod.TryGetObject<IJsCallable>(out var iterCallable) ||
-            iterCallable is null)
+            !iterMethod.TryGetObject<IJsCallable>(out var iterCallable))
         {
             throw StandardLibrary.ThrowTypeError("Value is not iterable", null, null);
         }
 
         var result = iterCallable.Invoke([], value);
-        if (!result.TryGetObject(out var iterator) || iterator is null)
+        if (!result.TryGetObject(out var iterator))
         {
             throw StandardLibrary.ThrowTypeError("Symbol.iterator must return an object", null, null);
         }
@@ -254,7 +252,7 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
     /// </summary>
     private static JsValue CreateWrappedIterator(JsValue underlyingIterator, RealmState? realm)
     {
-        if (!underlyingIterator.TryGetObject(out var underlying) || underlying is null)
+        if (!underlyingIterator.TryGetObject(out var underlying))
         {
             throw StandardLibrary.ThrowTypeError("Iterator must be an object", null, realm);
         }
@@ -267,14 +265,13 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
             ExecuteIteratorCommand(shortCircuitIfDone: true, done, ref isExecuting, realm, () =>
             {
                 if (!underlying.TryGetProperty("next", out var nextProp) ||
-                    !nextProp.TryGetObject<IJsCallable>(out var nextMethod) ||
-                    nextMethod is null)
+                    !nextProp.TryGetObject<IJsCallable>(out var nextMethod))
                 {
                     throw StandardLibrary.ThrowTypeError("Iterator must have a next method", null, realm);
                 }
 
                 var result = nextMethod.Invoke(args.Count > 0 ? args : [], underlyingIterator);
-                if (!result.TryGetObject(out var resultObj) || resultObj is null)
+                if (!result.TryGetObject(out var resultObj))
                 {
                     throw StandardLibrary.ThrowTypeError("Iterator result must be an object", null, realm);
                 }
@@ -292,8 +289,7 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
             {
                 done = true;
                 if (underlying.TryGetProperty("return", out var returnProp) &&
-                    returnProp.TryGetObject<IJsCallable>(out var returnMethod) &&
-                    returnMethod is not null)
+                    returnProp.TryGetObject<IJsCallable>(out var returnMethod))
                 {
                     return returnMethod.Invoke([], underlyingIterator);
                 }
@@ -337,11 +333,10 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
                     if (currentIterator is not null)
                     {
                         if (currentIterator.TryGetProperty("next", out var nextProp) &&
-                            nextProp.TryGetObject<IJsCallable>(out var nextMethod) &&
-                            nextMethod is not null)
+                            nextProp.TryGetObject<IJsCallable>(out var nextMethod))
                         {
                             var result = nextMethod.Invoke([], JsValue.FromObjectUnsafe(currentIterator));
-                            if (result.TryGetObject(out var resultObj) && resultObj is not null)
+                            if (result.TryGetObject(out var resultObj))
                             {
                                 if (!resultObj.TryGetProperty("done", out var doneProp) || !JsOps.ToBoolean(doneProp))
                                 {
@@ -372,8 +367,7 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
                 done = true;
                 if (currentIterator is not null &&
                     currentIterator.TryGetProperty("return", out var returnProp) &&
-                    returnProp.TryGetObject<IJsCallable>(out var returnMethod) &&
-                    returnMethod is not null)
+                    returnProp.TryGetObject<IJsCallable>(out var returnMethod))
                 {
                     try
                     {

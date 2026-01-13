@@ -730,7 +730,7 @@ public static class TemporalHelper
             string timeZone;
             var time = new JsTemporalPlainTime(0, 0, 0, 0, 0, 0);
 
-            if (arg.TryGetObject<IJsPropertyAccessor>(out var accessor) && accessor is not null)
+            if (arg.TryGetObject<IJsPropertyAccessor>(out var accessor))
             {
                 // Object with timeZone and optional plainTime
                 if (accessor.TryGetProperty("timeZone", out var tzValue))
@@ -1036,7 +1036,7 @@ public static class TemporalHelper
             var tzArg = args.GetArgument(0);
             string timeZone;
 
-            if (tzArg.TryGetObject<IJsPropertyAccessor>(out var accessor) && accessor is not null)
+            if (tzArg.TryGetObject<IJsPropertyAccessor>(out var accessor))
             {
                 if (accessor.TryGetProperty("timeZone", out var tzValue))
                 {

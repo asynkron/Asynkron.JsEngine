@@ -658,7 +658,6 @@ try {
         var toStringTagGetter = new HostFunction((thisValue, _) =>
         {
             if (thisValue.TryGetObject(out var obj) &&
-                obj != null &&
                 obj.TryGetProperty("__moduleSourceClassName__", out var name) &&
                 name.TryGetObject<string>(out var tag))
             {

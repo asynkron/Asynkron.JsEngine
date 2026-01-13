@@ -635,7 +635,7 @@ public static class ReflectHelper
             case ICallableMetadata metadata:
                 realmState = metadata.RealmState;
                 realmObject = null;
-                return realmState is not null;
+                return true;
             default:
                 realmState = null;
                 realmObject = null;

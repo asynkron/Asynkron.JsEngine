@@ -84,14 +84,13 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
             instance.RealmState = Realm;
         }
 
-        if (instance.Prototype is null)
+        if (instance.Prototype is not null)
         {
-            var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
-            if (proto is not null)
-            {
-                instance.SetPrototype(proto);
-            }
+            return instance;
         }
+
+        var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
+        instance.SetPrototype(proto);
 
         return instance;
     }

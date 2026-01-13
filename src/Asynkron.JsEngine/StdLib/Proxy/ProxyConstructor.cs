@@ -63,7 +63,7 @@ public sealed partial class ProxyConstructor(IJsObjectLike prototype, RealmState
 
     private static IJsObjectLike RequireProxyObject(JsValue candidate, string message, RealmState? realm)
     {
-        if (candidate.TryGetObject<IJsObjectLike>(out var obj) && obj is not null)
+        if (candidate.TryGetObject<IJsObjectLike>(out var obj))
         {
             return obj;
         }

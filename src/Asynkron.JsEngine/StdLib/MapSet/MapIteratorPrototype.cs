@@ -13,7 +13,7 @@ public sealed partial class MapIteratorPrototype : JsPrototype
     [JsHostMethod("next", Length = 0d)]
     public JsValue Next(JsValue thisValue)
     {
-        if (!thisValue.TryGetObject<JsMapIterator>(out var iterator) || iterator is null)
+        if (!thisValue.TryGetObject<JsMapIterator>(out var iterator))
         {
             throw ThrowTypeError("Map Iterator.prototype.next requires a Map Iterator instance", realm: Realm);
         }

@@ -235,7 +235,7 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
     {
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
         var instance = PrepareThisObject(JsValue.Undefined, false);
-        if (proto is not null && instance.Prototype is null)
+        if (instance.Prototype is null)
         {
             instance.SetPrototype(proto);
         }

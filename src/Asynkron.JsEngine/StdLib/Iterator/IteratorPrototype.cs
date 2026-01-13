@@ -296,7 +296,7 @@ public sealed partial class IteratorPrototype : JsPrototype
     [JsSymbolMethod("dispose", Length = 0d)]
     public JsValue Dispose(JsValue thisValue)
     {
-        if (thisValue.TryGetObject(out var obj) && obj is not null)
+        if (thisValue.TryGetObject(out var obj))
         {
             IteratorClose(obj);
         }
@@ -311,7 +311,7 @@ public sealed partial class IteratorPrototype : JsPrototype
     /// </summary>
     private static IJsObjectLike GetIteratorDirect(JsValue value)
     {
-        if (!value.TryGetObject(out var obj) || obj is null)
+        if (!value.TryGetObject(out var obj))
         {
             throw StandardLibrary.ThrowTypeError("Iterator value is not an object", null, null);
         }
@@ -333,7 +333,7 @@ public sealed partial class IteratorPrototype : JsPrototype
     {
         var arg = args.Count > index ? args[index] : JsValue.Undefined;
 
-        if (!arg.TryGetObject<IJsCallable>(out var callable) || callable is null)
+        if (!arg.TryGetObject<IJsCallable>(out var callable))
         {
             throw StandardLibrary.ThrowTypeError($"{name} is not a function", null, null);
         }
@@ -371,15 +371,14 @@ public sealed partial class IteratorPrototype : JsPrototype
     private static IJsObjectLike? IteratorStep(IJsObjectLike iterator)
     {
         if (!iterator.TryGetProperty("next", out var nextProp) ||
-            !nextProp.TryGetObject<IJsCallable>(out var nextMethod) ||
-            nextMethod is null)
+            !nextProp.TryGetObject<IJsCallable>(out var nextMethod))
         {
             throw StandardLibrary.ThrowTypeError("Iterator must have a callable 'next' method", null, null);
         }
 
         var result = nextMethod.Invoke([], JsValue.FromObjectUnsafe(iterator));
 
-        if (!result.TryGetObject(out var resultObj) || resultObj is null)
+        if (!result.TryGetObject(out var resultObj))
         {
             throw StandardLibrary.ThrowTypeError("Iterator result must be an object", null, null);
         }
@@ -410,18 +409,19 @@ public sealed partial class IteratorPrototype : JsPrototype
     /// </summary>
     private static void IteratorClose(IJsObjectLike iterator)
     {
-        if (iterator.TryGetProperty("return", out var returnProp) &&
-            returnProp.TryGetObject<IJsCallable>(out var returnMethod) &&
-            returnMethod is not null)
+        if (!iterator.TryGetProperty("return", out var returnProp) ||
+            !returnProp.TryGetObject<IJsCallable>(out var returnMethod))
         {
-            try
-            {
-                returnMethod.Invoke([], JsValue.FromObjectUnsafe(iterator));
-            }
-            catch
-            {
-                // Ignore errors from return() per spec
-            }
+            return;
+        }
+
+        try
+        {
+            returnMethod.Invoke([], JsValue.FromObjectUnsafe(iterator));
+        }
+        catch
+        {
+            // Ignore errors from return() per spec
         }
     }
 
@@ -760,24 +760,27 @@ public sealed partial class IteratorPrototype : JsPrototype
                         var mapped = mapper.Invoke(callArgs, JsValue.Undefined);
 
                         // Try to get an iterator from the mapped value
-                        if (mapped.TryGetObject(out var mappedObj) && mappedObj is not null)
+                        if (!mapped.TryGetObject(out var mappedObj))
                         {
-                            // Check for Symbol.iterator
-                            if (mappedObj.TryGetProperty(SymbolKeys.Iterator, out var iterMethod) &&
-                                iterMethod.TryGetObject<IJsCallable>(out var iterCallable) &&
-                                iterCallable is not null)
-                            {
-                                var iterResult = iterCallable.Invoke([], mapped);
-                                if (iterResult.TryGetObject(out var iter) && iter is not null)
-                                {
-                                    state.InnerIterator = iter;
-                                    continue; // Get first value from inner iterator
-                                }
-                            }
+                            return CreateIterResult(mapped, false);
                         }
 
+                        // Check for Symbol.iterator
+                        if (!mappedObj.TryGetProperty(SymbolKeys.Iterator, out var iterMethod) ||
+                            !iterMethod.TryGetObject<IJsCallable>(out var iterCallable))
+                        {
+                            return CreateIterResult(mapped, false);
+                        }
+
+                        var iterResult = iterCallable.Invoke([], mapped);
+                        if (!iterResult.TryGetObject(out var iter))
+                        {
+                            return CreateIterResult(mapped, false);
+                        }
+
+                        state.InnerIterator = iter;
+
                         // If mapped value is not iterable, yield it directly
-                        return CreateIterResult(mapped, false);
                     }
                     catch
                     {

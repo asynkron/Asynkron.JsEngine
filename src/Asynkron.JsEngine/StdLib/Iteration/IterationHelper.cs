@@ -514,35 +514,4 @@ public static partial class IterationHelper
         promise.Resolve(value);
         return new JsValue(promise.JsObject);
     }
-
-    /// <summary>
-    ///     Helper function for await expressions: wraps value in Promise if needed.
-    ///     Checks if the value is already a promise (has a "then" method) before wrapping.
-    /// </summary>
-    [Obsolete("Use RegisterHostFunctions instead")]
-    public static HostFunction CreateAwaitHelper(JsEngineInstance engine)
-    {
-        return new HostFunction(AwaitValue);
-
-        JsValue AwaitValue(IReadOnlyList<JsValue> args)
-        {
-            // args[0] should be the value to await
-            var value = args.Count > 0 ? args[0] : JsValue.Undefined;
-
-            // Check if value is already a promise (has a "then" method)
-            if (value.TryGetObject(out var valueObj) && valueObj is not null &&
-                valueObj.TryGetProperty("then", out var thenMethod) &&
-                thenMethod.TryGetObject<IJsCallable>(out _))
-            {
-                // Already a promise, return as-is
-                return value;
-            }
-
-            // Not a promise, wrap in Promise.resolve()
-            var promise = new JsPromise(engine);
-            AddPromiseInstanceMethods(promise.JsObject, promise, engine);
-            promise.Resolve(value);
-            return new JsValue(promise.JsObject);
-        }
-    }
 }

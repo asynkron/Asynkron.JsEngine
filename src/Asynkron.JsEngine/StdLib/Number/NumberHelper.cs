@@ -88,7 +88,7 @@ public static partial class NumberHelper
                 return formatted;
             }
 
-            if (!optionsArg.TryGetObject<JsObject>(out var options) || options is null)
+            if (!optionsArg.TryGetObject<JsObject>(out var options))
             {
                 return (JsValue)num.ToString(CultureInfo.InvariantCulture);
             }

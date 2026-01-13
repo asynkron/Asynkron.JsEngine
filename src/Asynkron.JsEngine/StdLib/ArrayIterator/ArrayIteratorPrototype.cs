@@ -14,9 +14,9 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class ArrayIteratorPrototype : JsPrototype
 {
     [JsHostMethod("next", Length = 0d)]
-    public JsValue Next(JsValue thisValue)
+    private JsValue Next(JsValue thisValue)
     {
-        if (!thisValue.TryGetObject<JsArrayIterator>(out var iterator) || iterator is null)
+        if (!thisValue.TryGetObject<JsArrayIterator>(out var iterator))
         {
             throw ThrowTypeError("Array Iterator.prototype.next requires an Array Iterator instance", realm: Realm);
         }

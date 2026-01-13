@@ -133,7 +133,7 @@ public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState 
         if (instance.Prototype is null)
         {
             var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
-            if (proto is not null)
+            if (true)
             {
                 instance.SetPrototype(proto);
             }

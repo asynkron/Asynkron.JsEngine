@@ -5,15 +5,15 @@ namespace Asynkron.JsEngine.Tests;
 [Category(TestCategories.RuntimeSemantics)]
 public sealed class ConstAssignmentTests(ITestOutputHelper output) : InternalTestBase(output)
 {
-    public static IEnumerable<object[]> ConstLoopData => new[]
-    {
-        new object[] { false, "for (const x in [1, 2, 3]) { x++; }" },
-        new object[] { true, "for (const x in [1, 2, 3]) { x++; }" },
-        new object[] { false, "for (const x of [1, 2, 3]) { x++; }" },
-        new object[] { true, "for (const x of [1, 2, 3]) { x++; }" },
-        new object[] { false, "for (const i = 0; i < 1; i++) { /* update expression */ }" },
-        new object[] { true, "for (const i = 0; i < 1; i++) { /* update expression */ }" }
-    };
+    public static IEnumerable<object[]> ConstLoopData =>
+    [
+        [false, "for (const x in [1, 2, 3]) { x++; }"],
+        [true, "for (const x in [1, 2, 3]) { x++; }"],
+        [false, "for (const x of [1, 2, 3]) { x++; }"],
+        [true, "for (const x of [1, 2, 3]) { x++; }"],
+        [false, "for (const i = 0; i < 1; i++) { /* update expression */ }"],
+        [true, "for (const i = 0; i < 1; i++) { /* update expression */ }"]
+    ];
 
     [Theory]
     [MemberData(nameof(ConstLoopData))]

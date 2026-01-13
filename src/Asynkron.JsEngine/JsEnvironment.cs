@@ -3230,10 +3230,6 @@ public sealed class JsEnvironment : IRentable
                 for (var i = 0; i < current._slotCount; i++)
                 {
                     ref var slot = ref slots[i];
-                    if (slot.Name is null)
-                    {
-                        continue;
-                    }
 
                     // Skip uninitialized TDZ bindings - they exist but can't be accessed
                     if (slot.IsUninitialized)
@@ -3289,10 +3285,8 @@ public sealed class JsEnvironment : IRentable
                         ? ((ISpecialBinding)slot.Value.ObjectValue!).GetJsValue()
                         : slot.Value;
                     slotVars[i] = value.ToObject();
-                    if (slot.Name is not null)
-                    {
-                        dictVars[slot.Name.Name] = value.ToObject();
-                    }
+
+                    dictVars[slot.Name.Name] = value.ToObject();
                 }
             }
 

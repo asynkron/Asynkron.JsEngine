@@ -97,7 +97,6 @@ public static partial class TypedAstEvaluator
         var useTypedArrayLoopEnv = statement.Kind == ForEachKind.Of && iterableJsValue.TryGetObject<TypedArrayBase>(out _);
         var useLoopPool = hasLexicalDeclaration && !useTypedArrayLoopEnv && !IsEnvEnabled(DisableForOfLoopEnvPoolVar);
 
-
         //TODO: are we renting an environment "just in case", if hasLexicalDeclaration is false, but useLoopPool is true?
         //TODO: this goes out of scope at the end, and is returned
         //TODO: but if other env is used, they are returned elsewhere?

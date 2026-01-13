@@ -31,7 +31,6 @@ internal static class TypedAstSnapshot
             case ExpressionStatement expressionStatement:
                 builder.Append("(expr ");
                 AppendExpression(expressionStatement.Expression, builder);
-                builder.Append(')');
                 break;
             case VariableDeclaration variableDeclaration:
                 builder.Append("(var ");
@@ -42,7 +41,6 @@ internal static class TypedAstSnapshot
                     AppendVariableDeclarator(declarator, builder);
                 }
 
-                builder.Append(')');
                 break;
             case ReturnStatement returnStatement:
                 builder.Append("(return");
@@ -52,7 +50,6 @@ internal static class TypedAstSnapshot
                     AppendExpression(returnStatement.Expression, builder);
                 }
 
-                builder.Append(')');
                 break;
             case BlockStatement blockStatement:
                 builder.Append("(block");
@@ -62,7 +59,6 @@ internal static class TypedAstSnapshot
                     AppendStatement(inner, builder);
                 }
 
-                builder.Append(')');
                 break;
             case ForEachStatement forEachStatement:
                 builder.Append("(foreach ");
@@ -79,14 +75,12 @@ internal static class TypedAstSnapshot
                 AppendExpression(forEachStatement.Iterable, builder);
                 builder.Append(' ');
                 AppendStatement(forEachStatement.Body, builder);
-                builder.Append(')');
                 break;
             case FunctionDeclaration functionDeclaration:
                 builder.Append("(function ");
                 builder.Append(functionDeclaration.Name);
                 builder.Append(' ');
                 AppendFunctionExpression(functionDeclaration.Function, builder);
-                builder.Append(')');
                 break;
             case TryStatement tryStatement:
                 builder.Append("(try ");
@@ -109,7 +103,6 @@ internal static class TypedAstSnapshot
                     builder.Append(')');
                 }
 
-                builder.Append(')');
                 break;
             case IfStatement ifStatement:
                 builder.Append("(if ");
@@ -121,12 +114,11 @@ internal static class TypedAstSnapshot
                     builder.Append(' ');
                     AppendStatement(ifStatement.Else, builder);
                 }
-                builder.Append(')');
+
                 break;
             case ThrowStatement throwStatement:
                 builder.Append("(throw ");
                 AppendExpression(throwStatement.Expression, builder);
-                builder.Append(')');
                 break;
             case BreakStatement breakStatement:
                 builder.Append("(break");
@@ -136,7 +128,6 @@ internal static class TypedAstSnapshot
                     builder.Append(breakStatement.Label);
                 }
 
-                builder.Append(')');
                 break;
             case ContinueStatement continueStatement:
                 builder.Append("(continue");
@@ -146,11 +137,12 @@ internal static class TypedAstSnapshot
                     builder.Append(continueStatement.Label);
                 }
 
-                builder.Append(')');
                 break;
             default:
                 throw new NotSupportedException($"Snapshot does not handle statement '{statement.GetType().Name}'.");
         }
+
+        builder.Append(')');
     }
 
     private static void AppendVariableDeclarator(VariableDeclarator declarator, StringBuilder builder)

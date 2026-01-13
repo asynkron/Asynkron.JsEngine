@@ -18,7 +18,7 @@ public enum SlotFlags : byte
     BlocksFunctionScopeOverride = 16,
     CanDelete = 32,
     ImmutableBinding = 64,
-    HasSpecialBinding = 128,
+    HasSpecialBinding = 128
 }
 
 /// <summary>
@@ -31,7 +31,7 @@ public struct JsSlot
     /// <summary>
     /// The symbol name for this binding. Set once during initialization.
     /// </summary>
-    public Symbol Name;
+    public Symbol? Name;
 
     /// <summary>
     /// The current value of this binding.
@@ -52,15 +52,6 @@ public struct JsSlot
         Name = name;
         Value = value;
         Flags = flags;
-    }
-
-    /// <summary>
-    /// Creates an uninitialized slot (for let/const before initialization).
-    /// </summary>
-    [MethodImpl(JsEngineConstants.Inlining)]
-    public static JsSlot Uninitialized(Symbol name, SlotFlags flags)
-    {
-        return new JsSlot(name, JsValue.Undefined, flags | SlotFlags.Uninitialized);
     }
 
     /// <summary>
@@ -137,25 +128,6 @@ public struct JsSlot
     }
 
     /// <summary>
-    /// Clears the uninitialized flag (called when binding is initialized).
-    /// </summary>
-    [MethodImpl(JsEngineConstants.Inlining)]
-    public void MarkInitialized()
-    {
-        Flags &= ~SlotFlags.Uninitialized;
-    }
-
-    /// <summary>
-    /// Sets the value and clears the uninitialized flag.
-    /// </summary>
-    [MethodImpl(JsEngineConstants.Inlining)]
-    public void Initialize(JsValue value)
-    {
-        Value = value;
-        Flags &= ~SlotFlags.Uninitialized;
-    }
-
-    /// <summary>
     /// Sets the value and clears the TDZ flag if the value is not uninitialized.
     /// Use this when assigning to a binding that might be in TDZ.
     /// </summary>
@@ -166,14 +138,5 @@ public struct JsSlot
         Flags = value.IsUninitialized
             ? Flags | SlotFlags.Uninitialized
             : Flags & ~SlotFlags.Uninitialized;
-    }
-
-    /// <summary>
-    /// Returns true if this slot is empty (no name assigned).
-    /// </summary>
-    public readonly bool IsEmpty
-    {
-        [MethodImpl(JsEngineConstants.Inlining)]
-        get => Name is null;
     }
 }

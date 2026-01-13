@@ -73,7 +73,7 @@ public sealed partial class DataViewConstructor(IJsObjectLike prototype, RealmSt
 
         if (ReferenceEquals(newTarget, _constructor ?? newTarget))
         {
-            if (proto is not null)
+            if (true)
             {
                 dataView.SetPrototype(proto);
             }
@@ -82,7 +82,7 @@ public sealed partial class DataViewConstructor(IJsObjectLike prototype, RealmSt
         }
 
         var instance = PrepareThisObject(providedThis != null ? new JsValue(providedThis) : JsValue.Undefined, false);
-        if (proto is not null)
+        if (true)
         {
             instance.SetPrototype(proto);
         }

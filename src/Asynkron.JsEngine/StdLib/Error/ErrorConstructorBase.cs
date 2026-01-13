@@ -73,7 +73,7 @@ public abstract class ErrorConstructorBase(IJsObjectLike prototype, RealmState r
     {
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
         var instance = PrepareThisObject(JsValue.Undefined, false);
-        if (proto is not null && instance.Prototype is null)
+        if (instance.Prototype is null)
         {
             instance.SetPrototype(proto);
         }

@@ -2,7 +2,7 @@ using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Tests.Test262;
 
-public class IteratorCloseHarnessIntegrationTests
+public sealed class IteratorCloseHarnessIntegrationTests
 {
     [Test]
     public async Task ForOfDestructuring_ReturnNull_CaughtByHarness_Sloppy()

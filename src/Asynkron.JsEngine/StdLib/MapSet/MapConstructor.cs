@@ -71,7 +71,7 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
         var items = args.GetArgument(0);
         var callbackFn = args.GetArgument(1);
 
-        if (!callbackFn.TryGetObject<IJsCallable>(out var callback) || callback is null)
+        if (!callbackFn.TryGetObject<IJsCallable>(out var callback))
         {
             throw ThrowTypeError("Map.groupBy callback must be a function", realm: realm);
         }
@@ -89,7 +89,7 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
             if (result.Has(key))
             {
                 var existingGroup = result.Get(key);
-                if (existingGroup.TryGetObject<JsArray>(out var existingArray) && existingArray is not null)
+                if (existingGroup.TryGetObject<JsArray>(out var existingArray))
                 {
                     group = existingArray;
                 }

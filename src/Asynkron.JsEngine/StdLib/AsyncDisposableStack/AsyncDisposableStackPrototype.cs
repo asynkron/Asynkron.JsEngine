@@ -39,7 +39,7 @@ public sealed partial class AsyncDisposableStackPrototype : JsPrototype
 
         var value = args.GetArgument(0);
         var onDispose = args.GetArgument(1);
-        if (!onDispose.TryGetObject<IJsCallable>(out var callable) || callable is null)
+        if (!onDispose.TryGetObject<IJsCallable>(out var callable))
         {
             throw ThrowTypeError("AsyncDisposableStack.prototype.adopt requires a callable disposer", realm: Realm);
         }
@@ -56,7 +56,7 @@ public sealed partial class AsyncDisposableStackPrototype : JsPrototype
         EnsureNotDisposed(stack);
 
         var onDispose = args.GetArgument(0);
-        if (!onDispose.TryGetObject<IJsCallable>(out var callable) || callable is null)
+        if (!onDispose.TryGetObject<IJsCallable>(out var callable))
         {
             throw ThrowTypeError("AsyncDisposableStack.prototype.defer requires a callable disposer", realm: Realm);
         }
@@ -89,7 +89,7 @@ public sealed partial class AsyncDisposableStackPrototype : JsPrototype
     {
         var promise = CreatePromise(Realm);
 
-        if (!thisValue.TryGetObject<JsAsyncDisposableStack>(out var stack) || stack is null)
+        if (!thisValue.TryGetObject<JsAsyncDisposableStack>(out var stack))
         {
             promise.Reject(CreateTypeError("AsyncDisposableStack.prototype.disposeAsync called on incompatible receiver",
                 realm: Realm));
@@ -146,7 +146,7 @@ public sealed partial class AsyncDisposableStackPrototype : JsPrototype
 
     private JsAsyncDisposableStack RequireStack(JsValue thisValue)
     {
-        if (!thisValue.TryGetObject<JsAsyncDisposableStack>(out var stack) || stack is null)
+        if (!thisValue.TryGetObject<JsAsyncDisposableStack>(out var stack))
         {
             throw ThrowTypeError("AsyncDisposableStack method called on incompatible receiver", realm: Realm);
         }

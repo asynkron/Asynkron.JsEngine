@@ -2283,7 +2283,7 @@ internal static class GeneratorYieldLowerer
                         return false;
                     }
 
-                    if (incrementHasYield && incrementYield is not null &&
+                    if (incrementHasYield &&
                         (incrementYield.IsDelegated || AstShapeAnalyzer.ContainsYield(incrementYield.Expression)))
                     {
                         return false;

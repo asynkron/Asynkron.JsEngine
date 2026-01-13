@@ -20,11 +20,9 @@ public class EvaluationOverheadBenchmarks
 
     // Pre-parsed artifacts
     private IReadOnlyList<Token> _simpleTokens = null!;
-    private ProgramNode _simpleAst = null!;
     private string _simpleSource = null!;
 
     private IReadOnlyList<Token> _loopTokens = null!;
-    private ProgramNode _loopAst = null!;
     private string _loopSource = null!;
 
     [GlobalSetup]
@@ -50,24 +48,21 @@ public class EvaluationOverheadBenchmarks
         _loopTokens = new JsLexer(_loopSource).Tokenize();
 
         // Pre-parse
-        _simpleAst = new JsAstParser(_simpleTokens, _simpleSource).ParseProgram();
-        _loopAst = new JsAstParser(_loopTokens, _loopSource).ParseProgram();
+        new JsAstParser(_simpleTokens, _simpleSource).ParseProgram();
+        new JsAstParser(_loopTokens, _loopSource).ParseProgram();
     }
 
     [GlobalCleanup]
     public async Task Cleanup()
     {
         await _reusableEngine.DisposeAsync();
-        if (_engine != null)
-        {
-            await _engine.DisposeAsync();
-        }
+        await _engine.DisposeAsync();
     }
 
     [IterationSetup]
     public void IterationSetup()
     {
-        _engine?.DisposeAsync().AsTask().Wait();
+        _engine.DisposeAsync().AsTask().Wait();
         _engine = new JsEngine();
         _engine.ExecutionTimeout = TimeSpan.FromMinutes(5);
     }

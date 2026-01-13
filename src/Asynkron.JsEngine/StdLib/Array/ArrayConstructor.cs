@@ -70,7 +70,7 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
                     provided,
                 _ => new JsArray(instanceRealm)
             };
-            if (proto is not null && !ReferenceEquals(array.Prototype, proto))
+            if (!ReferenceEquals(array.Prototype, proto))
             {
                 array.SetPrototype(proto);
             }
@@ -97,7 +97,7 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
         {
             instance.SetPrototype(providedProto);
         }
-        else if (Prototype is not null && instance.Prototype is null)
+        else if (instance.Prototype is null)
         {
             instance.SetPrototype(Prototype);
         }

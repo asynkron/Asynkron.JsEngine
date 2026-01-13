@@ -2,7 +2,7 @@ using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Tests.Test262;
 
-public class IteratorCloseFullHarnessTests
+public sealed class IteratorCloseFullHarnessTests
 {
     [TestCase(false)]
     [TestCase(true)]

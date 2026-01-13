@@ -119,7 +119,7 @@ public sealed class TimerTests(ITestOutputHelper output) : InternalTestBase(outp
 
         Assert.Equal(0, count);
     }
-    private static readonly string[] expected = new[] { "start", "end", "timeout" };
+    private static readonly string[] expected = ["start", "end", "timeout"];
 
     // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.
     // The feature is implemented correctly and the test passes when run individually.

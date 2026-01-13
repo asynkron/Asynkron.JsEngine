@@ -3,7 +3,7 @@ namespace Asynkron.JsEngine.Tests.Test262;
 /// <summary>
 /// Focused tests for fixing bugs from todo-builtins.md
 /// </summary>
-public class TodoBugFixTests : Test262Test
+public sealed class TodoBugFixTests : Test262Test
 {
     // FIXED: Array.from iter-set-length-err
     [TestCase("built-ins/Array/from/iter-set-length-err.js", false)]

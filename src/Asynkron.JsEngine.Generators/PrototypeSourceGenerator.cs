@@ -119,10 +119,6 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
     {
         var typeSymbol = target.TypeSymbol;
         var prototypeAttr = target.Attribute;
-        if (prototypeAttr is null)
-        {
-            return null;
-        }
 
         var getters = ImmutableArray.CreateBuilder<GetterInfo>();
         var setters = ImmutableArray.CreateBuilder<SetterInfo>();
@@ -342,10 +338,6 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
     {
         var typeSymbol = target.TypeSymbol;
         var constructorAttr = target.Attribute;
-        if (constructorAttr is null)
-        {
-            return null;
-        }
 
         if (!InheritsFrom(typeSymbol, "Asynkron.JsEngine.Runtime.Prototypes.JsConstructor"))
         {
@@ -2008,11 +2000,6 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 
     private static CompatData LoadCompatData(AdditionalText text)
     {
-        if (text is null)
-        {
-            return CompatData.Empty;
-        }
-
         var content = text.GetText()?.ToString();
         if (string.IsNullOrWhiteSpace(content))
         {

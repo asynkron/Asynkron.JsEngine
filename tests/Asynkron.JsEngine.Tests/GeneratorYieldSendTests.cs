@@ -41,8 +41,8 @@ public sealed class GeneratorYieldSendTests(ITestOutputHelper output) : Internal
         Assert.True(thirdDone.AsBoolean());
         Assert.True(third.TryGetProperty("value", out _));
     }
-    private static readonly string[] expected = new[] { "a", "b", "c" };
-    private static readonly string[] expectedArray = new[] { "i", "g", "n", "o", "r", "e", "d" };
+    private static readonly string[] expected = ["a", "b", "c"];
+    private static readonly string[] expectedArray = ["i", "g", "n", "o", "r", "e", "d"];
 
     [Fact]
     public async Task YieldYieldSpreadSuspendsAcrossOperandAndOuterYield()

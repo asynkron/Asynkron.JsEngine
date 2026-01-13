@@ -3,7 +3,7 @@ namespace Asynkron.JsEngine.Tests.Test262;
 /// <summary>
 /// Focused copies of the TypedArray callback-this tests so we can filter by method name.
 /// </summary>
-public class TypedArrayCallbackThisFocusedTests : Test262Test
+public sealed class TypedArrayCallbackThisFocusedTests : Test262Test
 {
     [TestCase("built-ins/TypedArray/prototype/every/BigInt/callbackfn-this.js", true)]
     [TestCase("built-ins/TypedArray/prototype/every/callbackfn-this.js", true)]

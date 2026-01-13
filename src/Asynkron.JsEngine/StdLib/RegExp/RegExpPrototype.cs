@@ -67,7 +67,6 @@ public sealed partial class RegExpPrototype
     public JsValue Compile(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (!thisValue.TryGetObject<JsObject>(out var target) ||
-            target is null ||
             !ReferenceEquals(target.Prototype, Realm.RegExpPrototype) ||
             !target.TryGetValue("__regex__", out var existingInner) ||
             existingInner is not JsRegExp existingRegExp ||
@@ -87,7 +86,6 @@ public sealed partial class RegExpPrototype
 
         JsRegExp? providedRegExp;
         if (patternArg.TryGetObject<JsObject>(out var patternObj) &&
-            patternObj is not null &&
             patternObj.TryGetValue("__regex__", out var innerVal) &&
             innerVal is JsRegExp regExpFromSlot &&
             ReferenceEquals(regExpFromSlot.JsObject, patternObj))

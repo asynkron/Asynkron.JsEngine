@@ -143,8 +143,7 @@ public static partial class TypedAstEvaluator
             // Async-aware mode: use per-site await state so we don't re-run
             // side-effecting expressions after the promise has resolved.
             var awaitKey = expression.GetAwaitStateKey();
-            if (awaitKey is not null &&
-                environment.TryGetObject<AwaitState>(awaitKey, out var state) &&
+            if (environment.TryGetObject<AwaitState>(awaitKey, out var state) &&
                 state.HasResult)
             {
                 // Await has already completed; reuse the resolved value once
@@ -172,18 +171,15 @@ public static partial class TypedAstEvaluator
                 return awaitedValue;
             }
 
-            if (awaitKey is not null)
-            {
-                var existingState = JsValue.FromObjectUnsafe(new AwaitState());
+            var existingState = JsValue.FromObjectUnsafe(new AwaitState());
 
-                if (environment.HasBinding(awaitKey))
-                {
-                    environment.AssignJsValue(awaitKey, existingState);
-                }
-                else
-                {
-                    environment.DefineJsValue(awaitKey, existingState);
-                }
+            if (environment.HasBinding(awaitKey))
+            {
+                environment.AssignJsValue(awaitKey, existingState);
+            }
+            else
+            {
+                environment.DefineJsValue(awaitKey, existingState);
             }
 
             // Async-aware mode: surface promise-like values as pending steps
@@ -194,7 +190,7 @@ public static partial class TypedAstEvaluator
                 return resolved;
             }
 
-            if (!AsyncStateRef.PendingPromise.TryGetPropertyAccessor(out _) || awaitKey is null)
+            if (!AsyncStateRef.PendingPromise.TryGetPropertyAccessor(out _))
             {
                 return resolved;
             }

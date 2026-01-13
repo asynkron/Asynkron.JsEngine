@@ -15,7 +15,7 @@ namespace Asynkron.JsEngine.JsTypes;
 /// <summary>
 ///     Represents a JavaScript regular expression object.
 /// </summary>
-public class JsRegExp
+public sealed class JsRegExp
 {
     private const string AnyCodePointPattern =
         @"(?<![\uD800-\uDBFF])(?:[\uD800-\uDBFF][\uDC00-\uDFFF]|[\u0000-\uD7FF\uE000-\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|[\uDC00-\uDFFF])";
@@ -34,7 +34,7 @@ public class JsRegExp
     public JsRegExp(string pattern, string flags = "", RealmState? realmState = null, JsObject? existingObject = null)
     {
         Pattern = pattern;
-        Flags = flags ?? string.Empty;
+        Flags = flags;
         RealmState = realmState;
         JsObject = existingObject ?? new JsObject();
 
@@ -104,12 +104,7 @@ public class JsRegExp
     /// </summary>
     public bool Test(string input)
     {
-        if (input == null)
-        {
-            return false;
-        }
-
-        var startIndex = (Global || Sticky) ? GetLastIndex() : 0;
+        var startIndex = Global || Sticky ? GetLastIndex() : 0;
         if (startIndex > input.Length)
         {
             startIndex = 0;
@@ -139,12 +134,7 @@ public class JsRegExp
     /// </summary>
     public JsArray? Exec(string input)
     {
-        if (input == null)
-        {
-            return null;
-        }
-
-        var startIndex = (Global || Sticky) ? GetLastIndex() : 0;
+        var startIndex = Global || Sticky ? GetLastIndex() : 0;
         if (startIndex > input.Length)
         {
             if (Global || Sticky)
@@ -172,7 +162,7 @@ public class JsRegExp
             SetLastIndex(match.Index + match.Length);
         }
 
-        // Build result array with captures, groups, and indices when needed.
+        // Build the result array with captures, groups, and indices when needed.
         var result = CreateMatchArray(match, input);
 
         RealmState.UpdateRegExpStatics(input, match);
@@ -184,11 +174,6 @@ public class JsRegExp
     /// </summary>
     internal JsArray MatchAll(string input)
     {
-        if (input == null)
-        {
-            return new JsArray(RealmState);
-        }
-
         var result = new JsArray(RealmState);
         var matches = EnsureRegex().Matches(input);
 
@@ -237,13 +222,15 @@ public class JsRegExp
                 }
             }
 
-            if (flag == 'v')
+            if (flag != 'v')
             {
-                hasUnicodeSets = true;
-                if (hasUnicode)
-                {
-                    throw new ParseException("Invalid regular expression flag 'v'.");
-                }
+                continue;
+            }
+
+            hasUnicodeSets = true;
+            if (hasUnicode)
+            {
+                throw new ParseException("Invalid regular expression flag 'v'.");
             }
         }
     }
@@ -288,7 +275,7 @@ public class JsRegExp
         if (HasIndices)
         {
             var indices = BuildIndicesArray(match);
-            result.SetProperty("indices", indices is null ? JsValue.Undefined : JsValue.FromJsArray(indices));
+            result.SetProperty("indices", JsValue.FromJsArray(indices));
         }
 
         return result;
@@ -319,7 +306,7 @@ public class JsRegExp
         return groups;
     }
 
-    private JsArray? BuildIndicesArray(Match match)
+    private JsArray BuildIndicesArray(Match match)
     {
         var regex = EnsureRegex();
         var indices = new JsArray(RealmState);
@@ -381,7 +368,7 @@ public class JsRegExp
 
         if (string.IsNullOrEmpty(pattern))
         {
-            return pattern ?? string.Empty;
+            return pattern;
         }
 
         var allGroupNames = CollectGroupNames(pattern);
@@ -674,7 +661,7 @@ public class JsRegExp
     {
         if (string.IsNullOrEmpty(pattern))
         {
-            return pattern ?? string.Empty;
+            return pattern;
         }
 
         var allGroupNames = CollectGroupNames(pattern);

@@ -271,7 +271,7 @@ public sealed partial class SetPrototype
 
     private JsSet GetOtherSetForMembership(JsValue otherValue, string methodName)
     {
-        if (otherValue.TryGetObject<JsSet>(out var otherSet) && otherSet is not null)
+        if (otherValue.TryGetObject<JsSet>(out var otherSet))
         {
             return otherSet;
         }

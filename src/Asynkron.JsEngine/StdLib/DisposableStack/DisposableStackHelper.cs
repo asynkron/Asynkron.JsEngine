@@ -17,7 +17,7 @@ internal static class DisposableStackHelper
             return null;
         }
 
-        if (!value.TryGetObject<IJsPropertyAccessor>(out var accessor) || accessor is null)
+        if (!value.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
             throw ThrowTypeError("DisposableStack value must be an object", realm: realm);
         }
@@ -55,7 +55,7 @@ internal static class DisposableStackHelper
             return false;
         }
 
-        if (!candidate.TryGetObject<IJsCallable>(out var method) || method is null)
+        if (!candidate.TryGetObject<IJsCallable>(out var method))
         {
             throw ThrowTypeError("Dispose method is not callable", realm: realm);
         }

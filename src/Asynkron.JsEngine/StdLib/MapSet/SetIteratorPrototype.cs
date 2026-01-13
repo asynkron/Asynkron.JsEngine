@@ -13,7 +13,7 @@ public sealed partial class SetIteratorPrototype : JsPrototype
     [JsHostMethod("next", Length = 0d)]
     public JsValue Next(JsValue thisValue)
     {
-        if (!thisValue.TryGetObject<JsSetIterator>(out var iterator) || iterator is null)
+        if (!thisValue.TryGetObject<JsSetIterator>(out var iterator))
         {
             throw ThrowTypeError("Set Iterator.prototype.next requires a Set Iterator instance", realm: Realm);
         }

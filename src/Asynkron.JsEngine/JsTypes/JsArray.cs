@@ -673,11 +673,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 continue;
             }
 
-            if (descriptor.IsAccessorDescriptor)
-            {
-                descriptor.Configurable = false;
-            }
-            else
+            if (!descriptor.IsAccessorDescriptor)
             {
                 if (!descriptor.HasValue)
                 {
@@ -688,9 +684,9 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 {
                     descriptor.Writable = false;
                 }
-
-                descriptor.Configurable = false;
             }
+
+            descriptor.Configurable = false;
 
             _properties.TryDefineProperty(key, descriptor);
         }

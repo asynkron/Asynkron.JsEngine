@@ -20,7 +20,7 @@ public abstract class JsConstructor(IJsObjectLike prototype, RealmState realm)
     {
         if (thisValue.IsObject && thisValue.AsObject() is { IsConstructing: true } existing)
         {
-            if (assignPrototype && existing.Prototype is null && Prototype is not null)
+            if (assignPrototype && existing.Prototype is null)
             {
                 existing.SetPrototype(Prototype);
             }
@@ -71,9 +71,7 @@ public abstract class JsConstructor(IJsObjectLike prototype, RealmState realm)
         }
 
         var proto = StdLib.ReflectHelper.ResolveConstructPrototype(target, target, Realm) ?? Prototype;
-        if (proto is not null)
-        {
-            instance.SetPrototype(proto);
-        }
+
+        instance.SetPrototype(proto);
     }
 }

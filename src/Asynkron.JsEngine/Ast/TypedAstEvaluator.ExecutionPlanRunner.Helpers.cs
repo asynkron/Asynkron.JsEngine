@@ -112,12 +112,9 @@ public static partial class TypedAstEvaluator
                 var actualSlotIndex = GetActualSlotIndex(environment, slotIndex);
                 environment.SetSlotDirect(actualSlotIndex, value);
                 // Also update dictionary for symbol-based lookups elsewhere
-                environment.DefineOrAssignJsValue(symbol, value);
             }
-            else
-            {
-                environment.DefineOrAssignJsValue(symbol, value);
-            }
+
+            environment.DefineOrAssignJsValue(symbol, value);
         }
 
         /// <summary>

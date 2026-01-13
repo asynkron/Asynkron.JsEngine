@@ -263,8 +263,7 @@ internal static class DeclarationEmitter
         ThrowStatement throwStatement,
         out int entryIndex)
     {
-        if (throwStatement.Expression is not null &&
-            AstShapeAnalyzer.ContainsYield(throwStatement.Expression))
+        if (AstShapeAnalyzer.ContainsYield(throwStatement.Expression))
         {
             ctx.SetFailureReason("Throw expression contains unsupported yield shape.");
             entryIndex = -1;

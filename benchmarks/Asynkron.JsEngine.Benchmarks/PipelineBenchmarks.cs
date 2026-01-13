@@ -25,10 +25,6 @@ public class PipelineBenchmarks
     private IReadOnlyList<Token> _mediumTokens = null!;
     private IReadOnlyList<Token> _largeTokens = null!;
 
-    private ProgramNode _smallAst = null!;
-    private ProgramNode _mediumAst = null!;
-    private ProgramNode _largeAst = null!;
-
     [GlobalSetup]
     public void Setup()
     {
@@ -189,9 +185,9 @@ public class PipelineBenchmarks
         _largeTokens = new JsLexer(_largeProgram).Tokenize();
 
         // Pre-parse
-        _smallAst = new JsAstParser(_smallTokens, _smallProgram).ParseProgram();
-        _mediumAst = new JsAstParser(_mediumTokens, _mediumProgram).ParseProgram();
-        _largeAst = new JsAstParser(_largeTokens, _largeProgram).ParseProgram();
+        new JsAstParser(_smallTokens, _smallProgram).ParseProgram();
+        new JsAstParser(_mediumTokens, _mediumProgram).ParseProgram();
+        new JsAstParser(_largeTokens, _largeProgram).ParseProgram();
     }
 
     [GlobalCleanup]

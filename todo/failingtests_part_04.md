@@ -1,8 +1,8 @@
 # Failing Tests - Part 5
 
 - [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Function("built-ins/Function/private-identifiers-not-empty.js",True)
-- [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.GeneratorFunction_prototype("built-ins/GeneratorFunction/prototype/prop-desc.js",False)
-- [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.GeneratorFunction_prototype("built-ins/GeneratorFunction/prototype/prop-desc.js",True)
+- [x] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.GeneratorFunction_prototype("built-ins/GeneratorFunction/prototype/prop-desc.js",False)
+- [x] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.GeneratorFunction_prototype("built-ins/GeneratorFunction/prototype/prop-desc.js",True)
 - [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.GeneratorFunction_prototype("built-ins/GeneratorFunction/prototype/Symbol.toStringTag.js",False)
 - [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.GeneratorFunction_prototype("built-ins/GeneratorFunction/prototype/Symbol.toStringTag.js",True)
 - [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.GeneratorFunction("built-ins/GeneratorFunction/instance-yield-expr-in-param.js",False)

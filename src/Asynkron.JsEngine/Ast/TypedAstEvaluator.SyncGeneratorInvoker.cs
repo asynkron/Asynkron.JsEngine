@@ -103,8 +103,15 @@ public static partial class TypedAstEvaluator
                         generatorFunctionConstructor.Properties.SetPrototype(functionPrototype);
                     }
 
-                    // GeneratorFunction.prototype = GeneratorFunctionPrototype
-                    generatorFunctionConstructor.SetProperty("prototype", (JsValue)genFuncProto);
+                    // GeneratorFunction.prototype must be non-writable per ES spec
+                    generatorFunctionConstructor.DefineProperty("prototype",
+                        new PropertyDescriptor
+                        {
+                            Value = genFuncProto,
+                            Writable = false,
+                            Enumerable = false,
+                            Configurable = false
+                        });
                 }
             }
         }

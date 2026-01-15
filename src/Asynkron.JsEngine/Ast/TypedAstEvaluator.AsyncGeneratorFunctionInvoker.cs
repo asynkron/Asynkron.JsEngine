@@ -93,7 +93,15 @@ public static partial class TypedAstEvaluator
 
                 if (RealmState.AsyncGeneratorFunctionConstructor is { } asyncGenCtor)
                 {
-                    asyncGenCtor.SetProperty("prototype", (JsValue)asyncGenFuncProto);
+                    // AsyncGeneratorFunction.prototype must be non-writable per ES spec
+                    asyncGenCtor.DefineProperty("prototype",
+                        new PropertyDescriptor
+                        {
+                            Value = asyncGenFuncProto,
+                            Writable = false,
+                            Enumerable = false,
+                            Configurable = false
+                        });
                 }
 
                 asyncGenFuncProto.DefineProperty("constructor",

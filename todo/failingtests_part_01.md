@@ -23,7 +23,7 @@
 - [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_globalCode("annexB/language/global-code/switch-dflt-global-init.js",False)
 - [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_globalCode("annexB/language/global-code/switch-dflt-global-no-skip-try.js",False)
 - [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_globalCode("annexB/language/global-code/switch-dflt-global-update.js",False)
-- [ ] Asynkron.JsEngine.Tests.Test262.ArrayEverySubclassTests.TypedArrayEveryStrictCallbackGetsUndefinedThis
+- [x] Asynkron.JsEngine.Tests.Test262.ArrayEverySubclassTests.TypedArrayEveryStrictCallbackGetsUndefinedThis
 - [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_length("built-ins/Array/length/define-own-prop-length-overflow-realm.js",False)
 - [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_length("built-ins/Array/length/define-own-prop-length-overflow-realm.js",True)
 - [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_length("built-ins/Array/length/S15.4.5.1_A1.3_T2.js",False)

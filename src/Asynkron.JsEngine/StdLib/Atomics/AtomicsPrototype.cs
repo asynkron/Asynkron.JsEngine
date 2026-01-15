@@ -235,10 +235,8 @@ public sealed partial class AtomicsPrototype : JsPrototype
             throw ThrowTypeError("Atomics operations are not allowed on detached buffers", realm: Realm);
         }
 
-        if (!typedArray.Buffer.IsShared)
-        {
-            throw ThrowTypeError("Atomics operations require a SharedArrayBuffer", realm: Realm);
-        }
+        // Note: Atomics operations work on both SharedArrayBuffer and ArrayBuffer.
+        // Only wait/waitAsync/notify require SharedArrayBuffer.
 
         isBigInt = typedArray.IsBigIntArray;
         return typedArray;
@@ -250,6 +248,12 @@ public sealed partial class AtomicsPrototype : JsPrototype
         if (typedArray is not JsInt32Array && !(isBigInt && typedArray is JsBigInt64Array))
         {
             throw ThrowTypeError("Atomics.wait/notify require Int32Array or BigInt64Array", realm: Realm);
+        }
+
+        // wait/waitAsync/notify require SharedArrayBuffer
+        if (!typedArray.Buffer.IsShared)
+        {
+            throw ThrowTypeError("Atomics.wait/notify require a SharedArrayBuffer", realm: Realm);
         }
 
         return typedArray;

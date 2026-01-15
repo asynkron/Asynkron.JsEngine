@@ -2187,4 +2187,25 @@ testFunction();
         ");
         Assert.Equal("get calendarName,get fractionalSecondDigits,get roundingMode,get smallestUnit", result);
     }
+
+    [Fact(Timeout = 10000)]
+    public async Task Temporal_ZonedDateTime_SupportedValuesOf()
+    {
+        // Test that ZonedDateTime accepts timezones from Intl.supportedValuesOf
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate(@"
+            try {
+                var timezones = Intl.supportedValuesOf('timeZone');
+                if (timezones.length === 0) return 'no timezones';
+                // Test first timezone
+                var tz = timezones[0];
+                var instance = new Temporal.ZonedDateTime(0n, tz);
+                instance.timeZoneId === tz ? 'ok' : 'mismatch: ' + instance.timeZoneId + ' vs ' + tz;
+            } catch (e) {
+                'error: ' + e.name + ': ' + e.message;
+            }
+        ");
+        Assert.Equal("ok", result);
+    }
 }

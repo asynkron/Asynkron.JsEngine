@@ -1910,8 +1910,8 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
             }
 
             pattern.Append(Advance()); // 'x'
-            // Consume the two hex digits if present
-            for (var i = 0; i < 2 && !IsAtEnd; i++)
+            // Consume only valid hex digits (per Annex B, incomplete \x is identity escape)
+            for (var i = 0; i < 2 && !IsAtEnd && IsHexDigit(Peek()); i++)
             {
                 pattern.Append(Advance());
             }

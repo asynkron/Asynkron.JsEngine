@@ -650,5 +650,27 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
                                            """);
         Assert.True((bool)result!);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task RegexLiteral_IncompleteHexEscape_ShouldTreatAsIdentityEscape()
+    {
+        // Per Annex B: Incomplete \x escape should match literal 'x'
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            /\x/.test("x")
+        """);
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task RegexLiteral_IncompleteUnicodeEscape_ShouldTreatAsIdentityEscape()
+    {
+        // Per Annex B: Incomplete \u escape should match literal 'u'
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            /\u/.test("u")
+        """);
+        Assert.True((bool)result!);
+    }
 }
 

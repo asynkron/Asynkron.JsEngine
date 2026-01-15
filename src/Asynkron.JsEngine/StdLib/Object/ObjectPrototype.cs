@@ -376,14 +376,18 @@ public sealed partial class ObjectPrototype
             return JsValue.Undefined;
         }
 
+        // ES spec §B.2.2.1.2 (set Object.prototype.__proto__):
+        // 4. Let status be ? O.[[SetPrototypeOf]](proto).
+        // 5. If status is false, throw a TypeError exception.
         try
         {
             obj.SetPrototype(protoToSet);
         }
         catch (ThrowSignal)
         {
-            // Silently fail for immutable prototype exotic objects
-            // Per spec, the __proto__ setter returns undefined in all cases
+            // [[SetPrototypeOf]] returned false (e.g., for immutable prototype exotic objects)
+            // Per spec step 5, throw TypeError
+            throw ThrowTypeError("Cannot set prototype of immutable prototype object", realm: Realm);
         }
 
         return JsValue.Undefined;

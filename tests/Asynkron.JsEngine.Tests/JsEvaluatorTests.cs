@@ -2060,5 +2060,33 @@ testFunction();
         var result = await engine.Evaluate("Symbol('foo').toString()");
         Assert.Equal("Symbol(foo)", result?.ToString());
     }
-}
 
+    [Fact(Timeout = 5000)]
+    public async Task ObjectPrototype_IsImmutablePrototypeExotic()
+    {
+        await using var engine = CreateEngine();
+
+        // Setting to null should succeed (current value is already null)
+        await engine.Evaluate("Object.prototype.__proto__ = null");
+
+        // Should be able to get the prototype and it should be null
+        var isNull = await engine.Evaluate("Object.getPrototypeOf(Object.prototype) === null");
+        Assert.True((bool)isNull!);
+
+        // Trying to set to something other than null should throw TypeError
+        var threwError = await engine.Evaluate(@"
+            var threw = false;
+            try {
+                Object.prototype.__proto__ = {};
+            } catch (e) {
+                threw = e instanceof TypeError;
+            }
+            threw;
+        ");
+        Assert.True((bool)threwError!, "Should throw TypeError when trying to set Object.prototype.__proto__ to non-null");
+
+        // Verify prototype is still null
+        var stillNull = await engine.Evaluate("Object.getPrototypeOf(Object.prototype) === null");
+        Assert.True((bool)stillNull!, "Object.prototype's prototype should still be null");
+    }
+}

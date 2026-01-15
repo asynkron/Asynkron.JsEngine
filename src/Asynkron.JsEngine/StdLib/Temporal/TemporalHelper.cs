@@ -985,8 +985,20 @@ public static class TemporalHelper
         AddPrototypeGetter(prototype, realm, "eraYear", _ => JsValue.Undefined); // ISO 8601 calendar has no era
 
         // Prototype methods
-        AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, _) =>
-            new JsValue(GetPlainDateTime(thisValue).ToString()));
+        AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, args) =>
+        {
+            var dt = GetPlainDateTime(thisValue);
+            var options = args.GetArgument(0);
+
+            // Per spec: GetOptionsObject throws TypeError if options is not undefined and not an object
+            if (!options.IsUndefined)
+            {
+                ValidateOptionsObject(options, realm, "Temporal.PlainDateTime.prototype.toString");
+            }
+
+            // TODO: Implement full options handling (calendarName, fractionalSecondDigits, roundingMode, smallestUnit)
+            return new JsValue(dt.ToString());
+        });
 
         AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
             new JsValue(GetPlainDateTime(thisValue).ToString()));
@@ -1712,6 +1724,26 @@ public static class TemporalHelper
 
         prototype.DefineProperty(name,
             new PropertyDescriptor { Get = getterFn, Enumerable = false, Configurable = true });
+    }
+
+    /// <summary>
+    /// Validates that options is an object (not a primitive). Per Temporal spec GetOptionsObject.
+    /// </summary>
+    private static IJsPropertyAccessor? ValidateOptionsObject(JsValue options, RealmState realm, string method)
+    {
+        // If undefined, return null (options not provided)
+        if (options.IsUndefined)
+        {
+            return null;
+        }
+
+        // If null or any other primitive, throw TypeError
+        if (options.IsNull || !options.TryGetObject<IJsPropertyAccessor>(out var accessor))
+        {
+            throw StandardLibrary.ThrowTypeError($"{method} requires options to be an object", realm: realm);
+        }
+
+        return accessor;
     }
 
     private static double GetNumberArg(IReadOnlyList<JsValue> args, int index)

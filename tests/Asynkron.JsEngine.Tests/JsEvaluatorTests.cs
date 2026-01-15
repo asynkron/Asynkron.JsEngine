@@ -2106,4 +2106,50 @@ testFunction();
         ");
         Assert.Equal("0,1,0,3", result);
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task Temporal_PlainDateTime_ToString_OptionsWrongType()
+    {
+        // Test that toString throws TypeError for primitive options
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate(@"
+            var instance = new Temporal.PlainDateTime(2000, 5, 2);
+            var errors = [];
+
+            var badOptions = [null, true, 'some string', 1, 2n];
+            for (var value of badOptions) {
+                try {
+                    instance.toString(value);
+                    errors.push('no error for ' + typeof value);
+                } catch (e) {
+                    if (e instanceof TypeError) {
+                        errors.push('ok');
+                    } else {
+                        errors.push('wrong error: ' + e.name);
+                    }
+                }
+            }
+            errors.join(',');
+        ");
+        Assert.Equal("ok,ok,ok,ok,ok", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Temporal_ZonedDateTime_LinksBackward()
+    {
+        // Test that ZonedDateTime constructor accepts link names as time zone ID input
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate(@"
+            try {
+                // Use Africa/Asmera which is a link to Africa/Asmara
+                var instance = new Temporal.ZonedDateTime(0n, 'Africa/Asmera');
+                instance.timeZoneId;
+            } catch (e) {
+                'error: ' + e.message;
+            }
+        ");
+        Assert.Equal("Africa/Asmera", result);
+    }
 }

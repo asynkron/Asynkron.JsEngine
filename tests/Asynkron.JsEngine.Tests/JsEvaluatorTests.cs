@@ -2152,4 +2152,39 @@ testFunction();
         ");
         Assert.Equal("Africa/Asmera", result);
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task Temporal_PlainDateTime_ToString_OrderOfOperations()
+    {
+        // Test that options properties are accessed in the correct order
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate(@"
+            var actual = [];
+            var instance = new Temporal.PlainDateTime(1990, 11, 3, 15, 54, 37, 123, 456, 789);
+
+            var options = {
+                get calendarName() {
+                    actual.push('get calendarName');
+                    return 'auto';
+                },
+                get fractionalSecondDigits() {
+                    actual.push('get fractionalSecondDigits');
+                    return 'auto';
+                },
+                get roundingMode() {
+                    actual.push('get roundingMode');
+                    return 'halfExpand';
+                },
+                get smallestUnit() {
+                    actual.push('get smallestUnit');
+                    return 'millisecond';
+                }
+            };
+
+            instance.toString(options);
+            actual.join(',');
+        ");
+        Assert.Equal("get calendarName,get fractionalSecondDigits,get roundingMode,get smallestUnit", result);
+    }
 }

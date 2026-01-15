@@ -991,12 +991,46 @@ public static class TemporalHelper
             var options = args.GetArgument(0);
 
             // Per spec: GetOptionsObject throws TypeError if options is not undefined and not an object
-            if (!options.IsUndefined)
+            var optionsObj = ValidateOptionsObject(options, realm, "Temporal.PlainDateTime.prototype.toString");
+
+            // Default values
+            var calendarName = "auto";
+            var fractionalSecondDigits = "auto";
+            var roundingMode = "trunc";
+            string? smallestUnit = null;
+
+            // Per spec, options must be accessed in alphabetical order:
+            // calendarName, fractionalSecondDigits, roundingMode, smallestUnit
+            if (optionsObj is not null)
             {
-                ValidateOptionsObject(options, realm, "Temporal.PlainDateTime.prototype.toString");
+                // 1. Get calendarName
+                if (optionsObj.TryGetProperty("calendarName", out var calendarNameVal) && !calendarNameVal.IsUndefined)
+                {
+                    calendarName = JsOps.ToJsString(calendarNameVal);
+                }
+
+                // 2. Get fractionalSecondDigits
+                if (optionsObj.TryGetProperty("fractionalSecondDigits", out var fracDigitsVal) && !fracDigitsVal.IsUndefined)
+                {
+                    fractionalSecondDigits = JsOps.ToJsString(fracDigitsVal);
+                }
+
+                // 3. Get roundingMode
+                if (optionsObj.TryGetProperty("roundingMode", out var roundingModeVal) && !roundingModeVal.IsUndefined)
+                {
+                    roundingMode = JsOps.ToJsString(roundingModeVal);
+                }
+
+                // 4. Get smallestUnit
+                if (optionsObj.TryGetProperty("smallestUnit", out var smallestUnitVal) && !smallestUnitVal.IsUndefined)
+                {
+                    smallestUnit = JsOps.ToJsString(smallestUnitVal);
+                }
             }
 
-            // TODO: Implement full options handling (calendarName, fractionalSecondDigits, roundingMode, smallestUnit)
+            // For now, just return the basic ISO string
+            // TODO: Implement rounding based on smallestUnit/roundingMode/fractionalSecondDigits
+            // TODO: Implement calendarName annotation handling
             return new JsValue(dt.ToString());
         });
 

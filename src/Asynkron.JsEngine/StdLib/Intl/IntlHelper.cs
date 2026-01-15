@@ -148,13 +148,21 @@ public static partial class IntlHelper
     }
 
     /// <summary>
+    /// Implementation for Intl.*.supportedLocalesOf() - shared across all Intl constructors.
+    /// </summary>
+    private static JsValue SupportedLocalesOfImpl(IReadOnlyList<JsValue> args, RealmState realm)
+    {
+        return JsValue.FromJsArray(
+            ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), realm));
+    }
+
+    /// <summary>
     /// Configures the supportedLocalesOf static method on an Intl constructor.
     /// </summary>
     internal static void ConfigureSupportedLocalesOf(HostFunction constructor, RealmState realm)
     {
         var supportedLocalesOf = new HostFunction(
-            (_, args) => JsValue.FromJsArray(
-                ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), realm)),
+            args => SupportedLocalesOfImpl(args, realm),
             isConstructor: false);
 
         supportedLocalesOf.DefineProperty("length",

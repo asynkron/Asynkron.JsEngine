@@ -91,12 +91,13 @@ public static class DateHelper
 
     internal static double RequireDateValue(JsValue thisVal, RealmState realm, out JsObject obj)
     {
-        if (!thisVal.IsObject)
+        // Use TryGetObject<JsObject> to properly handle arrays and other non-JsObject types
+        // JsArray implements IsObject but is not a JsObject subclass
+        if (!thisVal.TryGetObject<JsObject>(out var candidate))
         {
             throw ThrowTypeError("Date method called on incompatible receiver", realm: realm);
         }
 
-        var candidate = thisVal.AsObject()!;
         if (candidate.GetOwnPropertyDescriptor("_internalDate") is not { JsValue: var jsValue } ||
             !jsValue.TryGetDouble(out var timeValue))
         {

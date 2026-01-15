@@ -122,11 +122,9 @@ public sealed partial class RegExpPrototype
         {
             ValidateGroupNames(pattern);
 
-            if (!target.TryGetProperty("constructor", out var ctor) ||
-                !ReferenceEquals(ctor, Realm.RegExpConstructor))
-            {
-                throw ThrowTypeError("RegExp.prototype.compile called on incompatible receiver", realm: Realm);
-            }
+            // Per spec B.2.5.1, we only need to check that the object has [[RegExpMatcher]] internal slot
+            // and is not RegExp.prototype itself. These checks are done above (lines 69-77).
+            // The constructor check is not required by the spec.
 
             var reinitialized = new JsRegExp(pattern, flags, Realm, target);
             target.SetProperty("__regex__", reinitialized);

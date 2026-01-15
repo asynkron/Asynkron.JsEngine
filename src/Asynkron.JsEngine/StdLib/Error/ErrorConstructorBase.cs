@@ -85,14 +85,25 @@ public abstract class ErrorConstructorBase(IJsObjectLike prototype, RealmState r
     private void InitializeError(JsObject instance, IReadOnlyList<JsValue> args)
     {
         instance.RealmState ??= Realm;
-        if (args.Count == 0 || args[0].IsUndefined)
+
+        // Set message if provided and not undefined
+        if (args.Count >= 1 && !args[0].IsUndefined)
         {
-            return;
+            var message = args[0].IsNull ? "null" : JsOps.ToJsString(args[0]);
+            instance.DefineProperty("message",
+                new PropertyDescriptor { Value = message, Writable = true, Enumerable = false, Configurable = true });
         }
 
-        var message = args[0].IsNull ? "null" : JsOps.ToJsString(args[0]);
-        instance.DefineProperty("message",
-            new PropertyDescriptor { Value = message, Writable = true, Enumerable = false, Configurable = true });
+        // ES2022: InstallErrorCause - handle options.cause
+        if (args.Count >= 2 && args[1].IsObject)
+        {
+            var options = args[1];
+            if (JsOps.TryGetPropertyValue(options, "cause", out var cause))
+            {
+                instance.DefineProperty("cause",
+                    new PropertyDescriptor { Value = cause, Writable = true, Enumerable = false, Configurable = true });
+            }
+        }
     }
 
     private void LinkPrototypeChain()

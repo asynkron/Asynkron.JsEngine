@@ -22,6 +22,24 @@ public static partial class IntlHelper
         return JsValue.FromJsArray(CreateLocaleArray(canonicalized, realm));
     }
 
+    /// <summary>
+    /// Intl.supportedValuesOf() - returns an array containing the supported values for a given key.
+    /// </summary>
+    [JsHostFunction("supportedValuesOf", Length = 1d, DeletePrototype = true)]
+    private static JsValue SupportedValuesOf(IReadOnlyList<JsValue> args, RealmState realm)
+    {
+        var keyValue = args.GetArgument(0);
+        var key = StandardLibrary.JsValueToString(keyValue, realm);
+        var values = IntlUtilities.GetSupportedValues(key, realm);
+        var result = new JsArray(realm);
+        foreach (var value in values)
+        {
+            result.Push(value);
+        }
+
+        return JsValue.FromJsArray(result);
+    }
+
     public static JsObject CreateIntlObject(RealmState realm)
     {
         var intl = new JsObject(realm.ObjectPrototype);
@@ -88,47 +106,10 @@ public static partial class IntlHelper
                 Configurable = true
             });
 
-        // Register getCanonicalLocales via source-generated registration
+        // Register getCanonicalLocales and supportedValuesOf via source-generated registration
         RegisterHostFunctions(intl, realm);
 
-        var supportedValuesOf =
-            new HostFunction(args => JsValue.FromJsArray(CreateSupportedValuesResult(args)), realm, false);
-        supportedValuesOf.DefineProperty("length",
-            new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
-        supportedValuesOf.DefineProperty("name",
-            new PropertyDescriptor
-            {
-                Value = "supportedValuesOf",
-                Writable = false,
-                Enumerable = false,
-                Configurable = true
-            });
-        supportedValuesOf.Delete("prototype");
-
-        intl.DefineProperty("supportedValuesOf",
-            new PropertyDescriptor
-            {
-                Value = supportedValuesOf,
-                Writable = true,
-                Enumerable = false,
-                Configurable = true
-            });
-
         return intl;
-
-        JsArray CreateSupportedValuesResult(IReadOnlyList<JsValue> args)
-        {
-            var keyValue = args.GetArgument(0);
-            var key = StandardLibrary.JsValueToString(keyValue, realm);
-            var values = IntlUtilities.GetSupportedValues(key, realm);
-            var result = new JsArray(realm);
-            foreach (var value in values)
-            {
-                result.Push(value);
-            }
-
-            return result;
-        }
     }
 
     internal static (IReadOnlyList<string> RequestedLocales, string ResolvedLocale) ResolveIntlLocales(

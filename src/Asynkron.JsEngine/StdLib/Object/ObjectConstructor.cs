@@ -538,17 +538,66 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             case ModuleNamespace:
                 throw ThrowTypeError("Cannot set prototype on module namespace", realm: realmState);
             case JsArray array:
+                // Check for prototype cycle before setting
+                if (WouldCreatePrototypeCycle(array, protoAccessor))
+                {
+                    throw ThrowTypeError("Cyclic __proto__ value", realm: realmState);
+                }
                 array.SetPrototype(protoAccessor);
                 break;
             case JsObject obj:
+                // Check for prototype cycle before setting
+                if (WouldCreatePrototypeCycle(obj, protoAccessor))
+                {
+                    throw ThrowTypeError("Cyclic __proto__ value", realm: realmState);
+                }
                 obj.SetPrototype(protoAccessor);
                 break;
             case IJsObjectLike objectLike:
+                // Check for prototype cycle before setting
+                if (WouldCreatePrototypeCycle(objectLike, protoAccessor))
+                {
+                    throw ThrowTypeError("Cyclic __proto__ value", realm: realmState);
+                }
                 objectLike.SetPrototype(protoAccessor);
                 break;
         }
 
         return target is null ? JsValue.Undefined : JsValue.FromObjectUnsafe(target);
+    }
+
+    /// <summary>
+    /// Checks if setting protoAccessor as the prototype of target would create a cycle.
+    /// Per ES spec 10.4.7.2, we must check if target appears anywhere in the prototype chain of protoAccessor.
+    /// </summary>
+    private static bool WouldCreatePrototypeCycle(object target, IJsPropertyAccessor? protoAccessor)
+    {
+        if (protoAccessor is null)
+        {
+            return false;
+        }
+
+        // Walk the prototype chain of protoAccessor to see if target appears
+        IJsPropertyAccessor? current = protoAccessor;
+        var depth = 0;
+        while (current is not null && depth < JsEngineConstants.MaxPrototypeChainDepth)
+        {
+            if (ReferenceEquals(current, target))
+            {
+                return true;
+            }
+
+            // Get the prototype - need to handle different types
+            current = current switch
+            {
+                JsObject obj => obj.Prototype,
+                IJsObjectLike objLike => objLike.Prototype,
+                _ => null
+            };
+            depth++;
+        }
+
+        return false;
     }
 
     [JsConstructorMethod("preventExtensions", Length = 1d)]

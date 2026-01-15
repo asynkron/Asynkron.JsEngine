@@ -2,6 +2,7 @@
 
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.Runtime.Prototypes;
 using Asynkron.JsEngine.StdLib.Intl;
 
 #endregion
@@ -10,6 +11,17 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class IntlHelper
 {
+    /// <summary>
+    /// Intl.getCanonicalLocales() - returns an array containing the canonical locale names.
+    /// </summary>
+    [JsHostFunction("getCanonicalLocales", Length = 1d, DeletePrototype = true)]
+    private static JsValue GetCanonicalLocales(IReadOnlyList<JsValue> args, RealmState realm)
+    {
+        var localesArg = args.GetArgument(0);
+        var canonicalized = IntlUtilities.CanonicalizeLocaleList(localesArg, realm);
+        return JsValue.FromJsArray(CreateLocaleArray(canonicalized, realm));
+    }
+
     public static JsObject CreateIntlObject(RealmState realm)
     {
         var intl = new JsObject(realm.ObjectPrototype);
@@ -76,29 +88,8 @@ public static partial class IntlHelper
                 Configurable = true
             });
 
-        var getCanonicalLocales = new HostFunction(args => JsValue.FromJsArray(CreateCanonicalLocalesResult(args)),
-            realm,
-            false);
-        getCanonicalLocales.DefineProperty("length",
-            new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
-        getCanonicalLocales.DefineProperty("name",
-            new PropertyDescriptor
-            {
-                Value = "getCanonicalLocales",
-                Writable = false,
-                Enumerable = false,
-                Configurable = true
-            });
-        getCanonicalLocales.Delete("prototype");
-
-        intl.DefineProperty("getCanonicalLocales",
-            new PropertyDescriptor
-            {
-                Value = getCanonicalLocales,
-                Writable = true,
-                Enumerable = false,
-                Configurable = true
-            });
+        // Register getCanonicalLocales via source-generated registration
+        RegisterHostFunctions(intl, realm);
 
         var supportedValuesOf =
             new HostFunction(args => JsValue.FromJsArray(CreateSupportedValuesResult(args)), realm, false);
@@ -124,13 +115,6 @@ public static partial class IntlHelper
             });
 
         return intl;
-
-        JsArray CreateCanonicalLocalesResult(IReadOnlyList<JsValue> args)
-        {
-            var localesArg = args.GetArgument(0);
-            var canonicalized = IntlUtilities.CanonicalizeLocaleList(localesArg, realm);
-            return CreateLocaleArray(canonicalized, realm);
-        }
 
         JsArray CreateSupportedValuesResult(IReadOnlyList<JsValue> args)
         {

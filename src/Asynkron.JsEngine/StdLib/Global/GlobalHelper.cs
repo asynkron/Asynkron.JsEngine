@@ -393,7 +393,9 @@ public static partial class GlobalHelper
                 }
 
                 var hex = str.Substring(i + 1, 2);
-                if (!byte.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var b))
+                // Strict validation: both characters must be valid hex digits (no whitespace allowed)
+                if (!IsHexDigit(hex[0]) || !IsHexDigit(hex[1]) ||
+                    !byte.TryParse(hex, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out var b))
                 {
                     throw ThrowURIError("URI malformed", realm: realm);
                 }
@@ -436,7 +438,9 @@ public static partial class GlobalHelper
                         }
 
                         hex = str.Substring(i + 1, 2);
-                        if (!byte.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out b))
+                        // Strict validation: both characters must be valid hex digits
+                        if (!IsHexDigit(hex[0]) || !IsHexDigit(hex[1]) ||
+                            !byte.TryParse(hex, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out b))
                         {
                             throw ThrowURIError("URI malformed", realm: realm);
                         }
@@ -571,6 +575,15 @@ public static partial class GlobalHelper
         }
 
         return new JsValue(sb.ToString());
+    }
+
+    /// <summary>
+    /// Checks if a character is a valid hexadecimal digit (0-9, A-F, a-f).
+    /// Used for strict URI decoding validation per ECMAScript spec.
+    /// </summary>
+    private static bool IsHexDigit(char c)
+    {
+        return c is >= '0' and <= '9' or >= 'A' and <= 'F' or >= 'a' and <= 'f';
     }
 
 }

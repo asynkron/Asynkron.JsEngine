@@ -1,5 +1,6 @@
 #region
 
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime.Prototypes;
 
 #endregion
@@ -7,11 +8,16 @@ using Asynkron.JsEngine.Runtime.Prototypes;
 namespace Asynkron.JsEngine.StdLib;
 
 /// <summary>
-/// AsyncIterator prototype provides the base for async iterators
+/// AsyncIterator prototype provides the base for async iterators.
+/// Per ES spec, %AsyncIteratorPrototype%[@@asyncIterator] is a function that returns 'this'.
 /// </summary>
 [JsPrototype("AsyncIterator", ToStringTag = "AsyncIterator")]
 public sealed partial class AsyncIteratorPrototype : JsPrototype
 {
-    // Note: AsyncIterator has Symbol methods, not regular methods
-    // The main iteration is done via Symbol.asyncIterator
+    /// <summary>
+    /// %AsyncIteratorPrototype%[@@asyncIterator] returns 'this'.
+    /// Per ECMAScript spec, this enables async iterators to be used with for-await-of.
+    /// </summary>
+    [JsSymbolMethod("asyncIterator", Length = 0d)]
+    public static JsValue SelfAsyncIterator(JsValue thisValue) => thisValue;
 }

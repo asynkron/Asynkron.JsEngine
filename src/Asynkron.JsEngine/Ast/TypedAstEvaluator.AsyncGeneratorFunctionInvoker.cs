@@ -52,7 +52,8 @@ public static partial class TypedAstEvaluator
             // %AsyncIteratorPrototype% (inherits from %Object.prototype%)
             if (RealmState.AsyncIteratorPrototype is null)
             {
-                var asyncIteratorProto = new JsObject();
+                // Use the generated prototype factory to get Symbol.asyncIterator method
+                var asyncIteratorProto = (JsObject)AsyncIteratorPrototype.CreatePrototype(RealmState);
                 if (RealmState.ObjectPrototype is not null)
                 {
                     asyncIteratorProto.SetPrototype(RealmState.ObjectPrototype);

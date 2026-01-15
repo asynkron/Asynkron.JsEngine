@@ -4478,17 +4478,18 @@ public sealed class JsAstParser(
                 return token.Literal?.ToString() ?? string.Empty;
             }
 
-            // Legacy octal escape sequences are AnnexB features and always rejected
-            if (decoded.HasLegacyOctal)
+            // Legacy octal escape sequences are AnnexB features - allowed in non-strict mode
+            if (InStrictContext && decoded.HasLegacyOctal)
             {
                 throw new ParseException(
-                    "Legacy octal escape sequences are not allowed. Use \\x or \\u escapes instead.", token,
+                    "Legacy octal escape sequences are not allowed in strict mode. Use \\x or \\u escapes instead.", token,
                     source);
             }
 
-            if (decoded.HasLegacyNonOctalEscape)
+            // \8 and \9 are only allowed in non-strict mode per Annex B
+            if (InStrictContext && decoded.HasLegacyNonOctalEscape)
             {
-                throw new ParseException("\\8 and \\9 escape sequences are not allowed.", token,
+                throw new ParseException("\\8 and \\9 escape sequences are not allowed in strict mode.", token,
                     source);
             }
 

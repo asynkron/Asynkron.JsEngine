@@ -353,7 +353,7 @@
 - [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_expressions_doesNotEquals("annexB/language/expressions/does-not-equals/emulates-undefined.js",True)
 - [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_expressions_equals("annexB/language/expressions/equals/emulates-undefined.js",False)
 - [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_expressions_equals("annexB/language/expressions/equals/emulates-undefined.js",True)
-- [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_expressions_templateLiteral("annexB/language/expressions/template-literal/legacy-octal-escape-sequence-non-strict.js",False)
+- [x] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_expressions_templateLiteral("annexB/language/expressions/template-literal/legacy-octal-escape-sequence-non-strict.js",False)
 - [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_expressions_typeof("annexB/language/expressions/typeof/emulates-undefined.js",False)
 - [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_expressions_typeof("annexB/language/expressions/typeof/emulates-undefined.js",True)
 - [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_functionCode("annexB/language/function-code/block-decl-func-existing-block-fn-no-init.js",False)

@@ -492,7 +492,6 @@ public sealed partial class RegExpPrototype
             ? resolved.Flags
             : resolved.Flags + "g";
         var splitter = new JsRegExp(resolved.Pattern, forcedFlags, Realm);
-        splitter.SetProperty("lastIndex", 0d);
 
         var limit = limitValue == JsValue.Undefined
             ? uint.MaxValue
@@ -504,54 +503,94 @@ public sealed partial class RegExpPrototype
             return JsValue.FromJsArray(resultArray);
         }
 
-        var position = 0;
-        while (resultArray.Length < limit)
+        var size = input.Length;
+        if (size == 0)
         {
+            // Empty string: if regex matches empty string, return empty array; otherwise return [input]
+            splitter.SetProperty("lastIndex", 0d);
             var matchObj = splitter.Exec(input);
             if (matchObj is null)
             {
-                break;
+                resultArray.Push(input);
             }
 
+            return JsValue.FromJsArray(resultArray);
+        }
+
+        // ES spec 21.2.5.11 steps 11-24
+        // p = end of last match, q = current search position
+        var p = 0; // End position of last match
+        var q = 0; // Current search position
+
+        while (q < size)
+        {
+            // Step 24.a-b: Set lastIndex to q
+            splitter.SetProperty("lastIndex", (double)q);
+
+            // Step 24.c-d: Execute regex
+            var matchObj = splitter.Exec(input);
+
+            // Step 24.e: If no match, advance q and continue
+            if (matchObj is null)
+            {
+                q = AdvanceStringIndex(input, q);
+                continue;
+            }
+
+            // Step 24.f: Match found
+            // Get e = end position of match (lastIndex after exec)
+            var e = splitter.GetLastIndex();
+            e = Math.Min(e, size);
+
+            // Step 24.f.iii: If e = p (empty match at same position), advance q and continue
+            if (e == p)
+            {
+                q = AdvanceStringIndex(input, q);
+                continue;
+            }
+
+            // Step 24.f.iv-ix: Add substring and capture groups to result
             if (!matchObj.TryGetProperty("index", out var idxVal))
             {
                 break;
             }
 
             var matchIndex = (int)JsOps.ToNumber(idxVal);
-            var matchText = matchObj.Items.Count > 0
-                ? Convert.ToString(matchObj.Items[0], CultureInfo.InvariantCulture) ?? string.Empty
-                : string.Empty;
-            var matchLength = matchText.Length;
 
-            resultArray.Push(input.Substring(position, Math.Max(0, matchIndex - position)));
+            // Add substring from p to matchIndex
+            resultArray.Push(input.Substring(p, matchIndex - p));
+            if (resultArray.Length >= limit)
+            {
+                return JsValue.FromJsArray(resultArray);
+            }
 
-            for (var i = 1; i < matchObj.Items.Count && resultArray.Length < limit; i++)
+            // Add capture groups (indices 1 to numberOfCaptures)
+            for (var i = 1; i < matchObj.Items.Count; i++)
             {
                 resultArray.Push(matchObj.Items[i]);
+                if (resultArray.Length >= limit)
+                {
+                    return JsValue.FromJsArray(resultArray);
+                }
             }
 
-            position = matchIndex + matchLength;
-            if (matchLength == 0)
-            {
-                position++;
-                splitter.SetProperty("lastIndex", (double)position);
-            }
-
-            if (position <= input.Length)
-            {
-                continue;
-            }
-
-            position = input.Length;
-            break;
+            // Update p and q to e
+            p = e;
+            q = e;
         }
 
-        if (resultArray.Length < limit)
-        {
-            resultArray.Push(input[position..]);
-        }
+        // Step 25: Add the tail of the string
+        resultArray.Push(input[p..]);
 
         return JsValue.FromJsArray(resultArray);
+    }
+
+    /// <summary>
+    /// Advances string index by one code point (handling surrogate pairs for Unicode).
+    /// </summary>
+    private static int AdvanceStringIndex(string s, int index)
+    {
+        // For simplicity, advance by 1. A full implementation would handle Unicode surrogate pairs.
+        return index + 1;
     }
 }

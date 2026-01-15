@@ -767,8 +767,18 @@ public sealed class JsRegExp
                             if (endBracket != -1)
                             {
                                 var name = pattern.Substring(i + 2, endBracket - (i + 2));
-                                var normalizedName = NormalizeGroupNameToken(name);
-                                if (allGroupNames.Contains(normalizedName))
+                                // Per Annex B: if name is invalid or no matching group exists, treat as literal
+                                string? normalizedName = null;
+                                try
+                                {
+                                    normalizedName = NormalizeGroupNameToken(name);
+                                }
+                                catch (ParseException)
+                                {
+                                    // Invalid group name (e.g., starts with digit) - treat as literal
+                                }
+
+                                if (normalizedName is not null && allGroupNames.Contains(normalizedName))
                                 {
                                     if (definedSoFar.Contains(normalizedName))
                                     {
@@ -794,7 +804,7 @@ public sealed class JsRegExp
                                     continue;
                                 }
 
-                                // Per Annex B: no matching group, treat \k<name> as literal "k<name>"
+                                // Per Annex B: no matching group or invalid name, treat \k<name> as literal "k<name>"
                                 // Output 'k' as literal and advance past the entire \k<name> sequence
                                 AppendCodePoint(builder, 'k', false, ignoreCase, true);
                                 // The '<name>' part will be processed on subsequent iterations

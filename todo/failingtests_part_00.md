@@ -2,8 +2,8 @@
 
 - [x] Asynkron.JsEngine.Tests.Test262.AnnexBTests.BuiltIns_RegExp_namedGroups("annexB/built-ins/RegExp/named-groups/non-unicode-malformed-lookbehind.js",False)
 - [x] Asynkron.JsEngine.Tests.Test262.AnnexBTests.BuiltIns_RegExp_namedGroups("annexB/built-ins/RegExp/named-groups/non-unicode-malformed-lookbehind.js",True)
-- [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.BuiltIns_RegExp_namedGroups("annexB/built-ins/RegExp/named-groups/non-unicode-malformed.js",False)
-- [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.BuiltIns_RegExp_namedGroups("annexB/built-ins/RegExp/named-groups/non-unicode-malformed.js",True)
+- [x] Asynkron.JsEngine.Tests.Test262.AnnexBTests.BuiltIns_RegExp_namedGroups("annexB/built-ins/RegExp/named-groups/non-unicode-malformed.js",False)
+- [x] Asynkron.JsEngine.Tests.Test262.AnnexBTests.BuiltIns_RegExp_namedGroups("annexB/built-ins/RegExp/named-groups/non-unicode-malformed.js",True)
 - [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.BuiltIns_RegExp_prototype_compile("annexB/built-ins/RegExp/prototype/compile/duplicate-named-capturing-groups-syntax.js",False)
 - [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.BuiltIns_RegExp_prototype_compile("annexB/built-ins/RegExp/prototype/compile/duplicate-named-capturing-groups-syntax.js",True)
 - [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.BuiltIns_RegExp_prototype_compile("annexB/built-ins/RegExp/prototype/compile/flags-string-invalid.js",False)

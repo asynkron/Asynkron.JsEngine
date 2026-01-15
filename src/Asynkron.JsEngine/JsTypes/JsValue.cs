@@ -497,13 +497,13 @@ public readonly struct JsValue : IEquatable<JsValue>
         return false;
     }
 
-    /// <summary>Tries to get the Symbol value. Returns true if this is a Symbol.</summary>
+    /// <summary>Tries to get the JavaScript Symbol value. Returns true if this is a Symbol.</summary>
     [MethodImpl(JsEngineConstants.Inlining)]
-    public bool TryGetSymbol([NotNullWhen(true)] out Symbol? value)
+    public bool TryGetSymbol([NotNullWhen(true)] out JsSymbol? value)
     {
         if (Kind == JsValueKind.Symbol)
         {
-            value = (Symbol)ObjectValue!;
+            value = (JsSymbol)ObjectValue!;
             return true;
         }
 

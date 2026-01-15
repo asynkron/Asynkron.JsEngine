@@ -54,7 +54,7 @@ public sealed partial class TypedArrayConstructor(IJsObjectLike prototype, Realm
     /// <summary>
     /// %TypedArray%.from ( source [ , mapfn [ , thisArg ] ] )
     /// </summary>
-    [JsHostFunction("from", Target = JsHostFunctionTarget.Constructor, Length = 1d)]
+    [JsHostFunction("from", Target = JsHostFunctionTarget.Constructor, TargetName = "TypedArrayConstructor", Length = 1d)]
     private JsValue TypedArrayFrom(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         // 1. Let C be the this value.
@@ -180,7 +180,7 @@ public sealed partial class TypedArrayConstructor(IJsObjectLike prototype, Realm
     /// <summary>
     /// %TypedArray%.of ( ...items )
     /// </summary>
-    [JsHostFunction("of", Target = JsHostFunctionTarget.Constructor, Length = 0d)]
+    [JsHostFunction("of", Target = JsHostFunctionTarget.Constructor, TargetName = "TypedArrayConstructor", Length = 0d)]
     private JsValue TypedArrayOf(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         // 1. Let len be the actual number of arguments passed to this function.

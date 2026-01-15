@@ -54,6 +54,10 @@ private static JsValue ParseInt(IReadOnlyList<JsValue> args)
 3. Signature options: `(IReadOnlyList<JsValue> args)`, `(IReadOnlyList<JsValue> args, RealmState realm)`, or `(IReadOnlyList<JsValue> args, EvaluationContext? context)`
 4. Old factory methods can be marked `[Obsolete]` during transition
 
+### Example Migration
+
+See commit [`c38fc206`](https://github.com/AsynkronIT/Asynkron.JsEngine/commit/c38fc206) for a complete example migrating `Intl.getCanonicalLocales` from manual HostFunction to `[JsHostFunction]` attribute.
+
 ### How to Find Work
 
 1. Search `*Helper.cs` files in `src/Asynkron.JsEngine/StdLib/` for `new HostFunction`

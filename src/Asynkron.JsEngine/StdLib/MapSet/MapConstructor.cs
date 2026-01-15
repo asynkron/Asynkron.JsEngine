@@ -30,6 +30,20 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
             return;
         }
 
+        // ES spec: Map constructor step 7-8
+        // 7. Let adder be ? Get(map, "set").
+        // 8. If IsCallable(adder) is false, throw a TypeError exception.
+        if (!instance.TryGetProperty("set", out var adderValue) ||
+            !adderValue.TryGetObject<IJsCallable>(out var adder))
+        {
+            throw ThrowTypeError("Map.prototype.set is not callable", realm: Realm);
+        }
+
+        var instanceValue = JsValue.FromObjectUnsafe(instance);
+
+        // ES spec: Map constructor step 9
+        // Call adder with map as this and key, value as arguments
+        // If abrupt, close iterator (handled by MapSetIterationHelper.Iterate)
         MapSetIterationHelper.Iterate(args[0], Realm, "Map constructor", entry =>
         {
             JsValue key;
@@ -50,7 +64,7 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
                 throw ThrowTypeError("Map constructor expects iterable entries", realm: Realm);
             }
 
-            instance.Set(key, value);
+            adder.Invoke([key, value], instanceValue);
         });
     }
 

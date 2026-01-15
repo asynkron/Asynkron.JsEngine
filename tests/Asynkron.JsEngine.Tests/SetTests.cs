@@ -362,4 +362,5 @@ public sealed class SetTests(ITestOutputHelper output) : InternalTestBase(output
                                        """);
         Assert.Equal(2.0, result);
     }
+
 }

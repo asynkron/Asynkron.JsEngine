@@ -16,59 +16,67 @@ public sealed partial class ObjectPrototype
     [JsHostMethod("toString", Length = 0d)]
     private static JsValue ToString(JsValue thisValue)
     {
+        // ES spec: Object.prototype.toString
+        // 1-3. Let O be ToObject(this value)
+        // 4. Let isArray = IsArray(O)
+        // 5-14. Determine builtinTag based on internal slots
+        // 15. Let tag = Get(O, @@toStringTag)
+        // 16. If Type(tag) is not String, set tag to builtinTag
+        // 17. Return "[object " + tag + "]"
+
+        // First, determine the builtinTag based on internal slots and type
+        string builtinTag;
+        if (thisValue.IsNull)
+        {
+            builtinTag = "Null";
+        }
+        else if (thisValue.IsUndefined)
+        {
+            builtinTag = "Undefined";
+        }
+        else if (thisValue.IsString)
+        {
+            builtinTag = "String";
+        }
+        else if (thisValue.IsNumber)
+        {
+            builtinTag = "Number";
+        }
+        else if (thisValue.IsBoolean)
+        {
+            builtinTag = "Boolean";
+        }
+        else if (thisValue.TryGetObject<JsArray>(out _))
+        {
+            builtinTag = "Array";
+        }
+        else if (thisValue.TryGetObject<IJsCallable>(out _))
+        {
+            builtinTag = "Function";
+        }
+        else
+        {
+            builtinTag = "Object";
+        }
+
+        // Now check for @@toStringTag - only use it if it's a string
         var tagKey = SymbolKeys.ToStringTag;
         if (thisValue.TryGetObject<JsObject>(out var obj))
         {
-            if (obj.TryGetProperty(tagKey, out var tagValue) && !tagValue.IsUndefined)
+            if (obj.TryGetProperty(tagKey, out var tagValue) && tagValue.IsString)
             {
-                var tagString = JsOps.ToJsString(tagValue);
-                return $"[object {tagString}]";
+                return $"[object {tagValue.AsString()}]";
             }
         }
         else if (thisValue.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
-            if (accessor.TryGetProperty(tagKey, out var tagValue) && !tagValue.IsUndefined)
+            if (accessor.TryGetProperty(tagKey, out var tagValue) && tagValue.IsString)
             {
-                var tagString = JsOps.ToJsString(tagValue);
-                return $"[object {tagString}]";
+                return $"[object {tagValue.AsString()}]";
             }
         }
 
-        string tag;
-        if (thisValue.IsNull)
-        {
-            tag = "Null";
-        }
-        else if (thisValue.IsUndefined)
-        {
-            tag = "Undefined";
-        }
-        else if (thisValue.IsString)
-        {
-            tag = "String";
-        }
-        else if (thisValue.IsNumber)
-        {
-            tag = "Number";
-        }
-        else if (thisValue.IsBoolean)
-        {
-            tag = "Boolean";
-        }
-        else if (thisValue.TryGetObject<JsArray>(out _))
-        {
-            tag = "Array";
-        }
-        else if (thisValue.TryGetObject<IJsCallable>(out _))
-        {
-            tag = "Function";
-        }
-        else
-        {
-            tag = "Object";
-        }
-
-        return $"[object {tag}]";
+        return $"[object {builtinTag}]";
     }
 
     [JsHostMethod("valueOf", Length = 0d)]

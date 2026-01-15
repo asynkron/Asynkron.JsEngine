@@ -8,7 +8,7 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib;
 
-[JsPrototype("Error", ToStringTag = "Error")]
+[JsPrototype("Error")]
 public sealed partial class ErrorPrototype : JsPrototype
 {
     [JsHostMethod("toString", Length = 0d)]

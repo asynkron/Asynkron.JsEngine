@@ -19,34 +19,36 @@ public static class ObjectHelper
 
     internal static PropertyDescriptor ToPropertyDescriptor(JsValue candidate, RealmState realm)
     {
-        if (!candidate.TryGetObject(out var descriptorObject))
+        // Use IsObject instead of TryGetObject to accept any object type (JsObject, JsArgumentsObject, etc.)
+        if (!candidate.IsObject)
         {
             throw ThrowTypeError("Property description must be an object", realm: realm);
         }
 
         var descriptor = new PropertyDescriptor();
 
-        if (descriptorObject.TryGetProperty("enumerable", out var enumerableValue))
+        // Use JsOps.TryGetPropertyValue to access properties on any object type
+        if (JsOps.TryGetPropertyValue(candidate, "enumerable", out var enumerableValue))
         {
             descriptor.Enumerable = JsOps.ToBoolean(enumerableValue);
         }
 
-        if (descriptorObject.TryGetProperty("configurable", out var configurableValue))
+        if (JsOps.TryGetPropertyValue(candidate, "configurable", out var configurableValue))
         {
             descriptor.Configurable = JsOps.ToBoolean(configurableValue);
         }
 
-        if (descriptorObject.TryGetProperty("value", out var valueValue))
+        if (JsOps.TryGetPropertyValue(candidate, "value", out var valueValue))
         {
             descriptor.JsValue = valueValue;
         }
 
-        if (descriptorObject.TryGetProperty("writable", out var writableValue))
+        if (JsOps.TryGetPropertyValue(candidate, "writable", out var writableValue))
         {
             descriptor.Writable = JsOps.ToBoolean(writableValue);
         }
 
-        if (descriptorObject.TryGetProperty("get", out var getterValue))
+        if (JsOps.TryGetPropertyValue(candidate, "get", out var getterValue))
         {
             if (!getterValue.IsUndefined && !getterValue.TryGetObject<IJsCallable>(out _))
             {
@@ -60,7 +62,7 @@ public static class ObjectHelper
                     : null;
         }
 
-        if (descriptorObject.TryGetProperty("set", out var setterValue))
+        if (JsOps.TryGetPropertyValue(candidate, "set", out var setterValue))
         {
             if (!setterValue.IsUndefined && !setterValue.TryGetObject<IJsCallable>(out _))
             {

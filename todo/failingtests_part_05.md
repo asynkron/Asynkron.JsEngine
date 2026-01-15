@@ -499,4 +499,4 @@
 - [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Object_create("built-ins/Object/create/15.2.3.5-4-166.js",True)
 - [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Object_create("built-ins/Object/create/15.2.3.5-4-17.js",False)
 - [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Object_create("built-ins/Object/create/15.2.3.5-4-17.js",True)
-- [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Object_create("built-ins/Object/create/15.2.3.5-4-175.js",False)
+- [x] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Object_create("built-ins/Object/create/15.2.3.5-4-175.js",False)

@@ -76,6 +76,10 @@ public static partial class TypedAstEvaluator
                 var asyncGenFuncProto = new JsObject();
                 asyncGenFuncProto.SetPrototype(RealmState.FunctionPrototype);
 
+                // Add Symbol.toStringTag property per ES spec (non-writable, non-enumerable, configurable)
+                asyncGenFuncProto.DefineProperty(SymbolKeys.ToStringTag,
+                    new PropertyDescriptor { Value = "AsyncGeneratorFunction", Writable = false, Enumerable = false, Configurable = true });
+
                 asyncGenFuncProto.DefineProperty("prototype",
                     new PropertyDescriptor
                     {

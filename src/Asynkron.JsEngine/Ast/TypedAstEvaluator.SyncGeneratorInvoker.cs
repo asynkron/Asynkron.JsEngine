@@ -69,6 +69,10 @@ public static partial class TypedAstEvaluator
                 var genFuncProto = new JsObject();
                 genFuncProto.SetPrototype(RealmState.FunctionPrototype);
 
+                // Add Symbol.toStringTag property per ES spec (non-writable, non-enumerable, configurable)
+                genFuncProto.DefineProperty(SymbolKeys.ToStringTag,
+                    new PropertyDescriptor { Value = "GeneratorFunction", Writable = false, Enumerable = false, Configurable = true });
+
                 // %GeneratorFunction.prototype% should have a .prototype property pointing to %GeneratorPrototype%
                 genFuncProto.DefineProperty("prototype",
                     new PropertyDescriptor

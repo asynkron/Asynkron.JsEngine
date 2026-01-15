@@ -588,7 +588,7 @@ public sealed partial class RegExpPrototype
     /// <summary>
     /// Advances string index by one code point (handling surrogate pairs for Unicode).
     /// </summary>
-    private static int AdvanceStringIndex(string s, int index)
+    private static int AdvanceStringIndex(string _, int index)
     {
         // For simplicity, advance by 1. A full implementation would handle Unicode surrogate pairs.
         return index + 1;

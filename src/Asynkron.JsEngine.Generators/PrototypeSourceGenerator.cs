@@ -1461,6 +1461,15 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
             implementedMethods.Add(method.PropertyName);
         }
 
+        // Also include host functions that target the constructor
+        foreach (var hf in info.HostFunctions)
+        {
+            if (hf.Target == HostFunctionTarget.Constructor)
+            {
+                implementedMethods.Add(hf.Name);
+            }
+        }
+
         var implementedGetters = new HashSet<string>(StringComparer.Ordinal);
         var implementedSetters = new HashSet<string>(StringComparer.Ordinal);
         var implementedSymbolMethods = new HashSet<string>(StringComparer.Ordinal);

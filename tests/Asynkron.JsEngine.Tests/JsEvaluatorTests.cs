@@ -2089,4 +2089,21 @@ testFunction();
         var stillNull = await engine.Evaluate("Object.getPrototypeOf(Object.prototype) === null");
         Assert.True((bool)stillNull!, "Object.prototype's prototype should still be null");
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task TypedArray_From_WithSparseArray()
+    {
+        // Test that TypedArray.from correctly handles sparse arrays
+        // This was broken by a source generator bug that generated stub methods
+        // that overwrote real implementations
+        await using var engine = CreateEngine();
+
+        // BigInt64Array.from with sparse array
+        var result = await engine.Evaluate(@"
+            var sparseArray = [0, 1, , 3]; // Element at index 2 is missing (hole)
+            var ta = BigInt64Array.from(sparseArray, (x) => BigInt(x || 0));
+            [ta[0], ta[1], ta[2], ta[3]].map(Number).join(',');
+        ");
+        Assert.Equal("0,1,0,3", result);
+    }
 }

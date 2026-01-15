@@ -793,12 +793,17 @@ public sealed class JsRegExp
                                     i = endBracket;
                                     continue;
                                 }
+
+                                // Per Annex B: no matching group, treat \k<name> as literal "k<name>"
+                                // Output 'k' as literal and advance past the entire \k<name> sequence
+                                AppendCodePoint(builder, 'k', false, ignoreCase, true);
+                                // The '<name>' part will be processed on subsequent iterations
+                                continue;
                             }
                         }
 
-                        // Not a valid named backreference, treat as literal
-                        builder.Append('\\');
-                        builder.Append('k');
+                        // Not a valid named backreference syntax, treat \k as literal 'k'
+                        AppendCodePoint(builder, 'k', false, ignoreCase, true);
                         continue;
 
                     case var _ when char.IsDigit(c):
@@ -1108,6 +1113,12 @@ public sealed class JsRegExp
 
             if (c == '(' && i + 2 < pattern.Length && pattern[i + 1] == '?' && pattern[i + 2] == '<')
             {
+                // Skip lookbehind assertions: (?<=...) and (?<!...)
+                if (i + 3 < pattern.Length && (pattern[i + 3] == '=' || pattern[i + 3] == '!'))
+                {
+                    continue;
+                }
+
                 var end = pattern.IndexOf('>', i + 3);
                 if (end == -1)
                 {

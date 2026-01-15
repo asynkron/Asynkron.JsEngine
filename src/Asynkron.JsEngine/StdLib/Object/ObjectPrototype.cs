@@ -312,6 +312,10 @@ public sealed partial class ObjectPrototype
         {
             Realm.ObjectPrototype ??= objectProto;
 
+            // Object.prototype is an immutable prototype exotic object per ES spec 9.4.7
+            // Its [[SetPrototypeOf]] returns false for any value other than null (its current prototype)
+            objectProto.IsImmutablePrototype = true;
+
             Realm.FunctionPrototype?.SetPrototype(objectProto);
             Realm.BooleanPrototype?.SetPrototype(objectProto);
             Realm.NumberPrototype?.SetPrototype(objectProto);
@@ -372,7 +376,16 @@ public sealed partial class ObjectPrototype
             return JsValue.Undefined;
         }
 
-        obj.SetPrototype(protoToSet);
+        try
+        {
+            obj.SetPrototype(protoToSet);
+        }
+        catch (ThrowSignal)
+        {
+            // Silently fail for immutable prototype exotic objects
+            // Per spec, the __proto__ setter returns undefined in all cases
+        }
+
         return JsValue.Undefined;
     }
 }

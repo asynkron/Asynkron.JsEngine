@@ -531,36 +531,45 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         }
 
         var target = targetValue.ObjectValue;
-        switch (target)
+        try
         {
-            case ModuleNamespace when protoAccessor is null:
-                return JsValue.FromObjectUnsafe(target);
-            case ModuleNamespace:
-                throw ThrowTypeError("Cannot set prototype on module namespace", realm: realmState);
-            case JsArray array:
-                // Check for prototype cycle before setting
-                if (WouldCreatePrototypeCycle(array, protoAccessor))
-                {
-                    throw ThrowTypeError("Cyclic __proto__ value", realm: realmState);
-                }
-                array.SetPrototype(protoAccessor);
-                break;
-            case JsObject obj:
-                // Check for prototype cycle before setting
-                if (WouldCreatePrototypeCycle(obj, protoAccessor))
-                {
-                    throw ThrowTypeError("Cyclic __proto__ value", realm: realmState);
-                }
-                obj.SetPrototype(protoAccessor);
-                break;
-            case IJsObjectLike objectLike:
-                // Check for prototype cycle before setting
-                if (WouldCreatePrototypeCycle(objectLike, protoAccessor))
-                {
-                    throw ThrowTypeError("Cyclic __proto__ value", realm: realmState);
-                }
-                objectLike.SetPrototype(protoAccessor);
-                break;
+            switch (target)
+            {
+                case ModuleNamespace when protoAccessor is null:
+                    return JsValue.FromObjectUnsafe(target);
+                case ModuleNamespace:
+                    throw ThrowTypeError("Cannot set prototype on module namespace", realm: realmState);
+                case JsArray array:
+                    // Check for prototype cycle before setting
+                    if (WouldCreatePrototypeCycle(array, protoAccessor))
+                    {
+                        throw ThrowTypeError("Cyclic __proto__ value", realm: realmState);
+                    }
+                    array.SetPrototype(protoAccessor);
+                    break;
+                case JsObject obj:
+                    // Check for prototype cycle before setting
+                    if (WouldCreatePrototypeCycle(obj, protoAccessor))
+                    {
+                        throw ThrowTypeError("Cyclic __proto__ value", realm: realmState);
+                    }
+                    obj.SetPrototype(protoAccessor);
+                    break;
+                case IJsObjectLike objectLike:
+                    // Check for prototype cycle before setting
+                    if (WouldCreatePrototypeCycle(objectLike, protoAccessor))
+                    {
+                        throw ThrowTypeError("Cyclic __proto__ value", realm: realmState);
+                    }
+                    objectLike.SetPrototype(protoAccessor);
+                    break;
+            }
+        }
+        catch (ThrowSignal)
+        {
+            // SetPrototype returns false for immutable prototype exotic objects (like Object.prototype)
+            // Per spec, Object.setPrototypeOf throws TypeError if [[SetPrototypeOf]] returns false
+            throw ThrowTypeError("Cannot set prototype of object", realm: realmState);
         }
 
         return target is null ? JsValue.Undefined : JsValue.FromObjectUnsafe(target);

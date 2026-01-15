@@ -201,12 +201,35 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
     public bool IsSealed { get; private set; }
 
+    /// <summary>
+    /// Gets or sets whether this object is an immutable prototype exotic object.
+    /// When true, SetPrototype will throw if the new prototype differs from the current one.
+    /// This is used for Object.prototype per ES spec 9.4.7.
+    /// </summary>
+    public bool IsImmutablePrototype { get; set; }
+
     IEnumerable<string> IJsObjectLike.Keys => _state?.Storage.Keys ?? Array.Empty<string>();
 
     public void SetPrototype(IJsPropertyAccessor? candidate)
     {
-        MarkMutated();
         var previous = PrototypeAccessor ?? Prototype;
+
+        // For immutable prototype exotic objects (like Object.prototype),
+        // [[SetPrototypeOf]] returns false if V differs from current prototype.
+        // We throw a ThrowSignal to signal this, which callers can catch.
+        if (IsImmutablePrototype)
+        {
+            // Per spec: If SameValue(V, current) is true, return true
+            if (ReferenceEquals(candidate, previous))
+            {
+                return; // Success - no change needed
+            }
+
+            // Per spec: Return false (we throw to indicate failure)
+            throw new ThrowSignal(JsValue.Undefined);
+        }
+
+        MarkMutated();
         PrototypeAccessor = candidate as IJsPropertyAccessor;
         Prototype = candidate as JsObject;
 

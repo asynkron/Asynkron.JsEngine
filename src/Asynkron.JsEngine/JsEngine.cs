@@ -243,14 +243,6 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("Intl", IntlHelper.CreateIntlObject(RealmState));
         SetGlobal("Temporal", TemporalHelper.CreateTemporalObject(RealmState));
 
-        // Register Error constructors
-        SetGlobal("Error", ErrorConstructor.CreateConstructor(RealmState));
-        SetGlobal("TypeError", TypeErrorConstructor.CreateConstructor(RealmState));
-        SetGlobal("RangeError", RangeErrorConstructor.CreateConstructor(RealmState));
-        SetGlobal("ReferenceError", ReferenceErrorConstructor.CreateConstructor(RealmState));
-        SetGlobal("SyntaxError", SyntaxErrorConstructor.CreateConstructor(RealmState));
-        SetGlobal("EvalError", EvalErrorConstructor.CreateConstructor(RealmState));
-
         // Register eval function as an environment-aware callable
         // This allows eval to execute code in the caller's scope without blocking the event loop
         SetGlobal("eval", new EvalHostFunction(this));

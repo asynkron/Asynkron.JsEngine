@@ -144,4 +144,22 @@ public sealed class TodoBugFixTests : Test262Test
     {
         RunTestCode(test, strict);
     }
+
+    // FIXED: push should use SetPropertyOrThrow to properly throw on non-writable properties
+    [TestCase("built-ins/Array/prototype/push/length-near-integer-limit-set-failure.js", false)]
+    [TestCase("built-ins/Array/prototype/push/length-near-integer-limit-set-failure.js", true)]
+    [TestCase("built-ins/Array/prototype/push/length-near-integer-limit.js", false)]
+    [TestCase("built-ins/Array/prototype/push/length-near-integer-limit.js", true)]
+    [TestCase("built-ins/Array/prototype/push/S15.4.4.7_A3.js", false)]
+    [TestCase("built-ins/Array/prototype/push/S15.4.4.7_A3.js", true)]
+    [TestCase("built-ins/Array/prototype/push/S15.4.4.7_A4_T1.js", false)]
+    [TestCase("built-ins/Array/prototype/push/S15.4.4.7_A4_T1.js", true)]
+    [TestCase("built-ins/Array/prototype/push/S15.4.4.7_A4_T2.js", false)]
+    [TestCase("built-ins/Array/prototype/push/S15.4.4.7_A4_T2.js", true)]
+    [TestCase("built-ins/Array/prototype/push/throws-with-string-receiver.js", false)]
+    [TestCase("built-ins/Array/prototype/push/throws-with-string-receiver.js", true)]
+    public void Array_push_setPropertyOrThrow_tests(string test, bool strict)
+    {
+        RunTestCode(test, strict);
+    }
 }

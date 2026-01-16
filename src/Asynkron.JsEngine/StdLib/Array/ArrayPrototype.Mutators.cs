@@ -13,7 +13,8 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("push", Length = 1d)]
     public JsValue Push(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.push", Realm);
+        const string MethodName = "Array.prototype.push";
+        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
 
         // Re-entrancy guard: prevent infinite recursion when length getter calls push
         const string ReentrancyKey = "__inPush__";
@@ -38,11 +39,12 @@ public sealed partial class ArrayPrototype
             for (var i = 0; i < args.Count; i++)
             {
                 var index = length + i;
-                accessor.SetProperty(ToIndexString(index), args[i]);
+                // ES spec: Set(O, ! ToString(len), E, true) - must throw on failure
+                SetPropertyOrThrow(accessor, ToIndexString(index), args[i], Realm, MethodName);
             }
 
-            // Set length using ToUint32 semantics
-            accessor.SetProperty("length", (double)newLength);
+            // ES spec: Set(O, "length", len, true) - must throw on failure
+            SetPropertyOrThrow(accessor, "length", new JsValue((double)newLength), Realm, MethodName);
             return new JsValue((double)newLength);
         }
         finally

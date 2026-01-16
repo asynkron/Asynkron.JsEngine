@@ -131,14 +131,14 @@
 - [x] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_splice("built-ins/Array/prototype/splice/called_with_one_argument.js",True)
 - [x] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_splice("built-ins/Array/prototype/splice/clamps-length-to-integer-limit.js",False)
 - [x] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_splice("built-ins/Array/prototype/splice/clamps-length-to-integer-limit.js",True)
-- [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_splice("built-ins/Array/prototype/splice/create-non-array-invalid-len.js",False)
-- [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_splice("built-ins/Array/prototype/splice/create-non-array-invalid-len.js",True)
-- [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_splice("built-ins/Array/prototype/splice/create-species-length-exceeding-integer-limit.js",False)
-- [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_splice("built-ins/Array/prototype/splice/create-species-length-exceeding-integer-limit.js",True)
-- [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_splice("built-ins/Array/prototype/splice/create-species-undef-invalid-len.js",False)
-- [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_splice("built-ins/Array/prototype/splice/create-species-undef-invalid-len.js",True)
-- [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_splice("built-ins/Array/prototype/splice/create-species.js",False)
-- [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_splice("built-ins/Array/prototype/splice/create-species.js",True)
+- [x] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_splice("built-ins/Array/prototype/splice/create-non-array-invalid-len.js",False)
+- [x] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_splice("built-ins/Array/prototype/splice/create-non-array-invalid-len.js",True)
+- [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_splice("built-ins/Array/prototype/splice/create-species-length-exceeding-integer-limit.js",False) <!-- Related to #582 - empty throw -->
+- [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_splice("built-ins/Array/prototype/splice/create-species-length-exceeding-integer-limit.js",True) <!-- Related to #582 - empty throw -->
+- [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_splice("built-ins/Array/prototype/splice/create-species-undef-invalid-len.js",False) <!-- Related to #582 - empty throw -->
+- [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_splice("built-ins/Array/prototype/splice/create-species-undef-invalid-len.js",True) <!-- Related to #582 - empty throw -->
+- [x] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_splice("built-ins/Array/prototype/splice/create-species.js",False)
+- [x] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_splice("built-ins/Array/prototype/splice/create-species.js",True)
 - [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_splice("built-ins/Array/prototype/splice/length-and-deleteCount-exceeding-integer-limit.js",False)
 - [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_splice("built-ins/Array/prototype/splice/length-and-deleteCount-exceeding-integer-limit.js",True)
 - [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_splice("built-ins/Array/prototype/splice/length-exceeding-integer-limit-shrink-array.js",False)

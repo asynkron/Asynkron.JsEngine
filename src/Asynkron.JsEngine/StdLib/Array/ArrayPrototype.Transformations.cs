@@ -259,11 +259,24 @@ public sealed partial class ArrayPrototype
             }
 
             string part;
-            // method is already a JsValue from TryGetProperty
-            if (elementObj.TryGetObject<IJsPropertyAccessor>(out var elementAccessor) &&
-                elementAccessor.TryGetProperty("toLocaleString", out var method) &&
+            // Get the appropriate accessor - either the object itself or its prototype for primitives
+            IJsPropertyAccessor? elementAccessor;
+            if (elementObj.TryGetObject<IJsPropertyAccessor>(out var objAccessor))
+            {
+                elementAccessor = objAccessor;
+            }
+            else
+            {
+                // For primitives, get the wrapper prototype
+                elementAccessor = GetPrimitivePrototype(elementObj, Realm);
+            }
+
+            // Look up toLocaleString using the receiver (important for getters in strict mode)
+            if (elementAccessor is not null &&
+                elementAccessor.TryGetProperty("toLocaleString", elementObj, out var method) &&
                 method.TryGetObject<IJsCallable>(out var callable))
             {
+                // Call with the original primitive/object as this
                 var result = callable.Invoke([locales, options], elementObj);
                 part = JsOps.ToJsString(result);
             }
@@ -750,5 +763,15 @@ public sealed partial class ArrayPrototype
 
         SetArrayLikeLength(result, length);
         return JsValue.FromObjectUnsafe(result);
+    }
+
+    private static IJsPropertyAccessor? GetPrimitivePrototype(JsValue value, RealmState? realm)
+    {
+        if (value.IsBoolean) return realm?.BooleanPrototype;
+        if (value.IsNumber) return realm?.NumberPrototype;
+        if (value.IsString) return realm?.StringPrototype;
+        if (value.IsSymbol) return realm?.SymbolPrototype;
+        if (value.IsBigInt) return realm?.BigIntPrototype;
+        return realm?.ObjectPrototype;
     }
 }

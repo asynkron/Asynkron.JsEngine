@@ -155,10 +155,54 @@ public sealed partial class ObjectPrototype
     }
 
     [JsHostMethod("toLocaleString", Length = 0d)]
-    private static JsValue ToLocaleString(JsValue thisValue)
+    private JsValue ToLocaleString(JsValue thisValue)
     {
-        // Spec: Object.prototype.toLocaleString delegates to toString().
-        return ToString(thisValue);
+        // ES spec 20.1.3.5: Object.prototype.toLocaleString ( [ reserved1 [ , reserved2 ] ] )
+        // 1. Let O be the this value.
+        // 2. Return ? Invoke(O, "toString").
+
+        // RequireObjectCoercible: throw if null or undefined
+        if (thisValue.IsNullOrUndefined)
+        {
+            throw ThrowTypeError("Object.prototype.toLocaleString called on null or undefined", realm: Realm);
+        }
+
+        // Invoke(O, "toString") = Call(GetV(O, "toString"), O)
+        // GetV works with primitives by looking up on their prototype
+        IJsPropertyAccessor? accessor;
+        if (thisValue.TryGetObject<IJsPropertyAccessor>(out var obj))
+        {
+            accessor = obj;
+        }
+        else
+        {
+            // For primitives, get the wrapper prototype
+            accessor = GetPrimitivePrototype(thisValue, Realm);
+        }
+
+        if (accessor is null || !accessor.TryGetProperty("toString", thisValue, out var toStringValue))
+        {
+            // Fallback to default toString
+            return ToString(thisValue);
+        }
+
+        if (!toStringValue.TryGetObject<IJsCallable>(out var callable))
+        {
+            throw ThrowTypeError("toString is not a function", realm: Realm);
+        }
+
+        // Call with primitive thisValue preserved (important for strict mode)
+        return callable.Invoke([], thisValue);
+    }
+
+    private static IJsPropertyAccessor? GetPrimitivePrototype(JsValue value, RealmState? realm)
+    {
+        if (value.IsBoolean) return realm?.BooleanPrototype;
+        if (value.IsNumber) return realm?.NumberPrototype;
+        if (value.IsString) return realm?.StringPrototype;
+        if (value.IsSymbol) return realm?.SymbolPrototype;
+        if (value.IsBigInt) return realm?.BigIntPrototype;
+        return realm?.ObjectPrototype;
     }
 
     [JsHostMethod("__lookupGetter__", Length = 1d)]

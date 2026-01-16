@@ -668,4 +668,86 @@ public sealed class ArrayBuiltinsSpecTests(ITestOutputHelper output) : InternalT
         Assert.Equal(3d, record["hasCallCount"]);
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task Array_flatMap_CustomSpeciesConstructorWithPropertyVerification()
+    {
+        // Test262: this-value-ctor-object-species-custom-ctor.js
+        // Tests that flatMap correctly creates properties on custom species result
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            var arr = [[42, 1], [42, 2]];
+            var mapperFn = function(e) { return e; };
+
+            var called = 0;
+            var ctorCalled = 0;
+            var newTargetCorrect = false;
+            var argCorrect = false;
+            function ctor(len) {
+              newTargetCorrect = new.target === ctor;
+              argCorrect = len === 0;
+              ctorCalled++;
+            }
+
+            arr.constructor = {
+              get [Symbol.species]() {
+                called++;
+                return ctor;
+              }
+            };
+            var actual = arr.flatMap(mapperFn);
+
+            var isInstanceOfCtor = actual instanceof ctor;
+            var hasOwnLength = Object.prototype.hasOwnProperty.call(actual, 'length');
+            var val0 = actual[0];
+            var val1 = actual[1];
+            var val2 = actual[2];
+            var val3 = actual[3];
+
+            var desc0 = Object.getOwnPropertyDescriptor(actual, '0');
+            var desc0Correct = desc0 && desc0.value === 42 && desc0.writable === true && desc0.enumerable === true && desc0.configurable === true;
+
+            ({
+              called,
+              ctorCalled,
+              newTargetCorrect,
+              argCorrect,
+              isInstanceOfCtor,
+              hasOwnLength,
+              val0,
+              val1,
+              val2,
+              val3,
+              desc0Correct,
+              desc0Json: JSON.stringify(desc0)
+            });
+        """);
+
+        var record = Assert.IsType<JsObject>(result);
+        Output.WriteLine($"called: {record["called"]}");
+        Output.WriteLine($"ctorCalled: {record["ctorCalled"]}");
+        Output.WriteLine($"newTargetCorrect: {record["newTargetCorrect"]}");
+        Output.WriteLine($"argCorrect: {record["argCorrect"]}");
+        Output.WriteLine($"isInstanceOfCtor: {record["isInstanceOfCtor"]}");
+        Output.WriteLine($"hasOwnLength: {record["hasOwnLength"]}");
+        Output.WriteLine($"val0: {record["val0"]}");
+        Output.WriteLine($"val1: {record["val1"]}");
+        Output.WriteLine($"val2: {record["val2"]}");
+        Output.WriteLine($"val3: {record["val3"]}");
+        Output.WriteLine($"desc0Correct: {record["desc0Correct"]}");
+        Output.WriteLine($"desc0Json: {record["desc0Json"]}");
+
+        Assert.Equal(1d, record["called"]);
+        Assert.Equal(1d, record["ctorCalled"]);
+        Assert.Equal(true, record["newTargetCorrect"]);
+        Assert.Equal(true, record["argCorrect"]);
+        Assert.Equal(true, record["isInstanceOfCtor"]);
+        Assert.Equal(false, record["hasOwnLength"]);
+        Assert.Equal(42d, record["val0"]);
+        Assert.Equal(1d, record["val1"]);
+        Assert.Equal(42d, record["val2"]);
+        Assert.Equal(2d, record["val3"]);
+        Assert.Equal(true, record["desc0Correct"]);
+    }
+
 }

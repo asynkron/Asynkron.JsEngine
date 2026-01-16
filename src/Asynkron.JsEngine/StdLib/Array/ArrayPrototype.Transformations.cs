@@ -363,9 +363,10 @@ public sealed partial class ArrayPrototype
         var sourceLength = (long)ToLengthOrZero(lengthValue, evalContext);
 
         var result = ArraySpeciesCreate(thisValue, 0, Realm);
-        var newLength = FlattenIntoArray(result, accessor, sourceLength, 0, depth, null, JsValue.Null, Realm,
+        // ES spec doesn't set length on result - JsArray auto-updates length via [[DefineOwnProperty]],
+        // and custom species results should not have length property added
+        FlattenIntoArray(result, accessor, sourceLength, 0, depth, null, JsValue.Null, Realm,
             "Array.prototype.flat");
-        SetArrayLikeLength(result, newLength);
         return JsValue.FromObjectUnsafe(result);
     }
 
@@ -388,9 +389,10 @@ public sealed partial class ArrayPrototype
         }
 
         var result = ArraySpeciesCreate(thisValue, 0, Realm);
-        var newLength = FlattenIntoArray(result, accessor, sourceLength, 0, 1, callback, thisArg, Realm,
+        // ES spec doesn't set length on result - JsArray auto-updates length via [[DefineOwnProperty]],
+        // and custom species results should not have length property added
+        FlattenIntoArray(result, accessor, sourceLength, 0, 1, callback, thisArg, Realm,
             "Array.prototype.flatMap");
-        SetArrayLikeLength(result, newLength);
         return JsValue.FromObjectUnsafe(result);
     }
 

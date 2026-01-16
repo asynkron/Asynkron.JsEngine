@@ -118,4 +118,12 @@ public sealed class TodoBugFixTests : Test262Test
     {
         RunTestCode(test, strict);
     }
+
+    // FIXED: flatMap/flat should not set length on custom species result (per ES spec)
+    [TestCase("built-ins/Array/prototype/flatMap/this-value-ctor-object-species-custom-ctor.js", false)]
+    [TestCase("built-ins/Array/prototype/flatMap/this-value-ctor-object-species-custom-ctor.js", true)]
+    public void Array_flatMap_species_custom_ctor(string test, bool strict)
+    {
+        RunTestCode(test, strict);
+    }
 }

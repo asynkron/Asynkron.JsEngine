@@ -697,6 +697,9 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                     .Append(" = new HostFunction((thisValue, _) => ").Append(getterTarget).Append(".")
                     .Append(getter.MethodName)
                     .AppendLine("(thisValue), realm, isConstructor: false);");
+                // ES spec: getter functions have length = 0
+                membersSource.Append("        ").Append(getterVar)
+                    .AppendLine(".DefineProperty(\"length\", new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });");
                 membersSource.Append("        ").Append(getterVar)
                     .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
                     .Append(getter.DisplayName.Replace("\"", "\\\""))
@@ -711,6 +714,9 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                     .Append(" = new HostFunction((thisValue, args) => ").Append(setterTarget).Append(".")
                     .Append(setter.MethodName)
                     .AppendLine("(thisValue, args), realm, isConstructor: false);");
+                // ES spec: setter functions have length = 1
+                membersSource.Append("        ").Append(setterVar)
+                    .AppendLine(".DefineProperty(\"length\", new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });");
                 membersSource.Append("        ").Append(setterVar)
                     .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
                     .Append(setter.DisplayName.Replace("\"", "\\\""))

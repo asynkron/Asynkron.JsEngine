@@ -480,7 +480,11 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
 
     private void EnsureFunctionPrototype()
     {
-        if (Properties.Prototype is not null)
+        // Check both Prototype (for JsObject prototypes) and PrototypeAccessor (for HostFunction prototypes)
+        // This is important for intrinsics like AsyncFunction whose [[Prototype]] is Function (a HostFunction),
+        // not Function.prototype (a JsObject). Without this check, we would incorrectly overwrite
+        // the PrototypeAccessor with Function.prototype.
+        if (Properties.Prototype is not null || Properties.PrototypeAccessor is not null)
         {
             return;
         }

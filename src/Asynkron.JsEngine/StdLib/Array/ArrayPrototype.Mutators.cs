@@ -287,9 +287,10 @@ public sealed partial class ArrayPrototype
             }
 
             var newLength = length - actualDeleteCount + insertCount;
+            // ES spec step 8: If len + insertCount - actualDeleteCount > 2^53-1, throw a TypeError
             if (newLength > JsArrayConstants.MaxArrayLength)
             {
-                throw ThrowRangeError("Array length exceeds 2^53 - 1", realm: Realm);
+                throw ThrowTypeError("Array length exceeds 2^53 - 1", realm: Realm);
             }
 
             var result = ArraySpeciesCreate(thisValue, actualDeleteCount, Realm);

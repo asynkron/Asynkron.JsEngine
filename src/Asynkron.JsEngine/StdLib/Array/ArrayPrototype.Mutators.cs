@@ -570,6 +570,21 @@ public sealed partial class ArrayPrototype
             var aVal = a.Value;
             var bVal = b.Value;
 
+            // ES spec 23.1.3.30 SortCompare steps 1-3:
+            // Handle undefined values BEFORE calling comparefn
+            var aUndef = aVal.IsUndefined;
+            var bUndef = bVal.IsUndefined;
+            if (aUndef || bUndef)
+            {
+                if (aUndef && bUndef)
+                {
+                    return a.OriginalIndex.CompareTo(b.OriginalIndex);
+                }
+
+                return aUndef ? 1 : -1;
+            }
+
+            // ES spec step 4: If comparefn is not undefined, call it
             if (compareFn is not null)
             {
                 var result = compareFn.Invoke([aVal, bVal], JsValue.Undefined);
@@ -589,18 +604,7 @@ public sealed partial class ArrayPrototype
                 return cmp != 0 ? cmp : a.OriginalIndex.CompareTo(b.OriginalIndex);
             }
 
-            var aUndef = aVal.IsUndefined;
-            var bUndef = bVal.IsUndefined;
-            if (aUndef || bUndef)
-            {
-                if (aUndef && bUndef)
-                {
-                    return a.OriginalIndex.CompareTo(b.OriginalIndex);
-                }
-
-                return aUndef ? 1 : -1;
-            }
-
+            // ES spec steps 5-7: Default string comparison
             var aStr = aVal.ToJsString();
             var bStr = bVal.ToJsString();
             var ord = string.CompareOrdinal(aStr, bStr);

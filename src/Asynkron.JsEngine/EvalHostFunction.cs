@@ -661,10 +661,12 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     break;
                 case FunctionDeclaration { Function.Name: not null } funcDecl:
-                    // Top-level function declarations are always var-scoped.
-                    // Per Annex B.3.3.3, in non-strict mode, block-scoped function declarations
-                    // also create a var binding (initialized to undefined, updated when block executes).
-                    if (!inBlockScope || !isStrict)
+                    // ONLY top-level function declarations are collected as var-scoped here.
+                    // Per Annex B.3.3.3, block-scoped function declarations in non-strict mode
+                    // MAY create a var binding, but only if it wouldn't produce an early error
+                    // (e.g., conflict with a let/const in an enclosing block). That check
+                    // happens during hoisting in HoistFromStatement, not during collection.
+                    if (!inBlockScope)
                     {
                         names.Add(funcDecl.Function.Name);
                     }
@@ -719,13 +721,39 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
     private static HashSet<Symbol> CollectLexicallyDeclaredNames(ImmutableArray<StatementNode> statements)
     {
+        // Per ES spec 18.2.1.3, LexicallyDeclaredNames only includes IMMEDIATE top-level
+        // lexical declarations. Declarations inside blocks are NOT included because
+        // blocks have their own lexical environment.
         var names = new HashSet<Symbol>();
         foreach (var statement in statements)
         {
-            statement.CollectLexicalNamesFromStatement(names);
+            CollectTopLevelLexicalName(statement, names);
         }
 
         return names;
+    }
+
+    private static void CollectTopLevelLexicalName(StatementNode statement, HashSet<Symbol> names)
+    {
+        // Only collect immediate lexical declarations, NOT recursing into blocks.
+        // This follows ES spec TopLevelLexicallyDeclaredNames which excludes blocks.
+        switch (statement)
+        {
+            case VariableDeclaration { Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing } letDecl:
+                foreach (var declarator in letDecl.Declarators)
+                {
+                    declarator.Target.CollectSymbolsFromBinding(names);
+                }
+                break;
+            case ClassDeclaration classDeclaration:
+                names.Add(classDeclaration.Name);
+                break;
+            case LabeledStatement labeled:
+                CollectTopLevelLexicalName(labeled.Statement, names);
+                break;
+            // BlockStatement, IfStatement, WhileStatement, etc. are NOT recursed into
+            // because their lexical declarations are scoped to those blocks.
+        }
     }
 
     private static bool ContainsStrictReservedBinding(ImmutableArray<StatementNode> statements)
@@ -2544,107 +2572,38 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         StatementNode statement,
         Dictionary<Symbol, bool> declarations)
     {
+        // Per ES spec 18.2.1.3 EvalDeclarationInstantiation, lexical declarations are collected
+        // using TopLevelLexicallyScopedDeclarations (14.0.2), which only includes IMMEDIATE
+        // top-level declarations. Block statements, for/while loops, etc. create their own
+        // lexical environments, so their lexical declarations are NOT collected here.
         while (true)
         {
             switch (statement)
             {
-                case BlockStatement block:
-                    foreach (var inner in block.Statements)
-                    {
-                        CollectLexicalDeclarationsFromStatement(inner, declarations);
-                    }
-
-                    break;
                 case VariableDeclaration
                 {
                     Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
                 } lexicalDeclaration:
+                {
+                    var isConst =
+                        lexicalDeclaration.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
+                    foreach (var declarator in lexicalDeclaration.Declarators)
                     {
-                        var isConst =
-                            lexicalDeclaration.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
-                        foreach (var declarator in lexicalDeclaration.Declarators)
-                        {
-                            CollectLexicalDeclarationNames(declarator.Target, isConst, declarations);
-                        }
-
-                        break;
+                        CollectLexicalDeclarationNames(declarator.Target, isConst, declarations);
                     }
+
+                    break;
+                }
                 case ClassDeclaration classDeclaration:
                     // Class declarations create mutable bindings (like let), not immutable (like const)
                     declarations[classDeclaration.Name] = false;
                     break;
-                case IfStatement ifStatement:
-                    CollectLexicalDeclarationsFromStatement(ifStatement.Then, declarations);
-                    if (ifStatement.Else is { } elseBranch)
-                    {
-                        statement = elseBranch;
-                        continue;
-                    }
-
-                    break;
-                case WhileStatement whileStatement:
-                    statement = whileStatement.Body;
+                case LabeledStatement labeled:
+                    // Labels can wrap declarations, so we continue to the inner statement
+                    statement = labeled.Statement;
                     continue;
-                case DoWhileStatement doWhileStatement:
-                    statement = doWhileStatement.Body;
-                    continue;
-                case WithStatement withStatement:
-                    statement = withStatement.Body;
-                    continue;
-                case ForStatement forStatement:
-                    if (forStatement.Initializer is VariableDeclaration
-                        {
-                            Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using
-                            or VariableKind.AwaitUsing
-                        } initDecl)
-                    {
-                        var isConst =
-                            initDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
-                        foreach (var declarator in initDecl.Declarators)
-                        {
-                            CollectLexicalDeclarationNames(declarator.Target, isConst, declarations);
-                        }
-                    }
-
-                    statement = forStatement.Body;
-                    continue;
-
-                case ForEachStatement forEachStatement:
-                    if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const
-                        or VariableKind.Using or VariableKind.AwaitUsing)
-                    {
-                        var isConst = forEachStatement.DeclarationKind is VariableKind.Const or VariableKind.Using
-                            or VariableKind.AwaitUsing;
-                        CollectLexicalDeclarationNames(forEachStatement.Target, isConst, declarations);
-                    }
-
-                    statement = forEachStatement.Body;
-                    continue;
-                case SwitchStatement switchStatement:
-                    foreach (var switchCase in switchStatement.Cases)
-                    {
-                        CollectLexicalDeclarationsFromStatement(switchCase.Body, declarations);
-                    }
-
-                    break;
-                case TryStatement tryStatement:
-                    CollectLexicalDeclarationsFromStatement(tryStatement.TryBlock, declarations);
-                    if (tryStatement.Catch is { } catchClause)
-                    {
-                        // NOTE: Catch bindings are NOT collected here. Per ES spec (13.15.7),
-                        // catch parameters create their own lexical environment when the
-                        // catch block executes, not during declaration instantiation.
-                        // They are NOT part of the script/eval's LexicallyDeclaredNames.
-                        CollectLexicalDeclarationsFromStatement(catchClause.Body, declarations);
-                    }
-
-                    if (tryStatement.Finally is { } finallyBlock)
-                    {
-                        statement = finallyBlock;
-                        continue;
-                    }
-
-                    break;
+                // BlockStatement, IfStatement, WhileStatement, ForStatement, SwitchStatement, TryStatement, etc.
+                // are NOT recursed into because their lexical declarations belong to their own scopes.
             }
 
             break;

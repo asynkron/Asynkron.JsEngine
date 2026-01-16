@@ -335,6 +335,17 @@ public static partial class TypedAstEvaluator
                         }
                         else if (inBlockScope && !context.CurrentScope.IsStrict)
                         {
+                            // Per Annex B.3.3.3 step ii: "If replacing the FunctionDeclaration f with a
+                            // VariableStatement that has F as a BindingIdentifier would not produce any
+                            // Early Errors for body, then..." -- if the function name conflicts with a
+                            // lexical binding (let/const) in an outer scope, skip the var hoisting.
+                            // This check only applies to eval code (B.3.3.3), not regular scripts (B.3.3.1).
+                            if (context.ExecutionKind == ExecutionKind.Eval &&
+                                lexicalNames.Contains(functionDeclaration.Name))
+                            {
+                                break;
+                            }
+
                             // Per Annex B.3.3.2, in non-strict mode, function declarations in if/while/etc
                             // branches should create a var binding initialized to undefined. The function
                             // value will be assigned when the FunctionDeclaration is evaluated at runtime.

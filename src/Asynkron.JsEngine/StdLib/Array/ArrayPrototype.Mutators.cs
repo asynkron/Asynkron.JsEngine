@@ -126,7 +126,8 @@ public sealed partial class ArrayPrototype
             var length = (long)ToLengthOrZero(lengthValue, evalContext);
             if (length == 0)
             {
-                accessor.SetProperty("length", 0d);
+                // ES spec: Set(O, "length", 0, true) - must throw on failure
+                SetPropertyOrThrow(accessor, "length", new JsValue(0d), Realm, MethodName);
                 return JsValue.Undefined;
             }
 
@@ -156,7 +157,8 @@ public sealed partial class ArrayPrototype
             var lastKey = ToIndexString(length - 1);
             var lastExists = HasProperty(accessor, lastKey);
             DeletePropertyOrThrow(objectLike, lastKey, lastExists, MethodName, Realm);
-            accessor.SetProperty("length", (double)(length - 1));
+            // ES spec: Set(O, "length", len - 1, true) - must throw on failure
+            SetPropertyOrThrow(accessor, "length", new JsValue((double)(length - 1)), Realm, MethodName);
             return firstElement;
         }
         finally
@@ -215,7 +217,8 @@ public sealed partial class ArrayPrototype
             }
 
             var newLength = length + argCount;
-            accessor.SetProperty("length", (double)newLength);
+            // ES spec: Set(O, "length", len + argCount, true) - must throw on failure
+            SetPropertyOrThrow(accessor, "length", new JsValue((double)newLength), Realm, MethodName);
             return new JsValue((double)newLength);
         }
         finally

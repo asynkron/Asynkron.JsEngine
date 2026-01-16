@@ -29,6 +29,13 @@ public sealed partial class BooleanPrototype
             jsObj.RealmState = Realm;
         }
 
+        // Per ES spec, Boolean.prototype has [[BooleanData]] internal slot set to false
+        // This allows Boolean.prototype.valueOf() to return false when called on Boolean.prototype itself
+        if (Prototype is IJsObjectLike protoObj)
+        {
+            protoObj.SetProperty("__value__", JsValue.False);
+        }
+
         Realm.BooleanPrototype ??= Prototype as JsObject;
     }
 

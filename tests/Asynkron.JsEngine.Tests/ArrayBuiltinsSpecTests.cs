@@ -163,4 +163,68 @@ public sealed class ArrayBuiltinsSpecTests(ITestOutputHelper output) : InternalT
         Output.WriteLine($"Result: {result}");
         Assert.Equal("TypeError", result);
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task Array_flat_ThrowsTypeError_WhenResultIsNonExtensible()
+    {
+        // Test262: target-array-non-extensible.js
+        // When Symbol.species returns a non-extensible constructor,
+        // flat should throw TypeError when trying to add properties
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            var A = function(_length) {
+              this.length = 0;
+              Object.preventExtensions(this);
+            };
+
+            var arr = [[1]];
+            arr.constructor = {};
+            arr.constructor[Symbol.species] = A;
+
+            var threw = 'no error';
+            try {
+              arr.flat();
+            } catch (e) {
+              threw = e instanceof TypeError ? 'TypeError' : ('other: ' + e);
+            }
+            threw;
+        """);
+
+        Output.WriteLine($"Result: {result}");
+        Assert.Equal("TypeError", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Array_flatMap_ThrowsTypeError_WhenResultIsNonExtensible()
+    {
+        // Test262: target-array-non-extensible.js
+        // When Symbol.species returns a non-extensible constructor,
+        // flatMap should throw TypeError when trying to add properties
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            var A = function(_length) {
+              this.length = 0;
+              Object.preventExtensions(this);
+            };
+
+            var arr = [1];
+            arr.constructor = {};
+            arr.constructor[Symbol.species] = A;
+
+            var threw = 'no error';
+            try {
+              arr.flatMap(function(x) {
+                return x;
+              });
+            } catch (e) {
+              threw = e instanceof TypeError ? 'TypeError' : ('other: ' + e);
+            }
+            threw;
+        """);
+
+        Output.WriteLine($"Result: {result}");
+        Assert.Equal("TypeError", result);
+    }
 }

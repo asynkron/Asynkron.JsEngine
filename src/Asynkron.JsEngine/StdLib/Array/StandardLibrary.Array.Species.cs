@@ -415,7 +415,8 @@ public static partial class StandardLibrary
                     throw ThrowTypeError("Array operation result exceeds 2^32 - 1 elements", realm: realm);
                 }
 
-                target.SetProperty(ToIndexString(targetIndex), mapped);
+                // Per ES spec, flat/flatMap must use CreateDataPropertyOrThrow
+                CreateDataPropertyOrThrowJsValue((IJsObjectLike)target, ToIndexString(targetIndex), mapped, realm, operation);
                 targetIndex++;
             }
         }

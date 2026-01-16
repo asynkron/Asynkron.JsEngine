@@ -1,9 +1,9 @@
 # Failing Tests - Part 2
 
 - [x] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_globalCode("annexB/language/global-code/if-stmt-else-decl-global-existing-var-update.js",False)
-- [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_globalCode("annexB/language/global-code/if-stmt-else-decl-global-init.js",False)
-- [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_globalCode("annexB/language/global-code/if-stmt-else-decl-global-no-skip-try.js",False)
-- [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_globalCode("annexB/language/global-code/if-stmt-else-decl-global-update.js",False)
+- [x] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_globalCode("annexB/language/global-code/if-stmt-else-decl-global-init.js",False)
+- [x] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_globalCode("annexB/language/global-code/if-stmt-else-decl-global-no-skip-try.js",False)
+- [x] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_globalCode("annexB/language/global-code/if-stmt-else-decl-global-update.js",False)
 - [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_globalCode("annexB/language/global-code/script-decl-lex-collision.js",False)
 - [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_globalCode("annexB/language/global-code/switch-case-global-block-scoping.js",False)
 - [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_globalCode("annexB/language/global-code/switch-case-global-existing-block-fn-no-init.js",False)

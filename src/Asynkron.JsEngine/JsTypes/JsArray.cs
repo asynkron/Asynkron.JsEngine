@@ -1214,7 +1214,11 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     private ThrowSignal CreateRangeError(string message, EvaluationContext? context = null)
     {
-        var realm = context?.RealmState ?? RealmState;
+        // Per ES spec, errors should come from the current execution realm, not the
+        // object's realm. This is important for cross-realm operations where
+        // assert.throws(RangeError, ...) checks instanceof against the current realm's
+        // RangeError constructor.
+        var realm = context?.RealmState ?? Runtime.RealmState.Current ?? RealmState;
         var ctor = realm?.RangeErrorConstructor ?? _rangeErrorCtor;
         if (ctor is not null)
         {
@@ -1229,7 +1233,9 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     private ThrowSignal CreateTypeError(string message, EvaluationContext? context = null)
     {
-        var realm = context?.RealmState ?? RealmState;
+        // Per ES spec, errors should come from the current execution realm, not the
+        // object's realm. This is important for cross-realm operations.
+        var realm = context?.RealmState ?? Runtime.RealmState.Current ?? RealmState;
         var ctor = realm?.TypeErrorConstructor ?? _typeErrorCtor;
         if (ctor is not null)
         {

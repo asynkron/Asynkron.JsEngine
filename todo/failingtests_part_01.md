@@ -24,8 +24,8 @@
 - [x] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_globalCode("annexB/language/global-code/switch-dflt-global-no-skip-try.js",False)
 - [x] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_globalCode("annexB/language/global-code/switch-dflt-global-update.js",False)
 - [x] Asynkron.JsEngine.Tests.Test262.ArrayEverySubclassTests.TypedArrayEveryStrictCallbackGetsUndefinedThis
-- [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_length("built-ins/Array/length/define-own-prop-length-overflow-realm.js",False)
-- [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_length("built-ins/Array/length/define-own-prop-length-overflow-realm.js",True)
+- [x] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_length("built-ins/Array/length/define-own-prop-length-overflow-realm.js",False)
+- [x] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_length("built-ins/Array/length/define-own-prop-length-overflow-realm.js",True)
 - [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_length("built-ins/Array/length/S15.4.5.1_A1.3_T2.js",False)
 - [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_length("built-ins/Array/length/S15.4.5.1_A1.3_T2.js",True)
 - [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_entries("built-ins/Array/prototype/entries/resizable-buffer-grow-mid-iteration.js",False)

@@ -245,6 +245,33 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         ImmutableArray<PrivateNameScope>? inheritedPrivateNameScopes = null,
         bool drainAwaitMicrotasks = true)
     {
+        // Track the current execution realm for cross-realm operations.
+        // When setting properties on cross-realm objects (e.g., array.length = X on a
+        // cross-realm Array), errors should be thrown from the CURRENT realm, not the
+        // object's realm. This enables proper instanceof checks in assert.throws().
+        var previousRealm = RealmState.Current;
+        RealmState.Current = realmState;
+        try
+        {
+            return EvaluateProgramJsValueCore(program, environment, realmState, cancellationToken,
+                executionKind, createStrictEnvironment, functionNameHint, inheritedPrivateNameScopes,
+                drainAwaitMicrotasks);
+        }
+        finally
+        {
+            RealmState.Current = previousRealm;
+        }
+    }
+
+    private static JsValue EvaluateProgramJsValueCore(ProgramNode program, JsEnvironment environment,
+        RealmState realmState,
+        CancellationToken cancellationToken,
+        ExecutionKind executionKind,
+        bool createStrictEnvironment,
+        Symbol? functionNameHint,
+        ImmutableArray<PrivateNameScope>? inheritedPrivateNameScopes,
+        bool drainAwaitMicrotasks)
+    {
         var context = realmState.CreateContext(
             ScopeKind.Program,
             program.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy,

@@ -14,6 +14,24 @@ namespace Asynkron.JsEngine.Runtime;
 /// </summary>
 public sealed class RealmState
 {
+    /// <summary>
+    ///     Tracks the current realm for the executing async context. Used by cross-realm
+    ///     operations (e.g., JsArray.SetLength) that need to throw errors from the current
+    ///     execution realm rather than the object's own realm.
+    /// </summary>
+    private static readonly AsyncLocal<RealmState?> CurrentRealm = new();
+
+    /// <summary>
+    ///     Gets or sets the current realm for the executing async context.
+    ///     When setting property values on cross-realm objects (e.g., setting length
+    ///     on a cross-realm Array), errors should come from this realm.
+    /// </summary>
+    public static RealmState? Current
+    {
+        get => CurrentRealm.Value;
+        internal set => CurrentRealm.Value = value;
+    }
+
     private readonly ObjectPool<EvaluationContext> _contextPool;
 
     public RealmState()

@@ -346,6 +346,21 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return _properties.TryDefineProperty(name, descriptor);
         }
 
+        // If the element exists in _items but not in _properties, we need to establish
+        // the implicit descriptor first so that attributes like configurable=true are preserved.
+        // Per ES spec, array elements have default attributes: writable=true, enumerable=true, configurable=true.
+        if (_properties.GetOwnPropertyDescriptor(name) is null && TryGetOwnIndex(index, out var existingValue))
+        {
+            var implicitDescriptor = new PropertyDescriptor
+            {
+                JsValue = existingValue,
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
+            };
+            _properties.DefineProperty(name, implicitDescriptor);
+        }
+
         if (!descriptor.IsAccessorDescriptor)
         {
             var jsVal = descriptor.HasValue ? descriptor.JsValue : JsValue.Undefined;

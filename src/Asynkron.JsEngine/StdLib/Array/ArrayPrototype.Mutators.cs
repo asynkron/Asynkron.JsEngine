@@ -252,6 +252,12 @@ public sealed partial class ArrayPrototype
             double deleteCountArg;
             if (args.Count == 0)
             {
+                // Per spec: If no arguments, actualDeleteCount is 0
+                deleteCountArg = 0;
+            }
+            else if (args.Count == 1)
+            {
+                // Per spec: If only start is provided, delete from start to end
                 deleteCountArg = length - actualStart;
             }
             else
@@ -284,7 +290,7 @@ public sealed partial class ArrayPrototype
             var result = ArraySpeciesCreate(thisValue, actualDeleteCount, Realm);
             for (long k = 0; k < actualDeleteCount; k++)
             {
-                CopyArrayElement(accessor, actualStart + k, result, k);
+                CopyArrayElement(accessor, actualStart + k, result, k, Realm, "Array.prototype.splice");
             }
 
             SetArrayLikeLength(result, actualDeleteCount);

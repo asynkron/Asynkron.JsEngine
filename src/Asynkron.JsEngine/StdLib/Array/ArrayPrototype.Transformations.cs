@@ -296,7 +296,7 @@ public sealed partial class ArrayPrototype
 
         for (var k = from; k < to; k++)
         {
-            CopyArrayElement(accessor, k, result, targetIndex++);
+            CopyArrayElement(accessor, k, result, targetIndex++, Realm, "Array.prototype.slice");
         }
 
         SetArrayLikeLength(result, targetIndex);

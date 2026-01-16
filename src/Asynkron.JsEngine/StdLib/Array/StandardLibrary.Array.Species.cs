@@ -357,7 +357,7 @@ public static partial class StandardLibrary
     }
 
     internal static void CopyArrayElement(IJsPropertyAccessor source, long sourceIndex, IJsObjectLike target,
-        long targetIndex)
+        long targetIndex, RealmState? realm, string operation)
     {
         var sourceKey = ToIndexString(sourceIndex);
         var targetKey = ToIndexString(targetIndex);
@@ -369,7 +369,8 @@ public static partial class StandardLibrary
         }
 
         var value = source.TryGetProperty(sourceKey, out var obtained) ? obtained : JsValue.Undefined;
-        target.SetProperty(targetKey, value);
+        // Per ES spec, slice/splice must use CreateDataPropertyOrThrow
+        CreateDataPropertyOrThrowJsValue(target, targetKey, value, realm, operation);
     }
 
     internal static long FlattenIntoArray(IJsPropertyAccessor target, IJsPropertyAccessor source, long sourceLength,

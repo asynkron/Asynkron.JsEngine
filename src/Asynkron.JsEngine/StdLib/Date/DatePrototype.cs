@@ -11,7 +11,7 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib;
 
-[JsPrototype("Date", ToStringTag = "Date")]
+[JsPrototype("Date")]
 [JsMethodAlias("toGMTString", "toUTCString")]
 public sealed partial class DatePrototype
 {

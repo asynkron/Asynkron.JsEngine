@@ -508,15 +508,10 @@ public static partial class StandardLibrary
         return accessor.TryGetProperty(ToIndexString(index), out var value) ? value : JsValue.Undefined;
     }
 
-    internal static object? InvokeDefaultObjectToString(object? target, RealmState? realm)
+    internal static object? InvokeDefaultObjectToString(object? target, RealmState? _)
     {
-        if (realm?.ObjectPrototype is IJsPropertyAccessor objectPrototype &&
-            objectPrototype.TryGetProperty("toString", out var toStringValue) &&
-            toStringValue.TryGetObject<IJsCallable>(out var callable))
-        {
-            return callable.Invoke([], JsValue.FromObjectUnsafe(target));
-        }
-
-        return JsValue.FromString("[object Object]");
+        // ES spec: Use the intrinsic %Object.prototype.toString%, not the user-modifiable version
+        // This ensures correct behavior even if Object.prototype.toString has been deleted/modified
+        return ObjectPrototype.IntrinsicToString(JsValue.FromObjectUnsafe(target));
     }
 }

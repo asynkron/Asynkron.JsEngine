@@ -86,6 +86,10 @@ public abstract class ErrorConstructorBase(IJsObjectLike prototype, RealmState r
     {
         instance.RealmState ??= Realm;
 
+        // ES spec: Set [[ErrorData]] internal slot - we use a non-enumerable internal property
+        instance.DefineProperty("_errorData",
+            new PropertyDescriptor { Value = JsValue.True, Writable = false, Enumerable = false, Configurable = false });
+
         // Set message if provided and not undefined
         if (args.Count >= 1 && !args[0].IsUndefined)
         {

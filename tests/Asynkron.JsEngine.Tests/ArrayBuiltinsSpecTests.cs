@@ -750,4 +750,145 @@ public sealed class ArrayBuiltinsSpecTests(ITestOutputHelper output) : InternalT
         Assert.Equal(true, record["desc0Correct"]);
     }
 
+    [Fact(Timeout = 2000)]
+    public async Task Array_toString_DeleteObjectPrototypeToString()
+    {
+        // Test if delete Object.prototype.toString returns true
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("delete Object.prototype.toString");
+        Output.WriteLine($"delete Object.prototype.toString = {result}");
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Array_toString_UsesIntrinsicAfterDelete()
+    {
+        // Test262: non-callable-join-string-tag.js
+        // After deleting Object.prototype.toString, Array.prototype.toString should
+        // still work by using the intrinsic %Object.prototype.toString%
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            delete Object.prototype.toString;
+            Array.prototype.toString.call({ join: null });
+        """);
+        Output.WriteLine($"Result = {result}");
+        Assert.Equal("[object Object]", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Array_toString_FullTest262_NonCallableJoin()
+    {
+        // Full Test262 test: non-callable-join-string-tag.js
+        // Step through each assertion to find which fails
+        await using var engine = CreateEngine();
+
+        // Setup Test262 harness
+        await engine.Evaluate("""
+            function Test262Error(message) {
+              this.message = message || "";
+            }
+            var assert = function(mustBeTrue, message) {
+              if (mustBeTrue !== true) {
+                throw new Test262Error(message || 'assertion failed');
+              }
+            };
+            assert.sameValue = function (actual, expected, message) {
+              if (actual !== expected) {
+                throw new Test262Error(message || ('Expected: ' + expected + ', Actual: ' + actual));
+              }
+            };
+            assert.throws = function(ErrorCtor, fn, message) {
+              try {
+                fn();
+              } catch (e) {
+                if (e instanceof ErrorCtor) return;
+                throw new Test262Error(message || ('Wrong error type: ' + e));
+              }
+              throw new Test262Error(message || 'Expected to throw');
+            };
+        """);
+
+        // Test line 18
+        Output.WriteLine("Testing: delete Object.prototype.toString");
+        var deleteResult = await engine.Evaluate("delete Object.prototype.toString");
+        Output.WriteLine($"delete result: {deleteResult}");
+        Assert.Equal(true, deleteResult);
+
+        // Test line 20
+        Output.WriteLine("Testing: { join: null }");
+        var r1 = await engine.Evaluate("Array.prototype.toString.call({ join: null })");
+        Output.WriteLine($"Result: {r1}");
+        Assert.Equal("[object Object]", r1);
+
+        // Test line 45 - Arguments
+        Output.WriteLine("Testing: arguments object");
+        var r45 = await engine.Evaluate("Array.prototype.toString.call((function() { return arguments; })())");
+        Output.WriteLine($"Result: {r45}");
+        Assert.Equal("[object Arguments]", r45);
+
+        // Test line 46 - Error
+        Output.WriteLine("Testing: Error object");
+        var r46 = await engine.Evaluate("Array.prototype.toString.call(new Error)");
+        Output.WriteLine($"Result: {r46}");
+        Assert.Equal("[object Error]", r46);
+
+        // Test line 47 - Boolean
+        Output.WriteLine("Testing: Boolean object");
+        var r47 = await engine.Evaluate("Array.prototype.toString.call(new Boolean)");
+        Output.WriteLine($"Result: {r47}");
+        Assert.Equal("[object Boolean]", r47);
+
+        // Test line 48 - Number
+        Output.WriteLine("Testing: Number object");
+        var r48 = await engine.Evaluate("Array.prototype.toString.call(new Number)");
+        Output.WriteLine($"Result: {r48}");
+        Assert.Equal("[object Number]", r48);
+
+        // Test line 49 - String
+        Output.WriteLine("Testing: String object");
+        var r49 = await engine.Evaluate("Array.prototype.toString.call(new String)");
+        Output.WriteLine($"Result: {r49}");
+        Assert.Equal("[object String]", r49);
+
+        // Test line 50 - Date
+        Output.WriteLine("Testing: Date object");
+        var r50 = await engine.Evaluate("Array.prototype.toString.call(new Date)");
+        Output.WriteLine($"Result: {r50}");
+        Assert.Equal("[object Date]", r50);
+
+        // Test line 51 - RegExp
+        Output.WriteLine("Testing: RegExp object");
+        var r51 = await engine.Evaluate("Array.prototype.toString.call(new RegExp)");
+        Output.WriteLine($"Result: {r51}");
+        Assert.Equal("[object RegExp]", r51);
+
+        // Test line 52 - Proxy of function
+        Output.WriteLine("Testing: Proxy of function");
+        var r52 = await engine.Evaluate("Array.prototype.toString.call(new Proxy(() => {}, {}))");
+        Output.WriteLine($"Result: {r52}");
+        Assert.Equal("[object Function]", r52);
+
+        // Test line 53 - Proxy of Date (should be Object, not Date)
+        Output.WriteLine("Testing: Proxy of Date");
+        var r53 = await engine.Evaluate("Array.prototype.toString.call(new Proxy(new Date, {}))");
+        Output.WriteLine($"Result: {r53}");
+        Assert.Equal("[object Object]", r53);
+
+        // Test line 54 - Custom toStringTag
+        Output.WriteLine("Testing: custom Symbol.toStringTag");
+        var r54 = await engine.Evaluate("Array.prototype.toString.call({ [Symbol.toStringTag]: \"Foo\" })");
+        Output.WriteLine($"Result: {r54}");
+        Assert.Equal("[object Foo]", r54);
+
+        // Test line 55 - Map
+        Output.WriteLine("Testing: Map");
+        var r55 = await engine.Evaluate("Array.prototype.toString.call(new Map)");
+        Output.WriteLine($"Result: {r55}");
+        Assert.Equal("[object Map]", r55);
+
+        Output.WriteLine("All tests passed!");
+    }
+
 }

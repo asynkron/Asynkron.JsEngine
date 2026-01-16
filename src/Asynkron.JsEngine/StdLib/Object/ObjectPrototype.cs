@@ -13,6 +13,12 @@ namespace Asynkron.JsEngine.StdLib;
 [JsPrototype("Object")]
 public sealed partial class ObjectPrototype
 {
+    /// <summary>
+    /// The intrinsic %Object.prototype.toString% function. Use this method when the ES spec
+    /// requires calling the intrinsic rather than the user-modifiable Object.prototype.toString.
+    /// </summary>
+    internal static JsValue IntrinsicToString(JsValue thisValue) => ToString(thisValue);
+
     [JsHostMethod("toString", Length = 0d)]
     private static JsValue ToString(JsValue thisValue)
     {
@@ -50,9 +56,31 @@ public sealed partial class ObjectPrototype
         {
             builtinTag = "Array";
         }
+        else if (thisValue.TryGetObject<JsArgumentsObject>(out _))
+        {
+            // ES spec: If O has [[ParameterMap]] internal slot, builtinTag is "Arguments"
+            builtinTag = "Arguments";
+        }
+        else if (thisValue.TryGetObject<JsProxy>(out var proxy))
+        {
+            // ES spec: Proxies don't expose internal slots of their targets
+            // A proxy is either callable (if target is callable) or not
+            builtinTag = proxy.Target is IJsCallable ? "Function" : "Object";
+        }
         else if (thisValue.TryGetObject<IJsCallable>(out _))
         {
             builtinTag = "Function";
+        }
+        else if (thisValue.TryGetObject<JsObject>(out var obj))
+        {
+            // Check for internal slots that indicate specific object types
+            // ES spec step 9: [[ErrorData]] -> "Error"
+            // ES spec step 10: [[BooleanData]] -> "Boolean"
+            // ES spec step 11: [[NumberData]] -> "Number"
+            // ES spec step 12: [[StringData]] -> "String"
+            // ES spec step 13: [[DateValue]] -> "Date"
+            // ES spec step 14: [[RegExpMatcher]] -> "RegExp"
+            builtinTag = GetBuiltinTagFromInternalSlots(obj);
         }
         else
         {
@@ -61,9 +89,9 @@ public sealed partial class ObjectPrototype
 
         // Now check for @@toStringTag - only use it if it's a string
         var tagKey = SymbolKeys.ToStringTag;
-        if (thisValue.TryGetObject<JsObject>(out var obj))
+        if (thisValue.TryGetObject<JsObject>(out var objForTag))
         {
-            if (obj.TryGetProperty(tagKey, out var tagValue) && tagValue.IsString)
+            if (objForTag.TryGetProperty(tagKey, out var tagValue) && tagValue.IsString)
             {
                 return $"[object {tagValue.AsString()}]";
             }
@@ -77,6 +105,56 @@ public sealed partial class ObjectPrototype
         }
 
         return $"[object {builtinTag}]";
+    }
+
+    /// <summary>
+    /// Determines the builtin tag based on internal slots (ES spec steps 9-14).
+    /// </summary>
+    private static string GetBuiltinTagFromInternalSlots(JsObject obj)
+    {
+        // Check for [[ErrorData]] - set by ErrorConstructorBase.InitializeError
+        if (obj.GetOwnPropertyDescriptor("_errorData") is not null)
+        {
+            return "Error";
+        }
+
+        // Check for [[DateValue]] - set by DateHelper.StoreInternalDateValue
+        if (obj.GetOwnPropertyDescriptor("_internalDate") is not null)
+        {
+            return "Date";
+        }
+
+        // Check for [[RegExpMatcher]] - JsRegExp wrapper stored in property
+        if (obj.GetOwnPropertyDescriptor("_regExpData") is not null)
+        {
+            return "RegExp";
+        }
+
+        // Check for [[BooleanData]], [[NumberData]], [[StringData]] via __value__ property
+        // and prototype chain
+        if (obj.GetOwnPropertyDescriptor("__value__") is { } valueDesc)
+        {
+            // Determine which wrapper type by checking the prototype chain
+            var proto = obj.Prototype;
+            while (proto is not null)
+            {
+                if (proto.GetOwnPropertyDescriptor("constructor") is { } ctorDesc &&
+                    ctorDesc.JsValue.TryGetObject<HostFunction>(out var ctor))
+                {
+                    if (ctor.TryGetProperty("name", out var nameValue) && nameValue.IsString)
+                    {
+                        var ctorName = nameValue.AsString();
+                        if (ctorName == "Boolean") return "Boolean";
+                        if (ctorName == "Number") return "Number";
+                        if (ctorName == "String") return "String";
+                    }
+                }
+
+                proto = proto.Prototype;
+            }
+        }
+
+        return "Object";
     }
 
     [JsHostMethod("valueOf", Length = 0d)]

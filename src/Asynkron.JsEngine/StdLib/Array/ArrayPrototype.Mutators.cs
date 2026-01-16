@@ -30,9 +30,9 @@ public sealed partial class ArrayPrototype
             var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
             var length = (long)ToLengthOrZero(lengthValue, evalContext);
             var newLength = length + args.Count;
-            if (newLength > JsArrayConstants.MaxConcreteArrayLength)
+            if (newLength > JsArrayConstants.MaxArrayLength)
             {
-                throw ThrowTypeError("Array.prototype.push cannot exceed 2^32 - 1 elements", realm: Realm);
+                throw ThrowTypeError("Array.prototype.push cannot exceed 2^53 - 1 elements", realm: Realm);
             }
 
             for (var i = 0; i < args.Count; i++)

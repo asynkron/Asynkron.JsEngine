@@ -126,4 +126,22 @@ public sealed class TodoBugFixTests : Test262Test
     {
         RunTestCode(test, strict);
     }
+
+    // Check if pop tests pass now
+    [TestCase("built-ins/Array/prototype/pop/set-length-array-is-frozen.js", false)]
+    [TestCase("built-ins/Array/prototype/pop/set-length-array-is-frozen.js", true)]
+    [TestCase("built-ins/Array/prototype/pop/set-length-array-length-is-non-writable.js", false)]
+    [TestCase("built-ins/Array/prototype/pop/set-length-array-length-is-non-writable.js", true)]
+    public void Array_pop_tests(string test, bool strict)
+    {
+        RunTestCode(test, strict);
+    }
+
+    // FIXED: push should use 2^53 - 1 limit for array-like objects, not 2^32 - 1
+    [TestCase("built-ins/Array/prototype/push/clamps-to-integer-limit.js", false)]
+    [TestCase("built-ins/Array/prototype/push/clamps-to-integer-limit.js", true)]
+    public void Array_push_clamps_to_integer_limit(string test, bool strict)
+    {
+        RunTestCode(test, strict);
+    }
 }

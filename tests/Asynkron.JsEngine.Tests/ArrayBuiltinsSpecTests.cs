@@ -289,4 +289,281 @@ public sealed class ArrayBuiltinsSpecTests(ITestOutputHelper output) : InternalT
         Output.WriteLine($"Result: {result}");
         Assert.Equal("TypeError", result);
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task Array_length_valueOf_Object()
+    {
+        // Test262: S15.4.5.1_A1.3_T2.js
+        // When setting array length to an object with valueOf, the valueOf should be called
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            var x = [];
+            x.length = {
+              valueOf: function() {
+                return 2
+              }
+            };
+            x.length;
+        """);
+
+        Output.WriteLine($"Result: {result}");
+        Assert.Equal(2d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Array_length_valueOf_TakesPrecedenceOverToString()
+    {
+        // Test262: S15.4.5.1_A1.3_T2.js
+        // valueOf should be used over toString when both are present
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            var x = [];
+            x.length = {
+              valueOf: function() {
+                return 2
+              },
+              toString: function() {
+                return 1
+              }
+            };
+            x.length;
+        """);
+
+        Output.WriteLine($"Result: {result}");
+        Assert.Equal(2d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Array_length_valueOf_ToStringNotCalledWhenValueOfReturnsPrimitive()
+    {
+        // Test262: S15.4.5.1_A1.3_T2.js
+        // When valueOf returns a primitive, toString should NOT be called (even if it throws)
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            var threw = false;
+            try {
+              var x = [];
+              x.length = {
+                valueOf: function() {
+                  return 2
+                },
+                toString: function() {
+                  throw "error"
+                }
+              };
+            } catch (e) {
+              threw = true;
+            }
+            // valueOf returned 2, so toString should NOT have been called
+            !threw;
+        """);
+
+        Output.WriteLine($"Result: {result}");
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Array_length_valueOf_Throws_ErrorPropagates()
+    {
+        // Test262: S15.4.5.1_A1.3_T2.js - case #7
+        // When valueOf throws, the error should propagate and be catchable
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            var caughtValue = "not caught";
+            var caughtType = "unknown";
+            try {
+              var x = [];
+              x.length = {
+                valueOf: function() {
+                  throw "error";
+                },
+                toString: function() {
+                  return 1;
+                }
+              };
+              caughtValue = "no throw";
+            } catch (e) {
+              caughtValue = e;
+              caughtType = typeof e;
+            }
+            ({ caughtValue: caughtValue, caughtType: caughtType, isError: caughtValue === "error" });
+        """);
+
+        var record = Assert.IsType<JsObject>(result);
+        Output.WriteLine($"caughtValue: {record["caughtValue"]}");
+        Output.WriteLine($"caughtType: {record["caughtType"]}");
+        Output.WriteLine($"isError: {record["isError"]}");
+
+        Assert.Equal("error", record["caughtValue"]);
+        Assert.Equal("string", record["caughtType"]);
+        Assert.Equal(true, record["isError"]);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Array_length_valueOf_Full_Test262_Code()
+    {
+        // Full Test262: S15.4.5.1_A1.3_T2.js test code
+        await using var engine = CreateEngine();
+
+        // Define assert.sameValue for Test262 compatibility
+        await engine.Evaluate("""
+            function Test262Error(message) {
+              this.message = message || "";
+            }
+            Test262Error.prototype.toString = function () {
+              return "Test262Error: " + this.message;
+            };
+
+            var assert = {};
+            assert._isSameValue = function (a, b) {
+              if (a === b) {
+                return a !== 0 || 1 / a === 1 / b;
+              }
+              return a !== a && b !== b;
+            };
+            assert.sameValue = function (actual, expected, message) {
+              if (assert._isSameValue(actual, expected)) {
+                return;
+              }
+              message = message || '';
+              message += ' Expected: ' + String(expected) + ', Actual: ' + String(actual);
+              throw new Test262Error(message);
+            };
+            assert.notSameValue = function (actual, unexpected, message) {
+              if (!assert._isSameValue(actual, unexpected)) {
+                return;
+              }
+              throw new Test262Error(message);
+            };
+        """);
+
+        try
+        {
+            var result = await engine.Evaluate("""
+                var x = [];
+                x.length = {
+                  valueOf: function() {
+                    return 2
+                  }
+                };
+                assert.sameValue(x.length, 2, 'The value of x.length is expected to be 2');
+
+                x = [];
+                x.length = {
+                  valueOf: function() {
+                    return 2
+                  },
+                  toString: function() {
+                    return 1
+                  }
+                };
+                assert.sameValue(x.length, 2, 'The value of x.length is expected to be 2');
+
+                x = [];
+                x.length = {
+                  valueOf: function() {
+                    return 2
+                  },
+                  toString: function() {
+                    return {}
+                  }
+                };
+                assert.sameValue(x.length, 2, 'The value of x.length is expected to be 2');
+
+                try {
+                  x = [];
+                  x.length = {
+                    valueOf: function() {
+                      return 2
+                    },
+                    toString: function() {
+                      throw "error"
+                    }
+                  };
+                  assert.sameValue(x.length, 2, 'The value of x.length is expected to be 2');
+                }
+                catch (e) {
+                  assert.notSameValue(e, "error", 'The value of e is not "error"');
+                }
+
+                x = [];
+                x.length = {
+                  toString: function() {
+                    return 1
+                  }
+                };
+                assert.sameValue(x.length, 1, 'The value of x.length is expected to be 1');
+
+                x = [];
+                x.length = {
+                  valueOf: function() {
+                    return {}
+                  },
+                  toString: function() {
+                    return 1
+                  }
+                }
+                assert.sameValue(x.length, 1, 'The value of x.length is expected to be 1');
+
+                try {
+                  x = [];
+                  x.length = {
+                    valueOf: function() {
+                      throw "error"
+                    },
+                    toString: function() {
+                      return 1
+                    }
+                  };
+                  x.length;
+                  throw new Test262Error('#7.1: x = []; x.length = {valueOf: function() {throw "error"}, toString: function() {return 1}}; x.length throw "error". Actual: ' + (x.length));
+                }
+                catch (e) {
+                  assert.sameValue(e, "error", 'The value of e is expected to be "error"');
+                }
+
+                try {
+                  x = [];
+                  x.length = {
+                    valueOf: function() {
+                      return {}
+                    },
+                    toString: function() {
+                      return {}
+                    }
+                  };
+                  x.length;
+                  throw new Test262Error('#8.1: x = []; x.length = {valueOf: function() {return {}}, toString: function() {return {}}}  x.length throw TypeError. Actual: ' + (x.length));
+                }
+                catch (e) {
+                  assert.sameValue(
+                    e instanceof TypeError,
+                    true,
+                    'The result of evaluating (e instanceof TypeError) is expected to be true'
+                  );
+                }
+
+                "PASS"
+            """);
+
+            Output.WriteLine($"Result: {result}");
+            Assert.Equal("PASS", result);
+        }
+        catch (ThrowSignal ex)
+        {
+            Output.WriteLine($"ThrowSignal: {ex.Message}");
+            Output.WriteLine($"ThrownValue Kind: {ex.ThrownValue.Kind}");
+            Output.WriteLine($"ThrownValue: {ex.ThrownValue.ToObject()}");
+            if (ex.ThrownValue.TryGetObject<JsObject>(out var obj))
+            {
+                Output.WriteLine($"ThrownValue.message: {obj["message"]}");
+                Output.WriteLine($"ThrownValue.name: {obj["name"]}");
+            }
+            throw;
+        }
+    }
 }

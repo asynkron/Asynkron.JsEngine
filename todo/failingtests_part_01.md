@@ -26,8 +26,8 @@
 - [x] Asynkron.JsEngine.Tests.Test262.ArrayEverySubclassTests.TypedArrayEveryStrictCallbackGetsUndefinedThis
 - [x] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_length("built-ins/Array/length/define-own-prop-length-overflow-realm.js",False)
 - [x] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_length("built-ins/Array/length/define-own-prop-length-overflow-realm.js",True)
-- [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_length("built-ins/Array/length/S15.4.5.1_A1.3_T2.js",False)
-- [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_length("built-ins/Array/length/S15.4.5.1_A1.3_T2.js",True)
+- [x] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_length("built-ins/Array/length/S15.4.5.1_A1.3_T2.js",False)
+- [x] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_length("built-ins/Array/length/S15.4.5.1_A1.3_T2.js",True)
 - [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_entries("built-ins/Array/prototype/entries/resizable-buffer-grow-mid-iteration.js",False)
 - [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_entries("built-ins/Array/prototype/entries/resizable-buffer-shrink-mid-iteration.js",True)
 - [ ] Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Array_prototype_entries("built-ins/Array/prototype/entries/resizable-buffer.js",False)

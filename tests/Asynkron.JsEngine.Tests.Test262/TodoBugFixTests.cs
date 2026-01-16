@@ -100,4 +100,12 @@ public sealed class TodoBugFixTests : Test262Test
     {
         RunTestCode(test, strict);
     }
+
+    // FIXED: Array.length valueOf coercion - use RealmState.Current for error creation
+    [TestCase("built-ins/Array/length/S15.4.5.1_A1.3_T2.js", false)]
+    [TestCase("built-ins/Array/length/S15.4.5.1_A1.3_T2.js", true)]
+    public void Array_length_valueOf_coercion(string test, bool strict)
+    {
+        RunTestCode(test, strict);
+    }
 }

@@ -17,16 +17,17 @@ public static partial class StandardLibrary
 
     internal static JsValue CreateTypeError(string message, EvaluationContext? context = null, RealmState? realm = null)
     {
-        realm ??= context?.RealmState;
+        // Try to get realm from context, then from RealmState.Current (set during script evaluation)
+        realm ??= context?.RealmState ?? RealmState.Current;
         if (realm?.TypeErrorConstructor is not IJsCallable callable)
         {
-            return CreateErrorFallback("TypeError", message, realm);
+            return CreateErrorFallback("TypeError", message, realm, realm?.TypeErrorPrototype);
         }
 
         var result = callable.Invoke(new SingleValueArgs(new JsValue(message)), JsValue.Null);
         if (result.IsUndefined)
         {
-            return CreateErrorFallback("TypeError", message, realm);
+            return CreateErrorFallback("TypeError", message, realm, realm.TypeErrorPrototype);
         }
 
         return result;
@@ -34,7 +35,8 @@ public static partial class StandardLibrary
 
     private static JsValue CreateRangeError(string message, EvaluationContext? context = null, RealmState? realm = null)
     {
-        realm ??= context?.RealmState;
+        // Try to get realm from context, then from RealmState.Current (set during script evaluation)
+        realm ??= context?.RealmState ?? RealmState.Current;
         if (realm?.RangeErrorConstructor is not IJsCallable callable)
         {
             return CreateErrorFallback("RangeError", message, realm);
@@ -47,16 +49,17 @@ public static partial class StandardLibrary
     internal static JsValue CreateReferenceError(string message, EvaluationContext? context = null,
         RealmState? realm = null)
     {
-        realm ??= context?.RealmState;
+        // Try to get realm from context, then from RealmState.Current (set during script evaluation)
+        realm ??= context?.RealmState ?? RealmState.Current;
         if (realm?.ReferenceErrorConstructor is not IJsCallable callable)
         {
-            return CreateErrorFallback("ReferenceError", message, realm);
+            return CreateErrorFallback("ReferenceError", message, realm, realm?.ReferenceErrorPrototype);
         }
 
         var result = callable.Invoke(new SingleValueArgs(new JsValue(message)), JsValue.Null);
         if (result.IsUndefined || result.IsNull)
         {
-            return CreateErrorFallback("ReferenceError", message, realm);
+            return CreateErrorFallback("ReferenceError", message, realm, realm.ReferenceErrorPrototype);
         }
 
         return result;
@@ -121,7 +124,8 @@ public static partial class StandardLibrary
 
     private static JsValue CreateURIError(string message, EvaluationContext? context = null, RealmState? realm = null)
     {
-        realm ??= context?.RealmState;
+        // Try to get realm from context, then from RealmState.Current (set during script evaluation)
+        realm ??= context?.RealmState ?? RealmState.Current;
         if (realm?.URIErrorConstructor is not IJsCallable callable)
         {
             return CreateErrorFallback("URIError", message, realm);
@@ -168,22 +172,26 @@ public static partial class StandardLibrary
     internal static JsValue CreateSyntaxError(string message, EvaluationContext? context = null,
         RealmState? realm = null)
     {
-        realm ??= context?.RealmState;
+        // Try to get realm from context, then from RealmState.Current (set during script evaluation)
+        realm ??= context?.RealmState ?? RealmState.Current;
         if (realm?.SyntaxErrorConstructor is not IJsCallable callable)
         {
-            return CreateErrorFallback("SyntaxError", message, realm);
+            return CreateErrorFallback("SyntaxError", message, realm, realm?.SyntaxErrorPrototype);
         }
 
         var result = callable.Invoke(new SingleValueArgs(new JsValue(message)), JsValue.Null);
-        return result.IsUndefined ? CreateErrorFallback("SyntaxError", message, realm) : result;
+        return result.IsUndefined ? CreateErrorFallback("SyntaxError", message, realm, realm.SyntaxErrorPrototype) : result;
     }
 
-    private static JsValue CreateErrorFallback(string name, string message, RealmState? realm)
+    private static JsValue CreateErrorFallback(string name, string message, RealmState? realm, JsObject? specificPrototype = null)
     {
         var error = new JsObject { RealmState = realm };
-        if (realm?.ErrorPrototype is not null)
+        // Use specific error prototype (e.g., TypeErrorPrototype) if available,
+        // otherwise fall back to generic ErrorPrototype
+        var prototype = specificPrototype ?? realm?.ErrorPrototype;
+        if (prototype is not null)
         {
-            error.SetPrototype(realm.ErrorPrototype);
+            error.SetPrototype(prototype);
         }
 
         error.SetProperty("name", (JsValue)name);

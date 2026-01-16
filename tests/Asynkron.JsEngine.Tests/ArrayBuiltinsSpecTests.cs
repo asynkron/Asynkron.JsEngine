@@ -566,4 +566,50 @@ public sealed class ArrayBuiltinsSpecTests(ITestOutputHelper output) : InternalT
             throw;
         }
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task Array_flatMap_CallsCustomSpeciesConstructorWithNewTarget()
+    {
+        // Test for flatMap calling custom species constructor with new.target
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            var arr = [];
+            var mapperFn = function(e) { return e; };
+
+            var called = 0;
+            var ctorCalled = 0;
+            var newTargetCorrect = false;
+            function ctor(len) {
+              newTargetCorrect = new.target === ctor;
+              ctorCalled++;
+              throw new Error('CustomError');
+            }
+
+            arr.constructor = {
+              get [Symbol.species]() {
+                called++;
+                return ctor;
+              }
+            };
+            var threwError = false;
+            try {
+              arr.flatMap(mapperFn);
+            } catch (e) {
+              threwError = e.message === 'CustomError';
+            }
+            ({ called, ctorCalled, threwError, newTargetCorrect });
+        """);
+
+        var record = Assert.IsType<JsObject>(result);
+        Output.WriteLine($"called: {record["called"]}");
+        Output.WriteLine($"ctorCalled: {record["ctorCalled"]}");
+        Output.WriteLine($"threwError: {record["threwError"]}");
+        Output.WriteLine($"newTargetCorrect: {record["newTargetCorrect"]}");
+
+        Assert.Equal(1d, record["called"]);
+        Assert.Equal(1d, record["ctorCalled"]);
+        Assert.Equal(true, record["threwError"]);
+        Assert.Equal(true, record["newTargetCorrect"]);
+    }
 }

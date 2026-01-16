@@ -90,31 +90,16 @@ public static partial class StandardLibrary
             throw ThrowTypeError("Array species constructor must be a constructor", realm: realm);
         }
 
-        var proto = ResolveConstructPrototype(callable, callable, realm);
-        IJsObjectLike receiver;
-
-        if (callable is HostFunction hostFunction && realm?.ArrayConstructor is not null &&
-            ReferenceEquals(hostFunction, realm.ArrayConstructor))
+        // Per spec step 10: Return ? Construct(C, « length »).
+        // Use Construct to properly invoke the constructor with new.target semantics.
+        // At this point, realm is guaranteed non-null (checked at line 30).
+        var constructed = Construct(callable, [new JsValue((double)length)], callable, realm!);
+        if (!constructed.TryGetObject<IJsObjectLike>(out var objectLike))
         {
-            receiver = new JsArray(realm);
-        }
-        else
-        {
-            receiver = new JsObject();
+            throw ThrowTypeError("ArraySpeciesCreate: constructor did not return an object", realm: realm);
         }
 
-        if (proto is not null)
-        {
-            receiver.SetPrototype(proto);
-        }
-
-        var constructed = callable.Invoke(new SingleValueArgs(new JsValue((double)length)), JsValue.FromObjectUnsafe(receiver));
-        if (constructed.TryGetObject<IJsObjectLike>(out var objectLike))
-        {
-            return objectLike;
-        }
-
-        return receiver;
+        return objectLike;
 
         IJsObjectLike CreateDefaultArray()
         {

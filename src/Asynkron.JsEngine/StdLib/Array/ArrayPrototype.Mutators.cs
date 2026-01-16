@@ -537,7 +537,17 @@ public sealed partial class ArrayPrototype
             }
         }
 
-        elements.Sort(Comparer);
+        try
+        {
+            elements.Sort(Comparer);
+        }
+        catch (InvalidOperationException ex) when (ex.InnerException is ThrowSignal ts)
+        {
+            // .NET's List.Sort wraps exceptions in InvalidOperationException
+            // Re-throw the original JavaScript exception
+            accessor.SetProperty("__sorting__", JsValue.Undefined);
+            throw ts;
+        }
 
         // Write sorted values back to the array
         long index = 0;

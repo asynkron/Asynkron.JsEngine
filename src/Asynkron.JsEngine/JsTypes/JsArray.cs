@@ -636,6 +636,32 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             }
         }
 
+        // ES spec: Before creating an own property, check if prototype chain has a setter.
+        // If an inherited setter exists, invoke it and return without creating own property.
+        // This is required for cases like: Object.defineProperty(Array.prototype, "0", { set: ... })
+        var keyStr = index.ToString(CultureInfo.InvariantCulture);
+
+        // Check the prototype chain for an inherited setter.
+        // Note: _arrayPrototype may be a JsArray (not JsObject), so we need to handle both cases.
+        // First try _properties.GetSetter which walks JsObject prototypes
+        var prototypeSetter = _properties.GetSetter(keyStr);
+
+        // If not found via Prototype (JsObject chain), check via _arrayPrototype (which is Array.prototype)
+        if (prototypeSetter is null && _arrayPrototype is IJsObjectLike prototypeObj)
+        {
+            var protoDescriptor = prototypeObj.GetOwnPropertyDescriptor(keyStr);
+            if (protoDescriptor?.IsAccessorDescriptor == true)
+            {
+                prototypeSetter = protoDescriptor.Set;
+            }
+        }
+
+        if (prototypeSetter is not null)
+        {
+            prototypeSetter.Invoke(new SingleValueArgs(value), JsValue.FromJsArray(this));
+            return;
+        }
+
         if (!IsExtensible && !HasOwnIndex(index))
         {
             return;

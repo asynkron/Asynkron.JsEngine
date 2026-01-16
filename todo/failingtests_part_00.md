@@ -50,7 +50,7 @@
 - [x] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/func-block-decl-eval-func-existing-fn-update.js",False)
 - [x] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/func-block-decl-eval-func-init.js",False)
 - [x] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/func-block-decl-eval-func-no-skip-param.js",False)
-- [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/func-block-decl-eval-func-no-skip-try.js",False)
+- [x] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/func-block-decl-eval-func-no-skip-try.js",False)
 - [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/func-block-decl-eval-func-skip-early-err-block.js",False)
 - [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/func-block-decl-eval-func-skip-early-err-for-in.js",False)
 - [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/func-block-decl-eval-func-skip-early-err-for-of.js",False)

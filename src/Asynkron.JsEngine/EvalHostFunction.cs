@@ -2631,11 +2631,10 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     CollectLexicalDeclarationsFromStatement(tryStatement.TryBlock, declarations);
                     if (tryStatement.Catch is { } catchClause)
                     {
-                        if (catchClause.Binding is not null)
-                        {
-                            CollectLexicalDeclarationNames(catchClause.Binding, false, declarations);
-                        }
-
+                        // NOTE: Catch bindings are NOT collected here. Per ES spec (13.15.7),
+                        // catch parameters create their own lexical environment when the
+                        // catch block executes, not during declaration instantiation.
+                        // They are NOT part of the script/eval's LexicallyDeclaredNames.
                         CollectLexicalDeclarationsFromStatement(catchClause.Body, declarations);
                     }
 

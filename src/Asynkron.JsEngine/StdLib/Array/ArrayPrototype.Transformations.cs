@@ -726,7 +726,8 @@ public sealed partial class ArrayPrototype
         }
         else if (double.IsNegativeInfinity(indexNumber))
         {
-            integer = -1;
+            // -Infinity is always out of range per ES spec (len + (-Infinity) = -Infinity < 0)
+            throw ThrowRangeError($"{MethodName} index out of range", realm: Realm);
         }
 
         if (integer < 0)

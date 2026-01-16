@@ -350,7 +350,7 @@ public sealed partial class ArrayPrototype
                 accessor.SetProperty(ToIndexString(actualStart + j), args[j + 2]);
             }
 
-            accessor.SetProperty("length", (double)newLength);
+            SetPropertyOrThrow(accessor, "length", (double)newLength, Realm, MethodName);
             return JsValue.FromObjectUnsafe(result);
         }
         finally

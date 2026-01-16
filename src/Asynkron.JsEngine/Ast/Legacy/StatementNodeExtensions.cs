@@ -282,7 +282,14 @@ public static partial class TypedAstEvaluator
                             break;
                         }
 
-                        if (hoistFunctionValues)
+                        // Per Annex B.3.3, block-scoped functions in non-strict mode should:
+                        // 1. Create a var binding with undefined during hoisting
+                        // 2. Assign the function value when the block executes
+                        // Only hoist with the function value for top-level declarations or strict mode.
+                        var shouldHoistFunctionValue = hoistFunctionValues &&
+                                                       (!inBlockScope || context.CurrentScope.IsStrict);
+
+                        if (shouldHoistFunctionValue)
                         {
                             // Pass skipInternalNameBinding: true so the SyncFunctionInvoker doesn't create
                             // an internal const binding for the function name. For function declarations,

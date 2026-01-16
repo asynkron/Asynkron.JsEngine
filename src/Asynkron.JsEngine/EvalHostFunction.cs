@@ -661,9 +661,10 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     break;
                 case FunctionDeclaration { Function.Name: not null } funcDecl:
-                    // Only top-level function declarations are var-scoped
-                    // Block-scoped function declarations are lexically scoped
-                    if (!inBlockScope)
+                    // Top-level function declarations are always var-scoped.
+                    // Per Annex B.3.3.3, in non-strict mode, block-scoped function declarations
+                    // also create a var binding (initialized to undefined, updated when block executes).
+                    if (!inBlockScope || !isStrict)
                     {
                         names.Add(funcDecl.Function.Name);
                     }

@@ -57,7 +57,7 @@
 - [x] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/func-block-decl-eval-func-skip-early-err-for.js",False)
 - [x] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/func-block-decl-eval-func-skip-early-err-switch.js",False)
 - [x] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/func-block-decl-eval-func-skip-early-err-try.js",False)
-- [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-a-eval-func-block-scoping.js",False)
+- [x] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-a-eval-func-block-scoping.js",False)
 - [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-a-eval-func-existing-block-fn-no-init.js",False)
 - [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-a-eval-func-existing-block-fn-update.js",False)
 - [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-a-eval-func-existing-fn-update.js",False)

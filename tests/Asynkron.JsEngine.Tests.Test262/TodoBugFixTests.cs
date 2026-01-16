@@ -162,4 +162,12 @@ public sealed class TodoBugFixTests : Test262Test
     {
         RunTestCode(test, strict);
     }
+
+    // FIXED: splice and unshift should use 2^53 - 1 limit for array-like objects, not 2^32 - 1
+    [TestCase("built-ins/Array/prototype/splice/clamps-length-to-integer-limit.js", false)]
+    [TestCase("built-ins/Array/prototype/splice/clamps-length-to-integer-limit.js", true)]
+    public void Array_splice_clamps_to_integer_limit(string test, bool strict)
+    {
+        RunTestCode(test, strict);
+    }
 }

@@ -188,9 +188,9 @@ public sealed partial class ArrayPrototype
             var length = (long)ToLengthOrZero(lengthValue, evalContext);
             var argCount = args.Count;
 
-            if (length + argCount > JsArrayConstants.MaxConcreteArrayLength)
+            if (length + argCount > JsArrayConstants.MaxArrayLength)
             {
-                throw ThrowTypeError("Array.prototype.unshift cannot exceed 2^32 - 1 elements", realm: Realm);
+                throw ThrowTypeError("Array.prototype.unshift cannot exceed 2^53 - 1 elements", realm: Realm);
             }
 
             for (var k = length - 1; k >= 0; k--)
@@ -284,9 +284,9 @@ public sealed partial class ArrayPrototype
             }
 
             var newLength = length - actualDeleteCount + insertCount;
-            if (newLength > JsArrayConstants.MaxConcreteArrayLength)
+            if (newLength > JsArrayConstants.MaxArrayLength)
             {
-                throw ThrowRangeError("Array length exceeds 2^32 - 1", realm: Realm);
+                throw ThrowRangeError("Array length exceeds 2^53 - 1", realm: Realm);
             }
 
             var result = ArraySpeciesCreate(thisValue, actualDeleteCount, Realm);

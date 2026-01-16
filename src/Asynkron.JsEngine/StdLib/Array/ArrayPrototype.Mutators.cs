@@ -190,30 +190,37 @@ public sealed partial class ArrayPrototype
             var length = (long)ToLengthOrZero(lengthValue, evalContext);
             var argCount = args.Count;
 
-            if (length + argCount > JsArrayConstants.MaxArrayLength)
+            // ES spec step 4: Only do shifting work if there are actual arguments
+            if (argCount > 0)
             {
-                throw ThrowTypeError("Array.prototype.unshift cannot exceed 2^53 - 1 elements", realm: Realm);
-            }
-
-            for (var k = length - 1; k >= 0; k--)
-            {
-                var fromKey = ToIndexString(k);
-                var toKey = ToIndexString(k + argCount);
-                var fromExists = TryGetExistingElement(accessor, fromKey, out var fromValue);
-                if (fromExists)
+                // ES spec 4.a: If len + argCount > 2^53 - 1, throw a TypeError
+                if (length + argCount > JsArrayConstants.MaxArrayLength)
                 {
-                    accessor.SetProperty(toKey, fromValue);
+                    throw ThrowTypeError("Array.prototype.unshift cannot exceed 2^53 - 1 elements", realm: Realm);
                 }
-                else
-                {
-                    var toExists = HasProperty(accessor, toKey);
-                    DeletePropertyOrThrow(objectLike, toKey, toExists, MethodName, Realm);
-                }
-            }
 
-            for (var j = 0; j < argCount; j++)
-            {
-                accessor.SetProperty(ToIndexString(j), args[j]);
+                // ES spec 4.b-c: Shift existing elements
+                for (var k = length - 1; k >= 0; k--)
+                {
+                    var fromKey = ToIndexString(k);
+                    var toKey = ToIndexString(k + argCount);
+                    var fromExists = TryGetExistingElement(accessor, fromKey, out var fromValue);
+                    if (fromExists)
+                    {
+                        accessor.SetProperty(toKey, fromValue);
+                    }
+                    else
+                    {
+                        var toExists = HasProperty(accessor, toKey);
+                        DeletePropertyOrThrow(objectLike, toKey, toExists, MethodName, Realm);
+                    }
+                }
+
+                // ES spec 4.d: Insert new elements at the beginning
+                for (var j = 0; j < argCount; j++)
+                {
+                    accessor.SetProperty(ToIndexString(j), args[j]);
+                }
             }
 
             var newLength = length + argCount;

@@ -20,14 +20,16 @@ public sealed partial class ArrayPrototype
         var evalContext = Realm?.CreateContext();
         var length = (long)ToLengthOrZero(lengthValue, evalContext);
 
+        // Per spec step 3: ToString(separator) MUST happen BEFORE checking if len = 0
+        // This ensures separator conversion errors are thrown even for empty arrays
+        var separator = args.Count == 0 || args[0].IsUndefined
+            ? ","
+            : args[0].ToJsString();
+
         if (length == 0)
         {
             return new JsValue(string.Empty);
         }
-
-        var separator = args.Count == 0 || args[0].IsUndefined
-            ? ","
-            : args[0].ToJsString();
 
         var builder = new StringBuilder();
         for (long k = 0; k < length; k++)

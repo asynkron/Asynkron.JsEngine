@@ -108,4 +108,14 @@ public sealed class TodoBugFixTests : Test262Test
     {
         RunTestCode(test, strict);
     }
+
+    // FIXED: join separator ToPrimitive conversion (separator converted before length check)
+    [TestCase("built-ins/Array/prototype/join/S15.4.4.5_A3.1_T2.js", false)]
+    [TestCase("built-ins/Array/prototype/join/S15.4.4.5_A3.1_T2.js", true)]
+    [TestCase("built-ins/Array/prototype/join/S15.4.4.5_A3.2_T2.js", false)]
+    [TestCase("built-ins/Array/prototype/join/S15.4.4.5_A3.2_T2.js", true)]
+    public void Array_join_separator_toPrimitive(string test, bool strict)
+    {
+        RunTestCode(test, strict);
+    }
 }

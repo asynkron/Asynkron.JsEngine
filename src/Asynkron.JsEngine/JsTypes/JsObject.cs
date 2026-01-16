@@ -1533,6 +1533,9 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                 case JsObject jsProto:
                     current = jsProto;
                     continue;
+                case JsProxy jsProxy:
+                    // Proxy prototype - call HasProperty to invoke the 'has' trap
+                    return jsProxy.HasProperty(name);
                 default:
                     // Non-JsObject prototype - delegate to interface
                     return prototype.TryGetProperty(name, out _);

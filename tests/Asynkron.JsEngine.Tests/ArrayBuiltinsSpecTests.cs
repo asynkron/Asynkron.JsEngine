@@ -612,4 +612,60 @@ public sealed class ArrayBuiltinsSpecTests(ITestOutputHelper output) : InternalT
         Assert.Equal(true, record["threwError"]);
         Assert.Equal(true, record["newTargetCorrect"]);
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task Array_indexOf_OnlyCallsHasPropertyOnPrototypeAfterLengthZeroed()
+    {
+        // Test262: calls-only-has-on-prototype-after-length-zeroed.js
+        // When array.length is set to 0 during indexOf iteration,
+        // only [[HasProperty]] should be called on the prototype, not [[Get]]
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            var getCallCount = 0;
+            var hasCallCount = 0;
+            var lastGetProp = "";
+            var getPropLog = [];
+
+            var array = [1, null, 3];
+
+            Object.setPrototypeOf(array, new Proxy(Array.prototype, {
+                has: function(t, pk) {
+                    hasCallCount++;
+                    return pk in t;
+                },
+                get: function(t, pk, r) {
+                    getCallCount++;
+                    lastGetProp = String(pk);
+                    getPropLog.push(String(pk));
+                    return Reflect.get(t, pk, r);
+                }
+            }));
+
+            var fromIndex = {
+                valueOf: function() {
+                    // Zero the array's length. The loop iterates over the original
+                    // length value, but the only prototype MOP method which should be
+                    // called is [[HasProperty]].
+                    array.length = 0;
+                    return 0;
+                }
+            };
+
+            Array.prototype.indexOf.call(array, 100, fromIndex);
+            ({ getCallCount, hasCallCount, lastGetProp, getPropLog: getPropLog.join(",") });
+        """);
+
+        var record = Assert.IsType<JsObject>(result);
+        Output.WriteLine($"getCallCount: {record["getCallCount"]}");
+        Output.WriteLine($"hasCallCount: {record["hasCallCount"]}");
+        Output.WriteLine($"lastGetProp: {record["lastGetProp"]}");
+        Output.WriteLine($"getPropLog: {record["getPropLog"]}");
+
+        // [[Get]] should NOT be called on the prototype for indices after length zeroed
+        Assert.Equal(0d, record["getCallCount"]);
+        // [[Has]] should be called 3 times (for indices 0, 1, 2)
+        Assert.Equal(3d, record["hasCallCount"]);
+    }
+
 }

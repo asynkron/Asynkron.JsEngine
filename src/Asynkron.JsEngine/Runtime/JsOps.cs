@@ -1536,6 +1536,12 @@ internal static class JsOps
         var current = target.ObjectValue;
         while (current is not null)
         {
+            // Handle JsProxy first - it needs to use its own HasProperty to invoke the 'has' trap
+            if (current is JsProxy proxy)
+            {
+                return proxy.HasProperty(propertyName);
+            }
+
             if (current is IJsObjectLike objLike)
             {
                 var descriptor = objLike.GetOwnPropertyDescriptor(propertyName);
@@ -1544,8 +1550,15 @@ internal static class JsOps
                     return true;
                 }
 
-                // Move to prototype
-                current = objLike.Prototype;
+                // Move to prototype - check for PrototypeAccessor first (handles JsProxy prototypes)
+                if (objLike is IPrototypeAccessorProvider { PrototypeAccessor: { } protoAccessor })
+                {
+                    current = protoAccessor;
+                }
+                else
+                {
+                    current = objLike.Prototype;
+                }
             }
             else
             {

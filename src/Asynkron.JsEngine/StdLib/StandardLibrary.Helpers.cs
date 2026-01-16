@@ -120,18 +120,50 @@ public static partial class StandardLibrary
                     return true;
                 }
 
-                var prototype = objectLike.Prototype;
-                while (prototype is not null)
-                {
-                    if (prototype.HasProperty(propertyKey))
-                    {
-                        return true;
-                    }
+                // Get prototype via PrototypeAccessor to handle non-JsObject prototypes like JsProxy
+                object? currentProto = objectLike is IPrototypeAccessorProvider { PrototypeAccessor: { } protoAccessor }
+                    ? protoAccessor
+                    : objectLike.Prototype;
 
-                    prototype = prototype.Prototype;
+                while (currentProto is not null)
+                {
+                    switch (currentProto)
+                    {
+                        case JsProxy protoProxy:
+                            // Proxy prototype - delegate to its HasProperty which invokes the 'has' trap
+                            return protoProxy.HasProperty(propertyKey);
+                        case JsObject jsProto:
+                            if (jsProto.HasProperty(propertyKey))
+                            {
+                                return true;
+                            }
+                            // Move to next prototype
+                            currentProto = jsProto is IPrototypeAccessorProvider { PrototypeAccessor: { } nextAccessor }
+                                ? nextAccessor
+                                : jsProto.Prototype;
+                            break;
+                        case IJsObjectLike objLikeProto:
+                            if (objLikeProto.GetOwnPropertyDescriptor(propertyKey) is not null)
+                            {
+                                return true;
+                            }
+                            currentProto = objLikeProto is IPrototypeAccessorProvider { PrototypeAccessor: { } nextObjAccessor }
+                                ? nextObjAccessor
+                                : objLikeProto.Prototype;
+                            break;
+                        default:
+                            // Non-IJsObjectLike - fall back to TryGetProperty
+                            if (currentProto is IJsPropertyAccessor propAccessor &&
+                                propAccessor.TryGetProperty(propertyKey, out _))
+                            {
+                                return true;
+                            }
+                            currentProto = null;
+                            break;
+                    }
                 }
 
-                return objectLike.TryGetProperty(propertyKey, out _);
+                return false;
             default:
                 return accessor.TryGetProperty(propertyKey, out _);
         }

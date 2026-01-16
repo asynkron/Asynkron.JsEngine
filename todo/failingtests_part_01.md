@@ -1,6 +1,6 @@
 # Failing Tests - Part 2
 
-- [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_globalCode("annexB/language/global-code/if-stmt-else-decl-global-existing-var-update.js",False)
+- [x] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_globalCode("annexB/language/global-code/if-stmt-else-decl-global-existing-var-update.js",False)
 - [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_globalCode("annexB/language/global-code/if-stmt-else-decl-global-init.js",False)
 - [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_globalCode("annexB/language/global-code/if-stmt-else-decl-global-no-skip-try.js",False)
 - [ ] Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_globalCode("annexB/language/global-code/if-stmt-else-decl-global-update.js",False)

@@ -98,7 +98,7 @@ public static partial class TypedAstEvaluator
         {
             ThrowStatement throwStatement => throwStatement.EvaluateThrowJsValue(environment, context),
             VariableDeclaration declaration => declaration.EvaluateVariableDeclarationJsValue(environment, context),
-            FunctionDeclaration => EvaluateFunctionDeclarationJsValue(),
+            FunctionDeclaration funcDecl => EvaluateFunctionDeclarationJsValue(funcDecl, environment, context),
             ForEachStatement forEachStatement => forEachStatement.EvaluateForEachJsValue(environment, context,
                 activeLabel),
             BreakStatement breakStatement => breakStatement.EvaluateBreakJsValue(context),
@@ -325,6 +325,21 @@ public static partial class TypedAstEvaluator
                                     context,
                                     canDelete: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false });
                             }
+                        }
+                        else if (inBlockScope && !context.CurrentScope.IsStrict)
+                        {
+                            // Per Annex B.3.3.2, in non-strict mode, function declarations in if/while/etc
+                            // branches should create a var binding initialized to undefined. The function
+                            // value will be assigned when the FunctionDeclaration is evaluated at runtime.
+                            // DefineFunctionScoped handles existing bindings correctly (returns early).
+                            environment.DefineFunctionScoped(
+                                functionDeclaration.Name,
+                                JsValue.Undefined,
+                                hasInitializer: false,
+                                isFunctionDeclaration: true,
+                                globalFunctionConfigurable: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false },
+                                context: context,
+                                canDelete: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false });
                         }
 
                         break;

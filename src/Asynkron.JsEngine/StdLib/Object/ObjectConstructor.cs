@@ -588,8 +588,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
 
         // Walk the prototype chain of protoAccessor to see if target appears
         IJsPropertyAccessor? current = protoAccessor;
-        var depth = 0;
-        while (current is not null && depth < JsEngineConstants.MaxPrototypeChainDepth)
+        for (var depth = 0; current is not null && depth < JsEngineConstants.MaxPrototypeChainDepth; depth++)
         {
             if (ReferenceEquals(current, target))
             {
@@ -603,7 +602,6 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
                 IJsObjectLike objLike => objLike.Prototype,
                 _ => null
             };
-            depth++;
         }
 
         return false;

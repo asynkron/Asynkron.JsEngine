@@ -751,8 +751,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             case LabeledStatement labeled:
                 CollectTopLevelLexicalName(labeled.Statement, names);
                 break;
-            // BlockStatement, IfStatement, WhileStatement, etc. are NOT recursed into
-            // because their lexical declarations are scoped to those blocks.
+                // BlockStatement, IfStatement, WhileStatement, etc. are NOT recursed into
+                // because their lexical declarations are scoped to those blocks.
         }
     }
 
@@ -2584,16 +2584,16 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 {
                     Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
                 } lexicalDeclaration:
-                {
-                    var isConst =
-                        lexicalDeclaration.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
-                    foreach (var declarator in lexicalDeclaration.Declarators)
                     {
-                        CollectLexicalDeclarationNames(declarator.Target, isConst, declarations);
-                    }
+                        var isConst =
+                            lexicalDeclaration.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
+                        foreach (var declarator in lexicalDeclaration.Declarators)
+                        {
+                            CollectLexicalDeclarationNames(declarator.Target, isConst, declarations);
+                        }
 
-                    break;
-                }
+                        break;
+                    }
                 case ClassDeclaration classDeclaration:
                     // Class declarations create mutable bindings (like let), not immutable (like const)
                     declarations[classDeclaration.Name] = false;
@@ -2602,8 +2602,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     // Labels can wrap declarations, so we continue to the inner statement
                     statement = labeled.Statement;
                     continue;
-                // BlockStatement, IfStatement, WhileStatement, ForStatement, SwitchStatement, TryStatement, etc.
-                // are NOT recursed into because their lexical declarations belong to their own scopes.
+                    // BlockStatement, IfStatement, WhileStatement, ForStatement, SwitchStatement, TryStatement, etc.
+                    // are NOT recursed into because their lexical declarations belong to their own scopes.
             }
 
             break;

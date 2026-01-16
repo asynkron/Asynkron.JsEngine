@@ -26,7 +26,7 @@ public sealed partial class ArrayPrototype
             }
 
             var mapped = callback.Invoke([value, new JsValue((double)k), accessorJsValue], thisArg);
-            result.SetProperty(ToIndexString(k), mapped);
+            CreateDataPropertyOrThrowJsValue(result, ToIndexString(k), mapped, Realm, "Array.prototype.map");
         }
 
         SetArrayLikeLength(result, length);
@@ -56,7 +56,7 @@ public sealed partial class ArrayPrototype
                 continue;
             }
 
-            result.SetProperty(ToIndexString(toIndex), value);
+            CreateDataPropertyOrThrowJsValue(result, ToIndexString(toIndex), value, Realm, "Array.prototype.filter");
             toIndex++;
         }
 

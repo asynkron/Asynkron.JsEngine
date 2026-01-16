@@ -180,28 +180,6 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
     }
 
     /// <summary>
-    /// Checks if a value is iterable (has Symbol.iterator).
-    /// </summary>
-    private static bool IsIterable(JsValue value)
-    {
-        // Strings are iterable
-        if (value.TryGetString(out _))
-        {
-            return true;
-        }
-
-        // Use TryGetPropertyAccessor to handle both JsObject and JsArray
-        if (!value.TryGetPropertyAccessor(out var accessor))
-        {
-            return false;
-        }
-
-        // Check for Symbol.iterator
-        return accessor.TryGetProperty(SymbolKeys.Iterator, out var iterMethod) &&
-               iterMethod.TryGetObject<IJsCallable>(out _);
-    }
-
-    /// <summary>
     /// Gets an iterator from an iterable value.
     /// </summary>
     private static IJsObjectLike GetIteratorFromIterable(JsValue value)
@@ -438,7 +416,6 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
             return CreateIterResult(JsValue.Undefined, true);
         }
 
-        isExecuting = true;
         try
         {
             return action();

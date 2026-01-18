@@ -529,6 +529,9 @@ public static partial class TypedAstEvaluator
                         break;
                     }
 
+                    iterationEnvironment = plan.EnsureIterationEnvironmentChain(iterationEnvironment, outerEnvironment,
+                        nextJsValue, context, useIterationSlots, logger);
+
                     // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
                     // Only update V (completion value) if result.[[Value]] is not empty
                     var bodyResult2 = plan.Body.EvaluateStatementJsValue(iterationEnvironment, context, loopLabel);

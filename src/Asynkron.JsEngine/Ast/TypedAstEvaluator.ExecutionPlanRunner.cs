@@ -395,16 +395,32 @@ public static partial class TypedAstEvaluator
                 throw new ThrowSignal(thrownValue);
             }
 
-            // Restore environment to enclosing scope
-            if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv)
-            {
-                environment = enclosingEnv;
-            }
+            RestoreIteratorLoopScopeEnvironment(driverState, ref environment);
 
             IteratorStateRef.CurrentDriverState = null;
             _programCounter = instruction.BreakIndex;
             suspendResult = JsValue.Undefined;
             return false;
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static void RestoreIteratorLoopScopeEnvironment(
+            IteratorDriverState driverState,
+            ref JsEnvironment environment)
+        {
+            // Prefer the captured loop-scope environment rather than relying on
+            // CurrentIterationEnvironment.Enclosing, which may reference a pooled
+            // iteration environment that has been reused for a different scope.
+            if (driverState.LoopScopeEnvironment is { } loopScopeEnvironment)
+            {
+                environment = loopScopeEnvironment;
+                return;
+            }
+
+            if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnvironment)
+            {
+                environment = enclosingEnvironment;
+            }
         }
 
         // ═══════════════════════════════════════════════════════════════════════════
@@ -550,10 +566,7 @@ public static partial class TypedAstEvaluator
                     // This is critical for nested loops: after async resume, environment was
                     // reset to function scope, and we need to restore it to the loop scope
                     // so that variable lookups (like loop counter increments) work correctly.
-                    if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv)
-                    {
-                        environment = enclosingEnv;
-                    }
+                    RestoreIteratorLoopScopeEnvironment(driverState, ref environment);
 
                     // Clear driver state to prevent outer loop's CreateIterationEnv from
                     // incorrectly updating this driver's CurrentIterationEnvironment.
@@ -584,10 +597,7 @@ public static partial class TypedAstEvaluator
                 if (!enumerator.MoveNext())
                 {
                     // Restore environment to enclosing scope when iterator exhausted
-                    if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv2)
-                    {
-                        environment = enclosingEnv2;
-                    }
+                    RestoreIteratorLoopScopeEnvironment(driverState, ref environment);
 
                     IteratorStateRef.CurrentDriverState = null;
                     _programCounter = instruction.BreakIndex;
@@ -603,10 +613,7 @@ public static partial class TypedAstEvaluator
             else
             {
                 // Restore environment to enclosing scope when no iterator
-                if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv3)
-                {
-                    environment = enclosingEnv3;
-                }
+                RestoreIteratorLoopScopeEnvironment(driverState, ref environment);
 
                 IteratorStateRef.CurrentDriverState = null;
                 _programCounter = instruction.BreakIndex;
@@ -774,10 +781,7 @@ public static partial class TypedAstEvaluator
                             }
 
                             // Restore environment to enclosing scope when breaking
-                            if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv4)
-                            {
-                                environment = enclosingEnv4;
-                            }
+                            RestoreIteratorLoopScopeEnvironment(driverState, ref environment);
 
                             IteratorStateRef.CurrentDriverState = null;
                             _programCounter = instruction.BreakIndex;
@@ -815,10 +819,7 @@ public static partial class TypedAstEvaluator
                         }
 
                         // Restore environment to enclosing scope when async iterator exhausted
-                        if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv5)
-                        {
-                            environment = enclosingEnv5;
-                        }
+                        RestoreIteratorLoopScopeEnvironment(driverState, ref environment);
 
                         IteratorStateRef.CurrentDriverState = null;
                         _programCounter = instruction.BreakIndex;
@@ -860,10 +861,7 @@ public static partial class TypedAstEvaluator
                     if (!awaitEnumerator.MoveNext())
                     {
                         // Restore environment to enclosing scope when enumerator exhausted
-                        if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv7)
-                        {
-                            environment = enclosingEnv7;
-                        }
+                        RestoreIteratorLoopScopeEnvironment(driverState, ref environment);
 
                         // Clear the driver state since this iterator loop is done.
                         // This prevents outer loop's CreateIterationEnv from incorrectly
@@ -895,10 +893,7 @@ public static partial class TypedAstEvaluator
                 else
                 {
                     // Restore environment to enclosing scope
-                    if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv9)
-                    {
-                        environment = enclosingEnv9;
-                    }
+                    RestoreIteratorLoopScopeEnvironment(driverState, ref environment);
 
                     IteratorStateRef.CurrentDriverState = null;
                     _programCounter = instruction.BreakIndex;

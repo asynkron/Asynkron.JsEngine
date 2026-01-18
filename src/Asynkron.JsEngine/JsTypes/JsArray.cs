@@ -1013,6 +1013,82 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         UpdateLengthProperty();
     }
 
+    private bool TryShrinkLength(uint newLength, EvaluationContext? context, bool throwOnWritableFailure)
+    {
+        List<uint>? indicesToDelete = null;
+
+        if (_items.Count > newLength)
+        {
+            for (var i = (int)newLength; i < _items.Count; i++)
+            {
+                if (IsArrayHole(_items[i]))
+                {
+                    continue;
+                }
+
+                indicesToDelete ??= [];
+                indicesToDelete.Add((uint)i);
+            }
+        }
+
+        if (_sparseItems is not null)
+        {
+            foreach (var key in _sparseItems.Keys)
+            {
+                if (key < newLength)
+                {
+                    continue;
+                }
+
+                indicesToDelete ??= [];
+                indicesToDelete.Add(key);
+            }
+        }
+
+        foreach (var key in _properties.GetOwnPropertyNames())
+        {
+            if (!TryParseArrayIndex(key, out var index) || index < newLength)
+            {
+                continue;
+            }
+
+            indicesToDelete ??= [];
+            indicesToDelete.Add(index);
+        }
+
+        if (indicesToDelete is null)
+        {
+            SetExplicitLength(newLength);
+            return true;
+        }
+
+        indicesToDelete.Sort();
+        var lastIndex = uint.MaxValue;
+
+        for (var i = indicesToDelete.Count - 1; i >= 0; i--)
+        {
+            var index = indicesToDelete[i];
+            if (index == lastIndex)
+            {
+                continue;
+            }
+
+            lastIndex = index;
+
+            var propertyName = index.ToString(CultureInfo.InvariantCulture);
+            if (Delete(propertyName))
+            {
+                continue;
+            }
+
+            SetExplicitLength(index + 1);
+            return FailTypeError(context, throwOnWritableFailure);
+        }
+
+        SetExplicitLength(newLength);
+        return true;
+    }
+
     private void UpdateLengthProperty()
     {
         var lengthDescriptor = _properties.GetOwnPropertyDescriptor("length");
@@ -1236,7 +1312,10 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         {
             if (newLength < oldLength)
             {
-                SetExplicitLength(newLength);
+                if (!TryShrinkLength(newLength, context, throwOnWritableFailure))
+                {
+                    return false;
+                }
             }
             else if (newLength > oldLength)
             {

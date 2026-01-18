@@ -114,10 +114,7 @@ public sealed class SymbolTests(ITestOutputHelper output) : InternalTestBase(out
         Assert.Equal(42.0, result);
     }
 
-    // Symbol properties should not be enumerable in for...in loops    // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.
-    // The feature is implemented correctly and the test passes when run individually.
-
-    [Fact(Timeout = 2000, Skip = "Bug #483: ReferenceError 'Symbol is not defined'")]
+    [Fact(Timeout = 2000)]
     public async Task Symbol_Properties_Are_Not_Enumerable()
     {
         await using var engine = CreateEngine();
@@ -169,4 +166,3 @@ public sealed class SymbolTests(ITestOutputHelper output) : InternalTestBase(out
         Assert.True((bool)result!);
     }
 }
-

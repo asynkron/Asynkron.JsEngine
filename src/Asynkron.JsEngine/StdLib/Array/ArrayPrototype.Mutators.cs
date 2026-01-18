@@ -1,5 +1,6 @@
 #region
 
+using System.Collections.Generic;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
@@ -10,6 +11,9 @@ namespace Asynkron.JsEngine.StdLib;
 
 public sealed partial class ArrayPrototype
 {
+    private readonly HashSet<IJsPropertyAccessor> _reverseInProgress =
+        new(ReferenceEqualityComparer<IJsPropertyAccessor>.Instance);
+
     [JsHostMethod("push", Length = 1d)]
     public JsValue Push(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -377,8 +381,7 @@ public sealed partial class ArrayPrototype
         var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
 
         // Re-entrancy guard: prevent infinite recursion when length getter calls reverse
-        const string ReentrancyKey = "__inReverse__";
-        if (accessor.TryGetProperty(ReentrancyKey, out var inReverseFlag) && !inReverseFlag.IsUndefined)
+        if (!_reverseInProgress.Add(accessor))
         {
             // Already in reverse, return the array to break recursion
             return JsValue.FromObjectUnsafe(accessor);
@@ -386,7 +389,6 @@ public sealed partial class ArrayPrototype
 
         try
         {
-            accessor.SetProperty(ReentrancyKey, true);
             var objectLike = accessor as IJsObjectLike;
             var evalContext = Realm?.CreateContext();
             var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
@@ -413,14 +415,14 @@ public sealed partial class ArrayPrototype
 
                 if (lowerExists && upperExists)
                 {
-                    accessor.SetProperty(lowerKey, upperValue);
-                    accessor.SetProperty(upperKey, lowerValue);
+                    SetPropertyOrThrow(accessor, lowerKey, upperValue, Realm, MethodName);
+                    SetPropertyOrThrow(accessor, upperKey, lowerValue, Realm, MethodName);
                     continue;
                 }
 
                 if (!lowerExists && upperExists)
                 {
-                    accessor.SetProperty(lowerKey, upperValue);
+                    SetPropertyOrThrow(accessor, lowerKey, upperValue, Realm, MethodName);
                     DeletePropertyOrThrow(objectLike, upperKey, upperExists, MethodName, Realm);
                     continue;
                 }
@@ -428,19 +430,16 @@ public sealed partial class ArrayPrototype
                 if (lowerExists && !upperExists)
                 {
                     DeletePropertyOrThrow(objectLike, lowerKey, lowerExists, MethodName, Realm);
-                    accessor.SetProperty(upperKey, lowerValue);
+                    SetPropertyOrThrow(accessor, upperKey, lowerValue, Realm, MethodName);
                     continue;
                 }
-
-                DeletePropertyOrThrow(objectLike, lowerKey, lowerExists, MethodName, Realm);
-                DeletePropertyOrThrow(objectLike, upperKey, upperExists, MethodName, Realm);
             }
 
             return JsValue.FromObjectUnsafe(accessor);
         }
         finally
         {
-            accessor.SetProperty(ReentrancyKey, JsValue.Undefined);
+            _reverseInProgress.Remove(accessor);
         }
     }
 

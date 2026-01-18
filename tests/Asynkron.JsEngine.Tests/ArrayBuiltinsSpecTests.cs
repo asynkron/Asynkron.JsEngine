@@ -1,3 +1,4 @@
+using System.Linq;
 using Asynkron.JsEngine.JsTypes;
 using Xunit.Abstractions;
 
@@ -807,6 +808,131 @@ public sealed class ArrayBuiltinsSpecTests(ITestOutputHelper output) : InternalT
         """);
         Output.WriteLine($"Result = {result}");
         Assert.Equal("[object Object]", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Array_reverse_ProxyTrapsMatchSpec_WhenLengthExceedsIntegerLimit()
+    {
+        // Test262: length-exceeding-integer-limit-with-proxy.js
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            function StopReverse() {}
+
+            var arrayLike = {
+              0: "zero",
+              2: "two",
+              get 4() {
+                throw new StopReverse();
+              },
+              9007199254740987: "2**53-5",
+              9007199254740990: "2**53-2",
+              length: 2 ** 53 + 2,
+            };
+
+            var traps = [];
+
+            var proxy = new Proxy(arrayLike, {
+              getOwnPropertyDescriptor(t, pk) {
+                traps.push(`GetOwnPropertyDescriptor:${String(pk)}`);
+                return Reflect.getOwnPropertyDescriptor(t, pk);
+              },
+              defineProperty(t, pk, desc) {
+                traps.push(`DefineProperty:${String(pk)}`);
+                return Reflect.defineProperty(t, pk, desc);
+              },
+              has(t, pk) {
+                traps.push(`Has:${String(pk)}`);
+                return Reflect.has(t, pk);
+              },
+              get(t, pk, r) {
+                traps.push(`Get:${String(pk)}`);
+                return Reflect.get(t, pk, r);
+              },
+              set(t, pk, v, r) {
+                traps.push(`Set:${String(pk)}`);
+                return Reflect.set(t, pk, v, r);
+              },
+              deleteProperty(t, pk) {
+                traps.push(`Delete:${String(pk)}`);
+                return Reflect.deleteProperty(t, pk);
+              },
+            });
+
+            var threw = false;
+            try {
+              Array.prototype.reverse.call(proxy);
+            } catch (e) {
+              threw = e instanceof StopReverse;
+            }
+
+            ({
+              threw,
+              traps,
+              length: arrayLike.length,
+              zero: arrayLike[0],
+              oneIn: 1 in arrayLike,
+              twoIn: 2 in arrayLike,
+              three: arrayLike[3],
+              bigIn: 9007199254740987 in arrayLike,
+              bigVal: arrayLike[9007199254740988],
+              bigIn2: 9007199254740989 in arrayLike,
+              bigVal2: arrayLike[9007199254740990],
+            });
+        """);
+
+        var record = Assert.IsType<JsObject>(result);
+        Assert.Equal(true, record["threw"]);
+
+        var trapsArray = Assert.IsType<JsArray>(record["traps"]);
+        var actualTraps = trapsArray.Items
+            .Select(static item => item.ToObject()?.ToString() ?? string.Empty)
+            .ToArray();
+
+        var expectedTraps = new[]
+        {
+            "Get:length",
+            "Has:0",
+            "Get:0",
+            "Has:9007199254740990",
+            "Get:9007199254740990",
+            "Set:0",
+            "GetOwnPropertyDescriptor:0",
+            "DefineProperty:0",
+            "Set:9007199254740990",
+            "GetOwnPropertyDescriptor:9007199254740990",
+            "DefineProperty:9007199254740990",
+            "Has:1",
+            "Has:9007199254740989",
+            "Has:2",
+            "Get:2",
+            "Has:9007199254740988",
+            "Delete:2",
+            "Set:9007199254740988",
+            "GetOwnPropertyDescriptor:9007199254740988",
+            "DefineProperty:9007199254740988",
+            "Has:3",
+            "Has:9007199254740987",
+            "Get:9007199254740987",
+            "Set:3",
+            "GetOwnPropertyDescriptor:3",
+            "DefineProperty:3",
+            "Delete:9007199254740987",
+            "Has:4",
+            "Get:4"
+        };
+
+        Assert.Equal(expectedTraps, actualTraps);
+
+        Assert.Equal(9007199254740994d, record["length"]);
+        Assert.Equal("2**53-2", record["zero"]);
+        Assert.Equal(false, record["oneIn"]);
+        Assert.Equal(false, record["twoIn"]);
+        Assert.Equal("2**53-5", record["three"]);
+        Assert.Equal(false, record["bigIn"]);
+        Assert.Equal("two", record["bigVal"]);
+        Assert.Equal(false, record["bigIn2"]);
+        Assert.Equal("zero", record["bigVal2"]);
     }
 
     [Fact(Timeout = 5000)]

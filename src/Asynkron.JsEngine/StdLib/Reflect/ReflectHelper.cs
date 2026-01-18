@@ -4,6 +4,7 @@ using System.Reflection;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.ObjectHelper;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 #endregion
 
@@ -217,14 +218,7 @@ public static class ReflectHelper
         }
 
         var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1]) ?? string.Empty : string.Empty;
-        var result = target switch
-        {
-            ModuleNamespace moduleNamespace => moduleNamespace.Delete(propertyKey),
-            JsArray jsArray when JsOps.TryResolveArrayIndex(propertyKey, out var index) => jsArray.DeleteElement(index),
-            JsArray jsArray => jsArray.DeleteProperty(propertyKey),
-            _ => target is JsObject jsObj && jsObj.Remove(propertyKey)
-        };
-        return result;
+        return target.Delete(propertyKey);
     }
 
     internal static JsValue ReflectGet(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
@@ -301,7 +295,7 @@ public static class ReflectHelper
             return new JsValue(moduleNamespace.HasProperty(propertyKey));
         }
 
-        return new JsValue(target.TryGetProperty(propertyKey, out var _));
+        return new JsValue(HasProperty(target, propertyKey));
     }
 
     internal static JsValue ReflectIsExtensible(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
@@ -393,26 +387,144 @@ public static class ReflectHelper
         var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1]) ?? string.Empty : string.Empty;
         var value = args.Count > 2 ? args[2] : JsValue.Undefined;
         var receiver = args.Count > 3 ? args[3] : JsValue.FromObjectUnsafe(target);
-        switch (target)
+        if (target is ModuleNamespace)
         {
-            case ModuleNamespace moduleNamespace:
-                try
-                {
-                    moduleNamespace.SetProperty(propertyKey, value, receiver);
-                }
-                catch (ThrowSignal)
-                {
-                    return new JsValue(false);
-                }
-
-                return new JsValue(false);
-            case JsArray jsArray when string.Equals(propertyKey, "length", StringComparison.Ordinal):
-                // Pass JsValue directly - ToNumericAsJsValue handles boxed JsValue efficiently
-                return jsArray.SetLength(value, null, false);
-            default:
-                target.SetProperty(propertyKey, value, receiver);
-                return new JsValue(true);
+            return new JsValue(false);
         }
+
+        return new JsValue(SetPropertyWithReceiver(target, propertyKey, value, receiver));
+    }
+
+    private static bool SetPropertyWithReceiver(IJsPropertyAccessor target, string propertyKey, JsValue value,
+        JsValue receiver)
+    {
+        if (target is JsProxy proxy)
+        {
+            try
+            {
+                proxy.SetProperty(propertyKey, value, receiver);
+                return true;
+            }
+            catch (ThrowSignal signal) when (IsProxySetTrapReturnFalse(signal))
+            {
+                return false;
+            }
+        }
+
+        if (target is IJsObjectLike objectLike)
+        {
+            return OrdinarySetWithReceiver(objectLike, propertyKey, value, receiver);
+        }
+
+        target.SetProperty(propertyKey, value, receiver);
+        return true;
+    }
+
+    private static bool OrdinarySetWithReceiver(IJsObjectLike target, string propertyKey, JsValue value,
+        JsValue receiver)
+    {
+        var ownDesc = target.GetOwnPropertyDescriptor(propertyKey);
+        if (ownDesc is null)
+        {
+            var parent = GetPrototypeAccessor(target);
+            if (parent is not null)
+            {
+                return SetPropertyWithReceiver(parent, propertyKey, value, receiver);
+            }
+
+            ownDesc = new PropertyDescriptor
+            {
+                JsValue = JsValue.Undefined,
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
+            };
+        }
+
+        if (ownDesc.IsAccessorDescriptor)
+        {
+            if (ownDesc.Set is null)
+            {
+                return false;
+            }
+
+            ownDesc.Set.Invoke(new SingleValueArgs(value), receiver);
+            return true;
+        }
+
+        if (!ownDesc.Writable)
+        {
+            return false;
+        }
+
+        if (!receiver.TryGetObject<IJsObjectLike>(out var receiverObject))
+        {
+            return false;
+        }
+
+        var existingDesc = receiverObject.GetOwnPropertyDescriptor(propertyKey);
+        if (existingDesc is not null)
+        {
+            if (existingDesc.IsAccessorDescriptor || !existingDesc.Writable)
+            {
+                return false;
+            }
+
+            var valueDesc = new PropertyDescriptor { JsValue = value };
+            return TryDefineProperty(receiverObject, propertyKey, valueDesc);
+        }
+
+        if (receiverObject is IExtensibilityControl { IsExtensible: false })
+        {
+            return false;
+        }
+
+        var newDesc = new PropertyDescriptor
+        {
+            JsValue = value,
+            Writable = true,
+            Enumerable = true,
+            Configurable = true
+        };
+
+        return TryDefineProperty(receiverObject, propertyKey, newDesc);
+    }
+
+    private static IJsPropertyAccessor? GetPrototypeAccessor(IJsObjectLike target)
+    {
+        if (target.Prototype is not null)
+        {
+            return target.Prototype;
+        }
+
+        return target is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
+    }
+
+    private static bool TryDefineProperty(IJsObjectLike target, string propertyKey, PropertyDescriptor descriptor)
+    {
+        if (target is IPropertyDefinitionHost host)
+        {
+            return host.TryDefineProperty(propertyKey, descriptor);
+        }
+
+        target.DefineProperty(propertyKey, descriptor);
+        return true;
+    }
+
+    private static bool IsProxySetTrapReturnFalse(ThrowSignal signal)
+    {
+        if (!signal.ThrownValue.TryGetObject<JsObject>(out var errorObj))
+        {
+            return false;
+        }
+
+        if (!errorObj.TryGetProperty("message", out var messageValue) ||
+            !messageValue.TryGetString(out var message))
+        {
+            return false;
+        }
+
+        return string.Equals(message, "Proxy 'set' trap returned a falsy value", StringComparison.Ordinal);
     }
 
     internal static JsValue ReflectSetPrototypeOf(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)

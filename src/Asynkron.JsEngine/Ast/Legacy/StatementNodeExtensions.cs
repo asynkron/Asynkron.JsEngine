@@ -225,10 +225,28 @@ public static partial class TypedAstEvaluator
                         functionHoistDedupe);
                     if (tryStatement.Catch is { } catchClause)
                     {
+                        // Track *active* catch parameter names for Annex B.3.5/B.3.3.3 checks while
+                        // hoisting inside the catch body.
+                        var catchParameterNamesForBody = catchParameterNames;
+                        var simpleCatchParameterNamesForBody = simpleCatchParameterNames;
+                        if (catchClause.Binding is { } catchBinding)
+                        {
+                            catchParameterNamesForBody =
+                                new HashSet<Symbol>(catchParameterNames, catchParameterNames.Comparer);
+                            catchBinding.CollectSymbolsFromBinding(catchParameterNamesForBody);
+
+                            if (catchBinding is IdentifierBinding identifierBinding)
+                            {
+                                simpleCatchParameterNamesForBody =
+                                    new HashSet<Symbol>(simpleCatchParameterNames, simpleCatchParameterNames.Comparer);
+                                simpleCatchParameterNamesForBody.Add(identifierBinding.Name);
+                            }
+                        }
+
                         catchClause.Body.HoistVarDeclarationsPass(environment, context, hoistFunctionValues,
                             catchClause.Body.MergeLexicalNames(lexicalNames),
-                            catchClause.Body.MergeCatchNames(catchParameterNames),
-                            catchClause.Body.MergeSimpleCatchNames(simpleCatchParameterNames),
+                            catchClause.Body.MergeCatchNames(catchParameterNamesForBody),
+                            catchClause.Body.MergeSimpleCatchNames(simpleCatchParameterNamesForBody),
                             pass,
                             true,
                             reverseFunctionHoist,
@@ -342,6 +360,16 @@ public static partial class TypedAstEvaluator
                             // This check only applies to eval code (B.3.3.3), not regular scripts (B.3.3.1).
                             if (context.ExecutionKind == ExecutionKind.Eval &&
                                 lexicalNames.Contains(functionDeclaration.Name))
+                            {
+                                break;
+                            }
+
+                            // Annex B.3.5: If the catch parameter is not a simple identifier (e.g. destructuring),
+                            // any var binding with the same name in the catch body would be an early error.
+                            // Per B.3.3.3, skip AnnexB var-style function hoisting in direct eval in that case.
+                            if (context.ExecutionKind == ExecutionKind.Eval &&
+                                catchParameterNames.Contains(functionDeclaration.Name) &&
+                                !simpleCatchParameterNames.Contains(functionDeclaration.Name))
                             {
                                 break;
                             }

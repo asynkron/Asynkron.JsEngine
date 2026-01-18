@@ -231,21 +231,12 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             effectiveLexicalNames.UnionWith(block.CollectLexicalNames());
         }
 
-        var effectiveCatchNames = catchParameterNames is null
-            ? block.CollectCatchParameterNames()
-            : [.. catchParameterNames];
-        if (catchParameterNames is not null)
-        {
-            effectiveCatchNames.UnionWith(block.CollectCatchParameterNames());
-        }
-
-        var effectiveSimpleCatchNames = simpleCatchParameterNames is null
-            ? block.CollectSimpleCatchParameterNames()
-            : [.. simpleCatchParameterNames];
-        if (simpleCatchParameterNames is not null)
-        {
-            effectiveSimpleCatchNames.UnionWith(block.CollectSimpleCatchParameterNames());
-        }
+        // Catch parameter names are tracked as *active* names from enclosing catch clauses.
+        // They are added when recursing into a catch body (see HoistFromStatement TryStatement case).
+        var effectiveCatchNames = catchParameterNames ??
+                                  new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+        var effectiveSimpleCatchNames = simpleCatchParameterNames ??
+                                        new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
 
         block.HoistVarDeclarationsPass(environment,
             context,
@@ -317,16 +308,18 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
     private static HashSet<Symbol> MergeCatchNames(this BlockStatement block, HashSet<Symbol> catchParameterNames)
     {
-        var merged = new HashSet<Symbol>(catchParameterNames);
-        merged.UnionWith(block.CollectCatchParameterNames());
-        return merged;
+        // Catch parameter names are tracked as active names from enclosing catch clauses.
+        // Entering a normal block does not add new catch parameter names.
+        _ = block;
+        return catchParameterNames;
     }
 
     private static HashSet<Symbol> MergeSimpleCatchNames(this BlockStatement block, HashSet<Symbol> simpleCatchParameterNames)
     {
-        var merged = new HashSet<Symbol>(simpleCatchParameterNames);
-        merged.UnionWith(block.CollectSimpleCatchParameterNames());
-        return merged;
+        // Simple catch parameter names are tracked as active names from enclosing catch clauses.
+        // Entering a normal block does not add new catch parameter names.
+        _ = block;
+        return simpleCatchParameterNames;
     }
 
     private static HashSet<Symbol> CollectLexicalNames(this BlockStatement block)

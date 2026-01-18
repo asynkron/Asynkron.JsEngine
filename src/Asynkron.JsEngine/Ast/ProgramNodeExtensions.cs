@@ -329,8 +329,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         var programBlock = new BlockStatement(program.Source, program.Body, program.IsStrict);
         var lexicalNames = programBlock.CollectLexicalNames();
         var topLevelLexicalNames = CollectTopLevelLexicalNames(program.Body);
-        var catchParameterNames = programBlock.CollectCatchParameterNames();
-        var simpleCatchParameterNames = programBlock.CollectSimpleCatchParameterNames();
         // For bodyLexicalNames used in global/var conflict checks, we only use TOP-LEVEL names.
         // Per ES spec GlobalDeclarationInstantiation, var declarations only conflict with
         // top-level lexical declarations, not with block-scoped let/const in nested blocks.
@@ -533,8 +531,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         programBlock.HoistVarDeclarations(executionEnvironment,
             context,
             lexicalNames: lexicalNames,
-            catchParameterNames: catchParameterNames,
-            simpleCatchParameterNames: simpleCatchParameterNames,
             reverseFunctionHoist: reverseFunctionHoist,
             functionHoistDedupe: functionHoistDedupe);
 

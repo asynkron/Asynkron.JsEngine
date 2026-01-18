@@ -25,10 +25,8 @@ public static partial class TypedAstEvaluator
             var lexicalNames = lexicalNamesRaw.Count == 0
                 ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
                 : new HashSet<Symbol>(lexicalNamesRaw, ReferenceEqualityComparer<Symbol>.Instance);
-            var catchParameterNamesRaw = hoistPlan.CatchParameterNames;
-            var catchParameterNames = catchParameterNamesRaw.Count == 0
-                ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
-                : new HashSet<Symbol>(catchParameterNamesRaw, ReferenceEqualityComparer<Symbol>.Instance);
+            // Track active catch parameters while hoisting (Annex B.3.5/B.3.3.3); start empty.
+            var catchParameterNames = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
             var simpleCatchParameterNamesRaw = hoistPlan.SimpleCatchParameterNames;
             var simpleCatchParameterNames = simpleCatchParameterNamesRaw.Count == 0
                 ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
@@ -214,6 +212,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
             SyncParameterSlotsToPlan(executionEnvironment, parameterEnvironment, parameterNames);
 
+            simpleCatchParameterNames.Clear();
             _function.Body.HoistVarDeclarations(executionEnvironment, generatorContext,
                 lexicalNames: lexicalNames,
                 catchParameterNames: catchParameterNames,

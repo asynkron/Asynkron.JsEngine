@@ -104,7 +104,7 @@ public sealed class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
     /// <remarks>
     /// Detailed parity findings live in docs/investigations/ASYNC_ITERABLE_SCOPE_DEBUG_NOTES.md.
     /// </remarks>
-    [Fact(Timeout = 5000, Skip = "Bug #478: Snapshot count mismatch in scope tracking")]
+    [Fact(Timeout = 5000)]
     public async Task CompareGlobalVsLocalScope_WithDebug()
     {
         var localResult = new StringBuilder();
@@ -166,11 +166,6 @@ public sealed class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         // Collect debug messages from local scope test
         var localDebugMessages = DrainDebugMessages(engine1);
 
-        await Task.Delay(10);
-        var localFinalResult = await engine1.Evaluate("test()");
-        output.WriteLine($"[LOCAL] Final result: '{localFinalResult}'");
-        localResult.Append("[LOCAL] Final result: '").Append(localFinalResult).Append('\'').AppendLine();
-
         // Test with GLOBAL scope iterable
         var engine2 = CreateDebugEngine();
         engine2.SetGlobalFunction("log", args =>
@@ -225,11 +220,6 @@ public sealed class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
 
         // Collect debug messages from global scope test
         var globalDebugMessages = DrainDebugMessages(engine2);
-
-        await Task.Delay(10);
-        var globalFinalResult = await engine2.Evaluate("test()");
-        output.WriteLine($"[GLOBAL] Final result: '{globalFinalResult}'");
-        globalResult.Append("[GLOBAL] Final result: '").Append(globalFinalResult).Append('\'').AppendLine();
 
         // Compare debug messages
         output.WriteLine("");

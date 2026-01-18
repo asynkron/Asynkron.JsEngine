@@ -181,16 +181,28 @@ public sealed class CompletionValueDebugTests(ITestOutputHelper output)
             $"Expected undefined, got: {result}");
     }
 
-    [Fact(Skip = "Bug #485: for (let x of ...) inside eval() fails with TDZ error")]
+    [Fact(Timeout = 10000)]
     public async Task ForOfDecl_Break_ReturnsUndefined()
     {
         var logger = new TestLogger(output, "Test9", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         // cptn-decl-abrupt-empty.js - for (let/const)
-        // Note: This test is blocked by a separate bug where for (let ... of ...) inside eval()
-        // fails with "a is not defined" because the loop binding isn't created properly.
         var result = await engine.Evaluate("eval('1; for (let a of [0]) { break; }')");
+        output.WriteLine($"Result: {result?.ToString() ?? "null"} (type: {result?.GetType().Name ?? "null"})");
+
+        Assert.True(result is null || ReferenceEquals(result, Asynkron.JsEngine.Ast.Symbol.Undefined),
+            $"Expected undefined, got: {result}");
+    }
+
+    [Fact(Timeout = 10000)]
+    public async Task ForOfConstDecl_Break_ReturnsUndefined()
+    {
+        var logger = new TestLogger(output, "Test9Const", minLogLevel: LogLevel.Debug);
+        await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
+
+        // cptn-decl-abrupt-empty.js - for (let/const)
+        var result = await engine.Evaluate("eval('1; for (const a of [0]) { break; }')");
         output.WriteLine($"Result: {result?.ToString() ?? "null"} (type: {result?.GetType().Name ?? "null"})");
 
         Assert.True(result is null || ReferenceEquals(result, Asynkron.JsEngine.Ast.Symbol.Undefined),

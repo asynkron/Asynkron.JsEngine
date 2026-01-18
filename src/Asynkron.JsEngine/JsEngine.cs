@@ -1993,7 +1993,7 @@ public sealed class JsEngine : IAsyncDisposable
             // If enqueue fails (queue closed), decrement immediately.
             Interlocked.Decrement(ref _pendingTaskCount);
             TrySignalDrainComplete();
-        }, TaskScheduler.Default);
+        }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 
     /// <summary>
@@ -2048,7 +2048,7 @@ public sealed class JsEngine : IAsyncDisposable
             // If enqueue fails (queue closed), decrement immediately.
             Interlocked.Decrement(ref _pendingTaskCount);
             TrySignalDrainComplete();
-        }, TaskScheduler.Default);
+        }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 
     /// <summary>
@@ -2060,6 +2060,28 @@ public sealed class JsEngine : IAsyncDisposable
     /// <param name="task">The async task to track.</param>
     private void TrackPendingAsyncWork(Task task)
     {
+        if (task.IsCompleted)
+        {
+            // If the task failed, log the error
+            if (task.IsFaulted)
+            {
+                var ex = task.Exception?.GetBaseException() ?? task.Exception;
+                if (ex is not null)
+                {
+                    RealmState.Logger?.LogError(ex,
+                        "[TrackPendingAsyncWork] Tracked task faulted: {ErrorType}: {ErrorMessage}",
+                        ex.GetType().Name,
+                        ex.Message);
+                }
+            }
+            else if (task.IsCanceled)
+            {
+                RealmState.Logger?.LogWarning("[TrackPendingAsyncWork] Tracked task was canceled");
+            }
+
+            return;
+        }
+
         StartEventLoop();
 
         // Increment immediately to track pending work
@@ -2088,7 +2110,7 @@ public sealed class JsEngine : IAsyncDisposable
             // The task's internal ScheduleTask calls will have their own increment/decrement cycle
             Interlocked.Decrement(ref _pendingTaskCount);
             TrySignalDrainComplete();
-        }, TaskScheduler.Default);
+        }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 
     /// <summary>

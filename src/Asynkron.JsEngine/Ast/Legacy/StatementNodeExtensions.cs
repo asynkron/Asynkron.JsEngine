@@ -235,11 +235,25 @@ public static partial class TypedAstEvaluator
                                 new HashSet<Symbol>(catchParameterNames, catchParameterNames.Comparer);
                             catchBinding.CollectSymbolsFromBinding(catchParameterNamesForBody);
 
+                            // Always create a new set for simple catch parameters to handle shadowing correctly
+                            simpleCatchParameterNamesForBody =
+                                new HashSet<Symbol>(simpleCatchParameterNames, simpleCatchParameterNames.Comparer);
+
                             if (catchBinding is IdentifierBinding identifierBinding)
                             {
-                                simpleCatchParameterNamesForBody =
-                                    new HashSet<Symbol>(simpleCatchParameterNames, simpleCatchParameterNames.Comparer);
+                                // Simple identifier binding: add to simple set
                                 simpleCatchParameterNamesForBody.Add(identifierBinding.Name);
+                            }
+                            else
+                            {
+                                // Non-simple binding (e.g., destructuring): Remove any shadowed names from simple set.
+                                // Per Annex B.3.5, if a catch parameter is not a simple identifier, any var binding
+                                // with the same name would be an early error, so we must track that this name is
+                                // now bound by a non-simple catch parameter (even if an outer catch had a simple
+                                // binding with the same name).
+                                var shadowedNames = new HashSet<Symbol>();
+                                catchBinding.CollectSymbolsFromBinding(shadowedNames);
+                                simpleCatchParameterNamesForBody.ExceptWith(shadowedNames);
                             }
                         }
 

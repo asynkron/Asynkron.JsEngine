@@ -821,12 +821,15 @@ public static partial class TypedAstEvaluator
             }
 
             var lexicalNames = RentSymbolSet(_lexicalTemplate);
-            var catchParameterNames = RentSymbolSet(_catchParameterTemplate);
+            // Used to compute body-lexical blocking; cleared and reused as an "active catch" set for hoisting.
             var simpleCatchParameterNames = RentSymbolSet(_simpleCatchParameterTemplate);
+            // Track active catch parameters while hoisting (Annex B.3.5/B.3.3.3); start empty.
+            var catchParameterNames = RentSymbolSet();
             var bodyLexicalNames = lexicalNames.Count == 0
                 ? lexicalNames
                 : RentSymbolSet(_bodyLexicalTemplate);
             bodyLexicalNames.ExceptWith(simpleCatchParameterNames);
+            simpleCatchParameterNames.Clear();
 
             var functionMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
             using var functionScopeFrame = context.PushScope(ScopeKind.Function, functionMode);

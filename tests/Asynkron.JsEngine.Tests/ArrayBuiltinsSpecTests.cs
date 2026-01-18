@@ -568,6 +568,38 @@ public sealed class ArrayBuiltinsSpecTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 5000)]
+    public async Task Array_length_Shrink_Deletes_Accessor_Properties()
+    {
+        // Test262: built-ins/Array/prototype/reverse/get_if_present_with_delete.js
+        await using var engine = CreateEngine();
+
+        var result = Assert.IsType<JsObject>(await engine.Evaluate("""
+            var array = ["first", "second"];
+
+            Object.defineProperty(array, 0, {
+              get: function() {
+                array.length = 0;
+                return "first";
+              }
+            });
+
+            array.reverse();
+
+            ({
+              has0: 0 in array,
+              has1: 1 in array,
+              value1: array[1],
+              length: array.length
+            });
+        """));
+
+        Assert.Equal(false, result["has0"]);
+        Assert.Equal(true, result["has1"]);
+        Assert.Equal("first", result["value1"]);
+        Assert.Equal(2d, result["length"]);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task Array_flatMap_CallsCustomSpeciesConstructorWithNewTarget()
     {
         // Test for flatMap calling custom species constructor with new.target

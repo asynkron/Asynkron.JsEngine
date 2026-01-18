@@ -60,9 +60,13 @@ public static partial class TypedAstEvaluator
                     // For hoisted functions in sloppy mode, also update the function-scope binding.
                     // This implements Annex B semantics where block-scoped functions also
                     // update the outer function-scope binding.
-                    if (functionScope.HasFunctionScopedBinding(funcDecl.Name))
+                    if (!ctx.CurrentScope.IsStrict)
                     {
-                        functionScope.AssignJsValue(funcDecl.Name, fnValueJs);
+                        if (TryFindEnclosingNonLexicalBindingEnvironment(environment.Enclosing, funcDecl.Name,
+                                out var bindingEnvironment))
+                        {
+                            bindingEnvironment.AssignJsValue(funcDecl.Name, fnValueJs);
+                        }
                     }
                 }
             }
@@ -70,6 +74,28 @@ public static partial class TypedAstEvaluator
             runner._programCounter = instruction.Next;
             returnValue = default;
             return InstructionResult.Continue;
+
+            static bool TryFindEnclosingNonLexicalBindingEnvironment(
+                JsEnvironment? start,
+                Symbol name,
+                out JsEnvironment bindingEnvironment)
+            {
+                var current = start;
+                while (current is not null)
+                {
+                    ref var slot = ref current.TryGetSlotRef(name);
+                    if (!Unsafe.IsNullRef(ref slot) && !slot.IsLexical)
+                    {
+                        bindingEnvironment = current;
+                        return true;
+                    }
+
+                    current = current.Enclosing;
+                }
+
+                bindingEnvironment = null!;
+                return false;
+            }
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]

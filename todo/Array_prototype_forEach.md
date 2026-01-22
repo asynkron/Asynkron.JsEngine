@@ -30,3 +30,5 @@ Asynkron.JsEngine.ThrowSignal: Unhandled JavaScript throw: 'TypeError': 'Invalid
 
 **Fix Direction:**
 Adjust the Array length setter/`ArraySetLength` implementation so failed deletions of non-configurable elements return `false` without throwing in sloppy mode, restore length to `failedIndex + 1`, and allow `forEach` to continue using the original `len`.
+
+** DONE **

@@ -36,3 +36,5 @@ Expected SameValue(«-129», «-1870724872») to be true
 
 **Fix Direction:**
 Implement `SetViewValue` semantics in a single DataView path: `ToIndex` for `byteOffset`, check `IsDetachedBuffer` before bounds, compute `viewSize` from current buffer length (resizable), then `ToNumber`/`ToInt32` for `value`, and use correct endian writes. Remove or guard the `TryGetDouble` fast paths so conversions and error ordering follow the spec.
+
+** DONE **

@@ -40,3 +40,5 @@ value: 2147483648 Expected SameValue(65535, 0) to be true
 **Fix Direction:**
 - Rework setUint16 to follow SetViewValue ordering: check detached buffer, convert byteOffset with ToIndex, validate range against the current buffer length (including resizable buffers), then convert the value with a proper ToUint16 (mod 2^16) helper and write bytes with the requested endianness.
 - Avoid converting `value` before offset validation in DataViewPrototype.SetUint16 and the JsDataView host method; centralize conversions in a shared helper (e.g., NumberHelper/JsOps ToUint16) and update bounds checks to use buffer dynamic length.
+
+** DONE **

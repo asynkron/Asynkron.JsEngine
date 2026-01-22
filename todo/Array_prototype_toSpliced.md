@@ -24,3 +24,5 @@ Both strict and non-strict variants of `length-exceeding-array-length-limit.js` 
 
 **Fix Direction:**
 In `Array.prototype.toSpliced`, compute `newLen` from `LengthOfArrayLike` and ensure the spec step `if newLen > 2 ** 53 - 1 throw TypeError` executes before `ArrayCreate`/array-length-limit checks. Keep `RangeError` only for the `2 ** 32 - 1` array length limit.
+
+** DONE **

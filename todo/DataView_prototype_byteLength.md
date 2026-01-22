@@ -31,3 +31,5 @@ Detached-buffer tests call `$DETACHBUFFER` then expect `dv.byteLength` to throw 
 
 **Fix Direction:**
 In the DataView.prototype.byteLength getter, re-check `[[ViewedArrayBuffer]]` on every access: if `IsDetachedBuffer(buffer)` is true, throw TypeError. For resizable buffers, compute byteLength using current `buffer.byteLength` (length-tracking views: `buffer.byteLength - byteOffset`) and throw TypeError when `IsViewOutOfBounds` is true (e.g., buffer length shrinks below byteOffset or byteOffset+length for fixed views).
+
+** DONE **

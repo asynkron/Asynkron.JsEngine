@@ -26,3 +26,5 @@ Asynkron.JsEngine.ThrowSignal: Unhandled JavaScript throw: newArr.length Expecte
 **Fix Direction:**
 Ensure Array.prototype.filter uses HasProperty/Get per spec (including prototype chain) and iterates with the initial `len` snapshot.
 Fix ArraySetLength/length assignment so shrinking below non-configurable elements returns false and only throws in strict mode; non-strict must fail silently and keep length unchanged.
+
+** DONE **

@@ -33,3 +33,5 @@ For resizable buffers (`resizable-buffer.js`), shrinking the buffer below the vi
 In the shared `GetViewValue`/DataView read path, reorder and expand validation:
 - Check `IsDetachedBuffer(buffer)` before any range/out-of-range logic and throw `TypeError`.
 - For resizable array buffers, compute current view byte length and throw `TypeError` if the view is out-of-bounds before validating `requestIndex` against view size.
+
+** DONE **

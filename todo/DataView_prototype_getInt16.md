@@ -29,3 +29,5 @@ The failing tests cover detached buffers and resizable ArrayBuffers. For detache
 
 **Fix Direction:**
 Update the DataView `GetViewValue` path used by `getInt16` to (1) check `IsDetachedBuffer(buffer)` before computing view size or byteOffset range checks, and (2) for resizable buffers, detect out-of-bounds views (view offset + view length > buffer byte length) and throw TypeError before evaluating the requested index. Ensure the TypeError path runs before the RangeError path for byteOffset.
+
+** DONE **

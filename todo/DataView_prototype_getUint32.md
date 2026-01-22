@@ -29,3 +29,5 @@ The detached-buffer tests expect a TypeError when the [[ViewedArrayBuffer]] is d
 
 **Fix Direction:**
 In GetViewValue/DataView.getUint32, ensure the IsDetachedBuffer check happens before any range checks. For resizable ArrayBuffer-backed DataViews, add or use an "IsViewOutOfBounds" check based on the current buffer byteLength and view offset/length; if the view is OOB, throw TypeError before attempting the read or RangeError logic.
+
+** DONE **

@@ -43,3 +43,5 @@ Detached-buffer tests show a RangeError because the implementation checks the by
 
 **Fix Direction:**
 Rework `SetViewValue`/`DataView.prototype.setFloat32` to follow spec order: check detached buffer (and view out-of-bounds for resizable buffers) before range checks; perform ToIndex on byteOffset, then range-check against the current view byteLength; only after passing those checks convert the `value` (using undefined when arg is missing) and write the bytes. Ensure resizable-buffer out-of-bounds paths throw TypeError.
+
+** DONE **

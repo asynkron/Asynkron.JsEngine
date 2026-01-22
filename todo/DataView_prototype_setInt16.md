@@ -37,3 +37,5 @@ Asynkron.JsEngine.ThrowSignal: Unhandled JavaScript throw: value: 2147483648 Exp
 
 **Fix Direction:**
 Implement `SetViewValue` ordering for DataView setters: `ToIndex(byteOffset)` first, then `IsDetachedBuffer`/`IsViewOutOfBounds` checks (resizable buffers) before range checks, then `ToNumber(value)` and `ToInt16` conversion. Replace `(short)(int)JsOps.ToNumber` with `JsNumericConversions.ToInt32(number)` plus a cast to `short` (and analogous conversions for UInt16). Add detached and out-of-bounds checks in `JsDataView` (throw `TypeError` before `RangeError`).
+
+** DONE **

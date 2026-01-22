@@ -66,3 +66,5 @@ The failing tests cluster around spec-mandated constructor ordering and object-n
 
 **Fix Direction:**
 Align `DataViewConstructor` with the spec algorithm: throw on `NewTarget` undefined before argument conversions, use `ToIndex` for `byteOffset`/`byteLength`, validate against the initial buffer length before `GetPrototypeFromConstructor`, and add detached-buffer checks both before and after prototype resolution. Avoid premature `ResolveConstructPrototype` in the `Reflect.construct` path for DataView (or make the constructor use the provided `this` without re-resolving the prototype). Ensure DataView instances are object-like by either wrapping the internal `JsDataView` in a `JsObject` even for the default constructor or making `JsDataView` implement `IJsObjectLike`/`IExtensibilityControl` so `Object.getPrototypeOf` and `Object.isExtensible` work as expected.
+
+** DONE **

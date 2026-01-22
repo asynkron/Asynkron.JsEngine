@@ -27,3 +27,5 @@ The targeted Test262 Boolean.prototype cases (S15.6.3.1_A1/A2/A3/A4 and S15.6.4_
 
 **Fix Direction:**
 Remove Boolean_prototype from the failing list or re-run against the original failing revision to reproduce.
+
+** DONE **

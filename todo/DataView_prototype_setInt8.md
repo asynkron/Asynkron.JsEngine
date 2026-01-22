@@ -39,3 +39,5 @@ Asynkron.JsEngine.ThrowSignal: Unhandled JavaScript throw: value: 2147483648 Exp
 
 **Fix Direction:**
 Implement `SetViewValue` ordering for DataView writes: `ToIndex(byteOffset)` first, then detached/out-of-bounds checks (including resizable buffer view-out-of-bounds), then range checks, then `ToInt8` value conversion. Ensure bounds checks use current buffer length (and throw TypeError for detached/out-of-bounds) so `IndexOutOfRangeException` never leaks and large values follow modulo 2^8 semantics.
+
+** DONE **

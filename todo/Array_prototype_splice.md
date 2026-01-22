@@ -31,3 +31,5 @@ Asynkron.JsEngine.ThrowSignal: Unhandled JavaScript throw: 'Error': 'Actual [def
 **Fix Direction:**
 - Move the splice reentrancy guard to an internal, non-observable slot/state (realm/context flag or private storage) to avoid `TryGetProperty`/`SetProperty` on user objects.
 - Route `Set(A, "length", ...)` through a receiver-aware path (`SetPropertyOrThrow` with receiver) or update `JsArray.SetProperty` to honor proxy receivers for `"length"` so the required `getOwnPropertyDescriptor`/`defineProperty` trap lookups occur.
+
+** DONE **

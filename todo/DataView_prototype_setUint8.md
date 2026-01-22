@@ -38,3 +38,5 @@ Unhandled JavaScript throw: value: 2147483648 Expected SameValue(«255», «0»)
 
 **Fix Direction:**
 Implement spec-order `SetViewValue` for DataView: use `NumberHelper.ToIndex` for `byteOffset`, check `IsDetached` and resizable out-of-bounds before writing, and map errors to `TypeError`/`RangeError` instead of .NET exceptions. Convert `value` with proper `ToUint8` (mod 256) after `ToIndex` (and in the right order relative to range checks per spec). Update `JsDataView` bounds checks to use current buffer length and detached state (or centralize in DataViewPrototype to avoid stale `ByteLength`).
+
+** DONE **

@@ -26,3 +26,5 @@ Both strict and non-strict variants of `legacy-regexp-statics-not-modified.js` f
 
 **Fix Direction:**
 Avoid JS RegExp side effects in Intl locale parsing by using non-RegExp parsing or saving/restoring legacy RegExp match state around internal regex usage. Canonicalize and validate the host default locale (via the same path as `Intl.getCanonicalLocales`) before storing it in Collator internal slots/resolvedOptions.
+
+** DONE **

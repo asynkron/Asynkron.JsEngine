@@ -23,3 +23,5 @@ The targeted Test262 `BuiltIns_String_prototype_substr` tests complete successfu
 
 **Fix Direction:**
 No code change indicated. If failures recur, capture the exact failing test output and re-run the same filtered command to compare behavior and error text.
+
+** DONE **

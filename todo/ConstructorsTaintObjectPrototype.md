@@ -33,3 +33,5 @@ Use `DefineProperty`/CreateDataProperty-style writes when populating Intl resolv
 any internal "record" objects so prototype setters are not invoked. Alternatively, create
 internal records with a null prototype and then define data properties, while keeping the
 resolvedOptions return value as an ordinary object with own properties.
+
+** DONE **

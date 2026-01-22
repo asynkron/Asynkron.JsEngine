@@ -31,3 +31,5 @@ For non-shared-buffer tests, the spec requires Atomics.notify to evaluate `index
 
 **Fix Direction:**
 Update Atomics.notify to perform `ValidateAtomicAccess`/`ToInteger(count)` before checking for SharedArrayBuffer and to return 0 (not throw) when the buffer is not shared; ensure the BigInt typed-array path uses that behavior. For notify-all-on-loc, implement `$262.agent` host support for agent-based Atomics (or skip agent-only tests when agent support is absent).
+
+** DONE **

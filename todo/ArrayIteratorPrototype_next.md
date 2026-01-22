@@ -24,3 +24,5 @@ System.IndexOutOfRangeException: Index was outside the bounds of the array.
 
 **Fix Direction:**
 Ensure typed-array iterators check `IsDetachedOrOutOfBounds()` on every `next()` call and throw `CreateOutOfBoundsTypeError()` (ThrowSignal) before any element access. Verify no optimized iteration path (array iterator reuse, pooled enumerators) bypasses this check for `typedArray.keys()`/`values()`/`entries()` so detachment produces a JS TypeError instead of a runtime IndexOutOfRange.
+
+** DONE **

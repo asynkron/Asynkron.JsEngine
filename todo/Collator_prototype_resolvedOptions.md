@@ -48,3 +48,5 @@ stem from spec‑incorrect resolution of options vs Unicode extensions and local
 - Implement `ResolveLocale`/`ResolveLocaleData` behavior for `co`/`kn`/`kf`: track whether each
   resolved value came from Unicode extension vs options; include `-u-` keys in the resolved locale
   only when the extension value is used, and ignore unsupported extension values for a locale.
+
+** DONE **

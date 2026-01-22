@@ -39,3 +39,5 @@ Both failures are noStrict tests where a getter on index 3 sets `arr.length = 2`
 
 **Fix Direction:**
 When assigning to `length` through normal property set (e.g., `JsOps.TryAssignArrayLikeValueJsValue`), pass `throwOnWritableFailure: context?.CurrentScope.IsStrict == true` (or equivalent) into `JsArray.SetLength`. Ensure `TryShrinkLength` failures only throw in strict mode; in sloppy mode they should fail silently and leave length at `index + 1`, allowing reduceRight to continue and observe non-configurable elements.
+
+** DONE **

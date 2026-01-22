@@ -24,3 +24,5 @@ The test calls `taintProperties(...)`, which installs throwing setters on `Objec
 
 **Fix Direction:**
 Use `CreateDataPropertyOrThrow`/`DefineProperty` when populating `resolvedOptions` and any internal locale records (or construct records with a null prototype) so writes bypass `Object.prototype` setters. This should be applied across Intl constructors that set `locale`/`nu`/`ca`/`co`/`dataLocale` during initialization or in `resolvedOptions`.
+
+** DONE **

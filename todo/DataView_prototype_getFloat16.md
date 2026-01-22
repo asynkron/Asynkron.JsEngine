@@ -29,3 +29,5 @@ Detached-buffer tests expect a `TypeError` even when the byteOffset is out of ra
 
 **Fix Direction:**
 Implement the spec order for `DataView.prototype.getFloat16`: after `ToIndex(byteOffset)`, verify the buffer is not detached and the view is not out-of-bounds (including resizable ArrayBuffer shrink), throwing `TypeError` before any range check. Only after these checks should the range/offset validation run and throw `RangeError` when appropriate.
+
+** DONE **

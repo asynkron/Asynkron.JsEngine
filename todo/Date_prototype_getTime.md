@@ -33,3 +33,5 @@ when `getTime()` returns the internal value. The most central fix is in
 `if (result == 0d) result = 0d;` or a `1/result` sign check). Alternatively,
 normalize in `StoreInternalDateValue` or `DatePrototype.getTime` before
 returning.
+
+** DONE **

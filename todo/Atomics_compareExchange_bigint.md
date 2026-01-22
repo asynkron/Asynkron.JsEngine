@@ -24,3 +24,5 @@ built-ins/Atomics/compareExchange/bigint/good-views.js
 
 **Fix Direction:**
 In `AtomicsPrototype.CompareExchange`, normalize `expected` to the element type before `SameValue` for BigInt typed arrays. For `BigUint64Array`, apply `ToBigUint64` (or the array's element conversion) to the expected BigInt before comparing; for `BigInt64Array`, keep signed conversion. Alternatively, convert both expected and oldValue to the array's canonical element representation before comparison.
+
+** DONE **

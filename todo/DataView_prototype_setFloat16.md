@@ -38,3 +38,5 @@ The detached-buffer cases expect TypeError when the view's buffer is detached, b
 
 **Fix Direction:**
 Match the `SetViewValue` algorithm: check `IsDetachedBuffer` before bounds checks, re-check after `ToIndex(byteOffset)`, and perform the range check before converting the value when the index is invalid. Treat missing `value` as `undefined` and apply `ToNumber` so the stored value is `NaN`. For resizable buffers, recompute view length and throw TypeError when the view is out-of-bounds after resize (use `IsViewOutOfBounds`/`GetViewByteLength`).
+
+** DONE **

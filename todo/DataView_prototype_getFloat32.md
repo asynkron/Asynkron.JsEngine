@@ -29,3 +29,5 @@ Detached-buffer tests show RangeError when a detached buffer should trigger Type
 
 **Fix Direction:**
 Align `DataView.prototype.getFloat32` with the spec for `GetViewValue`: check `IsDetachedBuffer(buffer)` and `IsViewOutOfBounds(view)` before any range/element size checks, and throw TypeError for detached or out-of-bounds views. Ensure resizable ArrayBuffer views compute view size based on current buffer length so out-of-bounds views throw TypeError rather than returning a value.
+
+** DONE **

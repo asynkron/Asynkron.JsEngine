@@ -29,3 +29,5 @@ Asynkron.JsEngine.ThrowSignal: Unhandled JavaScript throw:
 
 **Fix Direction:**
 Split Number handling from `ToBigInt`: make the `ToBigInt` abstract operation throw `TypeError` for Number inputs and update the BigInt constructor path to use a dedicated Number-to-BigInt conversion (so `BigInt(1)` still works). For `ToIndex`, either route object coercion through `JsOps.ToPrimitive` (which already throws on non-callable `@@toPrimitive`) or add the same callable check in `TryConvertToNumericPrimitiveJsValue` so `ToNumeric` correctly raises `TypeError` when `@@toPrimitive` is present but not callable.
+
+** DONE **

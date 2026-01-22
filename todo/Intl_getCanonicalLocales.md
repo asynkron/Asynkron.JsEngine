@@ -1,0 +1,43 @@
+# Intl_getCanonicalLocales
+
+FQN:
+`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales`
+
+Full test name:
+
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/canonicalized-tags.js",False)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/canonicalized-tags.js",True)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/complex-language-subtag-replacement.js",False)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/complex-language-subtag-replacement.js",True)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/complex-region-subtag-replacement.js",False)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/complex-region-subtag-replacement.js",True)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/invalid-tags.js",False)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/invalid-tags.js",True)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/name.js",True)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/non-iana-canon.js",True)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/overriden-arg-length.js",False)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/overriden-arg-length.js",True)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/preferred-grandfathered.js",False)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/preferred-grandfathered.js",True)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/preferred-variant.js",False)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/preferred-variant.js",True)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/transformed-ext-canonical.js",False)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/transformed-ext-canonical.js",True)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/transformed-ext-valid.js",False)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/transformed-ext-valid.js",True)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/unicode-ext-canonicalize-calendar.js",False)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/unicode-ext-canonicalize-calendar.js",True)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/unicode-ext-canonicalize-col-strength.js",False)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/unicode-ext-canonicalize-col-strength.js",True)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/unicode-ext-canonicalize-measurement-system.js",False)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/unicode-ext-canonicalize-measurement-system.js",True)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/unicode-ext-canonicalize-region.js",False)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/unicode-ext-canonicalize-region.js",True)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/unicode-ext-canonicalize-subdivision.js",False)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/unicode-ext-canonicalize-subdivision.js",True)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/unicode-ext-canonicalize-timezone.js",False)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/unicode-ext-canonicalize-timezone.js",True)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/unicode-ext-canonicalize-yes-to-true.js",False)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/unicode-ext-canonicalize-yes-to-true.js",True)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/unicode-ext-key-with-digit.js",False)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Intl_getCanonicalLocales("intl402/Intl/getCanonicalLocales/unicode-ext-key-with-digit.js",True)

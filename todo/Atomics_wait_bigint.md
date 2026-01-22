@@ -1,0 +1,41 @@
+# Atomics_wait_bigint
+
+FQN:
+`Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint`
+
+Full test name:
+
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/cannot-suspend-throws.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/cannot-suspend-throws.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/false-for-timeout-agent.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/false-for-timeout-agent.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/nan-for-timeout.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/nan-for-timeout.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/negative-timeout-agent.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/negative-timeout-agent.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/no-spurious-wakeup-no-operation.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/no-spurious-wakeup-no-operation.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/no-spurious-wakeup-on-add.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/no-spurious-wakeup-on-add.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/no-spurious-wakeup-on-and.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/no-spurious-wakeup-on-and.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/no-spurious-wakeup-on-compareExchange.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/no-spurious-wakeup-on-compareExchange.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/no-spurious-wakeup-on-exchange.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/no-spurious-wakeup-on-exchange.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/no-spurious-wakeup-on-or.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/no-spurious-wakeup-on-or.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/no-spurious-wakeup-on-store.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/no-spurious-wakeup-on-store.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/no-spurious-wakeup-on-sub.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/no-spurious-wakeup-on-sub.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/no-spurious-wakeup-on-xor.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/no-spurious-wakeup-on-xor.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/value-not-equal.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/value-not-equal.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/waiterlist-block-indexedposition-wake.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/waiterlist-block-indexedposition-wake.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/waiterlist-order-of-operations-is-fifo.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/waiterlist-order-of-operations-is-fifo.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/was-woken-before-timeout.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/was-woken-before-timeout.js",True)

@@ -29,3 +29,5 @@ built-ins/Array/prototype/some/15.4.4.17-7-b-16.js
 
 **Fix Direction:**
 Ensure the array `length` setter follows `ArraySetLength` semantics: when deletion of a non-configurable element fails, set length to `failedIndex + 1` and return `false`; only throw if the `[[Set]]`/`DefineOwnProperty` call has `Throw` = true (strict mode). This should prevent exceptions in non-strict callers like this test and allow `some` to keep iterating with the initial length.
+
+** DONE **

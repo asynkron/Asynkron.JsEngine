@@ -33,3 +33,5 @@ Define `constructor` on the async generator prototype when wiring intrinsics (li
 `AsyncGeneratorFunctionConstructor.ConfigureConstructor`, mirroring `AsyncFunctionConstructor`,
 or in prototype initialization). Set `Value = constructor`, `Writable = false`,
 `Enumerable = false`, `Configurable = true`.
+
+** DONE **

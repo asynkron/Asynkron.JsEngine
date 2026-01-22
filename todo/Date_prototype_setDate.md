@@ -24,3 +24,5 @@ The failing test sets a Date with [[DateValue]] = NaN, then calls `setDate` with
 
 **Fix Direction:**
 In `DatePrototype.SetDate` (`src/Asynkron.JsEngine/StdLib/Date/DatePrototype.cs`), keep the current order (read `timeValue`, call `ToNumber`), but if the original `timeValue` is NaN then return NaN immediately and skip `StoreInternalDateValue`. This preserves side effects from `ToNumber` while matching spec behavior.
+
+** DONE **

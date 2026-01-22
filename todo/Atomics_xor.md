@@ -32,3 +32,5 @@ throw new Test262Error("value coerced");
 
 **Fix Direction:**
 Implement a `ValidateSharedIntegerTypedArray` equivalent that rejects non-shared buffers and non-integer typed arrays (including Uint8ClampedArray) before any index/value coercion. In `AtomicBitwiseOperation`, replace the `(int)` casts with JS-correct `ToInt32`/`ToUint32` (or element-type-aware conversion) so xor on Uint32Array handles values above `int.MaxValue` correctly.
+
+** DONE **

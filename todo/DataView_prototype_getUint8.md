@@ -36,3 +36,5 @@ Unhandled JavaScript throw: Expected a TypeError but got a Test262Error
 
 **Fix Direction:**
 Implement the spec `GetViewValue` ordering for DataView reads: apply `ToIndex` to `byteOffset`, then check `IsDetachedBuffer` and `IsViewOutOfBounds` (resizable buffers), throwing TypeError when appropriate. Compute `viewSize` from the current buffer length and view byteOffset/byteLength, then perform the range check and throw RangeError. Also ensure out-of-range access surfaces as RangeError (either by explicit checks or by catching `IndexOutOfRangeException` in `WithRangeError`).
+
+** DONE **

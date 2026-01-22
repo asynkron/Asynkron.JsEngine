@@ -81,3 +81,5 @@ built-ins/Atomics/wait/was-woken-before-timeout.js
 
 **Fix Direction:**
 Provide a `$262.agent` host object in `Test262Test.BuildTestExecutor` (start, broadcast/receiveBroadcast, report/getReport, waitUntil, tryYield/trySleep, timeouts) wired to a shared agent coordinator. Implement real waiter-list semantics for `Atomics.wait`, `Atomics.waitAsync`, and `Atomics.notify` on SharedArrayBuffer-backed Int32Array/BigInt64Array so agents can block, timeout, and be notified per spec.
+
+** DONE **

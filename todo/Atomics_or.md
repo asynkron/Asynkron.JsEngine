@@ -39,3 +39,5 @@ Asynkron.JsEngine.ThrowSignal: Unhandled JavaScript throw: Expected a TypeError 
 
 **Fix Direction:**
 Implement ValidateSharedIntegerTypedArray for Atomics read/modify/write ops: require `typedArray.Buffer.IsShared`, reject `Uint8ClampedArray` and non-integer typed arrays, and perform these checks before any index/value coercion. For `Atomics.or` (and other bitwise ops), use JS numeric conversions (`JsNumericConversions.ToInt32`/`ToUInt32`) based on the typed array kind and apply the operation on the correctly coerced 32-bit value before storing back to the typed array element type.
+
+** DONE **

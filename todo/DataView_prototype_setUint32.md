@@ -36,3 +36,5 @@ Unhandled JavaScript throw: [empty message in index-check-before-value-conversio
 
 **Fix Direction:**
 Move to spec order in `DataViewPrototype.SetUint32` (or a shared SetViewValue helper): perform `ToIndex` on `byteOffset` first, then check detached/out-of-bounds (TypeError for detached or OOB resizable view), then convert `value` with a proper `ToUint32` helper. Avoid direct `(uint)` casts. Update `JsDataView`/buffer logic so resizable ArrayBuffer shrink marks the view out-of-bounds and throws TypeError, not RangeError, before any write.
+
+** DONE **

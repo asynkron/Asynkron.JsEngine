@@ -34,3 +34,5 @@ Separately, `Intl.NumberFormat.prototype.format` fails with BigInt because `Form
 
 **Fix Direction:**
 Ensure `TryFormatWithIntlNumberFormatJsValue` retrieves `format` using the proper receiver (e.g., `accessor.TryGetProperty("format", formatter, out var formatValue)` or equivalent) so `ValidateNumberFormatReceiver` sees a branded NumberFormat instance. In `IntlNumberFormatPrototype.FormatNumberResult`, handle BigInt and number values explicitly by operating on a `JsValue` (e.g., `TryGetBigInt` / `TryGetNumber`) or switching to a numeric conversion helper that returns `JsBigInt` or `double` rather than a raw `JsValue`.
+
+** DONE **

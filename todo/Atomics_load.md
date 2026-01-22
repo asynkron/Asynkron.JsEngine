@@ -28,3 +28,5 @@ Test262Error("index coerced")
 
 **Fix Direction:**
 Tighten `RequireAtomicTypedArray` to reject non-atomics-friendly typed arrays (including `Uint8ClampedArray`) and require `Buffer.IsShared` for Atomics.load (and other atomic read/modify ops). Keep this validation before `RequireAtomicIndex` so `ToIndex` is not invoked on invalid typed arrays.
+
+** DONE **

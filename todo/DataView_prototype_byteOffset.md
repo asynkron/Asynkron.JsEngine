@@ -28,3 +28,5 @@ The DataView byteOffset getter in `src/Asynkron.JsEngine/StdLib/DataView/DataVie
 
 **Fix Direction:**
 Implement DataView validation similar to TypedArray: in the byteOffset getter (and likely byteLength/buffer for completeness), check `dv.Buffer.IsDetached` and throw TypeError when detached. Add an `IsViewOutOfBounds`/length-tracking check for resizable ArrayBuffers (e.g., based on stored byteOffset/byteLength or a new length-tracking flag) and throw TypeError when the view no longer fits after resize.
+
+** DONE **

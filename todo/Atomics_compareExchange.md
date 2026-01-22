@@ -40,3 +40,5 @@ Update `RequireAtomicTypedArray` (and any callers in `AtomicsPrototype`) to impl
 - Reject non-atomic-friendly types (e.g., Uint8ClampedArray, Float32/Float64).
 - Ensure this validation happens before `RequireAtomicIndex` and before coercing `expectedValue`/`replacementValue`.
 - Use `CreateTypeError`/`ThrowTypeError` with a clear message that matches spec behavior.
+
+** DONE **

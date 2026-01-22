@@ -33,3 +33,5 @@ Asynkron.JsEngine.ThrowSignal: Unhandled JavaScript throw: Expected a TypeError 
 **Fix Direction:**
 - Implement spec-aligned `ValidateSharedIntegerTypedArray` for `Atomics.store`: require `SharedArrayBuffer`, reject `Uint8ClampedArray` (and float arrays), and keep typed array validation ahead of `ToIndex`/`ToNumber`/`ToBigInt`.
 - Return the converted `ToInteger`/`ToBigInt` value from `Atomics.store` instead of reading back the stored element.
+
+** DONE **

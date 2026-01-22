@@ -55,3 +55,5 @@ Most failing files are `*-agent.js` tests that call `$262.agent.*` (from `atomic
 
 **Fix Direction:**
 Implement the host-side `$262.agent` API used by Test262 (start/receiveBroadcast/report/waitUntil/tryYield, etc.), and replace the current stubbed `Atomics.wait/notify` with a real waiter list that honors `AgentCanSuspend`, blocks until timeout/notify, and returns `"ok"`/`"timed-out"` per spec for `BigInt64Array` and `Int32Array` on shared buffers.
+
+** DONE **

@@ -29,3 +29,5 @@ Detached buffer tests expect a TypeError from IsDetachedBuffer before any byteOf
 
 **Fix Direction:**
 In the GetViewValue/DataView.getFloat64 path, check IsDetachedBuffer(buffer) before any range validation. Add an IsViewOutOfBounds check against the current buffer byteLength for resizable buffers and throw TypeError when the view is out-of-bounds; only then apply RangeError for requestIndex.
+
+** DONE **

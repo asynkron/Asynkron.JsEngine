@@ -30,3 +30,5 @@ The failing test defines a non-configurable element at index 2, then a getter on
 
 **Fix Direction:**
 Adjust the array length setter / `ArraySetLength` path so failed length reductions due to non-configurable elements return `false` without throwing when `Throw` is `false` (sloppy mode), and preserve the original length. Only throw in strict mode or when `Throw` is `true`.
+
+** DONE **

@@ -30,3 +30,5 @@ The failing tests exercise `ValidateSharedIntegerTypedArray` requirements. In `A
 
 **Fix Direction:**
 Align `RequireAtomicTypedArray` with spec `ValidateSharedIntegerTypedArray` for `Atomics.sub`: require `SharedArrayBuffer` for arithmetic operations and reject non-Atomics-friendly typed arrays (including `Uint8ClampedArray`, `Float32Array`, `Float64Array`) before any index/value coercion. This keeps type validation ahead of `ToIndex`/`ToNumber` and prevents the Test262Error cases.
+
+** DONE **

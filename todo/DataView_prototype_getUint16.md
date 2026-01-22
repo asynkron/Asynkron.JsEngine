@@ -28,3 +28,5 @@ The detached-buffer tests expect a TypeError even when the byteOffset is out of 
 
 **Fix Direction:**
 Ensure DataView getUint16 (GetViewValue) first checks IsDetachedBuffer and IsViewOutOfBounds (for resizable buffers) before any range checks. If the view is out-of-bounds after a resize, throw TypeError. Only after those checks should it validate byteOffset + elementSize against the current view size and throw RangeError.
+
+** DONE **

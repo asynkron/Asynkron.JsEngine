@@ -23,3 +23,5 @@ Unhandled JavaScript throw: Expected a TypeError but got a RangeError
 
 **Fix Direction:**
 Stop treating `BigInt.prototype` as a boxed BigInt. Remove the `__value__` initialization from the prototype or add a brand check in `RequireBigIntValue` to reject the `BigInt.prototype` object (only accept real `JsBigInt` or wrapper objects created by `BigIntHelper.CreateBigIntWrapper`).
+
+** DONE **

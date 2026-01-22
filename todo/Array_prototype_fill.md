@@ -30,3 +30,5 @@ The failing test (`built-ins/Array/prototype/fill/typed-array-resize.js`) shrink
 
 **Fix Direction:**
 After evaluating `value`, `start`, and `end`, detect if `this` is a TypedArray backed by a resizable buffer and has become out-of-bounds. If so, return `this` early (no-op). Alternatively (or additionally), ensure `LengthOfArrayLike` for TypedArrays returns 0 when OOB so the fill loop never runs. Avoid invoking `IntegerIndexedElementSet` when OOB to prevent the TypeError.
+
+** DONE **

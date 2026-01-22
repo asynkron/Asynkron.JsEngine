@@ -25,3 +25,5 @@ The targeted Test262 tests for `Array.prototype.reverse` (including the two prox
 
 **Fix Direction:**
 No code change needed. Consider pruning the failing list or re-validating on the original failing commit/environment if regressions are suspected.
+
+** DONE **

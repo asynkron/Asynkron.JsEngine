@@ -32,3 +32,5 @@ Asynkron.JsEngine.ThrowSignal: Unhandled JavaScript throw:
 **Fix Direction:**
 - Make `StandardLibrary.ToBigInt` spec-correct: accept only BigInt and String (via parsing), and throw `TypeError` for Number/Boolean/Symbol/undefined/null. Add a separate helper for BigInt() and other call sites that intentionally accept Numbers (e.g., `ToBigIntFromNumberOrString` or similar).
 - Update `JsOps.TryConvertToNumericPrimitiveJsValue` to match `ToPrimitive` rules: if `@@toPrimitive` exists and is not callable, throw `TypeError`; if it returns a non-primitive, throw `TypeError` rather than falling back to `valueOf`/`toString`.
+
+** DONE **

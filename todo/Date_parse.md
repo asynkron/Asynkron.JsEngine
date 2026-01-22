@@ -28,3 +28,5 @@ The failing tests all hit Date.parse semantics that diverge from .NET parsing. I
 
 **Fix Direction:**
 Replace Date.parse with a spec-compliant parser for the ECMAScript Date Time String Format (including signed 6-digit years), and explicitly implement the rule that offsetless date-time strings are local time while date-only strings are UTC. Avoid DateTimeOffset for parse/format in the extended year range; implement custom date math/formatting for toISOString and parsing of Date.prototype.toString/toUTCString outputs so Date.parse round-trips those formats.
+
+** DONE **

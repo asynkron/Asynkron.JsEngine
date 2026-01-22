@@ -29,3 +29,5 @@ Asynkron.JsEngine.ThrowSignal: Unhandled JavaScript throw: 'TypeError': 'Intl.Nu
 
 **Fix Direction:**
 Ensure the `Intl.NumberFormat` instance is correctly branded before accessing `format`, and that `TryFormatWithIntlNumberFormatJsValue` calls the constructor with proper construction semantics and uses the instance as the getter receiver. Concretely: verify `IntlNumberFormatConstructor` sets `__numberFormat__` in all call paths, and/or update `TryFormatWithIntlNumberFormatJsValue` to construct via the engine's construct path and retrieve `format` with the correct receiver.
+
+** DONE **

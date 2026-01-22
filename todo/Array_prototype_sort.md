@@ -29,3 +29,5 @@ Array.prototype.sort appears to read/write elements through an optimized interna
 
 **Fix Direction:**
 Route Array.prototype.sort through the spec SortIndexedProperties behavior: use HasProperty + Get over numeric indices and Set for write-back so prototype accessors are honored. For TypedArrays backed by resizable buffers, re-check bounds per access (IsTypedArrayOutOfBounds / TypedArrayLength) and treat out-of-bounds elements as missing instead of throwing during compare or write-back.
+
+** DONE **

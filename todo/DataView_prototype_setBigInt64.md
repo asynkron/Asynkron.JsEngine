@@ -34,3 +34,5 @@ Detached-buffer tests (`detached-buffer.js`, `detached-buffer-before-outofrange-
 
 **Fix Direction:**
 Reorder `DataView.prototype.setBigInt64` to follow spec: validate DataView, check `IsDetachedBuffer` before any range checks, perform `ToIndex(byteOffset)` before `ToBigInt(value)`, and throw TypeError for missing/undefined value. Add resizable-buffer handling via `IsViewOutOfBounds`/current buffer length checks so out-of-bounds views throw TypeError after resize.
+
+** DONE **

@@ -30,3 +30,5 @@ The failing case defines index 2 as non-configurable, then a getter on index 1 s
 
 **Fix Direction:**
 Ensure `PutValue/Set` passes `Throw=false` for non-strict references and that `ArraySetLength`/`DefineOwnProperty` respects `Throw=false` by returning `false` instead of throwing when length reduction fails due to non-configurable elements.
+
+** DONE **

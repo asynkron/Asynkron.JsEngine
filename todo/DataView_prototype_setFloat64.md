@@ -36,3 +36,5 @@ Expected a TypeError but got a Test262Error
 
 **Fix Direction:**
 Implement `SetViewValue` ordering in `SetFloat64`: compute `byteOffset` with `ToIndex` first, then check `Buffer.IsDetached` and view out-of-bounds (including resizable buffers) before any RangeError, and only then `ToNumber(value)` (treat missing `value` as `undefined` so it becomes `NaN`). Apply the same ordering in both `DataViewPrototype` and `JsDataView` paths, and ensure resizable-buffer out-of-bounds throws TypeError.
+
+** DONE **

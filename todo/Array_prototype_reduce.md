@@ -32,3 +32,5 @@ The failing tests reduce over an array where index 0's getter shrinks `length` t
 
 **Fix Direction:**
 Ensure array `length` assignment respects strictness. In the property assignment path (`JsOps.AssignPropertyValueJsValue`), pass `throwOnWritableFailure: context?.CurrentScope.IsStrict == true` when calling `JsArray.SetLength`. This lets `TryShrinkLength` return false without throwing in sloppy mode and preserves the non-configurable element so reduce proceeds.
+
+** DONE **

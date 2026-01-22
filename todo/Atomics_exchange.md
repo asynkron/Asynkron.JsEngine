@@ -43,3 +43,5 @@ Expected a TypeError but got a Test262Error
 
 **Fix Direction:**
 Implement spec-level `ValidateSharedIntegerTypedArray` in `RequireAtomicTypedArray`: reject non-shared buffers for all Atomics ops (not just wait/notify) and restrict element types to Int8/Uint8/Int16/Uint16/Int32/Uint32 (plus BigInt64/BigUint64 when allowed). Ensure this validation runs before any index/value coercion so `valueOf()` is never called for invalid typed arrays.
+
+** DONE **

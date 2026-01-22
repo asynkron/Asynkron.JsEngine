@@ -26,3 +26,5 @@ Asynkron.JsEngine.ThrowSignal: Unhandled JavaScript throw:
 
 **Fix Direction:**
 In `AtomicsPrototype.Store`, return the coerced BigInt input (the `ToBigInt` result) instead of re-reading the stored element for BigInt typed arrays. That preserves the spec-required return value for BigUint64Array when wrapping occurs, while still storing the wrapped value in the buffer.
+
+** DONE **

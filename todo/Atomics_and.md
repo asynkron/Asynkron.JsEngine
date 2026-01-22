@@ -30,3 +30,5 @@ Asynkron.JsEngine.ThrowSignal: Unhandled JavaScript throw: Expected a TypeError 
 
 **Fix Direction:**
 Implement `ValidateSharedIntegerTypedArray` for `Atomics.and` (and the shared helper it uses): require `SharedArrayBuffer`, reject `Uint8ClampedArray` and floating-point typed arrays, allow BigInt typed arrays for BigInt ops, and perform this validation before any index/value coercion. If `good-views` still fails after that, review `AtomicBitwiseOperation`’s numeric conversion (`ToNumber` + `(int)` casts) to match spec `ToInt32`/element-type conversions for all integer typed arrays.
+
+** DONE **

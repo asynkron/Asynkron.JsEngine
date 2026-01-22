@@ -36,3 +36,5 @@ Test262Test.ThrowError ... (assert.throws failed in resizable-buffer.js expectin
 - Implement `GetViewValue` semantics: apply `ToIndex` to byteOffset, then check `IsDetached` and `IsViewOutOfBounds` against current `Buffer.ByteLength`/`ByteOffset`, throwing TypeError before any data access.
 - Keep RangeError for true offset-out-of-range cases (and ensure it is thrown instead of IndexOutOfRangeException).
 - Consider recomputing/validating DataView bounds on each access for resizable ArrayBuffer (or track "view out-of-bounds" state per spec).
+
+** DONE **

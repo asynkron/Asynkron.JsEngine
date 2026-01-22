@@ -24,3 +24,5 @@ The failing Test262 case uses `Reflect.construct(ArrayBuffer, [7 * 1024^5], newT
 
 **Fix Direction:**
 Move length validation and data block allocation in `ArrayBufferHelper.ConstructBufferCore` to after `ResolveConstructPrototype`/object creation for the non-default `newTarget` path (i.e., mirror `AllocateArrayBuffer`: create object via `OrdinaryCreateFromConstructor` first, then `CreateByteDataBlock`). Ensure any RangeError from allocation limits only occurs after the prototype getter has been invoked.
+
+** DONE **

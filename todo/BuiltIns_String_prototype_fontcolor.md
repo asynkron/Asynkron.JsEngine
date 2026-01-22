@@ -29,3 +29,5 @@ behavior was observed. Build emitted unrelated nullable warnings, but test execu
 No code change identified. If failures reappear, capture fresh failing output and compare against the
 String.prototype.fontcolor implementation for property attributes, "not a constructor" behavior, and
 ToString coercion paths.
+
+** DONE **

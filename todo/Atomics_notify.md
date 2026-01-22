@@ -72,3 +72,5 @@ Asynkron.JsEngine.ThrowSignal: Unhandled JavaScript throw: Expected a Test262Err
 - In `Atomics.notify`, separate the shared-buffer check from `RequireWaitableTypedArray`: validate typed array type and detachment, then `ValidateAtomicAccess` (length before ToIndex) and count coercion, and only then return 0 when the buffer is not shared.
 - Implement waiter tracking so `Atomics.wait` registers waiters and `Atomics.notify` returns the number woken (respecting count default to +∞ and clamping negative counts to 0).
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_notify("built-ins/Atomics/notify/undefined-index-defaults-to-zero.js",True)
+
+** DONE **

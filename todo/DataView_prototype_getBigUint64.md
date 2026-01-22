@@ -30,3 +30,5 @@ Asynkron.JsEngine.ThrowSignal: Unhandled JavaScript throw: Expected a TypeError 
 
 **Fix Direction:**
 Implement a spec-compliant DataView get path: use ToIndex for `byteOffset` (including TypeError on non-callable `Symbol.toPrimitive`), check `IsDetached` and view-in-bounds against the current `ArrayBuffer` length on each access, and throw TypeError for detached/out-of-bounds rather than RangeError; ensure detachment is checked before bounds validation for out-of-range offsets.
+
+** DONE **

@@ -35,3 +35,5 @@ The failing tests all end up throwing a Test262 assertion error (surfacing as an
 
 **Fix Direction:**
 Ensure async generator functions are non-constructable, enforce early errors for `await`/`yield` in async generator parameter lists, and extend `GetPrototypeFromConstructor`/`ResolveConstructPrototype` to resolve `AsyncGeneratorFunction.prototype` from the newTarget's realm (and verify the created `prototype` object uses the constructor's realm).
+
+** DONE **

@@ -28,3 +28,5 @@ Asynkron.JsEngine.ThrowSignal: Unhandled JavaScript throw:
 
 **Fix Direction:**
 Ensure `Atomics.add` (and the common Atomics read-modify-write path) calls `ValidateSharedIntegerTypedArray` before any `index`/`value` coercion, and explicitly rejects non-shared buffers for integer typed arrays.
+
+** DONE **

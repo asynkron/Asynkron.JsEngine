@@ -24,3 +24,5 @@ The resizable-buffer test shrinks the ArrayBuffer from 24 to 8 bytes after creat
 
 **Fix Direction:**
 Ensure DataView.prototype.setBigUint64 (and shared SetViewValue helpers) call ValidateDataView and perform the resizable-buffer out-of-bounds check on each access. If the viewed buffer is resizable and its current byte length is smaller than byteOffset + elementSize (8), throw TypeError before writing.
+
+** DONE **

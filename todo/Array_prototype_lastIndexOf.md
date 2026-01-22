@@ -32,3 +32,5 @@ The current failures are `built-ins/Array/prototype/lastIndexOf/15.4.4.15-8-a-19
 
 **Fix Direction:**
 Ensure array length writes respect strict vs sloppy semantics: when a length shrink fails due to non-configurable elements, return false without throwing in non-strict contexts. Also reconsider the TypedArray fast-path in `Array.prototype.lastIndexOf`: avoid delegating to `TypedArrayBase.LastIndexOfInternal` (which throws on out-of-bounds), or adjust that path to treat out-of-bounds TypedArrays as length 0 and return -1 for Array.prototype.lastIndexOf calls.
+
+** DONE **

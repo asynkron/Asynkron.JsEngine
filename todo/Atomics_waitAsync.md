@@ -96,3 +96,5 @@ Asynkron.JsEngine.ThrowSignal: Unhandled JavaScript throw: Expected a RangeError
 - Update the parser to allow shorthand `async` identifiers in object binding patterns (treat `async` as contextual in binding positions).
 - Adjust `RequireAtomicIndex`/`ValidateAtomicAccess` to read length before index coercion and before value/timeout conversion.
 - Implement spec-compliant `Atomics.waitAsync` semantics (return `{ async: true, value: Promise }` when waiting, and integrate wait/notify).
+
+** DONE **

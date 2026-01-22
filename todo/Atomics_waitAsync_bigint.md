@@ -73,3 +73,5 @@ All failures abort with a `TypeError` while evaluating `Atomics.waitAsync(...).v
 
 **Fix Direction:**
 Implement full `Atomics.waitAsync`/`notify` semantics for `SharedArrayBuffer` + `BigInt64Array`: return `{ async: true, value: Promise }` when a wait is possible, `{ async: false, value: "not-equal" }` when the value mismatches, and resolve the Promise with `"ok"` or `"timed-out"` on notify/timeout. Maintain a per-buffer/index waiter list, wire it into the `$262.agent` harness, and ensure BigInt conversions and index validation follow the spec.
+
+** DONE **

@@ -38,3 +38,5 @@ The compare accessor creates a new HostFunction every time and does not define o
 
 **Fix Direction:**
 Add a cached [[BoundCompare]] on the collator and return it from the getter; create a bound function once, then DefinePropertyOrThrow for "length" (2) and "name" ("") with the required attributes and definition order. Normalize inputs (e.g., NFC) in CompareStrings (or use an ICU-backed collator) to guarantee canonical equivalence. Implement ignorePunctuation by filtering Unicode punctuation/whitespace or a collation engine that supports it. Preserve collation extensions (phonebk) when selecting the comparer or implement a dedicated phonebook collation path.
+
+** DONE **

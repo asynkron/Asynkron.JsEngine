@@ -30,3 +30,5 @@ DataView uses `(int)JsOps.ToNumber` for `byteOffset` and `JsDataView.CheckBounds
 
 **Fix Direction:**
 Implement GetViewValue semantics for DataView: check `buffer.IsDetached` before any offset/range logic, then apply `ToIndex` for `byteOffset`, and verify the view is not out-of-bounds against the current `Buffer.ByteLength` (throw TypeError, not RangeError). In `DataViewPrototype`, use `NumberHelper.ToIndex` (or a dedicated helper) instead of `(int)JsOps.ToNumber`. Tighten `TryConvertToNumericPrimitiveJsValue` to throw TypeError when `@@toPrimitive` exists but is non-callable or returns a non-primitive.
+
+** DONE **

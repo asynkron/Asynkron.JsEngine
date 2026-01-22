@@ -25,3 +25,5 @@ The failing Test262 script reaches `Object.defineProperty(Object.prototype, Symb
 
 **Fix Direction:**
 Ensure `Object.defineProperty` (and any internal `DefineOwnProperty` helpers) use proper property descriptor semantics for symbol keys. Redefining a configurable non-writable property like `Object.prototype[Symbol.toStringTag]` should succeed and not hit `AssignObjectProperty`. Audit the symbol-property define path to avoid throwing on configurable properties and to keep strict-mode-only errors confined to actual assignment (`[[Set]]`) operations.
+
+** DONE **

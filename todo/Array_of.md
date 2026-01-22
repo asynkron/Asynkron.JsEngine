@@ -30,3 +30,5 @@ element creation rather than defining the property directly.
 Update the Array.of implementation to use CreateDataPropertyOrThrow/DefineProperty
 for each element on the newly created array (or custom instance), ensuring indices
 are defined as own data properties without invoking prototype setters.
+
+** DONE **

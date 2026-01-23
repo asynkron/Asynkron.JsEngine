@@ -63,3 +63,23 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait("built-ins/Atomics/wait/waiterlist-order-of-operations-is-fifo.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait("built-ins/Atomics/wait/was-woken-before-timeout.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait("built-ins/Atomics/wait/was-woken-before-timeout.js",True)
+
+---
+## Diagnosis (2026-01-22)
+
+**Summary:** Atomics.wait tests that rely on Test262 agent helpers crash because `$262.agent` is missing, and the current Atomics.wait/notify stubs never block or wake.
+
+**Error Pattern:**
+```
+Asynkron.JsEngine.ThrowSignal: Unhandled JavaScript throw: 'TypeError': 'Cannot read properties of null or undefined'
+built-ins/Atomics/wait/false-for-timeout-agent.js
+built-ins/Atomics/wait/was-woken-before-timeout.js
+```
+
+**Analysis:**
+`atomicsHelper.js` runs for these tests and immediately calls `$262.agent.getReport.bind($262.agent)` and reads `$262.agent.timeouts.*`. In `Test262Test.BuildTestExecutor`, `$262` is created without an `agent` property, so `atomicsHelper.js` throws before any Atomics.wait behavior is exercised. Even if `$262.agent` existed, the current `Atomics.wait` always returns `"timed-out"` synchronously and `Atomics.notify` always returns `0`, so tests that expect waiting, waking, FIFO order, or "ok" statuses would still fail.
+
+**Fix Direction:**
+Provide a `$262.agent` host object in `Test262Test.BuildTestExecutor` (start, broadcast/receiveBroadcast, report/getReport, waitUntil, tryYield/trySleep, timeouts) wired to a shared agent coordinator. Implement real waiter-list semantics for `Atomics.wait`, `Atomics.waitAsync`, and `Atomics.notify` on SharedArrayBuffer-backed Int32Array/BigInt64Array so agents can block, timeout, and be notified per spec.
+
+** DONE **

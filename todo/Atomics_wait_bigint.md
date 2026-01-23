@@ -39,3 +39,21 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/waiterlist-order-of-operations-is-fifo.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/was-woken-before-timeout.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Atomics_wait_bigint("built-ins/Atomics/wait/bigint/was-woken-before-timeout.js",True)
+
+---
+## Diagnosis (2026-01-22)
+
+**Summary:** Atomics.wait/notify are stubbed and the Test262 harness does not provide `$262.agent`, so agent-based wait tests throw early and non-agent tests fail spec-mandated blocking semantics.
+
+**Error Pattern:**
+```
+Unhandled JavaScript throw: 'TypeError': 'Cannot read properties of null or undefined'
+```
+
+**Analysis:**
+Most failing files are `*-agent.js` tests that call `$262.agent.*` (from `atomicsHelper.js`). In this harness, `$262` is created without an `agent` property, so `$262.agent` is null/undefined and the first property access throws. For the non-agent case (`cannot-suspend-throws.js`), the implementation in `AtomicsPrototype.Wait` always returns `"timed-out"` after value comparison and never checks `AgentCanSuspend` or blocks/wakes, so it fails the required `TypeError` when `CanBlockIsFalse` and can never return `"ok"` when woken by `Atomics.notify`.
+
+**Fix Direction:**
+Implement the host-side `$262.agent` API used by Test262 (start/receiveBroadcast/report/waitUntil/tryYield, etc.), and replace the current stubbed `Atomics.wait/notify` with a real waiter list that honors `AgentCanSuspend`, blocks until timeout/notify, and returns `"ok"`/`"timed-out"` per spec for `BigInt64Array` and `Int32Array` on shared buffers.
+
+** DONE **

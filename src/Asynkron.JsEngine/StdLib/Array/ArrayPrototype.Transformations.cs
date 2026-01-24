@@ -674,6 +674,12 @@ public sealed partial class ArrayPrototype
 
         var insertCount = Math.Max(args.Count - 2, 0);
         var newLength = length - actualDeleteCount + insertCount;
+        // Per spec: If newLen > 2^53 - 1, throw TypeError (guard must run before ArrayCreate / 2^32 - 1 checks)
+        if (newLength > MaxArrayLength)
+        {
+            throw ThrowTypeError($"{MethodName} result exceeds 2^53 - 1 elements", realm: Realm);
+        }
+
         if (newLength > MaxConcreteArrayLength)
         {
             throw ThrowRangeError($"{MethodName} result exceeds 2^32 - 1 elements", realm: Realm);

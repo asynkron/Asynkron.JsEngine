@@ -124,8 +124,9 @@ public sealed partial class ObjectPrototype
             return "Date";
         }
 
-        // Check for [[RegExpMatcher]] - JsRegExp wrapper stored in property
-        if (obj.GetOwnPropertyDescriptor("_regExpData") is not null)
+        // Check for [[RegExpMatcher]] - JsRegExp wrapper stored in __regex__
+        if (obj.GetOwnPropertyDescriptor("__regex__") is { } regExpDescriptor &&
+            regExpDescriptor.JsValue.TryGetObject<JsRegExp>(out _))
         {
             return "RegExp";
         }

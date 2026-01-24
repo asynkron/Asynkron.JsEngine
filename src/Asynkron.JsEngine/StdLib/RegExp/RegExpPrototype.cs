@@ -13,7 +13,7 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib;
 
-[JsPrototype("RegExp", ToStringTag = "RegExp")]
+[JsPrototype("RegExp")]
 public sealed partial class RegExpPrototype
 {
     [JsHostMethod("test", Length = 1d)]

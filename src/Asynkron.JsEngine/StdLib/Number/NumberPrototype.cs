@@ -10,7 +10,7 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib;
 
-[JsPrototype("Number", ToStringTag = "Number")]
+[JsPrototype("Number")]
 public sealed partial class NumberPrototype
 {
     [JsHostMethod("toString", Length = 1d)]

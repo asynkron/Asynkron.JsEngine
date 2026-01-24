@@ -14,6 +14,9 @@ public sealed partial class ArrayPrototype
     private readonly HashSet<IJsPropertyAccessor> _reverseInProgress =
         new(ReferenceEqualityComparer<IJsPropertyAccessor>.Instance);
 
+    private readonly HashSet<IJsPropertyAccessor> _spliceInProgress =
+        new(ReferenceEqualityComparer<IJsPropertyAccessor>.Instance);
+
     [JsHostMethod("push", Length = 1d)]
     public JsValue Push(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -245,8 +248,7 @@ public sealed partial class ArrayPrototype
         var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
 
         // Re-entrancy guard: prevent infinite recursion when length getter calls splice
-        const string ReentrancyKey = "__inSplice__";
-        if (accessor.TryGetProperty(ReentrancyKey, out var inSpliceFlag) && !inSpliceFlag.IsUndefined)
+        if (!_spliceInProgress.Add(accessor))
         {
             // Already in splice, return empty array to break recursion
             return JsValue.FromObjectUnsafe(ArraySpeciesCreate(thisValue, 0, Realm));
@@ -254,7 +256,6 @@ public sealed partial class ArrayPrototype
 
         try
         {
-            accessor.SetProperty(ReentrancyKey, true);
             var objectLike = accessor as IJsObjectLike;
             var evalContext = Realm?.CreateContext();
             var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
@@ -370,7 +371,7 @@ public sealed partial class ArrayPrototype
         }
         finally
         {
-            accessor.SetProperty(ReentrancyKey, JsValue.Undefined);
+            _spliceInProgress.Remove(accessor);
         }
     }
 

@@ -349,7 +349,6 @@ public static partial class StandardLibrary
 
         if (!HasProperty(source, sourceKey))
         {
-            target.Delete(targetKey);
             return;
         }
 

@@ -228,8 +228,55 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         if (string.Equals(name, "length", StringComparison.Ordinal))
         {
-            // Pass JsValue directly - ToNumericAsJsValue handles boxed JsValue efficiently
-            SetLength(value, null);
+            // Fast path is only valid when the receiver is this array.
+            // When receiver differs (e.g. Proxy fallback calling target.[[Set]] with receiver=proxy),
+            // we must honor full [[Set]] semantics, which involve operations on the receiver.
+            var receiverIsThis = receiver.IsUndefined ||
+                                 (receiver.Kind == JsValueKind.Object && ReferenceEquals(receiver.ObjectValue, this));
+            if (receiverIsThis)
+            {
+                // Pass JsValue directly - ToNumericAsJsValue handles boxed JsValue efficiently
+                SetLength(value, null);
+                return;
+            }
+
+            var lengthDescriptor = _properties.GetOwnPropertyDescriptor("length");
+            if (lengthDescriptor is null || lengthDescriptor is { HasWritable: true, Writable: false })
+            {
+                SetLength(value, null);
+                return;
+            }
+
+            if (!receiver.TryGetObject<IJsObjectLike>(out var receiverObject))
+            {
+                throw CreateTypeError("Invalid receiver for Array length assignment");
+            }
+
+            var existingDescriptor = receiverObject.GetOwnPropertyDescriptor("length");
+            if (existingDescriptor is not null)
+            {
+                if (existingDescriptor.IsAccessorDescriptor ||
+                    (existingDescriptor is { HasWritable: true, Writable: false }))
+                {
+                    throw CreateTypeError("Cannot assign to read only property 'length'");
+                }
+
+                receiverObject.DefineProperty("length", new PropertyDescriptor { JsValue = value });
+                return;
+            }
+
+            if (receiverObject is IExtensibilityControl { IsExtensible: false })
+            {
+                throw CreateTypeError("Cannot define property 'length' on non-extensible object");
+            }
+
+            receiverObject.DefineProperty("length", new PropertyDescriptor
+            {
+                JsValue = value,
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
+            });
             return;
         }
 

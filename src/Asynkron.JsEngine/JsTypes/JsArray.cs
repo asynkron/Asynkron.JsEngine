@@ -656,14 +656,11 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         // First try _properties.GetSetter which walks JsObject prototypes
         var prototypeSetter = _properties.GetSetter(keyStr);
 
-        // If not found via Prototype (JsObject chain), check via _arrayPrototype (which is Array.prototype)
-        if (prototypeSetter is null && _arrayPrototype is IJsObjectLike prototypeObj)
+        // If not found via Prototype (JsObject chain), traverse non-JsObject prototypes as well
+        // (e.g., Array.prototype implemented as a typed prototype object).
+        if (prototypeSetter is null && _arrayPrototype is not null)
         {
-            var protoDescriptor = prototypeObj.GetOwnPropertyDescriptor(keyStr);
-            if (protoDescriptor?.IsAccessorDescriptor == true)
-            {
-                prototypeSetter = protoDescriptor.Set;
-            }
+            prototypeSetter = FindSetterInPrototypeChain(_arrayPrototype, keyStr);
         }
 
         if (prototypeSetter is not null)
@@ -685,6 +682,34 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         }
 
         BumpLength(index + 1);
+
+        static IJsCallable? FindSetterInPrototypeChain(IJsPropertyAccessor? current, string propertyKey)
+        {
+            var depth = 0;
+            while (current is not null && depth++ < JsEngineConstants.MaxPrototypeChainDepth)
+            {
+                var descriptor = current.GetOwnPropertyDescriptor(propertyKey);
+                if (descriptor is { IsAccessorDescriptor: true, Set: not null })
+                {
+                    return descriptor.Set;
+                }
+
+                IJsPropertyAccessor? next = null;
+                if (current is IJsObjectLike objectLike)
+                {
+                    next = objectLike.Prototype;
+                }
+
+                if (next is null && current is IPrototypeAccessorProvider provider)
+                {
+                    next = provider.PrototypeAccessor;
+                }
+
+                current = next;
+            }
+
+            return null;
+        }
     }
 
     private bool StoreElement(uint index, JsValue value)

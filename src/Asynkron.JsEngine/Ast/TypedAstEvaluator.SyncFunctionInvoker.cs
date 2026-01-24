@@ -2238,6 +2238,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             // Rent context from pool - avoids allocation per call
             var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
             var context = RealmState.RentContext(ScopeKind.Function, scopeMode, false);
+            var functionScopeFrame = context.PushScope(ScopeKind.Function, scopeMode);
             context.AllowIdentifierCache = _allowIdentifierCache;
 
             if (callingContext is not null)
@@ -2310,6 +2311,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
             finally
             {
+                functionScopeFrame.Dispose();
                 // Return context to pool for reuse
                 RealmState.ReturnContext(context);
 

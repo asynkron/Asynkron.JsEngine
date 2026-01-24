@@ -361,17 +361,31 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             _properties.DefineProperty(name, implicitDescriptor);
         }
 
-        if (!descriptor.IsAccessorDescriptor)
+        var defined = _properties.TryDefineProperty(name, descriptor);
+        if (!defined)
         {
-            var jsVal = descriptor.HasValue ? descriptor.JsValue : JsValue.Undefined;
-            SetElement(index, jsVal);
+            return false;
+        }
+
+        if (descriptor.IsAccessorDescriptor)
+        {
+            BumpLength(index + 1);
+            return true;
+        }
+
+        // DefineOwnProperty for arrays must not invoke inherited setters (unlike ordinary assignment).
+        var value = descriptor.HasValue ? descriptor.JsValue : JsValue.Undefined;
+        var extended = StoreElement(index, value);
+        if (extended)
+        {
+            BumpLength((uint)_items.Count);
         }
         else
         {
             BumpLength(index + 1);
         }
 
-        return _properties.TryDefineProperty(name, descriptor);
+        return true;
     }
 
     public IJsPropertyAccessor? PrototypeAccessor =>

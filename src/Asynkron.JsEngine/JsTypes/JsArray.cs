@@ -361,17 +361,27 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             _properties.DefineProperty(name, implicitDescriptor);
         }
 
-        if (!descriptor.IsAccessorDescriptor)
+        // DefineProperty semantics must NOT invoke inherited setters on Array.prototype.
+        // (Contrast with SetElement / SetProperty which intentionally does, per ES [[Set]] semantics.)
+        var defined = _properties.TryDefineProperty(name, descriptor);
+        if (!defined)
         {
-            var jsVal = descriptor.HasValue ? descriptor.JsValue : JsValue.Undefined;
-            SetElement(index, jsVal);
-        }
-        else
-        {
-            BumpLength(index + 1);
+            return false;
         }
 
-        return _properties.TryDefineProperty(name, descriptor);
+        // Keep the internal dense/sparse storage aligned with the newly defined property.
+        // Only update element storage when a value is explicitly provided, so attribute-only
+        // redefinitions don't accidentally overwrite existing values.
+        if (!descriptor.IsAccessorDescriptor && descriptor.HasValue)
+        {
+            StoreElement(index, descriptor.JsValue);
+        }
+
+        // Per ES [[DefineOwnProperty]] for array index properties, defining an index must
+        // update length to at least index+1 (regardless of whether a value is provided).
+        BumpLength(index + 1);
+
+        return true;
     }
 
     public IJsPropertyAccessor? PrototypeAccessor =>

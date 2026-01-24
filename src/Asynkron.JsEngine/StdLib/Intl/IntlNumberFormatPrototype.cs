@@ -67,10 +67,14 @@ public sealed partial class IntlNumberFormatPrototype
     private IntlNumberFormatResult FormatNumberResult(JsObject nf, JsValue value)
     {
         var context = Realm.CreateContext();
-        object numericValue;
+        JsValue numericValue;
         try
         {
             numericValue = JsOps.ToNumericAsJsValue(in value, context);
+        }
+        catch (ThrowSignal)
+        {
+            throw;
         }
         catch
         {
@@ -83,13 +87,12 @@ public sealed partial class IntlNumberFormatPrototype
         }
 
         var slots = GetSlots(nf);
-        if (numericValue is JsBigInt bigInt)
+        if (numericValue.IsBigInt)
         {
-            return IntlNumberFormatter.FormatBigInteger(bigInt.Value, slots);
+            return IntlNumberFormatter.FormatBigInteger(numericValue.AsBigInt().Value, slots);
         }
 
-        var number = (double)numericValue;
-        return IntlNumberFormatter.FormatDouble(number, slots);
+        return IntlNumberFormatter.FormatDouble(numericValue.NumberValue, slots);
     }
 
     private JsObject CreateNumberFormatResolvedOptions(JsObject nf)

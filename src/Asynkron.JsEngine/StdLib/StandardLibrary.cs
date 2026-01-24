@@ -442,7 +442,7 @@ public static partial class StandardLibrary
 
         var formatter = constructor.Invoke([localesArg, optionsArg], JsValue.Null);
         if (!formatter.TryGetObject<IJsPropertyAccessor>(out var accessor) ||
-            !accessor.TryGetProperty("format", out var formatValue) ||
+            !accessor.TryGetProperty("format", formatter, out var formatValue) ||
             !formatValue.TryGetObject<IJsCallable>(out var formatFn))
         {
             return false;

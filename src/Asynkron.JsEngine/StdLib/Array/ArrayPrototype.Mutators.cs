@@ -556,10 +556,21 @@ public sealed partial class ArrayPrototype
         }
 
         // Write sorted values back to the array
+        var jsArray = accessor as JsArray;
+        var receiverValue = jsArray is not null ? JsValue.FromJsArray(jsArray) : JsValue.FromObjectUnsafe(accessor);
+
         long index = 0;
         foreach (var pair in elements)
         {
-            accessor.SetProperty(ToIndexString(index++), pair.Value);
+            var key = ToIndexString(index++);
+            if (jsArray is not null)
+            {
+                // Use full [[Set]] semantics so inherited prototype accessors (e.g. on Object.prototype) are honored.
+                JsOps.AssignPropertyValueJsValue(receiverValue, new JsValue(key), pair.Value);
+                continue;
+            }
+
+            accessor.SetProperty(key, pair.Value);
         }
 
         if (objectLike is not null)

@@ -24,3 +24,13 @@ The only listed failing test (resizable-buffer.js) passed in both strict and non
 Refresh the failing-test inventory and remove this entry if it stays green; if failures reappear, capture the specific Test262 assertion/output for targeted fixes.
 
 ** DONE **
+
+---
+## Verification (2026-01-25)
+
+Re-ran:
+```bash
+dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --filter "Name=Array_prototype_values" -v n
+```
+
+Result: **24/24 passed** (including `resizable-buffer.js` in strict and non-strict).

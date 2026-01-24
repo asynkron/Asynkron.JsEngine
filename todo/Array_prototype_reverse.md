@@ -26,4 +26,14 @@ The targeted Test262 tests for `Array.prototype.reverse` (including the two prox
 **Fix Direction:**
 No code change needed. Consider pruning the failing list or re-validating on the original failing commit/environment if regressions are suspected.
 
+---
+## Re-validation (2026-01-24)
+
+Re-ran:
+```bash
+dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --filter "Name=Array_prototype_reverse" -v n
+```
+
+Result: `Total tests: 36` / `Passed: 36`
+
 ** DONE **

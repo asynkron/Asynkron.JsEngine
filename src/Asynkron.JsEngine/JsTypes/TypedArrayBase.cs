@@ -342,12 +342,48 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
         if (TryParseIndex(name, out var index))
         {
-            if (index < 0)
+            if (IsBigIntArray)
             {
-                throw new InvalidOperationException($"Invalid typed array index '{name}'.");
+                var bigIntValue = ToBigInt(value, realmState: _buffer.RealmState);
+                if (_buffer.IsDetached || IsDetachedOrOutOfBounds() || index < 0 || index >= Length)
+                {
+                    return;
+                }
+
+                switch (this)
+                {
+                    case JsBigInt64Array bi64:
+                        bi64.SetElement(index, bigIntValue);
+                        break;
+                    case JsBigUint64Array bu64:
+                        bu64.SetElement(index, bigIntValue);
+                        break;
+                    default:
+                        throw new InvalidOperationException(
+                            $"Unsupported BigInt typed array implementation '{GetType().Name}'.");
+                }
+
+                return;
             }
 
-            SetValue(index, value);
+            var context = _buffer.RealmState?.CreateContext();
+            if (value.IsBigInt)
+            {
+                throw StandardLibrary.ThrowTypeError("Cannot convert a BigInt value to a number", context, _buffer.RealmState);
+            }
+
+            var number = JsOps.ToNumber(value, context);
+            if (context?.IsThrow == true)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+
+            if (_buffer.IsDetached || IsDetachedOrOutOfBounds() || index < 0 || index >= Length)
+            {
+                return;
+            }
+
+            SetElement(index, number);
             return;
         }
 

@@ -158,6 +158,12 @@ public static partial class TypedAstEvaluator
                     return;
                 }
 
+                if (accessor is JsArray array && string.Equals(propertyName, "length", StringComparison.Ordinal))
+                {
+                    array.SetLength(value, context, throwOnWritableFailure: isStrict);
+                    return;
+                }
+
                 accessor.SetProperty(propertyName, value, target);
                 return;
             }

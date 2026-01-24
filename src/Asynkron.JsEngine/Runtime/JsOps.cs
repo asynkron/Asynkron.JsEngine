@@ -1971,7 +1971,7 @@ internal static class JsOps
 
             if (string.Equals(propertyName, "length", StringComparison.Ordinal))
             {
-                jsArray.SetLength(value, context);
+                jsArray.SetLength(value, context, throwOnWritableFailure: context?.CurrentScope.IsStrict == true);
                 return true;
             }
 

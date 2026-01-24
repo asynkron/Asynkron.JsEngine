@@ -1,6 +1,7 @@
 #region
 
 using System.Text;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.JsArrayConstants;
@@ -416,6 +417,11 @@ public sealed partial class ArrayPrototype
         var startIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : 0;
         // Per spec: if end is undefined, use length
         var endIndex = args.Count > 2 && !args[2].IsUndefined ? ToIntegerOrInfinity(args[2], evalContext) : length;
+
+        if (target is TypedArrayBase typedArray && typedArray.IsDetachedOrOutOfBounds())
+        {
+            return JsValue.FromObjectUnsafe(target);
+        }
 
         var start = ClampRelativeIndex(startIndex, length);
         var end = ClampRelativeIndex(endIndex, length);

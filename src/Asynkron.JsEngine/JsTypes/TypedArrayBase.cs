@@ -342,12 +342,42 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
         if (TryParseIndex(name, out var index))
         {
-            if (index < 0)
+            if (IsBigIntArray)
             {
-                throw new InvalidOperationException($"Invalid typed array index '{name}'.");
+                // Integer-indexed exotic objects always coerce the value, even if the write becomes a no-op.
+                var coerced = ToBigInt(value, realmState: _buffer.RealmState);
+
+                // If the view is detached/out-of-bounds or the index is invalid, ignore the write.
+                if (IsDetachedOrOutOfBounds() || index < 0 || index >= Length)
+                {
+                    return;
+                }
+
+                SetValue(index, new JsValue(coerced));
+                return;
             }
 
-            SetValue(index, value);
+            var context = _buffer.RealmState?.CreateContext();
+            if (value.IsBigInt)
+            {
+                throw StandardLibrary.ThrowTypeError("Cannot convert a BigInt value to a number", context,
+                    _buffer.RealmState);
+            }
+
+            // Integer-indexed exotic objects always coerce the value, even if the write becomes a no-op.
+            var numeric = JsOps.ToNumber(value, context);
+            if (context?.IsThrow == true)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+
+            // If the view is detached/out-of-bounds or the index is invalid, ignore the write.
+            if (IsDetachedOrOutOfBounds() || index < 0 || index >= Length)
+            {
+                return;
+            }
+
+            SetElement(index, numeric);
             return;
         }
 

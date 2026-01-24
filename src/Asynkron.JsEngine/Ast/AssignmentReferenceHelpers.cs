@@ -1,6 +1,7 @@
 #region
 
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 
@@ -155,6 +156,12 @@ public static partial class TypedAstEvaluator
                             context.RealmState);
                     }
 
+                    return;
+                }
+
+                if (accessor is JsArray array && string.Equals(propertyName, "length", StringComparison.Ordinal))
+                {
+                    array.SetLength(value, context, throwOnWritableFailure: isStrict);
                     return;
                 }
 

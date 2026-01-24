@@ -175,11 +175,6 @@ public sealed partial class ArrayPrototype
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.lastIndexOf", Realm);
         var evalContext = Realm?.CreateContext();
         var searchElement = args.Count > 0 ? args[0] : JsValue.Undefined;
-        if (accessor is TypedArrayBase typed)
-        {
-            // Align Array.prototype.lastIndexOf with TypedArray semantics.
-            return TypedArrayBase.LastIndexOfInternal(typed, args);
-        }
 
         var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal, evalContext) : 0d;
         if (length <= 0)

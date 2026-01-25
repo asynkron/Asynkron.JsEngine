@@ -508,7 +508,7 @@ public sealed partial class DatePrototype
     public JsValue SetFullYear(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out var obj);
-        var time = LocalTimeMs(timeValue, Realm);
+        var time = double.IsNaN(timeValue) ? 0d : LocalTimeMs(timeValue, Realm);
         var evalContext = Realm?.CreateContext();
         var year = JsOps.ToNumber(args.GetArgument(0), evalContext);
         if (evalContext?.IsThrow == true)

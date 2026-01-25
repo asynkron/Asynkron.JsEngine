@@ -198,15 +198,7 @@ public static class DateHelper
         bool inputIsUtc)
     {
         var timeValue = double.IsNaN(time) ? 0 : time;
-        var y = ToIntegerOrInfinity(year);
-        var m = ToIntegerOrInfinity(month);
-        var dt = ToIntegerOrInfinity(date);
-        if (double.IsInfinity(y) || double.IsInfinity(m) || double.IsInfinity(dt))
-        {
-            return double.NaN;
-        }
-
-        var day = MakeDay(y, m, dt);
+        var day = MakeDay(year, month, date);
         var newDate = MakeDate(day, TimeWithinDay(timeValue));
         var utc = inputIsUtc ? newDate : UtcTimeFromLocal(newDate, realmState);
         return TimeClip(utc);
@@ -321,7 +313,6 @@ public static class DateHelper
         if (mn < 0)
         {
             mn += 12;
-            ym--;
         }
 
         var monthDayOffsets = IsLeapYear(ym)

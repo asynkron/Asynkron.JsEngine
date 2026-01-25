@@ -3,6 +3,7 @@
 using System.Numerics;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
+using static Asynkron.JsEngine.StdLib.NumberHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 #endregion
@@ -217,7 +218,7 @@ public sealed partial class DataViewPrototype
     public JsValue GetBigInt64(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var dv = RequireInstance(thisValue);
-        var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
+        var offset = args.Count > 0 ? ToIndex(args[0], Realm) : 0;
         var littleEndian = args.Count > 1 && args[1].IsTruthy;
         return WithRangeError(() =>
         {

@@ -68,6 +68,7 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
     private readonly JsValue _cachedJsValue;
     private readonly bool _isLengthTracking;
     private readonly int _initialByteLength;
+    private readonly int _byteOffset;
 
     /// <summary>
     ///     Creates a new DataView.
@@ -90,7 +91,7 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
 
         _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
         Buffer = buffer;
-        ByteOffset = byteOffset;
+        _byteOffset = byteOffset;
         _isLengthTracking = byteLength is null;
         _initialByteLength = length;
 
@@ -223,37 +224,51 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
 
     public JsArrayBuffer Buffer { get; }
 
-    public int ByteOffset { get; }
+    public int ByteOffset
+    {
+        get
+        {
+            _ = ValidateDataViewAndGetBufferByteLength();
+            return _byteOffset;
+        }
+    }
 
     public int ByteLength
     {
         get
         {
-            if (Buffer.IsDetached)
+            var bufferByteLength = ValidateDataViewAndGetBufferByteLength();
+            return _isLengthTracking ? bufferByteLength - _byteOffset : _initialByteLength;
+        }
+    }
+
+    private int ValidateDataViewAndGetBufferByteLength()
+    {
+        if (Buffer.IsDetached)
+        {
+            throw ThrowTypeError(
+                "Cannot perform DataView operation on a detached ArrayBuffer",
+                realm: Buffer.RealmState);
+        }
+
+        var bufferByteLength = Buffer.ByteLength;
+        if (_isLengthTracking)
+        {
+            if (_byteOffset > bufferByteLength)
             {
-                throw ThrowTypeError("Cannot perform DataView operation on a detached ArrayBuffer",
-                    realm: Buffer.RealmState);
+                throw ThrowTypeError("DataView is out of bounds", realm: Buffer.RealmState);
             }
-
-            var bufferByteLength = Buffer.ByteLength;
-            if (_isLengthTracking)
-            {
-                if (ByteOffset > bufferByteLength)
-                {
-                    throw ThrowTypeError("DataView is out of bounds", realm: Buffer.RealmState);
-                }
-
-                return bufferByteLength - ByteOffset;
-            }
-
-            var requiredEnd = (long)ByteOffset + _initialByteLength;
+        }
+        else
+        {
+            var requiredEnd = (long)_byteOffset + _initialByteLength;
             if (requiredEnd > bufferByteLength)
             {
                 throw ThrowTypeError("DataView is out of bounds", realm: Buffer.RealmState);
             }
-
-            return _initialByteLength;
         }
+
+        return bufferByteLength;
     }
 
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
@@ -373,33 +388,33 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
     public sbyte GetInt8(int byteOffset)
     {
         CheckBounds(byteOffset, 1);
-        return (sbyte)Buffer.Buffer[ByteOffset + byteOffset];
+        return (sbyte)Buffer.Buffer[_byteOffset + byteOffset];
     }
 
     public void SetInt8(int byteOffset, sbyte value)
     {
         CheckBounds(byteOffset, 1);
-        Buffer.Buffer[ByteOffset + byteOffset] = (byte)value;
+        Buffer.Buffer[_byteOffset + byteOffset] = (byte)value;
     }
 
     // Uint8
     public byte GetUint8(int byteOffset)
     {
         CheckBounds(byteOffset, 1);
-        return Buffer.Buffer[ByteOffset + byteOffset];
+        return Buffer.Buffer[_byteOffset + byteOffset];
     }
 
     public void SetUint8(int byteOffset, byte value)
     {
         CheckBounds(byteOffset, 1);
-        Buffer.Buffer[ByteOffset + byteOffset] = value;
+        Buffer.Buffer[_byteOffset + byteOffset] = value;
     }
 
     // Int16
     public short GetInt16(int byteOffset, bool littleEndian = false)
     {
         CheckBounds(byteOffset, 2);
-        var span = new ReadOnlySpan<byte>(Buffer.Buffer, ByteOffset + byteOffset, 2);
+        var span = new ReadOnlySpan<byte>(Buffer.Buffer, _byteOffset + byteOffset, 2);
         return littleEndian
             ? BinaryPrimitives.ReadInt16LittleEndian(span)
             : BinaryPrimitives.ReadInt16BigEndian(span);
@@ -408,7 +423,7 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
     public void SetInt16(int byteOffset, short value, bool littleEndian = false)
     {
         CheckBounds(byteOffset, 2);
-        var span = new Span<byte>(Buffer.Buffer, ByteOffset + byteOffset, 2);
+        var span = new Span<byte>(Buffer.Buffer, _byteOffset + byteOffset, 2);
         if (littleEndian)
         {
             BinaryPrimitives.WriteInt16LittleEndian(span, value);
@@ -423,7 +438,7 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
     public ushort GetUint16(int byteOffset, bool littleEndian = false)
     {
         CheckBounds(byteOffset, 2);
-        var span = new ReadOnlySpan<byte>(Buffer.Buffer, ByteOffset + byteOffset, 2);
+        var span = new ReadOnlySpan<byte>(Buffer.Buffer, _byteOffset + byteOffset, 2);
         return littleEndian
             ? BinaryPrimitives.ReadUInt16LittleEndian(span)
             : BinaryPrimitives.ReadUInt16BigEndian(span);
@@ -432,7 +447,7 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
     public void SetUint16(int byteOffset, ushort value, bool littleEndian = false)
     {
         CheckBounds(byteOffset, 2);
-        var span = new Span<byte>(Buffer.Buffer, ByteOffset + byteOffset, 2);
+        var span = new Span<byte>(Buffer.Buffer, _byteOffset + byteOffset, 2);
         if (littleEndian)
         {
             BinaryPrimitives.WriteUInt16LittleEndian(span, value);
@@ -447,7 +462,7 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
     public int GetInt32(int byteOffset, bool littleEndian = false)
     {
         CheckBounds(byteOffset, 4);
-        var span = new ReadOnlySpan<byte>(Buffer.Buffer, ByteOffset + byteOffset, 4);
+        var span = new ReadOnlySpan<byte>(Buffer.Buffer, _byteOffset + byteOffset, 4);
         return littleEndian
             ? BinaryPrimitives.ReadInt32LittleEndian(span)
             : BinaryPrimitives.ReadInt32BigEndian(span);
@@ -456,7 +471,7 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
     public void SetInt32(int byteOffset, int value, bool littleEndian = false)
     {
         CheckBounds(byteOffset, 4);
-        var span = new Span<byte>(Buffer.Buffer, ByteOffset + byteOffset, 4);
+        var span = new Span<byte>(Buffer.Buffer, _byteOffset + byteOffset, 4);
         if (littleEndian)
         {
             BinaryPrimitives.WriteInt32LittleEndian(span, value);
@@ -471,7 +486,7 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
     public uint GetUint32(int byteOffset, bool littleEndian = false)
     {
         CheckBounds(byteOffset, 4);
-        var span = new ReadOnlySpan<byte>(Buffer.Buffer, ByteOffset + byteOffset, 4);
+        var span = new ReadOnlySpan<byte>(Buffer.Buffer, _byteOffset + byteOffset, 4);
         return littleEndian
             ? BinaryPrimitives.ReadUInt32LittleEndian(span)
             : BinaryPrimitives.ReadUInt32BigEndian(span);
@@ -480,7 +495,7 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
     public void SetUint32(int byteOffset, uint value, bool littleEndian = false)
     {
         CheckBounds(byteOffset, 4);
-        var span = new Span<byte>(Buffer.Buffer, ByteOffset + byteOffset, 4);
+        var span = new Span<byte>(Buffer.Buffer, _byteOffset + byteOffset, 4);
         if (littleEndian)
         {
             BinaryPrimitives.WriteUInt32LittleEndian(span, value);
@@ -495,7 +510,7 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
     public float GetFloat32(int byteOffset, bool littleEndian = false)
     {
         CheckBounds(byteOffset, 4);
-        var span = new ReadOnlySpan<byte>(Buffer.Buffer, ByteOffset + byteOffset, 4);
+        var span = new ReadOnlySpan<byte>(Buffer.Buffer, _byteOffset + byteOffset, 4);
         return littleEndian
             ? BinaryPrimitives.ReadSingleLittleEndian(span)
             : BinaryPrimitives.ReadSingleBigEndian(span);
@@ -504,7 +519,7 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
     public void SetFloat32(int byteOffset, float value, bool littleEndian = false)
     {
         CheckBounds(byteOffset, 4);
-        var span = new Span<byte>(Buffer.Buffer, ByteOffset + byteOffset, 4);
+        var span = new Span<byte>(Buffer.Buffer, _byteOffset + byteOffset, 4);
         if (littleEndian)
         {
             BinaryPrimitives.WriteSingleLittleEndian(span, value);
@@ -519,7 +534,7 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
     public double GetFloat64(int byteOffset, bool littleEndian = false)
     {
         CheckBounds(byteOffset, 8);
-        var span = new ReadOnlySpan<byte>(Buffer.Buffer, ByteOffset + byteOffset, 8);
+        var span = new ReadOnlySpan<byte>(Buffer.Buffer, _byteOffset + byteOffset, 8);
         return littleEndian
             ? BinaryPrimitives.ReadDoubleLittleEndian(span)
             : BinaryPrimitives.ReadDoubleBigEndian(span);
@@ -528,7 +543,7 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
     public void SetFloat64(int byteOffset, double value, bool littleEndian = false)
     {
         CheckBounds(byteOffset, 8);
-        var span = new Span<byte>(Buffer.Buffer, ByteOffset + byteOffset, 8);
+        var span = new Span<byte>(Buffer.Buffer, _byteOffset + byteOffset, 8);
         if (littleEndian)
         {
             BinaryPrimitives.WriteDoubleLittleEndian(span, value);
@@ -543,7 +558,7 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
     public long GetBigInt64(int byteOffset, bool littleEndian = false)
     {
         CheckBounds(byteOffset, 8);
-        var span = new ReadOnlySpan<byte>(Buffer.Buffer, ByteOffset + byteOffset, 8);
+        var span = new ReadOnlySpan<byte>(Buffer.Buffer, _byteOffset + byteOffset, 8);
         return littleEndian
             ? BinaryPrimitives.ReadInt64LittleEndian(span)
             : BinaryPrimitives.ReadInt64BigEndian(span);
@@ -552,7 +567,7 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
     public void SetBigInt64(int byteOffset, long value, bool littleEndian = false)
     {
         CheckBounds(byteOffset, 8);
-        var span = new Span<byte>(Buffer.Buffer, ByteOffset + byteOffset, 8);
+        var span = new Span<byte>(Buffer.Buffer, _byteOffset + byteOffset, 8);
         if (littleEndian)
         {
             BinaryPrimitives.WriteInt64LittleEndian(span, value);
@@ -567,7 +582,7 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
     public ulong GetBigUint64(int byteOffset, bool littleEndian = false)
     {
         CheckBounds(byteOffset, 8);
-        var span = new ReadOnlySpan<byte>(Buffer.Buffer, ByteOffset + byteOffset, 8);
+        var span = new ReadOnlySpan<byte>(Buffer.Buffer, _byteOffset + byteOffset, 8);
         return littleEndian
             ? BinaryPrimitives.ReadUInt64LittleEndian(span)
             : BinaryPrimitives.ReadUInt64BigEndian(span);
@@ -576,7 +591,7 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
     public void SetBigUint64(int byteOffset, ulong value, bool littleEndian = false)
     {
         CheckBounds(byteOffset, 8);
-        var span = new Span<byte>(Buffer.Buffer, ByteOffset + byteOffset, 8);
+        var span = new Span<byte>(Buffer.Buffer, _byteOffset + byteOffset, 8);
         if (littleEndian)
         {
             BinaryPrimitives.WriteUInt64LittleEndian(span, value);
@@ -591,7 +606,7 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
     public Half GetFloat16(int byteOffset, bool littleEndian = false)
     {
         CheckBounds(byteOffset, 2);
-        var span = new ReadOnlySpan<byte>(Buffer.Buffer, ByteOffset + byteOffset, 2);
+        var span = new ReadOnlySpan<byte>(Buffer.Buffer, _byteOffset + byteOffset, 2);
         return littleEndian
             ? BinaryPrimitives.ReadHalfLittleEndian(span)
             : BinaryPrimitives.ReadHalfBigEndian(span);
@@ -600,7 +615,7 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
     public void SetFloat16(int byteOffset, Half value, bool littleEndian = false)
     {
         CheckBounds(byteOffset, 2);
-        var span = new Span<byte>(Buffer.Buffer, ByteOffset + byteOffset, 2);
+        var span = new Span<byte>(Buffer.Buffer, _byteOffset + byteOffset, 2);
         if (littleEndian)
         {
             BinaryPrimitives.WriteHalfLittleEndian(span, value);

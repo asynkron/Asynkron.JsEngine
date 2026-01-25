@@ -580,7 +580,12 @@ internal static class JsOps
             JsValueKind.Null => "null",
             JsValueKind.Boolean => value.NumberValue != 0 ? "true" : "false",
             JsValueKind.Number => ToCanonicalNumberString(value.NumberValue),
-            JsValueKind.String => value.ObjectValue as string ?? string.Empty,
+            JsValueKind.String => value.ObjectValue switch
+            {
+                string str => str,
+                JsRopeString rope => rope.Flatten(),
+                _ => string.Empty
+            },
             JsValueKind.Symbol => throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string",
                 context, realm),
             JsValueKind.BigInt => value.ObjectValue is JsBigInt bi ? bi.ToString() : string.Empty,

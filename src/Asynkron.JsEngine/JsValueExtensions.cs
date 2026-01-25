@@ -58,7 +58,7 @@ internal static class JsValueExtensions
                 JsValueKind.Null => 0,
                 JsValueKind.Boolean => jsValue.NumberValue,
                 JsValueKind.Number => jsValue.NumberValue,
-                JsValueKind.String => StringToNumber(jsValue.ObjectValue as string ?? string.Empty),
+                JsValueKind.String => StringToNumber(jsValue.AsString()),
                 JsValueKind.Symbol => throw StandardLibrary.ThrowTypeError(
                     "Cannot convert a Symbol value to a number"),
                 JsValueKind.BigInt => jsValue.ObjectValue is JsBigInt bi ? (double)bi.Value : double.NaN,
@@ -111,7 +111,7 @@ internal static class JsValueExtensions
                         JsValueKind.Null => "null",
                         JsValueKind.Boolean => jsValue.NumberValue != 0 ? "true" : "false",
                         JsValueKind.Number => JsOps.ToCanonicalNumberString(jsValue.NumberValue),
-                        JsValueKind.String => jsValue.ObjectValue as string ?? string.Empty,
+                        JsValueKind.String => jsValue.AsString(),
                         JsValueKind.Symbol => throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", context, realm ?? context?.RealmState),
                         JsValueKind.BigInt => jsValue.ObjectValue is JsBigInt bi
                             ? bi.Value.ToString(CultureInfo.InvariantCulture)
@@ -193,7 +193,7 @@ internal static class JsValueExtensions
                     {
                         JsValueKind.Boolean => jsValue.NumberValue != 0 ? "true" : "false",
                         JsValueKind.Number => JsOps.ToCanonicalNumberString(jsValue.NumberValue),
-                        JsValueKind.String => jsValue.ObjectValue as string ?? string.Empty,
+                        JsValueKind.String => jsValue.AsString(),
                         JsValueKind.BigInt => jsValue.ObjectValue is JsBigInt bi
                             ? bi.Value.ToString(CultureInfo.InvariantCulture)
                             : string.Empty,

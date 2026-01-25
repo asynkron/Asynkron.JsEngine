@@ -585,6 +585,12 @@ public sealed class JsAstParser(
                 return (yieldToken.Lexeme, true, yieldToken);
             }
 
+            if (Check(TokenType.Async))
+            {
+                var asyncToken = Advance();
+                return (asyncToken.Lexeme, true, asyncToken);
+            }
+
             if (Check(TokenType.Identifier))
             {
                 var identifier = Advance();

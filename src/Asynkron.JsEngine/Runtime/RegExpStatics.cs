@@ -7,5 +7,16 @@ public sealed class RegExpStatics
     public string LastParen { get; set; } = string.Empty;
     public string LeftContext { get; set; } = string.Empty;
     public string RightContext { get; set; } = string.Empty;
-    public string[] Captures { get; } = new string[9];
+    public string[] Captures { get; } =
+    [
+        string.Empty,
+        string.Empty,
+        string.Empty,
+        string.Empty,
+        string.Empty,
+        string.Empty,
+        string.Empty,
+        string.Empty,
+        string.Empty
+    ];
 }

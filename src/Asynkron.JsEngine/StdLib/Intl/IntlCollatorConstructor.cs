@@ -140,13 +140,12 @@ public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, Rea
             throw ThrowRangeError("Intl.Collator caseFirst option cannot be empty", realm: Realm);
         }
 
-        var normalized = value.ToLowerInvariant();
-        if (!IsValidCaseFirst(normalized))
+        if (!IsValidCaseFirst(value))
         {
             throw ThrowRangeError($"Invalid Intl.Collator caseFirst option '{value}'", realm: Realm);
         }
 
-        return normalized;
+        return value;
     }
 
     private static string ResolveCollation(

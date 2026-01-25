@@ -214,7 +214,10 @@ public static class RegExpHelper
         statics.RightContext = input[(match.Index + match.Length)..];
 
         statics.LastParen = string.Empty;
-        Array.Clear(statics.Captures, 0, statics.Captures.Length);
+        for (var i = 0; i < statics.Captures.Length; i++)
+        {
+            statics.Captures[i] = string.Empty;
+        }
 
         for (var i = 1; i < match.Groups.Count && i <= 9; i++)
         {

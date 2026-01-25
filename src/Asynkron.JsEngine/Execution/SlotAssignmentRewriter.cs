@@ -495,6 +495,15 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     /// </summary>
     private int GetOrCreateFlatSlotId(int scopeId, int slotIndex)
     {
+        // When stamping nested function instructions from an outer scope, do not allocate
+        // new flat-slot IDs. Flat slots are local to the execution plan being rewritten.
+        // Assigning flat slots from an outer rewriter would produce IDs that are out of
+        // range for the nested plan's FlatSlotCount and crash at runtime.
+        if (_isRestampingNestedFunction)
+        {
+            return -1;
+        }
+
         var key = (scopeId, slotIndex);
         if (_flatSlotMap.TryGetValue(key, out var flatSlotId))
         {

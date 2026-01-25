@@ -120,15 +120,32 @@ public sealed partial class AtomicsPrototype : JsPrototype
         {
             if (isBigInt)
             {
-                var value = ToBigInt(valueArg, realmState: Realm);
-                WriteBigIntElement(typedArray, index, value);
-                return value;
+                var bigIntValue = ToBigInt(valueArg, realmState: Realm);
+                WriteBigIntElement(typedArray, index, bigIntValue);
+                return bigIntValue;
             }
 
-            typedArray.SetElement(index, JsOps.ToNumber(valueArg));
+            var valueNumber = JsOps.ToNumber(valueArg);
+            double value;
+            if (double.IsNaN(valueNumber) || valueNumber == 0)
+            {
+                value = 0;
+            }
+            else if (double.IsPositiveInfinity(valueNumber) || double.IsNegativeInfinity(valueNumber))
+            {
+                value = valueNumber;
+            }
+            else
+            {
+                value = Math.Truncate(valueNumber);
+                if (value == 0)
+                {
+                    value = 0;
+                }
+            }
 
-            // Return the value as stored in the typed array.
-            return typedArray.GetValueForIndex(index);
+            typedArray.SetElement(index, value);
+            return value;
         }
     }
 

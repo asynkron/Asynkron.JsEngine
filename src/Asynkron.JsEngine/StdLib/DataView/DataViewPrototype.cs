@@ -149,7 +149,7 @@ public sealed partial class DataViewPrototype
     public JsValue GetUint32(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var dv = RequireInstance(thisValue);
-        var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
+        var offset = args.Count > 0 ? ToIndex(args[0], Realm) : 0;
         var littleEndian = args.Count > 1 && args[1].IsTruthy;
         return WithRangeError(() => (double)dv.GetUint32(offset, littleEndian));
     }

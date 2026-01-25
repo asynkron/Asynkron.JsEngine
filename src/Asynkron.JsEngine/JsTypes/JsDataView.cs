@@ -176,7 +176,7 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
 
         _getUint32 = CreateMethod((target, args) =>
         {
-            var offset = args.Count > 0 && args[0].TryGetDouble(out var d) ? (int)d : 0;
+            var offset = args.Count > 0 ? ToIndex(args[0], target.Buffer.RealmState) : 0;
             var littleEndian = args.Count > 1 && args[1].IsTruthy;
             return new JsValue((double)target.GetUint32(offset, littleEndian));
         });

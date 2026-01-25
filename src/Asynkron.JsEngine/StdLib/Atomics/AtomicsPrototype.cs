@@ -142,8 +142,7 @@ public sealed partial class AtomicsPrototype : JsPrototype
     [JsHostMethod("wait", Length = 4d)]
     public JsValue Wait(IReadOnlyList<JsValue> args)
     {
-        // Waits until notified or times out. In this runtime, we avoid blocking,
-        // so we return a synchronous status string.
+        // Waits until notified or times out.
         var typedArray = RequireWaitableTypedArray(args.GetArgument(0), nameof(Wait));
         var index = RequireAtomicIndex(typedArray, args.GetArgument(1));
 
@@ -152,20 +151,59 @@ public sealed partial class AtomicsPrototype : JsPrototype
             ? (JsValue)ToBigInt(expectedArg, realmState: Realm)
             : (JsValue)JsOps.ToNumber(expectedArg);
 
-        lock (typedArray.Buffer)
+        var timeoutArg = args.GetArgument(3);
+        var timeout = double.PositiveInfinity;
+        if (!timeoutArg.IsUndefined)
+        {
+            timeout = JsOps.ToNumber(timeoutArg);
+            if (double.IsNaN(timeout))
+            {
+                timeout = double.PositiveInfinity;
+            }
+            else if (timeout < 0)
+            {
+                timeout = 0;
+            }
+        }
+
+        var buffer = typedArray.Buffer;
+        var byteOffset = typedArray.ByteOffset + index * typedArray.BytesPerElement;
+        AtomicsWaiterManager.Waiter? waiter = null;
+        lock (buffer)
         {
             var current = typedArray.GetValueForIndex(index);
             if (!JsOps.SameValue(current, expectedValue))
             {
                 return "not-equal";
             }
+
+            if (timeout == 0)
+            {
+                return "timed-out";
+            }
+
+            waiter = AtomicsWaiterManager.EnqueueWaiter(buffer, byteOffset);
         }
 
-        // Treat missing or non-positive timeouts as immediate timeouts.
-        var timeoutValue = args.GetArgument(3);
-        if (!timeoutValue.IsUndefined)
+        using var waiterLifetime = waiter;
+
+        var notified = double.IsInfinity(timeout)
+            ? waiterLifetime!.Event.Wait(Timeout.InfiniteTimeSpan)
+            : waiterLifetime!.Event.Wait(TimeSpan.FromMilliseconds(timeout));
+
+        if (notified)
         {
-            _ = JsOps.ToNumber(timeoutValue);
+            return "ok";
+        }
+
+        lock (buffer)
+        {
+            if (waiterLifetime!.IsNotified)
+            {
+                return "ok";
+            }
+
+            AtomicsWaiterManager.DequeueWaiter(buffer, byteOffset, waiterLifetime);
         }
 
         return "timed-out";
@@ -205,17 +243,42 @@ public sealed partial class AtomicsPrototype : JsPrototype
     [JsHostMethod("notify", Length = 3d)]
     public JsValue Notify(IReadOnlyList<JsValue> args)
     {
-        // Wakes up waiting agents. This runtime does not track waiters,
-        // so we report that no agents were notified.
-        var typedArray = RequireWaitableTypedArray(args.GetArgument(0), nameof(Notify));
-        _ = RequireAtomicIndex(typedArray, args.GetArgument(1));
-        var countArg = args.GetArgument(2);
-        if (!countArg.IsUndefined)
+        // Atomics.notify evaluates index/count before checking for SharedArrayBuffer.
+        // If TA.buffer is not a SharedArrayBuffer, it returns 0.
+        var typedArray = RequireAtomicTypedArray(args.GetArgument(0), nameof(Notify), out var isBigInt);
+        if (typedArray is not JsInt32Array && !(isBigInt && typedArray is JsBigInt64Array))
         {
-            _ = JsOps.ToNumber(countArg);
+            throw ThrowTypeError("Atomics.wait/notify require Int32Array or BigInt64Array", realm: Realm);
         }
 
-        return 0;
+        var index = RequireAtomicIndex(typedArray, args.GetArgument(1));
+
+        var countArg = args.GetArgument(2);
+        var count = double.PositiveInfinity;
+        if (!countArg.IsUndefined)
+        {
+            count = JsOps.ToNumber(countArg);
+            if (double.IsNaN(count))
+            {
+                count = 0;
+            }
+        }
+
+        count = Math.Truncate(count);
+        if (count < 0)
+        {
+            count = 0;
+        }
+
+        if (!typedArray.Buffer.IsShared)
+        {
+            return 0;
+        }
+
+        var byteOffset = typedArray.ByteOffset + index * typedArray.BytesPerElement;
+        var max = double.IsInfinity(count) || count > int.MaxValue ? int.MaxValue : (int)count;
+
+        return AtomicsWaiterManager.Notify(typedArray.Buffer, byteOffset, max);
     }
 
     /* FLAKY */

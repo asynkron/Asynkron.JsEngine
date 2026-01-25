@@ -237,6 +237,25 @@ try {
             return "";
         });
 
+        var agentRuntime = new Test262AgentRuntime(
+            () => useSnapshot
+                ? BaseRealmSnapshot.Instance.Value.CreateEngine(new JsEngineOptions
+                {
+                    Logger = logger,
+                    AllowScriptSlotAnalysis = false,
+                    DebugMode = debugMode,
+                })
+                : new JsEngine(new JsEngineOptions
+                {
+                    Logger = logger,
+                    AllowScriptSlotAnalysis = false,
+                    DebugMode = debugMode,
+                })
+                {
+                    ExecutionTimeout = TimeSpan.FromSeconds(10),
+                },
+            State.Sources);
+
         // Create $262 object for Test262 compatibility
         var obj262 = new JsObject
         {
@@ -307,6 +326,9 @@ try {
 
             // %AbstractModuleSource% intrinsic (minimal host stub for Test262)
             ["AbstractModuleSource"] = CreateAbstractModuleSource(engine),
+
+            // Agent host API (used by Atomics tests via atomicsHelper.js)
+            ["agent"] = agentRuntime.CreateMainAgentObject(),
         };
 
         engine.SetGlobalValue("$262", obj262);

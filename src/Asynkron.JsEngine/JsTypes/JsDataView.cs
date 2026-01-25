@@ -1,6 +1,7 @@
 #region
 
 using System.Buffers.Binary;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 #endregion
 
@@ -65,6 +66,8 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
     private readonly HostFunction _setUint32;
     private readonly HostFunction _setUint8;
     private readonly JsValue _cachedJsValue;
+    private readonly bool _isLengthTracking;
+    private readonly int _initialByteLength;
 
     /// <summary>
     ///     Creates a new DataView.
@@ -88,7 +91,8 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
         _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
         Buffer = buffer;
         ByteOffset = byteOffset;
-        ByteLength = length;
+        _isLengthTracking = byteLength is null;
+        _initialByteLength = length;
 
         // Lazily created host functions that delegate to whichever DataView
         // instance is used as the `this` value when called from JavaScript.
@@ -221,7 +225,36 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
 
     public int ByteOffset { get; }
 
-    public int ByteLength { get; }
+    public int ByteLength
+    {
+        get
+        {
+            if (Buffer.IsDetached)
+            {
+                throw ThrowTypeError("Cannot perform DataView operation on a detached ArrayBuffer",
+                    realm: Buffer.RealmState);
+            }
+
+            var bufferByteLength = Buffer.ByteLength;
+            if (_isLengthTracking)
+            {
+                if (ByteOffset > bufferByteLength)
+                {
+                    throw ThrowTypeError("DataView is out of bounds", realm: Buffer.RealmState);
+                }
+
+                return bufferByteLength - ByteOffset;
+            }
+
+            var requiredEnd = (long)ByteOffset + _initialByteLength;
+            if (requiredEnd > bufferByteLength)
+            {
+                throw ThrowTypeError("DataView is out of bounds", realm: Buffer.RealmState);
+            }
+
+            return _initialByteLength;
+        }
+    }
 
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {

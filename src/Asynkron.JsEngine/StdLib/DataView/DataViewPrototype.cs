@@ -260,10 +260,13 @@ public sealed partial class DataViewPrototype
     public JsValue SetBigInt64(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var dv = RequireInstance(thisValue);
-        var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
-
-        // Convert to BigInt and wrap to signed 64-bit as the spec expects.
-        var value = args.Count > 1 ? ToBigInt64(ToBigInt(args[1], realmState: Realm).Value) : 0L;
+        // Spec order:
+        // - ToIndex(byteOffset)
+        // - ToBigInt(value) + BigInt::asIntN(64, value)
+        // - ToBoolean(littleEndian)
+        var offset = args.Count > 0 ? ToIndex(args[0], Realm) : 0;
+        var valueArg = args.Count > 1 ? args[1] : JsValue.Undefined;
+        var value = ToBigInt64(ToBigInt(valueArg, realmState: Realm).Value);
         var littleEndian = args.Count > 2 && args[2].IsTruthy;
         return WithRangeError(() =>
         {

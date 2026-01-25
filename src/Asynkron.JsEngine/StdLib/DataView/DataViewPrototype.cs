@@ -295,8 +295,13 @@ public sealed partial class DataViewPrototype
     public JsValue SetFloat16(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var dv = RequireInstance(thisValue);
-        var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
-        var value = args.Count > 1 ? (Half)JsOps.ToNumber(args[1]) : (Half)0;
+        // Spec order (SetViewValue):
+        // - ToIndex(byteOffset)
+        // - ToNumber(value) (use undefined if missing)
+        // - ToBoolean(littleEndian)
+        var offset = args.Count > 0 ? ToIndex(args[0], Realm) : 0;
+        var valueArg = args.Count > 1 ? args[1] : JsValue.Undefined;
+        var value = (Half)JsOps.ToNumber(valueArg);
         var littleEndian = args.Count > 2 && args[2].IsTruthy;
         return WithRangeError(() =>
         {

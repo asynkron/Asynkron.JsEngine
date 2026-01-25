@@ -163,12 +163,12 @@ public static class ArrayBufferHelper
             throw ThrowRangeError($"Invalid {typeName} length", realm: realm);
         }
 
-        var allocLength = RequireAllocatableLength(byteLength, realm);
-        int? allocMax = requestedMax is { } maxIndex ? RequireAllocatableLength(maxIndex, realm) : null;
-
         if (ReferenceEquals(newTarget, constructor ?? newTarget))
         {
-            var directBuffer = new JsArrayBuffer(allocLength, allocMax, realm, isShared);
+            var directAllocLength = RequireAllocatableLength(byteLength, realm);
+            int? directAllocMax = requestedMax is null ? null : RequireAllocatableLength(requestedMax.Value, realm);
+
+            var directBuffer = new JsArrayBuffer(directAllocLength, directAllocMax, realm, isShared);
             if (isShared && prototype is not null)
             {
                 directBuffer.SetPrototype(prototype);
@@ -182,6 +182,9 @@ public static class ArrayBufferHelper
         {
             instance.SetPrototype(proto);
         }
+
+        var allocLength = RequireAllocatableLength(byteLength, realm);
+        int? allocMax = requestedMax is null ? null : RequireAllocatableLength(requestedMax.Value, realm);
 
         var buffer = new JsArrayBuffer(allocLength, allocMax, realm, isShared);
         StoreInternalArrayBuffer(instance, buffer);

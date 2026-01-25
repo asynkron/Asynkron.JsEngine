@@ -124,8 +124,10 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
 
         _setUint8 = CreateMethod((target, args) =>
         {
-            var offset = args.Count > 0 && args[0].TryGetDouble(out var d1) ? (int)d1 : 0;
-            var value = args.Count > 1 && args[1].TryGetDouble(out var d2) ? (byte)(int)d2 : (byte)0;
+            var offset = args.Count > 0 ? ToIndex(args[0], target.Buffer.RealmState) : 0;
+            var valueArg = args.Count > 1 ? args[1] : JsValue.Undefined;
+            var valueNumber = JsOps.ToNumber(valueArg);
+            var value = unchecked((byte)JsNumericConversions.ToUInt32(valueNumber));
             target.SetUint8(offset, value);
             return JsValue.Undefined;
         });

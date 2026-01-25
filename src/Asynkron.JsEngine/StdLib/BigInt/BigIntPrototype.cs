@@ -72,11 +72,6 @@ public sealed partial class BigIntPrototype : JsPrototype
             jsObj.RealmState = Realm;
         }
 
-        if (Prototype is IJsPropertyAccessor accessor && !accessor.TryGetProperty("__value__", out _))
-        {
-            accessor.SetProperty("__value__", new JsBigInt(BigInteger.Zero));
-        }
-
         Realm.BigIntPrototype ??= Prototype as JsObject;
     }
 

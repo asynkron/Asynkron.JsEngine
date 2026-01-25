@@ -47,8 +47,14 @@ public sealed partial class DataViewPrototype
     public JsValue SetInt8(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var dv = RequireInstance(thisValue);
-        var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
-        var value = args.Count > 1 ? (sbyte)(int)JsOps.ToNumber(args[1]) : (sbyte)0;
+        // Spec order (SetViewValue):
+        // - ToIndex(byteOffset)
+        // - ToNumber(value) (use undefined if missing)
+        // - Detached/out-of-bounds checks and range validation are done by the DataView implementation.
+        var offset = args.Count > 0 ? ToIndex(args[0], Realm) : 0;
+        var valueArg = args.Count > 1 ? args[1] : JsValue.Undefined;
+        var valueNumber = JsOps.ToNumber(valueArg);
+        var value = unchecked((sbyte)JsNumericConversions.ToInt32(valueNumber));
         return WithRangeError(() =>
         {
             dv.SetInt8(offset, value);

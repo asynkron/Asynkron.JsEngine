@@ -421,7 +421,6 @@ public sealed partial class DatePrototype
     public JsValue SetDate(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var timeValue = RequireDateValue(thisValue, Realm, out var obj);
-        var time = LocalTimeMs(timeValue, Realm);
         var evalContext = Realm?.CreateContext();
         var newDt = JsOps.ToNumber(args.GetArgument(0), evalContext);
         if (evalContext?.IsThrow == true)
@@ -429,6 +428,12 @@ public sealed partial class DatePrototype
             throw new ThrowSignal(evalContext.FlowValue);
         }
 
+        if (double.IsNaN(timeValue))
+        {
+            return double.NaN;
+        }
+
+        var time = LocalTimeMs(timeValue, Realm!);
         var day = MakeDay(YearFromTime(time), MonthFromTime(time), newDt);
         var clipped = ApplyTimeClip(day, time, Realm!, false);
         StoreInternalDateValue(obj, clipped);

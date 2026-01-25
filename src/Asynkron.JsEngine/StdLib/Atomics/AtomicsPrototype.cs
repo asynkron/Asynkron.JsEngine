@@ -42,6 +42,12 @@ public sealed partial class AtomicsPrototype : JsPrototype
             {
                 var oldValue = ReadBigIntElement(typedArray, index);
                 var expected = ToBigInt(expectedArg, realmState: Realm);
+                expected = typedArray switch
+                {
+                    JsBigInt64Array => new JsBigInt(ToBigInt64(expected.Value)),
+                    JsBigUint64Array => new JsBigInt(new System.Numerics.BigInteger(ToBigUint64(expected.Value))),
+                    _ => expected
+                };
                 if (JsOps.SameValue(oldValue, expected))
                 {
                     var replacement = ToBigInt(replacementArg, realmState: Realm);

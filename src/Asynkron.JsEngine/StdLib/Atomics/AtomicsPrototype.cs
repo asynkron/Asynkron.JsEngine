@@ -349,8 +349,11 @@ public sealed partial class AtomicsPrototype : JsPrototype
     private int RequireAtomicIndex(TypedArrayBase typedArray, JsValue indexArg)
     {
         // Atomics must validate the index after the typed array type check.
+        // Length must be retrieved before index coercion (ToIndex) because the coercion
+        // can resize/detach the underlying buffer for non-shared views (Test262).
+        var length = typedArray.Length;
         var index = ToIndex(indexArg, Realm);
-        if (index < 0 || index >= typedArray.Length)
+        if (index < 0 || index >= length)
         {
             throw ThrowRangeError("Atomics index out of range", realm: Realm);
         }

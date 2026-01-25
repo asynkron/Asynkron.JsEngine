@@ -1,6 +1,8 @@
 #region
 
 using System.Buffers.Binary;
+using Asynkron.JsEngine.Converters;
+using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.NumberHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
@@ -167,8 +169,10 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
 
         _setInt32 = CreateMethod((target, args) =>
         {
-            var offset = args.Count > 0 && args[0].TryGetDouble(out var d1) ? (int)d1 : 0;
-            var value = args.Count > 1 && args[1].TryGetDouble(out var d2) ? (int)d2 : 0;
+            var offset = args.Count > 0 ? ToIndex(args[0], target.Buffer.RealmState) : 0;
+            var valueArg = args.Count > 1 ? args[1] : JsValue.Undefined;
+            var valueNumber = JsOps.ToNumber(valueArg);
+            var value = JsNumericConversions.ToInt32(valueNumber);
             var littleEndian = args.Count > 2 && args[2].IsTruthy;
             target.SetInt32(offset, value, littleEndian);
             return JsValue.Undefined;

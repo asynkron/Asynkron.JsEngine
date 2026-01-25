@@ -180,8 +180,14 @@ public sealed partial class DataViewPrototype
     public JsValue SetUint32(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var dv = RequireInstance(thisValue);
-        var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
-        var value = args.Count > 1 ? (uint)JsOps.ToNumber(args[1]) : 0u;
+        // Spec order (SetViewValue):
+        // - ToIndex(byteOffset)
+        // - ToNumber(value) + ToUint32
+        // - ToBoolean(littleEndian)
+        var offset = args.Count > 0 ? ToIndex(args[0], Realm) : 0;
+        var valueArg = args.Count > 1 ? args[1] : JsValue.Undefined;
+        var valueNumber = JsOps.ToNumber(valueArg);
+        var value = JsNumericConversions.ToUInt32(valueNumber);
         var littleEndian = args.Count > 2 && args[2].IsTruthy;
         return WithRangeError(() =>
         {

@@ -379,7 +379,13 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
 
     private void CheckBounds(int offset, int size)
     {
-        if (offset < 0 || offset + size > ByteLength)
+        if (offset < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(offset), "Offset is outside the bounds of the DataView");
+        }
+
+        var requiredEnd = (long)offset + size;
+        if (requiredEnd > ByteLength)
         {
             throw new ArgumentOutOfRangeException(nameof(offset), "Offset is outside the bounds of the DataView");
         }

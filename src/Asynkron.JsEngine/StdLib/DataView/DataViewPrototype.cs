@@ -38,7 +38,7 @@ public sealed partial class DataViewPrototype
     public JsValue GetInt8(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var dv = RequireInstance(thisValue);
-        var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
+        var offset = args.Count > 0 ? ToIndex(args[0], Realm) : 0;
         return WithRangeError(() => (double)dv.GetInt8(offset));
     }
 

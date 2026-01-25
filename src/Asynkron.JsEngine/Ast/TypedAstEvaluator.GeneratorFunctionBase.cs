@@ -1,7 +1,9 @@
 #region
 
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -500,6 +502,7 @@ public static partial class TypedAstEvaluator
             var argCount = args.Count;
             var bodyValue = argCount > 0 ? args[argCount - 1] : (JsValue)string.Empty;
             var parameterCount = Math.Max(argCount - 1, 0);
+            var checkAwaitInParameters = functionPrefix.StartsWith("async", StringComparison.Ordinal);
 
             var parameters = new string[parameterCount];
             for (var i = 0; i < parameterCount; i++)
@@ -525,6 +528,12 @@ public static partial class TypedAstEvaluator
                 throw new ThrowSignal(StandardLibrary.CreateSyntaxError(message, evalContext, realm));
             }
 
+            if (TryGetDynamicGeneratorFunctionExpression(program, out var parsedFunction) &&
+                HasIllegalYieldOrAwaitInParameters(parsedFunction, checkAwaitInParameters))
+            {
+                throw StandardLibrary.ThrowSyntaxError("Invalid function parameter list", evalContext, realm);
+            }
+
             var createdObj = engine.ExecuteProgram(
                 program,
                 engine.GlobalEnvironment,
@@ -542,6 +551,59 @@ public static partial class TypedAstEvaluator
             }
 
             return created;
+        }
+
+        private static bool TryGetDynamicGeneratorFunctionExpression(ProgramNode program,
+            [NotNullWhen(true)] out FunctionExpression? function)
+        {
+            function = null;
+
+            if (program.Body.Length != 1)
+            {
+                return false;
+            }
+
+            if (program.Body[0] is not ExpressionStatement { Expression: FunctionExpression parsed })
+            {
+                return false;
+            }
+
+            function = parsed;
+            return true;
+        }
+
+        private static bool HasIllegalYieldOrAwaitInParameters(FunctionExpression function, bool checkAwait)
+        {
+            foreach (var parameter in function.Parameters)
+            {
+                if (parameter.DefaultValue is not null)
+                {
+                    if (AstShapeAnalyzer.ContainsYield(parameter.DefaultValue))
+                    {
+                        return true;
+                    }
+
+                    if (checkAwait && AstShapeAnalyzer.ContainsAwait(parameter.DefaultValue))
+                    {
+                        return true;
+                    }
+                }
+
+                if (parameter.Pattern is not null)
+                {
+                    if (AstShapeAnalyzer.BindingTargetContainsYieldInDefaultValue(parameter.Pattern))
+                    {
+                        return true;
+                    }
+
+                    if (checkAwait && AstShapeAnalyzer.BindingTargetContainsAwaitInDefaultValue(parameter.Pattern))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         /// <summary>

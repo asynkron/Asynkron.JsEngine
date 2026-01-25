@@ -77,13 +77,24 @@ public static class ReflectHelper
             throw new ThrowSignal(errorResult);
         }
 
-        if (newTarget is HostFunction { IsConstructor: false } hostNewTarget)
+        if (newTarget is HostFunction hostNewTarget &&
+            (!hostNewTarget.IsConstructor || hostNewTarget.DisallowConstruct))
         {
             var message = hostNewTarget.ConstructErrorMessage ?? "newTarget is not a constructor";
             var errorResult = realm.TypeErrorConstructor is IJsCallable typeErrorCtor2
                 ? typeErrorCtor2.Invoke(new SingleValueArgs(new JsValue(message)), JsValue.Undefined)
                 : JsValue.FromObjectUnsafe(new InvalidOperationException(message));
             throw new ThrowSignal(errorResult);
+        }
+
+        if (target is ICallableMetadata { DisallowConstruct: true })
+        {
+            throw ThrowTypeError("Target is not a constructor", realm: realm);
+        }
+
+        if (newTarget is ICallableMetadata { DisallowConstruct: true })
+        {
+            throw ThrowTypeError("newTarget is not a constructor", realm: realm);
         }
 
         if (target is HostFunction hostCtor &&
@@ -669,10 +680,12 @@ public static class ReflectHelper
             "Array" => realmState.ArrayPrototype,
             "ArrayBuffer" => realmState.ArrayBufferPrototype,
             "AsyncFunction" => realmState.AsyncFunctionPrototype,
+            "AsyncGeneratorFunction" => realmState.AsyncGeneratorFunctionPrototype,
             "SharedArrayBuffer" => realmState.SharedArrayBufferPrototype,
             "Boolean" => realmState.BooleanPrototype,
             "Date" => realmState.DatePrototype,
             "Function" => realmState.FunctionPrototype,
+            "GeneratorFunction" => realmState.GeneratorFunctionPrototype,
             "Map" => realmState.MapPrototype,
             "Number" => realmState.NumberPrototype,
             "Set" => realmState.SetPrototype,

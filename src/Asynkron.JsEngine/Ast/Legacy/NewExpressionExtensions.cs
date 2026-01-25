@@ -126,13 +126,22 @@ public static partial class TypedAstEvaluator
             throw new ThrowSignal(errorJs);
         }
 
-        if (constructor is SyncGeneratorInvoker)
+        if (constructor is SyncGeneratorInvoker or AsyncGeneratorFunctionInvoker)
+        {
+            var message = constructor is AsyncGeneratorFunctionInvoker
+                ? "Async generator functions cannot be constructed with 'new'"
+                : "Generator functions cannot be constructed with 'new'";
+            var errorJs = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
+                ? typeErrorCtor.Invoke(new SingleValueArgs((JsValue)message), JsValue.Null)
+                : JsValue.FromObjectUnsafe(new InvalidOperationException(message));
+            throw new ThrowSignal(errorJs);
+        }
+
+        if (constructor is ICallableMetadata { DisallowConstruct: true })
         {
             var errorJs = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                ? typeErrorCtor.Invoke(new SingleValueArgs((JsValue)"Generator functions cannot be constructed with 'new'"),
-                    JsValue.Null)
-                : JsValue.FromObjectUnsafe(
-                    new InvalidOperationException("Generator functions cannot be constructed with 'new'."));
+                ? typeErrorCtor.Invoke(new SingleValueArgs((JsValue)"Target is not a constructor"), JsValue.Null)
+                : JsValue.FromObjectUnsafe(new InvalidOperationException("Target is not a constructor."));
             throw new ThrowSignal(errorJs);
         }
 

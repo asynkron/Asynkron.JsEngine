@@ -102,6 +102,52 @@ internal static class AstShapeAnalyzer
         }
     }
 
+    public static bool BindingTargetContainsAwaitInDefaultValue(BindingTarget target)
+    {
+        switch (target)
+        {
+            case ArrayBinding arrayBinding:
+                foreach (var element in arrayBinding.Elements)
+                {
+                    if (element.DefaultValue is not null && ContainsAwait(element.DefaultValue))
+                    {
+                        return true;
+                    }
+
+                    if (element.Target is not null && BindingTargetContainsAwaitInDefaultValue(element.Target))
+                    {
+                        return true;
+                    }
+                }
+
+                return arrayBinding.RestElement is not null &&
+                    BindingTargetContainsAwaitInDefaultValue(arrayBinding.RestElement);
+
+            case ObjectBinding objectBinding:
+                foreach (var prop in objectBinding.Properties)
+                {
+                    if (prop.DefaultValue is not null && ContainsAwait(prop.DefaultValue))
+                    {
+                        return true;
+                    }
+
+                    if (BindingTargetContainsAwaitInDefaultValue(prop.Target))
+                    {
+                        return true;
+                    }
+                }
+
+                return objectBinding.RestElement is not null &&
+                    BindingTargetContainsAwaitInDefaultValue(objectBinding.RestElement);
+
+            case AssignmentTargetBinding assignmentTarget:
+                return ContainsAwait(assignmentTarget.Expression);
+
+            default:
+                return false;
+        }
+    }
+
     public static bool TryFindSingleYield(ExpressionNode expression,
         [NotNullWhen(true)] out YieldExpression? yieldExpression)
     {

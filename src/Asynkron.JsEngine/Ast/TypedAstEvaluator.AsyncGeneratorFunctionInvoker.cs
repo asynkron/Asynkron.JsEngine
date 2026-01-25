@@ -119,6 +119,21 @@ public static partial class TypedAstEvaluator
                     });
 
                 RealmState.AsyncGeneratorFunctionPrototype = asyncGenFuncProto;
+
+                // %AsyncGeneratorPrototype%.constructor === %AsyncGenerator%
+                // Per ES spec: non-writable, non-enumerable, configurable.
+                if (RealmState.AsyncGeneratorPrototype is { } asyncGenProto &&
+                    asyncGenProto.GetOwnPropertyDescriptor("constructor") is null)
+                {
+                    asyncGenProto.DefineProperty("constructor",
+                        new PropertyDescriptor
+                        {
+                            Value = asyncGenFuncProto,
+                            Writable = false,
+                            Enumerable = false,
+                            Configurable = true
+                        });
+                }
             }
         }
 

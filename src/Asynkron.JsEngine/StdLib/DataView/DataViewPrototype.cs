@@ -181,8 +181,14 @@ public sealed partial class DataViewPrototype
     public JsValue SetFloat32(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var dv = RequireInstance(thisValue);
-        var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
-        var value = args.Count > 1 ? (float)JsOps.ToNumber(args[1]) : 0f;
+        // Spec order (SetViewValue):
+        // - ToIndex(byteOffset)
+        // - ToNumber(value) (use undefined if missing)
+        // - ToBoolean(littleEndian)
+        // Detached/out-of-bounds checks and index bounds validation are done by the DataView implementation.
+        var offset = args.Count > 0 ? ToIndex(args[0], Realm) : 0;
+        var valueArg = args.Count > 1 ? args[1] : JsValue.Undefined;
+        var value = (float)JsOps.ToNumber(valueArg);
         var littleEndian = args.Count > 2 && args[2].IsTruthy;
         return WithRangeError(() =>
         {

@@ -1,6 +1,5 @@
 #region
 
-using System.Globalization;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.DateHelper;
@@ -78,16 +77,21 @@ public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState 
     }
 
     [JsConstructorMethod("parse", Length = 1d)]
-    public static JsValue Parse(IReadOnlyList<JsValue> args)
+    public static JsValue Parse(IReadOnlyList<JsValue> args, RealmState? realm)
     {
-        if (args.Count == 0 || !args[0].TryGetString(out var dateStr))
+        if (realm is null)
+        {
+            throw new InvalidOperationException("Realm is required for Date.parse.");
+        }
+
+        if (args.Count == 0)
         {
             return JsValue.NaN;
         }
 
-        return DateTimeOffset.TryParse(dateStr, CultureInfo.InvariantCulture, out var parsed)
-            ? new JsValue((double)parsed.ToUnixTimeMilliseconds())
-            : JsValue.NaN;
+        var dateStr = JsOps.ToJsString(args[0]);
+        var parsed = ParseDateTimeString(dateStr, realm);
+        return double.IsNaN(parsed) ? JsValue.NaN : new JsValue(parsed);
     }
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)

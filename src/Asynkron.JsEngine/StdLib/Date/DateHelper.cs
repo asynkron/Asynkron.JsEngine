@@ -29,14 +29,21 @@ public static class DateHelper
         if (args.Count == 1)
         {
             var arg = args[0];
-            if (arg.TryGetString(out var dateStr) &&
-                DateTimeOffset.TryParse(dateStr, CultureInfo.InvariantCulture, out var parsed))
+            var ctx = context ?? realm.CreateContext();
+            var primitive = arg.IsObject
+                ? JsOps.ToPrimitive(arg, ToPrimitiveHint.Default, ctx)
+                : arg;
+            if (ctx.IsThrow)
             {
-                return TimeClip(parsed.ToUnixTimeMilliseconds());
+                throw new ThrowSignal(ctx.FlowValue);
             }
 
-            var ctx = context ?? realm.CreateContext();
-            var ms = JsOps.ToNumber(arg, ctx);
+            if (primitive.TryGetString(out var dateStr))
+            {
+                return ParseDateTimeString(dateStr, realm);
+            }
+
+            var ms = JsOps.ToNumber(primitive, ctx);
             if (ctx.IsThrow)
             {
                 throw new ThrowSignal(ctx.FlowValue);
@@ -142,7 +149,8 @@ public static class DateHelper
             return double.NaN;
         }
 
-        return Math.Truncate(time);
+        var truncated = Math.Truncate(time);
+        return truncated == 0 ? 0 : truncated;
     }
 
     internal static double SetTimeComponents(double time, RealmState realmState, double? hour = null,
@@ -445,6 +453,648 @@ public static class DateHelper
             return milliseconds < 0 ? DateTimeOffset.MinValue : DateTimeOffset.MaxValue;
         }
     }
+
+    internal static double ParseDateTimeString(string dateStr, RealmState realmState)
+    {
+        if (string.IsNullOrEmpty(dateStr))
+        {
+            return double.NaN;
+        }
+
+        var span = TrimAsciiWhitespace(dateStr.AsSpan());
+        if (span.Length == 0)
+        {
+            return double.NaN;
+        }
+
+        if (TryParseEcmaDateTimeString(span, realmState, out var isoTimeValue))
+        {
+            return isoTimeValue;
+        }
+
+        if (TryParseJsDateToString(span, out var jsToStringTimeValue))
+        {
+            return jsToStringTimeValue;
+        }
+
+        if (TryParseJsDateToUtcString(span, out var jsToUtcTimeValue))
+        {
+            return jsToUtcTimeValue;
+        }
+
+        return double.NaN;
+    }
+
+    internal static string FormatUtcToIsoString(double timeValue)
+    {
+        var year = (int)YearFromTime(timeValue);
+        var month = MonthFromTime(timeValue) + 1;
+        var day = DateFromTime(timeValue);
+        var hour = (int)HourFromTime(timeValue);
+        var minute = (int)MinFromTime(timeValue);
+        var second = (int)SecFromTime(timeValue);
+        var millisecond = (int)MsFromTime(timeValue);
+
+        var extendedYear = year is < 0 or > 9999;
+        var length = extendedYear ? 27 : 24;
+
+        return string.Create(length,
+            (year, month, day, hour, minute, second, millisecond, extendedYear),
+            static (span, state) =>
+            {
+                var i = 0;
+
+                if (state.extendedYear)
+                {
+                    span[i++] = state.year < 0 ? '-' : '+';
+                    var absYear = Math.Abs(state.year);
+                    WriteFixedDigits(span.Slice(i, 6), absYear, 6);
+                    i += 6;
+                }
+                else
+                {
+                    WriteFixedDigits(span.Slice(i, 4), state.year, 4);
+                    i += 4;
+                }
+
+                span[i++] = '-';
+                WriteFixedDigits(span.Slice(i, 2), state.month, 2);
+                i += 2;
+                span[i++] = '-';
+                WriteFixedDigits(span.Slice(i, 2), state.day, 2);
+                i += 2;
+                span[i++] = 'T';
+                WriteFixedDigits(span.Slice(i, 2), state.hour, 2);
+                i += 2;
+                span[i++] = ':';
+                WriteFixedDigits(span.Slice(i, 2), state.minute, 2);
+                i += 2;
+                span[i++] = ':';
+                WriteFixedDigits(span.Slice(i, 2), state.second, 2);
+                i += 2;
+                span[i++] = '.';
+                WriteFixedDigits(span.Slice(i, 3), state.millisecond, 3);
+                i += 3;
+                span[i] = 'Z';
+            });
+    }
+
+    private static void WriteFixedDigits(Span<char> destination, int value, int digits)
+    {
+        for (var i = digits - 1; i >= 0; i--)
+        {
+            destination[i] = (char)('0' + (value % 10));
+            value /= 10;
+        }
+    }
+
+    private static ReadOnlySpan<char> TrimAsciiWhitespace(ReadOnlySpan<char> value)
+    {
+        var start = 0;
+        while (start < value.Length && IsAsciiWhitespace(value[start]))
+        {
+            start++;
+        }
+
+        var end = value.Length - 1;
+        while (end >= start && IsAsciiWhitespace(value[end]))
+        {
+            end--;
+        }
+
+        return value.Slice(start, end - start + 1);
+    }
+
+    private static bool IsAsciiWhitespace(char c)
+        => c is ' ' or '\t' or '\r' or '\n' or '\f';
+
+    private static bool TryParseEcmaDateTimeString(ReadOnlySpan<char> value, RealmState realmState, out double timeValue)
+    {
+        timeValue = double.NaN;
+
+        if (value.Length < 4)
+        {
+            return false;
+        }
+
+        var index = 0;
+        var year = 0;
+
+        if (value[index] is '+' or '-')
+        {
+            var sign = value[index++];
+            if (value.Length - index < 6)
+            {
+                return false;
+            }
+
+            if (!TryParseFixedDigits(value.Slice(index, 6), out var yearDigits))
+            {
+                return false;
+            }
+
+            if (sign == '-' && yearDigits == 0)
+            {
+                timeValue = double.NaN;
+                return true;
+            }
+
+            year = sign == '-' ? -yearDigits : yearDigits;
+            index += 6;
+        }
+        else
+        {
+            if (!TryParseFixedDigits(value.Slice(index, 4), out var yearDigits))
+            {
+                return false;
+            }
+
+            year = yearDigits;
+            index += 4;
+        }
+
+        var month = 1;
+        var day = 1;
+        var hasTime = false;
+
+        if (index == value.Length)
+        {
+            var utcYearOnly = MakeDate(MakeDay(year, 0, 1), 0);
+            timeValue = TimeClip(utcYearOnly);
+            return true;
+        }
+
+        if (value[index] != '-')
+        {
+            return false;
+        }
+
+        index++;
+        if (index + 2 > value.Length || !TryParseTwoDigits(value.Slice(index, 2), out month))
+        {
+            timeValue = double.NaN;
+            return true;
+        }
+
+        index += 2;
+        if (index == value.Length)
+        {
+            var utcYearMonth = MakeDate(MakeDay(year, month - 1, 1), 0);
+            timeValue = TimeClip(utcYearMonth);
+            return true;
+        }
+
+        if (value[index] != '-')
+        {
+            timeValue = double.NaN;
+            return true;
+        }
+
+        index++;
+        if (index + 2 > value.Length || !TryParseTwoDigits(value.Slice(index, 2), out day))
+        {
+            timeValue = double.NaN;
+            return true;
+        }
+
+        index += 2;
+
+        var hour = 0;
+        var minute = 0;
+        var second = 0;
+        var millisecond = 0;
+        var offsetMinutes = 0;
+        var hasOffset = false;
+
+        if (index < value.Length && value[index] == 'T')
+        {
+            hasTime = true;
+            index++;
+
+            if (index + 5 > value.Length ||
+                !TryParseTwoDigits(value.Slice(index, 2), out hour) ||
+                value[index + 2] != ':' ||
+                !TryParseTwoDigits(value.Slice(index + 3, 2), out minute))
+            {
+                timeValue = double.NaN;
+                return true;
+            }
+
+            index += 5;
+
+            if (index < value.Length && value[index] == ':')
+            {
+                index++;
+                if (index + 2 > value.Length || !TryParseTwoDigits(value.Slice(index, 2), out second))
+                {
+                    timeValue = double.NaN;
+                    return true;
+                }
+
+                index += 2;
+            }
+
+            if (index < value.Length && value[index] == '.')
+            {
+                index++;
+                if (index >= value.Length || !IsAsciiDigit(value[index]))
+                {
+                    timeValue = double.NaN;
+                    return true;
+                }
+
+                var digitsStart = index;
+                var digitsCount = 0;
+                while (index < value.Length && IsAsciiDigit(value[index]))
+                {
+                    index++;
+                    digitsCount++;
+                }
+
+                var fraction = value.Slice(digitsStart, digitsCount);
+                millisecond = ParseMilliseconds(fraction);
+            }
+
+            if (index < value.Length)
+            {
+                if (value[index] is 'Z' or 'z')
+                {
+                    hasOffset = true;
+                    offsetMinutes = 0;
+                    index++;
+                }
+                else if (value[index] is '+' or '-')
+                {
+                    hasOffset = true;
+                    if (!TryParseTimeZoneOffset(value.Slice(index), out offsetMinutes, out var offsetChars))
+                    {
+                        timeValue = double.NaN;
+                        return true;
+                    }
+
+                    index += offsetChars;
+                }
+            }
+        }
+
+        if (index != value.Length)
+        {
+            timeValue = double.NaN;
+            return true;
+        }
+
+        if (!TryGetDaysInMonth(year, month, out var daysInMonth) || day < 1 || day > daysInMonth)
+        {
+            timeValue = double.NaN;
+            return true;
+        }
+
+        if (!IsValidTime(hour, minute, second, millisecond))
+        {
+            timeValue = double.NaN;
+            return true;
+        }
+
+        var dayNumber = MakeDay(year, month - 1, day);
+        var timeWithinDay = hour * MsPerHour + minute * MsPerMinute + second * MsPerSecond + millisecond;
+        var date = MakeDate(dayNumber, timeWithinDay);
+
+        double utc;
+        if (hasTime)
+        {
+            if (hasOffset)
+            {
+                utc = date - offsetMinutes * MsPerMinute;
+            }
+            else
+            {
+                utc = UtcTimeFromLocal(date, realmState);
+            }
+        }
+        else
+        {
+            utc = date;
+        }
+
+        timeValue = TimeClip(utc);
+        return true;
+    }
+
+    private static bool TryGetDaysInMonth(int year, int month, out int daysInMonth)
+    {
+        daysInMonth = 0;
+        if ((uint)(month - 1) >= 12)
+        {
+            return false;
+        }
+
+        var leap = IsLeapYear(year);
+        daysInMonth = month switch
+        {
+            1 => 31,
+            2 => leap ? 29 : 28,
+            3 => 31,
+            4 => 30,
+            5 => 31,
+            6 => 30,
+            7 => 31,
+            8 => 31,
+            9 => 30,
+            10 => 31,
+            11 => 30,
+            12 => 31,
+            _ => 0
+        };
+
+        return daysInMonth != 0;
+    }
+
+    private static bool IsValidTime(int hour, int minute, int second, int millisecond)
+    {
+        if (hour == 24)
+        {
+            return minute == 0 && second == 0 && millisecond == 0;
+        }
+
+        return (uint)hour <= 23 &&
+               (uint)minute <= 59 &&
+               (uint)second <= 59 &&
+               (uint)millisecond <= 999;
+    }
+
+    private static int ParseMilliseconds(ReadOnlySpan<char> fraction)
+    {
+        // ECMAScript milliseconds are 3 digits; fractional seconds are truncated/padded right.
+        var ms = 0;
+        for (var i = 0; i < 3; i++)
+        {
+            ms *= 10;
+            if (i < fraction.Length)
+            {
+                ms += fraction[i] - '0';
+            }
+        }
+
+        return ms;
+    }
+
+    private static bool TryParseTimeZoneOffset(
+        ReadOnlySpan<char> value,
+        out int offsetMinutes,
+        out int charsConsumed)
+    {
+        offsetMinutes = 0;
+        charsConsumed = 0;
+
+        if (value.Length < 5 || value[0] is not ('+' or '-'))
+        {
+            return false;
+        }
+
+        var sign = value[0] == '-' ? -1 : 1;
+
+        if (!TryParseTwoDigits(value.Slice(1, 2), out var hours))
+        {
+            return false;
+        }
+
+        var index = 3;
+        if (index < value.Length && value[index] == ':')
+        {
+            index++;
+        }
+
+        if (index + 2 > value.Length || !TryParseTwoDigits(value.Slice(index, 2), out var minutes))
+        {
+            return false;
+        }
+
+        if ((uint)hours > 23 || (uint)minutes > 59)
+        {
+            return false;
+        }
+
+        charsConsumed = index + 2;
+        offsetMinutes = sign * (hours * 60 + minutes);
+        return true;
+    }
+
+    private static bool TryParseJsDateToString(ReadOnlySpan<char> value, out double timeValue)
+    {
+        timeValue = double.NaN;
+
+        var index = 0;
+        if (!TryReadToken(value, ref index, out _))
+        {
+            return false;
+        }
+
+        if (!TryReadToken(value, ref index, out var monthToken) ||
+            !TryReadToken(value, ref index, out var dayToken) ||
+            !TryReadToken(value, ref index, out var yearToken) ||
+            !TryReadToken(value, ref index, out var timeToken) ||
+            !TryReadToken(value, ref index, out var gmtToken))
+        {
+            return false;
+        }
+
+        if (!TryParseMonthAbbreviation(monthToken, out var month) ||
+            !TryParseFixedDigits(dayToken, out var day) ||
+            !TryParseFixedDigits(yearToken, out var year) ||
+            !TryParseTimeHms(timeToken, out var hour, out var minute, out var second) ||
+            !TryParseGmtOffsetToken(gmtToken, out var offsetMinutes))
+        {
+            return false;
+        }
+
+        if (!TryGetDaysInMonth(year, month, out var daysInMonth) || day < 1 || day > daysInMonth)
+        {
+            timeValue = double.NaN;
+            return true;
+        }
+
+        var dayNumber = MakeDay(year, month - 1, day);
+        var timeWithinDay = hour * MsPerHour + minute * MsPerMinute + second * MsPerSecond;
+        var date = MakeDate(dayNumber, timeWithinDay);
+        timeValue = TimeClip(date - offsetMinutes * MsPerMinute);
+        return true;
+    }
+
+    private static bool TryParseJsDateToUtcString(ReadOnlySpan<char> value, out double timeValue)
+    {
+        timeValue = double.NaN;
+
+        var index = 0;
+        if (!TryReadToken(value, ref index, out var weekdayToken))
+        {
+            return false;
+        }
+
+        if (weekdayToken.Length == 0 || weekdayToken[^1] != ',')
+        {
+            return false;
+        }
+
+        if (!TryReadToken(value, ref index, out var dayToken) ||
+            !TryReadToken(value, ref index, out var monthToken) ||
+            !TryReadToken(value, ref index, out var yearToken) ||
+            !TryReadToken(value, ref index, out var timeToken) ||
+            !TryReadToken(value, ref index, out var gmtToken))
+        {
+            return false;
+        }
+
+        if (!gmtToken.Equals("GMT", StringComparison.Ordinal) ||
+            !TryParseMonthAbbreviation(monthToken, out var month) ||
+            !TryParseFixedDigits(dayToken, out var day) ||
+            !TryParseFixedDigits(yearToken, out var year) ||
+            !TryParseTimeHms(timeToken, out var hour, out var minute, out var second))
+        {
+            return false;
+        }
+
+        if (!TryGetDaysInMonth(year, month, out var daysInMonth) || day < 1 || day > daysInMonth)
+        {
+            timeValue = double.NaN;
+            return true;
+        }
+
+        var dayNumber = MakeDay(year, month - 1, day);
+        var timeWithinDay = hour * MsPerHour + minute * MsPerMinute + second * MsPerSecond;
+        var date = MakeDate(dayNumber, timeWithinDay);
+        timeValue = TimeClip(date);
+        return true;
+    }
+
+    private static bool TryReadToken(ReadOnlySpan<char> value, ref int index, out ReadOnlySpan<char> token)
+    {
+        while (index < value.Length && value[index] == ' ')
+        {
+            index++;
+        }
+
+        if (index >= value.Length)
+        {
+            token = default;
+            return false;
+        }
+
+        var start = index;
+        while (index < value.Length && value[index] != ' ')
+        {
+            index++;
+        }
+
+        token = value.Slice(start, index - start);
+        return true;
+    }
+
+    private static bool TryParseMonthAbbreviation(ReadOnlySpan<char> value, out int month)
+    {
+        month = value switch
+        {
+            _ when value.Equals("Jan", StringComparison.Ordinal) => 1,
+            _ when value.Equals("Feb", StringComparison.Ordinal) => 2,
+            _ when value.Equals("Mar", StringComparison.Ordinal) => 3,
+            _ when value.Equals("Apr", StringComparison.Ordinal) => 4,
+            _ when value.Equals("May", StringComparison.Ordinal) => 5,
+            _ when value.Equals("Jun", StringComparison.Ordinal) => 6,
+            _ when value.Equals("Jul", StringComparison.Ordinal) => 7,
+            _ when value.Equals("Aug", StringComparison.Ordinal) => 8,
+            _ when value.Equals("Sep", StringComparison.Ordinal) => 9,
+            _ when value.Equals("Oct", StringComparison.Ordinal) => 10,
+            _ when value.Equals("Nov", StringComparison.Ordinal) => 11,
+            _ when value.Equals("Dec", StringComparison.Ordinal) => 12,
+            _ => 0
+        };
+
+        return month != 0;
+    }
+
+    private static bool TryParseTimeHms(ReadOnlySpan<char> value, out int hour, out int minute, out int second)
+    {
+        hour = 0;
+        minute = 0;
+        second = 0;
+
+        if (value.Length != 8 || value[2] != ':' || value[5] != ':')
+        {
+            return false;
+        }
+
+        return TryParseTwoDigits(value.Slice(0, 2), out hour) &&
+               TryParseTwoDigits(value.Slice(3, 2), out minute) &&
+               TryParseTwoDigits(value.Slice(6, 2), out second) &&
+               IsValidTime(hour, minute, second, 0);
+    }
+
+    private static bool TryParseGmtOffsetToken(ReadOnlySpan<char> value, out int offsetMinutes)
+    {
+        offsetMinutes = 0;
+        if (value.Length != 8 || !value.StartsWith("GMT", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var sign = value[3] == '-' ? -1 : 1;
+        if (value[3] is not ('+' or '-'))
+        {
+            return false;
+        }
+
+        if (!TryParseTwoDigits(value.Slice(4, 2), out var hours) ||
+            !TryParseTwoDigits(value.Slice(6, 2), out var minutes))
+        {
+            return false;
+        }
+
+        if ((uint)hours > 23 || (uint)minutes > 59)
+        {
+            return false;
+        }
+
+        offsetMinutes = sign * (hours * 60 + minutes);
+        return true;
+    }
+
+    private static bool TryParseFixedDigits(ReadOnlySpan<char> value, out int result)
+    {
+        result = 0;
+        for (var i = 0; i < value.Length; i++)
+        {
+            var digit = value[i] - '0';
+            if ((uint)digit > 9)
+            {
+                return false;
+            }
+
+            result = result * 10 + digit;
+        }
+
+        return true;
+    }
+
+    private static bool TryParseTwoDigits(ReadOnlySpan<char> value, out int result)
+    {
+        result = 0;
+        if (value.Length != 2)
+        {
+            return false;
+        }
+
+        var digit0 = value[0] - '0';
+        var digit1 = value[1] - '0';
+        if ((uint)digit0 > 9 || (uint)digit1 > 9)
+        {
+            return false;
+        }
+
+        result = digit0 * 10 + digit1;
+        return true;
+    }
+
+    private static bool IsAsciiDigit(char c)
+        => (uint)(c - '0') <= 9;
 
     internal static JsValue FormatWithIntlDateTime(
         JsValue dateThis,

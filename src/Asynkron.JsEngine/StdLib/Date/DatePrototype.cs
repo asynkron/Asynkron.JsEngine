@@ -151,7 +151,8 @@ public sealed partial class DatePrototype
         }
 
         var offset = GetLocalOffsetMs(timeValue, Realm);
-        return -(offset / MsPerMinute);
+        var minutes = -(offset / MsPerMinute);
+        return minutes == 0 ? 0 : minutes;
     }
 
     [JsHostMethod("getUTCFullYear", Length = 0d)]
@@ -564,8 +565,7 @@ public sealed partial class DatePrototype
             throw ThrowRangeError("Invalid time value", realm: Realm);
         }
 
-        var utc = ConvertMillisecondsToUtc(timeValue);
-        return utc.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture);
+        return FormatUtcToIsoString(timeValue);
     }
 
     [JsHostMethod("toJSON", Length = 1d)]

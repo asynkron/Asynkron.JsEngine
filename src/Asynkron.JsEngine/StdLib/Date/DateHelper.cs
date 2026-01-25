@@ -93,6 +93,11 @@ public static class DateHelper
 
     internal static void StoreInternalDateValue(JsObject obj, double timeValue)
     {
+        if (BitConverter.DoubleToInt64Bits(timeValue) == BitConverter.DoubleToInt64Bits(-0d))
+        {
+            timeValue = 0d;
+        }
+
         obj.SetProperty("_internalDate", new JsValue(timeValue));
     }
 

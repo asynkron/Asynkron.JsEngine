@@ -1,5 +1,6 @@
 #region
 
+using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.NumberHelper;
@@ -301,7 +302,7 @@ public sealed partial class AtomicsPrototype : JsPrototype
 
             var oldNumber = typedArray.GetElement(index);
             var maskNumber = JsOps.ToNumber(valueArg);
-            var result = intOp((int)oldNumber, (int)maskNumber);
+            var result = intOp(JsNumericConversions.ToInt32(oldNumber), JsNumericConversions.ToInt32(maskNumber));
             typedArray.SetElement(index, result);
             return oldNumber;
         }

@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Globalization;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 
@@ -11,6 +13,7 @@ internal sealed class Test262AgentRuntime
 
     private readonly ConcurrentQueue<string> _reports = new();
     private readonly ManualResetEventSlim _sleepEvent = new(false);
+    private readonly long _monotonicStartTimestamp = Stopwatch.GetTimestamp();
 
     private readonly object _agentsLock = new();
     private readonly List<AgentInstance> _agents = new();
@@ -29,7 +32,15 @@ internal sealed class Test262AgentRuntime
             ["broadcast"] = new HostFunction(Broadcast),
             ["getReport"] = new HostFunction(_ => GetReport()),
             ["sleep"] = new HostFunction(Sleep),
+            ["monotonicNow"] = new HostFunction(_ => GetMonotonicNow()),
         };
+    }
+
+    private JsValue GetMonotonicNow()
+    {
+        var elapsedTicks = Stopwatch.GetTimestamp() - _monotonicStartTimestamp;
+        var elapsedMs = (double)elapsedTicks * 1000d / Stopwatch.Frequency;
+        return JsValue.FromObjectUnsafe(elapsedMs);
     }
 
     private JsValue StartAgent(IReadOnlyList<JsValue> args)
@@ -218,6 +229,7 @@ internal sealed class Test262AgentRuntime
                 ["receiveBroadcast"] = new HostFunction(ReceiveBroadcast),
                 ["report"] = new HostFunction(Report),
                 ["sleep"] = new HostFunction(_runtime.Sleep),
+                ["monotonicNow"] = new HostFunction(_ => _runtime.GetMonotonicNow()),
                 ["leaving"] = new HostFunction(Leaving),
             };
         }
@@ -241,9 +253,20 @@ internal sealed class Test262AgentRuntime
 
         private JsValue Report(IReadOnlyList<JsValue> args)
         {
-            var report = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "" : "";
-            _runtime.Report(report);
+            _runtime.Report(args.Count > 0 ? FormatReportValue(args[0]) : "");
             return JsValue.Undefined;
+        }
+
+        private static string FormatReportValue(JsValue value)
+        {
+            return value.Kind switch
+            {
+                JsValueKind.Number => value.NumberValue.ToString(CultureInfo.InvariantCulture),
+                JsValueKind.String => value.AsString(),
+                JsValueKind.Boolean => value.AsBoolean() ? "true" : "false",
+                JsValueKind.BigInt => value.AsBigInt().ToString(),
+                _ => value.ToObject()?.ToString() ?? string.Empty,
+            };
         }
 
         private JsValue Leaving(IReadOnlyList<JsValue> _)

@@ -182,6 +182,11 @@ public sealed partial class AtomicsPrototype : JsPrototype
             }
         }
 
+        if (!Realm.AgentCanSuspend)
+        {
+            throw ThrowTypeError("Atomics.wait cannot be called in this context", realm: Realm);
+        }
+
         var buffer = typedArray.Buffer;
         var byteOffset = typedArray.ByteOffset + index * typedArray.BytesPerElement;
         AtomicsWaiterManager.Waiter? waiter = null;

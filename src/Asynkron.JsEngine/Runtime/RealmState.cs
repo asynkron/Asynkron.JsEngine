@@ -44,6 +44,12 @@ public sealed class RealmState
     public ILogger? Logger { get; set; }
 
     /// <summary>
+    /// Host-defined AgentCanSuspend() result used by Atomics.wait in sync mode.
+    /// Defaults to true (blocking is allowed).
+    /// </summary>
+    public bool AgentCanSuspend { get; set; } = true;
+
+    /// <summary>
     /// Per ES spec 13.2.8.4, template objects are cached by parse node (source location).
     /// The key is the TaggedTemplateExpression AST node reference.
     /// </summary>

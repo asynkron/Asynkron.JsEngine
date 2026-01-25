@@ -214,6 +214,10 @@ try {
                 ExecutionTimeout = TimeSpan.FromSeconds(10)
             };
 
+        // Host-defined AgentCanSuspend() used by Atomics.wait sync mode.
+        // Test262 uses the `CanBlockIsFalse` flag to indicate blocking must throw.
+        engine.RealmState.AgentCanSuspend = !file.Flags.Contains("CanBlockIsFalse");
+
         if (file.Flags.Contains("raw"))
         {
             // nothing should be loaded

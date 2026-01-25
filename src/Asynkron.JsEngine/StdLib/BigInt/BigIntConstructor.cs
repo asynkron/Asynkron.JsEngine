@@ -117,6 +117,6 @@ public sealed partial class BigIntConstructor(IJsObjectLike prototype, RealmStat
             throw ThrowTypeError("Cannot convert undefined to a BigInt", realm: Realm);
         }
 
-        return new JsValue(ToBigInt(args[0], realmState: Realm));
+        return new JsValue(ToBigIntForConstructor(args[0], realmState: Realm));
     }
 }

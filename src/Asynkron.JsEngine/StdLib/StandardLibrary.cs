@@ -218,7 +218,7 @@ public static partial class StandardLibrary
                     return value.ObjectValue as JsBigInt ??
                            throw ThrowTypeError("Invalid BigInt value", localContext, realmState);
                 case JsValueKind.Number:
-                    return ConvertNumberToBigInt(value.NumberValue, localContext, realmState);
+                    throw ThrowTypeError("Cannot convert number to a BigInt", localContext, realmState);
                 case JsValueKind.String:
                     return new JsBigInt(ParseBigIntString(value.AsString() ?? string.Empty, localContext, realmState));
                 case JsValueKind.Symbol:
@@ -251,6 +251,22 @@ public static partial class StandardLibrary
                     throw ThrowTypeError("Cannot convert value to a BigInt", localContext, realmState);
             }
         }
+    }
+
+    internal static JsBigInt ToBigIntForConstructor(JsValue value, EvaluationContext? context = null, RealmState? realmState = null)
+    {
+        realmState ??= context?.RealmState;
+        var localContext = context ?? realmState?.CreateContext();
+
+        var primitive = JsOps.ToPrimitive(value, ToPrimitiveHint.Number, localContext);
+        if (localContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(localContext.FlowValue);
+        }
+
+        return primitive.Kind == JsValueKind.Number
+            ? ConvertNumberToBigInt(primitive.NumberValue, localContext, realmState)
+            : ToBigInt(primitive, localContext, realmState);
     }
 
     private static JsBigInt ConvertNumberToBigInt(double numberValue, EvaluationContext? context,

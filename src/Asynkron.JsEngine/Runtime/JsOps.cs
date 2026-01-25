@@ -336,6 +336,18 @@ internal static class JsOps
                 return false;
             }
 
+            if (!toPrimitive.IsNullOrUndefined && !toPrimitive.TryGetObject<IJsCallable>(out _))
+            {
+                var toPrimitiveTypeError = StandardLibrary.CreateTypeError("Cannot convert object to primitive value", context, context?.RealmState);
+                if (context is null)
+                {
+                    throw new ThrowSignal(toPrimitiveTypeError);
+                }
+
+                context.SetThrow(toPrimitiveTypeError);
+                return false;
+            }
+
             if (toPrimitive.TryGetObject<IJsCallable>(out var toPrimFn))
             {
                 try
@@ -356,6 +368,15 @@ internal static class JsOps
                         primitive = result;
                         return true;
                     }
+
+                    var resultTypeError = StandardLibrary.CreateTypeError("Cannot convert object to primitive value", context, context?.RealmState);
+                    if (context is null)
+                    {
+                        throw new ThrowSignal(resultTypeError);
+                    }
+
+                    context.SetThrow(resultTypeError);
+                    return false;
                 }
                 catch (ThrowSignal signal) when (context is not null)
                 {

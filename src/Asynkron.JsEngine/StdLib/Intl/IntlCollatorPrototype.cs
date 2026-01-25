@@ -26,12 +26,27 @@ public sealed partial class IntlCollatorPrototype
     {
         var collator = ValidateCollatorReceiver(thisValue);
         var slots = GetSlots(collator);
-        return (JsValue)new HostFunction((_, args) =>
+        return (JsValue)slots.GetOrCreateBoundCompare(() => CreateBoundCompareFunction(slots));
+    }
+
+    private HostFunction CreateBoundCompareFunction(IntlCollatorInternalSlots slots)
+    {
+        var function = new HostFunction((_, args) =>
         {
-            var first = args.Count > 0 ? JsValueToString(args[0], Realm) : string.Empty;
-            var second = args.Count > 1 ? JsValueToString(args[1], Realm) : string.Empty;
+            var first = JsValueToString(args.GetArgument(0), Realm);
+            var second = JsValueToString(args.GetArgument(1), Realm);
             return new JsValue(CompareStrings(slots, first, second));
         }, Realm, false);
+        DefineCompareFunctionMetadata(function);
+        return function;
+    }
+
+    private static void DefineCompareFunctionMetadata(HostFunction function)
+    {
+        function.DefineProperty("length",
+            new PropertyDescriptor { Value = 2d, Writable = false, Enumerable = false, Configurable = true });
+        function.DefineProperty("name",
+            new PropertyDescriptor { Value = string.Empty, Writable = false, Enumerable = false, Configurable = true });
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
@@ -71,7 +86,7 @@ public sealed partial class IntlCollatorPrototype
     {
         var compareInfo = slots.CompareInfo ?? CultureInfo.InvariantCulture.CompareInfo;
         var options = BuildCompareOptions(slots);
-        var (firstValue, secondValue) = NormalizeSearchInputs(slots, first, second);
+        var (firstValue, secondValue) = NormalizeCompareInputs(slots, first, second);
 
         var result = slots.Numeric
             ? CompareWithNumeric(firstValue, secondValue, compareInfo, options)
@@ -82,12 +97,40 @@ public sealed partial class IntlCollatorPrototype
             result = ApplyCaseFirst(slots.CaseFirst, firstValue, secondValue);
         }
 
+        if (result == 0 && !slots.IgnorePunctuation)
+        {
+            result = BreakPunctuationTie(firstValue, secondValue);
+        }
+
         if (result == 0)
         {
             return 0d;
         }
 
         return result < 0 ? -1d : 1d;
+    }
+
+    private static int BreakPunctuationTie(string first, string second)
+    {
+        if (string.Equals(first, second, StringComparison.Ordinal))
+        {
+            return 0;
+        }
+
+        var filteredFirst = RemoveIgnoredPunctuation(first);
+        var filteredSecond = RemoveIgnoredPunctuation(second);
+        if (!string.Equals(filteredFirst, filteredSecond, StringComparison.Ordinal))
+        {
+            return 0;
+        }
+
+        var ordinal = string.CompareOrdinal(first, second);
+        if (ordinal == 0)
+        {
+            return 0;
+        }
+
+        return ordinal < 0 ? -1 : 1;
     }
 
     private static CompareOptions BuildCompareOptions(IntlCollatorInternalSlots slots)
@@ -283,6 +326,96 @@ public sealed partial class IntlCollatorPrototype
         return 0;
     }
 
+    private static (string First, string Second) NormalizeCompareInputs(IntlCollatorInternalSlots slots,
+        string first, string second)
+    {
+        first = NormalizeToNfc(first);
+        second = NormalizeToNfc(second);
+
+        if (slots.IgnorePunctuation)
+        {
+            first = RemoveIgnoredPunctuation(first);
+            second = RemoveIgnoredPunctuation(second);
+        }
+
+        (first, second) = NormalizeSearchInputs(slots, first, second);
+        (first, second) = NormalizePhonebookInputs(slots, first, second);
+
+        return (first, second);
+    }
+
+    private static string NormalizeToNfc(string value)
+    {
+        if (string.IsNullOrEmpty(value) || ContainsUnpairedSurrogate(value))
+        {
+            return value;
+        }
+
+        return value.Normalize(NormalizationForm.FormC);
+    }
+
+    private static bool ContainsUnpairedSurrogate(string value)
+    {
+        for (var i = 0; i < value.Length; i++)
+        {
+            var ch = value[i];
+            if (char.IsHighSurrogate(ch))
+            {
+                if (i + 1 >= value.Length || !char.IsLowSurrogate(value[i + 1]))
+                {
+                    return true;
+                }
+
+                i++;
+                continue;
+            }
+
+            if (char.IsLowSurrogate(ch))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string RemoveIgnoredPunctuation(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return value;
+        }
+
+        var needsFilter = false;
+        foreach (var ch in value)
+        {
+            if (ShouldIgnorePunctuation(ch))
+            {
+                needsFilter = true;
+                break;
+            }
+        }
+
+        if (!needsFilter)
+        {
+            return value;
+        }
+
+        var builder = new StringBuilder(value.Length);
+        foreach (var ch in value)
+        {
+            if (!ShouldIgnorePunctuation(ch))
+            {
+                builder.Append(ch);
+            }
+        }
+
+        return builder.ToString();
+    }
+
+    private static bool ShouldIgnorePunctuation(char ch)
+        => char.IsWhiteSpace(ch) || char.IsPunctuation(ch) || char.IsSymbol(ch);
+
     private static (string First, string Second) NormalizeSearchInputs(IntlCollatorInternalSlots slots,
         string first, string second)
     {
@@ -302,7 +435,31 @@ public sealed partial class IntlCollatorPrototype
         return (first, second);
     }
 
+    private static (string First, string Second) NormalizePhonebookInputs(IntlCollatorInternalSlots slots,
+        string first, string second)
+    {
+        if (!string.Equals(slots.Collation, "phonebk", StringComparison.Ordinal))
+        {
+            return (first, second);
+        }
+
+        var baseLocale = IntlUtilities.RemoveUnicodeExtensions(slots.Locale);
+        var dashIndex = baseLocale.IndexOf('-', StringComparison.Ordinal);
+        var language = dashIndex >= 0 ? baseLocale[..dashIndex] : baseLocale;
+        if (!string.Equals(language, "de", StringComparison.OrdinalIgnoreCase))
+        {
+            return (first, second);
+        }
+
+        return (NormalizeGermanSpecialCharacters(first), NormalizeGermanSpecialCharacters(second));
+    }
+
     private static string NormalizeGermanSearchString(string value)
+    {
+        return NormalizeGermanSpecialCharacters(value);
+    }
+
+    private static string NormalizeGermanSpecialCharacters(string value)
     {
         var needsNormalization = false;
         foreach (var ch in value)

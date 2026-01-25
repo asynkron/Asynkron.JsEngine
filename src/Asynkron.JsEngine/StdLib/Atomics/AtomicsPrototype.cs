@@ -208,13 +208,26 @@ public sealed partial class AtomicsPrototype : JsPrototype
 
         using var waiterLifetime = waiter;
 
-        var notified = double.IsInfinity(timeout)
-            ? waiterLifetime!.Event.Wait(Timeout.InfiniteTimeSpan)
-            : waiterLifetime!.Event.Wait(TimeSpan.FromMilliseconds(timeout));
-
-        if (notified)
+        if (double.IsInfinity(timeout))
         {
+            waiterLifetime!.Event.Wait(Timeout.InfiniteTimeSpan);
             return "ok";
+        }
+
+        var deadline = Environment.TickCount64 + (long)Math.Ceiling(timeout);
+        while (true)
+        {
+            var remaining = deadline - Environment.TickCount64;
+            if (remaining <= 0)
+            {
+                break;
+            }
+
+            var waitMs = remaining > int.MaxValue ? int.MaxValue : (int)remaining;
+            if (waiterLifetime!.Event.Wait(waitMs))
+            {
+                return "ok";
+            }
         }
 
         lock (buffer)

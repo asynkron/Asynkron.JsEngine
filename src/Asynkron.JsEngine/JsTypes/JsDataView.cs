@@ -457,9 +457,8 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
             : BinaryPrimitives.ReadUInt16BigEndian(span);
     }
 
-    public void SetUint16(int byteOffset, ushort value, bool littleEndian = false)
+    private void WriteUint16Unchecked(int byteOffset, ushort value, bool littleEndian)
     {
-        CheckBounds(byteOffset, 2);
         var span = new Span<byte>(Buffer.Buffer, _byteOffset + byteOffset, 2);
         if (littleEndian)
         {
@@ -469,6 +468,12 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
         {
             BinaryPrimitives.WriteUInt16BigEndian(span, value);
         }
+    }
+
+    public void SetUint16(int byteOffset, ushort value, bool littleEndian = false)
+    {
+        CheckBounds(byteOffset, 2);
+        WriteUint16Unchecked(byteOffset, value, littleEndian);
     }
 
     // Int32

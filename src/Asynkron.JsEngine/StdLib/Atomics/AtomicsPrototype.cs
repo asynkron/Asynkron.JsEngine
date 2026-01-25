@@ -122,11 +122,10 @@ public sealed partial class AtomicsPrototype : JsPrototype
             {
                 var value = ToBigInt(valueArg, realmState: Realm);
                 WriteBigIntElement(typedArray, index, value);
+                return value;
             }
-            else
-            {
-                typedArray.SetElement(index, JsOps.ToNumber(valueArg));
-            }
+
+            typedArray.SetElement(index, JsOps.ToNumber(valueArg));
 
             // Return the value as stored in the typed array.
             return typedArray.GetValueForIndex(index);

@@ -230,6 +230,11 @@ public sealed partial class AtomicsPrototype : JsPrototype
             throw ThrowTypeError("Atomics operations are not supported on floating point typed arrays", realm: Realm);
         }
 
+        if (typedArray is JsUint8ClampedArray)
+        {
+            throw ThrowTypeError("Atomics operations are not supported on clamped typed arrays", realm: Realm);
+        }
+
         if (typedArray.Buffer.IsDetached)
         {
             throw ThrowTypeError("Atomics operations are not allowed on detached buffers", realm: Realm);

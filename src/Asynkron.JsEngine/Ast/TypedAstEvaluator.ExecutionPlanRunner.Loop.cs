@@ -233,6 +233,7 @@ public static partial class TypedAstEvaluator
                         if (instructionKind == InstructionKind.Jump)
                         {
                             _programCounter = ProfileHandleJump(Unsafe.As<JumpInstruction>(instruction));
+                            ResetAwaitKeysAfterInstruction(environment);
                             continue;
                         }
 
@@ -245,6 +246,7 @@ public static partial class TypedAstEvaluator
                                 return returnValue;
                             }
 
+                            ResetAwaitKeysAfterInstruction(environment);
                             continue;
                         }
 
@@ -253,6 +255,8 @@ public static partial class TypedAstEvaluator
                         {
                             return loopReturnValue;
                         }
+
+                        ResetAwaitKeysAfterInstruction(environment);
                     }
                 }
                 catch (ThrowSignal signal)
@@ -278,6 +282,7 @@ public static partial class TypedAstEvaluator
                             _programCounter = _currentInstructionIndex + 1;
                         }
 
+                        ResetAwaitKeysAfterInstruction(environment);
                         continueAfterCatch = true;
                         continue;
                     }

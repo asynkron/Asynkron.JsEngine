@@ -23,6 +23,8 @@ public static partial class TypedAstEvaluator
             public JsValue PendingPromise;
             public ResumePayloadKind PendingResumeKind;
             public JsValue PendingResumeValue = JsValue.Undefined;
+            public List<Symbol>? AwaitKeysToReset;
+            public Symbol? LastAwaitKeyToReset;
         }
 
         /// <summary>

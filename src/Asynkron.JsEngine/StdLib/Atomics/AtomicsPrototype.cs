@@ -1,5 +1,7 @@
 #region
 
+using System.Threading;
+using System.Threading.Tasks;
 using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
@@ -247,8 +249,6 @@ public sealed partial class AtomicsPrototype : JsPrototype
     [JsHostMethod("waitAsync", Length = 4d)]
     public JsValue WaitAsync(IReadOnlyList<JsValue> args)
     {
-        // Asynchronously waits until notified or times out.
-        // We only return a synchronous result object in this runtime.
         var typedArray = RequireWaitableTypedArray(args.GetArgument(0), nameof(WaitAsync));
         var index = RequireAtomicIndex(typedArray, args.GetArgument(1));
 
@@ -257,20 +257,117 @@ public sealed partial class AtomicsPrototype : JsPrototype
             ? (JsValue)ToBigInt(expectedArg, realmState: Realm)
             : (JsValue)JsOps.ToNumber(expectedArg);
 
-        var timeoutValue = args.GetArgument(3);
-        if (!timeoutValue.IsUndefined)
+        var timeoutArg = args.GetArgument(3);
+        var timeout = double.PositiveInfinity;
+        if (!timeoutArg.IsUndefined)
         {
-            _ = JsOps.ToNumber(timeoutValue);
+            timeout = JsOps.ToNumber(timeoutArg);
+            if (double.IsNaN(timeout))
+            {
+                timeout = double.PositiveInfinity;
+            }
+            else if (timeout < 0)
+            {
+                timeout = 0;
+            }
         }
 
-        JsValue status;
+        var buffer = typedArray.Buffer;
+        var byteOffset = typedArray.ByteOffset + index * typedArray.BytesPerElement;
+
+        TaskCompletionSource<JsValue>? completionSource = null;
+        AtomicsWaiterManager.Waiter? waiter = null;
+
         lock (typedArray.Buffer)
         {
             var current = typedArray.GetValueForIndex(index);
-            status = JsOps.SameValue(current, expectedValue) ? "timed-out" : "not-equal";
+            if (!JsOps.SameValue(current, expectedValue))
+            {
+                return CreateWaitAsyncResult(isAsync: false, value: "not-equal");
+            }
+
+            if (timeout == 0)
+            {
+                return CreateWaitAsyncResult(isAsync: false, value: "timed-out");
+            }
+
+            completionSource = new TaskCompletionSource<JsValue>(TaskCreationOptions.RunContinuationsAsynchronously);
+            waiter = AtomicsWaiterManager.EnqueueWaiter(buffer, byteOffset);
+            waiter.PromiseCompletionSource = completionSource;
         }
 
-        return CreateWaitAsyncResult(status);
+        if (completionSource is null || waiter is null)
+        {
+            return CreateWaitAsyncResult(isAsync: false, value: "timed-out");
+        }
+
+        var engine = Realm.Engine ?? throw new InvalidOperationException("Atomics.waitAsync requires an engine.");
+        var promiseTask = completionSource.Task;
+
+        _ = promiseTask.ContinueWith(_ => waiter.Dispose(),
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+
+        if (!double.IsInfinity(timeout))
+        {
+            var timeoutMs = (long)Math.Ceiling(timeout);
+            if (timeoutMs > 0)
+            {
+                var timeoutTokenSource = new CancellationTokenSource();
+                waiter.TimeoutTokenSource = timeoutTokenSource;
+                _ = ApplyWaitAsyncTimeout(buffer, byteOffset, waiter, timeoutMs, timeoutTokenSource.Token);
+            }
+        }
+
+        var promise = engine.CreatePromiseFromTask(promiseTask, static v => v);
+
+        return CreateWaitAsyncResult(isAsync: true, value: promise);
+
+        static async Task ApplyWaitAsyncTimeout(
+            JsArrayBuffer buffer,
+            int byteOffset,
+            AtomicsWaiterManager.Waiter waiter,
+            long timeoutMs,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                var deadline = Environment.TickCount64 + timeoutMs;
+                while (true)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var remaining = deadline - Environment.TickCount64;
+                    if (remaining <= 0)
+                    {
+                        break;
+                    }
+
+                    var delayMs = remaining > int.MaxValue ? int.MaxValue : (int)remaining;
+                    await Task.Delay(delayMs, cancellationToken).ConfigureAwait(false);
+                }
+
+                lock (buffer)
+                {
+                    if (waiter.IsNotified)
+                    {
+                        return;
+                    }
+
+                    AtomicsWaiterManager.DequeueWaiter(buffer, byteOffset, waiter);
+                }
+
+                waiter.TryTimeout();
+            }
+            catch (OperationCanceledException)
+            {
+                // Waiter was notified before timeout.
+            }
+            catch
+            {
+                // Ignore timeout task exceptions; waiter cleanup occurs on completion.
+            }
+        }
     }
 
     /* FLAKY */
@@ -311,7 +408,6 @@ public sealed partial class AtomicsPrototype : JsPrototype
 
         var byteOffset = typedArray.ByteOffset + index * typedArray.BytesPerElement;
         var max = double.IsInfinity(count) || count > int.MaxValue ? int.MaxValue : (int)count;
-
         return AtomicsWaiterManager.Notify(typedArray.Buffer, byteOffset, max);
     }
 
@@ -508,9 +604,9 @@ public sealed partial class AtomicsPrototype : JsPrototype
         };
     }
 
-    private JsValue CreateWaitAsyncResult(JsValue status)
+    private JsValue CreateWaitAsyncResult(bool isAsync, JsValue value)
     {
-        var result = new JsObject { RealmState = Realm, ["async"] = false, ["value"] = status };
+        var result = new JsObject { RealmState = Realm, ["async"] = isAsync, ["value"] = value };
         return result;
     }
 }

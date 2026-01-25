@@ -146,13 +146,9 @@ public static partial class TypedAstEvaluator
             if (environment.TryGetObject<AwaitState>(awaitKey, out var state) &&
                 state.HasResult)
             {
-                // Await has already completed; reuse the resolved value once
-                // for this resume, then clear the flag so future iterations
-                // (e.g. in loops) see a fresh await.
                 var result = state.Result;
                 var isThrow = state.IsThrow;
-                environment.AssignJsValue(awaitKey, JsValue.FromObjectUnsafe(new AwaitState()));
-                AsyncStateRef.PendingAwaitKey = null;
+                RecordAwaitKeyForReset(awaitKey);
 
                 // If the await was rejected, throw at this point so the
                 // generator's try-catch can handle it.
@@ -205,6 +201,48 @@ public static partial class TypedAstEvaluator
 
             // If TryResolvePromiseOrYield reported an error via the context,
             // let the caller observe the pending throw/return.
+        }
+
+        private void RecordAwaitKeyForReset(Symbol awaitKey)
+        {
+            var asyncState = AsyncStateRef;
+            var awaitKeysToReset = asyncState.AwaitKeysToReset ??= [];
+            if (!ReferenceEquals(asyncState.LastAwaitKeyToReset, awaitKey))
+            {
+                awaitKeysToReset.Add(awaitKey);
+                asyncState.LastAwaitKeyToReset = awaitKey;
+            }
+        }
+
+        private void ResetAwaitKeysAfterInstruction(JsEnvironment environment)
+        {
+            if (!_isAsync)
+            {
+                return;
+            }
+
+            var asyncState = AsyncStateRef;
+            var awaitKeysToReset = asyncState.AwaitKeysToReset;
+            if (awaitKeysToReset is null || awaitKeysToReset.Count == 0)
+            {
+                return;
+            }
+
+            for (var i = 0; i < awaitKeysToReset.Count; i++)
+            {
+                var awaitKey = awaitKeysToReset[i];
+                if (!environment.TryGetObject<AwaitState>(awaitKey, out var state))
+                {
+                    continue;
+                }
+
+                state.HasResult = false;
+                state.IsThrow = false;
+                state.Result = JsValue.Undefined;
+            }
+
+            awaitKeysToReset.Clear();
+            asyncState.LastAwaitKeyToReset = null;
         }
 
         private bool TryResolvePromiseOrYield(JsValue candidate, EvaluationContext context, out JsValue resolvedValue)

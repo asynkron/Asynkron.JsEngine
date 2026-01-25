@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Tasks;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.StdLib;
@@ -11,7 +12,7 @@ internal static class AtomicsWaiterManager
 
     internal sealed class Waiter : IDisposable
     {
-        private int _notified;
+        private int _state;
 
         internal Waiter()
         {
@@ -22,18 +23,55 @@ internal static class AtomicsWaiterManager
 
         internal LinkedListNode<Waiter>? Node { get; set; }
 
-        internal bool IsNotified => Volatile.Read(ref _notified) == 1;
+        internal TaskCompletionSource<JsValue>? PromiseCompletionSource { get; set; }
+
+        internal CancellationTokenSource? TimeoutTokenSource { get; set; }
+
+        internal bool IsNotified => Volatile.Read(ref _state) == 1;
 
         internal void Notify()
         {
-            if (Interlocked.Exchange(ref _notified, 1) == 0)
+            if (Interlocked.CompareExchange(ref _state, 1, 0) != 0)
             {
-                Event.Set();
+                return;
             }
+
+            try
+            {
+                TimeoutTokenSource?.Cancel();
+            }
+            catch
+            {
+                // Ignore cancellation races.
+            }
+
+            PromiseCompletionSource?.TrySetResult((JsValue)"ok");
+            Event.Set();
+        }
+
+        internal bool TryTimeout()
+        {
+            if (Interlocked.CompareExchange(ref _state, 2, 0) != 0)
+            {
+                return false;
+            }
+
+            PromiseCompletionSource?.TrySetResult((JsValue)"timed-out");
+            return true;
         }
 
         public void Dispose()
         {
+            try
+            {
+                TimeoutTokenSource?.Dispose();
+            }
+            catch
+            {
+                // Ignore disposal races.
+            }
+
+            TimeoutTokenSource = null;
             Event.Dispose();
         }
     }
@@ -139,4 +177,3 @@ internal static class AtomicsWaiterManager
         internal readonly Dictionary<int, LinkedList<Waiter>> Waiters = new();
     }
 }
-

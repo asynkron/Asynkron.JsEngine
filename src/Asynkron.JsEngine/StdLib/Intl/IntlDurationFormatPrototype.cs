@@ -1,6 +1,7 @@
 #region
 
 using Asynkron.JsEngine.Runtime.Prototypes;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 #endregion
 
@@ -36,33 +37,35 @@ public sealed partial class IntlDurationFormatPrototype
     private JsValue ResolvedOptions(JsValue thisValue)
     {
         var instance = ValidateReceiver(thisValue);
-        var obj = new JsObject();
-        obj.SetProperty("numberingSystem", "latn");
-        obj.SetProperty("style", "short");
-        obj.SetProperty("years", "auto");
-        obj.SetProperty("yearsDisplay", "auto");
-        obj.SetProperty("months", "auto");
-        obj.SetProperty("monthsDisplay", "auto");
-        obj.SetProperty("weeks", "auto");
-        obj.SetProperty("weeksDisplay", "auto");
-        obj.SetProperty("days", "auto");
-        obj.SetProperty("daysDisplay", "auto");
-        obj.SetProperty("hours", "auto");
-        obj.SetProperty("hoursDisplay", "auto");
-        obj.SetProperty("minutes", "auto");
-        obj.SetProperty("minutesDisplay", "auto");
-        obj.SetProperty("seconds", "auto");
-        obj.SetProperty("secondsDisplay", "auto");
-        obj.SetProperty("milliseconds", "auto");
-        obj.SetProperty("millisecondsDisplay", "auto");
-        obj.SetProperty("microseconds", "auto");
-        obj.SetProperty("microsecondsDisplay", "auto");
-        obj.SetProperty("nanoseconds", "auto");
-        obj.SetProperty("nanosecondsDisplay", "auto");
-        obj.SetProperty("locale",
-            instance.TryGetProperty(LocaleSlot, out var locale) && locale.TryGetString(out var localeStr)
-                ? localeStr
-                : "en");
+        var obj = new JsObject(Realm.ObjectPrototype);
+        const string operation = "Intl.DurationFormat.prototype.resolvedOptions";
+        CreateDataPropertyOrThrow(obj, "numberingSystem", "latn", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "style", "short", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "years", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "yearsDisplay", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "months", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "monthsDisplay", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "weeks", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "weeksDisplay", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "days", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "daysDisplay", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "hours", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "hoursDisplay", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "minutes", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "minutesDisplay", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "seconds", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "secondsDisplay", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "milliseconds", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "millisecondsDisplay", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "microseconds", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "microsecondsDisplay", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "nanoseconds", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "nanosecondsDisplay", "auto", Realm, operation);
+
+        var localeValue = instance.TryGetProperty(LocaleSlot, out var locale) && locale.TryGetString(out var localeStr)
+            ? localeStr
+            : "en";
+        CreateDataPropertyOrThrow(obj, "locale", localeValue, Realm, operation);
         return new JsValue(obj);
     }
 

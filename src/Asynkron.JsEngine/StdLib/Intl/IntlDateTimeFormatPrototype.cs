@@ -3,6 +3,7 @@
 using System.Globalization;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 #endregion
 
@@ -67,19 +68,22 @@ public sealed partial class IntlDateTimeFormatPrototype
     {
         var slots = ValidateReceiver(thisValue, out _);
         var obj = new JsObject(Realm.ObjectPrototype);
-        obj.SetProperty("locale", new JsValue(slots.Locale));
-        obj.SetProperty("calendar", new JsValue(slots.Calendar));
-        obj.SetProperty("numberingSystem", new JsValue(slots.NumberingSystem));
-        obj.SetProperty("timeZone", new JsValue(slots.TimeZone));
-        obj.SetProperty("hourCycle", new JsValue(slots.HourCycle));
-        obj.SetProperty("localeMatcher", new JsValue(slots.LocaleMatcher));
-        obj.SetProperty("formatMatcher", new JsValue(slots.FormatMatcher));
-        obj.SetProperty("dateStyle", slots.DateStyle != null ? new JsValue(slots.DateStyle) : JsValue.Undefined);
-        obj.SetProperty("timeStyle", slots.TimeStyle != null ? new JsValue(slots.TimeStyle) : JsValue.Undefined);
+        const string operation = "Intl.DateTimeFormat.prototype.resolvedOptions";
+        CreateDataPropertyOrThrowJsValue(obj, "locale", slots.Locale, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "calendar", slots.Calendar, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "numberingSystem", slots.NumberingSystem, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "timeZone", slots.TimeZone, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "hourCycle", slots.HourCycle, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "localeMatcher", slots.LocaleMatcher, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "formatMatcher", slots.FormatMatcher, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "dateStyle", slots.DateStyle != null ? slots.DateStyle : JsValue.Undefined, Realm,
+            operation);
+        CreateDataPropertyOrThrowJsValue(obj, "timeStyle", slots.TimeStyle != null ? slots.TimeStyle : JsValue.Undefined, Realm,
+            operation);
         foreach (var component in DateTimeFormatInternalSlots.ComponentNames)
         {
-            obj.SetProperty(component,
-                slots.Components.TryGetValue(component, out var value) ? new JsValue(value) : JsValue.Undefined);
+            CreateDataPropertyOrThrowJsValue(obj, component,
+                slots.Components.TryGetValue(component, out var value) ? value : JsValue.Undefined, Realm, operation);
         }
 
         return new JsValue(obj);

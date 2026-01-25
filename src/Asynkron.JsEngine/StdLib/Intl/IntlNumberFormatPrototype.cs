@@ -99,43 +99,50 @@ public sealed partial class IntlNumberFormatPrototype
     {
         var slots = GetSlots(nf);
         var obj = new JsObject(Realm.ObjectPrototype);
-        obj.SetProperty("locale", (JsValue)slots.Locale);
-        obj.SetProperty("numberingSystem", (JsValue)slots.NumberingSystem);
-        obj.SetProperty("style", (JsValue)slots.Style);
-        obj.SetProperty("currency",
-            slots.Currency is { Length: > 0 } currencyValue ? (JsValue)currencyValue : JsValue.Undefined);
-        obj.SetProperty("currencyDisplay",
-            string.Equals(slots.Style, "currency", StringComparison.Ordinal) ? (JsValue)slots.CurrencyDisplay : JsValue.Undefined);
-        obj.SetProperty("currencySign",
-            (JsValue)(string.Equals(slots.Style, "currency", StringComparison.Ordinal) ? slots.CurrencySign : "standard"));
-        obj.SetProperty("minimumIntegerDigits", (double)slots.MinimumIntegerDigits);
+        const string operation = "Intl.NumberFormat.prototype.resolvedOptions";
+        CreateDataPropertyOrThrowJsValue(obj, "locale", slots.Locale, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "numberingSystem", slots.NumberingSystem, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "style", slots.Style, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "currency",
+            slots.Currency is { Length: > 0 } currencyValue ? currencyValue : JsValue.Undefined,
+            Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "currencyDisplay",
+            string.Equals(slots.Style, "currency", StringComparison.Ordinal) ? slots.CurrencyDisplay : JsValue.Undefined,
+            Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "currencySign",
+            string.Equals(slots.Style, "currency", StringComparison.Ordinal) ? slots.CurrencySign : "standard",
+            Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "minimumIntegerDigits", (double)slots.MinimumIntegerDigits, Realm, operation);
         if (slots.UseSignificantDigits)
         {
-            obj.SetProperty("minimumSignificantDigits", (double)(slots.MinimumSignificantDigits ?? 1));
-            obj.SetProperty("maximumSignificantDigits", (double)(slots.MaximumSignificantDigits ?? 21));
-            obj.SetProperty("minimumFractionDigits", JsValue.Undefined);
-            obj.SetProperty("maximumFractionDigits", JsValue.Undefined);
+            CreateDataPropertyOrThrowJsValue(obj, "minimumSignificantDigits", (double)(slots.MinimumSignificantDigits ?? 1),
+                Realm, operation);
+            CreateDataPropertyOrThrowJsValue(obj, "maximumSignificantDigits", (double)(slots.MaximumSignificantDigits ?? 21),
+                Realm, operation);
+            CreateDataPropertyOrThrowJsValue(obj, "minimumFractionDigits", JsValue.Undefined, Realm, operation);
+            CreateDataPropertyOrThrowJsValue(obj, "maximumFractionDigits", JsValue.Undefined, Realm, operation);
         }
         else
         {
-            obj.SetProperty("minimumSignificantDigits", JsValue.Undefined);
-            obj.SetProperty("maximumSignificantDigits", JsValue.Undefined);
-            obj.SetProperty("minimumFractionDigits", (double)slots.MinimumFractionDigits);
-            obj.SetProperty("maximumFractionDigits", (double)slots.MaximumFractionDigits);
+            CreateDataPropertyOrThrowJsValue(obj, "minimumSignificantDigits", JsValue.Undefined, Realm, operation);
+            CreateDataPropertyOrThrowJsValue(obj, "maximumSignificantDigits", JsValue.Undefined, Realm, operation);
+            CreateDataPropertyOrThrowJsValue(obj, "minimumFractionDigits", (double)slots.MinimumFractionDigits, Realm, operation);
+            CreateDataPropertyOrThrowJsValue(obj, "maximumFractionDigits", (double)slots.MaximumFractionDigits, Realm, operation);
         }
 
-        obj.SetProperty("useGrouping", (JsValue)(slots.UseGrouping ? "auto" : "never"));
-        obj.SetProperty("notation", (JsValue)slots.Notation);
-        obj.SetProperty("signDisplay", (JsValue)slots.SignDisplay);
+        CreateDataPropertyOrThrowJsValue(obj, "useGrouping", slots.UseGrouping ? "auto" : "never", Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "notation", slots.Notation, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "signDisplay", slots.SignDisplay, Realm, operation);
         if (string.Equals(slots.Style, "unit", StringComparison.Ordinal))
         {
-            obj.SetProperty("unit", slots.Unit is { Length: > 0 } unitValue ? (JsValue)unitValue : JsValue.Undefined);
-            obj.SetProperty("unitDisplay", (JsValue)slots.UnitDisplay);
+            CreateDataPropertyOrThrowJsValue(obj, "unit", slots.Unit is { Length: > 0 } unitValue ? unitValue : JsValue.Undefined,
+                Realm, operation);
+            CreateDataPropertyOrThrowJsValue(obj, "unitDisplay", slots.UnitDisplay, Realm, operation);
         }
         else
         {
-            obj.SetProperty("unit", JsValue.Undefined);
-            obj.SetProperty("unitDisplay", JsValue.Undefined);
+            CreateDataPropertyOrThrowJsValue(obj, "unit", JsValue.Undefined, Realm, operation);
+            CreateDataPropertyOrThrowJsValue(obj, "unitDisplay", JsValue.Undefined, Realm, operation);
         }
 
         return obj;

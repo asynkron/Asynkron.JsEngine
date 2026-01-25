@@ -57,23 +57,27 @@ public sealed partial class IntlRelativeTimeFormatPrototype
     {
         var instance = ValidateReceiver(thisValue);
         var obj = new JsObject(Realm.ObjectPrototype);
-        obj.SetProperty("locale",
-            instance.TryGetProperty("__locale__", out var locale) && locale.TryGetString(out var localeStr)
-                ? localeStr
-                : "en");
-        obj.SetProperty("numberingSystem",
-            instance.TryGetProperty("__numberingSystem__", out var numberingSystem) &&
-            numberingSystem.TryGetString(out var numSysStr)
-                ? numSysStr
-                : "latn");
-        obj.SetProperty("numeric",
-            instance.TryGetProperty("__numeric__", out var numeric) && numeric.TryGetString(out var numericStr)
-                ? numericStr
-                : "always");
-        obj.SetProperty("style",
-            instance.TryGetProperty("__style__", out var style) && style.TryGetString(out var styleStr)
-                ? styleStr
-                : "long");
+        const string operation = "Intl.RelativeTimeFormat.prototype.resolvedOptions";
+        var localeValue = instance.TryGetProperty("__locale__", out var locale) && locale.TryGetString(out var localeStr)
+            ? localeStr
+            : "en";
+        CreateDataPropertyOrThrow(obj, "locale", localeValue, Realm, operation);
+
+        var numberingSystemValue = instance.TryGetProperty("__numberingSystem__", out var numberingSystem) &&
+                                   numberingSystem.TryGetString(out var numSysStr)
+            ? numSysStr
+            : "latn";
+        CreateDataPropertyOrThrow(obj, "numberingSystem", numberingSystemValue, Realm, operation);
+
+        var numericValue = instance.TryGetProperty("__numeric__", out var numeric) && numeric.TryGetString(out var numericStr)
+            ? numericStr
+            : "always";
+        CreateDataPropertyOrThrow(obj, "numeric", numericValue, Realm, operation);
+
+        var styleValue = instance.TryGetProperty("__style__", out var style) && style.TryGetString(out var styleStr)
+            ? styleStr
+            : "long";
+        CreateDataPropertyOrThrow(obj, "style", styleValue, Realm, operation);
         return new JsValue(obj);
     }
 

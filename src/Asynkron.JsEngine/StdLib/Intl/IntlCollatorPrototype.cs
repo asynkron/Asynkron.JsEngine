@@ -54,15 +54,16 @@ public sealed partial class IntlCollatorPrototype
     {
         var collator = ValidateCollatorReceiver(thisValue);
         var slots = GetSlots(collator);
-        var options = new JsObject(Realm.ObjectPrototype);
-        options.SetProperty("locale", slots.Locale);
-        options.SetProperty("usage", slots.Usage);
-        options.SetProperty("sensitivity", slots.Sensitivity);
-        options.SetProperty("ignorePunctuation", slots.IgnorePunctuation);
-        options.SetProperty("collation", slots.Collation);
-        options.SetProperty("numeric", slots.Numeric);
-        options.SetProperty("caseFirst", slots.CaseFirst);
-        return new JsValue(options);
+        var obj = new JsObject(Realm.ObjectPrototype);
+        const string operation = "Intl.Collator.prototype.resolvedOptions";
+        CreateDataPropertyOrThrowJsValue(obj, "locale", slots.Locale, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "usage", slots.Usage, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "sensitivity", slots.Sensitivity, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "ignorePunctuation", slots.IgnorePunctuation, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "collation", slots.Collation, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "numeric", slots.Numeric, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "caseFirst", slots.CaseFirst, Realm, operation);
+        return new JsValue(obj);
     }
 
     private JsObject ValidateCollatorReceiver(JsValue thisValue)

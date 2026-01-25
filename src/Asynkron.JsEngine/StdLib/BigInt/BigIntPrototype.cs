@@ -72,6 +72,11 @@ public sealed partial class BigIntPrototype : JsPrototype
             jsObj.RealmState = Realm;
         }
 
+        // Per ES spec, BigInt.prototype is not a BigInt object and must not have [[BigIntData]].
+        // Some engine paths may attach __value__ for boxed primitives; ensure the prototype never
+        // looks like a boxed BigInt to thisBigIntValue callers.
+        Prototype.Delete("__value__");
+
         Realm.BigIntPrototype ??= Prototype as JsObject;
     }
 
@@ -84,6 +89,12 @@ public sealed partial class BigIntPrototype : JsPrototype
         }
 
         if (receiver.Kind != JsValueKind.Object)
+        {
+            throw ThrowTypeError("BigInt.prototype method called on incompatible receiver", realm: Realm);
+        }
+
+        if (Realm.BigIntPrototype is { } bigIntPrototype &&
+            ReferenceEquals(receiver.ObjectValue, bigIntPrototype))
         {
             throw ThrowTypeError("BigInt.prototype method called on incompatible receiver", realm: Realm);
         }

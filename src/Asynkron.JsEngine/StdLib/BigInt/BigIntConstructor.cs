@@ -95,8 +95,6 @@ public sealed partial class BigIntConstructor(IJsObjectLike prototype, RealmStat
     {
         Realm.BigIntPrototype ??= Prototype as JsObject;
 
-        constructor.DisallowConstruct = true;
-        constructor.ConstructErrorMessage = "BigInt is not a constructor";
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>
         {
             if (!newTarget.IsUndefined)

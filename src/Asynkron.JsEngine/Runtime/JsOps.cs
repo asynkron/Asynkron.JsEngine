@@ -275,43 +275,19 @@ internal static class JsOps
             {
                 case IJsPropertyAccessor accessor:
                     {
-                        if (accessor is JsObject jsObj)
-                        {
-                            if (jsObj.TryGetValue("__value__", out var inner))
-                            {
-                                value = inner;
-                                continue;
-                            }
-
-                            // Symbol wrappers should behave like their unboxed symbol value for ToNumeric
-                            // so mixed BigInt/Symbol cases throw correctly.
-                            if (jsObj.TryGetProperty("SymbolData", out var symbolData) &&
-                                symbolData.TryGetObject<JsSymbol>(out var sym))
-                            {
-                                value = sym;
-                                continue;
-                            }
-                        }
-
-                        if (TryConvertToNumericPrimitiveJsValue(accessor, out var primitive, context))
-                        {
-                            value = primitive;
-                            continue;
-                        }
-
                         if (context?.IsThrow == true)
                         {
                             return JsValue.Undefined; // Error state - caller should check context.IsThrow
                         }
 
-                        var error = StandardLibrary.CreateTypeError("Cannot convert object to primitive value", context, context?.RealmState);
-                        if (context is null)
+                        var primitive = ToPrimitive(JsValue.FromObjectUnsafe(accessor), ToPrimitiveHint.Number, context);
+                        if (context?.IsThrow == true)
                         {
-                            throw new ThrowSignal(error);
+                            return JsValue.Undefined; // Error state - caller should check context.IsThrow
                         }
 
-                        context.SetThrow(error);
-                        return JsValue.Undefined; // Error state - caller should check context.IsThrow
+                        value = primitive;
+                        continue;
                     }
                 default:
                     throw new InvalidOperationException($"Cannot convert value '{value}' to a number.");

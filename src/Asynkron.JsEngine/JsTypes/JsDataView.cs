@@ -1,6 +1,7 @@
 #region
 
 using System.Buffers.Binary;
+using static Asynkron.JsEngine.StdLib.NumberHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 #endregion
@@ -159,7 +160,7 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
 
         _getInt32 = CreateMethod((target, args) =>
         {
-            var offset = args.Count > 0 && args[0].TryGetDouble(out var d) ? (int)d : 0;
+            var offset = args.Count > 0 ? ToIndex(args[0], target.Buffer.RealmState) : 0;
             var littleEndian = args.Count > 1 && args[1].IsTruthy;
             return new JsValue((double)target.GetInt32(offset, littleEndian));
         });

@@ -31,3 +31,13 @@ I could not reproduce any failing behavior with the requested filter run. The su
 No code changes suggested. If failures return, capture the failing test output and update this section with the concrete exception details; otherwise consider pruning or updating this todo list.
 
 ** DONE **
+
+---
+## Verification (2026-01-25)
+
+Re-ran:
+```bash
+dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --filter "Name=ArrayBuffer_prototype_slice" -v n
+```
+
+Result: **64/64 passed** (including the originally listed failures, in strict and non-strict).

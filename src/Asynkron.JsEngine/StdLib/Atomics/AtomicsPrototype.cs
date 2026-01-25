@@ -231,14 +231,28 @@ public sealed partial class AtomicsPrototype : JsPrototype
         }
 
         // Atomics only allow integer typed arrays (including BigInt variants).
-        if (typedArray is JsFloat32Array or JsFloat64Array)
+        // We validate the view type before any index/value coercion.
+        switch (typedArray)
         {
-            throw ThrowTypeError("Atomics operations are not supported on floating point typed arrays", realm: Realm);
-        }
-
-        if (typedArray is JsUint8ClampedArray)
-        {
-            throw ThrowTypeError("Atomics operations are not supported on clamped typed arrays", realm: Realm);
+            case JsInt8Array:
+            case JsUint8Array:
+            case JsInt16Array:
+            case JsUint16Array:
+            case JsInt32Array:
+            case JsUint32Array:
+                isBigInt = false;
+                break;
+            case JsBigInt64Array:
+            case JsBigUint64Array:
+                isBigInt = true;
+                break;
+            case JsFloat32Array:
+            case JsFloat64Array:
+                throw ThrowTypeError("Atomics operations are not supported on floating point typed arrays", realm: Realm);
+            case JsUint8ClampedArray:
+                throw ThrowTypeError("Atomics operations are not supported on clamped typed arrays", realm: Realm);
+            default:
+                throw ThrowTypeError("Atomics operations are only supported on integer typed arrays", realm: Realm);
         }
 
         if (typedArray.Buffer.IsDetached)
@@ -249,7 +263,6 @@ public sealed partial class AtomicsPrototype : JsPrototype
         // Note: Atomics operations work on both SharedArrayBuffer and ArrayBuffer.
         // Only wait/waitAsync/notify require SharedArrayBuffer.
 
-        isBigInt = typedArray.IsBigIntArray;
         return typedArray;
     }
 

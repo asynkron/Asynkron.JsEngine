@@ -36,32 +36,31 @@ public sealed partial class AtomicsPrototype : JsPrototype
 
         var expectedArg = args.GetArgument(2);
         var replacementArg = args.GetArgument(3);
-        lock (typedArray.Buffer)
+        if (isBigInt)
         {
-            if (isBigInt)
+            var expected = CoerceAtomicBigInt(typedArray, ToBigInt(expectedArg, realmState: Realm));
+            var replacement = CoerceAtomicBigInt(typedArray, ToBigInt(replacementArg, realmState: Realm));
+
+            lock (typedArray.Buffer)
             {
                 var oldValue = ReadBigIntElement(typedArray, index);
-                var expected = ToBigInt(expectedArg, realmState: Realm);
-                expected = typedArray switch
-                {
-                    JsBigInt64Array => new JsBigInt(ToBigInt64(expected.Value)),
-                    JsBigUint64Array => new JsBigInt(new System.Numerics.BigInteger(ToBigUint64(expected.Value))),
-                    _ => expected
-                };
                 if (JsOps.SameValue(oldValue, expected))
                 {
-                    var replacement = ToBigInt(replacementArg, realmState: Realm);
                     WriteBigIntElement(typedArray, index, replacement);
                 }
 
                 return oldValue;
             }
+        }
 
+        var expectedNumber = CoerceAtomicNumber(typedArray, JsOps.ToNumber(expectedArg));
+        var replacementNumber = CoerceAtomicNumber(typedArray, JsOps.ToNumber(replacementArg));
+
+        lock (typedArray.Buffer)
+        {
             var oldNumber = typedArray.GetElement(index);
-            var expectedNumber = JsOps.ToNumber(expectedArg);
             if (JsOps.SameValue(oldNumber, expectedNumber))
             {
-                var replacementNumber = JsOps.ToNumber(replacementArg);
                 typedArray.SetElement(index, replacementNumber);
             }
 
@@ -367,6 +366,33 @@ public sealed partial class AtomicsPrototype : JsPrototype
             default:
                 throw new ArgumentException("TypedArray does not store BigInt values.", nameof(typedArray));
         }
+    }
+
+    private static JsBigInt CoerceAtomicBigInt(TypedArrayBase typedArray, JsBigInt value)
+    {
+        return typedArray switch
+        {
+            JsBigInt64Array => new JsBigInt(ToBigInt64(value.Value)),
+            JsBigUint64Array => new JsBigInt(new System.Numerics.BigInteger(ToBigUint64(value.Value))),
+            _ => value
+        };
+    }
+
+    private static double CoerceAtomicNumber(TypedArrayBase typedArray, double value)
+    {
+        var intValue = double.IsNaN(value) ? 0 : (int)value;
+        var longValue = double.IsNaN(value) ? 0 : (long)value;
+
+        return typedArray switch
+        {
+            JsInt8Array => (sbyte)intValue,
+            JsUint8Array => (byte)intValue,
+            JsInt16Array => (short)intValue,
+            JsUint16Array => (ushort)intValue,
+            JsInt32Array => intValue,
+            JsUint32Array => (uint)longValue,
+            _ => value
+        };
     }
 
     private JsValue CreateWaitAsyncResult(JsValue status)

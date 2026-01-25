@@ -99,7 +99,8 @@ public static class ReflectHelper
 
         if (target is HostFunction hostCtor &&
             (ReferenceEquals(hostCtor, realm.ArrayBufferConstructor) ||
-             ReferenceEquals(hostCtor, realm.SharedArrayBufferConstructor)))
+             ReferenceEquals(hostCtor, realm.SharedArrayBufferConstructor) ||
+             ReferenceEquals(hostCtor, realm.DataViewConstructor)))
         {
             var constructContext = realm.CreateContext(pushScope: false);
             return hostCtor.InvokeWithContext(argList, JsValue.Undefined, constructContext,
@@ -682,6 +683,7 @@ public static class ReflectHelper
             "AsyncFunction" => realmState.AsyncFunctionPrototype,
             "AsyncGeneratorFunction" => realmState.AsyncGeneratorFunctionPrototype,
             "SharedArrayBuffer" => realmState.SharedArrayBufferPrototype,
+            "DataView" => realmState.DataViewPrototype,
             "Boolean" => realmState.BooleanPrototype,
             "Date" => realmState.DatePrototype,
             "Function" => realmState.FunctionPrototype,

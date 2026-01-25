@@ -1,5 +1,6 @@
 #region
 
+using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.Runtime;
 
 #endregion
@@ -42,8 +43,8 @@ public sealed class JsUint8Array(JsArrayBuffer buffer, int byteOffset, int lengt
     public override void SetElement(int index, double value)
     {
         CheckBounds(index);
-        var intValue = double.IsNaN(value) ? 0 : (int)value;
-        _buffer.Buffer[GetByteIndex(index)] = (byte)intValue;
+        var uint32Value = JsNumericConversions.ToUInt32(value);
+        _buffer.Buffer[GetByteIndex(index)] = (byte)uint32Value;
     }
 
     public override TypedArrayBase Subarray(int begin, int end)

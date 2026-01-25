@@ -1,6 +1,7 @@
 #region
 
 using System.Buffers.Binary;
+using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.Runtime;
 
 #endregion
@@ -44,9 +45,9 @@ public sealed class JsUint32Array(JsArrayBuffer buffer, int byteOffset, int leng
     public override void SetElement(int index, double value)
     {
         CheckBounds(index);
-        var intValue = double.IsNaN(value) ? 0 : (long)value;
         var span = new Span<byte>(_buffer.Buffer, GetByteIndex(index), BYTES_PER_ELEMENT);
-        BinaryPrimitives.WriteUInt32LittleEndian(span, (uint)intValue);
+        var uint32Value = JsNumericConversions.ToUInt32(value);
+        BinaryPrimitives.WriteUInt32LittleEndian(span, uint32Value);
     }
 
     public override TypedArrayBase Subarray(int begin, int end)

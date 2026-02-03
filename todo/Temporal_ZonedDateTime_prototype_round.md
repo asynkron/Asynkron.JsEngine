@@ -81,6 +81,15 @@ Full test name:
 ---
 ## Diagnosis (2026-02-03)
 
+**Summary:** Tests already pass; no new code changes required in this batch.
+
+**Tests:** `dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --settings tests/Asynkron.JsEngine.Tests.Test262/BuiltInsTests.runsettings --filter "Name=Temporal_ZonedDateTime_prototype_round"`
+
+** DONE **
+
+---
+## Diagnosis (2026-02-03)
+
 **Summary:** Core rounding options parsing and ISO date-time rounding are implemented, but ZonedDateTime round still fails on TZDB/DST edge cases (day length != 24h).
 
 **Error Pattern (first failure):**

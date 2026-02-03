@@ -1510,13 +1510,18 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         HashSet<string> implementedSymbolGetters,
         HashSet<string> implementedSymbolSetters)
     {
+        bool IsSymbolImplemented(string name)
+            => implementedSymbolMethods.Contains(name) ||
+               implementedSymbolGetters.Contains(name) ||
+               implementedSymbolSetters.Contains(name);
+
         return new CompatMembers(
             expected.Methods.Where(name => !implementedMethods.Contains(name)).ToImmutableArray(),
             expected.Getters.Where(name => !implementedGetters.Contains(name)).ToImmutableArray(),
             expected.Setters.Where(name => !implementedSetters.Contains(name)).ToImmutableArray(),
-            expected.SymbolMethods.Where(name => !implementedSymbolMethods.Contains(name)).ToImmutableArray(),
-            expected.SymbolGetters.Where(name => !implementedSymbolGetters.Contains(name)).ToImmutableArray(),
-            expected.SymbolSetters.Where(name => !implementedSymbolSetters.Contains(name)).ToImmutableArray());
+            expected.SymbolMethods.Where(name => !IsSymbolImplemented(name)).ToImmutableArray(),
+            expected.SymbolGetters.Where(name => !IsSymbolImplemented(name)).ToImmutableArray(),
+            expected.SymbolSetters.Where(name => !IsSymbolImplemented(name)).ToImmutableArray());
     }
 
     private static bool IsEmpty(CompatMembers members)

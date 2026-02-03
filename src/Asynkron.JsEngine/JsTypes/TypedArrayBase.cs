@@ -931,14 +931,15 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         ArgumentNullException.ThrowIfNull(source);
 
         var targetLength = Length;
-        if (offset < 0 || offset + source.Items.Count > targetLength)
+        var sourceLength = (int)source.Length;
+        if (offset < 0 || offset + sourceLength > targetLength)
         {
             throw CreateOutOfBoundsTypeError();
         }
 
-        for (var i = 0; i < source.Items.Count; i++)
+        for (var i = 0; i < sourceLength; i++)
         {
-            var value = source.Items[i];
+            var value = source.GetElement(i);
             SetValue(offset + i, value);
         }
     }

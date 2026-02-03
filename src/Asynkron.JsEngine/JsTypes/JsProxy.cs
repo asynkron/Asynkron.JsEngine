@@ -381,8 +381,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 return null;
             }
 
-            var resultObj = result.AsObject();
-            if (resultObj is null)
+            if (!result.TryGetObject<IJsPropertyAccessor>(out var resultObj))
             {
                 throw StandardLibrary.ThrowTypeError(
                     "Proxy getPrototypeOf trap must return an object or null",
@@ -390,7 +389,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             }
 
             _meta.SetPrototype(resultObj);
-            _privateStorage.SetPrototype(_meta.Prototype);
+            _privateStorage.SetPrototype(resultObj);
             return resultObj;
         }
 

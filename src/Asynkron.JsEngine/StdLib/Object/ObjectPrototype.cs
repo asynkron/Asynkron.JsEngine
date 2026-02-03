@@ -355,6 +355,16 @@ public sealed partial class ObjectPrototype
     [JsHostMethod("isPrototypeOf", Length = 1d)]
     private JsValue IsPrototypeOf(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
+        if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
+        {
+            return JsValue.False;
+        }
+
+        if (!args[0].TryGetObject<IJsObjectLike>(out var objectLike))
+        {
+            return JsValue.False;
+        }
+
         if (thisValue.IsNull || thisValue.IsUndefined)
         {
             object error;
@@ -368,16 +378,6 @@ public sealed partial class ObjectPrototype
             }
 
             throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
-        }
-
-        if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
-        {
-            return JsValue.False;
-        }
-
-        if (!args[0].TryGetObject<IJsObjectLike>(out var objectLike))
-        {
-            return JsValue.False;
         }
 
         object? cursor = objectLike;
@@ -399,6 +399,17 @@ public sealed partial class ObjectPrototype
 
             switch (candidate)
             {
+                case JsProxy proxy:
+                    {
+                        var proxyProto = proxy.GetPrototypeWithTrap();
+                        if (proxyProto is null)
+                        {
+                            return false;
+                        }
+
+                        prototype = proxyProto as IJsObjectLike;
+                        return prototype is not null;
+                    }
                 case IJsObjectLike { Prototype: { } protoObj }:
                     prototype = protoObj;
                     return true;

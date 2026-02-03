@@ -1181,14 +1181,11 @@
         "methods": [
           "defineGetter",
           "defineSetter",
-          "getPrototypeOf",
           "hasOwnProperty",
           "isPrototypeOf",
           "lookupGetter",
           "lookupSetter",
           "propertyIsEnumerable",
-          "proto",
-          "setPrototypeOf",
           "toLocaleString",
           "toString",
           "valueOf"

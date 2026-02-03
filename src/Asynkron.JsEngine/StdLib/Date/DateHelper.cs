@@ -30,6 +30,14 @@ public static class DateHelper
         {
             var arg = args[0];
             var ctx = context ?? realm.CreateContext();
+            if (arg.IsObject &&
+                arg.TryGetObject<JsObject>(out var dateObj) &&
+                dateObj.GetOwnPropertyDescriptor("_internalDate") is { JsValue: var dateValue } &&
+                dateValue.TryGetDouble(out var timeValue))
+            {
+                return timeValue;
+            }
+
             var primitive = arg.IsObject
                 ? JsOps.ToPrimitive(arg, ToPrimitiveHint.Default, ctx)
                 : arg;

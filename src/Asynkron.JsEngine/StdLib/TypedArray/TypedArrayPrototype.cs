@@ -617,6 +617,28 @@ public sealed partial class TypedArrayPrototype
         var start = ClampRelativeIndex(startIndex, length);
         var end = ClampRelativeIndex(endIndex, length);
 
+        // Per spec, coerce fill value once before writing.
+        var valueContext = Realm.CreateContext();
+        if (typedArray.IsBigIntArray)
+        {
+            value = new JsValue(ToBigInt(value, valueContext, Realm));
+        }
+        else
+        {
+            if (value.IsBigInt)
+            {
+                throw ThrowTypeError("Cannot convert a BigInt value to a number", valueContext, Realm);
+            }
+
+            var numeric = JsOps.ToNumber(value, valueContext);
+            if (valueContext.IsThrow == true)
+            {
+                throw new ThrowSignal(valueContext.FlowValue);
+            }
+
+            value = new JsValue(numeric);
+        }
+
         for (var k = start; k < end; k++)
         {
             if (typedArray.IsDetachedOrOutOfBounds())
@@ -944,15 +966,29 @@ public sealed partial class TypedArrayPrototype
             constructorValue = ctorValue;
         }
 
-        if (constructorValue.TryGetObject<IJsPropertyAccessor>(out var ctorAccessor) &&
-            ctorAccessor.TryGetProperty(SymbolSpeciesKey, out var speciesValue))
-        {
-            constructorValue = speciesValue;
-        }
-
-        if (constructorValue.IsNullOrUndefined)
+        if (constructorValue.IsUndefined)
         {
             return CreateDefaultTypedArray(exemplar, length);
+        }
+
+        if (!constructorValue.IsObject)
+        {
+            throw ThrowTypeError("TypedArray species constructor must be a constructor", realm: Realm);
+        }
+
+        if (constructorValue.TryGetObject<IJsPropertyAccessor>(out var ctorAccessor))
+        {
+            if (!ctorAccessor.TryGetProperty(SymbolSpeciesKey, out var speciesValue))
+            {
+                speciesValue = JsValue.Undefined;
+            }
+
+            if (speciesValue.IsNullOrUndefined)
+            {
+                return CreateDefaultTypedArray(exemplar, length);
+            }
+
+            constructorValue = speciesValue;
         }
 
         if (!JsOps.IsConstructor(constructorValue) || !constructorValue.TryGetObject<IJsCallable>(out var callable))
@@ -960,7 +996,12 @@ public sealed partial class TypedArrayPrototype
             throw ThrowTypeError("TypedArray species constructor must be a constructor", realm: Realm);
         }
 
-        var constructed = callable.Invoke(new SingleValueArgs(JsValue.FromNumber((double)length)), JsValue.Undefined);
+        if (Realm is null)
+        {
+            throw new InvalidOperationException("Realm is required for TypedArray species construction.");
+        }
+
+        var constructed = ReflectHelper.Construct(callable, [JsValue.FromNumber((double)length)], callable, Realm);
         if (!constructed.TryGetObject<TypedArrayBase>(out var typedResult))
         {
             throw ThrowTypeError("TypedArray species constructor did not return a TypedArray instance", realm: Realm);

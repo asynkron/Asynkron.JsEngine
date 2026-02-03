@@ -13,13 +13,12 @@ namespace Asynkron.JsEngine.StdLib;
 /// These are the Iterator Helper methods from the ECMAScript proposal.
 /// </summary>
 [JsPrototype("Iterator", ToStringTag = "Iterator")]
-[JsSymbolAlias("iterator", "__selfIterator")]
 public sealed partial class IteratorPrototype : JsPrototype
 {
     /// <summary>
     /// Helper method that returns this iterator (for Symbol.iterator)
     /// </summary>
-    [JsHostMethod("__selfIterator", Length = 0d)]
+    [JsSymbolMethod("iterator", DisplayName = "[Symbol.iterator]", Length = 0d)]
     public static JsValue SelfIterator(JsValue thisValue) => thisValue;
 
     /// <summary>

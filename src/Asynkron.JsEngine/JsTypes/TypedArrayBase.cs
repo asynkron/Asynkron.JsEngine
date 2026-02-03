@@ -246,9 +246,6 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
             case "subarray":
                 value = (JsValue)_subarrayFunction;
                 return true;
-            case "slice":
-                value = (JsValue)_sliceFunction;
-                return true;
             case "indexOf":
                 value = (JsValue)_indexOfFunction;
                 return true;

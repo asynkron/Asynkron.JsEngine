@@ -424,6 +424,16 @@ public static partial class TypedAstEvaluator
     // SpreadElement runtime semantics (ECMA-262 §12.2.5.2) use GetIterator on the operand.
     private static IEnumerable<JsValue> EnumerateSpread(JsValue value, EvaluationContext context)
     {
+        if (value.TryGetObject<JsArray>(out var jsArray))
+        {
+            foreach (var item in jsArray.Items)
+            {
+                yield return item;
+            }
+
+            yield break;
+        }
+
         if (!TryGetIteratorForDestructuring(value, context, out var iterator, out var enumerator))
         {
             if (context.ShouldStopEvaluation)

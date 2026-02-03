@@ -214,18 +214,22 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
     {
         var previous = PrototypeAccessor ?? Prototype;
 
+        if (ReferenceEquals(candidate, previous))
+        {
+            return;
+        }
+
         // For immutable prototype exotic objects (like Object.prototype),
         // [[SetPrototypeOf]] returns false if V differs from current prototype.
         // We throw a ThrowSignal to signal this, which callers can catch.
         if (IsImmutablePrototype)
         {
-            // Per spec: If SameValue(V, current) is true, return true
-            if (ReferenceEquals(candidate, previous))
-            {
-                return; // Success - no change needed
-            }
-
             // Per spec: Return false (we throw to indicate failure)
+            throw new ThrowSignal(JsValue.Undefined);
+        }
+
+        if (!IsExtensible)
+        {
             throw new ThrowSignal(JsValue.Undefined);
         }
 

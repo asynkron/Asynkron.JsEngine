@@ -3,6 +3,7 @@
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 #endregion
 
@@ -102,8 +103,10 @@ public abstract class ErrorConstructorBase(IJsObjectLike prototype, RealmState r
         if (args.Count >= 2 && args[1].IsObject)
         {
             var options = args[1];
-            if (JsOps.TryGetPropertyValue(options, "cause", out var cause))
+            if (options.TryGetObject<IJsPropertyAccessor>(out var optionsAccessor) &&
+                HasProperty(optionsAccessor, "cause"))
             {
+                JsOps.TryGetPropertyValue(options, "cause", out var cause);
                 instance.DefineProperty("cause",
                     new PropertyDescriptor { Value = cause, Writable = true, Enumerable = false, Configurable = true });
             }

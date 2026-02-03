@@ -23,16 +23,16 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
             return JsValue.Undefined;
         }
 
-        var key = args[0].ToJsString();
+        var key = JsOps.ToJsString(args[0]);
         return new JsValue(JsValueKind.Symbol, 0.0, JsSymbol.For(key));
     }
 
     [JsConstructorMethod("keyFor", Length = 1d)]
     public static JsValue KeyFor(IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || !args[0].IsSymbol || args[0].ObjectValue is not JsSymbol sym)
+        if (args.Count == 0 || !args[0].IsSymbol || !args[0].TryUnwrap<JsSymbol>(out var sym))
         {
-            return JsValue.Undefined;
+            throw ThrowTypeError("Symbol.keyFor requires a symbol");
         }
 
         var key = JsSymbol.KeyFor(sym);
@@ -50,40 +50,40 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
     {
         Realm.SymbolPrototype ??= Prototype as JsObject;
 
-        constructor.SetInvokeWithContext((args, _, _, newTarget) => newTarget.IsUndefined
-            ? CreateSymbolValue(args)
+        constructor.SetInvokeWithContext((args, _, context, newTarget) => newTarget.IsUndefined
+            ? CreateSymbolValue(args, context)
             : throw ThrowTypeError("Symbol is not a constructor", realm: Realm));
 
         // Static methods are now registered via code generation from [JsConstructorMethod] attributes
         AttachWellKnownSymbols(constructor);
     }
 
-    private static JsValue CreateSymbolValue(IReadOnlyList<JsValue> args)
+    private static JsValue CreateSymbolValue(IReadOnlyList<JsValue> args, EvaluationContext? context)
     {
         var description = args.Count > 0 && !args[0].IsUndefined
-            ? args[0].ToJsString()
+            ? JsOps.ToJsString(args[0], context)
             : null;
         return new JsValue(JsValueKind.Symbol, 0.0, JsSymbol.Create(description));
     }
 
     private static void AttachWellKnownSymbols(HostFunction constructor)
     {
-        constructor.SetProperty("hasInstance", (JsValue)Symbols.HasInstance);
-        constructor.SetProperty("iterator", (JsValue)Symbols.Iterator);
-        constructor.SetProperty("asyncIterator", (JsValue)Symbols.AsyncIterator);
-        constructor.SetProperty("toPrimitive", (JsValue)Symbols.ToPrimitive);
-        constructor.SetProperty("toStringTag", (JsValue)Symbols.ToStringTag);
-        constructor.SetProperty("unscopables", (JsValue)Symbols.Unscopables);
-        constructor.SetProperty("match", (JsValue)Symbols.Match);
-        constructor.SetProperty("matchAll", (JsValue)Symbols.MatchAll);
-        constructor.SetProperty("replace", (JsValue)Symbols.Replace);
-        constructor.SetProperty("replaceAll", (JsValue)Symbols.ReplaceAll);
-        constructor.SetProperty("search", (JsValue)Symbols.Search);
-        constructor.SetProperty("split", (JsValue)Symbols.Split);
-        constructor.SetProperty("species", (JsValue)Symbols.Species);
-        constructor.SetProperty("isConcatSpreadable", (JsValue)Symbols.IsConcatSpreadable);
-        constructor.SetProperty("dispose", (JsValue)Symbols.Dispose);
-        constructor.SetProperty("asyncDispose", (JsValue)Symbols.AsyncDispose);
+        DefineConstantProperty(constructor, "hasInstance", (JsValue)Symbols.HasInstance);
+        DefineConstantProperty(constructor, "iterator", (JsValue)Symbols.Iterator);
+        DefineConstantProperty(constructor, "asyncIterator", (JsValue)Symbols.AsyncIterator);
+        DefineConstantProperty(constructor, "toPrimitive", (JsValue)Symbols.ToPrimitive);
+        DefineConstantProperty(constructor, "toStringTag", (JsValue)Symbols.ToStringTag);
+        DefineConstantProperty(constructor, "unscopables", (JsValue)Symbols.Unscopables);
+        DefineConstantProperty(constructor, "match", (JsValue)Symbols.Match);
+        DefineConstantProperty(constructor, "matchAll", (JsValue)Symbols.MatchAll);
+        DefineConstantProperty(constructor, "replace", (JsValue)Symbols.Replace);
+        DefineConstantProperty(constructor, "replaceAll", (JsValue)Symbols.ReplaceAll);
+        DefineConstantProperty(constructor, "search", (JsValue)Symbols.Search);
+        DefineConstantProperty(constructor, "split", (JsValue)Symbols.Split);
+        DefineConstantProperty(constructor, "species", (JsValue)Symbols.Species);
+        DefineConstantProperty(constructor, "isConcatSpreadable", (JsValue)Symbols.IsConcatSpreadable);
+        DefineConstantProperty(constructor, "dispose", (JsValue)Symbols.Dispose);
+        DefineConstantProperty(constructor, "asyncDispose", (JsValue)Symbols.AsyncDispose);
     }
 
     [JsConstructorSymbolGetter("dispose")]

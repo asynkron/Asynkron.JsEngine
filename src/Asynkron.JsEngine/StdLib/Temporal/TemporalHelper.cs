@@ -1,5 +1,6 @@
 #region
 
+using System.Linq;
 using System.Numerics;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
@@ -36,6 +37,57 @@ public static class TemporalHelper
     private const string TemporalZonedDateTimeSlot = "[[TemporalZonedDateTime]]";
     private const string TemporalPlainYearMonthSlot = "[[TemporalPlainYearMonth]]";
     private const string TemporalPlainMonthDaySlot = "[[TemporalPlainMonthDay]]";
+    private const long NanosecondsPerMicrosecond = 1_000L;
+    private const long NanosecondsPerMillisecond = 1_000_000L;
+    private const long NanosecondsPerSecond = 1_000_000_000L;
+    private const long NanosecondsPerMinute = 60L * NanosecondsPerSecond;
+    private const long NanosecondsPerHour = 60L * NanosecondsPerMinute;
+    private const long NanosecondsPerDay = 24L * NanosecondsPerHour;
+    private static readonly BigInteger InstantMaxEpochNanoseconds =
+        new BigInteger(864) * BigInteger.Pow(10, 19);
+    private static readonly BigInteger InstantMinEpochNanoseconds = -InstantMaxEpochNanoseconds;
+    private static readonly BigInteger PlainDateTimeMinEpochNanoseconds = InstantMinEpochNanoseconds + 1;
+    private static readonly BigInteger PlainDateTimeMaxEpochNanoseconds = InstantMaxEpochNanoseconds - 1;
+    private static readonly Dictionary<string, long> PlainDateTimeRoundingIncrements = new(StringComparer.Ordinal)
+    {
+        ["day"] = 1,
+        ["hour"] = 24,
+        ["minute"] = 60,
+        ["second"] = 60,
+        ["millisecond"] = 1000,
+        ["microsecond"] = 1000,
+        ["nanosecond"] = 1000
+    };
+    private static readonly Dictionary<string, long> PlainTimeRoundingIncrements = new(StringComparer.Ordinal)
+    {
+        ["hour"] = 24,
+        ["minute"] = 60,
+        ["second"] = 60,
+        ["millisecond"] = 1000,
+        ["microsecond"] = 1000,
+        ["nanosecond"] = 1000
+    };
+    private static readonly Dictionary<string, long> InstantRoundingIncrements = new(StringComparer.Ordinal)
+    {
+        ["hour"] = 24,
+        ["minute"] = 1440,
+        ["second"] = 86400,
+        ["millisecond"] = 86_400_000,
+        ["microsecond"] = 86_400_000_000,
+        ["nanosecond"] = 86_400_000_000_000
+    };
+    private static readonly HashSet<string> ValidRoundingModes = new(StringComparer.Ordinal)
+    {
+        "ceil",
+        "floor",
+        "trunc",
+        "halfCeil",
+        "halfFloor",
+        "halfExpand",
+        "halfTrunc",
+        "halfEven",
+        "expand"
+    };
 
     // Cached prototypes per realm - stored via WeakReference to avoid memory leaks
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<RealmState, TemporalPrototypes>
@@ -107,6 +159,12 @@ public static class TemporalHelper
         {
             return prototypes;
         }
+        _ = CreateTemporalObject(realm);
+        if (_prototypeCache.TryGetValue(realm, out prototypes))
+        {
+            return prototypes;
+        }
+
         throw new InvalidOperationException("Temporal prototypes not initialized for this realm");
     }
 
@@ -290,33 +348,16 @@ public static class TemporalHelper
         AddPrototypeMethod(prototype, realm, "round", 1, (thisValue, args) =>
         {
             var instant = GetInstant(thisValue);
-            var optionsArg = args.GetArgument(0);
-            string smallestUnit;
-            if (optionsArg.IsString)
-            {
-                smallestUnit = optionsArg.AsString() ?? "nanosecond";
-            }
-            else if (optionsArg.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
-                     accessor.TryGetProperty("smallestUnit", out var unitValue))
-            {
-                smallestUnit = JsOps.ToJsString(unitValue);
-            }
-            else
-            {
-                smallestUnit = "nanosecond";
-            }
+            var options = GetTemporalRoundingOptions(
+                args.GetArgument(0),
+                realm,
+                "Temporal.Instant.prototype.round",
+                InstantRoundingIncrements,
+                allowMaxIncrement: true);
 
-            var nanos = instant.EpochNanoseconds;
-            var divisor = smallestUnit switch
-            {
-                "hour" => 3600_000_000_000L,
-                "minute" => 60_000_000_000L,
-                "second" => 1_000_000_000L,
-                "millisecond" => 1_000_000L,
-                "microsecond" => 1_000L,
-                _ => 1L
-            };
-            var rounded = (nanos / divisor) * divisor;
+            var unitNanoseconds = GetUnitNanoseconds(options.SmallestUnit);
+            var incrementNanoseconds = new BigInteger(unitNanoseconds) * options.Increment;
+            var rounded = RoundToIncrement(instant.EpochNanoseconds, incrementNanoseconds, options.RoundingMode, treatNegativeAsPositive: true);
             return WrapInstant(new JsTemporalInstant(rounded), realm, prototype);
         });
 
@@ -885,23 +926,14 @@ public static class TemporalHelper
         AddPrototypeMethod(prototype, realm, "round", 1, (thisValue, args) =>
         {
             var time = GetPlainTime(thisValue);
-            var optionsArg = args.GetArgument(0);
-            string smallestUnit;
-            if (optionsArg.IsString)
-            {
-                smallestUnit = optionsArg.AsString() ?? "nanosecond";
-            }
-            else if (optionsArg.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
-                     accessor.TryGetProperty("smallestUnit", out var unitValue))
-            {
-                smallestUnit = JsOps.ToJsString(unitValue);
-            }
-            else
-            {
-                smallestUnit = "nanosecond";
-            }
+            var options = GetTemporalRoundingOptions(
+                args.GetArgument(0),
+                realm,
+                "Temporal.PlainTime.prototype.round",
+                PlainTimeRoundingIncrements,
+                allowMaxIncrement: false);
 
-            var rounded = time.Round(smallestUnit);
+            var rounded = RoundPlainTime(time, options);
             return WrapPlainTime(rounded, realm, prototype);
         });
 
@@ -1158,23 +1190,14 @@ public static class TemporalHelper
         AddPrototypeMethod(prototype, realm, "round", 1, (thisValue, args) =>
         {
             var dt = GetPlainDateTime(thisValue);
-            var optionsArg = args.GetArgument(0);
-            string smallestUnit;
-            if (optionsArg.IsString)
-            {
-                smallestUnit = optionsArg.AsString() ?? "nanosecond";
-            }
-            else if (optionsArg.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
-                     accessor.TryGetProperty("smallestUnit", out var unitValue))
-            {
-                smallestUnit = JsOps.ToJsString(unitValue);
-            }
-            else
-            {
-                smallestUnit = "nanosecond";
-            }
+            var options = GetTemporalRoundingOptions(
+                args.GetArgument(0),
+                realm,
+                "Temporal.PlainDateTime.prototype.round",
+                PlainDateTimeRoundingIncrements,
+                allowMaxIncrement: false);
 
-            var rounded = dt.Round(smallestUnit);
+            var rounded = RoundPlainDateTime(dt, options, realm);
             return WrapPlainDateTime(rounded, realm, prototype);
         });
 
@@ -1242,6 +1265,11 @@ public static class TemporalHelper
         AddPrototypeGetter(prototype, realm, "microsecond", tv => new JsValue(GetZonedDateTime(tv).Microsecond));
         AddPrototypeGetter(prototype, realm, "nanosecond", tv => new JsValue(GetZonedDateTime(tv).Nanosecond));
         AddPrototypeGetter(prototype, realm, "epochMilliseconds", tv => new JsValue((double)GetZonedDateTime(tv).EpochMilliseconds));
+        AddPrototypeGetter(prototype, realm, "epochNanoseconds", tv =>
+        {
+            var zdt = GetZonedDateTime(tv);
+            return JsValue.FromObjectUnsafe(new JsBigInt(zdt.Instant.EpochNanoseconds));
+        });
         AddPrototypeGetter(prototype, realm, "epochSeconds", tv => new JsValue((double)GetZonedDateTime(tv).EpochSeconds));
         AddPrototypeGetter(prototype, realm, "monthCode", tv => new JsValue(GetZonedDateTime(tv).MonthCode));
         AddPrototypeGetter(prototype, realm, "dayOfWeek", tv => new JsValue(GetZonedDateTime(tv).DayOfWeek));
@@ -1326,36 +1354,37 @@ public static class TemporalHelper
         AddPrototypeMethod(prototype, realm, "round", 1, (thisValue, args) =>
         {
             var zdt = GetZonedDateTime(thisValue);
-            var optionsArg = args.GetArgument(0);
-            string smallestUnit;
-            if (optionsArg.IsString)
+            var options = GetTemporalRoundingOptions(
+                args.GetArgument(0),
+                realm,
+                "Temporal.ZonedDateTime.prototype.round",
+                PlainDateTimeRoundingIncrements,
+                allowMaxIncrement: false);
+
+            if (options.SmallestUnit == "day")
             {
-                smallestUnit = optionsArg.AsString() ?? "nanosecond";
-            }
-            else if (optionsArg.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
-                     accessor.TryGetProperty("smallestUnit", out var unitValue))
-            {
-                smallestUnit = JsOps.ToJsString(unitValue);
-            }
-            else
-            {
-                smallestUnit = "nanosecond";
+                var roundedInstant = RoundZonedDateTimeToDay(zdt, options, realm);
+                var roundedZdtDay = new JsTemporalZonedDateTime(roundedInstant, zdt.TimeZoneId, zdt.Calendar);
+                return WrapZonedDateTime(roundedZdtDay, realm, prototype);
             }
 
-            // Round by rounding the epoch nanoseconds
-            var nanos = zdt.Instant.EpochNanoseconds;
-            var divisor = smallestUnit switch
+            var local = GetLocalPlainDateTime(zdt, realm);
+
+            var roundedLocal = RoundPlainDateTime(local, options, realm);
+            var offset = zdt.FixedOffset ?? ResolveTimeZoneOffset(CreateTimeZoneLocalDateTime(roundedLocal), zdt.TimeZone, zdt.FixedOffset);
+            var offsetNanoseconds = new BigInteger(offset.Ticks) * 100;
+            var localEpochNanoseconds = ToEpochNanoseconds(roundedLocal);
+            var roundedInstantNanoseconds = localEpochNanoseconds - offsetNanoseconds;
+            if (roundedInstantNanoseconds < InstantMinEpochNanoseconds ||
+                roundedInstantNanoseconds > InstantMaxEpochNanoseconds)
             {
-                "hour" or "hours" => 3600_000_000_000L,
-                "minute" or "minutes" => 60_000_000_000L,
-                "second" or "seconds" => 1_000_000_000L,
-                "millisecond" or "milliseconds" => 1_000_000L,
-                "microsecond" or "microseconds" => 1_000L,
-                _ => 1L
-            };
-            var rounded = (nanos / divisor) * divisor;
-            var newInstant = new JsTemporalInstant(rounded);
-            var roundedZdt = new JsTemporalZonedDateTime(newInstant, zdt.TimeZoneId, zdt.Calendar);
+                throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
+            }
+
+            var roundedZdt = new JsTemporalZonedDateTime(
+                JsTemporalInstant.FromEpochNanoseconds(roundedInstantNanoseconds),
+                zdt.TimeZoneId,
+                zdt.Calendar);
             return WrapZonedDateTime(roundedZdt, realm, prototype);
         });
 
@@ -1891,7 +1920,7 @@ public static class TemporalHelper
 
     #region Unwrapper methods
 
-    private static JsTemporalInstant GetInstant(JsValue value)
+    internal static JsTemporalInstant GetInstant(JsValue value)
     {
         if (value.TryGetObject<JsObject>(out var obj) &&
             obj.TryGetProperty(TemporalInstantSlot, out var slot) &&
@@ -1899,7 +1928,7 @@ public static class TemporalHelper
         {
             return instant;
         }
-        throw new InvalidOperationException("Value is not a Temporal.Instant");
+        throw StandardLibrary.ThrowTypeError("Value is not a Temporal.Instant");
     }
 
     private static JsTemporalDuration GetDuration(JsValue value)
@@ -1910,7 +1939,7 @@ public static class TemporalHelper
         {
             return duration;
         }
-        throw new InvalidOperationException("Value is not a Temporal.Duration");
+        throw StandardLibrary.ThrowTypeError("Value is not a Temporal.Duration");
     }
 
     private static JsTemporalPlainDate GetPlainDate(JsValue value)
@@ -1921,7 +1950,7 @@ public static class TemporalHelper
         {
             return date;
         }
-        throw new InvalidOperationException("Value is not a Temporal.PlainDate");
+        throw StandardLibrary.ThrowTypeError("Value is not a Temporal.PlainDate");
     }
 
     private static JsTemporalPlainTime GetPlainTime(JsValue value)
@@ -1932,7 +1961,7 @@ public static class TemporalHelper
         {
             return time;
         }
-        throw new InvalidOperationException("Value is not a Temporal.PlainTime");
+        throw StandardLibrary.ThrowTypeError("Value is not a Temporal.PlainTime");
     }
 
     private static JsTemporalPlainDateTime GetPlainDateTime(JsValue value)
@@ -1943,7 +1972,7 @@ public static class TemporalHelper
         {
             return dateTime;
         }
-        throw new InvalidOperationException("Value is not a Temporal.PlainDateTime");
+        throw StandardLibrary.ThrowTypeError("Value is not a Temporal.PlainDateTime");
     }
 
     private static JsTemporalZonedDateTime GetZonedDateTime(JsValue value)
@@ -1954,7 +1983,7 @@ public static class TemporalHelper
         {
             return zonedDateTime;
         }
-        throw new InvalidOperationException("Value is not a Temporal.ZonedDateTime");
+        throw StandardLibrary.ThrowTypeError("Value is not a Temporal.ZonedDateTime");
     }
 
     private static JsTemporalPlainYearMonth GetPlainYearMonth(JsValue value)
@@ -1965,7 +1994,7 @@ public static class TemporalHelper
         {
             return yearMonth;
         }
-        throw new InvalidOperationException("Value is not a Temporal.PlainYearMonth");
+        throw StandardLibrary.ThrowTypeError("Value is not a Temporal.PlainYearMonth");
     }
 
     private static JsTemporalPlainMonthDay GetPlainMonthDay(JsValue value)
@@ -1976,7 +2005,504 @@ public static class TemporalHelper
         {
             return monthDay;
         }
-        throw new InvalidOperationException("Value is not a Temporal.PlainMonthDay");
+        throw StandardLibrary.ThrowTypeError("Value is not a Temporal.PlainMonthDay");
+    }
+
+    private readonly record struct TemporalRoundingOptions(string SmallestUnit, long Increment, string RoundingMode);
+
+    private static TemporalRoundingOptions GetTemporalRoundingOptions(
+        JsValue optionsArg,
+        RealmState realm,
+        string methodName,
+        IReadOnlyDictionary<string, long> unitMaxIncrements,
+        bool allowMaxIncrement)
+    {
+        if (optionsArg.IsUndefined)
+        {
+            throw StandardLibrary.ThrowTypeError($"{methodName} requires an options argument", realm: realm);
+        }
+
+        var roundingMode = "halfExpand";
+        double roundingIncrementNumber = 1;
+        string smallestUnit;
+
+        if (optionsArg.IsString)
+        {
+            smallestUnit = optionsArg.AsString() ?? string.Empty;
+        }
+        else if (optionsArg.TryGetObject<IJsPropertyAccessor>(out var accessor))
+        {
+            if (accessor.TryGetProperty("roundingIncrement", out var roundingIncrementValue) && !roundingIncrementValue.IsUndefined)
+            {
+                roundingIncrementNumber = JsOps.ToNumber(roundingIncrementValue);
+            }
+
+            if (accessor.TryGetProperty("roundingMode", out var roundingModeValue) && !roundingModeValue.IsUndefined)
+            {
+                roundingMode = JsOps.ToJsString(roundingModeValue);
+            }
+
+            if (accessor.TryGetProperty("smallestUnit", out var smallestUnitValue) && !smallestUnitValue.IsUndefined)
+            {
+                smallestUnit = JsOps.ToJsString(smallestUnitValue);
+            }
+            else
+            {
+                throw StandardLibrary.ThrowRangeError($"{methodName} requires a smallestUnit option", realm: realm);
+            }
+        }
+        else
+        {
+            throw StandardLibrary.ThrowTypeError($"{methodName} requires options to be a string or object", realm: realm);
+        }
+
+        smallestUnit = NormalizeSmallestUnit(smallestUnit);
+        if (!unitMaxIncrements.TryGetValue(smallestUnit, out var maxIncrement))
+        {
+            throw StandardLibrary.ThrowRangeError($"Invalid smallestUnit: {smallestUnit}", realm: realm);
+        }
+
+        if (!ValidRoundingModes.Contains(roundingMode))
+        {
+            throw StandardLibrary.ThrowRangeError($"Invalid roundingMode: {roundingMode}", realm: realm);
+        }
+
+        if (double.IsNaN(roundingIncrementNumber) || double.IsInfinity(roundingIncrementNumber))
+        {
+            throw StandardLibrary.ThrowRangeError("Invalid roundingIncrement", realm: realm);
+        }
+
+        var increment = (long)Math.Truncate(roundingIncrementNumber);
+        if (increment < 1 || increment > 1_000_000_000L)
+        {
+            throw StandardLibrary.ThrowRangeError("Invalid roundingIncrement", realm: realm);
+        }
+
+        if (maxIncrement == 1)
+        {
+            if (increment != 1)
+            {
+                throw StandardLibrary.ThrowRangeError("Invalid roundingIncrement", realm: realm);
+            }
+        }
+        else
+        {
+            if (increment > maxIncrement || maxIncrement % increment != 0)
+            {
+                throw StandardLibrary.ThrowRangeError("Invalid roundingIncrement", realm: realm);
+            }
+
+            if (!allowMaxIncrement && increment == maxIncrement)
+            {
+                throw StandardLibrary.ThrowRangeError("Invalid roundingIncrement", realm: realm);
+            }
+        }
+
+        return new TemporalRoundingOptions(smallestUnit, increment, roundingMode);
+    }
+
+    private static string NormalizeSmallestUnit(string unit)
+    {
+        return unit switch
+        {
+            "days" => "day",
+            "hours" => "hour",
+            "minutes" => "minute",
+            "seconds" => "second",
+            "milliseconds" => "millisecond",
+            "microseconds" => "microsecond",
+            "nanoseconds" => "nanosecond",
+            _ => unit
+        };
+    }
+
+    private static long GetUnitNanoseconds(string smallestUnit)
+    {
+        return smallestUnit switch
+        {
+            "day" => NanosecondsPerDay,
+            "hour" => NanosecondsPerHour,
+            "minute" => NanosecondsPerMinute,
+            "second" => NanosecondsPerSecond,
+            "millisecond" => NanosecondsPerMillisecond,
+            "microsecond" => NanosecondsPerMicrosecond,
+            "nanosecond" => 1L,
+            _ => 1L
+        };
+    }
+
+    private static BigInteger RoundToIncrement(
+        BigInteger value,
+        BigInteger increment,
+        string roundingMode,
+        bool treatNegativeAsPositive = false)
+    {
+        if (increment == BigInteger.One)
+        {
+            return value;
+        }
+
+        var quotient = DivRemFloor(value, increment, out var remainder);
+        if (remainder.IsZero)
+        {
+            return value;
+        }
+
+        var lower = quotient * increment;
+        var upper = lower + increment;
+
+        var sign = treatNegativeAsPositive ? 1 : value.Sign;
+        switch (roundingMode)
+        {
+            case "floor":
+                return lower;
+            case "ceil":
+                return upper;
+            case "trunc":
+                return sign >= 0 ? lower : upper;
+            case "expand":
+                return sign >= 0 ? upper : lower;
+        }
+
+        var twiceRemainder = remainder * 2;
+        var compare = twiceRemainder.CompareTo(increment);
+        if (compare < 0)
+        {
+            return lower;
+        }
+        if (compare > 0)
+        {
+            return upper;
+        }
+
+        return roundingMode switch
+        {
+            "halfCeil" => upper,
+            "halfFloor" => lower,
+            "halfTrunc" => sign >= 0 ? lower : upper,
+            "halfExpand" => sign >= 0 ? upper : lower,
+            "halfEven" => quotient.IsEven ? lower : upper,
+            _ => sign >= 0 ? upper : lower
+        };
+    }
+
+    private static JsTemporalPlainTime RoundPlainTime(JsTemporalPlainTime time, TemporalRoundingOptions options)
+    {
+        var totalNanoseconds = new BigInteger(time.TotalNanoseconds);
+        var incrementNanoseconds = new BigInteger(GetUnitNanoseconds(options.SmallestUnit)) * options.Increment;
+        var rounded = RoundToIncrement(totalNanoseconds, incrementNanoseconds, options.RoundingMode);
+        var normalized = PositiveMod(rounded, NanosecondsPerDay);
+        return CreatePlainTimeFromNanoseconds((long)normalized);
+    }
+
+    private static JsTemporalPlainDateTime RoundPlainDateTime(
+        JsTemporalPlainDateTime dateTime,
+        TemporalRoundingOptions options,
+        RealmState realm)
+    {
+        var totalNanoseconds = ToEpochNanoseconds(dateTime);
+        var incrementNanoseconds = new BigInteger(GetUnitNanoseconds(options.SmallestUnit)) * options.Increment;
+        var rounded = RoundToIncrement(totalNanoseconds, incrementNanoseconds, options.RoundingMode, treatNegativeAsPositive: true);
+
+        if (rounded < PlainDateTimeMinEpochNanoseconds || rounded > PlainDateTimeMaxEpochNanoseconds)
+        {
+            throw StandardLibrary.ThrowRangeError("Temporal.PlainDateTime is out of range", realm: realm);
+        }
+
+        return FromEpochNanoseconds(rounded);
+    }
+
+    private static JsTemporalInstant RoundZonedDateTimeToDay(
+        JsTemporalZonedDateTime zonedDateTime,
+        TemporalRoundingOptions options,
+        RealmState realm)
+    {
+        var epochNanoseconds = zonedDateTime.Instant.EpochNanoseconds;
+        if (epochNanoseconds < InstantMinEpochNanoseconds ||
+            epochNanoseconds > InstantMaxEpochNanoseconds)
+        {
+            throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
+        }
+
+        var localDateTime = GetLocalPlainDateTime(zonedDateTime, realm);
+        var year = localDateTime.Year;
+        var month = localDateTime.Month;
+        var day = localDateTime.Day;
+        var startOfDay = GetStartOfDayInstant(year, month, day, zonedDateTime.TimeZone, zonedDateTime.FixedOffset, realm);
+        var dayNumber = IsoToDayNumber(year, month, day);
+        var (nextYear, nextMonth, nextDay) = DayNumberToIsoDate(dayNumber + 1);
+        var startOfNextDay = GetStartOfDayInstant(nextYear, nextMonth, nextDay, zonedDateTime.TimeZone, zonedDateTime.FixedOffset, realm);
+
+        var dayLength = startOfNextDay - startOfDay;
+        if (dayLength <= 0)
+        {
+            throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
+        }
+
+        var offsetNanoseconds = zonedDateTime.Instant.EpochNanoseconds - startOfDay;
+        var incrementNanoseconds = dayLength * options.Increment;
+        var roundedOffset = RoundToIncrement(offsetNanoseconds, incrementNanoseconds, options.RoundingMode);
+        var roundedInstant = startOfDay + roundedOffset;
+
+        if (roundedInstant < InstantMinEpochNanoseconds || roundedInstant > InstantMaxEpochNanoseconds)
+        {
+            throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
+        }
+
+        return JsTemporalInstant.FromEpochNanoseconds(roundedInstant);
+    }
+
+    private static JsTemporalPlainDateTime GetLocalPlainDateTime(
+        JsTemporalZonedDateTime zonedDateTime,
+        RealmState realm)
+    {
+        if (zonedDateTime.FixedOffset.HasValue)
+        {
+            var offsetNanoseconds = new BigInteger(zonedDateTime.FixedOffset.Value.Ticks) * 100;
+            var localEpochNanoseconds = zonedDateTime.Instant.EpochNanoseconds + offsetNanoseconds;
+            if (localEpochNanoseconds < PlainDateTimeMinEpochNanoseconds ||
+                localEpochNanoseconds > PlainDateTimeMaxEpochNanoseconds)
+            {
+                throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
+            }
+
+            var localDateTime = FromEpochNanoseconds(localEpochNanoseconds);
+            return new JsTemporalPlainDateTime(
+                localDateTime.Year,
+                localDateTime.Month,
+                localDateTime.Day,
+                localDateTime.Hour,
+                localDateTime.Minute,
+                localDateTime.Second,
+                localDateTime.Millisecond,
+                localDateTime.Microsecond,
+                localDateTime.Nanosecond,
+                zonedDateTime.Calendar);
+        }
+
+        DateTimeOffset localDateTimeOffset;
+        try
+        {
+            var utc = zonedDateTime.Instant.ToDateTimeOffset();
+            localDateTimeOffset = TimeZoneInfo.ConvertTime(utc, zonedDateTime.TimeZone);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
+        }
+        catch (OverflowException)
+        {
+            throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
+        }
+
+        return new JsTemporalPlainDateTime(
+            localDateTimeOffset.Year,
+            localDateTimeOffset.Month,
+            localDateTimeOffset.Day,
+            localDateTimeOffset.Hour,
+            localDateTimeOffset.Minute,
+            localDateTimeOffset.Second,
+            localDateTimeOffset.Millisecond,
+            localDateTimeOffset.Microsecond,
+            zonedDateTime.Nanosecond,
+            zonedDateTime.Calendar);
+    }
+
+    private static BigInteger GetStartOfDayInstant(
+        int year,
+        int month,
+        int day,
+        TimeZoneInfo timeZone,
+        TimeSpan? fixedOffset,
+        RealmState realm)
+    {
+        if (fixedOffset.HasValue)
+        {
+            var offsetNanoseconds = new BigInteger(fixedOffset.Value.Ticks) * 100;
+            var localEpochNanoseconds = ToEpochNanoseconds(year, month, day, 0, 0, 0, 0, 0, 0);
+            if (localEpochNanoseconds < PlainDateTimeMinEpochNanoseconds ||
+                localEpochNanoseconds > PlainDateTimeMaxEpochNanoseconds)
+            {
+                throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
+            }
+            var instantNanoseconds = localEpochNanoseconds - offsetNanoseconds;
+            if (instantNanoseconds < InstantMinEpochNanoseconds ||
+                instantNanoseconds > InstantMaxEpochNanoseconds)
+            {
+                throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
+            }
+
+            return instantNanoseconds;
+        }
+
+        DateTime localDateTime;
+        try
+        {
+            localDateTime = new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Unspecified);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
+        }
+
+        var candidate = localDateTime;
+        for (var i = 0; i < 86_400; i++)
+        {
+            if (!timeZone.IsInvalidTime(candidate))
+            {
+                var offset = ResolveTimeZoneOffset(candidate, timeZone, fixedOffset);
+                return ToEpochNanoseconds(candidate, offset);
+            }
+
+            candidate = candidate.AddSeconds(1);
+        }
+
+        throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
+    }
+
+    private static TimeSpan ResolveTimeZoneOffset(DateTime localDateTime, TimeZoneInfo timeZone, TimeSpan? fixedOffset)
+    {
+        if (fixedOffset.HasValue)
+        {
+            return fixedOffset.Value;
+        }
+
+        if (timeZone.IsAmbiguousTime(localDateTime))
+        {
+            var offsets = timeZone.GetAmbiguousTimeOffsets(localDateTime);
+            return offsets.Max();
+        }
+
+        return timeZone.GetUtcOffset(localDateTime);
+    }
+
+    private static BigInteger ToEpochNanoseconds(DateTime localDateTime, TimeSpan offset)
+    {
+        var utcDateTime = DateTime.SpecifyKind(localDateTime - offset, DateTimeKind.Utc);
+        var dto = new DateTimeOffset(utcDateTime);
+        return new JsTemporalInstant(dto).EpochNanoseconds;
+    }
+
+    private static BigInteger ToEpochNanoseconds(JsTemporalPlainDateTime dateTime)
+    {
+        return ToEpochNanoseconds(dateTime.Year, dateTime.Month, dateTime.Day, dateTime.Hour, dateTime.Minute, dateTime.Second,
+            dateTime.Millisecond, dateTime.Microsecond, dateTime.Nanosecond);
+    }
+
+    private static DateTime CreateTimeZoneLocalDateTime(JsTemporalPlainDateTime dateTime)
+    {
+        var localDateTime = new DateTime(
+            dateTime.Year,
+            dateTime.Month,
+            dateTime.Day,
+            dateTime.Hour,
+            dateTime.Minute,
+            dateTime.Second,
+            dateTime.Millisecond,
+            dateTime.Microsecond);
+        return DateTime.SpecifyKind(localDateTime, DateTimeKind.Unspecified);
+    }
+
+    private static BigInteger ToEpochNanoseconds(
+        int year,
+        int month,
+        int day,
+        int hour,
+        int minute,
+        int second,
+        int millisecond,
+        int microsecond,
+        int nanosecond)
+    {
+        var dayNumber = IsoToDayNumber(year, month, day);
+        var timeNanoseconds =
+            (long)hour * NanosecondsPerHour +
+            (long)minute * NanosecondsPerMinute +
+            (long)second * NanosecondsPerSecond +
+            (long)millisecond * NanosecondsPerMillisecond +
+            (long)microsecond * NanosecondsPerMicrosecond +
+            nanosecond;
+        return (BigInteger)dayNumber * NanosecondsPerDay + timeNanoseconds;
+    }
+
+    private static JsTemporalPlainDateTime FromEpochNanoseconds(BigInteger epochNanoseconds)
+    {
+        var dayNumber = DivRemFloor(epochNanoseconds, new BigInteger(NanosecondsPerDay), out var remainder);
+        var (year, month, day) = DayNumberToIsoDate((long)dayNumber);
+        var time = CreatePlainTimeFromNanoseconds((long)remainder);
+        return new JsTemporalPlainDateTime(
+            year, month, day,
+            time.Hour, time.Minute, time.Second,
+            time.Millisecond, time.Microsecond, time.Nanosecond);
+    }
+
+    private static long IsoToDayNumber(int year, int month, int day)
+    {
+        long y = year;
+        long m = month;
+        long d = day;
+
+        y -= m <= 2 ? 1 : 0;
+        var era = (y >= 0 ? y : y - 399) / 400;
+        var yoe = y - era * 400;
+        var mp = m + (m > 2 ? -3 : 9);
+        var doy = (153 * mp + 2) / 5 + d - 1;
+        var doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+        return era * 146097 + doe - 719468;
+    }
+
+    private static (int Year, int Month, int Day) DayNumberToIsoDate(long dayNumber)
+    {
+        var z = dayNumber + 719468;
+        var era = (z >= 0 ? z : z - 146096) / 146097;
+        var doe = z - era * 146097;
+        var yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+        var y = yoe + era * 400;
+        var doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+        var mp = (5 * doy + 2) / 153;
+        var d = doy - (153 * mp + 2) / 5 + 1;
+        var m = mp + (mp < 10 ? 3 : -9);
+        y += m <= 2 ? 1 : 0;
+        return ((int)y, (int)m, (int)d);
+    }
+
+    private static JsTemporalPlainTime CreatePlainTimeFromNanoseconds(long totalNanoseconds)
+    {
+        var remaining = totalNanoseconds;
+        var hour = (int)(remaining / NanosecondsPerHour);
+        remaining %= NanosecondsPerHour;
+        var minute = (int)(remaining / NanosecondsPerMinute);
+        remaining %= NanosecondsPerMinute;
+        var second = (int)(remaining / NanosecondsPerSecond);
+        remaining %= NanosecondsPerSecond;
+        var millisecond = (int)(remaining / NanosecondsPerMillisecond);
+        remaining %= NanosecondsPerMillisecond;
+        var microsecond = (int)(remaining / NanosecondsPerMicrosecond);
+        var nanosecond = (int)(remaining % NanosecondsPerMicrosecond);
+        return new JsTemporalPlainTime(hour, minute, second, millisecond, microsecond, nanosecond);
+    }
+
+    private static BigInteger DivRemFloor(BigInteger value, BigInteger divisor, out BigInteger remainder)
+    {
+        var quotient = BigInteger.DivRem(value, divisor, out remainder);
+        if (remainder.Sign < 0)
+        {
+            remainder += divisor;
+            quotient -= 1;
+        }
+
+        return quotient;
+    }
+
+    private static BigInteger PositiveMod(BigInteger value, long modulus)
+    {
+        var mod = value % modulus;
+        if (mod.Sign < 0)
+        {
+            mod += modulus;
+        }
+
+        return mod;
     }
 
     #endregion

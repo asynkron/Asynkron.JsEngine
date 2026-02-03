@@ -177,15 +177,15 @@ public sealed partial class ObjectPrototype
             return new JsValue(false);
         }
 
-        if (!TryGetObject(thisValue, Realm, out var obj))
-        {
-            throw ThrowTypeError("Object.prototype.hasOwnProperty called on null or undefined", realm: Realm);
-        }
-
         var propertyName = JsOps.ToPropertyName(args[0]);
         if (propertyName is null)
         {
             return new JsValue(false);
+        }
+
+        if (!TryGetObject(thisValue, Realm, out var obj))
+        {
+            throw ThrowTypeError("Object.prototype.hasOwnProperty called on null or undefined", realm: Realm);
         }
 
         var result = false;
@@ -355,6 +355,16 @@ public sealed partial class ObjectPrototype
     [JsHostMethod("isPrototypeOf", Length = 1d)]
     private JsValue IsPrototypeOf(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
+        if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
+        {
+            return JsValue.False;
+        }
+
+        if (!args[0].TryGetObject<IJsObjectLike>(out var objectLike))
+        {
+            return JsValue.False;
+        }
+
         if (thisValue.IsNull || thisValue.IsUndefined)
         {
             object error;
@@ -368,16 +378,6 @@ public sealed partial class ObjectPrototype
             }
 
             throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
-        }
-
-        if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
-        {
-            return JsValue.False;
-        }
-
-        if (!args[0].TryGetObject<IJsObjectLike>(out var objectLike))
-        {
-            return JsValue.False;
         }
 
         object? cursor = objectLike;
@@ -399,6 +399,17 @@ public sealed partial class ObjectPrototype
 
             switch (candidate)
             {
+                case JsProxy proxy:
+                    {
+                        var proxyProto = proxy.GetPrototypeWithTrap();
+                        if (proxyProto is null)
+                        {
+                            return false;
+                        }
+
+                        prototype = proxyProto as IJsObjectLike;
+                        return prototype is not null;
+                    }
                 case IJsObjectLike { Prototype: { } protoObj }:
                     prototype = protoObj;
                     return true;
@@ -494,25 +505,57 @@ public sealed partial class ObjectPrototype
             protoToSet = protoAccessor;
         }
 
-        if (!IsTargetExtensible(obj))
-        {
-            return JsValue.Undefined;
-        }
-
         // ES spec §B.2.2.1.2 (set Object.prototype.__proto__):
         // 4. Let status be ? O.[[SetPrototypeOf]](proto).
         // 5. If status is false, throw a TypeError exception.
         try
         {
+            if (WouldCreatePrototypeCycle(obj, protoToSet))
+            {
+                throw ThrowTypeError("Cyclic __proto__ value", realm: Realm);
+            }
+
             obj.SetPrototype(protoToSet);
         }
-        catch (ThrowSignal)
+        catch (ThrowSignal ex)
         {
             // [[SetPrototypeOf]] returned false (e.g., for immutable prototype exotic objects)
             // Per spec step 5, throw TypeError
-            throw ThrowTypeError("Cannot set prototype of immutable prototype object", realm: Realm);
+            if (ex.ThrownValue.IsUndefined)
+            {
+                throw ThrowTypeError("Cannot set prototype of object", realm: Realm);
+            }
+
+            throw;
         }
 
         return JsValue.Undefined;
+    }
+
+    private static bool WouldCreatePrototypeCycle(IJsObjectLike target, IJsPropertyAccessor? protoAccessor)
+    {
+        if (protoAccessor is null)
+        {
+            return false;
+        }
+
+        IJsPropertyAccessor? current = protoAccessor;
+        for (var depth = 0; current is not null && depth < JsEngineConstants.MaxPrototypeChainDepth; depth++)
+        {
+            if (ReferenceEquals(current, target))
+            {
+                return true;
+            }
+
+            current = current switch
+            {
+                JsProxy proxy => proxy.GetPrototypeWithTrap(),
+                JsObject jsObject => jsObject.Prototype,
+                IPrototypeAccessorProvider provider => provider.PrototypeAccessor,
+                _ => null
+            };
+        }
+
+        return false;
     }
 }

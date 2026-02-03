@@ -14,14 +14,7 @@ public sealed partial class WeakSetPrototype
     {
         var set = RequireInstance(thisValue);
         var value = args.GetArgument(0);
-        try
-        {
-            return (JsValue)set.Add(value);
-        }
-        catch (Exception ex)
-        {
-            throw new Exception(ex.Message);
-        }
+        return (JsValue)set.Add(value);
     }
 
     [JsHostMethod("has", Length = 1d)]

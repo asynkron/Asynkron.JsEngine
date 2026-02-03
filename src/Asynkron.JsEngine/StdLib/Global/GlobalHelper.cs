@@ -2,6 +2,7 @@
 
 using System.Globalization;
 using System.Text;
+using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
@@ -44,7 +45,7 @@ public static partial class GlobalHelper
         if (args.Count > 1 && !args[1].IsUndefined)
         {
             var radixNum = JsOps.ToNumber(args[1]);
-            radix = double.IsNaN(radixNum) ? 0 : (int)radixNum;
+            radix = double.IsNaN(radixNum) ? 0 : JsNumericConversions.ToInt32(radixNum);
         }
         else
         {
@@ -97,14 +98,17 @@ public static partial class GlobalHelper
         foreach (var c in str)
         {
             int digit;
-            if (char.IsDigit(c))
+            if (c is >= '0' and <= '9')
             {
                 digit = c - '0';
             }
-            else if (char.IsLetter(c))
+            else if (c is >= 'A' and <= 'Z')
             {
-                var upper = char.ToUpperInvariant(c);
-                digit = upper - 'A' + 10;
+                digit = c - 'A' + 10;
+            }
+            else if (c is >= 'a' and <= 'z')
+            {
+                digit = c - 'a' + 10;
             }
             else
             {
@@ -135,31 +139,29 @@ public static partial class GlobalHelper
         }
 
         var str = JsOps.ToJsString(args[0]) ?? "";
-        str = str.Trim();
+        str = str.TrimStart();
         if (str.Length == 0)
         {
             return JsValue.NaN;
         }
 
-        // Try parsing the string as a double
-        if (double.TryParse(str, NumberStyles.Float,
-                CultureInfo.InvariantCulture, out var result))
+        var index = 0;
+        if (str[index] == '+' || str[index] == '-')
         {
-            return new JsValue(result);
+            index++;
         }
 
-        // JavaScript parseFloat allows partial parsing - parse as much as possible
-        var i = 0;
+        if (index < str.Length && str.AsSpan(index).StartsWith("Infinity", StringComparison.Ordinal))
+        {
+            return new JsValue(str[0] == '-' ? double.NegativeInfinity : double.PositiveInfinity);
+        }
+
+        // JavaScript parseFloat allows partial parsing - parse the longest StrDecimalLiteral prefix
+        var i = index;
         var hasDigits = false;
 
-        // Handle sign
-        if (i < str.Length && (str[i] == '+' || str[i] == '-'))
-        {
-            i++;
-        }
-
         // Parse digits before decimal point
-        while (i < str.Length && char.IsDigit(str[i]))
+        while (i < str.Length && str[i] is >= '0' and <= '9')
         {
             hasDigits = true;
             i++;
@@ -169,7 +171,7 @@ public static partial class GlobalHelper
         if (i < str.Length && str[i] == '.')
         {
             i++;
-            while (i < str.Length && char.IsDigit(str[i]))
+            while (i < str.Length && str[i] is >= '0' and <= '9')
             {
                 hasDigits = true;
                 i++;
@@ -186,7 +188,7 @@ public static partial class GlobalHelper
             }
 
             var hasExpDigits = false;
-            while (j < str.Length && char.IsDigit(str[j]))
+            while (j < str.Length && str[j] is >= '0' and <= '9')
             {
                 hasExpDigits = true;
                 j++;
@@ -205,7 +207,7 @@ public static partial class GlobalHelper
 
         var parsed = str[..i];
         if (double.TryParse(parsed, NumberStyles.Float,
-                CultureInfo.InvariantCulture, out result))
+                CultureInfo.InvariantCulture, out var result))
         {
             return new JsValue(result);
         }
@@ -240,24 +242,6 @@ public static partial class GlobalHelper
         }
 
         var value = args[0];
-
-        // Convert to number first (this is what JavaScript does)
-        if (value.TryGetDouble(out var d))
-        {
-            return new JsValue(!double.IsNaN(d) && !double.IsInfinity(d));
-        }
-
-        if (value.TryGetString(out var s))
-        {
-            if (double.TryParse(s, CultureInfo.InvariantCulture, out var parsed))
-            {
-                return new JsValue(!double.IsNaN(parsed) && !double.IsInfinity(parsed));
-            }
-
-            return JsValue.False; // Can't parse, so NaN, so not finite
-        }
-
-        // For other types, convert to number using ToNumber
         var numericValue = JsOps.ToNumber(value);
         return new JsValue(!double.IsNaN(numericValue) && !double.IsInfinity(numericValue));
     }
@@ -274,6 +258,14 @@ public static partial class GlobalHelper
         'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
         '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
         '-', '_', '.', '!', '~', '*', '\'', '(', ')',
+        ';', '/', '?', ':', '@', '&', '=', '+', '$', ',', '#'
+    ];
+
+    // Characters that are NOT decoded by decodeURI (uriReserved + '#')
+    // uriReserved: ; / ? : @ & = + $ ,
+    // Plus: #
+    private static readonly HashSet<char> DecodeUriReserved =
+    [
         ';', '/', '?', ':', '@', '&', '=', '+', '$', ',', '#'
     ];
 
@@ -307,14 +299,14 @@ public static partial class GlobalHelper
     private static JsValue DecodeURI(IReadOnlyList<JsValue> args, RealmState realm)
     {
         var str = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? "" : "undefined";
-        return DecodeUri(str, EncodeUriUnescaped, realm);
+        return DecodeUri(str, DecodeUriReserved, realm);
     }
 
     [JsHostFunction("decodeURIComponent", Length = 1d, DeletePrototype = true)]
     private static JsValue DecodeURIComponent(IReadOnlyList<JsValue> args, RealmState realm)
     {
         var str = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? "" : "undefined";
-        return DecodeUri(str, EncodeUriComponentUnescaped, realm);
+        return DecodeUri(str, null, realm);
     }
 
     private static JsValue EncodeUri(string str, HashSet<char> unescapedSet, RealmState realm)
@@ -368,119 +360,56 @@ public static partial class GlobalHelper
         return sb.ToString();
     }
 
-    private static JsValue DecodeUri(string str, HashSet<char> reservedSet, RealmState realm)
+    private static JsValue DecodeUri(string str, HashSet<char>? reservedSet, RealmState realm)
     {
         var sb = new StringBuilder();
-        var bytes = new List<byte>();
-
         for (var i = 0; i < str.Length; i++)
         {
             var c = str[i];
-
             if (c != '%')
             {
                 sb.Append(c);
                 continue;
             }
 
-            // Parse percent-encoded sequence
-            bytes.Clear();
-            while (i < str.Length && str[i] == '%')
-            {
-                if (i + 2 >= str.Length)
-                {
-                    throw ThrowURIError("URI malformed", realm: realm);
-                }
-
-                var hex = str.Substring(i + 1, 2);
-                // Strict validation: both characters must be valid hex digits (no whitespace allowed)
-                if (!IsHexDigit(hex[0]) || !IsHexDigit(hex[1]) ||
-                    !byte.TryParse(hex, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out var b))
-                {
-                    throw ThrowURIError("URI malformed", realm: realm);
-                }
-
-                bytes.Add(b);
-                i += 3;
-
-                // Check if this is a multi-byte UTF-8 sequence
-                if (bytes.Count == 1)
-                {
-                    var firstByte = bytes[0];
-                    int expectedBytes;
-                    if ((firstByte & 0x80) == 0)
-                    {
-                        expectedBytes = 1;
-                    }
-                    else if ((firstByte & 0xE0) == 0xC0)
-                    {
-                        expectedBytes = 2;
-                    }
-                    else if ((firstByte & 0xF0) == 0xE0)
-                    {
-                        expectedBytes = 3;
-                    }
-                    else if ((firstByte & 0xF8) == 0xF0)
-                    {
-                        expectedBytes = 4;
-                    }
-                    else
-                    {
-                        throw ThrowURIError("URI malformed", realm: realm);
-                    }
-
-                    // Read remaining bytes
-                    while (bytes.Count < expectedBytes && i < str.Length && str[i] == '%')
-                    {
-                        if (i + 2 >= str.Length)
-                        {
-                            throw ThrowURIError("URI malformed", realm: realm);
-                        }
-
-                        hex = str.Substring(i + 1, 2);
-                        // Strict validation: both characters must be valid hex digits
-                        if (!IsHexDigit(hex[0]) || !IsHexDigit(hex[1]) ||
-                            !byte.TryParse(hex, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out b))
-                        {
-                            throw ThrowURIError("URI malformed", realm: realm);
-                        }
-
-                        // Validate continuation byte
-                        if ((b & 0xC0) != 0x80)
-                        {
-                            throw ThrowURIError("URI malformed", realm: realm);
-                        }
-
-                        bytes.Add(b);
-                        i += 3;
-                    }
-
-                    if (bytes.Count != expectedBytes)
-                    {
-                        throw ThrowURIError("URI malformed", realm: realm);
-                    }
-                }
-            }
-
-            i--; // Back up since the outer loop will increment
-
-            // Decode the UTF-8 bytes
-            string decoded;
-            try
-            {
-                decoded = Encoding.UTF8.GetString(bytes.ToArray());
-            }
-            catch
+            var start = i;
+            if (i + 2 >= str.Length)
             {
                 throw ThrowURIError("URI malformed", realm: realm);
             }
 
-            // For decodeURI, don't decode reserved characters
-            if (decoded.Length == 1 && reservedSet.Contains(decoded[0]) && bytes.Count == 1)
+            var firstByte = ParsePercentEncodedByte(str, i, realm);
+            var expectedBytes = GetUtf8SequenceLength(firstByte, realm);
+            var bytes = new byte[expectedBytes];
+            bytes[0] = firstByte;
+
+            var nextIndex = i + 3;
+            for (var byteIndex = 1; byteIndex < expectedBytes; byteIndex++)
             {
-                // Keep the percent-encoded form for reserved characters
-                sb.Append('%');
-                sb.Append(bytes[0].ToString("X2", CultureInfo.InvariantCulture));
+                if (nextIndex + 2 >= str.Length || str[nextIndex] != '%')
+                {
+                    throw ThrowURIError("URI malformed", realm: realm);
+                }
+
+                var continuationByte = ParsePercentEncodedByte(str, nextIndex, realm);
+                if ((continuationByte & 0xC0) != 0x80)
+                {
+                    throw ThrowURIError("URI malformed", realm: realm);
+                }
+
+                bytes[byteIndex] = continuationByte;
+                nextIndex += 3;
+            }
+
+            var raw = str.Substring(start, nextIndex - start);
+            i = nextIndex - 1;
+
+            var decoded = DecodeUtf8Sequence(bytes, realm);
+
+            if (expectedBytes == 1 && reservedSet is not null && decoded.Length == 1 &&
+                reservedSet.Contains(decoded[0]))
+            {
+                sb.Append(raw);
             }
             else
             {
@@ -489,6 +418,132 @@ public static partial class GlobalHelper
         }
 
         return sb.ToString();
+    }
+
+    private static byte ParsePercentEncodedByte(string str, int index, RealmState realm)
+    {
+        if (str[index] != '%' || index + 2 >= str.Length)
+        {
+            throw ThrowURIError("URI malformed", realm: realm);
+        }
+
+        var high = str[index + 1];
+        var low = str[index + 2];
+        if (!IsHexDigit(high) || !IsHexDigit(low) ||
+            !byte.TryParse(str.Substring(index + 1, 2), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture,
+                out var value))
+        {
+            throw ThrowURIError("URI malformed", realm: realm);
+        }
+
+        return value;
+    }
+
+    private static int GetUtf8SequenceLength(byte firstByte, RealmState realm)
+    {
+        if ((firstByte & 0x80) == 0)
+        {
+            return 1;
+        }
+
+        if ((firstByte & 0xE0) == 0xC0)
+        {
+            return 2;
+        }
+
+        if ((firstByte & 0xF0) == 0xE0)
+        {
+            return 3;
+        }
+
+        if ((firstByte & 0xF8) == 0xF0)
+        {
+            if (firstByte > 0xF4)
+            {
+                throw ThrowURIError("URI malformed", realm: realm);
+            }
+            return 4;
+        }
+
+        throw ThrowURIError("URI malformed", realm: realm);
+    }
+
+    private static string DecodeUtf8Sequence(byte[] bytes, RealmState realm)
+    {
+        uint codePoint;
+        switch (bytes.Length)
+        {
+            case 1:
+                if (bytes[0] > 0x7F)
+                {
+                    throw ThrowURIError("URI malformed", realm: realm);
+                }
+
+                codePoint = bytes[0];
+                break;
+            case 2:
+            {
+                var first = bytes[0];
+                if (first < 0xC2)
+                {
+                    throw ThrowURIError("URI malformed", realm: realm);
+                }
+
+                codePoint = (uint)(((first & 0x1F) << 6) | (bytes[1] & 0x3F));
+                break;
+            }
+            case 3:
+            {
+                var first = bytes[0];
+                var second = bytes[1];
+                if (first == 0xE0 && second < 0xA0)
+                {
+                    throw ThrowURIError("URI malformed", realm: realm);
+                }
+
+                if (first == 0xED && second >= 0xA0)
+                {
+                    throw ThrowURIError("URI malformed", realm: realm);
+                }
+
+                codePoint = (uint)(((first & 0x0F) << 12) | ((second & 0x3F) << 6) | (bytes[2] & 0x3F));
+                break;
+            }
+            case 4:
+            {
+                var first = bytes[0];
+                var second = bytes[1];
+                if (first == 0xF0 && second < 0x90)
+                {
+                    throw ThrowURIError("URI malformed", realm: realm);
+                }
+
+                if (first == 0xF4 && second > 0x8F)
+                {
+                    throw ThrowURIError("URI malformed", realm: realm);
+                }
+
+                codePoint = (uint)(((first & 0x07) << 18) | ((second & 0x3F) << 12) |
+                                   ((bytes[2] & 0x3F) << 6) | (bytes[3] & 0x3F));
+                break;
+            }
+            default:
+                throw ThrowURIError("URI malformed", realm: realm);
+        }
+
+        if (codePoint is >= 0xD800 and <= 0xDFFF)
+        {
+            throw ThrowURIError("URI malformed", realm: realm);
+        }
+
+        if (codePoint > 0x10FFFF)
+        {
+            throw ThrowURIError("URI malformed", realm: realm);
+        }
+
+        return codePoint <= 0xFFFF
+            ? ((char)codePoint).ToString()
+            : char.ConvertFromUtf32((int)codePoint);
     }
 
     // Characters that are NOT escaped by the legacy escape() function

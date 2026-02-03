@@ -16,7 +16,8 @@ public static partial class TypedAstEvaluator
         //   Per Annex B.3.3.3, we need to create the function and assign it to both the block-scoped
         //   lexical binding and the outer function-scoped var binding.
         var functionScope = environment.GetFunctionScope();
-        var isAtFunctionScope = ReferenceEquals(functionScope, environment);
+        var isAtFunctionScope = ReferenceEquals(functionScope, environment) ||
+                                environment.IsEvalDeclarationEnvironment;
 
         // Special case: AnnexB function declarations in if/else branches in sloppy mode.
         // In AST evaluation mode, we don't create a block environment for if/else branches,

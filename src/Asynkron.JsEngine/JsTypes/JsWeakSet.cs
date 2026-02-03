@@ -1,6 +1,7 @@
 #region
 
 using System.Runtime.CompilerServices;
+using Asynkron.JsEngine.StdLib;
 
 #endregion
 
@@ -100,7 +101,7 @@ public sealed class JsWeakSet : IJsObjectLike, IPropertyDefinitionHost, IExtensi
         // WeakSet only accepts objects as values
         if (obj == null)
         {
-            throw new Exception("Invalid value used in weak set");
+            throw StandardLibrary.ThrowTypeError("Invalid value used in weak set");
         }
 
         // If already present, do nothing; otherwise add it

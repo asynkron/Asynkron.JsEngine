@@ -277,10 +277,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             program.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy,
             cancellationToken,
             executionKind);
-        // For eval, always disable identifier caching because eval runs in the caller's
-        // lexical environment which may contain 'with' statements. The static analysis
-        // of the eval code alone doesn't tell us about the outer context.
-        var allowScriptSlotAnalysis = context.RealmState.Options.AllowScriptSlotAnalysis;
+        // For eval, always disable identifier caching/slot analysis because eval runs in the caller's
+        // lexical environment which may contain 'with' statements or allow deletable bindings.
+        // The static analysis of the eval code alone doesn't tell us about the outer context.
+        var allowScriptSlotAnalysis = context.RealmState.Options.AllowScriptSlotAnalysis &&
+                                      executionKind != ExecutionKind.Eval;
         context.AllowIdentifierCache = allowScriptSlotAnalysis &&
                                        executionKind != ExecutionKind.Eval &&
                                        AllowsIdentifierCaching(program);

@@ -61,3 +61,17 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_prototype_round("built-ins/Temporal/Instant/prototype/round/throws-on-increments-that-do-not-divide-evenly.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_prototype_round("built-ins/Temporal/Instant/prototype/round/throws-without-smallest-unit.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_prototype_round("built-ins/Temporal/Instant/prototype/round/throws-without-smallest-unit.js",True)
+
+---
+## Diagnosis (2026-02-03)
+
+**Summary:** Implemented spec-aligned rounding for Temporal.Instant with proper options parsing, increment divisibility against solar days, and negative-epoch rounding direction; all Instant round tests pass.
+
+**Analysis:**
+- The previous implementation ignored rounding options and truncated by unit only.
+- Added options parsing order, rounding increment validation (units-per-day divisibility), and correct rounding modes for negative epoch values.
+
+**Tests:**
+`dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --settings tests/Asynkron.JsEngine.Tests.Test262/BuiltInsTests.runsettings --filter "Name=Temporal_Instant_prototype_round"`
+
+** DONE **

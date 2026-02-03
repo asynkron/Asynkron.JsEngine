@@ -1,6 +1,7 @@
 #region
 
 using System.Globalization;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using Asynkron.JsEngine.StdLib.Temporal;
@@ -223,6 +224,11 @@ public sealed partial class DatePrototype
             throw new ThrowSignal(evalContext.FlowValue);
         }
 
+        if (double.IsNaN(timeValue))
+        {
+            return JsValue.NaN;
+        }
+
         var clipped = SetTimeComponents(time, Realm!, millisecond: ms);
         StoreInternalDateValue(obj, clipped);
         return clipped;
@@ -237,6 +243,11 @@ public sealed partial class DatePrototype
         if (evalContext?.IsThrow == true)
         {
             throw new ThrowSignal(evalContext.FlowValue);
+        }
+
+        if (double.IsNaN(timeValue))
+        {
+            return JsValue.NaN;
         }
 
         var clipped = SetTimeComponents(timeValue, Realm!, millisecond: ms, inputIsUtc: true);
@@ -262,6 +273,11 @@ public sealed partial class DatePrototype
             throw new ThrowSignal(evalContext.FlowValue);
         }
 
+        if (double.IsNaN(timeValue))
+        {
+            return JsValue.NaN;
+        }
+
         var clipped = SetTimeComponents(time, Realm!, second: sec, millisecond: ms);
         StoreInternalDateValue(obj, clipped);
         return clipped;
@@ -282,6 +298,11 @@ public sealed partial class DatePrototype
         if (evalContext?.IsThrow == true)
         {
             throw new ThrowSignal(evalContext.FlowValue);
+        }
+
+        if (double.IsNaN(timeValue))
+        {
+            return JsValue.NaN;
         }
 
         var clipped = SetTimeComponents(timeValue, Realm!, second: sec, millisecond: ms, inputIsUtc: true);
@@ -313,6 +334,11 @@ public sealed partial class DatePrototype
             throw new ThrowSignal(evalContext.FlowValue);
         }
 
+        if (double.IsNaN(timeValue))
+        {
+            return JsValue.NaN;
+        }
+
         var clipped = SetTimeComponents(time, Realm!, minute: minute, second: sec, millisecond: ms);
         StoreInternalDateValue(obj, clipped);
         return clipped;
@@ -339,6 +365,11 @@ public sealed partial class DatePrototype
         if (evalContext?.IsThrow == true)
         {
             throw new ThrowSignal(evalContext.FlowValue);
+        }
+
+        if (double.IsNaN(timeValue))
+        {
+            return JsValue.NaN;
         }
 
         var clipped = SetTimeComponents(timeValue, Realm!, minute: minute, second: sec, millisecond: ms,
@@ -377,6 +408,11 @@ public sealed partial class DatePrototype
             throw new ThrowSignal(evalContext.FlowValue);
         }
 
+        if (double.IsNaN(timeValue))
+        {
+            return JsValue.NaN;
+        }
+
         var clipped = SetTimeComponents(time, Realm!, hour, minute, sec, ms);
         StoreInternalDateValue(obj, clipped);
         return clipped;
@@ -409,6 +445,11 @@ public sealed partial class DatePrototype
         if (evalContext?.IsThrow == true)
         {
             throw new ThrowSignal(evalContext.FlowValue);
+        }
+
+        if (double.IsNaN(timeValue))
+        {
+            return JsValue.NaN;
         }
 
         var clipped = SetTimeComponents(timeValue, Realm!, hour, minute, sec,
@@ -451,6 +492,11 @@ public sealed partial class DatePrototype
             throw new ThrowSignal(evalContext.FlowValue);
         }
 
+        if (double.IsNaN(timeValue))
+        {
+            return JsValue.NaN;
+        }
+
         var day = MakeDay(YearFromTime(timeValue), MonthFromTime(timeValue), newDt);
         var clipped = ApplyTimeClip(day, timeValue, Realm!, true);
         StoreInternalDateValue(obj, clipped);
@@ -475,6 +521,11 @@ public sealed partial class DatePrototype
             throw new ThrowSignal(evalContext.FlowValue);
         }
 
+        if (double.IsNaN(timeValue))
+        {
+            return JsValue.NaN;
+        }
+
         var day = MakeDay(YearFromTime(time), month, dt);
         var clipped = ApplyTimeClip(day, time, Realm!, false);
         StoreInternalDateValue(obj, clipped);
@@ -496,6 +547,11 @@ public sealed partial class DatePrototype
         if (evalContext?.IsThrow == true)
         {
             throw new ThrowSignal(evalContext.FlowValue);
+        }
+
+        if (double.IsNaN(timeValue))
+        {
+            return JsValue.NaN;
         }
 
         var day = MakeDay(YearFromTime(timeValue), month, dt);
@@ -576,24 +632,41 @@ public sealed partial class DatePrototype
     [JsHostMethod("toJSON", Length = 1d)]
     public JsValue ToJson(JsValue thisValue)
     {
-        var timeValue = RequireDateValue(thisValue, Realm, out var obj);
-        if (double.IsNaN(timeValue) || double.IsInfinity(timeValue))
+        if (!TryGetObject(thisValue, Realm, out var obj))
+        {
+            throw ThrowTypeError("Date.prototype.toJSON called on null or undefined", realm: Realm);
+        }
+
+        var objValue = JsValue.FromObjectUnsafe(obj);
+        var evalContext = Realm?.CreateContext();
+        var primitive = JsOps.ToPrimitive(objValue, ToPrimitiveHint.Number, evalContext);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
+        if (primitive.IsNumber &&
+            (double.IsNaN(primitive.NumberValue) || double.IsInfinity(primitive.NumberValue)))
         {
             return JsValue.Null;
         }
 
-        if (!obj.TryGetProperty("toISOString", out var method))
+        if (!JsOps.TryGetPropertyValue(objValue, "toISOString", out var method, evalContext))
         {
-            throw ThrowTypeError("toISOString is not callable", realm: Realm);
+            method = JsValue.Undefined;
         }
 
-        // method is already a JsValue from TryGetProperty
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         if (!method.TryGetObject<IJsCallable>(out var fn))
         {
             throw ThrowTypeError("toISOString is not callable", realm: Realm);
         }
 
-        return fn.Invoke([], new JsValue(obj));
+        return fn.Invoke([], objValue);
     }
 
     [JsHostMethod("toString", Length = 0d)]
@@ -603,6 +676,13 @@ public sealed partial class DatePrototype
         if (double.IsNaN(timeValue))
         {
             return "Invalid Date";
+        }
+
+        var localTimeValue = LocalTimeMs(timeValue, Realm);
+        var year = YearFromTime(localTimeValue);
+        if (year < 0 || year > 9999)
+        {
+            return FormatDateToJsStringFromTime(timeValue, Realm);
         }
 
         var local = ConvertMillisecondsToLocal(timeValue, Realm);
@@ -616,6 +696,13 @@ public sealed partial class DatePrototype
         if (double.IsNaN(timeValue))
         {
             return "Invalid Date";
+        }
+
+        var localTimeValue = LocalTimeMs(timeValue, Realm);
+        var year = YearFromTime(localTimeValue);
+        if (year < 0 || year > 9999)
+        {
+            return FormatDateToJsDateStringFromTime(timeValue, Realm);
         }
 
         var local = ConvertMillisecondsToLocal(timeValue, Realm);
@@ -632,7 +719,14 @@ public sealed partial class DatePrototype
         }
 
         var local = ConvertMillisecondsToLocal(timeValue, Realm);
-        return local.ToString("HH:mm:ss 'GMT'zzz", CultureInfo.InvariantCulture);
+        var culture = CultureInfo.InvariantCulture;
+        var time = local.ToString("HH:mm:ss", culture);
+        var offset = local.ToString("zzz", culture).Replace(":", string.Empty, StringComparison.Ordinal);
+        var timeZone = Realm?.Options.TimeZone ?? TimeZoneInfo.Utc;
+        var timeZoneName = timeZone.IsDaylightSavingTime(local.DateTime)
+            ? timeZone.DaylightName
+            : timeZone.StandardName;
+        return $"{time} GMT{offset} ({timeZoneName})";
     }
 
     [JsHostMethod("valueOf", Length = 0d)]
@@ -693,6 +787,12 @@ public sealed partial class DatePrototype
             return "Invalid Date";
         }
 
+        var year = YearFromTime(timeValue);
+        if (year < 0 || year > 9999)
+        {
+            return FormatUtcToJsUtcStringFromTime(timeValue);
+        }
+
         var utc = ConvertMillisecondsToUtc(timeValue);
         return FormatUtcToJsUtcString(utc);
     }
@@ -750,10 +850,13 @@ public sealed partial class DatePrototype
         return TemporalHelper.CreateInstantFromEpochMilliseconds(Realm, timeValue);
     }
 
-    [JsSymbolMethod("toPrimitive", Length = 1d)]
+    [JsSymbolMethod("toPrimitive", Length = 1d, Writable = false)]
     public JsValue ToPrimitive(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        RequireDateValue(thisValue, Realm, out var obj);
+        if (!thisValue.IsObject)
+        {
+            throw ThrowTypeError("Cannot convert object to primitive value", realm: Realm);
+        }
 
         if (!args.GetArgument(0).TryGetString(out var hint))
         {
@@ -769,16 +872,16 @@ public sealed partial class DatePrototype
 
         if (preferString)
         {
-            if (TryInvokeAndReturnPrimitive(obj, "toString", out var result) ||
-                TryInvokeAndReturnPrimitive(obj, "valueOf", out result))
+            if (TryInvokeAndReturnPrimitive(thisValue, "toString", out var result) ||
+                TryInvokeAndReturnPrimitive(thisValue, "valueOf", out result))
             {
                 return result;
             }
         }
         else
         {
-            if (TryInvokeAndReturnPrimitive(obj, "valueOf", out var result) ||
-                TryInvokeAndReturnPrimitive(obj, "toString", out result))
+            if (TryInvokeAndReturnPrimitive(thisValue, "valueOf", out var result) ||
+                TryInvokeAndReturnPrimitive(thisValue, "toString", out result))
             {
                 return result;
             }
@@ -787,17 +890,18 @@ public sealed partial class DatePrototype
         throw ThrowTypeError("Cannot convert object to primitive value", realm: Realm);
     }
 
-    private static bool TryInvokeAndReturnPrimitive(JsObject obj, string methodName, out JsValue result)
+    private static bool TryInvokeAndReturnPrimitive(JsValue receiver, string methodName, out JsValue result)
     {
         result = JsValue.Undefined;
-        if (!obj.TryGetProperty(methodName, out var method) ||
+        if (!receiver.TryGetObject<IJsPropertyAccessor>(out var accessor) ||
+            !accessor.TryGetProperty(methodName, out var method) ||
             !method.TryGetObject<IJsCallable>(out var callable))
         {
             return false;
         }
 
         // Follow OrdinaryToPrimitive: only return if the result is not an object.
-        var value = callable.Invoke([], new JsValue(obj));
+        var value = callable.Invoke([], receiver);
         if (value.IsObject)
         {
             return false;

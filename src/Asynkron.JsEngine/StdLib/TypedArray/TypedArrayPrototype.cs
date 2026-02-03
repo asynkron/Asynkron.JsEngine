@@ -235,7 +235,7 @@ public sealed partial class TypedArrayPrototype
     [JsHostMethod("some", Length = 1d)]
     private JsValue Some(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(SomeLike(thisValue, args.ToList(), Realm, "%TypedArray%.prototype.some"));
+        return SomeImpl(thisValue, args);
     }
 
     [JsHostMethod("values", Length = 0d)]
@@ -501,6 +501,35 @@ public sealed partial class TypedArrayPrototype
         return JsValue.True;
     }
 
+    private JsValue SomeImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.some");
+
+        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
+        {
+            throw ThrowTypeError("TypedArray.prototype.some expects a callable callback", realm: Realm);
+        }
+
+        var thisArg = args.GetArgument(1);
+        if (callback is IJsEnvironmentAwareCallable envAware && Realm.Engine?.GlobalEnvironment is { } globalEnv)
+        {
+            envAware.CallingJsEnvironment = globalEnv;
+        }
+
+        var length = typedArray.Length;
+        for (var k = 0; k < length; k++)
+        {
+            var value = typedArray.GetValueForIndex(k);
+            var result = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
+            if (IsTruthy(result))
+            {
+                return JsValue.True;
+            }
+        }
+
+        return JsValue.False;
+    }
+
     private JsValue FindImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var result = FindCore(thisValue, args, "TypedArray.prototype.find", reverse: false);
@@ -616,6 +645,28 @@ public sealed partial class TypedArrayPrototype
 
         var start = ClampRelativeIndex(startIndex, length);
         var end = ClampRelativeIndex(endIndex, length);
+
+        // Per spec, coerce fill value once before writing.
+        var valueContext = Realm.CreateContext();
+        if (typedArray.IsBigIntArray)
+        {
+            value = new JsValue(ToBigInt(value, valueContext, Realm));
+        }
+        else
+        {
+            if (value.IsBigInt)
+            {
+                throw ThrowTypeError("Cannot convert a BigInt value to a number", valueContext, Realm);
+            }
+
+            var numeric = JsOps.ToNumber(value, valueContext);
+            if (valueContext.IsThrow == true)
+            {
+                throw new ThrowSignal(valueContext.FlowValue);
+            }
+
+            value = new JsValue(numeric);
+        }
 
         for (var k = start; k < end; k++)
         {
@@ -913,7 +964,29 @@ public sealed partial class TypedArrayPrototype
             actualIndex = truncated < 0 ? length + truncated : truncated;
         }
 
-        if (actualIndex < 0 || actualIndex >= length)
+        var value = args[1];
+        var valueContext = Realm.CreateContext();
+        if (typedArray.IsBigIntArray)
+        {
+            value = new JsValue(ToBigInt(value, valueContext, Realm));
+        }
+        else
+        {
+            if (value.IsBigInt)
+            {
+                throw ThrowTypeError("Cannot convert a BigInt value to a number", valueContext, Realm);
+            }
+
+            var numeric = JsOps.ToNumber(value, valueContext);
+            if (valueContext.IsThrow == true)
+            {
+                throw new ThrowSignal(valueContext.FlowValue);
+            }
+
+            value = new JsValue(numeric);
+        }
+
+        if (typedArray.IsDetachedOrOutOfBounds() || actualIndex < 0 || actualIndex >= typedArray.Length)
         {
             throw ThrowRangeError("Index out of range", realm: Realm);
         }
@@ -922,13 +995,8 @@ public sealed partial class TypedArrayPrototype
         var result = typedArray.CreateSpeciesDefault(length);
         for (var i = 0; i < length; i++)
         {
-            if (typedArray.IsDetachedOrOutOfBounds())
-            {
-                throw typedArray.CreateOutOfBoundsTypeError();
-            }
-
-            var value = i == actualIndex ? args[1] : typedArray.GetValueForIndex(i);
-            result.SetValue(i, value);
+            var element = i == actualIndex ? value : typedArray.GetValueForIndex(i);
+            result.SetValue(i, element);
         }
 
         return (JsValue)result;
@@ -944,15 +1012,29 @@ public sealed partial class TypedArrayPrototype
             constructorValue = ctorValue;
         }
 
-        if (constructorValue.TryGetObject<IJsPropertyAccessor>(out var ctorAccessor) &&
-            ctorAccessor.TryGetProperty(SymbolSpeciesKey, out var speciesValue))
-        {
-            constructorValue = speciesValue;
-        }
-
-        if (constructorValue.IsNullOrUndefined)
+        if (constructorValue.IsUndefined)
         {
             return CreateDefaultTypedArray(exemplar, length);
+        }
+
+        if (!constructorValue.IsObject)
+        {
+            throw ThrowTypeError("TypedArray species constructor must be a constructor", realm: Realm);
+        }
+
+        if (constructorValue.TryGetObject<IJsPropertyAccessor>(out var ctorAccessor))
+        {
+            if (!ctorAccessor.TryGetProperty(SymbolSpeciesKey, out var speciesValue))
+            {
+                speciesValue = JsValue.Undefined;
+            }
+
+            if (speciesValue.IsNullOrUndefined)
+            {
+                return CreateDefaultTypedArray(exemplar, length);
+            }
+
+            constructorValue = speciesValue;
         }
 
         if (!JsOps.IsConstructor(constructorValue) || !constructorValue.TryGetObject<IJsCallable>(out var callable))
@@ -960,7 +1042,12 @@ public sealed partial class TypedArrayPrototype
             throw ThrowTypeError("TypedArray species constructor must be a constructor", realm: Realm);
         }
 
-        var constructed = callable.Invoke(new SingleValueArgs(JsValue.FromNumber((double)length)), JsValue.Undefined);
+        if (Realm is null)
+        {
+            throw new InvalidOperationException("Realm is required for TypedArray species construction.");
+        }
+
+        var constructed = ReflectHelper.Construct(callable, [JsValue.FromNumber((double)length)], callable, Realm);
         if (!constructed.TryGetObject<TypedArrayBase>(out var typedResult))
         {
             throw ThrowTypeError("TypedArray species constructor did not return a TypedArray instance", realm: Realm);
@@ -1140,35 +1227,37 @@ public sealed partial class TypedArrayPrototype
             return (JsValue)typedArray;
         }
 
-        // Read all values into a list
-        var values = new List<JsValue>(length);
+        // Read all values into a list (use original indices for stable sort)
+        var values = new List<(JsValue Value, int Index)>(length);
         for (var i = 0; i < length; i++)
         {
-            if (typedArray.IsDetachedOrOutOfBounds())
-            {
-                throw typedArray.CreateOutOfBoundsTypeError();
-            }
-
-            values.Add(typedArray.GetValueForIndex(i));
+            values.Add((typedArray.GetValueForIndex(i), i));
         }
 
-        // Sort the values
-        values.Sort(Comparer);
+        // Sort the values (stable, and allow comparefn exceptions to propagate)
+        StableSort(values, Comparer);
 
-        // Write sorted values back
-        for (var i = 0; i < values.Count; i++)
+        var currentLength = typedArray.Length;
+        var writeLength = Math.Min(length, currentLength);
+        for (var i = 0; i < writeLength; i++)
         {
-            if (typedArray.IsDetachedOrOutOfBounds())
-            {
-                throw typedArray.CreateOutOfBoundsTypeError();
-            }
-
-            typedArray.SetValue(i, values[i]);
+            typedArray.SetValue(i, values[i].Value);
         }
 
         return (JsValue)typedArray;
 
-        int Comparer(JsValue left, JsValue right)
+        int Comparer((JsValue Value, int Index) left, (JsValue Value, int Index) right)
+        {
+            var result = CompareValues(left.Value, right.Value);
+            if (result != 0)
+            {
+                return result;
+            }
+
+            return left.Index.CompareTo(right.Index);
+        }
+
+        int CompareValues(JsValue left, JsValue right)
         {
             if (compareFn is not null)
             {
@@ -1184,8 +1273,11 @@ public sealed partial class TypedArrayPrototype
                 return leftBig.Value.CompareTo(rightBig.Value);
             }
 
-            var leftNum = JsOps.ToNumber(left);
-            var rightNum = JsOps.ToNumber(right);
+            return CompareNumbers(JsOps.ToNumber(left), JsOps.ToNumber(right));
+        }
+
+        static int CompareNumbers(double leftNum, double rightNum)
+        {
             if (double.IsNaN(leftNum))
             {
                 return double.IsNaN(rightNum) ? 0 : 1;
@@ -1196,7 +1288,87 @@ public sealed partial class TypedArrayPrototype
                 return -1;
             }
 
+            if (leftNum == 0 && rightNum == 0)
+            {
+                var leftNegZero = IsNegativeZero(leftNum);
+                var rightNegZero = IsNegativeZero(rightNum);
+                if (leftNegZero == rightNegZero)
+                {
+                    return 0;
+                }
+
+                return leftNegZero ? -1 : 1;
+            }
+
             return leftNum.CompareTo(rightNum);
+        }
+
+        static bool IsNegativeZero(double value)
+        {
+            return value == 0 && BitConverter.DoubleToInt64Bits(value) == BitConverter.DoubleToInt64Bits(-0d);
+        }
+
+        static void StableSort(List<(JsValue Value, int Index)> items,
+            Comparison<(JsValue Value, int Index)> comparer)
+        {
+            var count = items.Count;
+            if (count <= 1)
+            {
+                return;
+            }
+
+            var src = items.ToArray();
+            var dst = new (JsValue Value, int Index)[count];
+
+            for (var width = 1; width < count; width *= 2)
+            {
+                for (var i = 0; i < count; i += 2 * width)
+                {
+                    var left = i;
+                    var mid = Math.Min(i + width, count);
+                    var right = Math.Min(i + 2 * width, count);
+                    Merge(src, dst, left, mid, right, comparer);
+                }
+
+                var temp = src;
+                src = dst;
+                dst = temp;
+            }
+
+            for (var i = 0; i < count; i++)
+            {
+                items[i] = src[i];
+            }
+        }
+
+        static void Merge((JsValue Value, int Index)[] src, (JsValue Value, int Index)[] dst,
+            int left, int mid, int right, Comparison<(JsValue Value, int Index)> comparer)
+        {
+            var i = left;
+            var j = mid;
+            var k = left;
+
+            while (i < mid && j < right)
+            {
+                if (comparer(src[i], src[j]) <= 0)
+                {
+                    dst[k++] = src[i++];
+                }
+                else
+                {
+                    dst[k++] = src[j++];
+                }
+            }
+
+            while (i < mid)
+            {
+                dst[k++] = src[i++];
+            }
+
+            while (j < right)
+            {
+                dst[k++] = src[j++];
+            }
         }
     }
 
@@ -1206,7 +1378,7 @@ public sealed partial class TypedArrayPrototype
 
         var length = typedArray.Length;
         var separator = args.Count > 0 && !args[0].IsUndefined
-            ? JsOps.ToJsString(args[0], Realm?.CreateContext(pushScope: false))
+            ? args[0].ToJsString()
             : ",";
 
         if (length == 0)
@@ -1222,15 +1394,21 @@ public sealed partial class TypedArrayPrototype
                 sb.Append(separator);
             }
 
-            if (typedArray.IsDetachedOrOutOfBounds())
-            {
-                throw typedArray.CreateOutOfBoundsTypeError();
-            }
-
             var element = typedArray.GetValueForIndex(i);
             if (!element.IsNullOrUndefined)
             {
-                sb.Append(JsOps.ToJsString(element, Realm?.CreateContext(pushScope: false)));
+                if (element.IsNumber)
+                {
+                    sb.Append(NumberHelper.NumberToString(element.AsDouble(), 10));
+                }
+                else if (element.IsBigInt && element.ObjectValue is JsBigInt bigInt)
+                {
+                    sb.Append(bigInt.ToString());
+                }
+                else
+                {
+                    sb.Append(JsOps.ToJsString(element));
+                }
             }
         }
 
@@ -1241,54 +1419,61 @@ public sealed partial class TypedArrayPrototype
     {
         var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.toLocaleString");
 
+        var locales = args.Count > 0 ? args[0] : JsValue.Undefined;
+        var options = args.Count > 1 ? args[1] : JsValue.Undefined;
         var length = typedArray.Length;
         if (length == 0)
         {
             return JsValue.FromString(string.Empty);
         }
 
-        var sb = new System.Text.StringBuilder();
+        var parts = new List<string>(length);
         for (var i = 0; i < length; i++)
         {
-            if (i > 0)
-            {
-                sb.Append(',');
-            }
-
-            if (typedArray.IsDetachedOrOutOfBounds())
-            {
-                throw typedArray.CreateOutOfBoundsTypeError();
-            }
-
             var element = typedArray.GetValueForIndex(i);
-            if (!element.IsNullOrUndefined)
+            if (element.IsNullOrUndefined)
             {
-                // Call toLocaleString on the element if it's an object with that method
-                if (element.IsObject &&
-                    element.TryGetObject<IJsPropertyAccessor>(out var obj) &&
-                    obj.TryGetProperty("toLocaleString", out var toLocaleMethod) &&
-                    toLocaleMethod.TryGetObject<IJsCallable>(out var callable))
-                {
-                    var result = callable.Invoke(args.ToList(), element);
-                    sb.Append(JsOps.ToJsString(result, Realm?.CreateContext(pushScope: false)));
-                }
-                else
-                {
-                    // For primitive numbers, use InvariantCulture formatting
-                    // to match JavaScript behavior
-                    if (element.IsNumber)
-                    {
-                        sb.Append(element.AsDouble().ToString(CultureInfo.InvariantCulture));
-                    }
-                    else
-                    {
-                        sb.Append(JsOps.ToJsString(element, Realm?.CreateContext(pushScope: false)));
-                    }
-                }
+                parts.Add(string.Empty);
+                continue;
             }
+
+            string part;
+            IJsPropertyAccessor? elementAccessor;
+            if (element.TryGetObject<IJsPropertyAccessor>(out var objAccessor))
+            {
+                elementAccessor = objAccessor;
+            }
+            else
+            {
+                elementAccessor = GetPrimitivePrototype(element, Realm);
+            }
+
+            if (elementAccessor is not null &&
+                elementAccessor.TryGetProperty("toLocaleString", element, out var toLocaleMethod) &&
+                toLocaleMethod.TryGetObject<IJsCallable>(out var callable))
+            {
+                var result = callable.Invoke([locales, options], element);
+                part = JsOps.ToJsString(result);
+            }
+            else
+            {
+                part = JsOps.ToJsString(element);
+            }
+
+            parts.Add(part);
         }
 
-        return JsValue.FromString(sb.ToString());
+        return JsValue.FromString(string.Join(',', parts));
+    }
+
+    private static IJsPropertyAccessor? GetPrimitivePrototype(JsValue value, RealmState? realm)
+    {
+        if (value.IsBoolean) return realm?.BooleanPrototype;
+        if (value.IsNumber) return realm?.NumberPrototype;
+        if (value.IsString) return realm?.StringPrototype;
+        if (value.IsSymbol) return realm?.SymbolPrototype;
+        if (value.IsBigInt) return realm?.BigIntPrototype;
+        return realm?.ObjectPrototype;
     }
 
     #endregion

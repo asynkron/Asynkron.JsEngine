@@ -1181,14 +1181,11 @@
         "methods": [
           "defineGetter",
           "defineSetter",
-          "getPrototypeOf",
           "hasOwnProperty",
           "isPrototypeOf",
           "lookupGetter",
           "lookupSetter",
           "propertyIsEnumerable",
-          "proto",
-          "setPrototypeOf",
           "toLocaleString",
           "toString",
           "valueOf"
@@ -1587,11 +1584,12 @@
       },
       "prototype": {
         "methods": [
-          "description",
           "toString",
           "valueOf"
         ],
-        "getters": [],
+        "getters": [
+          "description"
+        ],
         "setters": [],
         "symbolMethods": [
           "toPrimitive"

@@ -202,7 +202,10 @@ public static class TypedArrayHelper
             }
 
             // TypedArray(buffer, byteOffset, length)
-            if (firstArg.TryGetObject<JsArrayBuffer>(out var buffer))
+            if (firstArg.TryGetObject<JsArrayBuffer>(out var buffer) ||
+                (firstArg.TryGetObject<IJsPropertyAccessor>(out var bufferAccessor) &&
+                 bufferAccessor.TryGetProperty("_internalArrayBuffer", out var internalBufferVal) &&
+                 internalBufferVal.TryGetObject<JsArrayBuffer>(out buffer)))
             {
                 var byteOffset = args.Count > 1 && args[1].TryGetDouble(out var d1) ? (int)d1 : 0;
 

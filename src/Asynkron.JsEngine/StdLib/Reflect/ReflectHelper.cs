@@ -354,7 +354,14 @@ public static class ReflectHelper
                     continue;
                 }
 
-                ordered.Push(key);
+                if (JsSymbol.TryGetByInternalKey(key, out var symbol) && symbol is not null)
+                {
+                    ordered.Push((JsValue)symbol);
+                }
+                else
+                {
+                    ordered.Push(key);
+                }
             }
 
             return JsValue.FromJsArray(ordered);
@@ -642,6 +649,14 @@ public static class ReflectHelper
         }
 
         if (TryGetIntlPrototype(ctorName, realmState, realmObject, out prototype))
+        {
+            return true;
+        }
+
+        var realmGlobal = realmObject ?? realmState?.Engine?.GlobalObject;
+        if (realmGlobal is not null &&
+            realmGlobal.TryGetProperty(ctorName, out var ctorValue) &&
+            TryGetPrototype(ctorValue, out prototype))
         {
             return true;
         }

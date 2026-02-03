@@ -826,8 +826,9 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
                 .Append(symMethod.DisplayName.Replace("\"", "\\\""))
                 .Append("\", Writable = false, Enumerable = false, Configurable = true });").AppendLine();
-            membersSource.Append("        prototype.DefineProperty($\"@@symbol:{JsSymbol.For(\"Symbol.")
-                .Append(symMethod.SymbolName).Append("\").GetHashCode()}\", new PropertyDescriptor { Value = ").Append(methodVar)
+            var symbolKeyExpr = GetSymbolKeyExpression(symMethod.SymbolName);
+            membersSource.Append("        prototype.DefineProperty(").Append(symbolKeyExpr)
+                .Append(", new PropertyDescriptor { Value = ").Append(methodVar)
                 .Append(", Writable = ").Append(symMethod.Writable ? "true" : "false")
                 .Append(", Enumerable = ").Append(symMethod.Enumerable ? "true" : "false")
                 .Append(", Configurable = ").Append(symMethod.Configurable ? "true" : "false")
@@ -847,8 +848,9 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
                 .Append(symGetter.DisplayName.Replace("\"", "\\\""))
                 .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
-            membersSource.Append("        prototype.DefineProperty($\"@@symbol:{JsSymbol.For(\"Symbol.")
-                .Append(symGetter.SymbolName).Append("\").GetHashCode()}\", new PropertyDescriptor { Get = ").Append(getterVar)
+            var symbolKeyExpr = GetSymbolKeyExpression(symGetter.SymbolName);
+            membersSource.Append("        prototype.DefineProperty(").Append(symbolKeyExpr)
+                .Append(", new PropertyDescriptor { Get = ").Append(getterVar)
                 .Append(", Enumerable = ").Append(symGetter.Enumerable ? "true" : "false")
                 .Append(", Configurable = ").Append(symGetter.Configurable ? "true" : "false")
                 .AppendLine(" });");
@@ -859,8 +861,8 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         {
             membersSource.Append("        if (prototype.TryGetProperty(\"").Append(alias.TargetPropertyName).AppendLine("\", out var aliasTarget))");
             membersSource.AppendLine("        {");
-            membersSource.Append("            prototype.DefineProperty($\"@@symbol:{JsSymbol.For(\"Symbol.")
-                .Append(alias.SymbolName).AppendLine("\").GetHashCode()}\",");
+            var symbolKeyExpr = GetSymbolKeyExpression(alias.SymbolName);
+            membersSource.Append("            prototype.DefineProperty(").Append(symbolKeyExpr).AppendLine(",");
             membersSource.AppendLine("                new PropertyDescriptor");
             membersSource.AppendLine("                {");
             membersSource.Append("                    Value = aliasTarget, Writable = ").Append(alias.Writable ? "true" : "false")
@@ -892,9 +894,8 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         EmitMissingPrototypeMembers(membersSource, info, compatData, emitDiagnostics, context);
 
         if (!string.IsNullOrEmpty(info.ToStringTag))
-
         {
-            membersSource.AppendLine("        prototype.DefineProperty($\"@@symbol:{JsSymbol.For(\"Symbol.toStringTag\").GetHashCode()}\",");
+            membersSource.AppendLine("        prototype.DefineProperty(SymbolKeys.ToStringTag,");
             membersSource.AppendLine("            new PropertyDescriptor");
             membersSource.AppendLine("            {");
             membersSource.Append("                Value = \"").Append(info.ToStringTag?.Replace("\"", "\\\""))
@@ -1176,8 +1177,9 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
                 .Append(getter.DisplayName.Replace("\"", "\\\""))
                 .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
-            membersSource.Append("        constructor.DefineProperty($\"@@symbol:{JsSymbol.For(\"Symbol.")
-                .Append(getter.SymbolName).Append("\").GetHashCode()}\", new PropertyDescriptor { Get = ").Append(getterVar)
+            var symbolKeyExpr = GetSymbolKeyExpression(getter.SymbolName);
+            membersSource.Append("        constructor.DefineProperty(").Append(symbolKeyExpr)
+                .Append(", new PropertyDescriptor { Get = ").Append(getterVar)
                 .Append(", Enumerable = ").Append(getter.Enumerable ? "true" : "false")
                 .Append(", Configurable = ").Append(getter.Configurable ? "true" : "false")
                 .AppendLine(" });");
@@ -1508,13 +1510,18 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         HashSet<string> implementedSymbolGetters,
         HashSet<string> implementedSymbolSetters)
     {
+        bool IsSymbolImplemented(string name)
+            => implementedSymbolMethods.Contains(name) ||
+               implementedSymbolGetters.Contains(name) ||
+               implementedSymbolSetters.Contains(name);
+
         return new CompatMembers(
             expected.Methods.Where(name => !implementedMethods.Contains(name)).ToImmutableArray(),
             expected.Getters.Where(name => !implementedGetters.Contains(name)).ToImmutableArray(),
             expected.Setters.Where(name => !implementedSetters.Contains(name)).ToImmutableArray(),
-            expected.SymbolMethods.Where(name => !implementedSymbolMethods.Contains(name)).ToImmutableArray(),
-            expected.SymbolGetters.Where(name => !implementedSymbolGetters.Contains(name)).ToImmutableArray(),
-            expected.SymbolSetters.Where(name => !implementedSymbolSetters.Contains(name)).ToImmutableArray());
+            expected.SymbolMethods.Where(name => !IsSymbolImplemented(name)).ToImmutableArray(),
+            expected.SymbolGetters.Where(name => !IsSymbolImplemented(name)).ToImmutableArray(),
+            expected.SymbolSetters.Where(name => !IsSymbolImplemented(name)).ToImmutableArray());
     }
 
     private static bool IsEmpty(CompatMembers members)
@@ -1582,9 +1589,9 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
                 .Append(EscapeString(displayName))
                 .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
+            var symbolKeyExpr = GetSymbolKeyExpression(symbolName);
             membersSource.Append("        ").Append(targetVariable)
-                .Append(".DefineProperty($\"@@symbol:{JsSymbol.For(\"Symbol.")
-                .Append(symbolName).Append("\").GetHashCode()}\", new PropertyDescriptor { Value = ")
+                .Append(".DefineProperty(").Append(symbolKeyExpr).Append(", new PropertyDescriptor { Value = ")
                 .Append(varName)
                 .Append(", Writable = true, Enumerable = false, Configurable = true });")
                 .AppendLine();
@@ -1662,9 +1669,9 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
                 .Append(EscapeString(displayName))
                 .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
+            var symbolKeyExpr = GetSymbolKeyExpression(symbolName);
             membersSource.Append("        ").Append(targetVariable)
-                .Append(".DefineProperty($\"@@symbol:{JsSymbol.For(\"Symbol.")
-                .Append(symbolName).Append("\").GetHashCode()}\", new PropertyDescriptor { Get = ")
+                .Append(".DefineProperty(").Append(symbolKeyExpr).Append(", new PropertyDescriptor { Get = ")
                 .Append(varName)
                 .Append(", Enumerable = false, Configurable = true });")
                 .AppendLine();
@@ -1686,9 +1693,9 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
                 .Append(EscapeString(displayName))
                 .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
+            var symbolKeyExpr = GetSymbolKeyExpression(symbolName);
             membersSource.Append("        ").Append(targetVariable)
-                .Append(".DefineProperty($\"@@symbol:{JsSymbol.For(\"Symbol.")
-                .Append(symbolName).Append("\").GetHashCode()}\", new PropertyDescriptor { Set = ")
+                .Append(".DefineProperty(").Append(symbolKeyExpr).Append(", new PropertyDescriptor { Set = ")
                 .Append(varName)
                 .Append(", Enumerable = false, Configurable = true });")
                 .AppendLine();
@@ -1712,6 +1719,30 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 
         var formatted = FormatMissingList(entries);
         context.ReportDiagnostic(Diagnostic.Create(MissingMembersDescriptor, Location.None, owner, formatted));
+    }
+
+    private static string GetSymbolKeyExpression(string symbolName)
+    {
+        return symbolName switch
+        {
+            "iterator" => "SymbolKeys.Iterator",
+            "asyncIterator" => "SymbolKeys.AsyncIterator",
+            "hasInstance" => "SymbolKeys.HasInstance",
+            "toPrimitive" => "SymbolKeys.ToPrimitive",
+            "toStringTag" => "SymbolKeys.ToStringTag",
+            "species" => "SymbolKeys.Species",
+            "match" => "SymbolKeys.Match",
+            "matchAll" => "SymbolKeys.MatchAll",
+            "replace" => "SymbolKeys.Replace",
+            "replaceAll" => "SymbolKeys.ReplaceAll",
+            "search" => "SymbolKeys.Search",
+            "split" => "SymbolKeys.Split",
+            "isConcatSpreadable" => "SymbolKeys.IsConcatSpreadable",
+            "unscopables" => "SymbolKeys.Unscopables",
+            "dispose" => "SymbolKeys.Dispose",
+            "asyncDispose" => "SymbolKeys.AsyncDispose",
+            _ => $"JsSymbol.PropertyKey(JsSymbol.For(\"Symbol.{symbolName}\"))"
+        };
     }
 
     private static string FormatMissingList(IReadOnlyList<string> entries)

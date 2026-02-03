@@ -96,27 +96,29 @@ public sealed partial class SharedArrayBufferPrototype : JsPrototype
 
         var speciesConstructor = ArrayBufferSpeciesCreate(thisValue, Realm, Realm.SharedArrayBufferConstructor!);
 
-        object newBuffer;
+        JsValue newBufferValue;
+        IJsPropertyAccessor newBufferObject;
         JsArrayBuffer targetBuffer;
         if (ReferenceEquals(speciesConstructor, Realm.SharedArrayBufferConstructor))
         {
             var created = new JsArrayBuffer(newLen, null, Realm, true);
             created.SetPrototype(Realm.SharedArrayBufferPrototype);
-            newBuffer = created;
+            newBufferValue = JsValue.FromObjectUnsafe(created);
+            newBufferObject = created;
             targetBuffer = created;
         }
         else
         {
-            newBuffer = Construct(speciesConstructor, [(double)newLen], speciesConstructor, Realm)!;
-            if (newBuffer is not IJsPropertyAccessor)
+            newBufferValue = Construct(speciesConstructor, [(double)newLen], speciesConstructor, Realm);
+            if (!newBufferValue.TryGetObject<IJsPropertyAccessor>(out newBufferObject))
             {
                 throw ThrowTypeError("SharedArrayBuffer species constructor did not return an object", realm: Realm);
             }
 
-            targetBuffer = RequireArrayBuffer(JsValue.FromObjectUnsafe(newBuffer), Realm);
-            if (!ReferenceEquals(targetBuffer, newBuffer))
+            targetBuffer = RequireArrayBuffer(newBufferValue, Realm);
+            if (!ReferenceEquals(targetBuffer, newBufferObject))
             {
-                if (newBuffer is JsObject obj)
+                if (newBufferObject is JsObject obj)
                 {
                     StoreInternalArrayBuffer(obj, targetBuffer);
                 }
@@ -134,7 +136,7 @@ public sealed partial class SharedArrayBufferPrototype : JsPrototype
                 realm: Realm);
         }
 
-        if (ReferenceEquals(newBuffer, thisValue.ObjectValue))
+        if (ReferenceEquals(newBufferObject, thisValue.ObjectValue))
         {
             throw ThrowTypeError("SharedArrayBuffer species constructor returned this value", realm: Realm);
         }
@@ -149,7 +151,7 @@ public sealed partial class SharedArrayBufferPrototype : JsPrototype
             Array.Copy(buffer.Buffer, first, targetBuffer.Buffer, 0, newLen);
         }
 
-        return JsValue.FromObjectUnsafe(newBuffer);
+        return newBufferValue;
     }
 
     protected override void ConfigurePrototype()

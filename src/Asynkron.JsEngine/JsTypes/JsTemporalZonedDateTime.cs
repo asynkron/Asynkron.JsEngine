@@ -20,7 +20,8 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
         Instant = instant;
         TimeZoneId = timeZoneId;
         Calendar = calendar;
-        TimeZone = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+        TimeZone = ResolveTimeZone(timeZoneId, out var fixedOffset);
+        FixedOffset = fixedOffset;
     }
 
     public JsTemporalZonedDateTime(
@@ -37,19 +38,114 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
     {
         TimeZoneId = timeZoneId;
         Calendar = calendar;
-        TimeZone = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+        TimeZone = ResolveTimeZone(timeZoneId, out var fixedOffset);
+        FixedOffset = fixedOffset;
 
         // Create a DateTime in the specified timezone and convert to Instant
         var localDateTime = new DateTime(year, month, day, hour, minute, second, millisecond, microsecond);
-        var offset = TimeZone.GetUtcOffset(localDateTime);
+        var offset = FixedOffset ?? TimeZone.GetUtcOffset(localDateTime);
         var utcDateTime = localDateTime - offset;
         Instant = new JsTemporalInstant(new DateTimeOffset(utcDateTime, TimeSpan.Zero));
+    }
+
+    private static TimeZoneInfo ResolveTimeZone(string timeZoneId, out TimeSpan? fixedOffset)
+    {
+        fixedOffset = null;
+        if (TryParseOffsetTimeZone(timeZoneId, out var offset))
+        {
+            fixedOffset = offset;
+            return TimeZoneInfo.Utc;
+        }
+
+        if (string.Equals(timeZoneId, "UTC", StringComparison.OrdinalIgnoreCase))
+        {
+            fixedOffset = TimeSpan.Zero;
+            return TimeZoneInfo.Utc;
+        }
+
+        return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+    }
+
+    private static bool TryParseOffsetTimeZone(string timeZoneId, out TimeSpan offset)
+    {
+        offset = default;
+        if (string.IsNullOrEmpty(timeZoneId))
+        {
+            return false;
+        }
+
+        var offsetId = timeZoneId;
+        if (string.Equals(offsetId, "Z", StringComparison.OrdinalIgnoreCase))
+        {
+            offset = TimeSpan.Zero;
+            return true;
+        }
+
+        if (offsetId.StartsWith("UTC", StringComparison.OrdinalIgnoreCase))
+        {
+            if (offsetId.Length == 3)
+            {
+                offset = TimeSpan.Zero;
+                return true;
+            }
+
+            offsetId = offsetId[3..];
+        }
+
+        if (offsetId.Length < 3 || (offsetId[0] != '+' && offsetId[0] != '-'))
+        {
+            return false;
+        }
+
+        var sign = offsetId[0] == '-' ? -1 : 1;
+        var offsetBody = offsetId[1..];
+        var hours = 0;
+        var minutes = 0;
+        var seconds = 0;
+
+        var parts = offsetBody.Split(':');
+        if (parts.Length == 1)
+        {
+            if (!int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out hours))
+            {
+                return false;
+            }
+        }
+        else
+        {
+            if (parts.Length < 2 || parts.Length > 3)
+            {
+                return false;
+            }
+
+            if (!int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out hours) ||
+                !int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out minutes))
+            {
+                return false;
+            }
+
+            if (parts.Length == 3 &&
+                !int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out seconds))
+            {
+                return false;
+            }
+        }
+
+        if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59 || seconds < 0 || seconds > 59)
+        {
+            return false;
+        }
+
+        var totalSeconds = sign * (hours * 3600 + minutes * 60 + seconds);
+        offset = TimeSpan.FromSeconds(totalSeconds);
+        return true;
     }
 
     public JsTemporalInstant Instant { get; }
     public string TimeZoneId { get; }
     public string Calendar { get; }
     public TimeZoneInfo TimeZone { get; }
+    public TimeSpan? FixedOffset { get; }
 
     /// <summary>
     ///     Gets the wall-clock datetime in the timezone.
@@ -59,7 +155,7 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
         get
         {
             var utc = Instant.ToDateTimeOffset();
-            return TimeZoneInfo.ConvertTime(utc, TimeZone);
+            return FixedOffset.HasValue ? utc.ToOffset(FixedOffset.Value) : TimeZoneInfo.ConvertTime(utc, TimeZone);
         }
     }
 
@@ -76,7 +172,14 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
     /// <summary>
     ///     Nanoseconds component (0-999). Note: .NET doesn't track nanoseconds, so we derive from Instant.
     /// </summary>
-    public int Nanosecond => (int)(Instant.EpochNanoseconds % 1000);
+    public int Nanosecond
+    {
+        get
+        {
+            var nanos = (int)(Instant.EpochNanoseconds % 1000);
+            return nanos < 0 ? nanos + 1000 : nanos;
+        }
+    }
 
     public long EpochMilliseconds => Instant.EpochMilliseconds;
     public long EpochSeconds => Instant.EpochSeconds;
@@ -136,7 +239,14 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
     /// <summary>
     ///     The timezone offset in nanoseconds.
     /// </summary>
-    public long OffsetNanoseconds => (long)TimeZone.GetUtcOffset(LocalDateTimeOffset.DateTime).TotalMilliseconds * 1_000_000;
+    public long OffsetNanoseconds
+    {
+        get
+        {
+            var offset = FixedOffset ?? TimeZone.GetUtcOffset(LocalDateTimeOffset.DateTime);
+            return (long)offset.TotalMilliseconds * 1_000_000;
+        }
+    }
 
     /// <summary>
     ///     The timezone offset as a string (e.g., "+01:00").
@@ -145,7 +255,7 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
     {
         get
         {
-            var offset = TimeZone.GetUtcOffset(LocalDateTimeOffset.DateTime);
+            var offset = FixedOffset ?? TimeZone.GetUtcOffset(LocalDateTimeOffset.DateTime);
             var sign = offset >= TimeSpan.Zero ? "+" : "-";
             var absOffset = offset.Duration();
             return $"{sign}{absOffset.Hours:D2}:{absOffset.Minutes:D2}";

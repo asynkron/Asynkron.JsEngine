@@ -32,48 +32,19 @@ public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState 
             return JsValue.NaN;
         }
 
-        static double ToNumberOrNaN(JsValue v)
-        {
-            return v.TryGetDouble(out var d) ? d : double.NaN;
-        }
+        var y = JsOps.ToNumber(args[0]);
+        var m = args.Count > 1 ? JsOps.ToNumber(args[1]) : 0d;
+        var dt = args.Count > 2 ? JsOps.ToNumber(args[2]) : 1d;
+        var h = args.Count > 3 ? JsOps.ToNumber(args[3]) : 0d;
+        var min = args.Count > 4 ? JsOps.ToNumber(args[4]) : 0d;
+        var s = args.Count > 5 ? JsOps.ToNumber(args[5]) : 0d;
+        var ms = args.Count > 6 ? JsOps.ToNumber(args[6]) : 0d;
 
-        var y = ToNumberOrNaN(args[0]);
-        var m = args.Count > 1 ? ToNumberOrNaN(args[1]) : 0;
-        var dt = args.Count > 2 ? ToNumberOrNaN(args[2]) : 1;
-        var h = args.Count > 3 ? ToNumberOrNaN(args[3]) : 0;
-        var min = args.Count > 4 ? ToNumberOrNaN(args[4]) : 0;
-        var s = args.Count > 5 ? ToNumberOrNaN(args[5]) : 0;
-        var ms = args.Count > 6 ? ToNumberOrNaN(args[6]) : 0;
-
-        if (double.IsNaN(y) || double.IsNaN(m) || double.IsNaN(dt) ||
-            double.IsNaN(h) || double.IsNaN(min) || double.IsNaN(s) || double.IsNaN(ms))
-        {
-            return JsValue.NaN;
-        }
-
-        var year = (int)y;
-        if (year is >= 0 and <= 99)
-        {
-            year += 1900;
-        }
-
-        var month = (int)m + 1;
-        var day = (int)dt;
-        var hour = (int)h;
-        var minute = (int)min;
-        var second = (int)s;
-        var millisecond = (int)ms;
-
-        try
-        {
-            var utcDate = new DateTime(year, month, day, hour, minute, second, millisecond, DateTimeKind.Utc);
-            var dto = new DateTimeOffset(utcDate);
-            return new JsValue((double)dto.ToUnixTimeMilliseconds());
-        }
-        catch
-        {
-            return JsValue.NaN;
-        }
+        var year = MakeFullYear(y);
+        var day = MakeDay(year, m, dt);
+        var time = MakeTime(h, min, s, ms);
+        var clipped = TimeClip(MakeDate(day, time));
+        return double.IsNaN(clipped) ? JsValue.NaN : new JsValue(clipped);
     }
 
     [JsConstructorMethod("parse", Length = 1d)]

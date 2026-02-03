@@ -1,6 +1,8 @@
 #region
 
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime.Prototypes;
+using static Asynkron.JsEngine.StdLib.Temporal.TemporalHelper;
 
 #endregion
 
@@ -96,7 +98,7 @@ public sealed partial class TemporalInstantPrototype : JsPrototype
     [JsHostGetter("epochNanoseconds")]
     public JsValue EpochNanoseconds(JsValue thisValue)
     {
-        // TODO: Implement Temporal.Instant.prototype.epochNanoseconds
-        throw new NotImplementedException("Temporal.Instant.prototype.epochNanoseconds is not yet implemented");
+        var instant = GetInstant(thisValue);
+        return new JsValue(new JsBigInt(instant.EpochNanoseconds));
     }
 }

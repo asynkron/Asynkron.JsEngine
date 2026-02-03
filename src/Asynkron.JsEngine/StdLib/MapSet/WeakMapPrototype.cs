@@ -15,14 +15,7 @@ public sealed partial class WeakMapPrototype
         var map = RequireInstance(thisValue);
         var key = args.GetArgument(0);
         var value = args.GetArgument(1);
-        try
-        {
-            return (JsValue)map.Set(key, value);
-        }
-        catch (Exception ex)
-        {
-            throw new Exception(ex.Message);
-        }
+        return (JsValue)map.Set(key, value);
     }
 
     [JsHostMethod("get", Length = 1d)]

@@ -27,3 +27,18 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Date_prototype_Symbol_toPrimitive("built-ins/Date/prototype/Symbol.toPrimitive/hint-string-first-valid.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Date_prototype_Symbol_toPrimitive("built-ins/Date/prototype/Symbol.toPrimitive/prop-desc.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Date_prototype_Symbol_toPrimitive("built-ins/Date/prototype/Symbol.toPrimitive/prop-desc.js",True)
+
+---
+## Diagnosis (2026-02-03)
+
+**Summary:** `Date.prototype[Symbol.toPrimitive]` was restricted to Date instances and was defined as writable, causing generic usage and descriptor tests to fail.
+
+**Fixes:**
+- Allow any object receiver; only non-objects throw `TypeError`.
+- Mark `Date.prototype[Symbol.toPrimitive]` as non-writable.
+- Use ordinary toPrimitive ordering without requiring Date internal slots.
+
+**Tests:**
+`dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --settings tests/Asynkron.JsEngine.Tests.Test262/BuiltInsTests.runsettings --filter "Name=Date_prototype_Symbol_toPrimitive"`
+
+** DONE **

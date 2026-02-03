@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Parser;
+using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 
@@ -15,7 +16,8 @@ namespace Asynkron.JsEngine;
 ///     A special host function for eval() that has access to the calling environment
 ///     and can evaluate code synchronously in that context.
 /// </summary>
-public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationContextAwareCallable, IJsPropertyAccessor
+public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationContextAwareCallable, IJsPropertyAccessor,
+    IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider, ICallableMetadata
 {
     internal static readonly Symbol FieldInitializerEvalFlag = Symbol.Intern("#classFieldInitializerEval");
     private readonly JsObject _properties = new();
@@ -27,8 +29,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             _properties.SetPrototype(functionPrototype);
         }
-
-        _properties.SetProperty("prototype", (JsValue)new JsObject());
+        StandardLibrary.DefineConstantProperty(this, "length", 1d, configurable: true);
+        StandardLibrary.DefineConstantProperty(this, "name", "eval", configurable: true);
     }
 
     internal JsEngine Engine { get; }
@@ -44,6 +46,74 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
     ///     This allows eval to execute code in the caller's scope.
     /// </summary>
     public JsEnvironment? CallingJsEnvironment { get; set; }
+
+    public bool IsArrowFunction => false;
+
+    public bool DisallowConstruct => true;
+
+    public RealmState RealmState => Engine.RealmState;
+
+    public JsObject? Prototype => _properties.Prototype;
+
+    public bool IsSealed => _properties.IsSealed;
+
+    public bool IsFrozen => _properties.IsFrozen;
+
+    public IEnumerable<string> Keys => _properties.Keys;
+
+    public bool IsExtensible => _properties.IsExtensible;
+
+    public IJsPropertyAccessor? PrototypeAccessor => _properties.PrototypeAccessor;
+
+    public void DefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        _properties.DefineProperty(name, descriptor);
+    }
+
+    public void SetPrototype(IJsPropertyAccessor? candidate)
+    {
+        _properties.SetPrototype(candidate);
+    }
+
+    public void Seal()
+    {
+        _properties.Seal();
+    }
+
+    public bool Delete(string name)
+    {
+        return _properties.Delete(name);
+    }
+
+    public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
+    {
+        return _properties.GetOwnPropertyDescriptor(name);
+    }
+
+    public IEnumerable<string> GetOwnPropertyNames()
+    {
+        return _properties.GetOwnPropertyNames();
+    }
+
+    public IEnumerable<string> GetOwnPropertyKeysInOrder(bool includeSymbols = true, bool includeNonEnumerable = true)
+    {
+        return _properties.GetOwnPropertyKeysInOrder(includeSymbols, includeNonEnumerable);
+    }
+
+    public IEnumerable<string> GetEnumerablePropertyNames()
+    {
+        return _properties.GetEnumerablePropertyNames();
+    }
+
+    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        return _properties.TryDefineProperty(name, descriptor);
+    }
+
+    public void PreventExtensions()
+    {
+        _properties.PreventExtensions();
+    }
 
     public JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
     {

@@ -10,6 +10,8 @@ namespace Asynkron.JsEngine.StdLib;
 [JsPrototype("WeakRef", ToStringTag = "WeakRef")]
 public sealed partial class WeakRefPrototype : JsPrototype
 {
+    internal const string TargetSlotName = "#WeakRef@target";
+
     [JsHostMethod("deref", Length = 0d)]
     public JsValue Deref(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -18,11 +20,12 @@ public sealed partial class WeakRefPrototype : JsPrototype
             throw ThrowTypeError("WeakRef.prototype.deref requires an object receiver");
         }
 
-        if (!obj.TryGetProperty("_target", out var stored))
+        if (!obj.HasPrivateField(TargetSlotName))
         {
             throw ThrowTypeError("WeakRef.prototype.deref requires a WeakRef receiver");
         }
 
+        obj.TryGetProperty(TargetSlotName, out var stored);
         return stored;
     }
 }

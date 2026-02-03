@@ -2,6 +2,7 @@
 
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
+using Asynkron.JsEngine.JsTypes;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
@@ -64,7 +65,7 @@ public sealed partial class WeakRefConstructor(IJsObjectLike prototype, RealmSta
     private JsValue RequireTargetObject(IReadOnlyList<JsValue> args)
     {
         var target = args.GetArgument(0);
-        if (!target.IsObject && !target.IsSymbol)
+        if (JsWeakCollectionHelpers.ExtractWeakKeyObject(target) is null)
         {
             throw ThrowTypeError("WeakRef target must be an object", realm: Realm);
         }
@@ -74,7 +75,13 @@ public sealed partial class WeakRefConstructor(IJsObjectLike prototype, RealmSta
 
     private void InitializeWeakRef(JsObject instance, JsValue target)
     {
-        instance.SetProperty("_target", target);
+        instance.DefineProperty(WeakRefPrototype.TargetSlotName, new PropertyDescriptor
+        {
+            Value = target,
+            Writable = false,
+            Enumerable = false,
+            Configurable = false
+        });
         instance.RealmState ??= Realm;
     }
 }

@@ -964,7 +964,29 @@ public sealed partial class TypedArrayPrototype
             actualIndex = truncated < 0 ? length + truncated : truncated;
         }
 
-        if (actualIndex < 0 || actualIndex >= length)
+        var value = args[1];
+        var valueContext = Realm.CreateContext();
+        if (typedArray.IsBigIntArray)
+        {
+            value = new JsValue(ToBigInt(value, valueContext, Realm));
+        }
+        else
+        {
+            if (value.IsBigInt)
+            {
+                throw ThrowTypeError("Cannot convert a BigInt value to a number", valueContext, Realm);
+            }
+
+            var numeric = JsOps.ToNumber(value, valueContext);
+            if (valueContext.IsThrow == true)
+            {
+                throw new ThrowSignal(valueContext.FlowValue);
+            }
+
+            value = new JsValue(numeric);
+        }
+
+        if (typedArray.IsDetachedOrOutOfBounds() || actualIndex < 0 || actualIndex >= typedArray.Length)
         {
             throw ThrowRangeError("Index out of range", realm: Realm);
         }
@@ -973,13 +995,8 @@ public sealed partial class TypedArrayPrototype
         var result = typedArray.CreateSpeciesDefault(length);
         for (var i = 0; i < length; i++)
         {
-            if (typedArray.IsDetachedOrOutOfBounds())
-            {
-                throw typedArray.CreateOutOfBoundsTypeError();
-            }
-
-            var value = i == actualIndex ? args[1] : typedArray.GetValueForIndex(i);
-            result.SetValue(i, value);
+            var element = i == actualIndex ? value : typedArray.GetValueForIndex(i);
+            result.SetValue(i, element);
         }
 
         return (JsValue)result;

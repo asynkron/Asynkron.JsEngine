@@ -606,24 +606,41 @@ public sealed partial class DatePrototype
     [JsHostMethod("toJSON", Length = 1d)]
     public JsValue ToJson(JsValue thisValue)
     {
-        var timeValue = RequireDateValue(thisValue, Realm, out var obj);
-        if (double.IsNaN(timeValue) || double.IsInfinity(timeValue))
+        if (!TryGetObject(thisValue, Realm, out var obj))
+        {
+            throw ThrowTypeError("Date.prototype.toJSON called on null or undefined", realm: Realm);
+        }
+
+        var objValue = JsValue.FromObjectUnsafe(obj);
+        var evalContext = Realm?.CreateContext();
+        var primitive = JsOps.ToPrimitive(objValue, ToPrimitiveHint.Number, evalContext);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
+        if (primitive.IsNumber &&
+            (double.IsNaN(primitive.NumberValue) || double.IsInfinity(primitive.NumberValue)))
         {
             return JsValue.Null;
         }
 
-        if (!obj.TryGetProperty("toISOString", out var method))
+        if (!JsOps.TryGetPropertyValue(objValue, "toISOString", out var method, evalContext))
         {
-            throw ThrowTypeError("toISOString is not callable", realm: Realm);
+            method = JsValue.Undefined;
         }
 
-        // method is already a JsValue from TryGetProperty
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         if (!method.TryGetObject<IJsCallable>(out var fn))
         {
             throw ThrowTypeError("toISOString is not callable", realm: Realm);
         }
 
-        return fn.Invoke([], new JsValue(obj));
+        return fn.Invoke([], objValue);
     }
 
     [JsHostMethod("toString", Length = 0d)]

@@ -159,6 +159,12 @@ public static class TemporalHelper
         {
             return prototypes;
         }
+        _ = CreateTemporalObject(realm);
+        if (_prototypeCache.TryGetValue(realm, out prototypes))
+        {
+            return prototypes;
+        }
+
         throw new InvalidOperationException("Temporal prototypes not initialized for this realm");
     }
 
@@ -1914,7 +1920,7 @@ public static class TemporalHelper
 
     #region Unwrapper methods
 
-    private static JsTemporalInstant GetInstant(JsValue value)
+    internal static JsTemporalInstant GetInstant(JsValue value)
     {
         if (value.TryGetObject<JsObject>(out var obj) &&
             obj.TryGetProperty(TemporalInstantSlot, out var slot) &&

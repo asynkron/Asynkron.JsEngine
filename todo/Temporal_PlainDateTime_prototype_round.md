@@ -75,3 +75,18 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_round("built-ins/Temporal/PlainDateTime/prototype/round/throws-no-argument.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_round("built-ins/Temporal/PlainDateTime/prototype/round/throws-undefined.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_round("built-ins/Temporal/PlainDateTime/prototype/round/throws-undefined.js",True)
+
+---
+## Diagnosis (2026-02-03)
+
+**Summary:** Implemented spec-aligned rounding options parsing and ISO date-time rounding (including negative years) with proper TypeError branding; all PlainDateTime round tests pass.
+
+**Analysis:**
+- The previous implementation ignored `roundingIncrement`/`roundingMode`, defaulted `smallestUnit`, and performed naive truncation.
+- Receiver branding threw `InvalidOperationException` instead of TypeError.
+- Added proper options parsing order, rounding increment validation, rounding modes, and ISO day-number arithmetic for negative years plus range checks.
+
+**Tests:**
+`dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --settings tests/Asynkron.JsEngine.Tests.Test262/BuiltInsTests.runsettings --filter "Name=Temporal_PlainDateTime_prototype_round"`
+
+** DONE **

@@ -77,3 +77,22 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_round("built-ins/Temporal/ZonedDateTime/prototype/round/valid-increments.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_round("intl402/Temporal/ZonedDateTime/prototype/round/dst-skipped-cross-midnight.js",False)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_round("intl402/Temporal/ZonedDateTime/prototype/round/dst-skipped-cross-midnight.js",True)
+
+---
+## Diagnosis (2026-02-03)
+
+**Summary:** Core rounding options parsing and ISO date-time rounding are implemented, but ZonedDateTime round still fails on TZDB/DST edge cases (day length != 24h).
+
+**Error Pattern (first failure):**
+```
+intl402/Temporal/ZonedDateTime/prototype/round/dst-skipped-cross-midnight.js
+Expected day-of-month to advance to 31 for America/Toronto, but rounding kept day = 30.
+```
+
+**Analysis:**
+- Current implementation rounds a local PlainDateTime using fixed 24h days, then reconstructs a ZonedDateTime with the same timezone.
+- Intl402 tests require day-boundary rounding that respects time-zone start-of-day and variable day lengths (e.g., 23.5-hour days).
+- This needs time-zone-aware day-length and start-of-day calculation per Temporal spec (`GetStartOfDay`, `GetPossibleInstantsFor`, etc.).
+
+**Tests:**
+`dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --settings tests/Asynkron.JsEngine.Tests.Test262/BuiltInsTests.runsettings --filter "Name=Temporal_ZonedDateTime_prototype_round"`

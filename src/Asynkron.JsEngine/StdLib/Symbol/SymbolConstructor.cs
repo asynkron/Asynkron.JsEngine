@@ -30,9 +30,9 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
     [JsConstructorMethod("keyFor", Length = 1d)]
     public static JsValue KeyFor(IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || !args[0].IsSymbol || args[0].ObjectValue is not JsSymbol sym)
+        if (args.Count == 0 || !args[0].IsSymbol || !args[0].TryUnwrap<JsSymbol>(out var sym))
         {
-            return JsValue.Undefined;
+            throw ThrowTypeError("Symbol.keyFor requires a symbol");
         }
 
         var key = JsSymbol.KeyFor(sym);

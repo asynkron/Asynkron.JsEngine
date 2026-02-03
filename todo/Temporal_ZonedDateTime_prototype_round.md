@@ -96,3 +96,19 @@ Expected day-of-month to advance to 31 for America/Toronto, but rounding kept da
 
 **Tests:**
 `dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --settings tests/Asynkron.JsEngine.Tests.Test262/BuiltInsTests.runsettings --filter "Name=Temporal_ZonedDateTime_prototype_round"`
+
+---
+## Diagnosis (2026-02-03)
+
+**Summary:** Implemented time-zone aware rounding for day/non-day, fixed offset time zones, and aligned Temporal range constants to spec Instant/PlainDateTime limits. Added epochNanoseconds getter for ZonedDateTime, corrected negative nanosecond component handling, and enforced RangeError on out-of-range day rounding paths.
+
+**Fixes:**
+- Day rounding now computes start-of-day and day length using time-zone rules or fixed offsets.
+- Non-day rounding now converts rounded local date-time to an instant with correct offset handling.
+- Time zone offsets like `+01`/`-01` are parsed as fixed offsets without relying on system TZ.
+- Range checks aligned to `±8.64e21` Instant bounds, with PlainDateTime min/max at `±8.64e21 ± 1`.
+
+**Tests:**
+`dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --settings tests/Asynkron.JsEngine.Tests.Test262/BuiltInsTests.runsettings --filter "Name=Temporal_ZonedDateTime_prototype_round"`
+
+**DONE**

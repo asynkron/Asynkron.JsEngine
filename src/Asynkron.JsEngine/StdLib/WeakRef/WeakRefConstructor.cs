@@ -64,7 +64,7 @@ public sealed partial class WeakRefConstructor(IJsObjectLike prototype, RealmSta
     private JsValue RequireTargetObject(IReadOnlyList<JsValue> args)
     {
         var target = args.GetArgument(0);
-        if (!target.IsObject || target.AsObject() is not not null)
+        if (!target.IsObject && !target.IsSymbol)
         {
             throw ThrowTypeError("WeakRef target must be an object", realm: Realm);
         }

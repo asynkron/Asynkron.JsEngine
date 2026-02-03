@@ -1,5 +1,6 @@
 #region
 
+using System.Linq;
 using System.Numerics;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
@@ -42,12 +43,11 @@ public static class TemporalHelper
     private const long NanosecondsPerMinute = 60L * NanosecondsPerSecond;
     private const long NanosecondsPerHour = 60L * NanosecondsPerMinute;
     private const long NanosecondsPerDay = 24L * NanosecondsPerHour;
-    private const int TemporalMinYear = -271821;
-    private const int TemporalMaxYear = 275760;
-    private static readonly BigInteger PlainDateTimeMinEpochNanoseconds =
-        ToEpochNanoseconds(TemporalMinYear, 4, 19, 0, 0, 0, 0, 0, 1);
-    private static readonly BigInteger PlainDateTimeMaxEpochNanoseconds =
-        ToEpochNanoseconds(TemporalMaxYear, 9, 13, 23, 59, 59, 999, 999, 999);
+    private static readonly BigInteger InstantMaxEpochNanoseconds =
+        new BigInteger(864) * BigInteger.Pow(10, 19);
+    private static readonly BigInteger InstantMinEpochNanoseconds = -InstantMaxEpochNanoseconds;
+    private static readonly BigInteger PlainDateTimeMinEpochNanoseconds = InstantMinEpochNanoseconds + 1;
+    private static readonly BigInteger PlainDateTimeMaxEpochNanoseconds = InstantMaxEpochNanoseconds - 1;
     private static readonly Dictionary<string, long> PlainDateTimeRoundingIncrements = new(StringComparer.Ordinal)
     {
         ["day"] = 1,
@@ -1259,6 +1259,11 @@ public static class TemporalHelper
         AddPrototypeGetter(prototype, realm, "microsecond", tv => new JsValue(GetZonedDateTime(tv).Microsecond));
         AddPrototypeGetter(prototype, realm, "nanosecond", tv => new JsValue(GetZonedDateTime(tv).Nanosecond));
         AddPrototypeGetter(prototype, realm, "epochMilliseconds", tv => new JsValue((double)GetZonedDateTime(tv).EpochMilliseconds));
+        AddPrototypeGetter(prototype, realm, "epochNanoseconds", tv =>
+        {
+            var zdt = GetZonedDateTime(tv);
+            return JsValue.FromObjectUnsafe(new JsBigInt(zdt.Instant.EpochNanoseconds));
+        });
         AddPrototypeGetter(prototype, realm, "epochSeconds", tv => new JsValue((double)GetZonedDateTime(tv).EpochSeconds));
         AddPrototypeGetter(prototype, realm, "monthCode", tv => new JsValue(GetZonedDateTime(tv).MonthCode));
         AddPrototypeGetter(prototype, realm, "dayOfWeek", tv => new JsValue(GetZonedDateTime(tv).DayOfWeek));
@@ -1350,18 +1355,30 @@ public static class TemporalHelper
                 PlainDateTimeRoundingIncrements,
                 allowMaxIncrement: false);
 
-            var local = new JsTemporalPlainDateTime(
-                zdt.Year, zdt.Month, zdt.Day,
-                zdt.Hour, zdt.Minute, zdt.Second,
-                zdt.Millisecond, zdt.Microsecond, zdt.Nanosecond,
-                zdt.Calendar);
+            if (options.SmallestUnit == "day")
+            {
+                var roundedInstant = RoundZonedDateTimeToDay(zdt, options, realm);
+                var roundedZdtDay = new JsTemporalZonedDateTime(roundedInstant, zdt.TimeZoneId, zdt.Calendar);
+                return WrapZonedDateTime(roundedZdtDay, realm, prototype);
+            }
+
+            var local = GetLocalPlainDateTime(zdt, realm);
 
             var roundedLocal = RoundPlainDateTime(local, options, realm);
+            var offset = zdt.FixedOffset ?? ResolveTimeZoneOffset(CreateTimeZoneLocalDateTime(roundedLocal), zdt.TimeZone, zdt.FixedOffset);
+            var offsetNanoseconds = new BigInteger(offset.Ticks) * 100;
+            var localEpochNanoseconds = ToEpochNanoseconds(roundedLocal);
+            var roundedInstantNanoseconds = localEpochNanoseconds - offsetNanoseconds;
+            if (roundedInstantNanoseconds < InstantMinEpochNanoseconds ||
+                roundedInstantNanoseconds > InstantMaxEpochNanoseconds)
+            {
+                throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
+            }
+
             var roundedZdt = new JsTemporalZonedDateTime(
-                roundedLocal.Year, roundedLocal.Month, roundedLocal.Day,
-                roundedLocal.Hour, roundedLocal.Minute, roundedLocal.Second,
-                roundedLocal.Millisecond, roundedLocal.Microsecond, roundedLocal.Nanosecond,
-                zdt.TimeZoneId, zdt.Calendar);
+                JsTemporalInstant.FromEpochNanoseconds(roundedInstantNanoseconds),
+                zdt.TimeZoneId,
+                zdt.Calendar);
             return WrapZonedDateTime(roundedZdt, realm, prototype);
         });
 
@@ -2189,10 +2206,195 @@ public static class TemporalHelper
         return FromEpochNanoseconds(rounded);
     }
 
+    private static JsTemporalInstant RoundZonedDateTimeToDay(
+        JsTemporalZonedDateTime zonedDateTime,
+        TemporalRoundingOptions options,
+        RealmState realm)
+    {
+        var epochNanoseconds = zonedDateTime.Instant.EpochNanoseconds;
+        if (epochNanoseconds < InstantMinEpochNanoseconds ||
+            epochNanoseconds > InstantMaxEpochNanoseconds)
+        {
+            throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
+        }
+
+        var localDateTime = GetLocalPlainDateTime(zonedDateTime, realm);
+        var year = localDateTime.Year;
+        var month = localDateTime.Month;
+        var day = localDateTime.Day;
+        var startOfDay = GetStartOfDayInstant(year, month, day, zonedDateTime.TimeZone, zonedDateTime.FixedOffset, realm);
+        var dayNumber = IsoToDayNumber(year, month, day);
+        var (nextYear, nextMonth, nextDay) = DayNumberToIsoDate(dayNumber + 1);
+        var startOfNextDay = GetStartOfDayInstant(nextYear, nextMonth, nextDay, zonedDateTime.TimeZone, zonedDateTime.FixedOffset, realm);
+
+        var dayLength = startOfNextDay - startOfDay;
+        if (dayLength <= 0)
+        {
+            throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
+        }
+
+        var offsetNanoseconds = zonedDateTime.Instant.EpochNanoseconds - startOfDay;
+        var incrementNanoseconds = dayLength * options.Increment;
+        var roundedOffset = RoundToIncrement(offsetNanoseconds, incrementNanoseconds, options.RoundingMode);
+        var roundedInstant = startOfDay + roundedOffset;
+
+        if (roundedInstant < InstantMinEpochNanoseconds || roundedInstant > InstantMaxEpochNanoseconds)
+        {
+            throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
+        }
+
+        return JsTemporalInstant.FromEpochNanoseconds(roundedInstant);
+    }
+
+    private static JsTemporalPlainDateTime GetLocalPlainDateTime(
+        JsTemporalZonedDateTime zonedDateTime,
+        RealmState realm)
+    {
+        if (zonedDateTime.FixedOffset.HasValue)
+        {
+            var offsetNanoseconds = new BigInteger(zonedDateTime.FixedOffset.Value.Ticks) * 100;
+            var localEpochNanoseconds = zonedDateTime.Instant.EpochNanoseconds + offsetNanoseconds;
+            if (localEpochNanoseconds < PlainDateTimeMinEpochNanoseconds ||
+                localEpochNanoseconds > PlainDateTimeMaxEpochNanoseconds)
+            {
+                throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
+            }
+
+            var localDateTime = FromEpochNanoseconds(localEpochNanoseconds);
+            return new JsTemporalPlainDateTime(
+                localDateTime.Year,
+                localDateTime.Month,
+                localDateTime.Day,
+                localDateTime.Hour,
+                localDateTime.Minute,
+                localDateTime.Second,
+                localDateTime.Millisecond,
+                localDateTime.Microsecond,
+                localDateTime.Nanosecond,
+                zonedDateTime.Calendar);
+        }
+
+        DateTimeOffset localDateTimeOffset;
+        try
+        {
+            var utc = zonedDateTime.Instant.ToDateTimeOffset();
+            localDateTimeOffset = TimeZoneInfo.ConvertTime(utc, zonedDateTime.TimeZone);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
+        }
+        catch (OverflowException)
+        {
+            throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
+        }
+
+        return new JsTemporalPlainDateTime(
+            localDateTimeOffset.Year,
+            localDateTimeOffset.Month,
+            localDateTimeOffset.Day,
+            localDateTimeOffset.Hour,
+            localDateTimeOffset.Minute,
+            localDateTimeOffset.Second,
+            localDateTimeOffset.Millisecond,
+            localDateTimeOffset.Microsecond,
+            zonedDateTime.Nanosecond,
+            zonedDateTime.Calendar);
+    }
+
+    private static BigInteger GetStartOfDayInstant(
+        int year,
+        int month,
+        int day,
+        TimeZoneInfo timeZone,
+        TimeSpan? fixedOffset,
+        RealmState realm)
+    {
+        if (fixedOffset.HasValue)
+        {
+            var offsetNanoseconds = new BigInteger(fixedOffset.Value.Ticks) * 100;
+            var localEpochNanoseconds = ToEpochNanoseconds(year, month, day, 0, 0, 0, 0, 0, 0);
+            if (localEpochNanoseconds < PlainDateTimeMinEpochNanoseconds ||
+                localEpochNanoseconds > PlainDateTimeMaxEpochNanoseconds)
+            {
+                throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
+            }
+            var instantNanoseconds = localEpochNanoseconds - offsetNanoseconds;
+            if (instantNanoseconds < InstantMinEpochNanoseconds ||
+                instantNanoseconds > InstantMaxEpochNanoseconds)
+            {
+                throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
+            }
+
+            return instantNanoseconds;
+        }
+
+        DateTime localDateTime;
+        try
+        {
+            localDateTime = new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Unspecified);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
+        }
+
+        var candidate = localDateTime;
+        for (var i = 0; i < 86_400; i++)
+        {
+            if (!timeZone.IsInvalidTime(candidate))
+            {
+                var offset = ResolveTimeZoneOffset(candidate, timeZone, fixedOffset);
+                return ToEpochNanoseconds(candidate, offset);
+            }
+
+            candidate = candidate.AddSeconds(1);
+        }
+
+        throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
+    }
+
+    private static TimeSpan ResolveTimeZoneOffset(DateTime localDateTime, TimeZoneInfo timeZone, TimeSpan? fixedOffset)
+    {
+        if (fixedOffset.HasValue)
+        {
+            return fixedOffset.Value;
+        }
+
+        if (timeZone.IsAmbiguousTime(localDateTime))
+        {
+            var offsets = timeZone.GetAmbiguousTimeOffsets(localDateTime);
+            return offsets.Max();
+        }
+
+        return timeZone.GetUtcOffset(localDateTime);
+    }
+
+    private static BigInteger ToEpochNanoseconds(DateTime localDateTime, TimeSpan offset)
+    {
+        var utcDateTime = DateTime.SpecifyKind(localDateTime - offset, DateTimeKind.Utc);
+        var dto = new DateTimeOffset(utcDateTime);
+        return new JsTemporalInstant(dto).EpochNanoseconds;
+    }
+
     private static BigInteger ToEpochNanoseconds(JsTemporalPlainDateTime dateTime)
     {
         return ToEpochNanoseconds(dateTime.Year, dateTime.Month, dateTime.Day, dateTime.Hour, dateTime.Minute, dateTime.Second,
             dateTime.Millisecond, dateTime.Microsecond, dateTime.Nanosecond);
+    }
+
+    private static DateTime CreateTimeZoneLocalDateTime(JsTemporalPlainDateTime dateTime)
+    {
+        var localDateTime = new DateTime(
+            dateTime.Year,
+            dateTime.Month,
+            dateTime.Day,
+            dateTime.Hour,
+            dateTime.Minute,
+            dateTime.Second,
+            dateTime.Millisecond,
+            dateTime.Microsecond);
+        return DateTime.SpecifyKind(localDateTime, DateTimeKind.Unspecified);
     }
 
     private static BigInteger ToEpochNanoseconds(

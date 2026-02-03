@@ -177,15 +177,15 @@ public sealed partial class ObjectPrototype
             return new JsValue(false);
         }
 
-        if (!TryGetObject(thisValue, Realm, out var obj))
-        {
-            throw ThrowTypeError("Object.prototype.hasOwnProperty called on null or undefined", realm: Realm);
-        }
-
         var propertyName = JsOps.ToPropertyName(args[0]);
         if (propertyName is null)
         {
             return new JsValue(false);
+        }
+
+        if (!TryGetObject(thisValue, Realm, out var obj))
+        {
+            throw ThrowTypeError("Object.prototype.hasOwnProperty called on null or undefined", realm: Realm);
         }
 
         var result = false;

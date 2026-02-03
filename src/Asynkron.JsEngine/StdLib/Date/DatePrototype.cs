@@ -632,7 +632,14 @@ public sealed partial class DatePrototype
         }
 
         var local = ConvertMillisecondsToLocal(timeValue, Realm);
-        return local.ToString("HH:mm:ss 'GMT'zzz", CultureInfo.InvariantCulture);
+        var culture = CultureInfo.InvariantCulture;
+        var time = local.ToString("HH:mm:ss", culture);
+        var offset = local.ToString("zzz", culture).Replace(":", string.Empty, StringComparison.Ordinal);
+        var timeZone = Realm?.Options.TimeZone ?? TimeZoneInfo.Utc;
+        var timeZoneName = timeZone.IsDaylightSavingTime(local.DateTime)
+            ? timeZone.DaylightName
+            : timeZone.StandardName;
+        return $"{time} GMT{offset} ({timeZoneName})";
     }
 
     [JsHostMethod("valueOf", Length = 0d)]

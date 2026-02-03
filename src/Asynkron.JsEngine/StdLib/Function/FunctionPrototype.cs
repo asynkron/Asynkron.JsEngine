@@ -45,13 +45,11 @@ public sealed partial class FunctionPrototype
     }
 
     [JsHostMethod("apply", Length = 2d)]
-    private static JsValue Apply(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue Apply(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
+        var realmState = Realm;
         if (!thisValue.TryGetObject<IJsCallable>(out var target))
         {
-            var realmState = thisValue.TryGetObject<ICallableMetadata>(out var metadata)
-                ? metadata.RealmState
-                : null;
             throw ThrowTypeError("Function.prototype.apply called on incompatible receiver", realm: realmState);
         }
 
@@ -62,8 +60,11 @@ public sealed partial class FunctionPrototype
             return target.Invoke(ArgumentSlice.Empty, thisArg);
         }
 
-        var realmStateForArray = (target as ICallableMetadata)?.RealmState;
-        var accessor = EnsureArrayLikeReceiver(argArray, "Function.prototype.apply", realmStateForArray);
+        var realmStateForArray = realmState;
+        if (!argArray.TryGetObject<IJsPropertyAccessor>(out var accessor))
+        {
+            throw ThrowTypeError("Function.prototype.apply called on non-object", realm: realmStateForArray);
+        }
         var length = LengthOfArrayLike(accessor, realmStateForArray);
         if (length > int.MaxValue)
         {

@@ -25,4 +25,4 @@ Full test name:
 **Tests:**
 `dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --settings tests/Asynkron.JsEngine.Tests.Test262/BuiltInsTests.runsettings --filter "Name=WeakRef_prototype_deref"`
 
-**DONE**
+** DONE **

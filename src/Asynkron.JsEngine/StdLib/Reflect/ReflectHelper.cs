@@ -354,7 +354,14 @@ public static class ReflectHelper
                     continue;
                 }
 
-                ordered.Push(key);
+                if (JsSymbol.TryGetByInternalKey(key, out var symbol) && symbol is not null)
+                {
+                    ordered.Push((JsValue)symbol);
+                }
+                else
+                {
+                    ordered.Push(key);
+                }
             }
 
             return JsValue.FromJsArray(ordered);

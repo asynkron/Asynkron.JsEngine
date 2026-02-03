@@ -635,6 +635,13 @@ public sealed partial class DatePrototype
             return "Invalid Date";
         }
 
+        var localTimeValue = LocalTimeMs(timeValue, Realm);
+        var year = YearFromTime(localTimeValue);
+        if (year < 0 || year > 9999)
+        {
+            return FormatDateToJsStringFromTime(timeValue, Realm);
+        }
+
         var local = ConvertMillisecondsToLocal(timeValue, Realm);
         return FormatDateToJsString(local, Realm);
     }
@@ -646,6 +653,13 @@ public sealed partial class DatePrototype
         if (double.IsNaN(timeValue))
         {
             return "Invalid Date";
+        }
+
+        var localTimeValue = LocalTimeMs(timeValue, Realm);
+        var year = YearFromTime(localTimeValue);
+        if (year < 0 || year > 9999)
+        {
+            return FormatDateToJsDateStringFromTime(timeValue, Realm);
         }
 
         var local = ConvertMillisecondsToLocal(timeValue, Realm);
@@ -728,6 +742,12 @@ public sealed partial class DatePrototype
         if (double.IsNaN(timeValue))
         {
             return "Invalid Date";
+        }
+
+        var year = YearFromTime(timeValue);
+        if (year < 0 || year > 9999)
+        {
+            return FormatUtcToJsUtcStringFromTime(timeValue);
         }
 
         var utc = ConvertMillisecondsToUtc(timeValue);

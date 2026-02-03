@@ -407,6 +407,10 @@ public static class DateHelper
         return realmState.Options.TimeZone ?? TimeZoneInfo.Utc;
     }
 
+    private static readonly string[] WeekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    private static readonly string[] MonthNames =
+        ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
     internal static string FormatDateToJsString(DateTimeOffset localTime, RealmState realmState)
     {
         var culture = CultureInfo.InvariantCulture;
@@ -426,10 +430,50 @@ public static class DateHelper
         return $"{weekday} {month} {day} {year} {time} GMT{offset} ({timeZoneName})";
     }
 
+    internal static string FormatDateToJsStringFromTime(double utcTime, RealmState realmState)
+    {
+        var localTime = LocalTimeMs(utcTime, realmState);
+        var weekday = WeekdayNames[(int)WeekDayFromTime(localTime)];
+        var month = MonthNames[MonthFromTime(localTime)];
+        var day = ((int)DateFromTime(localTime)).ToString("00", CultureInfo.InvariantCulture);
+        var year = FormatYearString(YearFromTime(localTime));
+        var time = $"{(int)HourFromTime(localTime):00}:{(int)MinFromTime(localTime):00}:{(int)SecFromTime(localTime):00}";
+
+        var offsetMinutes = (int)Math.Round(GetLocalOffsetMs(utcTime, realmState) / MsPerMinute);
+        var offsetSign = offsetMinutes < 0 ? "-" : "+";
+        var offsetAbs = Math.Abs(offsetMinutes);
+        var offset = $"{offsetSign}{offsetAbs / 60:00}{offsetAbs % 60:00}";
+
+        var timeZone = ResolveTimeZone(realmState);
+        var timeZoneName = timeZone.StandardName;
+
+        return $"{weekday} {month} {day} {year} {time} GMT{offset} ({timeZoneName})";
+    }
+
     internal static string FormatUtcToJsUtcString(DateTimeOffset utcTime)
     {
         var culture = CultureInfo.InvariantCulture;
         return utcTime.UtcDateTime.ToString("ddd, dd MMM yyyy HH:mm:ss 'GMT'", culture);
+    }
+
+    internal static string FormatUtcToJsUtcStringFromTime(double utcTime)
+    {
+        var weekday = WeekdayNames[(int)WeekDayFromTime(utcTime)];
+        var month = MonthNames[MonthFromTime(utcTime)];
+        var day = ((int)DateFromTime(utcTime)).ToString("00", CultureInfo.InvariantCulture);
+        var year = FormatYearString(YearFromTime(utcTime));
+        var time = $"{(int)HourFromTime(utcTime):00}:{(int)MinFromTime(utcTime):00}:{(int)SecFromTime(utcTime):00}";
+        return $"{weekday}, {day} {month} {year} {time} GMT";
+    }
+
+    internal static string FormatDateToJsDateStringFromTime(double utcTime, RealmState realmState)
+    {
+        var localTime = LocalTimeMs(utcTime, realmState);
+        var weekday = WeekdayNames[(int)WeekDayFromTime(localTime)];
+        var month = MonthNames[MonthFromTime(localTime)];
+        var day = ((int)DateFromTime(localTime)).ToString("00", CultureInfo.InvariantCulture);
+        var year = FormatYearString(YearFromTime(localTime));
+        return $"{weekday} {month} {day} {year}";
     }
 
     internal static DateTimeOffset ConvertMillisecondsToUtc(double milliseconds)
@@ -448,6 +492,20 @@ public static class DateHelper
         {
             return milliseconds < 0 ? DateTimeOffset.MinValue : DateTimeOffset.MaxValue;
         }
+    }
+
+    private static string FormatYearString(double year)
+    {
+        if (double.IsNaN(year) || double.IsInfinity(year))
+        {
+            return "NaN";
+        }
+
+        var integral = (long)Math.Truncate(year);
+        var sign = integral < 0 ? "-" : string.Empty;
+        var absYear = Math.Abs(integral);
+        var digits = absYear.ToString(CultureInfo.InvariantCulture).PadLeft(4, '0');
+        return $"{sign}{digits}";
     }
 
     internal static double ParseDateTimeString(string dateStr, RealmState realmState)

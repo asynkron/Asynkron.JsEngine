@@ -41,14 +41,7 @@ public sealed partial class WeakMapConstructor(IJsObjectLike prototype, RealmSta
                 continue;
             }
 
-            try
-            {
-                instance.Set(pair.GetElement(0), pair.GetElement(1));
-            }
-            catch (Exception ex)
-            {
-                throw new Exception(ex.Message);
-            }
+            instance.Set(pair.GetElement(0), pair.GetElement(1));
         }
     }
 }

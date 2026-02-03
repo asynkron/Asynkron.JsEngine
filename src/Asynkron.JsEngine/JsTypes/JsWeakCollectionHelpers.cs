@@ -15,6 +15,16 @@ internal static class JsWeakCollectionHelpers
             return null;
         }
 
+        if (value.IsSymbol)
+        {
+            if (value.TryUnwrap<JsSymbol>(out var symbol) && JsSymbol.KeyFor(symbol) is null)
+            {
+                return symbol;
+            }
+
+            return null;
+        }
+
         var obj = value.ObjectValue;
 
         while (obj is JsValue nested)
@@ -33,6 +43,8 @@ internal static class JsWeakCollectionHelpers
             case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
             case string:
                 return false;
+            case JsSymbol jsSymbol:
+                return JsSymbol.KeyFor(jsSymbol) is null;
         }
 
         if (value.GetType().IsValueType)
@@ -40,6 +52,6 @@ internal static class JsWeakCollectionHelpers
             return false;
         }
 
-        return value is not JsSymbol;
+        return true;
     }
 }

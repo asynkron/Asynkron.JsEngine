@@ -36,14 +36,7 @@ public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmSta
 
         foreach (var value in values.Items)
         {
-            try
-            {
-                instance.Add(value);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception(ex.Message);
-            }
+            instance.Add(value);
         }
     }
 }

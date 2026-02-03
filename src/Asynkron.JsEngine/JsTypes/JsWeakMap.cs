@@ -2,6 +2,7 @@
 
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.StdLib;
 
 #endregion
 
@@ -100,7 +101,7 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
         // WeakMap only accepts objects as keys
         if (keyObj == null)
         {
-            throw new Exception("Invalid value used as weak map key");
+            throw StandardLibrary.ThrowTypeError("Invalid value used as weak map key");
         }
 
         // Use AddOrUpdate to set the value

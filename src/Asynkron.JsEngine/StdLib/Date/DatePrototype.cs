@@ -1,6 +1,7 @@
 #region
 
 using System.Globalization;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using Asynkron.JsEngine.StdLib.Temporal;
@@ -849,10 +850,13 @@ public sealed partial class DatePrototype
         return TemporalHelper.CreateInstantFromEpochMilliseconds(Realm, timeValue);
     }
 
-    [JsSymbolMethod("toPrimitive", Length = 1d)]
+    [JsSymbolMethod("toPrimitive", Length = 1d, Writable = false)]
     public JsValue ToPrimitive(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        RequireDateValue(thisValue, Realm, out var obj);
+        if (!thisValue.IsObject)
+        {
+            throw ThrowTypeError("Cannot convert object to primitive value", realm: Realm);
+        }
 
         if (!args.GetArgument(0).TryGetString(out var hint))
         {
@@ -868,16 +872,16 @@ public sealed partial class DatePrototype
 
         if (preferString)
         {
-            if (TryInvokeAndReturnPrimitive(obj, "toString", out var result) ||
-                TryInvokeAndReturnPrimitive(obj, "valueOf", out result))
+            if (TryInvokeAndReturnPrimitive(thisValue, "toString", out var result) ||
+                TryInvokeAndReturnPrimitive(thisValue, "valueOf", out result))
             {
                 return result;
             }
         }
         else
         {
-            if (TryInvokeAndReturnPrimitive(obj, "valueOf", out var result) ||
-                TryInvokeAndReturnPrimitive(obj, "toString", out result))
+            if (TryInvokeAndReturnPrimitive(thisValue, "valueOf", out var result) ||
+                TryInvokeAndReturnPrimitive(thisValue, "toString", out result))
             {
                 return result;
             }
@@ -886,17 +890,18 @@ public sealed partial class DatePrototype
         throw ThrowTypeError("Cannot convert object to primitive value", realm: Realm);
     }
 
-    private static bool TryInvokeAndReturnPrimitive(JsObject obj, string methodName, out JsValue result)
+    private static bool TryInvokeAndReturnPrimitive(JsValue receiver, string methodName, out JsValue result)
     {
         result = JsValue.Undefined;
-        if (!obj.TryGetProperty(methodName, out var method) ||
+        if (!receiver.TryGetObject<IJsPropertyAccessor>(out var accessor) ||
+            !accessor.TryGetProperty(methodName, out var method) ||
             !method.TryGetObject<IJsCallable>(out var callable))
         {
             return false;
         }
 
         // Follow OrdinaryToPrimitive: only return if the result is not an object.
-        var value = callable.Invoke([], new JsValue(obj));
+        var value = callable.Invoke([], receiver);
         if (value.IsObject)
         {
             return false;

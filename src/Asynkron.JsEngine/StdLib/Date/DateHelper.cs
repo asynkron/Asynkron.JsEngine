@@ -336,6 +336,26 @@ public static class DateHelper
         return day * MsPerDay + time;
     }
 
+    internal static double MakeTime(double hour, double minute, double second, double millisecond)
+    {
+        if (double.IsNaN(hour) || double.IsNaN(minute) || double.IsNaN(second) || double.IsNaN(millisecond))
+        {
+            return double.NaN;
+        }
+
+        var h = Math.Truncate(hour);
+        var m = Math.Truncate(minute);
+        var s = Math.Truncate(second);
+        var ms = Math.Truncate(millisecond);
+
+        if (double.IsInfinity(h) || double.IsInfinity(m) || double.IsInfinity(s) || double.IsInfinity(ms))
+        {
+            return double.NaN;
+        }
+
+        return h * MsPerHour + m * MsPerMinute + s * MsPerSecond + ms;
+    }
+
     internal static double HourFromTime(double t)
     {
         return Math.Floor(TimeWithinDay(t) / MsPerHour);

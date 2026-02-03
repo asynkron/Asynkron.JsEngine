@@ -166,6 +166,14 @@ public static class DateHelper
             return double.NaN;
         }
 
+        if ((hour.HasValue && double.IsNaN(hour.Value)) ||
+            (minute.HasValue && double.IsNaN(minute.Value)) ||
+            (second.HasValue && double.IsNaN(second.Value)) ||
+            (millisecond.HasValue && double.IsNaN(millisecond.Value)))
+        {
+            return double.NaN;
+        }
+
         var h = ToIntegerOrInfinity(hour ?? HourFromTime(time));
         var m = ToIntegerOrInfinity(minute ?? MinFromTime(time));
         var s = ToIntegerOrInfinity(second ?? SecFromTime(time));

@@ -223,6 +223,11 @@ public sealed partial class DatePrototype
             throw new ThrowSignal(evalContext.FlowValue);
         }
 
+        if (double.IsNaN(timeValue))
+        {
+            return JsValue.NaN;
+        }
+
         var clipped = SetTimeComponents(time, Realm!, millisecond: ms);
         StoreInternalDateValue(obj, clipped);
         return clipped;
@@ -265,6 +270,11 @@ public sealed partial class DatePrototype
         if (evalContext?.IsThrow == true)
         {
             throw new ThrowSignal(evalContext.FlowValue);
+        }
+
+        if (double.IsNaN(timeValue))
+        {
+            return JsValue.NaN;
         }
 
         var clipped = SetTimeComponents(time, Realm!, second: sec, millisecond: ms);
@@ -321,6 +331,11 @@ public sealed partial class DatePrototype
         if (evalContext?.IsThrow == true)
         {
             throw new ThrowSignal(evalContext.FlowValue);
+        }
+
+        if (double.IsNaN(timeValue))
+        {
+            return JsValue.NaN;
         }
 
         var clipped = SetTimeComponents(time, Realm!, minute: minute, second: sec, millisecond: ms);
@@ -390,6 +405,11 @@ public sealed partial class DatePrototype
         if (evalContext?.IsThrow == true)
         {
             throw new ThrowSignal(evalContext.FlowValue);
+        }
+
+        if (double.IsNaN(timeValue))
+        {
+            return JsValue.NaN;
         }
 
         var clipped = SetTimeComponents(time, Realm!, hour, minute, sec, ms);

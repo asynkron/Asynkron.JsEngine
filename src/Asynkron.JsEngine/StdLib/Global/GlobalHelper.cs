@@ -2,6 +2,7 @@
 
 using System.Globalization;
 using System.Text;
+using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
@@ -44,7 +45,7 @@ public static partial class GlobalHelper
         if (args.Count > 1 && !args[1].IsUndefined)
         {
             var radixNum = JsOps.ToNumber(args[1]);
-            radix = double.IsNaN(radixNum) ? 0 : (int)radixNum;
+            radix = double.IsNaN(radixNum) ? 0 : JsNumericConversions.ToInt32(radixNum);
         }
         else
         {
@@ -97,14 +98,17 @@ public static partial class GlobalHelper
         foreach (var c in str)
         {
             int digit;
-            if (char.IsDigit(c))
+            if (c is >= '0' and <= '9')
             {
                 digit = c - '0';
             }
-            else if (char.IsLetter(c))
+            else if (c is >= 'A' and <= 'Z')
             {
-                var upper = char.ToUpperInvariant(c);
-                digit = upper - 'A' + 10;
+                digit = c - 'A' + 10;
+            }
+            else if (c is >= 'a' and <= 'z')
+            {
+                digit = c - 'a' + 10;
             }
             else
             {
@@ -135,31 +139,29 @@ public static partial class GlobalHelper
         }
 
         var str = JsOps.ToJsString(args[0]) ?? "";
-        str = str.Trim();
+        str = str.TrimStart();
         if (str.Length == 0)
         {
             return JsValue.NaN;
         }
 
-        // Try parsing the string as a double
-        if (double.TryParse(str, NumberStyles.Float,
-                CultureInfo.InvariantCulture, out var result))
+        var index = 0;
+        if (str[index] == '+' || str[index] == '-')
         {
-            return new JsValue(result);
+            index++;
         }
 
-        // JavaScript parseFloat allows partial parsing - parse as much as possible
-        var i = 0;
+        if (index < str.Length && str.AsSpan(index).StartsWith("Infinity", StringComparison.Ordinal))
+        {
+            return new JsValue(str[0] == '-' ? double.NegativeInfinity : double.PositiveInfinity);
+        }
+
+        // JavaScript parseFloat allows partial parsing - parse the longest StrDecimalLiteral prefix
+        var i = index;
         var hasDigits = false;
 
-        // Handle sign
-        if (i < str.Length && (str[i] == '+' || str[i] == '-'))
-        {
-            i++;
-        }
-
         // Parse digits before decimal point
-        while (i < str.Length && char.IsDigit(str[i]))
+        while (i < str.Length && str[i] is >= '0' and <= '9')
         {
             hasDigits = true;
             i++;
@@ -169,7 +171,7 @@ public static partial class GlobalHelper
         if (i < str.Length && str[i] == '.')
         {
             i++;
-            while (i < str.Length && char.IsDigit(str[i]))
+            while (i < str.Length && str[i] is >= '0' and <= '9')
             {
                 hasDigits = true;
                 i++;
@@ -186,7 +188,7 @@ public static partial class GlobalHelper
             }
 
             var hasExpDigits = false;
-            while (j < str.Length && char.IsDigit(str[j]))
+            while (j < str.Length && str[j] is >= '0' and <= '9')
             {
                 hasExpDigits = true;
                 j++;
@@ -205,7 +207,7 @@ public static partial class GlobalHelper
 
         var parsed = str[..i];
         if (double.TryParse(parsed, NumberStyles.Float,
-                CultureInfo.InvariantCulture, out result))
+                CultureInfo.InvariantCulture, out var result))
         {
             return new JsValue(result);
         }
@@ -240,24 +242,6 @@ public static partial class GlobalHelper
         }
 
         var value = args[0];
-
-        // Convert to number first (this is what JavaScript does)
-        if (value.TryGetDouble(out var d))
-        {
-            return new JsValue(!double.IsNaN(d) && !double.IsInfinity(d));
-        }
-
-        if (value.TryGetString(out var s))
-        {
-            if (double.TryParse(s, CultureInfo.InvariantCulture, out var parsed))
-            {
-                return new JsValue(!double.IsNaN(parsed) && !double.IsInfinity(parsed));
-            }
-
-            return JsValue.False; // Can't parse, so NaN, so not finite
-        }
-
-        // For other types, convert to number using ToNumber
         var numericValue = JsOps.ToNumber(value);
         return new JsValue(!double.IsNaN(numericValue) && !double.IsInfinity(numericValue));
     }

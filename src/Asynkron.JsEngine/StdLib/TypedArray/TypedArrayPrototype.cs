@@ -1328,54 +1328,61 @@ public sealed partial class TypedArrayPrototype
     {
         var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.toLocaleString");
 
+        var locales = args.Count > 0 ? args[0] : JsValue.Undefined;
+        var options = args.Count > 1 ? args[1] : JsValue.Undefined;
         var length = typedArray.Length;
         if (length == 0)
         {
             return JsValue.FromString(string.Empty);
         }
 
-        var sb = new System.Text.StringBuilder();
+        var parts = new List<string>(length);
         for (var i = 0; i < length; i++)
         {
-            if (i > 0)
-            {
-                sb.Append(',');
-            }
-
-            if (typedArray.IsDetachedOrOutOfBounds())
-            {
-                throw typedArray.CreateOutOfBoundsTypeError();
-            }
-
             var element = typedArray.GetValueForIndex(i);
-            if (!element.IsNullOrUndefined)
+            if (element.IsNullOrUndefined)
             {
-                // Call toLocaleString on the element if it's an object with that method
-                if (element.IsObject &&
-                    element.TryGetObject<IJsPropertyAccessor>(out var obj) &&
-                    obj.TryGetProperty("toLocaleString", out var toLocaleMethod) &&
-                    toLocaleMethod.TryGetObject<IJsCallable>(out var callable))
-                {
-                    var result = callable.Invoke(args.ToList(), element);
-                    sb.Append(JsOps.ToJsString(result, Realm?.CreateContext(pushScope: false)));
-                }
-                else
-                {
-                    // For primitive numbers, use InvariantCulture formatting
-                    // to match JavaScript behavior
-                    if (element.IsNumber)
-                    {
-                        sb.Append(element.AsDouble().ToString(CultureInfo.InvariantCulture));
-                    }
-                    else
-                    {
-                        sb.Append(JsOps.ToJsString(element, Realm?.CreateContext(pushScope: false)));
-                    }
-                }
+                parts.Add(string.Empty);
+                continue;
             }
+
+            string part;
+            IJsPropertyAccessor? elementAccessor;
+            if (element.TryGetObject<IJsPropertyAccessor>(out var objAccessor))
+            {
+                elementAccessor = objAccessor;
+            }
+            else
+            {
+                elementAccessor = GetPrimitivePrototype(element, Realm);
+            }
+
+            if (elementAccessor is not null &&
+                elementAccessor.TryGetProperty("toLocaleString", element, out var toLocaleMethod) &&
+                toLocaleMethod.TryGetObject<IJsCallable>(out var callable))
+            {
+                var result = callable.Invoke([locales, options], element);
+                part = JsOps.ToJsString(result);
+            }
+            else
+            {
+                part = JsOps.ToJsString(element);
+            }
+
+            parts.Add(part);
         }
 
-        return JsValue.FromString(sb.ToString());
+        return JsValue.FromString(string.Join(',', parts));
+    }
+
+    private static IJsPropertyAccessor? GetPrimitivePrototype(JsValue value, RealmState? realm)
+    {
+        if (value.IsBoolean) return realm?.BooleanPrototype;
+        if (value.IsNumber) return realm?.NumberPrototype;
+        if (value.IsString) return realm?.StringPrototype;
+        if (value.IsSymbol) return realm?.SymbolPrototype;
+        if (value.IsBigInt) return realm?.BigIntPrototype;
+        return realm?.ObjectPrototype;
     }
 
     #endregion

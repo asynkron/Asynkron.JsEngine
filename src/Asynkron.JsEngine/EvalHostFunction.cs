@@ -558,6 +558,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 inheritStrictness: !isDirectEval)
             : lexicalEnv;
 
+        evalEnvironment.MarkAsEvalDeclarationEnvironment();
         InstantiateLexicalDeclarations(evalEnvironment, lexicalDeclarations);
         var functionDeclaredNames = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
         foreach (var declaration in varFunctionDeclarations)
@@ -571,9 +572,42 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         var preexistingVarBindings = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
         foreach (var name in varDeclaredNames)
         {
-            if (varEnv.HasBinding(name))
+            if (varEnv.HasOwnBinding(name))
             {
                 preexistingVarBindings.Add(name);
+            }
+        }
+
+        // ES2024 19.2.1.3 EvalDeclarationInstantiation step 15:
+        // Ensure var-scoped function declarations create deletable bindings in sloppy eval.
+        // The actual function object initialization happens during hoisting, but we must
+        // mark the bindings as deletable up-front so `delete` can remove them.
+        if (!isStrictEval)
+        {
+            var declaredFunctionNames = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+            for (var i = varFunctionDeclarations.Count - 1; i >= 0; i--)
+            {
+                var declaration = varFunctionDeclarations[i];
+                if (declaration.Function.Name is null)
+                {
+                    continue;
+                }
+
+                var name = declaration.Function.Name;
+                if (!declaredFunctionNames.Add(name) || varEnv.HasOwnBinding(name))
+                {
+                    continue;
+                }
+
+                varEnv.DefineFunctionScoped(
+                    name,
+                    JsValue.Undefined,
+                    hasInitializer: false,
+                    isFunctionDeclaration: true,
+                    globalFunctionConfigurable: true,
+                    context: CallingContext,
+                    canDelete: true);
+                varEnv.MarkEvalDeletable(name);
             }
         }
 
@@ -588,7 +622,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             foreach (var name in varDeclaredNames)
             {
-                if (functionDeclaredNames.Contains(name) || varEnv.HasBinding(name))
+                if (functionDeclaredNames.Contains(name) || varEnv.HasOwnBinding(name))
                 {
                     continue;
                 }
@@ -603,6 +637,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     context: CallingContext,
                     globalVarConfigurable: true,
                     canDelete: true);
+                varEnv.MarkEvalDeletable(name);
             }
         }
 

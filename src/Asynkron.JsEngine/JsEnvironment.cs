@@ -27,6 +27,8 @@ public sealed class JsEnvironment : IRentable
     private HashSet<Symbol>? _bodyLexicalNames;
     private SourceReference? _creatingSource;
     private string? _description;
+    private HashSet<Symbol>? _evalDeletableBindings;
+    private bool _isEvalDeclarationEnvironment;
     internal bool _hasThisValue;
     private Dictionary<Symbol, ResolvedIdentifierBinding>? _identifierBindingCache;
     private bool _inheritStrictness;
@@ -299,6 +301,7 @@ public sealed class JsEnvironment : IRentable
         _bindingObservers?.Clear();
         _bodyLexicalNames?.Clear();
         _simpleCatchParameters?.Clear();
+        _evalDeletableBindings?.Clear();
 
         // Reset other state
         _isDefaultDerivedConstructor = false;
@@ -306,6 +309,7 @@ public sealed class JsEnvironment : IRentable
         _withObject = null;
         _treatAsGlobalFunctionScope = false;
         _inheritStrictness = true;
+        _isEvalDeclarationEnvironment = false;
         _thisValue = default;
         _hasThisValue = false;
 
@@ -639,11 +643,13 @@ public sealed class JsEnvironment : IRentable
         _bindingObservers?.Clear();
         _bodyLexicalNames?.Clear();
         _simpleCatchParameters?.Clear();
+        _evalDeletableBindings?.Clear();
         _isDefaultDerivedConstructor = false;
         _varEnvironmentOverride = null;
         _withObject = null;
         _treatAsGlobalFunctionScope = false;
         _inheritStrictness = true;
+        _isEvalDeclarationEnvironment = false;
         _isStrictEffective = isStrict || (enclosing?.IsStrict ?? false);
         RealmState = enclosing?.RealmState;
         ModulePath = enclosing?.ModulePath;
@@ -1261,6 +1267,24 @@ public sealed class JsEnvironment : IRentable
     internal bool HasOwnBinding(Symbol name)
     {
         return FindSlotIndex(name) >= 0;
+    }
+
+    internal bool IsEvalDeclarationEnvironment => _isEvalDeclarationEnvironment;
+
+    internal void MarkAsEvalDeclarationEnvironment()
+    {
+        _isEvalDeclarationEnvironment = true;
+    }
+
+    internal void MarkEvalDeletable(Symbol name)
+    {
+        _evalDeletableBindings ??= new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+        _evalDeletableBindings.Add(name);
+    }
+
+    private bool IsEvalDeletable(Symbol name)
+    {
+        return _evalDeletableBindings?.Contains(name) == true;
     }
 
     [MethodImpl(JsEngineConstants.Inlining)]
@@ -2809,7 +2833,7 @@ public sealed class JsEnvironment : IRentable
             return false;
         }
 
-        if (slot.CanDelete)
+        if (slot.CanDelete || IsEvalDeletable(name))
         {
             RemoveSlot(name);
             return true;

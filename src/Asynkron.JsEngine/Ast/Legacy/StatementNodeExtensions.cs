@@ -338,6 +338,11 @@ public static partial class TypedAstEvaluator
                             {
                                 // Slot-backed scope (IR path): populate slot directly for fast lookup
                                 environment.SetSlotDirect(slotIndex, fnValueJs);
+                                if (context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false })
+                                {
+                                    ref var slot = ref environment.GetSlotByIndex(slotIndex);
+                                    slot.Flags |= SlotFlags.CanDelete;
+                                }
                             }
                             else
                             {

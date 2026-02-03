@@ -520,6 +520,11 @@ public sealed partial class DatePrototype
             throw new ThrowSignal(evalContext.FlowValue);
         }
 
+        if (double.IsNaN(timeValue))
+        {
+            return JsValue.NaN;
+        }
+
         var day = MakeDay(YearFromTime(time), month, dt);
         var clipped = ApplyTimeClip(day, time, Realm!, false);
         StoreInternalDateValue(obj, clipped);

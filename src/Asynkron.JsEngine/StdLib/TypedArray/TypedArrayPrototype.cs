@@ -1378,7 +1378,7 @@ public sealed partial class TypedArrayPrototype
 
         var length = typedArray.Length;
         var separator = args.Count > 0 && !args[0].IsUndefined
-            ? JsOps.ToJsString(args[0], Realm?.CreateContext(pushScope: false))
+            ? args[0].ToJsString()
             : ",";
 
         if (length == 0)
@@ -1394,15 +1394,21 @@ public sealed partial class TypedArrayPrototype
                 sb.Append(separator);
             }
 
-            if (typedArray.IsDetachedOrOutOfBounds())
-            {
-                throw typedArray.CreateOutOfBoundsTypeError();
-            }
-
             var element = typedArray.GetValueForIndex(i);
             if (!element.IsNullOrUndefined)
             {
-                sb.Append(JsOps.ToJsString(element, Realm?.CreateContext(pushScope: false)));
+                if (element.IsNumber)
+                {
+                    sb.Append(NumberHelper.NumberToString(element.AsDouble(), 10));
+                }
+                else if (element.IsBigInt && element.ObjectValue is JsBigInt bigInt)
+                {
+                    sb.Append(bigInt.ToString());
+                }
+                else
+                {
+                    sb.Append(JsOps.ToJsString(element));
+                }
             }
         }
 

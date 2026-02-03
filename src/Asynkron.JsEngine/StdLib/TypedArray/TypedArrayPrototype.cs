@@ -1227,35 +1227,37 @@ public sealed partial class TypedArrayPrototype
             return (JsValue)typedArray;
         }
 
-        // Read all values into a list
-        var values = new List<JsValue>(length);
+        // Read all values into a list (use original indices for stable sort)
+        var values = new List<(JsValue Value, int Index)>(length);
         for (var i = 0; i < length; i++)
         {
-            if (typedArray.IsDetachedOrOutOfBounds())
-            {
-                throw typedArray.CreateOutOfBoundsTypeError();
-            }
-
-            values.Add(typedArray.GetValueForIndex(i));
+            values.Add((typedArray.GetValueForIndex(i), i));
         }
 
-        // Sort the values
-        values.Sort(Comparer);
+        // Sort the values (stable, and allow comparefn exceptions to propagate)
+        StableSort(values, Comparer);
 
-        // Write sorted values back
-        for (var i = 0; i < values.Count; i++)
+        var currentLength = typedArray.Length;
+        var writeLength = Math.Min(length, currentLength);
+        for (var i = 0; i < writeLength; i++)
         {
-            if (typedArray.IsDetachedOrOutOfBounds())
-            {
-                throw typedArray.CreateOutOfBoundsTypeError();
-            }
-
-            typedArray.SetValue(i, values[i]);
+            typedArray.SetValue(i, values[i].Value);
         }
 
         return (JsValue)typedArray;
 
-        int Comparer(JsValue left, JsValue right)
+        int Comparer((JsValue Value, int Index) left, (JsValue Value, int Index) right)
+        {
+            var result = CompareValues(left.Value, right.Value);
+            if (result != 0)
+            {
+                return result;
+            }
+
+            return left.Index.CompareTo(right.Index);
+        }
+
+        int CompareValues(JsValue left, JsValue right)
         {
             if (compareFn is not null)
             {
@@ -1271,8 +1273,11 @@ public sealed partial class TypedArrayPrototype
                 return leftBig.Value.CompareTo(rightBig.Value);
             }
 
-            var leftNum = JsOps.ToNumber(left);
-            var rightNum = JsOps.ToNumber(right);
+            return CompareNumbers(JsOps.ToNumber(left), JsOps.ToNumber(right));
+        }
+
+        static int CompareNumbers(double leftNum, double rightNum)
+        {
             if (double.IsNaN(leftNum))
             {
                 return double.IsNaN(rightNum) ? 0 : 1;
@@ -1283,7 +1288,87 @@ public sealed partial class TypedArrayPrototype
                 return -1;
             }
 
+            if (leftNum == 0 && rightNum == 0)
+            {
+                var leftNegZero = IsNegativeZero(leftNum);
+                var rightNegZero = IsNegativeZero(rightNum);
+                if (leftNegZero == rightNegZero)
+                {
+                    return 0;
+                }
+
+                return leftNegZero ? -1 : 1;
+            }
+
             return leftNum.CompareTo(rightNum);
+        }
+
+        static bool IsNegativeZero(double value)
+        {
+            return value == 0 && BitConverter.DoubleToInt64Bits(value) == BitConverter.DoubleToInt64Bits(-0d);
+        }
+
+        static void StableSort(List<(JsValue Value, int Index)> items,
+            Comparison<(JsValue Value, int Index)> comparer)
+        {
+            var count = items.Count;
+            if (count <= 1)
+            {
+                return;
+            }
+
+            var src = items.ToArray();
+            var dst = new (JsValue Value, int Index)[count];
+
+            for (var width = 1; width < count; width *= 2)
+            {
+                for (var i = 0; i < count; i += 2 * width)
+                {
+                    var left = i;
+                    var mid = Math.Min(i + width, count);
+                    var right = Math.Min(i + 2 * width, count);
+                    Merge(src, dst, left, mid, right, comparer);
+                }
+
+                var temp = src;
+                src = dst;
+                dst = temp;
+            }
+
+            for (var i = 0; i < count; i++)
+            {
+                items[i] = src[i];
+            }
+        }
+
+        static void Merge((JsValue Value, int Index)[] src, (JsValue Value, int Index)[] dst,
+            int left, int mid, int right, Comparison<(JsValue Value, int Index)> comparer)
+        {
+            var i = left;
+            var j = mid;
+            var k = left;
+
+            while (i < mid && j < right)
+            {
+                if (comparer(src[i], src[j]) <= 0)
+                {
+                    dst[k++] = src[i++];
+                }
+                else
+                {
+                    dst[k++] = src[j++];
+                }
+            }
+
+            while (i < mid)
+            {
+                dst[k++] = src[i++];
+            }
+
+            while (j < right)
+            {
+                dst[k++] = src[j++];
+            }
         }
     }
 

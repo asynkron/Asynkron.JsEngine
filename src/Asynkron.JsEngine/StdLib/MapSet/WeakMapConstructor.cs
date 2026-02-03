@@ -29,19 +29,30 @@ public sealed partial class WeakMapConstructor(IJsObjectLike prototype, RealmSta
             return;
         }
 
-        if (!args[0].TryGetObject<JsArray>(out var entries))
+        if (!instance.TryGetProperty("set", out var adderValue) ||
+            !adderValue.TryGetObject<IJsCallable>(out var adder))
         {
-            return;
+            throw StandardLibrary.ThrowTypeError("WeakMap.prototype.set is not callable", realm: Realm);
         }
 
-        foreach (var entry in entries.Items)
+        var instanceValue = JsValue.FromObjectUnsafe(instance);
+
+        MapSetIterationHelper.Iterate(args[0], Realm, "WeakMap constructor", entry =>
         {
-            if (!entry.TryGetObject<JsArray>(out var pair) || pair.Items.Count < 2)
+            JsValue key;
+            JsValue value;
+
+            if (entry.TryGetObject<IJsPropertyAccessor>(out var accessor))
             {
-                continue;
+                accessor.TryGetProperty("0", out key);
+                accessor.TryGetProperty("1", out value);
+            }
+            else
+            {
+                throw StandardLibrary.ThrowTypeError("WeakMap constructor expects iterable entries", realm: Realm);
             }
 
-            instance.Set(pair.GetElement(0), pair.GetElement(1));
-        }
+            adder.Invoke([key, value], instanceValue);
+        });
     }
 }

@@ -29,14 +29,16 @@ public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmSta
             return;
         }
 
-        if (!args[0].TryGetObject<JsArray>(out var values))
+        if (!instance.TryGetProperty("add", out var adderValue) ||
+            !adderValue.TryGetObject<IJsCallable>(out var adder))
         {
-            return;
+            throw StandardLibrary.ThrowTypeError("WeakSet.prototype.add is not callable", realm: Realm);
         }
 
-        foreach (var value in values.Items)
+        var instanceValue = JsValue.FromObjectUnsafe(instance);
+        MapSetIterationHelper.Iterate(args[0], Realm, "WeakSet constructor", entry =>
         {
-            instance.Add(value);
-        }
+            adder.Invoke([entry], instanceValue);
+        });
     }
 }

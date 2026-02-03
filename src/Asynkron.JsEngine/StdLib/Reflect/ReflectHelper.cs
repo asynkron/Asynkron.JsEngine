@@ -653,6 +653,14 @@ public static class ReflectHelper
             return true;
         }
 
+        var realmGlobal = realmObject ?? realmState?.Engine?.GlobalObject;
+        if (realmGlobal is not null &&
+            realmGlobal.TryGetProperty(ctorName, out var ctorValue) &&
+            TryGetPrototype(ctorValue, out prototype))
+        {
+            return true;
+        }
+
         if (realmState is { ObjectPrototype: not null })
         {
             prototype = realmState.ObjectPrototype;

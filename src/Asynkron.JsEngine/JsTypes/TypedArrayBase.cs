@@ -831,7 +831,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
         if (IsDetachedOrOutOfBounds())
         {
-            throw CreateOutOfBoundsTypeError();
+            return JsValue.Undefined;
         }
 
         var currentLength = ComputeLength();

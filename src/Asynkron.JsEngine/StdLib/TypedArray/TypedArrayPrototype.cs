@@ -235,7 +235,7 @@ public sealed partial class TypedArrayPrototype
     [JsHostMethod("some", Length = 1d)]
     private JsValue Some(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(SomeLike(thisValue, args.ToList(), Realm, "%TypedArray%.prototype.some"));
+        return SomeImpl(thisValue, args);
     }
 
     [JsHostMethod("values", Length = 0d)]
@@ -499,6 +499,35 @@ public sealed partial class TypedArrayPrototype
         }
 
         return JsValue.True;
+    }
+
+    private JsValue SomeImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.some");
+
+        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
+        {
+            throw ThrowTypeError("TypedArray.prototype.some expects a callable callback", realm: Realm);
+        }
+
+        var thisArg = args.GetArgument(1);
+        if (callback is IJsEnvironmentAwareCallable envAware && Realm.Engine?.GlobalEnvironment is { } globalEnv)
+        {
+            envAware.CallingJsEnvironment = globalEnv;
+        }
+
+        var length = typedArray.Length;
+        for (var k = 0; k < length; k++)
+        {
+            var value = typedArray.GetValueForIndex(k);
+            var result = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
+            if (IsTruthy(result))
+            {
+                return JsValue.True;
+            }
+        }
+
+        return JsValue.False;
     }
 
     private JsValue FindImpl(JsValue thisValue, IReadOnlyList<JsValue> args)

@@ -30,7 +30,7 @@ public sealed partial class SymbolPrototype
         return symbol.Description != null ? new JsValue(symbol.Description) : JsValue.Undefined;
     }
 
-    [JsSymbolMethod("toPrimitive", Length = 0d)]
+    [JsSymbolMethod("toPrimitive", Length = 1d, Writable = false, Enumerable = false, Configurable = true)]
     public JsValue ToPrimitive(JsValue thisValue)
     {
         var symbol = RequireSymbolReceiver(thisValue, Realm);

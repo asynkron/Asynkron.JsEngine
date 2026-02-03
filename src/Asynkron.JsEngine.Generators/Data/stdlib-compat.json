@@ -1587,11 +1587,12 @@
       },
       "prototype": {
         "methods": [
-          "description",
           "toString",
           "valueOf"
         ],
-        "getters": [],
+        "getters": [
+          "description"
+        ],
         "setters": [],
         "symbolMethods": [
           "toPrimitive"

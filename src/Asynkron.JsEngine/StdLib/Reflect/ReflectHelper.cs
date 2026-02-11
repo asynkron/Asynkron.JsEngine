@@ -100,7 +100,8 @@ public static class ReflectHelper
         if (target is HostFunction hostCtor &&
             (ReferenceEquals(hostCtor, realm.ArrayBufferConstructor) ||
              ReferenceEquals(hostCtor, realm.SharedArrayBufferConstructor) ||
-             ReferenceEquals(hostCtor, realm.DataViewConstructor)))
+             ReferenceEquals(hostCtor, realm.DataViewConstructor) ||
+             ReferenceEquals(hostCtor, realm.PromiseConstructor)))
         {
             var constructContext = realm.CreateContext(pushScope: false);
             return hostCtor.InvokeWithContext(argList, JsValue.Undefined, constructContext,

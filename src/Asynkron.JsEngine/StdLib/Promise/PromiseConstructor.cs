@@ -72,6 +72,10 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
     private object ConstructPromise(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor)
     {
+        // Per ES spec 27.2.3.1 Promise(executor):
+        // Step 2: If IsCallable(executor) is false, throw a TypeError exception.
+        // Step 3: Let promise be OrdinaryCreateFromConstructor(...)
+        // The executor callability check MUST happen before prototype resolution.
         IJsCallable? executor = null;
         if (args.Count > 0 && !args[0].TryGetCallable(out executor))
         {
@@ -83,32 +87,78 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             throw ThrowTypeError("Promise constructor requires an executor function", realm: Realm);
         }
 
-        var prototype = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
-        var promise = CreatePromise(Realm, prototype);
+        var promisePrototype = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
+        var promise = CreatePromise(Realm, promisePrototype);
 
-        var resolve = new HostFunction((_, resolveArgs) =>
-        {
-            promise.Resolve(resolveArgs.GetArgument(0));
-            return JsValue.Undefined;
-        }, Realm, false);
-
-        var reject = new HostFunction((_, rejectArgs) =>
-        {
-            promise.Reject(rejectArgs.GetArgument(0));
-            return JsValue.Undefined;
-        }, Realm, false);
+        var resolve = CreateResolvingFunction(promise, true, Realm);
+        var reject = CreateResolvingFunction(promise, false, Realm);
 
         try
         {
             var executorArgs = new[] { (JsValue)resolve, (JsValue)reject };
             executor.Invoke(executorArgs, JsValue.Undefined);
         }
-        catch (Exception ex)
+        catch (ThrowSignal signal)
         {
-            promise.Reject((JsValue)ex.Message);
+            promise.Reject(signal.ThrownValue);
+        }
+        catch (Exception)
+        {
+            promise.Reject(JsValue.Undefined);
         }
 
         return promise.JsObject;
+    }
+
+    /// <summary>
+    /// Creates a spec-compliant Promise resolve or reject function with proper length/name properties.
+    /// Per ES spec 25.4.1.3.1 (Reject) and 25.4.1.3.2 (Resolve):
+    /// - length = 1
+    /// - name = "" (anonymous built-in function)
+    /// - not a constructor
+    /// </summary>
+    private static HostFunction CreateResolvingFunction(JsPromise promise, bool isResolve, RealmState realmState)
+    {
+        var fn = new HostFunction((_, callArgs) =>
+        {
+            var arg = callArgs.GetArgument(0);
+            if (isResolve)
+            {
+                promise.Resolve(arg);
+            }
+            else
+            {
+                promise.Reject(arg);
+            }
+            return JsValue.Undefined;
+        }, realmState, false);
+
+        SetBuiltInFunctionProperties(fn, "", 1);
+        return fn;
+    }
+
+    /// <summary>
+    /// Sets the standard built-in function properties (length and name) with spec-compliant attributes.
+    /// Per ES spec 17 ECMAScript Standard Built-in Objects:
+    /// - length: { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }
+    /// - name: { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }
+    /// </summary>
+    private static void SetBuiltInFunctionProperties(HostFunction fn, string name, int length)
+    {
+        fn.DefineProperty("length", new PropertyDescriptor
+        {
+            JsValue = new JsValue(length),
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
+        fn.DefineProperty("name", new PropertyDescriptor
+        {
+            JsValue = new JsValue(name),
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
     }
 
     private void AttachStatics(HostFunction constructor)
@@ -122,35 +172,138 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         constructor.SetHostedProperty("withResolvers", (thisValue, _, _) => PromiseWithResolvers(thisValue), Realm);
     }
 
-    private JsValue PromiseResolve(JsValue _, IReadOnlyList<JsValue> args)
+    /// <summary>
+    /// Implements NewPromiseCapability(C) per ES spec 27.2.1.5.
+    /// Creates a new promise using the given constructor C, and returns the (promise, resolve, reject) triple.
+    /// The executor function passed to C captures resolve and reject.
+    /// </summary>
+    private (JsValue promise, JsValue resolve, JsValue reject) NewPromiseCapability(JsValue c)
     {
-        var value = args.GetArgument(0);
-
-        // Per ES spec 27.2.4.7 Promise.resolve(x):
-        // If x is a promise and x.constructor is the same as this constructor, return x
-        if (value.TryGetObject<JsObject>(out var jsObj) &&
-            JsPromise.TryGetInternalPromise(value, out var _) &&
-            jsObj.TryGetProperty("constructor", out var ctor) &&
-            ctor.TryGetCallable(out var ctorCallable) &&
-            ReferenceEquals(ctorCallable, _constructor ?? ConstructFallback))
+        // Step 1: If IsConstructor(C) is false, throw a TypeError.
+        if (!c.TryGetCallable(out var constructor) || !JsOps.IsConstructor(c))
         {
-            return value;
+            throw ThrowTypeError("Promise constructor is not a constructor", realm: Realm);
         }
 
-        var promise = CreatePromise(Realm);
-        promise.Resolve(value);
-        return new JsValue(promise.JsObject);
+        JsValue capturedResolve = JsValue.Undefined;
+        JsValue capturedReject = JsValue.Undefined;
+
+        // Step 3: Create GetCapabilitiesExecutor function
+        var executorFn = new HostFunction((_, executorArgs) =>
+        {
+            // Step 3.a: If resolve is not undefined, throw TypeError (called twice)
+            if (!capturedResolve.IsUndefined)
+            {
+                throw ThrowTypeError("Promise executor already called", realm: Realm);
+            }
+            // Step 3.b: If reject is not undefined, throw TypeError (called twice)
+            if (!capturedReject.IsUndefined)
+            {
+                throw ThrowTypeError("Promise executor already called", realm: Realm);
+            }
+
+            capturedResolve = executorArgs.GetArgument(0);
+            capturedReject = executorArgs.GetArgument(1);
+            return JsValue.Undefined;
+        }, Realm, false);
+
+        // Set proper function properties for the executor
+        // Per ES spec 25.4.1.5.1: length = 2, name = ""
+        SetBuiltInFunctionProperties(executorFn, "", 2);
+
+        // Step 4: Let promise be ? Construct(C, << executor >>)
+        var promiseResult = Construct(constructor, [(JsValue)executorFn], constructor, Realm);
+
+        // Step 5-6: Validate resolve and reject are callable
+        if (!capturedResolve.TryGetCallable(out _))
+        {
+            throw ThrowTypeError("Promise resolve is not callable", realm: Realm);
+        }
+        if (!capturedReject.TryGetCallable(out _))
+        {
+            throw ThrowTypeError("Promise reject is not callable", realm: Realm);
+        }
+
+        return (promiseResult, capturedResolve, capturedReject);
     }
 
-    private JsValue PromiseReject(JsValue _, IReadOnlyList<JsValue> args)
+    private JsValue PromiseResolve(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var reason = args.GetArgument(0);
-        var promise = CreatePromise(Realm);
-        promise.Reject(reason);
-        return new JsValue(promise.JsObject);
+        // Per ES spec 27.2.4.7 Promise.resolve(x):
+        // Step 1: Let C be the this value.
+        // Step 2: If Type(C) is not Object, throw a TypeError.
+        if (!thisValue.IsObject)
+        {
+            throw ThrowTypeError("Promise.resolve requires an object", realm: Realm);
+        }
+
+        var value = args.GetArgument(0);
+
+        // Step 3: If IsPromise(x) is true, then
+        //   a. Let xConstructor be Get(x, "constructor").
+        //   b. If SameValue(xConstructor, C) is true, return x.
+        if (value.TryGetObject<JsObject>(out var jsObj) &&
+            JsPromise.TryGetInternalPromise(value, out _) &&
+            jsObj.TryGetProperty("constructor", out var ctor))
+        {
+            // Check SameValue(xConstructor, C)
+            if (JsOps.SameValue(ctor, thisValue))
+            {
+                return value;
+            }
+        }
+
+        // Step 4: Let capability be ? NewPromiseCapability(C).
+        // If C is the built-in Promise constructor, use the fast path
+        if (thisValue.TryGetCallable(out var ctorCallable) &&
+            ReferenceEquals(ctorCallable, _constructor ?? ConstructFallback))
+        {
+            // Fast path for built-in Promise
+            var promise = CreatePromise(Realm);
+            promise.Resolve(value);
+            return new JsValue(promise.JsObject);
+        }
+
+        // Slow path: use NewPromiseCapability for subclass/custom constructors
+        var capability = NewPromiseCapability(thisValue);
+        // Step 5: Perform ? Call(capability.[[Resolve]], undefined, << x >>).
+        capability.resolve.TryGetCallable(out var resolveFn);
+        resolveFn!.Invoke([value], JsValue.Undefined);
+        // Step 6: Return capability.[[Promise]].
+        return capability.promise;
     }
 
-    private JsValue PromiseAll(JsValue _, IReadOnlyList<JsValue> args)
+    private JsValue PromiseReject(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        // Per ES spec 27.2.4.6 Promise.reject(r):
+        // Step 1: Let C be the this value.
+        // Step 2: Let capability be ? NewPromiseCapability(C).
+        if (!thisValue.IsObject)
+        {
+            throw ThrowTypeError("Promise.reject requires an object", realm: Realm);
+        }
+
+        var reason = args.GetArgument(0);
+
+        // Fast path for built-in Promise
+        if (thisValue.TryGetCallable(out var ctorCallable) &&
+            ReferenceEquals(ctorCallable, _constructor ?? ConstructFallback))
+        {
+            var promise = CreatePromise(Realm);
+            promise.Reject(reason);
+            return new JsValue(promise.JsObject);
+        }
+
+        // Slow path: use NewPromiseCapability for subclass/custom constructors
+        var capability = NewPromiseCapability(thisValue);
+        // Step 3: Perform ? Call(capability.[[Reject]], undefined, << r >>).
+        capability.reject.TryGetCallable(out var rejectFn);
+        rejectFn!.Invoke([reason], JsValue.Undefined);
+        // Step 4: Return capability.[[Promise]].
+        return capability.promise;
+    }
+
+    private JsValue PromiseAll(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (!TryGetPromiseIterableArray(args, out var array))
         {
@@ -219,7 +372,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         }
     }
 
-    private JsValue PromiseRace(JsValue _, IReadOnlyList<JsValue> args)
+    private JsValue PromiseRace(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (!TryGetPromiseIterableArray(args, out var array))
         {
@@ -281,7 +434,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         }
     }
 
-    private JsValue PromiseAllSettled(JsValue _, IReadOnlyList<JsValue> args)
+    private JsValue PromiseAllSettled(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (!TryGetPromiseIterableArray(args, out var array))
         {
@@ -355,7 +508,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         }
     }
 
-    private JsValue PromiseAny(JsValue _, IReadOnlyList<JsValue> args)
+    private JsValue PromiseAny(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (!TryGetPromiseIterableArray(args, out var array))
         {
@@ -476,32 +629,34 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         return rejectionErrors;
     }
 
-    private JsValue PromiseWithResolvers(JsValue _)
+    private JsValue PromiseWithResolvers(JsValue thisValue)
     {
-        // Create a new promise
-        var promise = CreatePromise(Realm, Realm.PromisePrototype);
+        // Per ES spec 27.2.4.8 Promise.withResolvers():
+        // Step 1: Let C be the this value.
+        // Step 2: Let capability be ? NewPromiseCapability(C).
 
-        // Create resolve function
-        var resolve = new HostFunction((_, resolveArgs) =>
+        // Fast path for built-in Promise
+        if (thisValue.TryGetCallable(out var ctorCallable) &&
+            ReferenceEquals(ctorCallable, _constructor ?? ConstructFallback))
         {
-            promise.Resolve(resolveArgs.GetArgument(0));
-            return JsValue.Undefined;
-        }, Realm, false);
+            var promise = CreatePromise(Realm, Realm.PromisePrototype);
+            var resolve = CreateResolvingFunction(promise, true, Realm);
+            var reject = CreateResolvingFunction(promise, false, Realm);
 
-        // Create reject function
-        var reject = new HostFunction((_, rejectArgs) =>
-        {
-            promise.Reject(rejectArgs.GetArgument(0));
-            return JsValue.Undefined;
-        }, Realm, false);
+            var result = new JsObject { RealmState = Realm };
+            result.SetProperty("promise", JsValue.FromJsPromise(promise));
+            result.SetProperty("resolve", JsValue.FromObjectUnsafe(resolve));
+            result.SetProperty("reject", JsValue.FromObjectUnsafe(reject));
+            return JsValue.FromJsObject(result);
+        }
 
-        // Return an object with { promise, resolve, reject }
-        var result = new JsObject { RealmState = Realm };
-        result.SetProperty("promise", JsValue.FromJsPromise(promise));
-        result.SetProperty("resolve", JsValue.FromObjectUnsafe(resolve));
-        result.SetProperty("reject", JsValue.FromObjectUnsafe(reject));
-
-        return JsValue.FromJsObject(result);
+        // Slow path: use NewPromiseCapability for subclass/custom constructors
+        var capability = NewPromiseCapability(thisValue);
+        var resultObj = new JsObject { RealmState = Realm };
+        resultObj.SetProperty("promise", capability.promise);
+        resultObj.SetProperty("resolve", capability.resolve);
+        resultObj.SetProperty("reject", capability.reject);
+        return JsValue.FromJsObject(resultObj);
     }
 
     /// <summary>

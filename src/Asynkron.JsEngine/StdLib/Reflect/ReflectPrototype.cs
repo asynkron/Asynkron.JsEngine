@@ -13,7 +13,7 @@ public sealed partial class ReflectPrototype : JsPrototype
     [JsHostMethod("apply", Length = 3d)]
     public JsValue Apply(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return ReflectApply(thisValue, args);
+        return ReflectApply(thisValue, args, Realm);
     }
 
     [JsHostMethod("construct", Length = 2d)]

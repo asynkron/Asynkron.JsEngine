@@ -1,6 +1,5 @@
 #region
 
-using System.Globalization;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.NumberHelper;
@@ -43,55 +42,21 @@ public sealed partial class NumberPrototype
     public JsValue ToFixed(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var num = RequireNumberReceiver(thisValue, "Number.prototype.toFixed");
-
-        // Per spec: ToIntegerOrInfinity(fractionDigits), then check range
-        var fractionDigitsArg = args.Count > 0 ? args[0] : JsValue.Undefined;
-        var fractionDigitsNum = fractionDigitsArg.IsUndefined ? 0d : JsOps.ToNumber(fractionDigitsArg);
-
-        // If fractionDigits is Infinity, throw RangeError
-        if (double.IsInfinity(fractionDigitsNum))
-        {
-            throw ThrowRangeError("toFixed() digits argument must be between 0 and 100", realm: Realm);
-        }
-
-        // ToIntegerOrInfinity: NaN becomes 0, truncate toward zero
-        var fractionDigits = double.IsNaN(fractionDigitsNum) ? 0 : (int)Math.Truncate(fractionDigitsNum);
-        if (fractionDigits is < 0 or > 100)
-        {
-            throw ThrowRangeError("toFixed() digits argument must be between 0 and 100", realm: Realm);
-        }
-
-        if (double.IsNaN(num))
-        {
-            return "NaN";
-        }
-
-        if (double.IsInfinity(num))
-        {
-            return num > 0 ? "Infinity" : "-Infinity";
-        }
-
-        // For very large numbers (>= 10^21), return the same as ToString
-        if (Math.Abs(num) >= 1e21)
-        {
-            return num.ToString(CultureInfo.InvariantCulture);
-        }
-
-        return num.ToString("F" + fractionDigits, CultureInfo.InvariantCulture);
+        return FormatToFixedCore(num, args, Realm);
     }
 
     [JsHostMethod("toExponential", Length = 1d)]
     public JsValue ToExponential(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var num = RequireNumberReceiver(thisValue, "Number.prototype.toExponential");
-        return NumberHelper.FormatToExponentialCore(num, args, Realm);
+        return FormatToExponentialCore(num, args, Realm);
     }
 
     [JsHostMethod("toPrecision", Length = 1d)]
     public JsValue ToPrecision(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var num = RequireNumberReceiver(thisValue, "Number.prototype.toPrecision");
-        return NumberHelper.FormatToPrecisionCore(num, args, Realm);
+        return FormatToPrecisionCore(num, args, Realm);
     }
 
     [JsHostMethod("toLocaleString", Length = 0d)]
@@ -115,12 +80,12 @@ public sealed partial class NumberPrototype
                     options.TryGetProperty("unit", out var unitVal) &&
                     !unitVal.IsNullOrUndefined)
                 {
-                    return $"{num.ToString(CultureInfo.InvariantCulture)} {JsOps.ToJsString(unitVal)}";
+                    return $"{NumberToString(num, 10)} {JsOps.ToJsString(unitVal)}";
                 }
             }
         }
 
-        return num.ToString(CultureInfo.InvariantCulture);
+        return NumberToString(num, 10);
     }
 
     protected override void ConfigurePrototype()

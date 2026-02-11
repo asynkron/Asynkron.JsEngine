@@ -2,6 +2,7 @@
 
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
@@ -97,6 +98,13 @@ public static partial class TypedAstEvaluator
         {
             var notCtor = StandardLibrary.CreateTypeError("Target is not a constructor", context, realm);
             throw new ThrowSignal(notCtor);
+        }
+
+        // Proxy [[Construct]]: route through JsProxy.Construct which handles
+        // the construct trap, invariant checks, and fallback to target [[Construct]].
+        if (constructor is JsProxy proxy)
+        {
+            return proxy.Construct(args, callable);
         }
 
         if (constructor is HostFunction hostFunction &&

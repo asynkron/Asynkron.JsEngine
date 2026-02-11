@@ -67,6 +67,12 @@ public static class ReflectHelper
     internal static JsValue Construct(IJsCallable target, IReadOnlyList<JsValue> argList, IJsCallable newTarget,
         RealmState realm)
     {
+        // Route through JsProxy construct trap when target is a proxy
+        if (target is JsProxy proxyTarget)
+        {
+            return proxyTarget.Construct(argList, newTarget);
+        }
+
         if (target is HostFunction hostTarget &&
             (!hostTarget.IsConstructor || hostTarget.DisallowConstruct))
         {

@@ -256,14 +256,28 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// <summary>
     ///     Executes a provided function once per each value in the Set, in insertion order.
     ///     The callback receives (value, value, set) - value is passed twice for consistency with Map.
+    ///     Per ES spec, values added during iteration are visited, and values deleted then re-added are revisited.
     /// </summary>
     public void ForEach(IJsCallable callback, JsValue thisArg)
     {
-        foreach (var value in _insertionOrder)
+        // Use index-based iteration to handle mutations during iteration:
+        // - New values added during callbacks appear at the end and are visited (Count grows).
+        // - Deleted values are removed from _insertionOrder, shifting subsequent items left.
+        //   After the callback, if the item at position i changed (was shifted), we do not
+        //   advance i, so the shifted-in item is visited next.
+        var i = 0;
+        while (i < _insertionOrder.Count)
         {
-            // In Set.forEach, the value is passed as both the first and second argument
+            var value = _insertionOrder[i];
             var jsValue = JsValue.FromObjectUnsafe(value);
             callback.Invoke([jsValue, jsValue, _cachedJsValue], thisArg);
+
+            // If the item at position i is still the same value we just visited, advance past it.
+            // If it changed (due to a deletion shifting items left), stay at i to visit the new item.
+            if (i < _insertionOrder.Count && Equals(_insertionOrder[i], value))
+            {
+                i++;
+            }
         }
     }
 

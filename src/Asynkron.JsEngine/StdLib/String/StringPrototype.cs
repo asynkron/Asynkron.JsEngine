@@ -429,49 +429,83 @@ public sealed partial class StringPrototype
         return new JsValue(ResolveString(thisValue).ToUpperInvariant());
     }
 
+    // ECMAScript whitespace: all Unicode "White_Space" chars plus \uFEFF (BOM/ZWNBSP).
+    // .NET char.IsWhiteSpace does NOT consider \uFEFF as whitespace, so we use an explicit array.
+    private static readonly char[] JsWhiteSpaceChars =
+    [
+        '\u0009', '\u000A', '\u000B', '\u000C', '\u000D', '\u0020', '\u00A0',
+        '\u1680', '\u2000', '\u2001', '\u2002', '\u2003', '\u2004', '\u2005',
+        '\u2006', '\u2007', '\u2008', '\u2009', '\u200A', '\u2028', '\u2029',
+        '\u202F', '\u205F', '\u3000', '\uFEFF',
+    ];
+
     [JsHostMethod("trim", Length = 0d)]
     private JsValue Trim(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        return new JsValue(ResolveString(thisValue).Trim());
+        return new JsValue(ResolveString(thisValue).Trim(JsWhiteSpaceChars));
     }
 
     [JsHostMethod("trimStart", Length = 0d)]
     private JsValue TrimStart(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        return new JsValue(ResolveString(thisValue).TrimStart());
+        return new JsValue(ResolveString(thisValue).TrimStart(JsWhiteSpaceChars));
     }
 
     [JsHostMethod("trimEnd", Length = 0d)]
     private JsValue TrimEnd(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        return new JsValue(ResolveString(thisValue).TrimEnd());
+        return new JsValue(ResolveString(thisValue).TrimEnd(JsWhiteSpaceChars));
     }
 
     [JsHostMethod("split", Length = 2d)]
     private JsValue Split(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var value = ResolveString(thisValue);
-        if (args.Count == 0)
+        var separatorValue = args.Count > 0 ? args[0] : JsValue.Undefined;
+        var limitValue = args.Count > 1 ? args[1] : JsValue.Undefined;
+
+        // Per spec step 4: If separator is not undefined/null, check for @@split
+        if (!separatorValue.IsNullOrUndefined)
+        {
+            var splitMethod = GetMethod(separatorValue, SymbolKeys.Split, "@@split");
+            if (splitMethod is not null)
+            {
+                return splitMethod.Invoke([new JsValue(value), limitValue], separatorValue);
+            }
+        }
+
+        // Per spec step 8: Let lim be ToUint32(limit) - evaluated BEFORE ToString(separator)
+        uint lim;
+        if (limitValue.IsUndefined)
+        {
+            lim = 0xFFFFFFFF; // 2^32 - 1
+        }
+        else
+        {
+            lim = RegExpHelper.ToUint32(limitValue);
+        }
+
+        // Per spec step 9: Let R = ToString(separator)
+        var separator = separatorValue.IsUndefined
+            ? null
+            : CoerceToString(separatorValue);
+
+        // Per spec step 10: If lim = 0, return empty array
+        if (lim == 0)
+        {
+            return JsValue.FromJsArray(CreateArrayFromStrings([], Realm));
+        }
+
+        // Per spec step 11: If separator is undefined, return [S]
+        if (separator is null)
         {
             return JsValue.FromJsArray(CreateArrayFromStrings([value], Realm));
         }
 
-        var separatorValue = args[0];
-        var splitMethod = GetMethod(separatorValue, SymbolKeys.Split, "@@split");
-        if (splitMethod is not null)
+        // Per spec: If separator is empty string, split into individual chars
+        if (separator.Length == 0)
         {
-            var limitArg = args.GetArgument(1);
-            return splitMethod.Invoke([new JsValue(value), limitArg], separatorValue);
-        }
-
-        var separator = separatorValue.IsUndefined
-            ? null
-            : CoerceToString(separatorValue);
-        var limit = args.Count > 1 && args[1].TryGetDouble(out var d) ? (int)d : int.MaxValue;
-
-        if (separator is null or "")
-        {
-            var charCount = Math.Min(value.Length, limit);
+            var charCount = (int)Math.Min(value.Length, lim);
             var chars = new string[charCount];
             for (var i = 0; i < charCount; i++)
             {
@@ -482,9 +516,9 @@ public sealed partial class StringPrototype
         }
 
         var parts = value.Split([separator], StringSplitOptions.None);
-        if (limit < parts.Length)
+        if (lim < (uint)parts.Length)
         {
-            parts = parts.Take(limit).ToArray();
+            parts = parts.Take((int)lim).ToArray();
         }
 
         return JsValue.FromJsArray(CreateArrayFromStrings(parts, Realm));
@@ -503,128 +537,49 @@ public sealed partial class StringPrototype
             return replaceMethod.Invoke([new JsValue(value), replacement], search);
         }
 
+        // Per spec: Convert searchValue to string (handles null->"null", undefined->"undefined")
+        var searchString = CoerceToString(search);
+
         if (replacement.TryGetObject<IJsCallable>(out var replacer))
         {
-            if (TryResolveRegExp(search, out var regex))
-            {
-                var dotNetRegex = new Regex(regex.Pattern);
-                var result = new StringBuilder();
-                var lastIndex = 0;
-
-                if (regex.Global)
-                {
-                    var matches = dotNetRegex.Matches(value);
-                    if (matches.Count == 0)
-                    {
-                        return new JsValue(value);
-                    }
-
-                    foreach (Match match in matches)
-                    {
-                        if (!match.Success)
-                        {
-                            continue;
-                        }
-
-                        if (match.Index > lastIndex)
-                        {
-                            result.Append(value.AsSpan(lastIndex, match.Index - lastIndex));
-                        }
-
-                        var replacementValue = replacer.Invoke(new SingleValueArgs(new JsValue(match.Value)), JsValue.Undefined);
-                        var replacementString = replacementValue.ToJsString();
-                        result.Append(replacementString);
-
-                        lastIndex = match.Index + match.Length;
-                    }
-                }
-                else
-                {
-                    var match = dotNetRegex.Match(value);
-                    if (!match.Success)
-                    {
-                        return new JsValue(value);
-                    }
-
-                    if (match.Index > 0)
-                    {
-                        result.Append(value.AsSpan(0, match.Index));
-                    }
-
-                    var replacementValue = replacer.Invoke(new SingleValueArgs(new JsValue(match.Value)), JsValue.Undefined);
-                    var replacementString = replacementValue.ToJsString();
-                    result.Append(replacementString);
-
-                    lastIndex = match.Index + match.Length;
-                }
-
-                if (lastIndex < value.Length)
-                {
-                    result.Append(value.AsSpan(lastIndex));
-                }
-
-                return new JsValue(result.ToString());
-            }
-
-            var searchValueFunc = CoerceToString(search);
-            if (searchValueFunc.Length == 0)
-            {
-                var replacementValue = replacer.Invoke(new SingleValueArgs(new JsValue("")), JsValue.Undefined);
-                var replacementString = replacementValue.ToJsString();
-                return new JsValue(replacementString + value);
-            }
-
-            var idx = value.IndexOf(searchValueFunc, StringComparison.Ordinal);
+            // Function replacer: per spec, call with (matched, position, string)
+            var idx = value.IndexOf(searchString, StringComparison.Ordinal);
             if (idx < 0)
             {
                 return new JsValue(value);
             }
 
-            var prefix = value[..idx];
-            var suffix = value[(idx + searchValueFunc.Length)..];
-            var replacedSegment = replacer.Invoke(new SingleValueArgs(new JsValue(searchValueFunc)), JsValue.Undefined).ToJsString();
-            return new JsValue(prefix + replacedSegment + suffix);
+            var replacerArgs = new JsValue[]
+            {
+                new(searchString),
+                new((double)idx),
+                new(value),
+            };
+            var replacementResult = replacer.Invoke(replacerArgs, JsValue.Undefined);
+            var replacementStr = JsOps.ToJsString(replacementResult);
+
+            return new JsValue(string.Concat(value.AsSpan(0, idx), replacementStr, value.AsSpan(idx + searchString.Length)));
         }
 
-        if (TryResolveRegExp(search, out var regex2))
-        {
-            var replaceValue = JsOps.ToJsString(replacement);
-            if (regex2.Global)
-            {
-                return new JsValue(Regex.Replace(value, regex2.Pattern, replaceValue));
-            }
-
-            var match = Regex.Match(value, regex2.Pattern);
-            if (match.Success)
-            {
-                return new JsValue(string.Concat(value.AsSpan(0, match.Index), replaceValue,
-                    value.AsSpan(match.Index + match.Length)));
-            }
-
-            return new JsValue(value);
-        }
-
-        var searchValue = CoerceToString(search);
         var replaceStr = CoerceToString(replacement);
-        var index = value.IndexOf(searchValue, StringComparison.Ordinal);
+        var index = value.IndexOf(searchString, StringComparison.Ordinal);
         if (index == -1)
         {
             return new JsValue(value);
         }
 
-        return new JsValue(string.Concat(value.AsSpan(0, index), replaceStr, value.AsSpan(index + searchValue.Length)));
+        // Apply GetSubstitution for $ patterns in the replacement string
+        var substituted = GetSubstitution(replaceStr, value, searchString, index, null);
+        return new JsValue(string.Concat(value.AsSpan(0, index), substituted, value.AsSpan(index + searchString.Length)));
     }
 
     [JsHostMethod("match", Length = 1d)]
     private JsValue Match(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var value = ResolveString(thisValue);
-        if (args.Count == 0)
-        {
-            return JsValue.Null;
-        }
 
-        var searchValue = args[0];
+        // Per spec: if no args, use undefined (which becomes empty-string regexp)
+        var searchValue = args.Count > 0 ? args[0] : JsValue.Undefined;
         var matcher = GetMethod(searchValue, SymbolKeys.Match, "@@match");
         if (matcher is not null)
         {
@@ -640,12 +595,9 @@ public sealed partial class StringPrototype
     private JsValue Search(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var value = ResolveString(thisValue);
-        if (args.Count == 0)
-        {
-            return new JsValue(-1d);
-        }
 
-        var searchValue = args[0];
+        // Per spec: if no args, use undefined (which becomes empty-string regexp)
+        var searchValue = args.Count > 0 ? args[0] : JsValue.Undefined;
         var searchMethod = GetMethod(searchValue, SymbolKeys.Search, "@@search");
         if (searchMethod is not null)
         {
@@ -961,64 +913,110 @@ public sealed partial class StringPrototype
         var searchValue = args.GetArgument(0);
         var replaceValue = args.GetArgument(1);
 
-        var replaceMethod = GetMethod(searchValue, SymbolKeys.Replace, "@@replace");
-        if (replaceMethod is not null)
+        // Per spec step 2: If searchValue is neither undefined nor null
+        if (!searchValue.IsNullOrUndefined)
         {
-            return replaceMethod.Invoke([new JsValue(value), replaceValue], searchValue);
-        }
-
-        if (TryResolveRegExp(searchValue, out var regex))
-        {
-            if (!regex.Global)
+            // Step 2a: IsRegExp check
+            if (IsRegExp(searchValue))
             {
-                throw ThrowTypeError("String.prototype.replaceAll called with a non-global RegExp", realm: Realm);
-            }
-
-            var replaceStr = CoerceToString(replaceValue);
-            return new JsValue(Regex.Replace(value, regex.Pattern, replaceStr));
-        }
-
-        if (replaceValue.TryGetObject<IJsCallable>(out var replacer))
-        {
-            var searchStrFunc = CoerceToString(searchValue);
-            if (searchStrFunc.Length == 0)
-            {
-                var replacementValue = replacer.Invoke(new SingleValueArgs(new JsValue("")), new JsValue(value)).ToJsString();
-                var builder = new StringBuilder();
-                builder.Append(replacementValue);
-                foreach (var ch in value)
+                // Step 2b: Get flags and check for "g"
+                if (JsOps.TryGetPropertyValue(searchValue, "flags", out var flagsValue))
                 {
-                    builder.Append(ch);
-                    builder.Append(replacementValue);
+                    var flagsStr = CoerceToString(flagsValue);
+                    if (!flagsStr.Contains('g', StringComparison.Ordinal))
+                    {
+                        throw ThrowTypeError("String.prototype.replaceAll called with a non-global RegExp argument", realm: Realm);
+                    }
                 }
-
-                return new JsValue(builder.ToString());
+                else
+                {
+                    throw ThrowTypeError("String.prototype.replaceAll called with a non-global RegExp argument", realm: Realm);
+                }
             }
 
-            var result = new StringBuilder();
-            var currentIndex = 0;
-            while (true)
+            // Step 2c: Check for @@replace method
+            var replaceMethod = GetMethod(searchValue, SymbolKeys.Replace, "@@replace");
+            if (replaceMethod is not null)
             {
-                var idx = value.IndexOf(searchStrFunc, currentIndex, StringComparison.Ordinal);
+                return replaceMethod.Invoke([new JsValue(value), replaceValue], searchValue);
+            }
+        }
+
+        // Per spec step 7: Let searchString = ToString(searchValue)
+        var searchString = CoerceToString(searchValue);
+        // Per spec step 5: Let functionalReplace = IsCallable(replaceValue)
+        var functionalReplace = replaceValue.TryGetObject<IJsCallable>(out var replacer);
+        // Per spec step 8: Let searchLength = the length of searchString
+        var searchLength = searchString.Length;
+
+        // Per spec step 9-10: Find all match positions
+        // Collect all match positions first
+        var positions = new List<int>();
+        if (searchLength == 0)
+        {
+            // Empty search string matches before every character and at the end
+            for (var i = 0; i <= value.Length; i++)
+            {
+                positions.Add(i);
+            }
+        }
+        else
+        {
+            var currentIndex = 0;
+            while (currentIndex <= value.Length - searchLength)
+            {
+                var idx = value.IndexOf(searchString, currentIndex, StringComparison.Ordinal);
                 if (idx < 0)
                 {
-                    result.Append(value.AsSpan(currentIndex));
                     break;
                 }
 
-                result.Append(value.AsSpan(currentIndex, idx - currentIndex));
-                var replacementValue = replacer.Invoke(new SingleValueArgs(new JsValue(searchStrFunc)), new JsValue(value));
-                var replacementString = replacementValue.ToJsString();
-                result.Append(replacementString);
-                currentIndex = idx + searchStrFunc.Length;
+                positions.Add(idx);
+                currentIndex = idx + searchLength;
             }
-
-            return new JsValue(result.ToString());
         }
 
-        var searchStr = CoerceToString(searchValue);
-        var replaceStrPlain = CoerceToString(replaceValue);
-        return new JsValue(value.Replace(searchStr, replaceStrPlain, StringComparison.Ordinal));
+        // Per spec step 14: Build result
+        var result = new StringBuilder();
+        var endOfLastMatch = 0;
+        foreach (var position in positions)
+        {
+            // Append the portion of string before this match
+            if (position > endOfLastMatch)
+            {
+                result.Append(value.AsSpan(endOfLastMatch, position - endOfLastMatch));
+            }
+
+            string replacement;
+            if (functionalReplace)
+            {
+                // Per spec: Call(replaceValue, undefined, searchString, position, string)
+                var replacerArgs = new JsValue[]
+                {
+                    new(searchString),
+                    new((double)position),
+                    new(value),
+                };
+                var replacementResult = replacer!.Invoke(replacerArgs, JsValue.Undefined);
+                replacement = JsOps.ToJsString(replacementResult);
+            }
+            else
+            {
+                var replaceStr = CoerceToString(replaceValue);
+                replacement = GetSubstitution(replaceStr, value, searchString, position, null);
+            }
+
+            result.Append(replacement);
+            endOfLastMatch = position + searchLength;
+        }
+
+        // Append remaining portion of string
+        if (endOfLastMatch < value.Length)
+        {
+            result.Append(value.AsSpan(endOfLastMatch));
+        }
+
+        return new JsValue(result.ToString());
     }
 
     [JsHostMethod("at", Length = 1d)]
@@ -1143,12 +1141,9 @@ public sealed partial class StringPrototype
     private JsValue MatchAll(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var value = ResolveString(thisValue);
-        if (args.Count == 0)
-        {
-            return JsValue.Null;
-        }
 
-        var matcher = args[0];
+        // Per spec: if no args, use undefined (which becomes empty-string global regexp)
+        var matcher = args.Count > 0 ? args[0] : JsValue.Undefined;
         var method = GetMethod(matcher, SymbolKeys.MatchAll, "@@matchAll");
         if (method is not null)
         {
@@ -1605,5 +1600,83 @@ public sealed partial class StringPrototype
         {
             throw new ThrowSignal(context.FlowValue);
         }
+    }
+
+    /// <summary>
+    /// ECMAScript 2024 GetSubstitution (matched, str, position, captures, namedCaptures, replacementTemplate).
+    /// Simplified for string-search replace (no namedCaptures).
+    /// </summary>
+    private static string GetSubstitution(string replacement, string str, string matched, int position, IReadOnlyList<string>? captures)
+    {
+        var result = new StringBuilder(replacement.Length);
+        for (var i = 0; i < replacement.Length; i++)
+        {
+            var ch = replacement[i];
+            if (ch != '$' || i + 1 >= replacement.Length)
+            {
+                result.Append(ch);
+                continue;
+            }
+
+            var next = replacement[i + 1];
+            switch (next)
+            {
+                case '$':
+                    result.Append('$');
+                    i++;
+                    break;
+                case '&':
+                    result.Append(matched);
+                    i++;
+                    break;
+                case '`':
+                    result.Append(str.AsSpan(0, position));
+                    i++;
+                    break;
+                case '\'':
+                    var afterMatch = position + matched.Length;
+                    if (afterMatch < str.Length)
+                    {
+                        result.Append(str.AsSpan(afterMatch));
+                    }
+
+                    i++;
+                    break;
+                default:
+                    if (next is >= '0' and <= '9' && captures is not null && captures.Count > 0)
+                    {
+                        var digit1 = next - '0';
+                        if (i + 2 < replacement.Length && replacement[i + 2] is >= '0' and <= '9')
+                        {
+                            var digit2 = replacement[i + 2] - '0';
+                            var twoDigit = (digit1 * 10) + digit2;
+                            if (twoDigit >= 1 && twoDigit <= captures.Count)
+                            {
+                                result.Append(captures[twoDigit - 1]);
+                                i += 2;
+                                break;
+                            }
+                        }
+
+                        if (digit1 >= 1 && digit1 <= captures.Count)
+                        {
+                            result.Append(captures[digit1 - 1]);
+                            i++;
+                        }
+                        else
+                        {
+                            result.Append('$');
+                        }
+                    }
+                    else
+                    {
+                        result.Append('$');
+                    }
+
+                    break;
+            }
+        }
+
+        return result.ToString();
     }
 }

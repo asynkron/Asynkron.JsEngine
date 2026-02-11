@@ -70,6 +70,7 @@ public sealed class RealmState
     public JsObject? TypeErrorPrototype { get; set; }
     public JsObject? SyntaxErrorPrototype { get; set; }
     public JsObject? RegExpPrototype { get; set; }
+    public HostFunction? ErrorConstructor { get; set; }
     public HostFunction? TypeErrorConstructor { get; set; }
     public HostFunction? RangeErrorConstructor { get; set; }
     public HostFunction? SyntaxErrorConstructor { get; set; }

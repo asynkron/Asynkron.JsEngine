@@ -1811,7 +1811,9 @@ public sealed class JsEngine : IAsyncDisposable
                 hostFunction.RealmState = RealmState;
             }
 
-            if (RealmState.FunctionPrototype is not null && hostFunction.Properties.Prototype is null)
+            if (RealmState.FunctionPrototype is not null &&
+                hostFunction.Properties.Prototype is null &&
+                hostFunction.Properties.PrototypeAccessor is null)
             {
                 hostFunction.Properties.SetPrototype(RealmState.FunctionPrototype);
             }

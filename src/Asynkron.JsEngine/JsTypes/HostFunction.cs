@@ -87,7 +87,8 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
             field = value;
             Properties.RealmState ??= value;
             if (field?.FunctionPrototype is { } functionPrototype &&
-                Properties.Prototype is null)
+                Properties.Prototype is null &&
+                Properties.PrototypeAccessor is null)
             {
                 Properties.SetPrototype(functionPrototype);
             }

@@ -150,7 +150,8 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
 
                 if (sourceAccessor.TryGetProperty(key, sourceJs, out var value))
                 {
-                    targetAccessor.SetProperty(key, value, targetJs);
+                    // Per spec step 5.c.iii.3: Set(to, nextKey, propValue, true) - must throw on failure
+                    SetPropertyOrThrow(targetAccessor, key, value, targetJs, realmState);
                 }
             }
         }
@@ -233,39 +234,48 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             throw ThrowTypeError("Cannot freeze a typed array backed by a resizable ArrayBuffer", realm: realmState);
         }
 
-        switch (target)
+        if (target is not IJsObjectLike objectLike)
         {
-            case JsArray array:
-                array.Freeze();
-                return JsValue.FromJsArray(array);
-            case JsObject obj:
-                obj.Freeze();
-                return JsValue.FromJsObject(obj);
-            default:
-                return args[0];
+            // Per spec: If Type(O) is not Object, return O.
+            return args[0];
         }
+
+        // Per spec: Let status be ? SetIntegrityLevel(O, frozen).
+        // If status is false, throw a TypeError exception.
+        var status = SetIntegrityLevel(objectLike, freeze: true, realmState);
+        if (!status)
+        {
+            throw ThrowTypeError("Cannot freeze object", realm: realmState);
+        }
+
+        return args[0];
     }
 
     [JsConstructorMethod("seal", Length = 1d)]
-    private static JsValue Seal(IReadOnlyList<JsValue> args)
+    private static JsValue Seal(IReadOnlyList<JsValue> args, RealmState? realm)
     {
+        var realmState = RequireRealm(realm);
         if (args.Count == 0)
         {
             return JsValue.Undefined;
         }
 
         var target = args[0].ObjectValue;
-        switch (target)
+        if (target is not IJsObjectLike objectLike)
         {
-            case JsArray array:
-                array.Seal();
-                return JsValue.FromJsArray(array);
-            case JsObject obj:
-                obj.Seal();
-                return JsValue.FromJsObject(obj);
-            default:
-                return args[0];
+            // Per spec: If Type(O) is not Object, return O.
+            return args[0];
         }
+
+        // Per spec: Let status be ? SetIntegrityLevel(O, sealed).
+        // If status is false, throw a TypeError exception.
+        var status = SetIntegrityLevel(objectLike, freeze: false, realmState);
+        if (!status)
+        {
+            throw ThrowTypeError("Cannot seal object", realm: realmState);
+        }
+
+        return args[0];
     }
 
     [JsConstructorMethod("isFrozen", Length = 1d)]
@@ -277,28 +287,31 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         }
 
         var target = args[0].ObjectValue;
-        if (target is ModuleNamespace)
-        {
-            return JsValue.False;
-        }
-
         if (target is not IJsObjectLike objectLike)
         {
+            // Per spec: If Type(O) is not Object, return true.
             return JsValue.True;
         }
 
-        return new JsValue(objectLike.IsFrozen);
+        return new JsValue(TestIntegrityLevel(objectLike, frozen: true));
     }
 
     [JsConstructorMethod("isSealed", Length = 1d)]
     private static JsValue IsSealed(IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || args[0].ObjectValue is not IJsObjectLike objectLike)
+        if (args.Count == 0)
         {
             return JsValue.True;
         }
 
-        return new JsValue(objectLike.IsSealed);
+        var target = args[0].ObjectValue;
+        if (target is not IJsObjectLike objectLike)
+        {
+            // Per spec: If Type(O) is not Object, return true.
+            return JsValue.True;
+        }
+
+        return new JsValue(TestIntegrityLevel(objectLike, frozen: false));
     }
 
     [JsConstructorMethod("is", Length = 2d)]
@@ -311,42 +324,62 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     private static JsValue Create(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
+
+        if (args.Count == 0)
+        {
+            throw ThrowTypeError("Object prototype may only be an Object or null", realm: realmState);
+        }
+
+        var protoValue = args[0];
+        IJsPropertyAccessor? protoAccessor = null;
+
+        if (!protoValue.IsNull)
+        {
+            if (!protoValue.TryGetObjectLike(out var protoObjLike))
+            {
+                throw ThrowTypeError("Object prototype may only be an Object or null", realm: realmState);
+            }
+            protoAccessor = protoObjLike;
+        }
+
         var obj = new JsObject { RealmState = realmState };
 
-        if (args.Count > 0)
+        // Set prototype (null is valid - creates an object with no prototype)
+        if (protoValue.IsNull)
         {
-            var protoValue = args[0];
-            IJsPropertyAccessor? protoAccessor = null;
+            obj.SetPrototype(null);
+        }
+        else if (protoAccessor is not null)
+        {
+            obj.SetPrototype(protoAccessor);
+        }
 
-            if (!protoValue.IsNull)
+        // If Properties is not undefined, use ObjectDefineProperties (per spec step 4)
+        if (args.Count > 1 && !args[1].IsUndefined)
+        {
+            var propsArg = args[1];
+            if (!TryGetObject(propsArg, realmState, out var propsAccessor))
             {
-                if (!protoValue.TryGetObjectLike(out var protoObjLike))
+                throw ThrowTypeError("Cannot convert undefined or null to object", realm: realmState);
+            }
+
+            // Per spec: ObjectDefineProperties(obj, Properties) uses own enumerable string-keyed properties
+            foreach (var key in propsAccessor.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
+            {
+                var propDesc = propsAccessor.GetOwnPropertyDescriptor(key);
+                if (propDesc?.Enumerable != true)
                 {
-                    throw ThrowTypeError("Object prototype may only be an Object or null", realm: realmState);
+                    continue;
                 }
-                protoAccessor = protoObjLike;
+
+                if (!propsAccessor.TryGetProperty(key, out var descriptorValue))
+                {
+                    continue;
+                }
+
+                var descriptor = ToPropertyDescriptor(descriptorValue, realmState);
+                TryDefinePropertyOnTarget(obj, key, descriptor, realmState, true);
             }
-
-            if (!protoValue.IsNull || protoAccessor is not null)
-            {
-                obj.SetPrototype(protoAccessor);
-            }
-        }
-
-        if (args.Count <= 1 || !args[1].TryGetObject(out var propsObj))
-        {
-            return JsValue.FromJsObject(obj);
-        }
-
-        foreach (var propName in propsObj.GetOwnPropertyNames())
-        {
-            if (!propsObj.TryGetProperty(propName, out var descriptorValue))
-            {
-                continue;
-            }
-
-            var descriptor = ToPropertyDescriptor(descriptorValue, realmState);
-            TryDefinePropertyOnTarget(obj, propName, descriptor, realmState, true);
         }
 
         return JsValue.FromJsObject(obj);
@@ -466,7 +499,9 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             throw ThrowTypeError("Object.defineProperty requires a property descriptor", realm: realmState);
         }
 
-        if (!TryGetObject(args[0], realmState, out var obj))
+        // Per spec: If Type(O) is not Object, throw a TypeError exception.
+        // Must not box primitives - only accept actual objects.
+        if (!args[0].IsObject || !args[0].TryGetObject<IJsObjectLike>(out var obj))
         {
             throw ThrowTypeError("Object.defineProperty called on non-object", realm: realmState);
         }
@@ -487,19 +522,30 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             throw ThrowTypeError("Object.defineProperties requires both target and descriptors", realm: realmState);
         }
 
-        if (!TryGetObject(args[0], realmState, out var target))
+        // Per spec: If Type(O) is not Object, throw a TypeError exception.
+        if (!args[0].IsObject || !args[0].TryGetObject<IJsObjectLike>(out var target))
         {
             throw ThrowTypeError("Object.defineProperties called on non-object", realm: realmState);
         }
 
-        if (!args[1].TryGetObject(out var props))
+        // Per spec: Let props be ? ToObject(Properties).
+        var propsValue = args[1];
+        if (!TryGetObject(propsValue, realmState, out var propsAccessor))
         {
-            throw ThrowTypeError("Property description must be an object", realm: realmState);
+            throw ThrowTypeError("Cannot convert undefined or null to object", realm: realmState);
         }
 
-        foreach (var key in props.GetOwnPropertyNames())
+        // Per spec: Let keys be ? props.[[OwnPropertyKeys]]().
+        foreach (var key in propsAccessor.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
         {
-            if (!props.TryGetProperty(key, out var descriptorValue))
+            // Per spec: Let propDesc be ? props.[[GetOwnProperty]](nextKey).
+            var propDesc = propsAccessor.GetOwnPropertyDescriptor(key);
+            if (propDesc?.Enumerable != true)
+            {
+                continue;
+            }
+
+            if (!propsAccessor.TryGetProperty(key, out var descriptorValue))
             {
                 continue;
             }
@@ -519,7 +565,6 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         var protoValue = args.GetArgument(1);
 
         // Per spec: If Type(proto) is neither Object nor Null, throw a TypeError exception.
-        // We check for null explicitly and then check if it's an object
         IJsPropertyAccessor? protoAccessor = null;
         if (!protoValue.IsNull)
         {
@@ -530,49 +575,46 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             protoAccessor = protoObjLike;
         }
 
+        // Per spec step 4: If Type(O) is not Object, return O.
         var target = targetValue.ObjectValue;
-        try
+        if (target is not IJsObjectLike targetObjectLike)
         {
-            switch (target)
-            {
-                case ModuleNamespace when protoAccessor is null:
-                    return JsValue.FromObjectUnsafe(target);
-                case ModuleNamespace:
-                    throw ThrowTypeError("Cannot set prototype on module namespace", realm: realmState);
-                case JsArray array:
-                    // Check for prototype cycle before setting
-                    if (WouldCreatePrototypeCycle(array, protoAccessor))
-                    {
-                        throw ThrowTypeError("Cyclic __proto__ value", realm: realmState);
-                    }
-                    array.SetPrototype(protoAccessor);
-                    break;
-                case JsObject obj:
-                    // Check for prototype cycle before setting
-                    if (WouldCreatePrototypeCycle(obj, protoAccessor))
-                    {
-                        throw ThrowTypeError("Cyclic __proto__ value", realm: realmState);
-                    }
-                    obj.SetPrototype(protoAccessor);
-                    break;
-                case IJsObjectLike objectLike:
-                    // Check for prototype cycle before setting
-                    if (WouldCreatePrototypeCycle(objectLike, protoAccessor))
-                    {
-                        throw ThrowTypeError("Cyclic __proto__ value", realm: realmState);
-                    }
-                    objectLike.SetPrototype(protoAccessor);
-                    break;
-            }
-        }
-        catch (ThrowSignal)
-        {
-            // SetPrototype returns false for immutable prototype exotic objects (like Object.prototype)
-            // Per spec, Object.setPrototypeOf throws TypeError if [[SetPrototypeOf]] returns false
-            throw ThrowTypeError("Cannot set prototype of object", realm: realmState);
+            return targetValue;
         }
 
-        return target is null ? JsValue.Undefined : JsValue.FromObjectUnsafe(target);
+        // Per spec step 5: Let status be ? O.[[SetPrototypeOf]](proto).
+        // Step 6: If status is false, throw a TypeError exception.
+        switch (targetObjectLike)
+        {
+            case ModuleNamespace when protoAccessor is null:
+                return JsValue.FromObjectUnsafe(target);
+            case ModuleNamespace:
+                throw ThrowTypeError("Cannot set prototype on module namespace", realm: realmState);
+        }
+
+        // For Proxy objects, SetPrototype calls the trap.
+        // If the trap throws, the error propagates directly (not converted to TypeError).
+        // Only if [[SetPrototypeOf]] returns false do we throw TypeError.
+        try
+        {
+            targetObjectLike.SetPrototype(protoAccessor);
+        }
+        catch (ThrowSignal ex)
+        {
+            // Check if this is a "false return" signal from immutable prototype etc.
+            // If the thrown value is undefined, it's a silent false-return indicator.
+            // If it contains a real error (like from a Proxy trap), re-throw it.
+            if (ex.ThrownValue.IsUndefined)
+            {
+                throw ThrowTypeError("Cannot set prototype of object", realm: realmState);
+            }
+
+            // If the thrown value is a TypeError from our engine about setPrototypeOf false,
+            // wrap it. Otherwise re-throw the user's error directly.
+            throw;
+        }
+
+        return JsValue.FromObjectUnsafe(target);
     }
 
     /// <summary>
@@ -611,12 +653,29 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     private static JsValue PreventExtensions(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
-        if (args.Count == 0 || !TryGetObject(args[0], realmState, out var target))
+        if (args.Count == 0)
         {
-            throw ThrowTypeError("Object.preventExtensions requires an object", realm: realmState);
+            return JsValue.Undefined;
         }
 
-        PreventExtensionsOnTarget(target);
+        // Per spec: If Type(O) is not Object, return O.
+        if (!args[0].IsObject)
+        {
+            return args[0];
+        }
+
+        if (!TryGetObject(args[0], realmState, out var target))
+        {
+            return args[0];
+        }
+
+        // Per spec: Let status be ? O.[[PreventExtensions]]().
+        // If status is false, throw a TypeError exception.
+        if (!TryPreventExtensions(target, realmState))
+        {
+            throw ThrowTypeError("Cannot prevent extensions", realm: realmState);
+        }
+
         return JsValue.FromObjectUnsafe(target);
     }
 

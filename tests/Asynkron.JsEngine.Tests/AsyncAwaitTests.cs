@@ -583,7 +583,7 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
         Assert.True(wasCalled);
     }
 
-    [Fact(Timeout = 2000)]
+    [Fact(Timeout = 5000)]
     public async Task AsyncFunction_WithSetTimeoutDelay_ReturnsValue()
     {
         // Arrange
@@ -619,11 +619,13 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
 
                          """);
 
+        await WaitForConditionAsync(() => result == "42");
+
         // Assert
         Assert.Equal("42", result);
     }
 
-    [Fact(Timeout = 2000)]
+    [Fact(Timeout = 5000)]
     public async Task AsyncFunction_WithMultipleSetTimeoutDelays()
     {
         // Arrange
@@ -666,6 +668,9 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
                                      });
 
                          """);
+
+        await WaitForConditionAsync(() => result == "30");
+
         // Assert
         Assert.Equal("30", result);
     }
@@ -716,7 +721,7 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
     }
     private static readonly string[] Expected = ["first", "second", "third"];
 
-    [Fact(Timeout = 2000)]
+    [Fact(Timeout = 5000)]
     public async Task AsyncFunction_WithParallelDelays()
     {
         // Arrange
@@ -758,6 +763,8 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
                                      test().then(function() {});
 
                          """);
+
+        await WaitForConditionAsync(() => results.Count == Expected.Length);
 
         // Assert
         Assert.Equal(Expected, results);
@@ -1062,5 +1069,14 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
     private static JsEngine CreateDebugEngine()
     {
         return TestEngineFactory.CreateDebugEngine(nameof(AsyncAwaitTests));
+    }
+
+    private static async Task WaitForConditionAsync(Func<bool> condition, int timeoutMs = 1500, int pollIntervalMs = 10)
+    {
+        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+        while (!condition() && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(pollIntervalMs);
+        }
     }
 }

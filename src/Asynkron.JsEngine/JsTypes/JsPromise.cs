@@ -103,14 +103,38 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
         }
 
         // Check if value is a thenable (has a callable 'then' property)
+        // Per ES spec 25.4.1.3.2 step 9: Let then be Get(resolution, "then").
+        // If then is an abrupt completion (e.g. poisoned getter), reject the promise.
         if (value.IsObject &&
-            value.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
-            accessor.TryGetProperty("then", out var thenValue) &&
-            thenValue.TryGetObject<IJsCallable>(out var thenMethod))
+            value.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
-            // Value is a thenable - adopt its state
-            ResolveThenable(accessor, thenMethod);
-            return;
+            JsValue thenValue;
+            try
+            {
+                if (!accessor.TryGetProperty("then", out thenValue))
+                {
+                    thenValue = JsValue.Undefined;
+                }
+            }
+            catch (ThrowSignal signal)
+            {
+                // Poisoned "then" getter - reject the promise with the thrown value
+                Reject(signal.ThrownValue);
+                return;
+            }
+            catch (Exception)
+            {
+                // Any other exception from the getter - reject with undefined
+                Reject(JsValue.Undefined);
+                return;
+            }
+
+            if (thenValue.TryGetObject<IJsCallable>(out var thenMethod))
+            {
+                // Value is a thenable - adopt its state
+                ResolveThenable(accessor, thenMethod);
+                return;
+            }
         }
 
         // Value is not a thenable - fulfill directly

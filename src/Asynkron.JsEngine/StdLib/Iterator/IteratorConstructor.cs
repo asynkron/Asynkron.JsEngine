@@ -18,16 +18,14 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
 {
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        // Iterator is an abstract class - it cannot be directly instantiated with 'new Iterator()'
-        // However, subclasses can extend it
-        if (thisValue.TryGetObject(out var obj) && obj.GetType() != typeof(JsObject))
+        // Preserve the pre-created thisValue so subclass instances keep their own prototype
+        // and methods (e.g. class MyIter extends Iterator { next() { ... } }).
+        if (thisValue.TryGetObject(out _))
         {
-            // Being called from a subclass constructor
             return thisValue;
         }
 
-        // Check if this is being called as a base class (new.target !== Iterator)
-        // For now, just create a basic iterator object
+        // Fallback for unusual construction paths that did not provide an object thisValue.
         var iteratorObj = PrepareThisObject(JsValue.Undefined, false);
         if (iteratorObj.Prototype is null)
         {

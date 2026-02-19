@@ -349,7 +349,7 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.PlainTime(10, 30, 45, 500).round('second').toString()");
-        Assert.Equal("10:30:45", result);
+        Assert.Equal("10:30:46", result);
     }
 
     // PlainDateTime methods

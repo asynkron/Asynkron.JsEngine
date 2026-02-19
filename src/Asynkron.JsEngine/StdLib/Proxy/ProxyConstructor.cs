@@ -52,11 +52,34 @@ public sealed partial class ProxyConstructor(IJsObjectLike prototype, RealmState
         var container = new JsObject();
         container.SetProperty("proxy", JsValue.FromJsProxy(proxy));
 
-        container.SetHostedProperty("revoke", (_, _) =>
+        // Create revocation function with proper built-in function properties per spec 26.2.2.1.1
+        var revokeFn = new HostFunction((JsHostHandler)((_, _) =>
         {
             proxy.Handler = null;
             return JsValue.Undefined;
-        });
+        }), realm, isConstructor: false);
+
+        // Set length = 0 with {[[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true}
+        revokeFn.DefineProperty("length",
+            new PropertyDescriptor
+            {
+                JsValue = new JsValue(0.0),
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
+            });
+
+        // Set name = "" (anonymous) with {[[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true}
+        revokeFn.DefineProperty("name",
+            new PropertyDescriptor
+            {
+                JsValue = new JsValue(string.Empty),
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
+            });
+
+        container.SetProperty("revoke", (JsValue)revokeFn);
 
         return new JsValue(container);
     }

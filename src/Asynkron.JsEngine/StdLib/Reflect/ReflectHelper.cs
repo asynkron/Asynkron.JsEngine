@@ -12,19 +12,48 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static class ReflectHelper
 {
-    internal static JsValue ReflectApply(JsValue _, IReadOnlyList<JsValue> args)
+    internal static JsValue ReflectApply(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
     {
-        if (args.Count < 2 || !args[0].TryGetObject<IJsCallable>(out var callable))
+        // 1. If IsCallable(target) is false, throw a TypeError exception.
+        var targetArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        if (!targetArg.TryGetObject<IJsCallable>(out var callable))
         {
-            throw new Exception("Reflect.apply: target must be callable.");
+            throw ThrowTypeError("Reflect.apply: target must be a function", realm: realm);
         }
 
         var thisArg = args.Count > 1 ? args[1] : JsValue.Undefined;
-        var argList = args.Count > 2 && args[2].TryGetObject<JsArray>(out var arr)
-            ? arr.Items.ToArray()
-            : [];
+
+        // 3. Let args be ? CreateListFromArrayLike(argumentsList).
+        var argumentsList = args.Count > 2 ? args[2] : JsValue.Undefined;
+        var argList = CreateListFromArrayLike(argumentsList, realm);
 
         return callable.Invoke(argList, thisArg);
+    }
+
+    /// <summary>
+    /// Implements the abstract operation CreateListFromArrayLike (ES2023 7.3.22).
+    /// </summary>
+    private static JsValue[] CreateListFromArrayLike(JsValue obj, RealmState? realm)
+    {
+        if (obj.IsNullOrUndefined)
+        {
+            throw ThrowTypeError("CreateListFromArrayLike called on null or undefined", realm: realm);
+        }
+
+        if (!obj.TryGetObject<IJsPropertyAccessor>(out var accessor))
+        {
+            throw ThrowTypeError("CreateListFromArrayLike called on non-object", realm: realm);
+        }
+
+        var length = LengthOfArrayLike(accessor, realm);
+        var list = new JsValue[(int)Math.Min(length, int.MaxValue)];
+        for (var i = 0L; i < length && i < list.Length; i++)
+        {
+            var indexStr = i.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            list[i] = accessor.TryGetProperty(indexStr, out var value) ? value : JsValue.Undefined;
+        }
+
+        return list;
     }
 
     internal static JsValue ReflectConstruct(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
@@ -34,24 +63,21 @@ public static class ReflectHelper
             throw new InvalidOperationException("Realm is required for Reflect.construct.");
         }
 
-        if (args.Count < 2 || !args[0].TryGetObject<IJsCallable>(out var target))
+        // 1. If IsConstructor(target) is false, throw a TypeError exception.
+        var targetArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        if (!targetArg.TryGetObject<IJsCallable>(out var target))
         {
-            throw new Exception("Reflect.construct: target must be a constructor.");
+            throw ThrowTypeError("Reflect.construct: target is not a constructor", realm: realm);
         }
 
-        var argList = args.Count > 1 && args[1].TryGetObject<JsArray>(out var arr)
-            ? arr.Items.ToArray()
-            : [];
+        // 2. If newTarget is not present, set newTarget to target.
+        // 4. If IsConstructor(newTarget) is false, throw a TypeError exception.
         IJsCallable newTarget;
         if (args.Count > 2)
         {
             if (!args[2].TryGetObject<IJsCallable>(out var ctor))
             {
-                const string message = "newTarget is not a constructor";
-                var errorResult = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke(new SingleValueArgs(new JsValue(message)), JsValue.Undefined)
-                    : JsValue.FromObjectUnsafe(new InvalidOperationException(message));
-                throw new ThrowSignal(errorResult);
+                throw ThrowTypeError("newTarget is not a constructor", realm: realm);
             }
 
             newTarget = ctor;
@@ -60,6 +86,10 @@ public static class ReflectHelper
         {
             newTarget = target;
         }
+
+        // 3. Let args be ? CreateListFromArrayLike(argumentsList).
+        var argumentsList = args.Count > 1 ? args[1] : JsValue.Undefined;
+        var argList = CreateListFromArrayLike(argumentsList, realm);
 
         return Construct(target, argList, newTarget, realm);
     }
@@ -207,13 +237,18 @@ public static class ReflectHelper
             throw new InvalidOperationException("Realm is required for Reflect.defineProperty.");
         }
 
-        if (args.Count < 3 || !args[0].TryGetObject<IJsObjectLike>(out var target))
+        // 1. If Type(target) is not Object, throw a TypeError exception.
+        var targetArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        if (!targetArg.TryGetObject<IJsObjectLike>(out var target))
         {
-            throw new Exception("Reflect.defineProperty: target must be an object.");
+            throw ThrowTypeError("Reflect.defineProperty: target is not an Object", realm: realm);
         }
 
+        // 2. Let key be ? ToPropertyKey(propertyKey).
         var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1]) ?? string.Empty : string.Empty;
-        var descriptor = ToPropertyDescriptor(args[2], realm);
+        // 3. Let desc be ? ToPropertyDescriptor(Attributes).
+        var attrArg = args.Count > 2 ? args[2] : JsValue.Undefined;
+        var descriptor = ToPropertyDescriptor(attrArg, realm);
 
         return TryDefinePropertyOnTarget(target, propertyKey, descriptor, realm, false);
     }
@@ -225,13 +260,17 @@ public static class ReflectHelper
             throw new InvalidOperationException("Realm is required for Reflect.deleteProperty.");
         }
 
-        if (args.Count < 2 || !args[0].TryGetObject<IJsObjectLike>(out var target))
+        // 1. If Type(target) is not Object, throw a TypeError exception.
+        var targetArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        if (!targetArg.TryGetObject<IJsObjectLike>(out var target))
         {
-            throw new Exception("Reflect.deleteProperty: target must be an object.");
+            throw ThrowTypeError("Reflect.deleteProperty: target is not an Object", realm: realm);
         }
 
+        // 2. Let key be ? ToPropertyKey(propertyKey).
         var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1]) ?? string.Empty : string.Empty;
-        return target.Delete(propertyKey);
+        // 3. Return ? target.[[Delete]](key).
+        return new JsValue(target.Delete(propertyKey));
     }
 
     internal static JsValue ReflectGet(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
@@ -241,13 +280,17 @@ public static class ReflectHelper
             throw new InvalidOperationException("Realm is required for Reflect.get.");
         }
 
-        if (args.Count < 2 || !args[0].TryGetObject<IJsObjectLike>(out var target))
+        // 1. If Type(target) is not Object, throw a TypeError exception.
+        var targetArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        if (!targetArg.TryGetObject<IJsObjectLike>(out var target))
         {
-            throw new Exception("Reflect.get: target must be an object.");
+            throw ThrowTypeError("Reflect.get: target is not an Object", realm: realm);
         }
 
-        var receiver = args.Count > 2 ? args[2] : JsValue.FromObjectUnsafe(target);
+        // 2. Let key be ? ToPropertyKey(propertyKey).
         var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1]) ?? string.Empty : string.Empty;
+        // 3. If receiver is not present, set receiver to target.
+        var receiver = args.Count > 2 ? args[2] : JsValue.FromObjectUnsafe(target);
         return target.TryGetProperty(propertyKey, receiver, out var value) ? value : JsValue.Undefined;
     }
 
@@ -258,11 +301,14 @@ public static class ReflectHelper
             throw new InvalidOperationException("Realm is required for Reflect.getOwnPropertyDescriptor.");
         }
 
-        if (args.Count < 2 || !args[0].TryGetObject<IJsObjectLike>(out var target))
+        // 1. If Type(target) is not Object, throw a TypeError exception.
+        var targetArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        if (!targetArg.TryGetObject<IJsObjectLike>(out var target))
         {
-            throw new Exception("Reflect.getOwnPropertyDescriptor: target must be an object.");
+            throw ThrowTypeError("Reflect.getOwnPropertyDescriptor: target is not an Object", realm: realm);
         }
 
+        // 2. Let key be ? ToPropertyKey(propertyKey).
         var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1]) ?? string.Empty : string.Empty;
         var descriptor = target.GetOwnPropertyDescriptor(propertyKey);
         var result = FromPropertyDescriptor(descriptor, realm);
@@ -276,14 +322,24 @@ public static class ReflectHelper
             throw new InvalidOperationException("Realm is required for Reflect.getPrototypeOf.");
         }
 
-        if (args.Count == 0 || !args[0].TryGetObject<IJsObjectLike>(out var target))
+        // 1. If Type(target) is not Object, throw a TypeError exception.
+        var targetArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        if (!targetArg.TryGetObject<IJsObjectLike>(out var target))
         {
-            throw new Exception("Reflect.getPrototypeOf: target must be an object.");
+            throw ThrowTypeError("Reflect.getPrototypeOf: target is not an Object", realm: realm);
         }
 
         if (target is ModuleNamespace)
         {
             return JsValue.Null;
+        }
+
+        // 2. Return ? target.[[GetPrototypeOf]]().
+        // For proxies, GetPrototypeOf may throw (return-abrupt-from-result test)
+        if (target is JsProxy proxy)
+        {
+            var proto = proxy.GetPrototypeWithTrap();
+            return proto is null ? JsValue.Null : JsValue.FromObjectUnsafe(proto);
         }
 
         return target.Prototype is null ? JsValue.Null : (JsValue)target.Prototype;
@@ -296,11 +352,14 @@ public static class ReflectHelper
             throw new InvalidOperationException("Realm is required for Reflect.has.");
         }
 
-        if (args.Count < 2 || !args[0].TryGetObject<IJsObjectLike>(out var target))
+        // 1. If Type(target) is not Object, throw a TypeError exception.
+        var targetArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        if (!targetArg.TryGetObject<IJsObjectLike>(out var target))
         {
-            throw new Exception("Reflect.has: target must be an object.");
+            throw ThrowTypeError("Reflect.has: target is not an Object", realm: realm);
         }
 
+        // 2. Let key be ? ToPropertyKey(propertyKey).
         var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1]) ?? string.Empty : string.Empty;
         if (target is ModuleNamespace moduleNamespace)
         {
@@ -308,6 +367,7 @@ public static class ReflectHelper
             return new JsValue(moduleNamespace.HasProperty(propertyKey));
         }
 
+        // 3. Return ? target.[[HasProperty]](key).
         return new JsValue(HasProperty(target, propertyKey));
     }
 
@@ -318,9 +378,22 @@ public static class ReflectHelper
             throw new InvalidOperationException("Realm is required for Reflect.isExtensible.");
         }
 
-        if (args.Count == 0 || !args[0].TryGetObject<IJsObjectLike>(out var target))
+        // 1. If Type(target) is not Object, throw a TypeError exception.
+        var targetArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        if (!targetArg.TryGetObject<IJsObjectLike>(out var target))
         {
-            throw new Exception("Reflect.isExtensible: target must be an object.");
+            throw ThrowTypeError("Reflect.isExtensible: target is not an Object", realm: realm);
+        }
+
+        // 2. Return ? target.[[IsExtensible]]().
+        // For proxies, invoke the isExtensible trap if present
+        if (target is JsProxy isExtProxy)
+        {
+            var trapResult = InvokeProxyTrap(isExtProxy, "isExtensible", realm);
+            if (trapResult is not null)
+            {
+                return new JsValue(JsOps.ToBoolean(trapResult.Value));
+            }
         }
 
         return IsTargetExtensible(target);
@@ -333,9 +406,11 @@ public static class ReflectHelper
             throw new InvalidOperationException("Realm is required for Reflect.ownKeys.");
         }
 
-        if (args.Count == 0 || !args[0].TryGetObject<IJsObjectLike>(out var target))
+        // 1. If Type(target) is not Object, throw a TypeError exception.
+        var targetArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        if (!targetArg.TryGetObject<IJsObjectLike>(out var target))
         {
-            throw new Exception("Reflect.ownKeys: target must be an object.");
+            throw ThrowTypeError("Reflect.ownKeys: target is not an Object", realm: realm);
         }
 
         if (target is ModuleNamespace moduleNamespace)
@@ -343,37 +418,11 @@ public static class ReflectHelper
             return JsValue.FromJsArray(new JsArray(moduleNamespace.OwnKeys(), realm));
         }
 
-        if (target is IJsPropertyAccessor accessor)
-        {
-            var ordered = new JsArray(realm);
-            foreach (var key in accessor.GetOwnPropertyKeysInOrder(true, true))
-            {
-                if (key.StartsWith("__getter__", StringComparison.Ordinal) ||
-                    key.StartsWith("__setter__", StringComparison.Ordinal) ||
-                    string.Equals(key, "__proto__", StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                if (JsSymbol.TryGetByInternalKey(key, out var symbol) && symbol is not null)
-                {
-                    ordered.Push((JsValue)symbol);
-                }
-                else
-                {
-                    ordered.Push(key);
-                }
-            }
-
-            return JsValue.FromJsArray(ordered);
-        }
-
-        var keys = target.Keys
-            .Where(static k => !k.StartsWith("__getter__", StringComparison.Ordinal) &&
-                        !k.StartsWith("__setter__", StringComparison.Ordinal) &&
-                        !string.Equals(k, "__proto__", StringComparison.Ordinal))
-            .ToArray();
-        return JsValue.FromJsArray(new JsArray(keys, realm));
+        // Collect all raw keys, then sort per [[OwnPropertyKeys]] spec ordering:
+        // 1. Integer indices in ascending numeric order
+        // 2. Remaining string keys in property creation order
+        // 3. Symbol keys in property creation order
+        return JsValue.FromJsArray(CollectOwnKeysOrdered(target, realm));
     }
 
     internal static JsValue ReflectPreventExtensions(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
@@ -383,9 +432,22 @@ public static class ReflectHelper
             throw new InvalidOperationException("Realm is required for Reflect.preventExtensions.");
         }
 
-        if (args.Count == 0 || !args[0].TryGetObject<IJsObjectLike>(out var target))
+        // 1. If Type(target) is not Object, throw a TypeError exception.
+        var targetArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        if (!targetArg.TryGetObject<IJsObjectLike>(out var target))
         {
-            throw new Exception("Reflect.preventExtensions: target must be an object.");
+            throw ThrowTypeError("Reflect.preventExtensions: target is not an Object", realm: realm);
+        }
+
+        // 2. Return ? target.[[PreventExtensions]]().
+        // For proxies, invoke the preventExtensions trap if present
+        if (target is JsProxy prevExtProxy)
+        {
+            var trapResult = InvokeProxyTrap(prevExtProxy, "preventExtensions", realm);
+            if (trapResult is not null)
+            {
+                return new JsValue(JsOps.ToBoolean(trapResult.Value));
+            }
         }
 
         PreventExtensionsOnTarget(target);
@@ -399,19 +461,24 @@ public static class ReflectHelper
             throw new InvalidOperationException("Realm is required for Reflect.set.");
         }
 
-        if (args.Count < 2 || !args[0].TryGetObject<IJsObjectLike>(out var target))
+        // 1. If Type(target) is not Object, throw a TypeError exception.
+        var targetArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        if (!targetArg.TryGetObject<IJsObjectLike>(out var target))
         {
-            throw new Exception("Reflect.set: target must be an object.");
+            throw ThrowTypeError("Reflect.set: target is not an Object", realm: realm);
         }
 
+        // 2. Let key be ? ToPropertyKey(propertyKey).
         var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1]) ?? string.Empty : string.Empty;
         var value = args.Count > 2 ? args[2] : JsValue.Undefined;
+        // 4. If receiver is not present, set receiver to target.
         var receiver = args.Count > 3 ? args[3] : JsValue.FromObjectUnsafe(target);
         if (target is ModuleNamespace)
         {
             return new JsValue(false);
         }
 
+        // 5. Return ? target.[[Set]](key, V, receiver).
         return new JsValue(SetPropertyWithReceiver(target, propertyKey, value, receiver));
     }
 
@@ -554,23 +621,233 @@ public static class ReflectHelper
             throw new InvalidOperationException("Realm is required for Reflect.setPrototypeOf.");
         }
 
-        if (args.Count < 2 || !args[0].TryGetObject<IJsObjectLike>(out var target))
+        // 1. If Type(target) is not Object, throw a TypeError exception.
+        var targetArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        if (!targetArg.TryGetObject<IJsObjectLike>(out var target))
         {
-            throw new Exception("Reflect.setPrototypeOf: target must be an object.");
+            throw ThrowTypeError("Reflect.setPrototypeOf: target is not an Object", realm: realm);
         }
 
-        // Extract prototype: null is valid, objects are valid, others should be handled by SetPrototype
-        var protoArg = args.Count > 1 ? args[1] : JsValue.Null;
+        // 2. If Type(proto) is not Object and proto is not null, throw a TypeError exception.
+        var protoArg = args.Count > 1 ? args[1] : JsValue.Undefined;
+        if (!protoArg.IsNull && (protoArg.Kind != JsValueKind.Object || protoArg.ObjectValue is not IJsPropertyAccessor))
+        {
+            throw ThrowTypeError("Reflect.setPrototypeOf: proto is not an Object and not null", realm: realm);
+        }
+
         var proto = protoArg.IsNull ? null : protoArg.ObjectValue as IJsPropertyAccessor;
+
+        // Check for non-extensible target: if target is not extensible, proto must be same as current prototype
+        if (target is IExtensibilityControl { IsExtensible: false })
+        {
+            var currentProto = target.Prototype;
+            if (!ReferenceEquals(proto, currentProto))
+            {
+                return new JsValue(false);
+            }
+
+            return new JsValue(true);
+        }
+
+        // Check for cycle: walk proto's prototype chain; if we find target, return false
+        if (proto is not null)
+        {
+            var current = proto as IJsObjectLike;
+            while (current is not null)
+            {
+                if (ReferenceEquals(current, target))
+                {
+                    return new JsValue(false);
+                }
+
+                current = current.Prototype;
+            }
+        }
+
+        // 3. Return ? target.[[SetPrototypeOf]](proto).
         try
         {
             target.SetPrototype(proto);
             return new JsValue(true);
         }
-        catch (ThrowSignal)
+        catch (ThrowSignal signal)
         {
-            return new JsValue(false);
+            // JsObject.SetPrototype throws ThrowSignal(Undefined) for non-extensible/immutable
+            // Proxy setPrototypeOf trap returning false throws "Proxy 'setPrototypeOf' trap returned a falsy value"
+            // These cases should return false. Real abrupt completions (like trap throwing an error) should propagate.
+            if (signal.ThrownValue.IsUndefined)
+            {
+                return new JsValue(false);
+            }
+
+            if (signal.ThrownValue.TryGetObject<JsObject>(out var errorObj) &&
+                errorObj.TryGetProperty("message", out var msgVal) &&
+                msgVal.TryGetString(out var msg) &&
+                string.Equals(msg, "Proxy 'setPrototypeOf' trap returned a falsy value", StringComparison.Ordinal))
+            {
+                return new JsValue(false);
+            }
+
+            throw;
         }
+    }
+
+    /// <summary>
+    /// Returns true if the key is an engine-internal slot that should never be exposed via
+    /// Reflect.ownKeys or similar APIs.
+    /// </summary>
+    private static bool IsInternalSlotKey(string key)
+    {
+        return key.StartsWith("__getter__", StringComparison.Ordinal) ||
+               key.StartsWith("__setter__", StringComparison.Ordinal) ||
+               string.Equals(key, "__value__", StringComparison.Ordinal) ||
+               string.Equals(key, "__regex__", StringComparison.Ordinal) ||
+               string.Equals(key, "__arguments__", StringComparison.Ordinal) ||
+               string.Equals(key, "__promise__", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Collects own property keys from a target and returns them in [[OwnPropertyKeys]] order:
+    /// integer indices in ascending numeric order, then string keys in insertion order, then symbols.
+    /// </summary>
+    private static JsArray CollectOwnKeysOrdered(IJsObjectLike target, RealmState? realm)
+    {
+        // We use two sources of keys:
+        // 1. target.Keys (raw storage keys) - uncorrupted strings, used for numeric index classification.
+        // 2. GetOwnPropertyKeysInOrder (insertion-ordered) - used for string/symbol key ordering.
+        //    Note: GetOwnPropertyKeysInOrder has a bug where large uint indices (>= 2^31) are
+        //    corrupted due to a uint-to-int cast. We work around this by classifying numeric
+        //    keys from the raw storage and getting string/symbol ordering from the ordered API.
+
+        // Step 1: Collect numeric indices from raw keys (uncorrupted).
+        var numericKeys = new List<(uint index, string key)>();
+        var numericKeySet = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var key in target.Keys)
+        {
+            if (IsInternalSlotKey(key))
+            {
+                continue;
+            }
+
+            if (JsSymbol.TryGetByInternalKey(key, out _))
+            {
+                continue;
+            }
+
+            if (uint.TryParse(key, System.Globalization.NumberStyles.None,
+                    System.Globalization.CultureInfo.InvariantCulture, out var index) &&
+                index < uint.MaxValue &&
+                string.Equals(index.ToString(System.Globalization.CultureInfo.InvariantCulture), key,
+                    StringComparison.Ordinal))
+            {
+                numericKeys.Add((index, key));
+                numericKeySet.Add(key);
+            }
+        }
+
+        numericKeys.Sort(static (a, b) => a.index.CompareTo(b.index));
+
+        // Step 2: Collect string and symbol keys in insertion order from the ordered API.
+        // Skip keys we already classified as numeric, and skip internal/corrupted keys.
+        var stringKeys = new List<string>();
+        var symbolKeys = new List<string>();
+
+        IEnumerable<string> orderedKeys = target is IJsPropertyAccessor accessor
+            ? accessor.GetOwnPropertyKeysInOrder(true, true)
+            : target.Keys;
+
+        foreach (var key in orderedKeys)
+        {
+            if (IsInternalSlotKey(key))
+            {
+                continue;
+            }
+
+            if (JsSymbol.TryGetByInternalKey(key, out _))
+            {
+                symbolKeys.Add(key);
+                continue;
+            }
+
+            // Skip keys that are numeric indices (already collected from raw keys).
+            if (numericKeySet.Contains(key))
+            {
+                continue;
+            }
+
+            // Skip corrupted negative-integer keys produced by the uint-to-int overflow
+            // in EnumerateOwnKeysInOrder. These are phantom keys - the real key was already
+            // collected from the raw storage above.
+            if (key.Length > 0 && key[0] == '-' &&
+                int.TryParse(key, System.Globalization.NumberStyles.AllowLeadingSign,
+                    System.Globalization.CultureInfo.InvariantCulture, out _))
+            {
+                continue;
+            }
+
+            stringKeys.Add(key);
+        }
+
+        // Build result: integer indices ascending, then strings in insertion order, then symbols.
+        var result = new JsArray(realm);
+
+        foreach (var (_, key) in numericKeys)
+        {
+            result.Push(key);
+        }
+
+        foreach (var key in stringKeys)
+        {
+            result.Push(key);
+        }
+
+        foreach (var key in symbolKeys)
+        {
+            if (JsSymbol.TryGetByInternalKey(key, out var symbol) && symbol is not null)
+            {
+                result.Push((JsValue)symbol);
+            }
+            else
+            {
+                result.Push(key);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Attempts to invoke a Proxy handler trap by name.
+    /// Returns null if the trap is not defined; otherwise returns the trap result.
+    /// Abrupt completions from the trap propagate normally.
+    /// </summary>
+    private static JsValue? InvokeProxyTrap(JsProxy proxy, string trapName, RealmState? realm)
+    {
+        var handler = proxy.Handler;
+        if (handler is null)
+        {
+            throw ThrowTypeError("Cannot perform operation on a revoked Proxy", realm: realm);
+        }
+
+        if (!handler.TryGetProperty(trapName, out var trapValue))
+        {
+            return null;
+        }
+
+        if (trapValue.IsUndefined || trapValue.IsNull)
+        {
+            return null;
+        }
+
+        if (!trapValue.TryGetObject<IJsCallable>(out var trap))
+        {
+            throw ThrowTypeError($"Proxy handler's '{trapName}' trap is not callable", realm: realm);
+        }
+
+        var targetJsValue = JsValue.FromObjectUnsafe(proxy.Target);
+        var handlerJsValue = JsValue.FromObjectUnsafe(handler);
+        var args = new[] { targetJsValue };
+        return trap.Invoke(args, handlerJsValue);
     }
 
     internal static IJsObjectLike? ResolveConstructPrototype(IJsCallable newTarget, IJsCallable target,

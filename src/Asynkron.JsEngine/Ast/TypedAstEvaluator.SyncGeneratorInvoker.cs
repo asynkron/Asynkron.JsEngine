@@ -54,11 +54,9 @@ public static partial class TypedAstEvaluator
             {
                 var generatorProto = new JsObject();
                 // %GeneratorPrototype% inherits from %IteratorPrototype%, which inherits from %Object.prototype%
-                // For now, we'll just inherit from Object.prototype directly
-                if (RealmState.ObjectPrototype is not null)
-                {
-                    generatorProto.SetPrototype(RealmState.ObjectPrototype);
-                }
+                var iteratorPrototype = RealmState.IteratorPrototype ??=
+                    (JsObject)IteratorPrototype.CreatePrototype(RealmState);
+                generatorProto.SetPrototype(iteratorPrototype);
 
                 RealmState.GeneratorPrototype = generatorProto;
             }

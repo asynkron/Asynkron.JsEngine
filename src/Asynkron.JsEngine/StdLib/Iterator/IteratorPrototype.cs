@@ -22,95 +22,159 @@ public sealed partial class IteratorPrototype : JsPrototype
     public static JsValue SelfIterator(JsValue thisValue) => thisValue;
 
     /// <summary>
-    /// Iterator.prototype.map(mapper) - Returns a new iterator that yields mapped values
+    /// Iterator.prototype.map(mapper) - Returns a new iterator that yields mapped values.
+    /// Spec order: 1-2. RequireObject, 3. IsCallable check, 4. GetIteratorDirect.
     /// </summary>
     [JsHostMethod("map", Length = 1d)]
     public JsValue Map(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var iterated = GetIteratorDirect(thisValue);
-        var mapper = GetCallable(args, 0, "mapper");
+        var obj = RequireObject(thisValue);
+        var mapper = RequireCallable(args, 0, "mapper", obj);
+        var iterated = GetIteratorDirect(obj);
 
         return CreateMappedIterator(iterated, mapper);
     }
 
     /// <summary>
-    /// Iterator.prototype.filter(predicate) - Returns an iterator that yields filtered values
+    /// Iterator.prototype.filter(predicate) - Returns an iterator that yields filtered values.
+    /// Spec order: 1-2. RequireObject, 3. IsCallable check, 4. GetIteratorDirect.
     /// </summary>
     [JsHostMethod("filter", Length = 1d)]
     public JsValue Filter(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var iterated = GetIteratorDirect(thisValue);
-        var predicate = GetCallable(args, 0, "predicate");
+        var obj = RequireObject(thisValue);
+        var predicate = RequireCallable(args, 0, "predicate", obj);
+        var iterated = GetIteratorDirect(obj);
 
         return CreateFilteredIterator(iterated, predicate);
     }
 
     /// <summary>
-    /// Iterator.prototype.take(limit) - Returns an iterator that yields at most limit values
+    /// Iterator.prototype.take(limit) - Returns an iterator that yields at most limit values.
+    /// Spec order: 1-2. RequireObject, 3. ToNumber(limit), 4. NaN check, 5. ToIntegerOrInfinity,
+    ///             6. Range check, 7. GetIteratorDirect.
     /// </summary>
     [JsHostMethod("take", Length = 1d)]
     public JsValue Take(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var iterated = GetIteratorDirect(thisValue);
+        var obj = RequireObject(thisValue);
+
+        // Steps 3-6: ToNumber and validate BEFORE GetIteratorDirect
         var limitArg = args.Count > 0 ? args[0] : JsValue.Undefined;
-        var evalContext = Realm?.CreateContext();
-        var limit = ToIntegerOrInfinity(limitArg, evalContext);
-        if (evalContext?.IsThrow == true)
+        double numLimit;
+        try
         {
-            throw new ThrowSignal(evalContext.FlowValue);
+            var evalContext = Realm?.CreateContext();
+            numLimit = JsOps.ToNumber(limitArg, evalContext);
+            if (evalContext?.IsThrow == true)
+            {
+                IteratorCloseOnAbrupt(obj);
+                throw new ThrowSignal(evalContext.FlowValue);
+            }
+        }
+        catch (ThrowSignal)
+        {
+            IteratorCloseOnAbrupt(obj);
+            throw;
+        }
+        catch
+        {
+            IteratorCloseOnAbrupt(obj);
+            throw;
         }
 
-        if (limit < 0)
+        if (double.IsNaN(numLimit))
         {
+            IteratorCloseOnAbrupt(obj);
             throw StandardLibrary.ThrowRangeError("Iterator.prototype.take requires a non-negative number", null, Realm);
         }
+
+        var limit = ToIntegerOrInfinity(numLimit);
+        if (limit < 0)
+        {
+            IteratorCloseOnAbrupt(obj);
+            throw StandardLibrary.ThrowRangeError("Iterator.prototype.take requires a non-negative number", null, Realm);
+        }
+
+        // Step 7: GetIteratorDirect
+        var iterated = GetIteratorDirect(obj);
 
         return CreateTakeIterator(iterated, limit);
     }
 
     /// <summary>
-    /// Iterator.prototype.drop(limit) - Returns an iterator that skips the first limit values
+    /// Iterator.prototype.drop(limit) - Returns an iterator that skips the first limit values.
+    /// Spec order: same as take.
     /// </summary>
     [JsHostMethod("drop", Length = 1d)]
     public JsValue Drop(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var iterated = GetIteratorDirect(thisValue);
+        var obj = RequireObject(thisValue);
+
         var limitArg = args.Count > 0 ? args[0] : JsValue.Undefined;
-        var evalContext = Realm?.CreateContext();
-        var limit = ToIntegerOrInfinity(limitArg, evalContext);
-        if (evalContext?.IsThrow == true)
+        double numLimit;
+        try
         {
-            throw new ThrowSignal(evalContext.FlowValue);
+            var evalContext = Realm?.CreateContext();
+            numLimit = JsOps.ToNumber(limitArg, evalContext);
+            if (evalContext?.IsThrow == true)
+            {
+                IteratorCloseOnAbrupt(obj);
+                throw new ThrowSignal(evalContext.FlowValue);
+            }
+        }
+        catch (ThrowSignal)
+        {
+            IteratorCloseOnAbrupt(obj);
+            throw;
+        }
+        catch
+        {
+            IteratorCloseOnAbrupt(obj);
+            throw;
         }
 
-        if (limit < 0)
+        if (double.IsNaN(numLimit))
         {
+            IteratorCloseOnAbrupt(obj);
             throw StandardLibrary.ThrowRangeError("Iterator.prototype.drop requires a non-negative number", null, Realm);
         }
+
+        var limit = ToIntegerOrInfinity(numLimit);
+        if (limit < 0)
+        {
+            IteratorCloseOnAbrupt(obj);
+            throw StandardLibrary.ThrowRangeError("Iterator.prototype.drop requires a non-negative number", null, Realm);
+        }
+
+        var iterated = GetIteratorDirect(obj);
 
         return CreateDropIterator(iterated, limit);
     }
 
     /// <summary>
-    /// Iterator.prototype.flatMap(mapper) - Returns an iterator that maps and flattens values
+    /// Iterator.prototype.flatMap(mapper) - Returns an iterator that maps and flattens values.
     /// </summary>
     [JsHostMethod("flatMap", Length = 1d)]
     public JsValue FlatMap(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var iterated = GetIteratorDirect(thisValue);
-        var mapper = GetCallable(args, 0, "mapper");
+        var obj = RequireObject(thisValue);
+        var mapper = RequireCallable(args, 0, "mapper", obj);
+        var iterated = GetIteratorDirect(obj);
 
         return CreateFlatMapIterator(iterated, mapper);
     }
 
     /// <summary>
-    /// Iterator.prototype.reduce(reducer[, initialValue]) - Reduces iterator to a single value
+    /// Iterator.prototype.reduce(reducer[, initialValue]) - Reduces iterator to a single value.
+    /// Spec order: 1-2. RequireObject, 3. IsCallable check, 4. GetIteratorDirect.
     /// </summary>
     [JsHostMethod("reduce", Length = 1d)]
     public JsValue Reduce(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var iterated = GetIteratorDirect(thisValue);
-        var reducer = GetCallable(args, 0, "reducer");
+        var obj = RequireObject(thisValue);
+        var reducer = RequireCallable(args, 0, "reducer", obj);
+        var iterated = GetIteratorDirect(obj);
 
         var hasInitial = args.Count > 1;
         var accumulator = hasInitial ? args[1] : JsValue.Undefined;
@@ -139,7 +203,15 @@ public sealed partial class IteratorPrototype : JsPrototype
             else
             {
                 var callArgs = new[] { accumulator, value, (JsValue)(double)counter };
-                accumulator = reducer.Invoke(callArgs, JsValue.Undefined);
+                try
+                {
+                    accumulator = reducer.Invoke(callArgs, JsValue.Undefined);
+                }
+                catch
+                {
+                    IteratorCloseOnAbrupt(iterated.Iterator);
+                    throw;
+                }
             }
 
             counter++;
@@ -147,12 +219,14 @@ public sealed partial class IteratorPrototype : JsPrototype
     }
 
     /// <summary>
-    /// Iterator.prototype.toArray() - Converts iterator to an array
+    /// Iterator.prototype.toArray() - Converts iterator to an array.
+    /// Spec order: 1-2. RequireObject, 3. GetIteratorDirect.
     /// </summary>
     [JsHostMethod("toArray", Length = 0d)]
     public JsValue ToArray(JsValue thisValue)
     {
-        var iterated = GetIteratorDirect(thisValue);
+        var obj = RequireObject(thisValue);
+        var iterated = GetIteratorDirect(obj);
         var result = new JsArray(Realm);
 
         while (true)
@@ -169,13 +243,14 @@ public sealed partial class IteratorPrototype : JsPrototype
     }
 
     /// <summary>
-    /// Iterator.prototype.forEach(fn) - Executes a callback for each value
+    /// Iterator.prototype.forEach(fn) - Executes a callback for each value.
     /// </summary>
     [JsHostMethod("forEach", Length = 1d)]
     public JsValue ForEach(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var iterated = GetIteratorDirect(thisValue);
-        var fn = GetCallable(args, 0, "fn");
+        var obj = RequireObject(thisValue);
+        var fn = RequireCallable(args, 0, "fn", obj);
+        var iterated = GetIteratorDirect(obj);
         var counter = 0;
 
         while (true)
@@ -188,19 +263,29 @@ public sealed partial class IteratorPrototype : JsPrototype
 
             var value = IteratorValue(next);
             var callArgs = new[] { value, (JsValue)(double)counter };
-            fn.Invoke(callArgs, JsValue.Undefined);
+            try
+            {
+                fn.Invoke(callArgs, JsValue.Undefined);
+            }
+            catch
+            {
+                IteratorCloseOnAbrupt(iterated.Iterator);
+                throw;
+            }
+
             counter++;
         }
     }
 
     /// <summary>
-    /// Iterator.prototype.some(predicate) - Returns true if any value satisfies the predicate
+    /// Iterator.prototype.some(predicate) - Returns true if any value satisfies the predicate.
     /// </summary>
     [JsHostMethod("some", Length = 1d)]
     public JsValue Some(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var iterated = GetIteratorDirect(thisValue);
-        var predicate = GetCallable(args, 0, "predicate");
+        var obj = RequireObject(thisValue);
+        var predicate = RequireCallable(args, 0, "predicate", obj);
+        var iterated = GetIteratorDirect(obj);
         var counter = 0;
 
         while (true)
@@ -213,11 +298,20 @@ public sealed partial class IteratorPrototype : JsPrototype
 
             var value = IteratorValue(next);
             var callArgs = new[] { value, (JsValue)(double)counter };
-            var result = predicate.Invoke(callArgs, JsValue.Undefined);
+            JsValue result;
+            try
+            {
+                result = predicate.Invoke(callArgs, JsValue.Undefined);
+            }
+            catch
+            {
+                IteratorCloseOnAbrupt(iterated.Iterator);
+                throw;
+            }
 
             if (JsOps.ToBoolean(result))
             {
-                IteratorClose(iterated);
+                IteratorCloseNormal(iterated.Iterator);
                 return true;
             }
 
@@ -226,13 +320,14 @@ public sealed partial class IteratorPrototype : JsPrototype
     }
 
     /// <summary>
-    /// Iterator.prototype.every(predicate) - Returns true if all values satisfy the predicate
+    /// Iterator.prototype.every(predicate) - Returns true if all values satisfy the predicate.
     /// </summary>
     [JsHostMethod("every", Length = 1d)]
     public JsValue Every(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var iterated = GetIteratorDirect(thisValue);
-        var predicate = GetCallable(args, 0, "predicate");
+        var obj = RequireObject(thisValue);
+        var predicate = RequireCallable(args, 0, "predicate", obj);
+        var iterated = GetIteratorDirect(obj);
         var counter = 0;
 
         while (true)
@@ -245,11 +340,20 @@ public sealed partial class IteratorPrototype : JsPrototype
 
             var value = IteratorValue(next);
             var callArgs = new[] { value, (JsValue)(double)counter };
-            var result = predicate.Invoke(callArgs, JsValue.Undefined);
+            JsValue result;
+            try
+            {
+                result = predicate.Invoke(callArgs, JsValue.Undefined);
+            }
+            catch
+            {
+                IteratorCloseOnAbrupt(iterated.Iterator);
+                throw;
+            }
 
             if (!JsOps.ToBoolean(result))
             {
-                IteratorClose(iterated);
+                IteratorCloseNormal(iterated.Iterator);
                 return false;
             }
 
@@ -258,13 +362,14 @@ public sealed partial class IteratorPrototype : JsPrototype
     }
 
     /// <summary>
-    /// Iterator.prototype.find(predicate) - Returns the first value that satisfies the predicate
+    /// Iterator.prototype.find(predicate) - Returns the first value that satisfies the predicate.
     /// </summary>
     [JsHostMethod("find", Length = 1d)]
     public JsValue Find(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var iterated = GetIteratorDirect(thisValue);
-        var predicate = GetCallable(args, 0, "predicate");
+        var obj = RequireObject(thisValue);
+        var predicate = RequireCallable(args, 0, "predicate", obj);
+        var iterated = GetIteratorDirect(obj);
         var counter = 0;
 
         while (true)
@@ -277,11 +382,20 @@ public sealed partial class IteratorPrototype : JsPrototype
 
             var value = IteratorValue(next);
             var callArgs = new[] { value, (JsValue)(double)counter };
-            var result = predicate.Invoke(callArgs, JsValue.Undefined);
+            JsValue result;
+            try
+            {
+                result = predicate.Invoke(callArgs, JsValue.Undefined);
+            }
+            catch
+            {
+                IteratorCloseOnAbrupt(iterated.Iterator);
+                throw;
+            }
 
             if (JsOps.ToBoolean(result))
             {
-                IteratorClose(iterated);
+                IteratorCloseNormal(iterated.Iterator);
                 return value;
             }
 
@@ -295,45 +409,57 @@ public sealed partial class IteratorPrototype : JsPrototype
     [JsSymbolMethod("dispose", Length = 0d)]
     public JsValue Dispose(JsValue thisValue)
     {
-        if (thisValue.TryGetObject(out var obj))
+        if (thisValue.TryGetObjectLike(out var obj))
         {
-            IteratorClose(obj);
+            IteratorCloseNormal(obj);
         }
 
         return JsValue.Undefined;
     }
 
+    #region Iterator Record
+
+    /// <summary>
+    /// ECMAScript Iterator Record: { [[Iterator]], [[NextMethod]], [[Done]] }.
+    /// The NextMethod is captured once at GetIteratorDirect time and reused for all subsequent calls.
+    /// </summary>
+    internal sealed class IteratorRecord(IJsObjectLike iterator, JsValue nextMethod)
+    {
+        public readonly IJsObjectLike Iterator = iterator;
+        public readonly JsValue NextMethod = nextMethod;
+    }
+
+    #endregion
+
     #region Helper Methods
 
     /// <summary>
-    /// Gets an iterator record from the given value (GetIteratorDirect)
+    /// Validates that thisValue is an object.
+    /// Spec: "1. Let O be the this value. 2. If O is not an Object, throw TypeError."
     /// </summary>
-    private static IJsObjectLike GetIteratorDirect(JsValue value)
+    private static IJsObjectLike RequireObject(JsValue value)
     {
-        if (!value.TryGetObject(out var obj))
+        if (!value.TryGetObjectLike(out var obj))
         {
             throw StandardLibrary.ThrowTypeError("Iterator value is not an object", null, null);
-        }
-
-        // Verify it has a callable next method
-        if (!obj.TryGetProperty("next", out var nextProp) ||
-            !nextProp.TryGetObject<IJsCallable>(out _))
-        {
-            throw StandardLibrary.ThrowTypeError("Iterator must have a callable 'next' method", null, null);
         }
 
         return obj;
     }
 
     /// <summary>
-    /// Gets a callable from the arguments
+    /// Validates that args[index] is callable. If not, closes the iterator and throws TypeError.
+    /// Implements the argument-validation-failure-closes-underlying behavior.
     /// </summary>
-    private static IJsCallable GetCallable(IReadOnlyList<JsValue> args, int index, string name)
+    private static IJsCallable RequireCallable(IReadOnlyList<JsValue> args, int index, string name,
+        IJsObjectLike iteratorObj)
     {
         var arg = args.Count > index ? args[index] : JsValue.Undefined;
 
         if (!arg.TryGetObject<IJsCallable>(out var callable))
         {
+            // Per spec: when argument validation fails, close the underlying iterator
+            IteratorCloseOnAbrupt(iteratorObj);
             throw StandardLibrary.ThrowTypeError($"{name} is not a function", null, null);
         }
 
@@ -341,16 +467,27 @@ public sealed partial class IteratorPrototype : JsPrototype
     }
 
     /// <summary>
-    /// Converts a value to an integer or infinity
+    /// GetIteratorDirect(obj) per ECMAScript spec:
+    /// 1. Let nextMethod be ? Get(obj, "next").
+    /// 2. Return Iterator Record { [[Iterator]]: obj, [[NextMethod]]: nextMethod, [[Done]]: false }.
+    /// Does NOT check if nextMethod is callable -- that check is deferred to IteratorNext.
     /// </summary>
-    private static double ToIntegerOrInfinity(JsValue value, EvaluationContext? context = null)
+    private static IteratorRecord GetIteratorDirect(IJsObjectLike obj)
     {
-        var number = JsOps.ToNumber(value, context);
-        if (context?.IsThrow == true)
+        // Get "next" -- this can trigger getters and throw
+        if (!obj.TryGetProperty("next", out var nextMethod))
         {
-            return double.NaN;
+            nextMethod = JsValue.Undefined;
         }
 
+        return new IteratorRecord(obj, nextMethod);
+    }
+
+    /// <summary>
+    /// Converts a pre-computed ToNumber result to integer or infinity.
+    /// </summary>
+    private static double ToIntegerOrInfinity(double number)
+    {
         if (double.IsNaN(number) || number == 0)
         {
             return 0;
@@ -365,33 +502,44 @@ public sealed partial class IteratorPrototype : JsPrototype
     }
 
     /// <summary>
-    /// Calls iterator.next() and returns the result, or null if done
+    /// IteratorNext: Calls the captured NextMethod from the IteratorRecord.
+    /// Throws TypeError if next is not callable or result is not an object.
+    /// Uses TryGetObjectLike to accept both JsObject and IteratorResultObject.
     /// </summary>
-    private static IJsObjectLike? IteratorStep(IJsObjectLike iterator)
+    private static IJsObjectLike IteratorNext(IteratorRecord iterated)
     {
-        if (!iterator.TryGetProperty("next", out var nextProp) ||
-            !nextProp.TryGetObject<IJsCallable>(out var nextMethod))
+        if (!iterated.NextMethod.TryGetObject<IJsCallable>(out var nextMethod))
         {
             throw StandardLibrary.ThrowTypeError("Iterator must have a callable 'next' method", null, null);
         }
 
-        var result = nextMethod.Invoke([], JsValue.FromObjectUnsafe(iterator));
+        var result = nextMethod.Invoke([], JsValue.FromObjectUnsafe(iterated.Iterator));
 
-        if (!result.TryGetObject(out var resultObj))
+        if (!result.TryGetObjectLike(out var resultObj))
         {
             throw StandardLibrary.ThrowTypeError("Iterator result must be an object", null, null);
-        }
-
-        if (resultObj.TryGetProperty("done", out var doneProp) && JsOps.ToBoolean(doneProp))
-        {
-            return null;
         }
 
         return resultObj;
     }
 
     /// <summary>
-    /// Gets the value property from an iterator result
+    /// IteratorStep: Calls IteratorNext, returns null if done.
+    /// </summary>
+    private static IJsObjectLike? IteratorStep(IteratorRecord iterated)
+    {
+        var result = IteratorNext(iterated);
+
+        if (result.TryGetProperty("done", out var doneProp) && JsOps.ToBoolean(doneProp))
+        {
+            return null;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Gets the value property from an iterator result.
     /// </summary>
     private static JsValue IteratorValue(IJsObjectLike result)
     {
@@ -404,23 +552,58 @@ public sealed partial class IteratorPrototype : JsPrototype
     }
 
     /// <summary>
-    /// Closes an iterator by calling its return method if present
+    /// IteratorClose for normal completion.
+    /// Per spec: Get return method. If undefined, return. Otherwise call it.
+    /// Errors from getting or calling return() propagate to the caller.
     /// </summary>
-    private static void IteratorClose(IJsObjectLike iterator)
+    internal static void IteratorCloseNormal(IJsObjectLike iterator)
     {
-        if (!iterator.TryGetProperty("return", out var returnProp) ||
-            !returnProp.TryGetObject<IJsCallable>(out var returnMethod))
+        if (!iterator.TryGetProperty("return", out var returnProp))
         {
             return;
         }
 
+        if (returnProp.IsNullOrUndefined)
+        {
+            return;
+        }
+
+        if (!returnProp.TryGetObject<IJsCallable>(out var returnMethod))
+        {
+            throw StandardLibrary.ThrowTypeError("return is not a function", null, null);
+        }
+
+        returnMethod.Invoke([], JsValue.FromObjectUnsafe(iterator));
+    }
+
+    /// <summary>
+    /// IteratorClose for abrupt completion.
+    /// Attempts to call return() but suppresses errors (the original error takes priority).
+    /// </summary>
+    internal static void IteratorCloseOnAbrupt(IJsObjectLike iterator)
+    {
         try
         {
+            if (!iterator.TryGetProperty("return", out var returnProp))
+            {
+                return;
+            }
+
+            if (returnProp.IsNullOrUndefined)
+            {
+                return;
+            }
+
+            if (!returnProp.TryGetObject<IJsCallable>(out var returnMethod))
+            {
+                return;
+            }
+
             returnMethod.Invoke([], JsValue.FromObjectUnsafe(iterator));
         }
         catch
         {
-            // Ignore errors from return() per spec
+            // Suppress -- the original error takes priority
         }
     }
 
@@ -429,14 +612,13 @@ public sealed partial class IteratorPrototype : JsPrototype
     #region Iterator State Helper
 
     /// <summary>
-    /// Encapsulates common iterator state and behavior to reduce duplication
-    /// across iterator factory methods.
+    /// Encapsulates common iterator state and behavior for iterator helper objects.
     /// </summary>
-    private sealed class IteratorState(IJsObjectLike source, IteratorPrototype prototype)
+    private sealed class IteratorState(IteratorRecord iterated, IteratorPrototype prototype)
     {
         public bool Done;
         public bool IsExecuting;
-        public IJsObjectLike? InnerIterator;
+        public IteratorRecord? InnerIterator;
 
         public void EnsureNotExecuting()
         {
@@ -458,10 +640,9 @@ public sealed partial class IteratorPrototype : JsPrototype
             return false;
         }
 
-        public void MarkExhaustedAndClose()
+        public void MarkDone()
         {
             Done = true;
-            IteratorClose(source);
         }
 
         public HostFunction CreateReturnFunc()
@@ -475,10 +656,12 @@ public sealed partial class IteratorPrototype : JsPrototype
                     Done = true;
                     if (InnerIterator is not null)
                     {
-                        IteratorClose(InnerIterator);
+                        IteratorCloseOnAbrupt(InnerIterator.Iterator);
+                        InnerIterator = null;
                     }
 
-                    IteratorClose(source);
+                    // Forward to underlying iterator's return
+                    IteratorCloseNormal(iterated.Iterator);
                     return CreateIterResult(JsValue.Undefined, true);
                 }
                 finally
@@ -493,10 +676,10 @@ public sealed partial class IteratorPrototype : JsPrototype
 
     #region Iterator Factory Methods
 
-    private JsValue CreateMappedIterator(IJsObjectLike source, IJsCallable mapper)
+    private JsValue CreateMappedIterator(IteratorRecord iterated, IJsCallable mapper)
     {
         var iterator = new JsObject { RealmState = Realm };
-        var state = new IteratorState(source, this);
+        var state = new IteratorState(iterated, this);
         var counter = 0;
 
         var nextFunc = new HostFunction((_, _) =>
@@ -510,10 +693,10 @@ public sealed partial class IteratorPrototype : JsPrototype
             state.IsExecuting = true;
             try
             {
-                var next = IteratorStep(source);
+                var next = IteratorStep(iterated);
                 if (next is null)
                 {
-                    state.Done = true;
+                    state.MarkDone();
                     return CreateIterResult(JsValue.Undefined, true);
                 }
 
@@ -528,7 +711,8 @@ public sealed partial class IteratorPrototype : JsPrototype
                 }
                 catch
                 {
-                    state.MarkExhaustedAndClose();
+                    state.MarkDone();
+                    IteratorCloseOnAbrupt(iterated.Iterator);
                     throw;
                 }
             }
@@ -545,10 +729,10 @@ public sealed partial class IteratorPrototype : JsPrototype
         return new JsValue(iterator);
     }
 
-    private JsValue CreateFilteredIterator(IJsObjectLike source, IJsCallable predicate)
+    private JsValue CreateFilteredIterator(IteratorRecord iterated, IJsCallable predicate)
     {
         var iterator = new JsObject { RealmState = Realm };
-        var state = new IteratorState(source, this);
+        var state = new IteratorState(iterated, this);
         var counter = 0;
 
         var nextFunc = new HostFunction((_, _) =>
@@ -564,10 +748,10 @@ public sealed partial class IteratorPrototype : JsPrototype
             {
                 while (true)
                 {
-                    var next = IteratorStep(source);
+                    var next = IteratorStep(iterated);
                     if (next is null)
                     {
-                        state.Done = true;
+                        state.MarkDone();
                         return CreateIterResult(JsValue.Undefined, true);
                     }
 
@@ -585,7 +769,8 @@ public sealed partial class IteratorPrototype : JsPrototype
                     }
                     catch
                     {
-                        state.MarkExhaustedAndClose();
+                        state.MarkDone();
+                        IteratorCloseOnAbrupt(iterated.Iterator);
                         throw;
                     }
                 }
@@ -603,10 +788,10 @@ public sealed partial class IteratorPrototype : JsPrototype
         return new JsValue(iterator);
     }
 
-    private JsValue CreateTakeIterator(IJsObjectLike source, double limit)
+    private JsValue CreateTakeIterator(IteratorRecord iterated, double limit)
     {
         var iterator = new JsObject { RealmState = Realm };
-        var state = new IteratorState(source, this);
+        var state = new IteratorState(iterated, this);
         var remaining = limit;
 
         var nextFunc = new HostFunction((_, _) =>
@@ -622,23 +807,28 @@ public sealed partial class IteratorPrototype : JsPrototype
             {
                 if (remaining <= 0)
                 {
-                    state.MarkExhaustedAndClose();
-                    return CreateIterResult(JsValue.Undefined, true);
-                }
-
-                var next = IteratorStep(source);
-                if (next is null)
-                {
-                    state.Done = true;
+                    // take(0) or exhausted: close the underlying iterator via IteratorClose
+                    state.MarkDone();
+                    IteratorCloseNormal(iterated.Iterator);
                     return CreateIterResult(JsValue.Undefined, true);
                 }
 
                 remaining--;
+
+                var next = IteratorStep(iterated);
+                if (next is null)
+                {
+                    state.MarkDone();
+                    return CreateIterResult(JsValue.Undefined, true);
+                }
+
                 var value = IteratorValue(next);
 
                 if (remaining <= 0)
                 {
-                    state.MarkExhaustedAndClose();
+                    // This was the last item, close the underlying iterator
+                    state.MarkDone();
+                    IteratorCloseNormal(iterated.Iterator);
                 }
 
                 return CreateIterResult(value, false);
@@ -656,10 +846,10 @@ public sealed partial class IteratorPrototype : JsPrototype
         return new JsValue(iterator);
     }
 
-    private JsValue CreateDropIterator(IJsObjectLike source, double limit)
+    private JsValue CreateDropIterator(IteratorRecord iterated, double limit)
     {
         var iterator = new JsObject { RealmState = Realm };
-        var state = new IteratorState(source, this);
+        var state = new IteratorState(iterated, this);
         var remaining = limit;
 
         var nextFunc = new HostFunction((_, _) =>
@@ -676,20 +866,20 @@ public sealed partial class IteratorPrototype : JsPrototype
                 // Skip the first 'remaining' items
                 while (remaining > 0)
                 {
-                    var skipped = IteratorStep(source);
+                    var skipped = IteratorStep(iterated);
                     if (skipped is null)
                     {
-                        state.Done = true;
+                        state.MarkDone();
                         return CreateIterResult(JsValue.Undefined, true);
                     }
 
                     remaining--;
                 }
 
-                var next = IteratorStep(source);
+                var next = IteratorStep(iterated);
                 if (next is null)
                 {
-                    state.Done = true;
+                    state.MarkDone();
                     return CreateIterResult(JsValue.Undefined, true);
                 }
 
@@ -709,10 +899,10 @@ public sealed partial class IteratorPrototype : JsPrototype
         return new JsValue(iterator);
     }
 
-    private JsValue CreateFlatMapIterator(IJsObjectLike source, IJsCallable mapper)
+    private JsValue CreateFlatMapIterator(IteratorRecord iterated, IJsCallable mapper)
     {
         var iterator = new JsObject { RealmState = Realm };
-        var state = new IteratorState(source, this);
+        var state = new IteratorState(iterated, this);
         var counter = 0;
 
         var nextFunc = new HostFunction((_, _) =>
@@ -731,22 +921,36 @@ public sealed partial class IteratorPrototype : JsPrototype
                     // If we have an inner iterator, try to get the next value from it
                     if (state.InnerIterator is not null)
                     {
-                        var innerNext = IteratorStep(state.InnerIterator);
-                        if (innerNext is not null)
+                        IJsObjectLike innerResult;
+                        try
                         {
-                            var innerValue = IteratorValue(innerNext);
-                            return CreateIterResult(innerValue, false);
+                            innerResult = IteratorNext(state.InnerIterator);
+                        }
+                        catch
+                        {
+                            state.MarkDone();
+                            IteratorCloseOnAbrupt(iterated.Iterator);
+                            throw;
                         }
 
-                        // Inner iterator is exhausted
-                        state.InnerIterator = null;
+                        if (innerResult.TryGetProperty("done", out var innerDone) &&
+                            JsOps.ToBoolean(innerDone))
+                        {
+                            // Inner iterator is exhausted
+                            state.InnerIterator = null;
+                        }
+                        else
+                        {
+                            var innerValue = IteratorValue(innerResult);
+                            return CreateIterResult(innerValue, false);
+                        }
                     }
 
                     // Get the next value from the source iterator
-                    var next = IteratorStep(source);
+                    var next = IteratorStep(iterated);
                     if (next is null)
                     {
-                        state.Done = true;
+                        state.MarkDone();
                         return CreateIterResult(JsValue.Undefined, true);
                     }
 
@@ -754,38 +958,77 @@ public sealed partial class IteratorPrototype : JsPrototype
                     var callArgs = new[] { value, (JsValue)(double)counter };
                     counter++;
 
+                    JsValue mapped;
                     try
                     {
-                        var mapped = mapper.Invoke(callArgs, JsValue.Undefined);
-
-                        // Try to get an iterator from the mapped value
-                        if (!mapped.TryGetObject(out var mappedObj))
-                        {
-                            return CreateIterResult(mapped, false);
-                        }
-
-                        // Check for Symbol.iterator
-                        if (!mappedObj.TryGetProperty(SymbolKeys.Iterator, out var iterMethod) ||
-                            !iterMethod.TryGetObject<IJsCallable>(out var iterCallable))
-                        {
-                            return CreateIterResult(mapped, false);
-                        }
-
-                        var iterResult = iterCallable.Invoke([], mapped);
-                        if (!iterResult.TryGetObject(out var iter))
-                        {
-                            return CreateIterResult(mapped, false);
-                        }
-
-                        state.InnerIterator = iter;
-
-                        // If mapped value is not iterable, yield it directly
+                        mapped = mapper.Invoke(callArgs, JsValue.Undefined);
                     }
                     catch
                     {
-                        state.MarkExhaustedAndClose();
+                        state.MarkDone();
+                        IteratorCloseOnAbrupt(iterated.Iterator);
                         throw;
                     }
+
+                    // GetIteratorFlattenable(mapped, reject-primitives)
+                    // Step 1: If mapped is not an Object, throw TypeError
+                    // Use TryGetObjectLike to accept IteratorResultObject and other IJsObjectLike types
+                    if (!mapped.TryGetObjectLike(out var mappedObj))
+                    {
+                        state.MarkDone();
+                        IteratorCloseOnAbrupt(iterated.Iterator);
+                        throw StandardLibrary.ThrowTypeError(
+                            "Iterator.prototype.flatMap mapper must return an object", null, Realm);
+                    }
+
+                    // Step 2: Check for Symbol.iterator
+                    IteratorRecord innerIterated;
+                    try
+                    {
+                        if (mappedObj.TryGetProperty(SymbolKeys.Iterator, out var iterMethod))
+                        {
+                            if (iterMethod.IsNullOrUndefined)
+                            {
+                                // Symbol.iterator is null/undefined -- fall back to treating as iterator
+                                innerIterated = GetIteratorDirect(mappedObj);
+                            }
+                            else if (iterMethod.TryGetObject<IJsCallable>(out var iterCallable))
+                            {
+                                // Symbol.iterator is callable -- call it
+                                var iterResult = iterCallable.Invoke([], mapped);
+                                if (!iterResult.TryGetObjectLike(out var innerObj))
+                                {
+                                    state.MarkDone();
+                                    IteratorCloseOnAbrupt(iterated.Iterator);
+                                    throw StandardLibrary.ThrowTypeError(
+                                        "Symbol.iterator must return an object", null, Realm);
+                                }
+
+                                innerIterated = GetIteratorDirect(innerObj);
+                            }
+                            else
+                            {
+                                // Symbol.iterator is present but not callable and not null/undefined
+                                state.MarkDone();
+                                IteratorCloseOnAbrupt(iterated.Iterator);
+                                throw StandardLibrary.ThrowTypeError(
+                                    "Symbol.iterator is not a function", null, Realm);
+                            }
+                        }
+                        else
+                        {
+                            // No Symbol.iterator -- treat the object as an iterator-like
+                            innerIterated = GetIteratorDirect(mappedObj);
+                        }
+                    }
+                    catch
+                    {
+                        state.MarkDone();
+                        IteratorCloseOnAbrupt(iterated.Iterator);
+                        throw;
+                    }
+
+                    state.InnerIterator = innerIterated;
                 }
             }
             finally

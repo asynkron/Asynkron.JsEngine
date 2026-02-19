@@ -103,7 +103,7 @@ public sealed class WeakSetTests(ITestOutputHelper output) : InternalTestBase(ou
     public async Task WeakSet_Rejects_String_As_Value()
     {
         await using var engine = CreateEngine();
-        var exception = await Assert.ThrowsAsync<Exception>(async () => await engine.Evaluate("""
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
 
                     let ws = new WeakSet();
                     ws.add("string");
@@ -116,7 +116,7 @@ public sealed class WeakSetTests(ITestOutputHelper output) : InternalTestBase(ou
     public async Task WeakSet_Rejects_Number_As_Value()
     {
         await using var engine = CreateEngine();
-        var exception = await Assert.ThrowsAsync<Exception>(async () => await engine.Evaluate("""
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
 
                     let ws = new WeakSet();
                     ws.add(42);
@@ -129,7 +129,7 @@ public sealed class WeakSetTests(ITestOutputHelper output) : InternalTestBase(ou
     public async Task WeakSet_Rejects_Boolean_As_Value()
     {
         await using var engine = CreateEngine();
-        var exception = await Assert.ThrowsAsync<Exception>(async () => await engine.Evaluate("""
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
 
                     let ws = new WeakSet();
                     ws.add(true);
@@ -142,7 +142,7 @@ public sealed class WeakSetTests(ITestOutputHelper output) : InternalTestBase(ou
     public async Task WeakSet_Rejects_Null_As_Value()
     {
         await using var engine = CreateEngine();
-        var exception = await Assert.ThrowsAsync<Exception>(async () => await engine.Evaluate("""
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
 
                     let ws = new WeakSet();
                     ws.add(null);
@@ -155,7 +155,7 @@ public sealed class WeakSetTests(ITestOutputHelper output) : InternalTestBase(ou
     public async Task WeakSet_Rejects_Undefined_As_Value()
     {
         await using var engine = CreateEngine();
-        var exception = await Assert.ThrowsAsync<Exception>(async () => await engine.Evaluate("""
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
 
                     let ws = new WeakSet();
                     let x = undefined;

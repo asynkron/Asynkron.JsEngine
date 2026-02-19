@@ -118,7 +118,7 @@ public sealed class WeakMapTests(ITestOutputHelper output) : InternalTestBase(ou
     public async Task WeakMap_Rejects_String_As_Key()
     {
         await using var engine = CreateEngine();
-        var exception = await Assert.ThrowsAsync<Exception>(async () => await engine.Evaluate("""
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
 
                     let wm = new WeakMap();
                     wm.set("string", "value");
@@ -131,7 +131,7 @@ public sealed class WeakMapTests(ITestOutputHelper output) : InternalTestBase(ou
     public async Task WeakMap_Rejects_Number_As_Key()
     {
         await using var engine = CreateEngine();
-        var exception = await Assert.ThrowsAsync<Exception>(async () => await engine.Evaluate("""
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
 
                     let wm = new WeakMap();
                     wm.set(42, "value");
@@ -144,7 +144,7 @@ public sealed class WeakMapTests(ITestOutputHelper output) : InternalTestBase(ou
     public async Task WeakMap_Rejects_Boolean_As_Key()
     {
         await using var engine = CreateEngine();
-        var exception = await Assert.ThrowsAsync<Exception>(async () => await engine.Evaluate("""
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
 
                     let wm = new WeakMap();
                     wm.set(true, "value");
@@ -157,7 +157,7 @@ public sealed class WeakMapTests(ITestOutputHelper output) : InternalTestBase(ou
     public async Task WeakMap_Rejects_Null_As_Key()
     {
         await using var engine = CreateEngine();
-        var exception = await Assert.ThrowsAsync<Exception>(async () => await engine.Evaluate("""
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
 
                     let wm = new WeakMap();
                     wm.set(null, "value");
@@ -170,7 +170,7 @@ public sealed class WeakMapTests(ITestOutputHelper output) : InternalTestBase(ou
     public async Task WeakMap_Rejects_Undefined_As_Key()
     {
         await using var engine = CreateEngine();
-        var exception = await Assert.ThrowsAsync<Exception>(async () => await engine.Evaluate("""
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
 
                     let wm = new WeakMap();
                     let x = undefined;

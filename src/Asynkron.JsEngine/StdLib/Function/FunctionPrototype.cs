@@ -32,11 +32,11 @@ public sealed partial class FunctionPrototype
     }
 
     [JsHostMethod("call", Length = 1d)]
-    private static JsValue Call(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue Call(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (!thisValue.TryGetObject<IJsCallable>(out var target))
         {
-            return JsValue.Undefined;
+            throw ThrowTypeError("Function.prototype.call called on incompatible receiver", realm: Realm);
         }
 
         var thisArg = args.GetArgument(0);

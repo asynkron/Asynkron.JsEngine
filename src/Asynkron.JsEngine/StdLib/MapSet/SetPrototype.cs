@@ -1,5 +1,6 @@
 #region
 
+using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 
 #endregion
@@ -85,16 +86,149 @@ public sealed partial class SetPrototype
         }
 
         Realm.SetPrototype ??= Prototype as JsObject;
-
-        // [Symbol.iterator] is registered via code generation from [JsSymbolAlias] attribute
     }
 
     private JsValue CreateSetIterator(JsSet set, SetIterationKind kind)
     {
-        // Use the shared SetIteratorPrototype so @@iterator wiring stays consistent.
         var iteratorPrototype = Realm.SetIteratorPrototype ??= (JsObject)SetIteratorPrototype.CreatePrototype(Realm);
         var iterator = new JsSetIterator(set, kind, Realm, iteratorPrototype);
         return iterator.AsJsValue;
+    }
+
+    private SetRecord GetSetRecord(JsValue otherValue, string methodName)
+    {
+        if (!otherValue.TryGetObjectLike(out var otherObj))
+        {
+            throw StandardLibrary.ThrowTypeError(
+                $"{methodName} requires a Set-like object as argument", realm: Realm);
+        }
+
+        otherObj.TryGetProperty("size", out var rawSize);
+        var numSize = JsOps.ToNumber(rawSize);
+
+        if (double.IsNaN(numSize))
+        {
+            throw StandardLibrary.ThrowTypeError(
+                "GetSetRecord: size is not a valid number", realm: Realm);
+        }
+
+        var intSize = double.IsInfinity(numSize) ? numSize : Math.Truncate(numSize);
+        if (intSize < 0)
+        {
+            intSize = 0;
+        }
+
+        if (!otherObj.TryGetProperty("has", out var hasValue) ||
+            !hasValue.TryGetObject<IJsCallable>(out var hasCallable))
+        {
+            throw StandardLibrary.ThrowTypeError(
+                $"{methodName} requires a Set-like object with a callable has method", realm: Realm);
+        }
+
+        if (!otherObj.TryGetProperty("keys", out var keysValue) ||
+            !keysValue.TryGetObject<IJsCallable>(out var keysCallable))
+        {
+            throw StandardLibrary.ThrowTypeError(
+                $"{methodName} requires a Set-like object with a callable keys method", realm: Realm);
+        }
+
+        return new SetRecord(otherObj, intSize, hasCallable, keysCallable);
+    }
+
+    private void IterateSetRecordKeys(SetRecord record, Action<JsValue> onValue)
+    {
+        var otherJsValue = JsValue.FromObjectUnsafe(record.Set);
+        var iteratorResult = record.Keys.Invoke([], otherJsValue);
+        if (!iteratorResult.TryGetObjectLike(out var iteratorObj))
+        {
+            throw StandardLibrary.ThrowTypeError("keys() must return an iterator object", realm: Realm);
+        }
+
+        if (!iteratorObj.TryGetProperty("next", out var nextProp) ||
+            !nextProp.TryGetObject<IJsCallable>(out var nextMethod))
+        {
+            throw StandardLibrary.ThrowTypeError("Iterator must have a callable next method", realm: Realm);
+        }
+
+        var iteratorJsValue = JsValue.FromObjectUnsafe(iteratorObj);
+        while (true)
+        {
+            var stepResult = nextMethod.Invoke([], iteratorJsValue);
+            if (!stepResult.TryGetObjectLike(out var stepObj))
+            {
+                throw StandardLibrary.ThrowTypeError("Iterator result must be an object", realm: Realm);
+            }
+
+            if (stepObj.TryGetProperty("done", out var doneProp) && JsOps.ToBoolean(doneProp))
+            {
+                break;
+            }
+
+            var value = stepObj.TryGetProperty("value", out var valueProp) ? valueProp : JsValue.Undefined;
+
+            if (value.IsNumber && IsNegativeZero(value.NumberValue))
+            {
+                value = JsValue.Zero;
+            }
+
+            onValue(value);
+        }
+    }
+
+    private void IterateSetRecordKeysWithEarlyExit(SetRecord record, Func<JsValue, bool> onValue)
+    {
+        var otherJsValue = JsValue.FromObjectUnsafe(record.Set);
+        var iteratorResult = record.Keys.Invoke([], otherJsValue);
+        if (!iteratorResult.TryGetObjectLike(out var iteratorObj))
+        {
+            throw StandardLibrary.ThrowTypeError("keys() must return an iterator object", realm: Realm);
+        }
+
+        if (!iteratorObj.TryGetProperty("next", out var nextProp) ||
+            !nextProp.TryGetObject<IJsCallable>(out var nextMethod))
+        {
+            throw StandardLibrary.ThrowTypeError("Iterator must have a callable next method", realm: Realm);
+        }
+
+        var iteratorJsValue = JsValue.FromObjectUnsafe(iteratorObj);
+        while (true)
+        {
+            var stepResult = nextMethod.Invoke([], iteratorJsValue);
+            if (!stepResult.TryGetObjectLike(out var stepObj))
+            {
+                throw StandardLibrary.ThrowTypeError("Iterator result must be an object", realm: Realm);
+            }
+
+            if (stepObj.TryGetProperty("done", out var doneProp) && JsOps.ToBoolean(doneProp))
+            {
+                break;
+            }
+
+            var value = stepObj.TryGetProperty("value", out var valueProp) ? valueProp : JsValue.Undefined;
+
+            if (value.IsNumber && IsNegativeZero(value.NumberValue))
+            {
+                value = JsValue.Zero;
+            }
+
+            if (!onValue(value))
+            {
+                if (iteratorObj.TryGetProperty("return", out var returnProp) &&
+                    returnProp.TryGetObject<IJsCallable>(out var returnMethod))
+                {
+                    returnMethod.Invoke([], iteratorJsValue);
+                }
+
+                break;
+            }
+        }
+    }
+
+    private bool CallHas(SetRecord record, JsValue value)
+    {
+        var otherJsValue = JsValue.FromObjectUnsafe(record.Set);
+        var result = record.Has.Invoke(new SingleValueArgs(value), otherJsValue);
+        return JsOps.ToBoolean(result);
     }
 
     [JsHostMethod("difference", Length = 1d)]
@@ -102,21 +236,30 @@ public sealed partial class SetPrototype
     {
         var thisSet = RequireInstance(thisValue);
         var otherValue = args.GetArgument(0);
+        var record = GetSetRecord(otherValue, "Set.prototype.difference");
 
-        // Create result set
         var resultSet = new JsSet();
         resultSet.SetPrototype(Realm.SetPrototype);
-
-        var otherSet = GetOtherSetForMembership(otherValue, "Set.prototype.difference");
-
-        // Add elements from this set that are not in the other set
         for (var i = 0; i < thisSet.ValueCount; i++)
         {
-            var value = thisSet.GetValue(i);
-            if (!otherSet.Has(value))
+            resultSet.Add(thisSet.GetValue(i));
+        }
+
+        var thisSize = thisSet.Size;
+        if (thisSize <= record.Size)
+        {
+            for (var i = 0; i < thisSet.ValueCount; i++)
             {
-                resultSet.Add(value);
+                var value = thisSet.GetValue(i);
+                if (CallHas(record, value))
+                {
+                    resultSet.Delete(value);
+                }
             }
+        }
+        else
+        {
+            IterateSetRecordKeys(record, value => resultSet.Delete(value));
         }
 
         return resultSet.AsJsValue;
@@ -127,21 +270,32 @@ public sealed partial class SetPrototype
     {
         var thisSet = RequireInstance(thisValue);
         var otherValue = args.GetArgument(0);
+        var record = GetSetRecord(otherValue, "Set.prototype.intersection");
 
-        // Create result set
         var resultSet = new JsSet();
         resultSet.SetPrototype(Realm.SetPrototype);
 
-        var otherSet = GetOtherSetForMembership(otherValue, "Set.prototype.intersection");
-
-        // Add elements that exist in both sets
-        for (var i = 0; i < thisSet.ValueCount; i++)
+        var thisSize = thisSet.Size;
+        if (thisSize <= record.Size)
         {
-            var value = thisSet.GetValue(i);
-            if (otherSet.Has(value))
+            for (var i = 0; i < thisSet.ValueCount; i++)
             {
-                resultSet.Add(value);
+                var value = thisSet.GetValue(i);
+                if (CallHas(record, value))
+                {
+                    resultSet.Add(value);
+                }
             }
+        }
+        else
+        {
+            IterateSetRecordKeys(record, value =>
+            {
+                if (thisSet.Has(value))
+                {
+                    resultSet.Add(value);
+                }
+            });
         }
 
         return resultSet.AsJsValue;
@@ -152,16 +306,34 @@ public sealed partial class SetPrototype
     {
         var thisSet = RequireInstance(thisValue);
         var otherValue = args.GetArgument(0);
+        var record = GetSetRecord(otherValue, "Set.prototype.isDisjointFrom");
 
-        var otherSet = GetOtherSetForMembership(otherValue, "Set.prototype.isDisjointFrom");
-
-        // Check if there are any common elements
-        for (var i = 0; i < thisSet.ValueCount; i++)
+        var thisSize = thisSet.Size;
+        if (thisSize <= record.Size)
         {
-            if (otherSet.Has(thisSet.GetValue(i)))
+            for (var i = 0; i < thisSet.ValueCount; i++)
             {
-                return false; // Found a common element, sets are not disjoint
+                if (CallHas(record, thisSet.GetValue(i)))
+                {
+                    return false;
+                }
             }
+        }
+        else
+        {
+            var result = true;
+            IterateSetRecordKeysWithEarlyExit(record, value =>
+            {
+                if (thisSet.Has(value))
+                {
+                    result = false;
+                    return false;
+                }
+
+                return true;
+            });
+
+            return result;
         }
 
         return true;
@@ -172,15 +344,19 @@ public sealed partial class SetPrototype
     {
         var thisSet = RequireInstance(thisValue);
         var otherValue = args.GetArgument(0);
+        var record = GetSetRecord(otherValue, "Set.prototype.isSubsetOf");
 
-        var otherSet = GetOtherSetForMembership(otherValue, "Set.prototype.isSubsetOf");
+        var thisSize = thisSet.Size;
+        if (thisSize > record.Size)
+        {
+            return false;
+        }
 
-        // Check if all elements of this set are in the other set
         for (var i = 0; i < thisSet.ValueCount; i++)
         {
-            if (!otherSet.Has(thisSet.GetValue(i)))
+            if (!CallHas(record, thisSet.GetValue(i)))
             {
-                return false; // Found an element not in other set
+                return false;
             }
         }
 
@@ -192,19 +368,27 @@ public sealed partial class SetPrototype
     {
         var thisSet = RequireInstance(thisValue);
         var otherValue = args.GetArgument(0);
+        var record = GetSetRecord(otherValue, "Set.prototype.isSupersetOf");
 
-        var otherSet = GetOtherSetForMembership(otherValue, "Set.prototype.isSupersetOf");
-
-        // Check if all elements of the other set are in this set
-        for (var i = 0; i < otherSet.ValueCount; i++)
+        var thisSize = thisSet.Size;
+        if (thisSize < record.Size)
         {
-            if (!thisSet.Has(otherSet.GetValue(i)))
-            {
-                return false; // Found an element of other set not in this set
-            }
+            return false;
         }
 
-        return true;
+        var allFound = true;
+        IterateSetRecordKeysWithEarlyExit(record, value =>
+        {
+            if (!thisSet.Has(value))
+            {
+                allFound = false;
+                return false;
+            }
+
+            return true;
+        });
+
+        return allFound;
     }
 
     [JsHostMethod("symmetricDifference", Length = 1d)]
@@ -212,32 +396,26 @@ public sealed partial class SetPrototype
     {
         var thisSet = RequireInstance(thisValue);
         var otherValue = args.GetArgument(0);
+        var record = GetSetRecord(otherValue, "Set.prototype.symmetricDifference");
 
-        // Create result set
         var resultSet = new JsSet();
         resultSet.SetPrototype(Realm.SetPrototype);
-
-        var otherSet = GetOtherSetForMembership(otherValue, "Set.prototype.symmetricDifference");
-
-        // Add elements from this set that are not in the other set
         for (var i = 0; i < thisSet.ValueCount; i++)
         {
-            var value = thisSet.GetValue(i);
-            if (!otherSet.Has(value))
-            {
-                resultSet.Add(value);
-            }
+            resultSet.Add(thisSet.GetValue(i));
         }
 
-        // Add elements from the other set that are not in this set
-        for (var i = 0; i < otherSet.ValueCount; i++)
+        IterateSetRecordKeys(record, value =>
         {
-            var value = otherSet.GetValue(i);
-            if (!thisSet.Has(value))
+            if (thisSet.Has(value))
+            {
+                resultSet.Delete(value);
+            }
+            else
             {
                 resultSet.Add(value);
             }
-        }
+        });
 
         return resultSet.AsJsValue;
     }
@@ -247,39 +425,24 @@ public sealed partial class SetPrototype
     {
         var thisSet = RequireInstance(thisValue);
         var otherValue = args.GetArgument(0);
+        var record = GetSetRecord(otherValue, "Set.prototype.union");
 
-        // Create result set
         var resultSet = new JsSet();
         resultSet.SetPrototype(Realm.SetPrototype);
-
-        // Add all elements from this set
         for (var i = 0; i < thisSet.ValueCount; i++)
         {
             resultSet.Add(thisSet.GetValue(i));
         }
 
-        // Add all elements from the other iterable (duplicates will be ignored).
-        AddValuesFromIterable(resultSet, otherValue, "Set.prototype.union");
+        IterateSetRecordKeys(record, value => resultSet.Add(value));
 
         return resultSet.AsJsValue;
     }
 
-    private void AddValuesFromIterable(JsSet target, JsValue iterable, string methodName)
+    private static bool IsNegativeZero(double value)
     {
-        MapSetIterationHelper.Iterate(iterable, Realm, methodName, value => target.Add(value));
+        return value == 0.0 && double.IsNegativeInfinity(1.0 / value);
     }
 
-    private JsSet GetOtherSetForMembership(JsValue otherValue, string methodName)
-    {
-        if (otherValue.TryGetObject<JsSet>(out var otherSet))
-        {
-            return otherSet;
-        }
-
-        // Build a temporary Set so we can use SameValueZero membership semantics.
-        var tempSet = new JsSet();
-        tempSet.SetPrototype(Realm.SetPrototype);
-        AddValuesFromIterable(tempSet, otherValue, methodName);
-        return tempSet;
-    }
+    private readonly record struct SetRecord(IJsObjectLike Set, double Size, IJsCallable Has, IJsCallable Keys);
 }

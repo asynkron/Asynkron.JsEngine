@@ -385,5 +385,24 @@ public sealed class ErrorTypesTests(ITestOutputHelper output) : InternalTestBase
         output.WriteLine($"Result: {result}");
         Assert.Equal("true | SyntaxError", result?.ToString());
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task NativeError_PrototypeOf_ShouldBeError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var results = [];
+            results.push(Object.getPrototypeOf(EvalError) === Error);
+            results.push(Object.getPrototypeOf(TypeError) === Error);
+            results.push(Object.getPrototypeOf(RangeError) === Error);
+            results.push(Object.getPrototypeOf(ReferenceError) === Error);
+            results.push(Object.getPrototypeOf(SyntaxError) === Error);
+            results.push(Object.getPrototypeOf(URIError) === Error);
+            results.push(Object.getPrototypeOf(AggregateError) === Error);
+            results.join(',');
+        """);
+        output.WriteLine($"Result: {result}");
+        Assert.Equal("true,true,true,true,true,true,true", result?.ToString());
+    }
 }
 

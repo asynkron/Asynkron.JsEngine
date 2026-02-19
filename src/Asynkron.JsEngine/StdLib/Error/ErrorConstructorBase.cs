@@ -68,6 +68,7 @@ public abstract class ErrorConstructorBase(IJsObjectLike prototype, RealmState r
         LinkPrototypeChain();
         InitializePrototypeDefaults();
         CacheRealmReferences(constructor);
+        LinkConstructorPrototypeChain(constructor);
     }
 
     private object ConstructWithNewTarget(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor)
@@ -144,11 +145,29 @@ public abstract class ErrorConstructorBase(IJsObjectLike prototype, RealmState r
             new PropertyDescriptor { Value = string.Empty, Writable = true, Enumerable = false, Configurable = true });
     }
 
+    /// <summary>
+    ///     Per ES spec, the [[Prototype]] of each NativeError constructor is the intrinsic %Error% constructor.
+    ///     For the Error constructor itself, the [[Prototype]] remains %Function.prototype% (the default).
+    /// </summary>
+    private void LinkConstructorPrototypeChain(HostFunction constructor)
+    {
+        if (string.Equals(ErrorType, "Error", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (Realm.ErrorConstructor is { } errorConstructor)
+        {
+            constructor.SetPrototype(errorConstructor);
+        }
+    }
+
     private void CacheRealmReferences(HostFunction constructor)
     {
         switch (ErrorType)
         {
             case "Error":
+                Realm.ErrorConstructor = constructor;
                 break;
             case "TypeError":
                 Realm.TypeErrorPrototype = Prototype as JsObject;

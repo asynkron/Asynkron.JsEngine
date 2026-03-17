@@ -2,6 +2,7 @@
 
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.BigIntHelper;
 using static Asynkron.JsEngine.StdLib.BooleanHelper;
@@ -71,7 +72,13 @@ public static partial class StandardLibrary
                 accessor = CreateNumberWrapper(candidate.NumberValue, realm: realm);
                 return true;
             case JsValueKind.String:
-                accessor = CreateStringWrapper(candidate.ObjectValue as string ?? string.Empty, realm: realm);
+                var strValue = candidate.ObjectValue switch
+                {
+                    string s => s,
+                    JsRopeString rope => rope.Flatten(),
+                    _ => string.Empty
+                };
+                accessor = CreateStringWrapper(strValue, realm: realm);
                 return true;
             case JsValueKind.Symbol:
                 if (candidate.ObjectValue is JsSymbol symbol)

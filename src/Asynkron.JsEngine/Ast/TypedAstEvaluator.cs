@@ -84,6 +84,13 @@ public static partial class TypedAstEvaluator
             return StringPooledEnumerator.Rent(s);
         }
 
+        // JsRopeString - flatten to string first, then enumerate
+        // Rope strings are created by string concatenation (e.g. buildString in test harness)
+        if (value is { Kind: JsValueKind.String, ObjectValue: JsRopeString rope })
+        {
+            return StringPooledEnumerator.Rent(rope.Flatten());
+        }
+
         // Fall back to null - caller should use full iterator protocol
         // TypedArray: resizable buffer shrink needs proper error propagation
         return null;

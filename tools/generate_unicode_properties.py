@@ -534,6 +534,47 @@ def main():
     # "ASCII" property
     binary_props["ASCII"] = [(0x0000, 0x007F)]
 
+    # Download PropertyAliases.txt for binary property short names
+    prop_aliases_text = download_file(f"{BASE_URL}/PropertyAliases.txt", "PropertyAliases.txt")
+
+    # Build binary property aliases (short name → long name)
+    # e.g., AHex → ASCII_Hex_Digit, Alpha → Alphabetic
+    for line in prop_aliases_text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = [p.strip() for p in line.split(";")]
+        if len(parts) < 2:
+            continue
+        short_name = parts[0]
+        long_name = parts[1]
+        # If the long name is a known binary property and the short name isn't already present
+        if long_name in binary_props and short_name not in binary_props:
+            binary_props[short_name] = binary_props[long_name]
+
+    # Also add General_Category value aliases from PropertyValueAliases.txt
+    # e.g., gc ; Lu ; Uppercase_Letter → ensure both Lu and Uppercase_Letter work
+    for line in pva_text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = [p.strip() for p in line.split(";")]
+        if len(parts) < 3:
+            continue
+        if parts[0] == "gc":
+            short_alias = parts[1]
+            long_name = parts[2]
+            # Add any additional aliases beyond what's already in our mapping
+            # (some GC values have 3+ aliases)
+            for alias in parts[1:]:
+                alias = alias.strip()
+                if alias and alias not in GC_LONG_TO_SHORT and alias not in GC_SHORT_ALIASES:
+                    # Map to the canonical short name
+                    if short_alias in GC_SHORT_ALIASES:
+                        GC_LONG_TO_SHORT[alias] = GC_SHORT_ALIASES[short_alias]
+                    elif short_alias in GC_LONG_TO_SHORT:
+                        GC_LONG_TO_SHORT[alias] = GC_LONG_TO_SHORT[short_alias]
+
     # For Script_Extensions, each code point that has NO scx entry
     # inherits its Script value. We need to merge.
     # First, build the full Script_Extensions data

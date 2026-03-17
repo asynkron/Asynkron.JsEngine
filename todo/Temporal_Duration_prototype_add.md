@@ -29,8 +29,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_add("built-ins/Temporal/Duration/prototype/add/balance-negative-time-units.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_add("built-ins/Temporal/Duration/prototype/add/basic.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_add("built-ins/Temporal/Duration/prototype/add/basic.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_add("built-ins/Temporal/Duration/prototype/add/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_add("built-ins/Temporal/Duration/prototype/add/branding.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_add("built-ins/Temporal/Duration/prototype/add/infinity-throws-rangeerror.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_add("built-ins/Temporal/Duration/prototype/add/infinity-throws-rangeerror.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_add("built-ins/Temporal/Duration/prototype/add/nanoseconds-is-number-max-safe-integer.js",False)

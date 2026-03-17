@@ -33,6 +33,5 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.DateTimeFormat_prototype_formatToParts("intl402/DateTimeFormat/prototype/formatToParts/temporal-objects-resolved-time-zone.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.DateTimeFormat_prototype_formatToParts("intl402/DateTimeFormat/prototype/formatToParts/temporal-zoneddatetime-not-supported.js",False)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.DateTimeFormat_prototype_formatToParts("intl402/DateTimeFormat/prototype/formatToParts/temporal-zoneddatetime-not-supported.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.DateTimeFormat_prototype_formatToParts("intl402/DateTimeFormat/prototype/formatToParts/this-has-not-internal-throws.js",False)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.DateTimeFormat_prototype_formatToParts("intl402/DateTimeFormat/prototype/formatToParts/time-clip-near-time-boundaries.js",False)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.DateTimeFormat_prototype_formatToParts("intl402/DateTimeFormat/prototype/formatToParts/time-clip-near-time-boundaries.js",True)

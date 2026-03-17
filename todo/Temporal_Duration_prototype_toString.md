@@ -7,8 +7,6 @@ Full test name:
 
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_toString("built-ins/Temporal/Duration/prototype/toString/blank-duration-precision.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_toString("built-ins/Temporal/Duration/prototype/toString/blank-duration-precision.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_toString("built-ins/Temporal/Duration/prototype/toString/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_toString("built-ins/Temporal/Duration/prototype/toString/branding.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_toString("built-ins/Temporal/Duration/prototype/toString/fractionalseconddigits-exact-number-of-digits.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_toString("built-ins/Temporal/Duration/prototype/toString/fractionalseconddigits-exact-number-of-digits.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_toString("built-ins/Temporal/Duration/prototype/toString/fractionalseconddigits-invalid-string.js",False)

@@ -5,10 +5,6 @@ FQN:
 
 Full test name:
 
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_startOfDay("built-ins/Temporal/ZonedDateTime/prototype/startOfDay/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_startOfDay("built-ins/Temporal/ZonedDateTime/prototype/startOfDay/branding.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_startOfDay("built-ins/Temporal/ZonedDateTime/prototype/startOfDay/subclassing-ignored.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_startOfDay("built-ins/Temporal/ZonedDateTime/prototype/startOfDay/subclassing-ignored.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_startOfDay("built-ins/Temporal/ZonedDateTime/prototype/startOfDay/throws-if-epoch-nanoseconds-outside-valid-limits.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_startOfDay("built-ins/Temporal/ZonedDateTime/prototype/startOfDay/throws-if-epoch-nanoseconds-outside-valid-limits.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_startOfDay("intl402/Temporal/ZonedDateTime/prototype/startOfDay/dst-skipped-cross-midnight.js",False)

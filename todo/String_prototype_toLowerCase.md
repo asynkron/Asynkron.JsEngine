@@ -11,5 +11,3 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_toLowerCase("built-ins/String/prototype/toLowerCase/special_casing.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_toLowerCase("built-ins/String/prototype/toLowerCase/special_casing_conditional.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_toLowerCase("built-ins/String/prototype/toLowerCase/special_casing_conditional.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_toLowerCase("built-ins/String/prototype/toLowerCase/supplementary_plane.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_toLowerCase("built-ins/String/prototype/toLowerCase/this-value-not-obj-coercible.js",False)

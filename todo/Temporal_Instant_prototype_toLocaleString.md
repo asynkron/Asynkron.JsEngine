@@ -5,8 +5,6 @@ FQN:
 
 Full test name:
 
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_prototype_toLocaleString("built-ins/Temporal/Instant/prototype/toLocaleString/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_prototype_toLocaleString("built-ins/Temporal/Instant/prototype/toLocaleString/branding.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Instant_prototype_toLocaleString("intl402/Temporal/Instant/prototype/toLocaleString/dateStyle-timeStyle-undefined.js",False)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Instant_prototype_toLocaleString("intl402/Temporal/Instant/prototype/toLocaleString/dateStyle-timeStyle-undefined.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Instant_prototype_toLocaleString("intl402/Temporal/Instant/prototype/toLocaleString/dateStyle.js",False)

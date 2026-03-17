@@ -9,8 +9,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toPlainDate("built-ins/Temporal/PlainMonthDay/prototype/toPlainDate/argument-not-object.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toPlainDate("built-ins/Temporal/PlainMonthDay/prototype/toPlainDate/basic.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toPlainDate("built-ins/Temporal/PlainMonthDay/prototype/toPlainDate/basic.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toPlainDate("built-ins/Temporal/PlainMonthDay/prototype/toPlainDate/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toPlainDate("built-ins/Temporal/PlainMonthDay/prototype/toPlainDate/branding.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toPlainDate("built-ins/Temporal/PlainMonthDay/prototype/toPlainDate/default-overflow-behaviour.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toPlainDate("built-ins/Temporal/PlainMonthDay/prototype/toPlainDate/default-overflow-behaviour.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toPlainDate("built-ins/Temporal/PlainMonthDay/prototype/toPlainDate/infinity-throws-rangeerror.js",False)

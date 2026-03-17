@@ -1,7 +1,7 @@
 # Temporal_PlainDate
 
 FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDate`
+`Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate`
 
 Full test name:
 
@@ -9,12 +9,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate("built-ins/Temporal/PlainDate/argument-convert.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate("built-ins/Temporal/PlainDate/argument-invalid.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate("built-ins/Temporal/PlainDate/argument-invalid.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate("built-ins/Temporal/PlainDate/calendar-case-insensitive.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate("built-ins/Temporal/PlainDate/calendar-case-insensitive.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate("built-ins/Temporal/PlainDate/calendar-invalid-iso-string.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate("built-ins/Temporal/PlainDate/calendar-invalid-iso-string.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate("built-ins/Temporal/PlainDate/calendar-wrong-type.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate("built-ins/Temporal/PlainDate/calendar-wrong-type.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate("built-ins/Temporal/PlainDate/constructor.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate("built-ins/Temporal/PlainDate/constructor.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate("built-ins/Temporal/PlainDate/infinity-throws-rangeerror.js",False)
@@ -31,5 +25,3 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate("built-ins/Temporal/PlainDate/negative-infinity-throws-rangeerror.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate("built-ins/Temporal/PlainDate/subclass.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate("built-ins/Temporal/PlainDate/subclass.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDate("intl402/Temporal/PlainDate/canonicalize-calendar.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDate("intl402/Temporal/PlainDate/canonicalize-calendar.js",True)

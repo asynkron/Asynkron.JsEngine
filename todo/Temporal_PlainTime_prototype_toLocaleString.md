@@ -5,8 +5,6 @@ FQN:
 
 Full test name:
 
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainTime_prototype_toLocaleString("built-ins/Temporal/PlainTime/prototype/toLocaleString/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainTime_prototype_toLocaleString("built-ins/Temporal/PlainTime/prototype/toLocaleString/branding.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainTime_prototype_toLocaleString("intl402/Temporal/PlainTime/prototype/toLocaleString/default-does-not-include-date-and-time-zone-name.js",False)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainTime_prototype_toLocaleString("intl402/Temporal/PlainTime/prototype/toLocaleString/default-does-not-include-date-and-time-zone-name.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainTime_prototype_toLocaleString("intl402/Temporal/PlainTime/prototype/toLocaleString/locales-undefined.js",False)

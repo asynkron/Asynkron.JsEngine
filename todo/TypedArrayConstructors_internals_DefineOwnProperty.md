@@ -5,8 +5,6 @@ FQN:
 
 Full test name:
 
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_DefineOwnProperty("built-ins/TypedArrayConstructors/internals/DefineOwnProperty/conversion-operation.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_DefineOwnProperty("built-ins/TypedArrayConstructors/internals/DefineOwnProperty/conversion-operation.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_DefineOwnProperty("built-ins/TypedArrayConstructors/internals/DefineOwnProperty/detached-buffer-throws-realm.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_DefineOwnProperty("built-ins/TypedArrayConstructors/internals/DefineOwnProperty/detached-buffer-throws-realm.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_DefineOwnProperty("built-ins/TypedArrayConstructors/internals/DefineOwnProperty/detached-buffer-throws.js",False)

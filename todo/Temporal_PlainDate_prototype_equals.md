@@ -55,8 +55,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_equals("built-ins/Temporal/PlainDate/prototype/equals/argument-wrong-type.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_equals("built-ins/Temporal/PlainDate/prototype/equals/argument-zoneddatetime-slots.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_equals("built-ins/Temporal/PlainDate/prototype/equals/argument-zoneddatetime-slots.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_equals("built-ins/Temporal/PlainDate/prototype/equals/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_equals("built-ins/Temporal/PlainDate/prototype/equals/branding.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_equals("built-ins/Temporal/PlainDate/prototype/equals/infinity-throws-rangeerror.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_equals("built-ins/Temporal/PlainDate/prototype/equals/infinity-throws-rangeerror.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_equals("built-ins/Temporal/PlainDate/prototype/equals/year-zero.js",False)

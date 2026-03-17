@@ -43,8 +43,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toPlainDateTime("built-ins/Temporal/PlainDate/prototype/toPlainDateTime/argument-zoneddatetime-negative-epochnanoseconds.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toPlainDateTime("built-ins/Temporal/PlainDate/prototype/toPlainDateTime/basic.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toPlainDateTime("built-ins/Temporal/PlainDate/prototype/toPlainDateTime/basic.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toPlainDateTime("built-ins/Temporal/PlainDate/prototype/toPlainDateTime/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toPlainDateTime("built-ins/Temporal/PlainDate/prototype/toPlainDateTime/branding.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toPlainDateTime("built-ins/Temporal/PlainDate/prototype/toPlainDateTime/leap-second.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toPlainDateTime("built-ins/Temporal/PlainDate/prototype/toPlainDateTime/leap-second.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toPlainDateTime("built-ins/Temporal/PlainDate/prototype/toPlainDateTime/limits.js",False)

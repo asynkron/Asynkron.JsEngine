@@ -5,16 +5,6 @@ FQN:
 
 Full test name:
 
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_set("built-ins/Proxy/set/boolean-trap-result-is-false-boolean-return-false.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_set("built-ins/Proxy/set/boolean-trap-result-is-false-boolean-return-false.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_set("built-ins/Proxy/set/boolean-trap-result-is-false-null-return-false.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_set("built-ins/Proxy/set/boolean-trap-result-is-false-null-return-false.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_set("built-ins/Proxy/set/boolean-trap-result-is-false-number-return-false.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_set("built-ins/Proxy/set/boolean-trap-result-is-false-number-return-false.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_set("built-ins/Proxy/set/boolean-trap-result-is-false-string-return-false.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_set("built-ins/Proxy/set/boolean-trap-result-is-false-string-return-false.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_set("built-ins/Proxy/set/boolean-trap-result-is-false-undefined-return-false.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_set("built-ins/Proxy/set/boolean-trap-result-is-false-undefined-return-false.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_set("built-ins/Proxy/set/call-parameters-prototype-dunder-proto.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_set("built-ins/Proxy/set/call-parameters-prototype-dunder-proto.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_set("built-ins/Proxy/set/call-parameters-prototype-index.js",False)

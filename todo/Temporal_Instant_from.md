@@ -5,6 +5,7 @@ FQN:
 
 Full test name:
 
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_from("built-ins/Temporal/Instant/from/argument-instant.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_from("built-ins/Temporal/Instant/from/argument-object-tostring.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_from("built-ins/Temporal/Instant/from/argument-object-tostring.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_from("built-ins/Temporal/Instant/from/argument-string-calendar-annotation-invalid-key.js",False)

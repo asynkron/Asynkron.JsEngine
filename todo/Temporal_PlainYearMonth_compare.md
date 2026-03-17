@@ -1,7 +1,7 @@
 # Temporal_PlainYearMonth_compare
 
 FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainYearMonth_compare`
+`Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_compare`
 
 Full test name:
 

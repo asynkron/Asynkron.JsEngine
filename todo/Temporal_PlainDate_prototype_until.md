@@ -53,8 +53,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_until("built-ins/Temporal/PlainDate/prototype/until/argument-wrong-type.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_until("built-ins/Temporal/PlainDate/prototype/until/argument-zoneddatetime-slots.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_until("built-ins/Temporal/PlainDate/prototype/until/argument-zoneddatetime-slots.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_until("built-ins/Temporal/PlainDate/prototype/until/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_until("built-ins/Temporal/PlainDate/prototype/until/branding.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_until("built-ins/Temporal/PlainDate/prototype/until/infinity-throws-rangeerror.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_until("built-ins/Temporal/PlainDate/prototype/until/infinity-throws-rangeerror.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_until("built-ins/Temporal/PlainDate/prototype/until/largestunit-higher-units.js",False)

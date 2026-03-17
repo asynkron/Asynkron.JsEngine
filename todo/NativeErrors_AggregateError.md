@@ -23,7 +23,3 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.NativeErrors_AggregateError("built-ins/NativeErrors/AggregateError/message-undefined-no-prop.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.NativeErrors_AggregateError("built-ins/NativeErrors/AggregateError/order-of-args-evaluation.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.NativeErrors_AggregateError("built-ins/NativeErrors/AggregateError/order-of-args-evaluation.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.NativeErrors_AggregateError("built-ins/NativeErrors/AggregateError/proto-from-ctor-realm.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.NativeErrors_AggregateError("built-ins/NativeErrors/AggregateError/proto-from-ctor-realm.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.NativeErrors_AggregateError("built-ins/NativeErrors/AggregateError/proto.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.NativeErrors_AggregateError("built-ins/NativeErrors/AggregateError/proto.js",True)

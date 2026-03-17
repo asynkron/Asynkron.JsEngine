@@ -7,8 +7,6 @@ Full test name:
 
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/balances-days-up-to-both-years-and-months.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/balances-days-up-to-both-years-and-months.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/branding.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/calendar-possibly-required.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/calendar-possibly-required.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/does-not-accept-non-string-primitives-for-relativeTo.js",False)
@@ -17,8 +15,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/duration-out-of-range-added-to-relativeto.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/incorrect-properties-ignored.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/incorrect-properties-ignored.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/no-dst-day-length.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/no-dst-day-length.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/options-wrong-type.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/options-wrong-type.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/order-of-operations.js",False)

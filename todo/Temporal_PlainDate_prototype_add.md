@@ -23,8 +23,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_add("built-ins/Temporal/PlainDate/prototype/add/balance-smaller-units-basic.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_add("built-ins/Temporal/PlainDate/prototype/add/balance-smaller-units.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_add("built-ins/Temporal/PlainDate/prototype/add/balance-smaller-units.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_add("built-ins/Temporal/PlainDate/prototype/add/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_add("built-ins/Temporal/PlainDate/prototype/add/branding.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_add("built-ins/Temporal/PlainDate/prototype/add/infinity-throws-rangeerror.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_add("built-ins/Temporal/PlainDate/prototype/add/infinity-throws-rangeerror.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_add("built-ins/Temporal/PlainDate/prototype/add/limits.js",False)

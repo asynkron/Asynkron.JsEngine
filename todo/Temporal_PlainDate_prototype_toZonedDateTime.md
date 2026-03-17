@@ -1,7 +1,7 @@
 # Temporal_PlainDate_prototype_toZonedDateTime
 
 FQN:
-`Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime`
+`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDate_prototype_toZonedDateTime`
 
 Full test name:
 
@@ -39,20 +39,12 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/argument-wrong-type.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/argument-zoneddatetime-negative-epochnanoseconds.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/argument-zoneddatetime-negative-epochnanoseconds.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/branding.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/get-epoch-nanoseconds-for-throws.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/get-epoch-nanoseconds-for-throws.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/get-start-of-day-throws.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/get-start-of-day-throws.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/leap-second.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/leap-second.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/length.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/length.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/name.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/name.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/not-a-constructor.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/not-a-constructor.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/order-of-operations.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/order-of-operations.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/plaintime-argument-zoneddatetime-balance-negative-time-units.js",False)
@@ -73,8 +65,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/timezone-string-sub-minute-offset.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/timezone-string-year-zero.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/timezone-string-year-zero.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/timezone-string.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/timezone-string.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/timezone-wrong-type.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/timezone-wrong-type.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toZonedDateTime("built-ins/Temporal/PlainDate/prototype/toZonedDateTime/year-zero.js",False)

@@ -7,8 +7,6 @@ Full test name:
 
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctors_objectArg("built-ins/TypedArrayConstructors/ctors/object-arg/as-generator-iterable-returns.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctors_objectArg("built-ins/TypedArrayConstructors/ctors/object-arg/as-generator-iterable-returns.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctors_objectArg("built-ins/TypedArrayConstructors/ctors/object-arg/conversion-operation.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctors_objectArg("built-ins/TypedArrayConstructors/ctors/object-arg/conversion-operation.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctors_objectArg("built-ins/TypedArrayConstructors/ctors/object-arg/iterated-array-changed-by-tonumber.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctors_objectArg("built-ins/TypedArrayConstructors/ctors/object-arg/iterated-array-changed-by-tonumber.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctors_objectArg("built-ins/TypedArrayConstructors/ctors/object-arg/iterated-array-with-modified-array-iterator.js",False)
@@ -33,8 +31,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctors_objectArg("built-ins/TypedArrayConstructors/ctors/object-arg/returns.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctors_objectArg("built-ins/TypedArrayConstructors/ctors/object-arg/throws-from-property.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctors_objectArg("built-ins/TypedArrayConstructors/ctors/object-arg/throws-from-property.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctors_objectArg("built-ins/TypedArrayConstructors/ctors/object-arg/throws-setting-obj-to-primitive-typeerror.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctors_objectArg("built-ins/TypedArrayConstructors/ctors/object-arg/throws-setting-obj-to-primitive-typeerror.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctors_objectArg("built-ins/TypedArrayConstructors/ctors/object-arg/throws-setting-property.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctors_objectArg("built-ins/TypedArrayConstructors/ctors/object-arg/throws-setting-property.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctors_objectArg("built-ins/TypedArrayConstructors/ctors/object-arg/throws-setting-symbol-property.js",False)

@@ -5,8 +5,6 @@ FQN:
 
 Full test name:
 
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toLocaleString("built-ins/Temporal/PlainMonthDay/prototype/toLocaleString/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toLocaleString("built-ins/Temporal/PlainMonthDay/prototype/toLocaleString/branding.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainMonthDay_prototype_toLocaleString("intl402/Temporal/PlainMonthDay/prototype/toLocaleString/calendar-mismatch.js",False)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainMonthDay_prototype_toLocaleString("intl402/Temporal/PlainMonthDay/prototype/toLocaleString/calendar-mismatch.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainMonthDay_prototype_toLocaleString("intl402/Temporal/PlainMonthDay/prototype/toLocaleString/dateStyle-timeStyle-undefined.js",False)

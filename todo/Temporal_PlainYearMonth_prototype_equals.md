@@ -43,8 +43,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_prototype_equals("built-ins/Temporal/PlainYearMonth/prototype/equals/argument-string.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_prototype_equals("built-ins/Temporal/PlainYearMonth/prototype/equals/argument-wrong-type.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_prototype_equals("built-ins/Temporal/PlainYearMonth/prototype/equals/argument-wrong-type.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_prototype_equals("built-ins/Temporal/PlainYearMonth/prototype/equals/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_prototype_equals("built-ins/Temporal/PlainYearMonth/prototype/equals/branding.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_prototype_equals("built-ins/Temporal/PlainYearMonth/prototype/equals/compare-reference-day.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_prototype_equals("built-ins/Temporal/PlainYearMonth/prototype/equals/compare-reference-day.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_prototype_equals("built-ins/Temporal/PlainYearMonth/prototype/equals/infinity-throws-rangeerror.js",False)

@@ -7,8 +7,6 @@ Full test name:
 
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_with("built-ins/Temporal/PlainMonthDay/prototype/with/basic.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_with("built-ins/Temporal/PlainMonthDay/prototype/with/basic.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_with("built-ins/Temporal/PlainMonthDay/prototype/with/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_with("built-ins/Temporal/PlainMonthDay/prototype/with/branding.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_with("built-ins/Temporal/PlainMonthDay/prototype/with/copy-properties-not-undefined.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_with("built-ins/Temporal/PlainMonthDay/prototype/with/copy-properties-not-undefined.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_with("built-ins/Temporal/PlainMonthDay/prototype/with/infinity-throws-rangeerror.js",False)

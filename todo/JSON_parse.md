@@ -23,8 +23,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.JSON_parse("built-ins/JSON/parse/reviver-array-length-get-err.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.JSON_parse("built-ins/JSON/parse/reviver-array-non-configurable-prop-create.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.JSON_parse("built-ins/JSON/parse/reviver-array-non-configurable-prop-create.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.JSON_parse("built-ins/JSON/parse/reviver-array-non-configurable-prop-delete.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.JSON_parse("built-ins/JSON/parse/reviver-array-non-configurable-prop-delete.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.JSON_parse("built-ins/JSON/parse/reviver-call-args-after-forward-modification.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.JSON_parse("built-ins/JSON/parse/reviver-call-args-after-forward-modification.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.JSON_parse("built-ins/JSON/parse/reviver-call-order.js",False)

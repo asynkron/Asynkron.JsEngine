@@ -5,10 +5,9 @@ FQN:
 
 Full test name:
 
-- Asynkron.JsEngine.Tests.Test262.LanguageTests.GlobalCode("language/global-code/S10.1.7_A1_T1.js",False)
-- Asynkron.JsEngine.Tests.Test262.LanguageTests.GlobalCode("language/global-code/S10.1.7_A1_T1.js",True)
-- Asynkron.JsEngine.Tests.Test262.LanguageTests.GlobalCode("language/global-code/S10.4.1_A1_T1.js",False)
-- Asynkron.JsEngine.Tests.Test262.LanguageTests.GlobalCode("language/global-code/S10.4.1_A1_T2.js",False)
-- Asynkron.JsEngine.Tests.Test262.LanguageTests.GlobalCode("language/global-code/invalid-private-names-member-expression-this.js",False)
-- Asynkron.JsEngine.Tests.Test262.LanguageTests.GlobalCode("language/global-code/new.target.js",True)
-- Asynkron.JsEngine.Tests.Test262.LanguageTests.GlobalCode("language/global-code/return.js",False)
+- Asynkron.JsEngine.Tests.Test262.LanguageTests.GlobalCode("language/global-code/decl-func-dup.js",True)
+- Asynkron.JsEngine.Tests.Test262.LanguageTests.GlobalCode("language/global-code/decl-func.js",True)
+- Asynkron.JsEngine.Tests.Test262.LanguageTests.GlobalCode("language/global-code/decl-lex-configurable-global.js",False)
+- Asynkron.JsEngine.Tests.Test262.LanguageTests.GlobalCode("language/global-code/decl-lex-configurable-global.js",True)
+- Asynkron.JsEngine.Tests.Test262.LanguageTests.GlobalCode("language/global-code/decl-lex-deletion.js",False)
+- Asynkron.JsEngine.Tests.Test262.LanguageTests.GlobalCode("language/global-code/decl-lex-restricted-global.js",False)

@@ -19,8 +19,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctorsBigint_objectArg("built-ins/TypedArrayConstructors/ctors-bigint/object-arg/length-is-symbol-throws.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctorsBigint_objectArg("built-ins/TypedArrayConstructors/ctors-bigint/object-arg/length-throws.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctorsBigint_objectArg("built-ins/TypedArrayConstructors/ctors-bigint/object-arg/length-throws.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctorsBigint_objectArg("built-ins/TypedArrayConstructors/ctors-bigint/object-arg/number-tobigint.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctorsBigint_objectArg("built-ins/TypedArrayConstructors/ctors-bigint/object-arg/number-tobigint.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctorsBigint_objectArg("built-ins/TypedArrayConstructors/ctors-bigint/object-arg/proto-from-ctor-realm.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctorsBigint_objectArg("built-ins/TypedArrayConstructors/ctors-bigint/object-arg/proto-from-ctor-realm.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctorsBigint_objectArg("built-ins/TypedArrayConstructors/ctors-bigint/object-arg/throws-from-property.js",False)

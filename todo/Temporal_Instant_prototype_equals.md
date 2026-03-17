@@ -33,8 +33,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_prototype_equals("built-ins/Temporal/Instant/prototype/equals/argument-wrong-type.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_prototype_equals("built-ins/Temporal/Instant/prototype/equals/argument-zoneddatetime.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_prototype_equals("built-ins/Temporal/Instant/prototype/equals/argument-zoneddatetime.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_prototype_equals("built-ins/Temporal/Instant/prototype/equals/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_prototype_equals("built-ins/Temporal/Instant/prototype/equals/branding.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_prototype_equals("built-ins/Temporal/Instant/prototype/equals/instant-string-multiple-offsets.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_prototype_equals("built-ins/Temporal/Instant/prototype/equals/instant-string-multiple-offsets.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_prototype_equals("built-ins/Temporal/Instant/prototype/equals/instant-string-sub-minute-offset.js",False)

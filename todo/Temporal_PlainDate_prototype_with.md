@@ -7,8 +7,6 @@ Full test name:
 
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_with("built-ins/Temporal/PlainDate/prototype/with/basic.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_with("built-ins/Temporal/PlainDate/prototype/with/basic.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_with("built-ins/Temporal/PlainDate/prototype/with/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_with("built-ins/Temporal/PlainDate/prototype/with/branding.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_with("built-ins/Temporal/PlainDate/prototype/with/infinity-throws-rangeerror.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_with("built-ins/Temporal/PlainDate/prototype/with/infinity-throws-rangeerror.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_with("built-ins/Temporal/PlainDate/prototype/with/options-undefined.js",False)

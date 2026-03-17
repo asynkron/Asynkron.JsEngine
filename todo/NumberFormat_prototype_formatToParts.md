@@ -5,22 +5,8 @@ FQN:
 
 Full test name:
 
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat_prototype_formatToParts("intl402/NumberFormat/prototype/formatToParts/default-parameter.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat_prototype_formatToParts("intl402/NumberFormat/prototype/formatToParts/default-parameter.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat_prototype_formatToParts("intl402/NumberFormat/prototype/formatToParts/engineering-scientific-de-DE.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat_prototype_formatToParts("intl402/NumberFormat/prototype/formatToParts/engineering-scientific-de-DE.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat_prototype_formatToParts("intl402/NumberFormat/prototype/formatToParts/engineering-scientific-en-US.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat_prototype_formatToParts("intl402/NumberFormat/prototype/formatToParts/engineering-scientific-en-US.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat_prototype_formatToParts("intl402/NumberFormat/prototype/formatToParts/engineering-scientific-ja-JP.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat_prototype_formatToParts("intl402/NumberFormat/prototype/formatToParts/engineering-scientific-ja-JP.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat_prototype_formatToParts("intl402/NumberFormat/prototype/formatToParts/engineering-scientific-ko-KR.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat_prototype_formatToParts("intl402/NumberFormat/prototype/formatToParts/engineering-scientific-ko-KR.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat_prototype_formatToParts("intl402/NumberFormat/prototype/formatToParts/engineering-scientific-zh-TW.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat_prototype_formatToParts("intl402/NumberFormat/prototype/formatToParts/engineering-scientific-zh-TW.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat_prototype_formatToParts("intl402/NumberFormat/prototype/formatToParts/length.js",False)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat_prototype_formatToParts("intl402/NumberFormat/prototype/formatToParts/length.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat_prototype_formatToParts("intl402/NumberFormat/prototype/formatToParts/main.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat_prototype_formatToParts("intl402/NumberFormat/prototype/formatToParts/main.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat_prototype_formatToParts("intl402/NumberFormat/prototype/formatToParts/notation-compact-de-DE.js",False)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat_prototype_formatToParts("intl402/NumberFormat/prototype/formatToParts/notation-compact-de-DE.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat_prototype_formatToParts("intl402/NumberFormat/prototype/formatToParts/notation-compact-en-US.js",False)
@@ -85,5 +71,3 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat_prototype_formatToParts("intl402/NumberFormat/prototype/formatToParts/unit-zh-TW.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat_prototype_formatToParts("intl402/NumberFormat/prototype/formatToParts/unit.js",False)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat_prototype_formatToParts("intl402/NumberFormat/prototype/formatToParts/unit.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat_prototype_formatToParts("intl402/NumberFormat/prototype/formatToParts/value-tonumber.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat_prototype_formatToParts("intl402/NumberFormat/prototype/formatToParts/value-tonumber.js",True)

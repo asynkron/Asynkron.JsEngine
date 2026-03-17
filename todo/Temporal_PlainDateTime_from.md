@@ -1,7 +1,7 @@
 # Temporal_PlainDateTime_from
 
 FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDateTime_from`
+`Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from`
 
 Full test name:
 
@@ -69,10 +69,14 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/limits.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/monthcode-invalid.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/monthcode-invalid.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/name.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/not-a-constructor.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/not-a-constructor.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/observable-get-overflow-argument-primitive.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/observable-get-overflow-argument-primitive.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/observable-get-overflow-argument-string-invalid.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/observable-get-overflow-argument-string-invalid.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/options-object.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/options-undefined.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/options-undefined.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/options-wrong-type.js",False)

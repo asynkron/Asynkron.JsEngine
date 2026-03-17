@@ -5,8 +5,6 @@ FQN:
 
 Full test name:
 
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toString("built-ins/Temporal/PlainDate/prototype/toString/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toString("built-ins/Temporal/PlainDate/prototype/toString/branding.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toString("built-ins/Temporal/PlainDate/prototype/toString/calendarname-always.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toString("built-ins/Temporal/PlainDate/prototype/toString/calendarname-always.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_toString("built-ins/Temporal/PlainDate/prototype/toString/calendarname-critical.js",False)

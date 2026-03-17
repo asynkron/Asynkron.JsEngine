@@ -5,8 +5,6 @@ FQN:
 
 Full test name:
 
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainTime_prototype_toString("built-ins/Temporal/PlainTime/prototype/toString/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainTime_prototype_toString("built-ins/Temporal/PlainTime/prototype/toString/branding.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainTime_prototype_toString("built-ins/Temporal/PlainTime/prototype/toString/fractionalseconddigits-invalid-string.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainTime_prototype_toString("built-ins/Temporal/PlainTime/prototype/toString/fractionalseconddigits-invalid-string.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainTime_prototype_toString("built-ins/Temporal/PlainTime/prototype/toString/fractionalseconddigits-nan.js",False)

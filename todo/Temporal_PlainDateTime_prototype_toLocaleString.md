@@ -1,12 +1,11 @@
 # Temporal_PlainDateTime_prototype_toLocaleString
 
 FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDateTime_prototype_toLocaleString`
+`Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toLocaleString`
 
 Full test name:
 
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toLocaleString("built-ins/Temporal/PlainDateTime/prototype/toLocaleString/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toLocaleString("built-ins/Temporal/PlainDateTime/prototype/toLocaleString/branding.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toLocaleString("built-ins/Temporal/PlainDateTime/prototype/toLocaleString/name.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDateTime_prototype_toLocaleString("intl402/Temporal/PlainDateTime/prototype/toLocaleString/calendar-mismatch.js",False)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDateTime_prototype_toLocaleString("intl402/Temporal/PlainDateTime/prototype/toLocaleString/calendar-mismatch.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDateTime_prototype_toLocaleString("intl402/Temporal/PlainDateTime/prototype/toLocaleString/dateStyle-timeStyle-undefined.js",False)

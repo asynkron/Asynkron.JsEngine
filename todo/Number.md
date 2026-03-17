@@ -5,6 +5,8 @@ FQN:
 
 Full test name:
 
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Number("built-ins/Number/15.7.4-1.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Number("built-ins/Number/15.7.4-1.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Number("built-ins/Number/bigint-conversion.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Number("built-ins/Number/bigint-conversion.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Number("built-ins/Number/parseFloat.js",False)
@@ -15,13 +17,5 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Number("built-ins/Number/string-binary-literal-invalid.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Number("built-ins/Number/string-hex-literal-invalid.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Number("built-ins/Number/string-hex-literal-invalid.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Number("built-ins/Number/string-numeric-separator-literal-dd-nsl-dd-one-of.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Number("built-ins/Number/string-numeric-separator-literal-dot-dd-nsl-dds-ep.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Number("built-ins/Number/string-numeric-separator-literal-dot-dds-nsl-dd-ep.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Number("built-ins/Number/string-numeric-separator-literal-dot-dds-nsl-dd-ep.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Number("built-ins/Number/string-numeric-separator-literal-dot-dds-nsl-dds-ep.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Number("built-ins/Number/string-numeric-separator-literal-dot-dds-nsl-dds-ep.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Number("built-ins/Number/string-numeric-separator-literal-hil-hd-nsl-hd.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Number("built-ins/Number/string-numeric-separator-literal-hil-hd-nsl-hd.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Number("built-ins/Number/string-octal-literal-invald.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Number("built-ins/Number/string-octal-literal-invald.js",True)

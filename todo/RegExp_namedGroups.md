@@ -17,8 +17,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_namedGroups("built-ins/RegExp/named-groups/duplicate-names-replaceall.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_namedGroups("built-ins/RegExp/named-groups/duplicate-names-split.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_namedGroups("built-ins/RegExp/named-groups/duplicate-names-split.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_namedGroups("built-ins/RegExp/named-groups/duplicate-names-test.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_namedGroups("built-ins/RegExp/named-groups/duplicate-names-test.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_namedGroups("built-ins/RegExp/named-groups/groups-object-subclass-sans.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_namedGroups("built-ins/RegExp/named-groups/groups-object-subclass-sans.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_namedGroups("built-ins/RegExp/named-groups/groups-object-subclass.js",False)

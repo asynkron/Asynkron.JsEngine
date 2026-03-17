@@ -17,8 +17,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Now_zonedDateTimeISO("built-ins/Temporal/Now/zonedDateTimeISO/timezone-string-sub-minute-offset.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Now_zonedDateTimeISO("built-ins/Temporal/Now/zonedDateTimeISO/timezone-string-year-zero.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Now_zonedDateTimeISO("built-ins/Temporal/Now/zonedDateTimeISO/timezone-string-year-zero.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Now_zonedDateTimeISO("built-ins/Temporal/Now/zonedDateTimeISO/timezone-string.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Now_zonedDateTimeISO("built-ins/Temporal/Now/zonedDateTimeISO/timezone-string.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Now_zonedDateTimeISO("built-ins/Temporal/Now/zonedDateTimeISO/timezone-wrong-type.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Now_zonedDateTimeISO("built-ins/Temporal/Now/zonedDateTimeISO/timezone-wrong-type.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Now_zonedDateTimeISO("intl402/Temporal/Now/zonedDateTimeISO/timezone-string-datetime.js",False)

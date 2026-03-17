@@ -49,8 +49,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_equals("built-ins/Temporal/PlainMonthDay/prototype/equals/argument-wrong-type.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_equals("built-ins/Temporal/PlainMonthDay/prototype/equals/basic.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_equals("built-ins/Temporal/PlainMonthDay/prototype/equals/basic.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_equals("built-ins/Temporal/PlainMonthDay/prototype/equals/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_equals("built-ins/Temporal/PlainMonthDay/prototype/equals/branding.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_equals("built-ins/Temporal/PlainMonthDay/prototype/equals/calendar-temporal-object.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_equals("built-ins/Temporal/PlainMonthDay/prototype/equals/calendar-temporal-object.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_equals("built-ins/Temporal/PlainMonthDay/prototype/equals/infinity-throws-rangeerror.js",False)

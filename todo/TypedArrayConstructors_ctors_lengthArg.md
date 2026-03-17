@@ -17,6 +17,3 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctors_lengthArg("built-ins/TypedArrayConstructors/ctors/length-arg/toindex-length.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctors_lengthArg("built-ins/TypedArrayConstructors/ctors/length-arg/undefined-newtarget-throws.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctors_lengthArg("built-ins/TypedArrayConstructors/ctors/length-arg/undefined-newtarget-throws.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctors_lengthArg("built-ins/TypedArrayConstructors/ctors/length-arg/use-custom-proto-if-object.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctors_lengthArg("built-ins/TypedArrayConstructors/ctors/length-arg/use-default-proto-if-custom-proto-is-not-object.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_ctors_lengthArg("built-ins/TypedArrayConstructors/ctors/length-arg/use-default-proto-if-custom-proto-is-not-object.js",True)

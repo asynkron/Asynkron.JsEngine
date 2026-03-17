@@ -27,8 +27,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_add("built-ins/Temporal/PlainDateTime/prototype/add/argument-string.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_add("built-ins/Temporal/PlainDateTime/prototype/add/balance-negative-time-units.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_add("built-ins/Temporal/PlainDateTime/prototype/add/balance-negative-time-units.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_add("built-ins/Temporal/PlainDateTime/prototype/add/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_add("built-ins/Temporal/PlainDateTime/prototype/add/branding.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_add("built-ins/Temporal/PlainDateTime/prototype/add/hour-overflow.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_add("built-ins/Temporal/PlainDateTime/prototype/add/hour-overflow.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_add("built-ins/Temporal/PlainDateTime/prototype/add/infinity-throws-rangeerror.js",False)

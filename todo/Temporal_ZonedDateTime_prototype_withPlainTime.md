@@ -41,8 +41,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_withPlainTime("built-ins/Temporal/ZonedDateTime/prototype/withPlainTime/argument-zoneddatetime-negative-epochnanoseconds.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_withPlainTime("built-ins/Temporal/ZonedDateTime/prototype/withPlainTime/basic.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_withPlainTime("built-ins/Temporal/ZonedDateTime/prototype/withPlainTime/basic.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_withPlainTime("built-ins/Temporal/ZonedDateTime/prototype/withPlainTime/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_withPlainTime("built-ins/Temporal/ZonedDateTime/prototype/withPlainTime/branding.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_withPlainTime("built-ins/Temporal/ZonedDateTime/prototype/withPlainTime/get-start-of-day-throws.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_withPlainTime("built-ins/Temporal/ZonedDateTime/prototype/withPlainTime/get-start-of-day-throws.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_withPlainTime("built-ins/Temporal/ZonedDateTime/prototype/withPlainTime/incorrectly-spelled-properties-ignored.js",False)

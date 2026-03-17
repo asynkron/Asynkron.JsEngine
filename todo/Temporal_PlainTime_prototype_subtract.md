@@ -23,8 +23,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainTime_prototype_subtract("built-ins/Temporal/PlainTime/prototype/subtract/argument-string-fractional-units-rounding-mode.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainTime_prototype_subtract("built-ins/Temporal/PlainTime/prototype/subtract/argument-string-negative-fractional-units.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainTime_prototype_subtract("built-ins/Temporal/PlainTime/prototype/subtract/argument-string-negative-fractional-units.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainTime_prototype_subtract("built-ins/Temporal/PlainTime/prototype/subtract/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainTime_prototype_subtract("built-ins/Temporal/PlainTime/prototype/subtract/branding.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainTime_prototype_subtract("built-ins/Temporal/PlainTime/prototype/subtract/infinity-throws-rangeerror.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainTime_prototype_subtract("built-ins/Temporal/PlainTime/prototype/subtract/infinity-throws-rangeerror.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainTime_prototype_subtract("built-ins/Temporal/PlainTime/prototype/subtract/negative-infinity-throws-rangeerror.js",False)

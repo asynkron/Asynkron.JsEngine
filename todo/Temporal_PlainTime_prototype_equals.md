@@ -41,8 +41,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainTime_prototype_equals("built-ins/Temporal/PlainTime/prototype/equals/argument-zoneddatetime-balance-negative-time-units.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainTime_prototype_equals("built-ins/Temporal/PlainTime/prototype/equals/argument-zoneddatetime-negative-epochnanoseconds.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainTime_prototype_equals("built-ins/Temporal/PlainTime/prototype/equals/argument-zoneddatetime-negative-epochnanoseconds.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainTime_prototype_equals("built-ins/Temporal/PlainTime/prototype/equals/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainTime_prototype_equals("built-ins/Temporal/PlainTime/prototype/equals/branding.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainTime_prototype_equals("built-ins/Temporal/PlainTime/prototype/equals/leap-second.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainTime_prototype_equals("built-ins/Temporal/PlainTime/prototype/equals/leap-second.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainTime_prototype_equals("built-ins/Temporal/PlainTime/prototype/equals/plaintime-propertybag-no-time-units.js",False)

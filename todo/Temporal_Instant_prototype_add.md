@@ -21,8 +21,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_prototype_add("built-ins/Temporal/Instant/prototype/add/argument-string-fractional-units-rounding-mode.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_prototype_add("built-ins/Temporal/Instant/prototype/add/argument-string-negative-fractional-units.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_prototype_add("built-ins/Temporal/Instant/prototype/add/argument-string-negative-fractional-units.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_prototype_add("built-ins/Temporal/Instant/prototype/add/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_prototype_add("built-ins/Temporal/Instant/prototype/add/branding.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_prototype_add("built-ins/Temporal/Instant/prototype/add/disallowed-duration-units.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_prototype_add("built-ins/Temporal/Instant/prototype/add/disallowed-duration-units.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_prototype_add("built-ins/Temporal/Instant/prototype/add/infinity-throws-rangeerror.js",False)

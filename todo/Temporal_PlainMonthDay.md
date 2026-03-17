@@ -1,7 +1,7 @@
 # Temporal_PlainMonthDay
 
 FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainMonthDay`
+`Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay`
 
 Full test name:
 
@@ -11,14 +11,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay("built-ins/Temporal/PlainMonthDay/basic.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay("built-ins/Temporal/PlainMonthDay/calendar-always.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay("built-ins/Temporal/PlainMonthDay/calendar-always.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay("built-ins/Temporal/PlainMonthDay/calendar-case-insensitive.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay("built-ins/Temporal/PlainMonthDay/calendar-case-insensitive.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay("built-ins/Temporal/PlainMonthDay/calendar-invalid-iso-string.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay("built-ins/Temporal/PlainMonthDay/calendar-invalid-iso-string.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay("built-ins/Temporal/PlainMonthDay/calendar-invalid.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay("built-ins/Temporal/PlainMonthDay/calendar-invalid.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay("built-ins/Temporal/PlainMonthDay/calendar-wrong-type.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay("built-ins/Temporal/PlainMonthDay/calendar-wrong-type.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay("built-ins/Temporal/PlainMonthDay/constructor.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay("built-ins/Temporal/PlainMonthDay/constructor.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay("built-ins/Temporal/PlainMonthDay/infinity-throws-rangeerror.js",False)
@@ -37,5 +29,3 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay("built-ins/Temporal/PlainMonthDay/refisoyear-undefined.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay("built-ins/Temporal/PlainMonthDay/subclass.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay("built-ins/Temporal/PlainMonthDay/subclass.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainMonthDay("intl402/Temporal/PlainMonthDay/canonicalize-calendar.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainMonthDay("intl402/Temporal/PlainMonthDay/canonicalize-calendar.js",True)

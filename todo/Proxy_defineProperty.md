@@ -1,0 +1,30 @@
+# Proxy_defineProperty
+
+FQN:
+`Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_defineProperty`
+
+Full test name:
+
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_defineProperty("built-ins/Proxy/defineProperty/desc-realm.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_defineProperty("built-ins/Proxy/defineProperty/desc-realm.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_defineProperty("built-ins/Proxy/defineProperty/null-handler-realm.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_defineProperty("built-ins/Proxy/defineProperty/null-handler-realm.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_defineProperty("built-ins/Proxy/defineProperty/targetdesc-configurable-desc-not-configurable-realm.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_defineProperty("built-ins/Proxy/defineProperty/targetdesc-configurable-desc-not-configurable-realm.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_defineProperty("built-ins/Proxy/defineProperty/targetdesc-configurable-desc-not-configurable.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_defineProperty("built-ins/Proxy/defineProperty/targetdesc-configurable-desc-not-configurable.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_defineProperty("built-ins/Proxy/defineProperty/targetdesc-not-compatible-descriptor-not-configurable-target-realm.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_defineProperty("built-ins/Proxy/defineProperty/targetdesc-not-compatible-descriptor-not-configurable-target-realm.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_defineProperty("built-ins/Proxy/defineProperty/targetdesc-not-compatible-descriptor-realm.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_defineProperty("built-ins/Proxy/defineProperty/targetdesc-not-compatible-descriptor-realm.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_defineProperty("built-ins/Proxy/defineProperty/targetdesc-undefined-not-configurable-descriptor-realm.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_defineProperty("built-ins/Proxy/defineProperty/targetdesc-undefined-not-configurable-descriptor-realm.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_defineProperty("built-ins/Proxy/defineProperty/targetdesc-undefined-target-is-not-extensible-realm.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_defineProperty("built-ins/Proxy/defineProperty/trap-is-missing-target-is-proxy.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_defineProperty("built-ins/Proxy/defineProperty/trap-is-missing-target-is-proxy.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_defineProperty("built-ins/Proxy/defineProperty/trap-is-not-callable-realm.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_defineProperty("built-ins/Proxy/defineProperty/trap-is-not-callable-realm.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_defineProperty("built-ins/Proxy/defineProperty/trap-is-null-target-is-proxy.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_defineProperty("built-ins/Proxy/defineProperty/trap-is-null-target-is-proxy.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_defineProperty("built-ins/Proxy/defineProperty/trap-is-undefined-target-is-proxy.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Proxy_defineProperty("built-ins/Proxy/defineProperty/trap-is-undefined-target-is-proxy.js",True)

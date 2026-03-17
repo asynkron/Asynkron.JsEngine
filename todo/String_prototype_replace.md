@@ -7,12 +7,6 @@ Full test name:
 
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_replace("built-ins/String/prototype/replace/S15.5.4.11_A1_T17.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_replace("built-ins/String/prototype/replace/S15.5.4.11_A1_T17.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_replace("built-ins/String/prototype/replace/S15.5.4.11_A1_T4.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_replace("built-ins/String/prototype/replace/S15.5.4.11_A1_T4.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_replace("built-ins/String/prototype/replace/S15.5.4.11_A1_T6.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_replace("built-ins/String/prototype/replace/S15.5.4.11_A1_T6.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_replace("built-ins/String/prototype/replace/S15.5.4.11_A1_T9.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_replace("built-ins/String/prototype/replace/S15.5.4.11_A1_T9.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_replace("built-ins/String/prototype/replace/S15.5.4.11_A2_T10.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_replace("built-ins/String/prototype/replace/S15.5.4.11_A2_T10.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_replace("built-ins/String/prototype/replace/S15.5.4.11_A2_T7.js",False)

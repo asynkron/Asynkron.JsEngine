@@ -21,8 +21,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_round("built-ins/Temporal/Duration/prototype/round/balances-up-to-next-unit-after-rounding.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_round("built-ins/Temporal/Duration/prototype/round/balances-up-to-weeks.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_round("built-ins/Temporal/Duration/prototype/round/balances-up-to-weeks.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_round("built-ins/Temporal/Duration/prototype/round/branding.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_round("built-ins/Temporal/Duration/prototype/round/branding.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_round("built-ins/Temporal/Duration/prototype/round/calendar-possibly-required.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_round("built-ins/Temporal/Duration/prototype/round/calendar-possibly-required.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_round("built-ins/Temporal/Duration/prototype/round/casts-relative-to-to-plain-date.js",False)

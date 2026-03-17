@@ -1,7 +1,7 @@
 # Temporal_Duration_compare
 
 FQN:
-`Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare`
+`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Duration_compare`
 
 Full test name:
 
@@ -17,12 +17,8 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/argument-string-negative-fractional-units.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/basic.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/basic.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/builtin.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/builtin.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/calendar-possibly-required.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/calendar-possibly-required.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/calendar-temporal-object.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/calendar-temporal-object.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/compare-no-precision-loss.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/compare-no-precision-loss.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/duration-out-of-range-added-to-relativeto.js",False)

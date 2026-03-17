@@ -957,6 +957,24 @@ public sealed class JsRegExp
 
             if (c == '[')
             {
+                // Annex B: handle empty character class [] and [^]
+                // [] matches nothing; [^] matches any character
+                if (i + 1 < pattern.Length && pattern[i + 1] == ']')
+                {
+                    // [] → (?!) (never matches — empty class)
+                    builder.Append("(?!)");
+                    i++; // skip ']'
+                    continue;
+                }
+
+                if (i + 2 < pattern.Length && pattern[i + 1] == '^' && pattern[i + 2] == ']')
+                {
+                    // [^] → [\s\S] (matches any character including newlines)
+                    builder.Append(@"[\s\S]");
+                    i += 2; // skip '^]'
+                    continue;
+                }
+
                 inCharClass = true;
                 lastClassAtomWasSingle = false;
                 builder.Append(c);

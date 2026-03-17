@@ -410,6 +410,40 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
         }, realmState, false)
         { IsBoundFunction = true, IsConstructor = targetIsConstructor };
 
+        // ES spec: Set the bound function's length and name properties
+        // length = max(0, target.length - boundArgs.length)
+        double targetLength = 0;
+        if (target is IJsPropertyAccessor targetAccessor &&
+            targetAccessor.TryGetProperty("length", out var lenVal) && lenVal.IsNumber)
+        {
+            targetLength = lenVal.NumberValue;
+        }
+
+        var boundLength = Math.Max(0, targetLength - boundArgs.Count);
+        boundFunction.DefineProperty("length", new PropertyDescriptor
+        {
+            Value = new JsValue(boundLength),
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
+
+        // name = "bound " + target.name
+        var targetName = "";
+        if (target is IJsPropertyAccessor nameAccessor &&
+            nameAccessor.TryGetProperty("name", out var nameVal) && nameVal.IsString)
+        {
+            targetName = nameVal.AsString() ?? "";
+        }
+
+        boundFunction.DefineProperty("name", new PropertyDescriptor
+        {
+            Value = new JsValue("bound " + targetName),
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
+
         boundFunction.SetInvokeWithContext((invokeArgs, _, context, newTarget) =>
         {
             var finalArgs = Combine(boundArgs, invokeArgs);

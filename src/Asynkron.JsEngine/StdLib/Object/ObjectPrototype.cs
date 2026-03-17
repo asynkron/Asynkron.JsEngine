@@ -52,6 +52,14 @@ public sealed partial class ObjectPrototype
         {
             builtinTag = "Boolean";
         }
+        else if (thisValue.IsBigInt)
+        {
+            builtinTag = "BigInt";
+        }
+        else if (thisValue.IsSymbol)
+        {
+            builtinTag = "Symbol";
+        }
         else if (thisValue.TryGetObject<JsArray>(out _))
         {
             builtinTag = "Array";

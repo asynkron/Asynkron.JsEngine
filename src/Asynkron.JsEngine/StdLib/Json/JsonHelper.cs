@@ -251,6 +251,17 @@ public static class JsonHelper
         // Step 1: Let value be ? Get(holder, key)
         holder.TryGetProperty(key, out var value);
 
+        // Step 1b: Check for rawJSON marker (JSON.rawJSON objects)
+        if (value.IsObject && value.TryGetObject<JsObject>(out var rawJsonCheck))
+        {
+            if (rawJsonCheck.TryGetProperty("[[IsRawJSON]]", out var rawMarker) &&
+                rawMarker.IsBoolean && rawMarker.NumberValue != 0 &&
+                rawJsonCheck.TryGetProperty("rawJSON", out var rawText) && rawText.IsString)
+            {
+                return rawText.AsString()!;
+            }
+        }
+
         // Step 2: If value is an Object or BigInt, check for toJSON
         if (value.IsObject && value.TryGetObject<IJsPropertyAccessor>(out var toJsonHolder))
         {

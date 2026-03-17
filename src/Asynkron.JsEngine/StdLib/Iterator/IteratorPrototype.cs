@@ -653,15 +653,23 @@ public sealed partial class IteratorPrototype : JsPrototype
                 IsExecuting = true;
                 try
                 {
+                    // Per spec: only forward return() to the underlying iterator if
+                    // the helper is not already closed (from exhaustion or a prior return() call).
+                    var alreadyDone = Done;
                     Done = true;
-                    if (InnerIterator is not null)
+
+                    if (!alreadyDone)
                     {
-                        IteratorCloseOnAbrupt(InnerIterator.Iterator);
-                        InnerIterator = null;
+                        if (InnerIterator is not null)
+                        {
+                            IteratorCloseOnAbrupt(InnerIterator.Iterator);
+                            InnerIterator = null;
+                        }
+
+                        // Forward to underlying iterator's return
+                        IteratorCloseNormal(iterated.Iterator);
                     }
 
-                    // Forward to underlying iterator's return
-                    IteratorCloseNormal(iterated.Iterator);
                     return CreateIterResult(JsValue.Undefined, true);
                 }
                 finally

@@ -89,8 +89,10 @@ public static class RegExpHelper
                 continue;
             }
 
-            if (c == '|' && depth == 0)
+            if (c == '|')
             {
+                // ES2025: duplicate named groups are allowed in different alternatives
+                // of the same disjunction, at any nesting depth.
                 seenNames.Clear();
                 continue;
             }

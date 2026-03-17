@@ -84,45 +84,70 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
     [JsConstructorMethod("raw", Length = 1d)]
     public static JsValue Raw(IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0)
+        // Step 1-2: Let cooked be ? ToObject(template)
+        var templateArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        if (templateArg.IsNullOrUndefined)
         {
-            return new JsValue("");
+            throw StandardLibrary.ThrowTypeError("Cannot convert undefined or null to object");
         }
 
-        if (!args[0].TryGetObject<IJsPropertyAccessor>(out var template))
+        if (!templateArg.TryGetObject<IJsPropertyAccessor>(out var template))
         {
-            return new JsValue("");
+            throw StandardLibrary.ThrowTypeError("String.raw requires an object as first argument");
         }
 
-        if (!template.TryGetProperty("raw", out var rawValue) ||
-            !rawValue.TryGetObject<IJsPropertyAccessor>(out var rawAccessor))
+        // Step 3: Let raw be ? ToObject(? Get(cooked, "raw"))
+        if (!template.TryGetProperty("raw", out var rawValue))
         {
-            return new JsValue("");
+            throw StandardLibrary.ThrowTypeError("String.raw: template.raw is not an object");
         }
 
-        IReadOnlyList<JsValue>? rawItems = null;
+        if (rawValue.IsNullOrUndefined)
+        {
+            throw StandardLibrary.ThrowTypeError("Cannot convert undefined or null to object");
+        }
+
+        if (!rawValue.TryGetObject<IJsPropertyAccessor>(out var rawAccessor))
+        {
+            throw StandardLibrary.ThrowTypeError("String.raw: template.raw is not an object");
+        }
+
+        // Step 4: Let literalSegments be ? ToLength(? Get(raw, "length"))
+        double rawLength = 0;
         if (rawAccessor is JsArray rawArray)
         {
-            rawItems = rawArray.Items;
+            rawLength = rawArray.Length;
         }
-        else if (rawAccessor is JsObject rawObj && rawObj.TryGetProperty("length", out var lengthVal))
+        else if (rawAccessor.TryGetProperty("length", out var lengthVal))
         {
-            var length = (int)JsOps.ToNumber(lengthVal);
-            var items = new List<JsValue>(length);
-            for (var i = 0; i < length; i++)
-            {
-                if (rawObj.TryGetProperty(i.ToString(CultureInfo.InvariantCulture), out var item))
-                {
-                    items.Add(item);
-                }
-            }
-
-            rawItems = items;
+            // ToLength: min(max(ToIntegerOrInfinity(x), 0), 2^53 - 1)
+            var len = JsOps.ToNumber(lengthVal);
+            if (double.IsNaN(len) || len <= 0) len = 0;
+            else if (double.IsPositiveInfinity(len)) len = 9007199254740991; // 2^53 - 1
+            else len = Math.Floor(Math.Min(len, 9007199254740991));
+            rawLength = len;
         }
 
-        if (rawItems == null || rawItems.Count == 0)
+        // Step 5: If literalSegments <= 0, return ""
+        if (rawLength <= 0)
         {
             return new JsValue("");
+        }
+
+        var literalSegments = (int)Math.Min(rawLength, int.MaxValue);
+
+        // Build raw items list
+        var rawItems = new List<JsValue>(literalSegments);
+        for (var i = 0; i < literalSegments; i++)
+        {
+            if (rawAccessor.TryGetProperty(i.ToString(CultureInfo.InvariantCulture), out var item))
+            {
+                rawItems.Add(item);
+            }
+            else
+            {
+                rawItems.Add(JsValue.Undefined);
+            }
         }
 
         var result = new StringBuilder();

@@ -29,11 +29,13 @@ internal sealed class JsMapIterator : JsIteratorBase
         // Skip deleted entries (tombstones left in _insertionOrder)
         while (_index < _map.EntryCount)
         {
-            var entry = _map.GetEntry(_index++);
-            if (!_map.IsEntryAlive(entry.Key))
+            var entryIndex = _index++;
+            if (!_map.IsEntryAlive(entryIndex))
             {
                 continue;
             }
+
+            var entry = _map.GetEntry(entryIndex);
 
             var key = JsValue.FromObjectUnsafe(entry.Key);
             var value = entry.Value;

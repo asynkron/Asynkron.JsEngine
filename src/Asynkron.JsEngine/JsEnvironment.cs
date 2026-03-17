@@ -2728,15 +2728,14 @@ public sealed class JsEnvironment : IRentable
             // Per ES spec, unscopables only affect reads (GetBindingValue), not writes (SetMutableBinding).
             if (current._withObject is not null && HasWithPropertyForAssignment(current._withObject, name))
             {
-                if (current._withObject is JsObject withObject)
+                var withObject = current._withObject;
+                var receiverValue = JsValue.FromObjectUnsafe(withObject);
+                if (!ReflectHelper.SetPropertyWithReceiver(withObject, name.Name, value, receiverValue) &&
+                    isStrictContext)
                 {
-                    AssignmentReferenceResolver.AssignObjectProperty(withObject, name.Name, value, isStrictContext,
-                        null,
-                        realm);
-                }
-                else
-                {
-                    current._withObject.SetProperty(name.Name, value);
+                    throw StandardLibrary.ThrowTypeError(
+                        $"Cannot assign to property '{name.Name}'.",
+                        realm: realm);
                 }
 
                 return;
@@ -3135,36 +3134,21 @@ public sealed class JsEnvironment : IRentable
                 realm: realm);
         }
 
-        if (bindingObject is JsObject jsObject)
-        {
-            AssignmentReferenceResolver.AssignObjectProperty(
-                jsObject,
-                propertyName,
-                value,
-                binding.IsStrictReference,
-                null,
-                realm ?? jsObject.RealmState,
-                bindingObject);
-            return true;
-        }
-
-        JsOps.AssignPropertyValueByNameJsValue(JsValue.FromObjectUnsafe(bindingObject), propertyName, value);
-        if (bindingObject is not IPropertyDefinitionHost definitionHost)
+        var receiverValue = JsValue.FromObjectUnsafe(bindingObject);
+        if (ReflectHelper.SetPropertyWithReceiver(bindingObject, propertyName, value, receiverValue))
         {
             return true;
         }
 
-        var ownDescriptor = bindingObject.GetOwnPropertyDescriptor(propertyName);
-        if (ownDescriptor?.IsDataDescriptor != true)
+        if (!binding.IsStrictReference)
         {
-            return true;
+            return false;
         }
 
-        var descriptorClone = ownDescriptor.Clone();
-        descriptorClone.JsValue = value;
-        definitionHost.TryDefineProperty(propertyName, descriptorClone);
-
-        return true;
+        realm ??= (bindingObject as JsObject)?.RealmState;
+        throw StandardLibrary.ThrowTypeError(
+            $"Cannot assign to property '{propertyName}'.",
+            realm: realm);
     }
 
     internal void AddBindingObserver(Symbol symbol, Action<JsValue> observer)

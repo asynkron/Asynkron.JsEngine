@@ -36,6 +36,11 @@ public static partial class TypedAstEvaluator
     /// </summary>
     private static string GetTypeofStringForObject(object? obj)
     {
+        if (obj is IIsHtmlDda)
+        {
+            return "undefined";
+        }
+
         // For Proxy, check if the target is callable (ES spec: Proxy has [[Call]] only if target does)
         if (obj is JsProxy proxy)
         {

@@ -576,11 +576,6 @@ public static class ReflectHelper
             return TryDefineProperty(receiverObject, propertyKey, valueDesc);
         }
 
-        if (receiverObject is IExtensibilityControl { IsExtensible: false })
-        {
-            return false;
-        }
-
         var newDesc = new PropertyDescriptor
         {
             JsValue = value,
@@ -1036,6 +1031,22 @@ public static class ReflectHelper
     {
         switch (candidate)
         {
+            case JsProxy proxy:
+                if (proxy.Handler is null)
+                {
+                    throw ThrowTypeError(
+                        "Cannot perform operation on a revoked Proxy",
+                        realm: RealmState.Current);
+                }
+
+                if (proxy.Target is IJsCallable callableTarget)
+                {
+                    return TryGetRealmInfo(callableTarget, out realmState, out realmObject);
+                }
+
+                realmState = null;
+                realmObject = null;
+                return false;
             case HostFunction hostFunction:
                 realmState = hostFunction.RealmState;
                 realmObject = hostFunction.Realm;

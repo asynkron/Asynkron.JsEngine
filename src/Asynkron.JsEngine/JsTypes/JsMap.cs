@@ -14,11 +14,12 @@ namespace Asynkron.JsEngine.JsTypes;
 public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider,
     IAsJsValue
 {
-    // Use List to maintain insertion order for iteration
-    private readonly List<object?> _insertionOrder = [];
+    // Use List to maintain insertion order for iteration, including tombstoned entries.
+    private readonly List<MapEntryRecord> _insertionOrder = [];
 
     // Use Dictionary for O(1) lookups
     private readonly Dictionary<object, JsValue> _map = new(SameValueZeroComparer.Instance);
+    private readonly Dictionary<object, MapEntryRecord> _entryRecords = new(SameValueZeroComparer.Instance);
 
     private readonly JsObject _properties = new();
 
@@ -35,6 +36,8 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     private bool _hasUndefinedKey;
     private JsValue _nullValue;
     private JsValue _undefinedValue;
+    private MapEntryRecord? _nullEntry;
+    private MapEntryRecord? _undefinedEntry;
 
     /// <summary>
     ///     Indicates whether this Map is "plain" - i.e., has no custom properties,
@@ -126,28 +129,18 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
 
     internal KeyValuePair<object?, JsValue> GetEntry(int index)
     {
-        var key = _insertionOrder[index];
-        var value = GetByObjectKey(key);
-        return new KeyValuePair<object?, JsValue>(key, value);
+        var entry = _insertionOrder[index];
+        var value = GetByObjectKey(entry.Key);
+        return new KeyValuePair<object?, JsValue>(entry.Key, value);
     }
 
     /// <summary>
     ///     Checks if an entry key is still alive (not deleted).
     ///     Used by iterators to skip tombstones in the insertion order list.
     /// </summary>
-    internal bool IsEntryAlive(object? key)
+    internal bool IsEntryAlive(int index)
     {
-        if (key is null)
-        {
-            return _hasNullKey;
-        }
-
-        if (ReferenceEquals(key, Symbol.Undefined))
-        {
-            return _hasUndefinedKey;
-        }
-
-        return _map.ContainsKey(key);
+        return _insertionOrder[index].IsAlive;
     }
 
     /// <summary>
@@ -179,7 +172,8 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
             if (!_hasNullKey)
             {
                 _hasNullKey = true;
-                _insertionOrder.Add(null);
+                _nullEntry = new MapEntryRecord(null);
+                _insertionOrder.Add(_nullEntry);
             }
 
             _nullValue = value;
@@ -192,7 +186,8 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
             if (!_hasUndefinedKey)
             {
                 _hasUndefinedKey = true;
-                _insertionOrder.Add(Symbol.Undefined);
+                _undefinedEntry = new MapEntryRecord(Symbol.Undefined);
+                _insertionOrder.Add(_undefinedEntry);
             }
 
             _undefinedValue = value;
@@ -203,7 +198,9 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         var keyObj = JsValueExtractor.Extract(key);
         if (!_map.ContainsKey(keyObj))
         {
-            _insertionOrder.Add(keyObj);
+            var entry = new MapEntryRecord(keyObj);
+            _insertionOrder.Add(entry);
+            _entryRecords[keyObj] = entry;
         }
 
         _map[keyObj] = value;
@@ -270,6 +267,8 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
 
             _hasNullKey = false;
             _nullValue = JsValue.Undefined;
+            _nullEntry?.Delete();
+            _nullEntry = null;
             // Don't remove from _insertionOrder — ForEach uses index-based iteration
             // and removing would shift indices, corrupting the loop.
             return true;
@@ -285,6 +284,8 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
 
             _hasUndefinedKey = false;
             _undefinedValue = JsValue.Undefined;
+            _undefinedEntry?.Delete();
+            _undefinedEntry = null;
             return true;
         }
 
@@ -293,6 +294,11 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         if (!_map.Remove(keyObj))
         {
             return false;
+        }
+
+        if (_entryRecords.Remove(keyObj, out var entry))
+        {
+            entry.Delete();
         }
 
         // Don't remove from _insertionOrder — ForEach uses index-based iteration
@@ -307,10 +313,13 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     {
         _map.Clear();
         _insertionOrder.Clear();
+        _entryRecords.Clear();
         _hasNullKey = false;
         _nullValue = JsValue.Undefined;
         _hasUndefinedKey = false;
         _undefinedValue = JsValue.Undefined;
+        _nullEntry = null;
+        _undefinedEntry = null;
     }
 
     /// <summary>
@@ -323,16 +332,17 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         // is taken and also visits entries added during iteration.
         for (var i = 0; i < _insertionOrder.Count; i++)
         {
-            var key = _insertionOrder[i];
+            var entry = _insertionOrder[i];
+            if (!entry.IsAlive)
+            {
+                continue;
+            }
+
+            var key = entry.Key;
 
             // Handle null key
             if (key is null)
             {
-                if (!_hasNullKey)
-                {
-                    continue;
-                }
-
                 callback.Invoke([_nullValue, JsValue.Null, _cachedJsValue], thisArg);
                 continue;
             }
@@ -340,18 +350,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
             // Handle undefined key (stored as Symbol.Undefined sentinel)
             if (ReferenceEquals(key, Symbol.Undefined))
             {
-                if (!_hasUndefinedKey)
-                {
-                    continue;
-                }
-
                 callback.Invoke([_undefinedValue, JsValue.Undefined, _cachedJsValue], thisArg);
-                continue;
-            }
-
-            // Skip entries that were deleted during iteration
-            if (!_map.ContainsKey(key))
-            {
                 continue;
             }
 
@@ -366,21 +365,24 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     public JsArray Entries()
     {
         var entries = new List<JsValue>();
-        foreach (var key in _insertionOrder)
+        foreach (var entry in _insertionOrder)
         {
+            if (!entry.IsAlive)
+            {
+                continue;
+            }
+
+            var key = entry.Key;
             if (key is null)
             {
-                if (!_hasNullKey) continue;
                 entries.Add(JsValue.FromJsArray(new JsArray([JsValue.Null, _nullValue])));
             }
             else if (ReferenceEquals(key, Symbol.Undefined))
             {
-                if (!_hasUndefinedKey) continue;
                 entries.Add(JsValue.FromJsArray(new JsArray([JsValue.Undefined, _undefinedValue])));
             }
             else
             {
-                if (!_map.ContainsKey(key)) continue;
                 var pair = new JsArray([JsValue.FromObjectUnsafe(key), GetByObjectKey(key)]);
                 entries.Add(JsValue.FromJsArray(pair));
             }
@@ -395,19 +397,25 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     public JsArray Keys()
     {
         var keys = new List<JsValue>();
-        foreach (var key in _insertionOrder)
+        foreach (var entry in _insertionOrder)
         {
+            if (!entry.IsAlive)
+            {
+                continue;
+            }
+
+            var key = entry.Key;
             if (key is null)
             {
-                if (_hasNullKey) keys.Add(JsValue.Null);
+                keys.Add(JsValue.Null);
             }
             else if (ReferenceEquals(key, Symbol.Undefined))
             {
-                if (_hasUndefinedKey) keys.Add(JsValue.Undefined);
+                keys.Add(JsValue.Undefined);
             }
             else
             {
-                if (_map.ContainsKey(key)) keys.Add(JsValue.FromObjectUnsafe(key));
+                keys.Add(JsValue.FromObjectUnsafe(key));
             }
         }
 
@@ -420,22 +428,39 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     public JsArray Values()
     {
         var values = new List<JsValue>();
-        foreach (var key in _insertionOrder)
+        foreach (var entry in _insertionOrder)
         {
+            if (!entry.IsAlive)
+            {
+                continue;
+            }
+
+            var key = entry.Key;
             if (key is null)
             {
-                if (_hasNullKey) values.Add(_nullValue);
+                values.Add(_nullValue);
             }
             else if (ReferenceEquals(key, Symbol.Undefined))
             {
-                if (_hasUndefinedKey) values.Add(_undefinedValue);
+                values.Add(_undefinedValue);
             }
             else
             {
-                if (_map.ContainsKey(key)) values.Add(GetByObjectKey(key));
+                values.Add(GetByObjectKey(key));
             }
         }
 
         return new JsArray(values);
+    }
+
+    private sealed class MapEntryRecord(object? key)
+    {
+        internal object? Key { get; } = key;
+        internal bool IsAlive { get; private set; } = true;
+
+        internal void Delete()
+        {
+            IsAlive = false;
+        }
     }
 }

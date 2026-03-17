@@ -344,6 +344,24 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         }
     }
 
+    public IEnumerable<string> GetOwnPropertyKeysInOrder(bool includeSymbols = true, bool includeNonEnumerable = true)
+    {
+        foreach (var indexKey in EnumerateIndexPropertyNames(includeNonEnumerable))
+        {
+            yield return indexKey;
+        }
+
+        foreach (var key in _properties.GetOwnPropertyKeysInOrder(includeSymbols, includeNonEnumerable))
+        {
+            if (TryParseArrayIndex(key, out _))
+            {
+                continue;
+            }
+
+            yield return key;
+        }
+    }
+
     public IEnumerable<string> GetEnumerablePropertyNames()
     {
         foreach (var indexKey in EnumerateIndexPropertyNames(false))

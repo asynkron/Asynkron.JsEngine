@@ -709,6 +709,15 @@ internal static class JsOps
             var leftType = GetJsType(left1);
             var rightType = GetJsType(right1);
 
+            var leftIsHtmlDda = left1.Kind == JsValueKind.Object && left1.ObjectValue is IIsHtmlDda;
+            var rightIsHtmlDda = right1.Kind == JsValueKind.Object && right1.ObjectValue is IIsHtmlDda;
+
+            if ((leftIsHtmlDda && (right1.Kind == JsValueKind.Null || right1.Kind == JsValueKind.Undefined)) ||
+                (rightIsHtmlDda && (left1.Kind == JsValueKind.Null || left1.Kind == JsValueKind.Undefined)))
+            {
+                return true;
+            }
+
             if (leftType == rightType)
             {
                 return StrictEquals(left1, right1);
@@ -718,12 +727,6 @@ internal static class JsOps
                 (leftType == JsValueType.Undefined && rightType == JsValueType.Null))
             {
                 return true;
-            }
-
-            if ((left1.Kind == JsValueKind.Object && left1.ObjectValue is IIsHtmlDda) ||
-                (right1.Kind == JsValueKind.Object && right1.ObjectValue is IIsHtmlDda))
-            {
-                return false;
             }
 
             switch (leftType)

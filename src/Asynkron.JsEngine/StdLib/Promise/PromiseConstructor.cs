@@ -927,20 +927,31 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             var resolve = CreateResolvingFunction(promise, true, Realm);
             var reject = CreateResolvingFunction(promise, false, Realm);
 
-            var result = new JsObject { RealmState = Realm };
-            result.SetProperty("promise", JsValue.FromJsPromise(promise));
-            result.SetProperty("resolve", JsValue.FromObjectUnsafe(resolve));
-            result.SetProperty("reject", JsValue.FromObjectUnsafe(reject));
+            var result = new JsObject(Realm.ObjectPrototype) { RealmState = Realm };
+            DefineResultProperty(result, "promise", JsValue.FromJsObject(promise.JsObject));
+            DefineResultProperty(result, "resolve", JsValue.FromObjectUnsafe(resolve));
+            DefineResultProperty(result, "reject", JsValue.FromObjectUnsafe(reject));
             return JsValue.FromJsObject(result);
         }
 
         // Slow path: use NewPromiseCapability for subclass/custom constructors
         var capability = NewPromiseCapability(thisValue);
-        var resultObj = new JsObject { RealmState = Realm };
-        resultObj.SetProperty("promise", capability.promise);
-        resultObj.SetProperty("resolve", capability.resolve);
-        resultObj.SetProperty("reject", capability.reject);
+        var resultObj = new JsObject(Realm.ObjectPrototype) { RealmState = Realm };
+        DefineResultProperty(resultObj, "promise", capability.promise);
+        DefineResultProperty(resultObj, "resolve", capability.resolve);
+        DefineResultProperty(resultObj, "reject", capability.reject);
         return JsValue.FromJsObject(resultObj);
+
+        static void DefineResultProperty(JsObject target, string name, JsValue value)
+        {
+            target.DefineProperty(name, new PropertyDescriptor
+            {
+                Value = value,
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
+            });
+        }
     }
 
     /// <summary>

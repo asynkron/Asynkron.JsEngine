@@ -1288,6 +1288,16 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                                     StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
                                 throw new ThrowSignal(errorObject);
                             }
+                            catch (ThrowSignal signal) when (_isDerivedClassConstructor &&
+                                                            signal.Message.Contains("ReferenceError",
+                                                                StringComparison.Ordinal))
+                            {
+                                var errorObject = StandardLibrary.CreateReferenceError(
+                                    "ReferenceError: this is not defined - must call super() in derived class constructor",
+                                    context,
+                                    context.RealmState);
+                                throw new ThrowSignal(errorObject);
+                            }
 
                             return JsValue.Undefined;
                         }
@@ -1306,7 +1316,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                                 throw StandardLibrary.ThrowTypeError(
                                     "Derived constructors may only return object or undefined",
                                     context,
-                                    RealmState);
+                                    context.RealmState);
                             }
 
                             try
@@ -1351,6 +1361,16 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                                 RealmState.Logger?.LogInformation(
                                     "Class constructor missing initialized this; falling back to return value reason={Reason}",
                                     ex.Message);
+                            }
+                            catch (ThrowSignal signal) when (_isDerivedClassConstructor &&
+                                                            signal.Message.Contains("ReferenceError",
+                                                                StringComparison.Ordinal))
+                            {
+                                var errorObject = StandardLibrary.CreateReferenceError(
+                                    "ReferenceError: this is not defined - must call super() in derived class constructor",
+                                    context,
+                                    context.RealmState);
+                                throw new ThrowSignal(errorObject);
                             }
                         }
 

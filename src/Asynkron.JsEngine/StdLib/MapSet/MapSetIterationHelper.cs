@@ -61,9 +61,17 @@ internal static class MapSetIterationHelper
                 // Keep processing simple: delegate handling to the caller.
                 onValue(value);
             }
-            catch
+            catch (Exception originalException)
             {
-                StandardLibrary.IteratorClose(iterator, realm, operation);
+                try
+                {
+                    StandardLibrary.IteratorClose(iterator, realm, operation);
+                }
+                catch
+                {
+                    throw originalException;
+                }
+
                 throw;
             }
         }

@@ -19,11 +19,7 @@ public sealed partial class RegExpPrototype
     [JsHostMethod("test", Length = 1d)]
     public JsValue Test(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var resolved = ResolveRegExpInstance(thisValue);
-        if (resolved is null)
-        {
-            return new JsValue(false);
-        }
+        var resolved = RequireRegExp(thisValue);
 
         if (args.Count == 0)
         {
@@ -37,11 +33,7 @@ public sealed partial class RegExpPrototype
     [JsHostMethod("exec", Length = 1d)]
     public JsValue Exec(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var resolved = ResolveRegExpInstance(thisValue);
-        if (resolved is null)
-        {
-            return JsValue.Null;
-        }
+        var resolved = RequireRegExp(thisValue);
 
         if (args.Count == 0)
         {
@@ -56,10 +48,11 @@ public sealed partial class RegExpPrototype
     [JsHostMethod("toString", Length = 0d)]
     public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        var resolved = ResolveRegExpInstance(thisValue);
+        var sourceValue = Source(thisValue);
         var flagsValue = Flags(thisValue);
+        var sourceText = JsOps.ToJsString(sourceValue);
         var flagsText = JsOps.ToJsString(flagsValue);
-        var result = resolved is null ? "/undefined/" : $"/{resolved.Pattern}/{flagsText}";
+        var result = $"/{sourceText}/{flagsText}";
         return new JsValue(result);
     }
 
@@ -169,56 +162,101 @@ public sealed partial class RegExpPrototype
     [JsHostGetter("source")]
     public JsValue Source(JsValue thisValue)
     {
+        if (IsRegExpPrototypeReceiver(thisValue))
+        {
+            return new JsValue("(?:)");
+        }
+
         var resolved = RequireRegExp(thisValue);
-        var result = string.IsNullOrEmpty(resolved.Pattern) ? "(?:)" : resolved.Pattern;
+        var result = string.IsNullOrEmpty(resolved.Pattern) ? "(?:)" : EscapeRegExpPattern(resolved.Pattern);
         return new JsValue(result);
     }
 
     [JsHostGetter("global")]
     public JsValue Global(JsValue thisValue)
     {
+        if (IsRegExpPrototypeReceiver(thisValue))
+        {
+            return JsValue.Undefined;
+        }
+
         return new JsValue(RequireRegExp(thisValue).Global);
     }
 
     [JsHostGetter("ignoreCase")]
     public JsValue IgnoreCase(JsValue thisValue)
     {
+        if (IsRegExpPrototypeReceiver(thisValue))
+        {
+            return JsValue.Undefined;
+        }
+
         return new JsValue(RequireRegExp(thisValue).IgnoreCase);
     }
 
     [JsHostGetter("multiline")]
     public JsValue Multiline(JsValue thisValue)
     {
+        if (IsRegExpPrototypeReceiver(thisValue))
+        {
+            return JsValue.Undefined;
+        }
+
         return new JsValue(RequireRegExp(thisValue).Multiline);
     }
 
     [JsHostGetter("dotAll")]
     public JsValue DotAll(JsValue thisValue)
     {
+        if (IsRegExpPrototypeReceiver(thisValue))
+        {
+            return JsValue.Undefined;
+        }
+
         return new JsValue(RequireRegExp(thisValue).DotAll);
     }
 
     [JsHostGetter("hasIndices")]
     public JsValue HasIndices(JsValue thisValue)
     {
+        if (IsRegExpPrototypeReceiver(thisValue))
+        {
+            return JsValue.Undefined;
+        }
+
         return new JsValue(RequireRegExp(thisValue).HasIndices);
     }
 
     [JsHostGetter("unicode")]
     public JsValue Unicode(JsValue thisValue)
     {
+        if (IsRegExpPrototypeReceiver(thisValue))
+        {
+            return JsValue.Undefined;
+        }
+
         return new JsValue(RequireRegExp(thisValue).Unicode);
     }
 
     [JsHostGetter("unicodeSets")]
     public JsValue UnicodeSets(JsValue thisValue)
     {
+        if (IsRegExpPrototypeReceiver(thisValue))
+        {
+            return JsValue.Undefined;
+        }
+
         return new JsValue(RequireRegExp(thisValue).UnicodeSets);
     }
 
     [JsHostGetter("sticky")]
     public JsValue Sticky(JsValue thisValue)
     {
+        if (IsRegExpPrototypeReceiver(thisValue))
+        {
+            return JsValue.Undefined;
+        }
+
         return new JsValue(RequireRegExp(thisValue).Sticky);
     }
 
@@ -236,6 +274,11 @@ public sealed partial class RegExpPrototype
 
     private JsRegExp RequireRegExp(JsValue receiver)
     {
+        if (IsRegExpPrototypeReceiver(receiver))
+        {
+            throw ThrowTypeError("RegExp method called on incompatible receiver", realm: Realm);
+        }
+
         var resolved = ResolveRegExpInstance(receiver);
         if (resolved is null)
         {
@@ -243,6 +286,47 @@ public sealed partial class RegExpPrototype
         }
 
         return resolved;
+    }
+
+    private bool IsRegExpPrototypeReceiver(JsValue receiver)
+    {
+        return receiver.TryGetObject<JsObject>(out var obj) && ReferenceEquals(obj, Realm.RegExpPrototype);
+    }
+
+    private static string EscapeRegExpPattern(string pattern)
+    {
+        if (pattern.Length == 0)
+        {
+            return "(?:)";
+        }
+
+        var builder = new StringBuilder(pattern.Length);
+        foreach (var ch in pattern)
+        {
+            switch (ch)
+            {
+                case '/':
+                    builder.Append("\\/");
+                    break;
+                case '\n':
+                    builder.Append("\\n");
+                    break;
+                case '\r':
+                    builder.Append("\\r");
+                    break;
+                case '\u2028':
+                    builder.Append("\\u2028");
+                    break;
+                case '\u2029':
+                    builder.Append("\\u2029");
+                    break;
+                default:
+                    builder.Append(ch);
+                    break;
+            }
+        }
+
+        return builder.ToString();
     }
 
     [JsSymbolMethod("match", Length = 1d)]

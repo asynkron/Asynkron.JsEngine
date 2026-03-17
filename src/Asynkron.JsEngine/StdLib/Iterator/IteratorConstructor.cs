@@ -38,11 +38,92 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
 
     protected override void ConfigureConstructor(HostFunction constructor)
     {
+        constructor.SetInvokeWithContext((args, thisValue, context, newTarget) =>
+        {
+            if (newTarget.IsUndefined || ReferenceEquals(newTarget.ObjectValue, constructor))
+            {
+                throw StandardLibrary.ThrowTypeError("Iterator is not directly constructable", context, Realm);
+            }
+
+            return ConstructInstance(thisValue, args);
+        });
+
         // Store the iterator prototype in the realm for static method access
         Realm.IteratorPrototype ??= Prototype as JsObject;
 
         if (Realm.IteratorPrototype is { } iteratorPrototype)
         {
+            var constructorGetter = new HostFunction((_, _) => JsValue.FromObjectUnsafe(constructor), Realm, false);
+            var constructorSetter = new HostFunction((thisValue, args) =>
+            {
+                if (!thisValue.TryGetObject<IJsObjectLike>(out var receiverObject))
+                {
+                    throw StandardLibrary.ThrowTypeError("Iterator.prototype.constructor setter requires an object",
+                        realm: Realm);
+                }
+
+                if (ReferenceEquals(receiverObject, iteratorPrototype))
+                {
+                    throw StandardLibrary.ThrowTypeError(
+                        "Cannot assign to Iterator.prototype.constructor",
+                        realm: Realm);
+                }
+
+                var nextValue = args.Count > 0 ? args[0] : JsValue.Undefined;
+                var existingDescriptor = receiverObject.GetOwnPropertyDescriptor("constructor");
+                if (existingDescriptor is null)
+                {
+                    if (receiverObject is IExtensibilityControl { IsExtensible: false })
+                    {
+                        throw StandardLibrary.ThrowTypeError(
+                            "Cannot define property 'constructor' on non-extensible object",
+                            realm: Realm);
+                    }
+
+                    receiverObject.DefineProperty("constructor",
+                        new PropertyDescriptor
+                        {
+                            Value = nextValue,
+                            Writable = true,
+                            Enumerable = true,
+                            Configurable = true
+                        });
+                    return JsValue.Undefined;
+                }
+
+                if (existingDescriptor.IsAccessorDescriptor)
+                {
+                    if (existingDescriptor.Set is null)
+                    {
+                        throw StandardLibrary.ThrowTypeError(
+                            "Cannot assign to property 'constructor' that has only a getter",
+                            realm: Realm);
+                    }
+
+                    existingDescriptor.Set.Invoke([nextValue], thisValue);
+                    return JsValue.Undefined;
+                }
+
+                if (!existingDescriptor.Writable)
+                {
+                    throw StandardLibrary.ThrowTypeError(
+                        "Cannot assign to read only property 'constructor'",
+                        realm: Realm);
+                }
+
+                receiverObject.DefineProperty("constructor", new PropertyDescriptor { JsValue = nextValue });
+                return JsValue.Undefined;
+            }, Realm, false);
+
+            iteratorPrototype.DefineProperty("constructor",
+                new PropertyDescriptor
+                {
+                    Get = constructorGetter,
+                    Set = constructorSetter,
+                    Enumerable = false,
+                    Configurable = true
+                });
+
             if (Realm.ArrayIteratorPrototype is { } arrayIteratorPrototype)
             {
                 arrayIteratorPrototype.SetPrototype(iteratorPrototype);

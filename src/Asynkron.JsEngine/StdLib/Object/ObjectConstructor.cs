@@ -843,6 +843,15 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
 
     private object ConstructCore(IReadOnlyList<JsValue> args, IJsCallable newTarget, JsObject? existing)
     {
+        var isSubclassConstruction = existing is not null
+            ? !ReferenceEquals(existing.Prototype, Prototype)
+            : !ReferenceEquals(newTarget, ConstructFallback);
+
+        if (isSubclassConstruction)
+        {
+            return CreateBlank(newTarget, existing);
+        }
+
         if (args.Count == 0 || args[0].IsUndefined || args[0].IsNull)
         {
             return CreateBlank(newTarget, existing);

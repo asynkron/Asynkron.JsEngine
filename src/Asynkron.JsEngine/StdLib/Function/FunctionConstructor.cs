@@ -1,5 +1,6 @@
 #region
 
+using System.Collections.Immutable;
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Parser;
@@ -84,6 +85,15 @@ public sealed partial class FunctionConstructor(IJsObjectLike prototype, RealmSt
         {
             var message = parseException.Message ?? "SyntaxError";
             throw new ThrowSignal(CreateSyntaxError(message, evalContext, realm));
+        }
+
+        var invalidPrivateName = PrivateNameValidator.FindInvalidPrivateName(program.Body, ImmutableArray<PrivateNameScope>.Empty);
+        if (invalidPrivateName is not null)
+        {
+            throw ThrowSyntaxError(
+                $"Private field '{invalidPrivateName}' must be declared in an enclosing class",
+                evalContext,
+                realm);
         }
 
         var created = engine.ExecuteProgram(

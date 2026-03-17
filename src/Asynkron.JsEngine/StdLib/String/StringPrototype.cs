@@ -1289,14 +1289,7 @@ public sealed partial class StringPrototype
         }
 
         Realm.StringPrototype ??= stringProto;
-        stringProto.DefineProperty("length",
-            new PropertyDescriptor
-            {
-                Value = 0d,
-                Writable = false,
-                Enumerable = false,
-                Configurable = false
-            });
+        InitializeStringWrapper(string.Empty, stringProto, Realm);
 
         Realm.StringPrototypeMethodsInitialized = true;
     }

@@ -390,13 +390,13 @@ public static partial class TypedAstEvaluator
         }
 
         // Class constructors cannot be invoked without 'new' (except via super() call)
-        if (callable is SyncFunctionInvoker { IsClassConstructor: true } &&
+        if (callable is SyncFunctionInvoker { IsClassConstructor: true } classConstructor &&
             expression.Callee is not SuperExpression)
         {
             var error = StandardLibrary.CreateTypeError(
                 "Class constructor cannot be invoked without 'new'",
                 context,
-                context.RealmState);
+                classConstructor.RealmState);
             context.SetThrow(error);
             context.CallDepth--;
             return JsValue.Undefined;

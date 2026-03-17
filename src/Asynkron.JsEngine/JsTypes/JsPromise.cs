@@ -13,14 +13,19 @@ namespace Asynkron.JsEngine.JsTypes;
 public sealed class JsPromise(JsEngine engine) : IMicrotask
 {
     internal const string InternalPromiseKey = "__promise__";
+    private readonly record struct PromiseReaction(
+        IJsCallable? OnFulfilled,
+        IJsCallable? OnRejected,
+        IJsCallable Resolve,
+        IJsCallable Reject);
 
     private readonly JsEngine _engine = engine ?? throw new ArgumentNullException(nameof(engine));
-    private List<(IJsCallable? onFulfilled, IJsCallable? onRejected, JsPromise next)>? _handlers;
+    private List<PromiseReaction>? _handlers;
 
     private bool _handlersScheduled;
 
     // Spare list for swapping during ProcessHandlersCore - avoids ToArray and locks
-    private List<(IJsCallable? onFulfilled, IJsCallable? onRejected, JsPromise next)>? _spareHandlers;
+    private List<PromiseReaction>? _spareHandlers;
 
     private PromiseState _state = PromiseState.Pending;
     private JsValue _value;
@@ -132,7 +137,7 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
             if (thenValue.TryGetObject<IJsCallable>(out var thenMethod))
             {
                 // Value is a thenable - adopt its state
-                ResolveThenable(accessor, thenMethod);
+                QueueThenableResolution(accessor, thenMethod);
                 return;
             }
         }
@@ -146,6 +151,11 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
     /// <summary>
     ///     Resolves the promise by adopting the state of a thenable.
     /// </summary>
+    private void QueueThenableResolution(IJsPropertyAccessor thenable, IJsCallable thenMethod)
+    {
+        _engine.QueueMicrotask(new ThenableResolutionMicrotask(this, thenable, thenMethod));
+    }
+
     private void ResolveThenable(IJsPropertyAccessor thenable, IJsCallable thenMethod)
     {
         // Create resolve and reject callbacks for the thenable
@@ -200,14 +210,23 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
     public JsPromise Then(IJsCallable? onFulfilled, IJsCallable? onRejected = null)
     {
         var nextPromise = new JsPromise(_engine);
-        (_handlers ??= []).Add((onFulfilled, onRejected, nextPromise));
+        PerformThen(
+            onFulfilled,
+            onRejected,
+            new ChainCallback(nextPromise, isResolve: true),
+            new ChainCallback(nextPromise, isResolve: false));
+
+        return nextPromise;
+    }
+
+    internal void PerformThen(IJsCallable? onFulfilled, IJsCallable? onRejected, IJsCallable resolve, IJsCallable reject)
+    {
+        (_handlers ??= []).Add(new PromiseReaction(onFulfilled, onRejected, resolve, reject));
 
         if (_state != PromiseState.Pending)
         {
             ScheduleProcessing();
         }
-
-        return nextPromise;
     }
 
     [MethodImpl(JsEngineConstants.Inlining)]
@@ -274,7 +293,7 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
 
         for (var i = 0; i < handlersToProcess.Count; i++)
         {
-            var (onFulfilled, onRejected, nextPromise) = handlersToProcess[i];
+            var reaction = handlersToProcess[i];
             try
             {
                 if (++_engine.PromiseCallDepth > _engine.MaxCallDepth)
@@ -286,16 +305,20 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
                 switch (_state)
                 {
                     case PromiseState.Fulfilled:
-                        ProcessFulfilledHandler(onFulfilled, nextPromise);
+                        ProcessFulfilledHandler(reaction);
                         break;
                     case PromiseState.Rejected:
-                        ProcessRejectedHandler(onRejected, nextPromise);
+                        ProcessRejectedHandler(reaction);
                         break;
                 }
             }
+            catch (ThrowSignal signal)
+            {
+                reaction.Reject.Invoke(new SingleValueArgs(signal.ThrownValue), JsValue.Undefined);
+            }
             catch (Exception ex)
             {
-                nextPromise.Reject(new JsValue(ex.Message));
+                reaction.Reject.Invoke(new SingleValueArgs(new JsValue(ex.Message)), JsValue.Undefined);
             }
             finally
             {
@@ -313,50 +336,30 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
         }
     }
 
-    private void ProcessFulfilledHandler(IJsCallable? onFulfilled, JsPromise nextPromise)
+    private void ProcessFulfilledHandler(PromiseReaction reaction)
     {
-        if (onFulfilled != null)
+        if (reaction.OnFulfilled != null)
         {
-            var result = onFulfilled.Invoke(new SingleValueArgs(_value), JsValue.Undefined);
-            ResolveWithPossibleThenable(result, nextPromise);
+            var result = reaction.OnFulfilled.Invoke(new SingleValueArgs(_value), JsValue.Undefined);
+            reaction.Resolve.Invoke(new SingleValueArgs(result), JsValue.Undefined);
         }
         else
         {
-            nextPromise.Resolve(_value);
+            reaction.Resolve.Invoke(new SingleValueArgs(_value), JsValue.Undefined);
         }
     }
 
-    private void ProcessRejectedHandler(IJsCallable? onRejected, JsPromise nextPromise)
+    private void ProcessRejectedHandler(PromiseReaction reaction)
     {
-        if (onRejected != null)
+        if (reaction.OnRejected != null)
         {
-            var result = onRejected.Invoke(new SingleValueArgs(_value), JsValue.Undefined);
-            ResolveWithPossibleThenable(result, nextPromise);
+            var result = reaction.OnRejected.Invoke(new SingleValueArgs(_value), JsValue.Undefined);
+            reaction.Resolve.Invoke(new SingleValueArgs(result), JsValue.Undefined);
         }
         else
         {
             // No rejection handler, propagate rejection
-            nextPromise.Reject(_value);
-        }
-    }
-
-    private static void ResolveWithPossibleThenable(JsValue result, JsPromise nextPromise)
-    {
-        // If the result is a promise (JsObject with "then" method), chain it
-        if (result.IsObject &&
-            result.AsObject()!.TryGetProperty("then", out var thenMethod) &&
-            thenMethod.TryGetObject<IJsCallable>(out var thenCallable))
-        {
-            // Use lightweight callback objects directly - no HostFunction wrapper needed
-            // IJsCallable converts to JsValue via FromObjectUnsafe without allocation
-            var resolveCallback = new ChainCallback(nextPromise, isResolve: true);
-            var rejectCallback = new ChainCallback(nextPromise, isResolve: false);
-            thenCallable.Invoke([JsValue.FromObjectUnsafe(resolveCallback), JsValue.FromObjectUnsafe(rejectCallback)],
-                result);
-        }
-        else
-        {
-            nextPromise.Resolve(result);
+            reaction.Reject.Invoke(new SingleValueArgs(_value), JsValue.Undefined);
         }
     }
 
@@ -421,6 +424,17 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
             }
 
             return JsValue.Undefined;
+        }
+    }
+
+    private sealed class ThenableResolutionMicrotask(JsPromise promise, IJsPropertyAccessor thenable, IJsCallable thenMethod)
+        : IMicrotask
+    {
+        public int Epoch { get; set; }
+
+        public void Execute()
+        {
+            promise.ResolveThenable(thenable, thenMethod);
         }
     }
 }

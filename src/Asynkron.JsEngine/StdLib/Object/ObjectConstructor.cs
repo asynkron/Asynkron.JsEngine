@@ -171,27 +171,104 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             throw ThrowTypeError("Cannot convert undefined or null to object", realm: realmState);
         }
 
-        var result = new JsObject(realmState.ObjectPrototype) { RealmState = realmState };
-        foreach (var entry in EnumerateIteratorValues(arg, realmState, "Object.fromEntries"))
+        // Per spec: Let iteratorRecord be ? GetIterator(iterable, sync).
+        var iteratorValue = GetIteratorObject(arg, realmState, "Object.fromEntries");
+        if (!iteratorValue.TryGetObject<IJsPropertyAccessor>(out var iteratorAccessor))
         {
-            // Each entry should be an object (typically [key, value]).
-            if (!TryGetObject(entry, realmState, out var entryAccessor))
+            throw ThrowTypeError("Object.fromEntries iterator must be an object", realm: realmState);
+        }
+
+        var iteratorReceiver = JsValue.FromObjectUnsafe(iteratorAccessor);
+        if (!iteratorAccessor.TryGetProperty("next", iteratorReceiver, out var nextMethod) ||
+            !nextMethod.TryGetObject<IJsCallable>(out var nextCallable))
+        {
+            throw ThrowTypeError("Object.fromEntries iterator must have a callable next method", realm: realmState);
+        }
+
+        var result = new JsObject(realmState.ObjectPrototype) { RealmState = realmState };
+
+        while (true)
+        {
+            var nextResult = nextCallable.Invoke([], iteratorReceiver);
+            if (!nextResult.TryGetObject<IJsPropertyAccessor>(out var resultAccessor))
             {
+                throw ThrowTypeError("Object.fromEntries iterator result must be an object", realm: realmState);
+            }
+
+            var resultReceiver = JsValue.FromObjectUnsafe(resultAccessor);
+            var done = resultAccessor.TryGetProperty("done", resultReceiver, out var doneValue) &&
+                       JsOps.ToBoolean(doneValue);
+            if (done)
+            {
+                break;
+            }
+
+            var entry = resultAccessor.TryGetProperty("value", resultReceiver, out var entryValue)
+                ? entryValue
+                : JsValue.Undefined;
+
+            // Per spec step 4.d: If Type(nextItem) is not Object, then
+            //   i. Let error be ThrowCompletion(a newly created TypeError object).
+            //   ii. Return ? IteratorClose(iteratorRecord, error).
+            if (!entry.IsObject)
+            {
+                IteratorClose(iteratorAccessor, realmState, "Object.fromEntries");
                 throw ThrowTypeError("Iterator value is not an entry object", realm: realmState);
             }
 
-            if (!entryAccessor.TryGetProperty("0", JsValue.FromObjectUnsafe(entryAccessor), out var keyValue))
+            if (!entry.TryGetObject<IJsPropertyAccessor>(out var entryAccessor))
             {
-                keyValue = JsValue.Undefined;
+                IteratorClose(iteratorAccessor, realmState, "Object.fromEntries");
+                throw ThrowTypeError("Iterator value is not an entry object", realm: realmState);
             }
 
-            if (!entryAccessor.TryGetProperty("1", JsValue.FromObjectUnsafe(entryAccessor), out var value))
+            var entryReceiver = JsValue.FromObjectUnsafe(entryAccessor);
+
+            // Per spec step 4.e: Let k be Get(nextItem, "0").
+            // Per spec step 4.f: If k is an abrupt completion, return ? IteratorClose(iteratorRecord, k).
+            JsValue keyValue;
+            try
             {
-                value = JsValue.Undefined;
+                keyValue = entryAccessor.TryGetProperty("0", entryReceiver, out var kv)
+                    ? kv
+                    : JsValue.Undefined;
+            }
+            catch (ThrowSignal)
+            {
+                IteratorClose(iteratorAccessor, realmState, "Object.fromEntries");
+                throw;
             }
 
-            var key = JsOps.GetRequiredPropertyName(keyValue);
-            result[key] = value;
+            // Per spec step 4.g: Let v be Get(nextItem, "1").
+            // Per spec step 4.h: If v is an abrupt completion, return ? IteratorClose(iteratorRecord, v).
+            JsValue value;
+            try
+            {
+                value = entryAccessor.TryGetProperty("1", entryReceiver, out var v)
+                    ? v
+                    : JsValue.Undefined;
+            }
+            catch (ThrowSignal)
+            {
+                IteratorClose(iteratorAccessor, realmState, "Object.fromEntries");
+                throw;
+            }
+
+            // Per spec step 4.i: Let propertyKey be ToPropertyKey(k).
+            // Per spec step 4.j: If propertyKey is an abrupt completion, return ? IteratorClose(iteratorRecord, propertyKey).
+            string key;
+            try
+            {
+                key = JsOps.GetRequiredPropertyName(keyValue);
+            }
+            catch (ThrowSignal)
+            {
+                IteratorClose(iteratorAccessor, realmState, "Object.fromEntries");
+                throw;
+            }
+
+            // Per spec step 4.k: Perform ! CreateDataPropertyOrThrow(obj, propertyKey, value).
+            CreateDataPropertyOrThrowJsValue(result, key, value, realmState, "Object.fromEntries");
         }
 
         return JsValue.FromJsObject(result);

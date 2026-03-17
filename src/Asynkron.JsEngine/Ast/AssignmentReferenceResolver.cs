@@ -431,6 +431,19 @@ internal static class AssignmentReferenceResolver
         var prototypeAccessor = target.PrototypeAccessor ?? target.Prototype;
         while (prototypeAccessor is not null)
         {
+            if (prototypeAccessor is JsProxy proxyPrototype)
+            {
+                if (!proxyPrototype.TrySetProperty(propertyName, value, receiverValue) && isStrict)
+                {
+                    throw StandardLibrary.ThrowTypeError(
+                        $"Cannot assign to property '{propertyName}'.",
+                        context,
+                        realmState);
+                }
+
+                return;
+            }
+
             if (prototypeAccessor is JsObject protoObj)
             {
                 var inheritedDescriptor = protoObj.GetOwnPropertyDescriptor(propertyName);

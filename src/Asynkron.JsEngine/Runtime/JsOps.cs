@@ -2025,6 +2025,12 @@ internal static class JsOps
             var current = jsArray.PrototypeAccessor ?? jsArray.Prototype;
             while (current is not null)
             {
+                if (current is JsProxy proxy)
+                {
+                    proxy.SetProperty(propertyName, value, JsValue.FromJsArray(jsArray));
+                    return true;
+                }
+
                 var inheritedDescriptor = current.GetOwnPropertyDescriptor(propertyName);
                 if (inheritedDescriptor is not null)
                 {

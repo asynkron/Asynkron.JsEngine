@@ -84,4 +84,46 @@ public class RegressionTests
 
         Assert.That(diffs.Items, Is.Empty);
     }
+
+    [Test]
+    public async Task ProxyReceiverSetRechecksOwnDescriptorOnEveryWrite()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(
+            """
+            var getOwnPropertyKeys = [];
+            var definePropertyKeys = [];
+
+            var target = { foo: 1 };
+            var p = new Proxy(target, {
+              getOwnPropertyDescriptor: function(target, key) {
+                getOwnPropertyKeys.push(key);
+                return Reflect.getOwnPropertyDescriptor(target, key);
+              },
+              defineProperty: function(target, key, desc) {
+                definePropertyKeys.push(key);
+                return Reflect.defineProperty(target, key, desc);
+              }
+            });
+
+            p["foo"] = 2;
+            p.foo = 2;
+            p.foo = 2;
+            var finalDescriptor = Object.getOwnPropertyDescriptor(target, "foo");
+
+            [getOwnPropertyKeys, definePropertyKeys, p.foo, finalDescriptor.writable, finalDescriptor.enumerable, finalDescriptor.configurable];
+            """);
+
+        var snapshot = result as JsArray ?? throw new AssertionException("Expected array result");
+        Assert.That(snapshot.Items[0].TryGetObject<JsArray>(out var getOwnKeys), Is.True);
+        Assert.That(snapshot.Items[1].TryGetObject<JsArray>(out var defineKeys), Is.True);
+        Assert.That(getOwnKeys!.Items.Select(static item => item.AsString()).ToArray(),
+            Is.EqualTo(new[] { "foo", "foo", "foo" }));
+        Assert.That(defineKeys!.Items.Select(static item => item.AsString()).ToArray(),
+            Is.EqualTo(new[] { "foo", "foo", "foo" }));
+        Assert.That(snapshot.Items[2].AsDouble(), Is.EqualTo(2d));
+        Assert.That(snapshot.Items[3].AsBoolean(), Is.True);
+        Assert.That(snapshot.Items[4].AsBoolean(), Is.True);
+        Assert.That(snapshot.Items[5].AsBoolean(), Is.True);
+    }
 }

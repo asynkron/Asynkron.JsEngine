@@ -126,7 +126,14 @@ public static partial class TypedAstEvaluator
         {
             if (accessor is JsProxy proxy)
             {
-                proxy.SetProperty(propertyName, value, target);
+                if (!proxy.TrySetProperty(propertyName, value, target) && isStrict)
+                {
+                    throw StandardLibrary.ThrowTypeError(
+                        $"Cannot assign to property '{propertyName}'.",
+                        context,
+                        context.RealmState);
+                }
+
                 return;
             }
 

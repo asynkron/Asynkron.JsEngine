@@ -424,6 +424,23 @@ public static class ReflectHelper
             return JsValue.FromJsArray(new JsArray(moduleNamespace.OwnKeys(), realm));
         }
 
+        if (target is JsProxy proxy)
+        {
+            var result = new JsArray(realm);
+            foreach (var key in proxy.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
+            {
+                if (JsSymbol.TryGetByInternalKey(key, out var symbol) && symbol is not null)
+                {
+                    result.Push((JsValue)symbol);
+                    continue;
+                }
+
+                result.Push(key);
+            }
+
+            return JsValue.FromJsArray(result);
+        }
+
         // Collect all raw keys, then sort per [[OwnPropertyKeys]] spec ordering:
         // 1. Integer indices in ascending numeric order
         // 2. Remaining string keys in property creation order
@@ -488,20 +505,12 @@ public static class ReflectHelper
         return new JsValue(SetPropertyWithReceiver(target, propertyKey, value, receiver));
     }
 
-    private static bool SetPropertyWithReceiver(IJsPropertyAccessor target, string propertyKey, JsValue value,
+    internal static bool SetPropertyWithReceiver(IJsPropertyAccessor target, string propertyKey, JsValue value,
         JsValue receiver)
     {
         if (target is JsProxy proxy)
         {
-            try
-            {
-                proxy.SetProperty(propertyKey, value, receiver);
-                return true;
-            }
-            catch (ThrowSignal signal) when (IsProxySetTrapReturnFalse(signal))
-            {
-                return false;
-            }
+            return proxy.TrySetProperty(propertyKey, value, receiver);
         }
 
         if (target is IJsObjectLike objectLike)

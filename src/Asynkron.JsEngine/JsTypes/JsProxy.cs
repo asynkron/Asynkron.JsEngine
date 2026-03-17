@@ -444,10 +444,25 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     // --- [[Set]] with invariant checks ---
     public void SetProperty(string name, JsValue value, JsValue receiver)
     {
+        if (!TrySetProperty(name, value, receiver))
+        {
+            throw StandardLibrary.ThrowTypeError("Proxy 'set' trap returned a falsy value", realm: ErrorRealm);
+        }
+    }
+
+    public void SetProperty(string name, JsValue value)
+    {
+        SetProperty(name, value, JsValue.FromJsProxy(this));
+    }
+
+    internal bool TrySetProperty(string name, JsValue value, JsValue receiver)
+    {
+        var effectiveReceiver = receiver.IsUndefined ? JsValue.FromJsProxy(this) : receiver;
+
         if (name.IsPrivateSlotName())
         {
-            _privateStorage.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromJsProxy(this) : receiver);
-            return;
+            _privateStorage.SetProperty(name, value, effectiveReceiver);
+            return true;
         }
 
         if (TryGetTrap("set", out var trap))
@@ -455,21 +470,19 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             var args = new[]
             {
                 _targetJsValue, JsValue.FromObjectUnsafe(DecodePropertyKey(name)), value,
-                receiver.IsUndefined ? JsValue.FromJsProxy(this) : receiver
+                effectiveReceiver
             };
             var result = trap.Invoke(args, _handlerJsValue);
             if (!JsOps.ToBoolean(result))
             {
-                throw StandardLibrary.ThrowTypeError("Proxy 'set' trap returned a falsy value", realm: ErrorRealm);
+                return false;
             }
 
-            // Invariant checks per ES spec 10.5.9 step 14
             var targetDesc = Target.GetOwnPropertyDescriptor(name);
             if (targetDesc is not null && !targetDesc.Configurable)
             {
                 if (targetDesc.IsDataDescriptor && !targetDesc.Writable)
                 {
-                    // 14a: non-configurable, non-writable data property
                     if (!JsOps.SameValue(value, targetDesc.JsValue))
                     {
                         throw StandardLibrary.ThrowTypeError(
@@ -480,7 +493,6 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 }
                 else if (targetDesc.IsAccessorDescriptor && targetDesc.Set is null)
                 {
-                    // 14b: non-configurable accessor with undefined setter
                     throw StandardLibrary.ThrowTypeError(
                         "'set' on proxy: trap returned truish for property '" + name +
                         "' which exists in the proxy target as a non-configurable and non-writable accessor property without a setter",
@@ -488,36 +500,10 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 }
             }
 
-            return;
+            return true;
         }
 
-        var effectiveReceiver = receiver.IsUndefined ? JsValue.FromJsProxy(this) : receiver;
-        if (effectiveReceiver.TryGetObject<JsProxy>(out var receiverProxy) &&
-            Target is JsObject targetObject &&
-            !targetObject.HasProperty(name))
-        {
-            var newDesc = new PropertyDescriptor
-            {
-                JsValue = value,
-                Writable = true,
-                Enumerable = true,
-                Configurable = true
-            };
-
-            if (!receiverProxy.TryDefineProperty(name, newDesc))
-            {
-                return;
-            }
-
-            return;
-        }
-
-        Target.SetProperty(name, value, effectiveReceiver);
-    }
-
-    public void SetProperty(string name, JsValue value)
-    {
-        SetProperty(name, value, JsValue.FromJsProxy(this));
+        return ReflectHelper.SetPropertyWithReceiver(Target, name, value, effectiveReceiver);
     }
 
     // --- [[DefineOwnProperty]] with invariant checks ---
@@ -1250,23 +1236,45 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         if (descriptor.IsAccessorDescriptor)
         {
-            result.SetProperty("get",
-                descriptor is { HasGet: true, Get: not null }
-                    ? JsValue.FromObjectUnsafe(descriptor.Get)
-                    : JsValue.Undefined);
-            result.SetProperty("set",
-                descriptor is { HasSet: true, Set: not null }
-                    ? JsValue.FromObjectUnsafe(descriptor.Set)
-                    : JsValue.Undefined);
+            if (descriptor.HasGet)
+            {
+                result.SetProperty("get",
+                    descriptor.Get is not null
+                        ? JsValue.FromObjectUnsafe(descriptor.Get)
+                        : JsValue.Undefined);
+            }
+
+            if (descriptor.HasSet)
+            {
+                result.SetProperty("set",
+                    descriptor.Set is not null
+                        ? JsValue.FromObjectUnsafe(descriptor.Set)
+                        : JsValue.Undefined);
+            }
         }
         else
         {
-            result.SetProperty("value", descriptor.JsValue);
-            result.SetProperty("writable", descriptor is { HasWritable: true, Writable: true });
+            if (descriptor.HasValue)
+            {
+                result.SetProperty("value", descriptor.JsValue);
+            }
+
+            if (descriptor.HasWritable)
+            {
+                result.SetProperty("writable", descriptor.Writable);
+            }
         }
 
-        result.SetProperty("enumerable", descriptor is { HasEnumerable: true, Enumerable: true });
-        result.SetProperty("configurable", descriptor is { HasConfigurable: true, Configurable: true });
+        if (descriptor.HasEnumerable)
+        {
+            result.SetProperty("enumerable", descriptor.Enumerable);
+        }
+
+        if (descriptor.HasConfigurable)
+        {
+            result.SetProperty("configurable", descriptor.Configurable);
+        }
+
         return result;
     }
 }

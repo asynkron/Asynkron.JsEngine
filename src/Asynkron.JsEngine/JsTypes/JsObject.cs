@@ -763,6 +763,8 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
     private void SetPropertyInternal(string name, object? value, object? receiver)
     {
         var state = State;
+        var valueAsJsValue = JsValue.FromObjectUnsafe(value);
+        var receiverValue = JsValue.FromObjectUnsafe(receiver ?? this);
         var privateFields = state.PrivateFields;
         if (name.IsPrivateSlotName())
         {
@@ -778,7 +780,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                         realm: ResolveRealmState(receiver));
                 }
 
-                desc.Set.Invoke(new SingleValueArgs(JsValue.FromObjectUnsafe(value)), JsValue.FromObjectUnsafe(receiver ?? this));
+                desc.Set.Invoke(new SingleValueArgs(valueAsJsValue), receiverValue);
 
                 return;
             }
@@ -792,7 +794,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                         realm: ResolveRealmState(receiver));
                 }
 
-                dataDesc.JsValue = JsValue.FromObjectUnsafe(value);
+                dataDesc.JsValue = valueAsJsValue;
                 privateFields[name] = dataDesc;
                 return;
             }
@@ -815,8 +817,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                                 realm: ResolveRealmState(receiver));
                         }
 
-                        inheritedDesc.Set.Invoke(new SingleValueArgs(JsValue.FromObjectUnsafe(value)),
-                            JsValue.FromObjectUnsafe(receiver ?? this));
+                        inheritedDesc.Set.Invoke(new SingleValueArgs(valueAsJsValue), receiverValue);
                         return;
                     }
 
@@ -829,7 +830,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                                 realm: ResolveRealmState(receiver));
                         }
 
-                        dataDescriptor.JsValue = JsValue.FromObjectUnsafe(value);
+                        dataDescriptor.JsValue = valueAsJsValue;
                         protoState.PrivateFields[name] = dataDescriptor;
                         return;
                     }
@@ -849,12 +850,14 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         var hasDescriptor = state.Descriptors.TryGetValue(name, out var descriptor);
         var hasDataSlot = TryGetValue(name, out _);
         var propertyExists = hasDescriptor || hasDataSlot;
+        var hasDistinctReceiver = TryResolveReceiverObject(receiver, out var receiverObject) &&
+                                 !ReferenceEquals(receiverObject, this);
 
         if (hasDescriptor)
         {
             if (descriptor!.IsAccessorDescriptor)
             {
-                descriptor.Set?.Invoke(new SingleValueArgs(JsValue.FromObjectUnsafe(value)), JsValue.FromObjectUnsafe(receiver ?? this));
+                descriptor.Set?.Invoke(new SingleValueArgs(valueAsJsValue), receiverValue);
 
                 return;
             }
@@ -864,14 +867,26 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                 return; // Silently ignore in non-strict mode
             }
 
+            if (hasDistinctReceiver)
+            {
+                ReflectHelper.SetPropertyWithReceiver(this, name, valueAsJsValue, receiverValue);
+                return;
+            }
+
             this[name] = value;
-            descriptor.JsValue = JsValue.FromObjectUnsafe(value);
+            descriptor.JsValue = valueAsJsValue;
             TrackArrayWrite(name, value);
             return;
         }
 
         if (hasDataSlot)
         {
+            if (hasDistinctReceiver)
+            {
+                ReflectHelper.SetPropertyWithReceiver(this, name, valueAsJsValue, receiverValue);
+                return;
+            }
+
             this[name] = value;
             TrackArrayWrite(name, value);
             return;
@@ -881,7 +896,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         var setter = GetSetter(name);
         if (setter != null)
         {
-            setter.Invoke(new SingleValueArgs(JsValue.FromObjectUnsafe(value)), JsValue.FromObjectUnsafe(receiver ?? this));
+            setter.Invoke(new SingleValueArgs(valueAsJsValue), receiverValue);
             return;
         }
 
@@ -894,68 +909,14 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             var foundSetter = FindSetterInPrototypeChain(PrototypeAccessor, name);
             if (foundSetter != null)
             {
-                foundSetter.Invoke(new SingleValueArgs(JsValue.FromObjectUnsafe(value)), JsValue.FromObjectUnsafe(receiver ?? this));
+                foundSetter.Invoke(new SingleValueArgs(valueAsJsValue), receiverValue);
                 return;
             }
         }
 
-        if (TryResolveReceiverObject(receiver, out var receiverObject) && !ReferenceEquals(receiverObject, this))
+        if (hasDistinctReceiver)
         {
-            var receiverDesc = receiverObject.GetOwnPropertyDescriptor(name);
-            if (receiverDesc is not null)
-            {
-                if (receiverDesc.IsAccessorDescriptor)
-                {
-                    receiverDesc.Set?.Invoke(new SingleValueArgs(JsValue.FromObjectUnsafe(value)),
-                        JsValue.FromObjectUnsafe(receiverObject));
-                    return;
-                }
-
-                if (!receiverDesc.Writable)
-                {
-                    return;
-                }
-
-                if (receiverObject is IPropertyDefinitionHost receiverDefinitionHost)
-                {
-                    if (!receiverDefinitionHost.TryDefineProperty(name,
-                            new PropertyDescriptor { JsValue = JsValue.FromObjectUnsafe(value) }))
-                    {
-                        return;
-                    }
-                }
-                else
-                {
-                    receiverObject.DefineProperty(name,
-                        new PropertyDescriptor { JsValue = JsValue.FromObjectUnsafe(value) });
-                }
-
-                return;
-            }
-
-            if (receiverObject is IExtensibilityControl { IsExtensible: false })
-            {
-                return;
-            }
-
-            var newDesc = new PropertyDescriptor
-            {
-                JsValue = JsValue.FromObjectUnsafe(value),
-                Writable = true,
-                Enumerable = true,
-                Configurable = true
-            };
-
-            if (receiverObject is IPropertyDefinitionHost host && !host.TryDefineProperty(name, newDesc))
-            {
-                return;
-            }
-
-            if (receiverObject is not IPropertyDefinitionHost)
-            {
-                receiverObject.DefineProperty(name, newDesc);
-            }
-
+            ReflectHelper.SetPropertyWithReceiver(this, name, valueAsJsValue, receiverValue);
             return;
         }
 

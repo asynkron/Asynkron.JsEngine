@@ -4,6 +4,7 @@ using System.Collections;
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 
 #endregion
@@ -282,6 +283,14 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         if (TryParseArrayIndex(name, out var index))
         {
+            var receiverIsThis = receiver.IsUndefined ||
+                                 (receiver.Kind == JsValueKind.Object && ReferenceEquals(receiver.ObjectValue, this));
+            if (!receiverIsThis)
+            {
+                ReflectHelper.SetPropertyWithReceiver(this, name, value, receiver);
+                return;
+            }
+
             SetElement(index, value);
             return;
         }

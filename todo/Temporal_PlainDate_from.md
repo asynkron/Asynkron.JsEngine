@@ -1,7 +1,9 @@
 # Temporal_PlainDate_from
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDate_from`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_from`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDate_from`
 
 Full test name:
 

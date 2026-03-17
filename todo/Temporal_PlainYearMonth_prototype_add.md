@@ -1,7 +1,9 @@
 # Temporal_PlainYearMonth_prototype_add
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainYearMonth_prototype_add`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_prototype_add`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainYearMonth_prototype_add`
 
 Full test name:
 

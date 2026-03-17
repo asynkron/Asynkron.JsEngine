@@ -1,7 +1,9 @@
 # Temporal_ZonedDateTime
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime`
 
 Full test name:
 
@@ -29,9 +31,3 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime("intl402/Temporal/ZonedDateTime/etc-timezone.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime("intl402/Temporal/ZonedDateTime/legacy-non-iana.js",False)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime("intl402/Temporal/ZonedDateTime/legacy-non-iana.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime("intl402/Temporal/ZonedDateTime/supported-values-of.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime("intl402/Temporal/ZonedDateTime/supported-values-of.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime("intl402/Temporal/ZonedDateTime/timezone-case-insensitive.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime("intl402/Temporal/ZonedDateTime/timezone-case-insensitive.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime("intl402/Temporal/ZonedDateTime/timezone-ids-basic.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime("intl402/Temporal/ZonedDateTime/timezone-ids-basic.js",True)

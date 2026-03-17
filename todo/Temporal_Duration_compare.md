@@ -1,7 +1,9 @@
 # Temporal_Duration_compare
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Duration_compare`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Duration_compare`
 
 Full test name:
 

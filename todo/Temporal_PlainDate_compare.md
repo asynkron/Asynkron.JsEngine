@@ -1,7 +1,9 @@
 # Temporal_PlainDate_compare
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDate_compare`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_compare`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDate_compare`
 
 Full test name:
 

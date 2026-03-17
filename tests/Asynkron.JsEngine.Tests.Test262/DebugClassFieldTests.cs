@@ -166,7 +166,8 @@ public sealed class DebugClassFieldTests
         static string JoinKeys(object? value) =>
             value switch
             {
-                JsArray array => string.Join(",", array.Items),
+                JsArray array => string.Join(",",
+                    array.Items.Select(static item => item.IsString ? item.AsString() : item.ToObject()?.ToString() ?? "null")),
                 IEnumerable<object?> enumerable => string.Join(",", enumerable.Select(v => v?.ToString() ?? "null")),
                 _ => value?.ToString() ?? "null"
             };
@@ -216,7 +217,8 @@ public sealed class DebugClassFieldTests
             Assert.That(thrown.TryGetObject<JsObject>(out var error), Is.True, "Thrown value should be a JS error object");
             var errorObj = error ?? throw new AssertionException("Expected thrown value to be a JS error object");
             errorObj.TryGetProperty("name", out var name);
-            Assert.That(name.ToString(), Is.EqualTo("TypeError"));
+            Assert.That(name.IsString, Is.True);
+            Assert.That(name.AsString(), Is.EqualTo("TypeError"));
         }
     }
 
@@ -314,7 +316,9 @@ public sealed class DebugClassFieldTests
         Assert.That(result["methodValue"], Is.InstanceOf<IJsCallable>());
         Assert.That(result["calls"], Is.InstanceOf<JsArray>());
         var calls = (JsArray)result["calls"]!;
-        Assert.That(calls.Items, Is.EqualTo(new object?[] { "method" }));
+        Assert.That(
+            calls.Items.Select(static item => item.IsString ? item.AsString() : item.ToObject()).ToArray(),
+            Is.EqualTo(new object?[] { "method" }));
     }
 
     private static async Task<IDictionary<string, object?>> CapturePrototypeSnapshot(

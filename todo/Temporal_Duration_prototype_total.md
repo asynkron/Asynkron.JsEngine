@@ -1,7 +1,9 @@
 # Temporal_Duration_prototype_total
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Duration_prototype_total`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Duration_prototype_total`
 
 Full test name:
 

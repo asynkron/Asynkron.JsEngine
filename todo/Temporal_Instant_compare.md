@@ -43,8 +43,4 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_compare("built-ins/Temporal/Instant/compare/instant-string.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_compare("built-ins/Temporal/Instant/compare/leap-second.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_compare("built-ins/Temporal/Instant/compare/leap-second.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_compare("built-ins/Temporal/Instant/compare/not-a-constructor.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_compare("built-ins/Temporal/Instant/compare/prop-desc.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_compare("built-ins/Temporal/Instant/compare/prop-desc.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_compare("built-ins/Temporal/Instant/compare/year-zero.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_compare("built-ins/Temporal/Instant/compare/year-zero.js",True)

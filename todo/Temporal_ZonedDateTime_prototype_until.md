@@ -1,7 +1,9 @@
 # Temporal_ZonedDateTime_prototype_until
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_until`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_until`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_until`
 
 Full test name:
 

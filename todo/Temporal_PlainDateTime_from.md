@@ -1,7 +1,9 @@
 # Temporal_PlainDateTime_from
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDateTime_from`
 
 Full test name:
 
@@ -61,24 +63,16 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/argument-zoneddatetime-balance-negative-time-units.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/argument-zoneddatetime-negative-epochnanoseconds.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/argument-zoneddatetime-negative-epochnanoseconds.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/infinity-throws-rangeerror.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/infinity-throws-rangeerror.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/leap-second.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/leap-second.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/limits.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/limits.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/monthcode-invalid.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/monthcode-invalid.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/name.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/not-a-constructor.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/not-a-constructor.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/observable-get-overflow-argument-primitive.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/observable-get-overflow-argument-primitive.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/observable-get-overflow-argument-string-invalid.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/observable-get-overflow-argument-string-invalid.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/options-object.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/options-undefined.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/options-undefined.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/options-wrong-type.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/options-wrong-type.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_from("built-ins/Temporal/PlainDateTime/from/order-of-operations.js",False)

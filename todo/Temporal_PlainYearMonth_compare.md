@@ -1,7 +1,9 @@
 # Temporal_PlainYearMonth_compare
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_compare`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_compare`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainYearMonth_compare`
 
 Full test name:
 
@@ -24,14 +26,8 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_compare("built-ins/Temporal/PlainYearMonth/compare/argument-string-calendar-annotation-invalid-key.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_compare("built-ins/Temporal/PlainYearMonth/compare/argument-string-calendar-annotation-invalid-key.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_compare("built-ins/Temporal/PlainYearMonth/compare/argument-string-critical-unknown-annotation.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_compare("built-ins/Temporal/PlainYearMonth/compare/argument-string-critical-unknown-annotation.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_compare("built-ins/Temporal/PlainYearMonth/compare/argument-string-date-with-utc-offset.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_compare("built-ins/Temporal/PlainYearMonth/compare/argument-string-date-with-utc-offset.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_compare("built-ins/Temporal/PlainYearMonth/compare/argument-string-invalid.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_compare("built-ins/Temporal/PlainYearMonth/compare/argument-string-invalid.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_compare("built-ins/Temporal/PlainYearMonth/compare/argument-string-limits.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_compare("built-ins/Temporal/PlainYearMonth/compare/argument-string-limits.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_compare("built-ins/Temporal/PlainYearMonth/compare/argument-string-minus-sign.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_compare("built-ins/Temporal/PlainYearMonth/compare/argument-string-minus-sign.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_compare("built-ins/Temporal/PlainYearMonth/compare/argument-string-multiple-calendar.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_compare("built-ins/Temporal/PlainYearMonth/compare/argument-string-multiple-calendar.js",True)

@@ -45,8 +45,3 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Object_defineProperties("built-ins/Object/defineProperties/15.2.3.7-6-a-185.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Object_defineProperties("built-ins/Object/defineProperties/15.2.3.7-6-a-198.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Object_defineProperties("built-ins/Object/defineProperties/15.2.3.7-6-a-198.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Object_defineProperties("built-ins/Object/defineProperties/property-description-must-be-an-object-not-undefined.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Object_defineProperties("built-ins/Object/defineProperties/proxy-no-ownkeys-returned-keys-order.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Object_defineProperties("built-ins/Object/defineProperties/proxy-no-ownkeys-returned-keys-order.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Object_defineProperties("built-ins/Object/defineProperties/typedarray-backed-by-resizable-buffer.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Object_defineProperties("built-ins/Object/defineProperties/typedarray-backed-by-resizable-buffer.js",True)

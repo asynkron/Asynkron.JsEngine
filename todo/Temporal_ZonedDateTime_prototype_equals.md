@@ -1,7 +1,9 @@
 # Temporal_ZonedDateTime_prototype_equals
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_equals`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_equals`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_equals`
 
 Full test name:
 
@@ -89,9 +91,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_equals("intl402/Temporal/ZonedDateTime/prototype/equals/argument-valid.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_equals("intl402/Temporal/ZonedDateTime/prototype/equals/canonical-iana-names.js",False)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_equals("intl402/Temporal/ZonedDateTime/prototype/equals/canonical-iana-names.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_equals("intl402/Temporal/ZonedDateTime/prototype/equals/canonical-not-equal.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_equals("intl402/Temporal/ZonedDateTime/prototype/equals/canonical-not-equal.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_equals("intl402/Temporal/ZonedDateTime/prototype/equals/canonicalize-calendar.js",False)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_equals("intl402/Temporal/ZonedDateTime/prototype/equals/canonicalize-calendar.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_equals("intl402/Temporal/ZonedDateTime/prototype/equals/canonicalize-iana-identifiers-before-comparing.js",False)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_equals("intl402/Temporal/ZonedDateTime/prototype/equals/canonicalize-iana-identifiers-before-comparing.js",True)

@@ -1,7 +1,9 @@
 # Temporal_PlainDateTime_prototype_equals
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDateTime_prototype_equals`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_equals`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDateTime_prototype_equals`
 
 Full test name:
 

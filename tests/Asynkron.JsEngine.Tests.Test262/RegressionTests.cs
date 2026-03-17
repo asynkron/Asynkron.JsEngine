@@ -32,8 +32,10 @@ public class RegressionTests
 
         var resultArray = result as JsArray ?? throw new AssertionException("Expected array result");
         TestContext.WriteLine($"SetterType={resultArray.Items[0]}, Value={resultArray.Items[1]}");
-        Assert.That(resultArray.Items[0], Is.EqualTo("function"));
-        Assert.That(resultArray.Items[1], Is.EqualTo("key"));
+        Assert.That(resultArray.Items[0].IsString, Is.True);
+        Assert.That(resultArray.Items[0].AsString(), Is.EqualTo("function"));
+        Assert.That(resultArray.Items[1].IsString, Is.True);
+        Assert.That(resultArray.Items[1].AsString(), Is.EqualTo("key"));
     }
 
     [Test]

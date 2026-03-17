@@ -1,7 +1,9 @@
 # Temporal_Instant_prototype_toZonedDateTimeISO
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Instant_prototype_toZonedDateTimeISO`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_prototype_toZonedDateTimeISO`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Instant_prototype_toZonedDateTimeISO`
 
 Full test name:
 

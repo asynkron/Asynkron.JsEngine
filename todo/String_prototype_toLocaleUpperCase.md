@@ -1,7 +1,9 @@
 # String_prototype_toLocaleUpperCase
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.String_prototype_toLocaleUpperCase`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_toLocaleUpperCase`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.String_prototype_toLocaleUpperCase`
 
 Full test name:
 

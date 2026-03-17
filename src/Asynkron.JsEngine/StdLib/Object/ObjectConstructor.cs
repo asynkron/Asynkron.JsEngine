@@ -480,12 +480,12 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     private static JsValue GetOwnPropertyDescriptor(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
-        if (args.Count < 2 || !TryGetObject(args[0], realmState, out var obj))
+        if (args.Count == 0 || !TryGetObject(args[0], realmState, out var obj))
         {
             return JsValue.Undefined;
         }
 
-        var propName = JsOps.GetRequiredPropertyName(args[1]);
+        var propName = JsOps.GetRequiredPropertyName(args.GetArgument(1));
 
         var desc = obj.GetOwnPropertyDescriptor(propName);
         if (desc is null)

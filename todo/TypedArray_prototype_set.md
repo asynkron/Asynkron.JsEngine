@@ -49,7 +49,5 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArray_prototype_set("built-ins/TypedArray/prototype/set/typedarray-arg-set-values-same-buffer-same-type-sab.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArray_prototype_set("built-ins/TypedArray/prototype/set/typedarray-arg-set-values-same-buffer-same-type.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArray_prototype_set("built-ins/TypedArray/prototype/set/typedarray-arg-set-values-same-buffer-same-type.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArray_prototype_set("built-ins/TypedArray/prototype/set/typedarray-arg-src-backed-by-resizable-buffer.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArray_prototype_set("built-ins/TypedArray/prototype/set/typedarray-arg-src-backed-by-resizable-buffer.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArray_prototype_set("built-ins/TypedArray/prototype/set/typedarray-arg-src-range-greather-than-target-throws-rangeerror.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArray_prototype_set("built-ins/TypedArray/prototype/set/typedarray-arg-src-range-greather-than-target-throws-rangeerror.js",True)

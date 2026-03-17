@@ -1,7 +1,9 @@
 # Temporal_ZonedDateTime_prototype_hoursInDay
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_hoursInDay`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_hoursInDay`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_hoursInDay`
 
 Full test name:
 

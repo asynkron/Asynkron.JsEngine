@@ -124,6 +124,12 @@ public static partial class TypedAstEvaluator
 
         if (target.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
+            if (accessor is JsProxy proxy)
+            {
+                proxy.SetProperty(propertyName, value, target);
+                return;
+            }
+
             var descriptor = accessor.GetOwnPropertyDescriptor(propertyName);
             if (descriptor is not null)
             {

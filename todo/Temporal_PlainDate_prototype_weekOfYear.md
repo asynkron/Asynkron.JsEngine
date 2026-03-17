@@ -1,7 +1,9 @@
 # Temporal_PlainDate_prototype_weekOfYear
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDate_prototype_weekOfYear`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDate_prototype_weekOfYear`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDate_prototype_weekOfYear`
 
 Full test name:
 

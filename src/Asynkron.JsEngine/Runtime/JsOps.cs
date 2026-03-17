@@ -1296,6 +1296,7 @@ internal static class JsOps
         var obj = value.ObjectValue;
         return obj switch
         {
+            JsProxy proxy => proxy.GetPrototypeWithTrap(),
             IPrototypeAccessorProvider { PrototypeAccessor: { } protoAccessor } => protoAccessor,
             IJsObjectLike { Prototype: { } proto } => proto,
             JsObject { Prototype: { } jsProto } => jsProto,
@@ -1399,7 +1400,7 @@ internal static class JsOps
             JsValueKind.Object => value.ObjectValue switch
             {
                 IIsHtmlDda => "undefined",
-                JsProxy proxy => proxy.Target is IJsCallable ? "function" : "object",
+                JsProxy proxy => proxy.IsCallableTarget() ? "function" : "object",
                 IJsCallable => "function",
                 _ => "object"
             },

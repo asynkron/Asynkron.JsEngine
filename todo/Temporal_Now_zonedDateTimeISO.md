@@ -1,7 +1,9 @@
 # Temporal_Now_zonedDateTimeISO
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Now_zonedDateTimeISO`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Now_zonedDateTimeISO`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Now_zonedDateTimeISO`
 
 Full test name:
 

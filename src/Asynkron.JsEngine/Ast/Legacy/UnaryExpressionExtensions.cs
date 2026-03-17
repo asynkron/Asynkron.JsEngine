@@ -39,7 +39,7 @@ public static partial class TypedAstEvaluator
         // For Proxy, check if the target is callable (ES spec: Proxy has [[Call]] only if target does)
         if (obj is JsProxy proxy)
         {
-            return proxy.Target is IJsCallable ? "function" : "object";
+            return proxy.IsCallableTarget() ? "function" : "object";
         }
 
         return obj is IJsCallable ? "function" : "object";

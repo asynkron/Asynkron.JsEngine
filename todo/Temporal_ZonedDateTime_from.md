@@ -1,7 +1,9 @@
 # Temporal_ZonedDateTime_from
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_from`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_from`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_from`
 
 Full test name:
 
@@ -151,7 +153,5 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_from("intl402/Temporal/ZonedDateTime/from/infinity-throws-rangeerror.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_from("intl402/Temporal/ZonedDateTime/from/options-undefined.js",False)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_from("intl402/Temporal/ZonedDateTime/from/options-undefined.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_from("intl402/Temporal/ZonedDateTime/from/timezone-case-insensitive.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_from("intl402/Temporal/ZonedDateTime/from/timezone-case-insensitive.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_from("intl402/Temporal/ZonedDateTime/from/zoneddatetime-sub-minute-offset.js",False)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_from("intl402/Temporal/ZonedDateTime/from/zoneddatetime-sub-minute-offset.js",True)

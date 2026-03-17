@@ -1,7 +1,9 @@
 # String_prototype_localeCompare
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.String_prototype_localeCompare`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_localeCompare`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.String_prototype_localeCompare`
 
 Full test name:
 

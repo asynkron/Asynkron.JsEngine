@@ -402,15 +402,18 @@ public static class ObjectHelper
 
     private static bool TryPreventExtensionsProxy(JsProxy proxy, RealmState realm)
     {
-        // Check for preventExtensions trap
-        if (proxy.Handler is not null &&
-            proxy.Handler.TryGetProperty("preventExtensions", out var trapValue) &&
-            !trapValue.IsUndefined && !trapValue.IsNull &&
-            trapValue.TryGetObject<IJsCallable>(out var trap))
+        var handler = proxy.Handler ?? throw ThrowTypeError("Cannot perform operation on a revoked Proxy", realm: realm);
+
+        if (handler.TryGetProperty("preventExtensions", out var trapValue) &&
+            !trapValue.IsUndefined && !trapValue.IsNull)
         {
+            if (!trapValue.TryGetObject<IJsCallable>(out var trap))
+            {
+                throw ThrowTypeError("Proxy handler's 'preventExtensions' trap is not callable", realm: realm);
+            }
+
             var targetJsValue = JsValue.FromObjectUnsafe(proxy.Target);
-            var result = trap.Invoke(new SingleValueArgs(targetJsValue),
-                JsValue.FromObjectUnsafe(proxy.Handler));
+            var result = trap.Invoke(new SingleValueArgs(targetJsValue), JsValue.FromObjectUnsafe(handler));
 
             if (!JsOps.ToBoolean(result))
             {
@@ -428,9 +431,8 @@ public static class ObjectHelper
             return true;
         }
 
-        // No trap - fall through to target
-        PreventExtensionsOnTarget(proxy);
-        return true;
+        // No trap - forward to the proxy target's own [[PreventExtensions]].
+        return TryPreventExtensions(proxy.Target, realm);
     }
 
     internal static void PreventExtensionsOnTarget(IJsObjectLike target)

@@ -63,8 +63,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat("intl402/NumberFormat/ignore-invalid-unicode-ext-values.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat("intl402/NumberFormat/style-unit.js",False)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat("intl402/NumberFormat/style-unit.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat("intl402/NumberFormat/taint-Object-prototype.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat("intl402/NumberFormat/taint-Object-prototype.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat("intl402/NumberFormat/test-option-currency.js",False)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat("intl402/NumberFormat/test-option-currency.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.NumberFormat("intl402/NumberFormat/test-option-currencyDisplay.js",False)

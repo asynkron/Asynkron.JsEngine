@@ -1,7 +1,9 @@
 # Temporal_ZonedDateTime_prototype_getTimeZoneTransition
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_getTimeZoneTransition`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_getTimeZoneTransition`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_getTimeZoneTransition`
 
 Full test name:
 

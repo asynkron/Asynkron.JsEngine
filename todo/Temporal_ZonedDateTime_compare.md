@@ -1,7 +1,9 @@
 # Temporal_ZonedDateTime_compare
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_compare`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_compare`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_compare`
 
 Full test name:
 
@@ -69,8 +71,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_compare("built-ins/Temporal/ZonedDateTime/compare/zoneddatetime-string-multiple-offsets.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_compare("built-ins/Temporal/ZonedDateTime/compare/zoneddatetime-string.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_compare("built-ins/Temporal/ZonedDateTime/compare/zoneddatetime-string.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_compare("intl402/Temporal/ZonedDateTime/compare/argument-propertybag-timezone-string-datetime.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_compare("intl402/Temporal/ZonedDateTime/compare/argument-propertybag-timezone-string-datetime.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_compare("intl402/Temporal/ZonedDateTime/compare/infinity-throws-rangeerror.js",False)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_compare("intl402/Temporal/ZonedDateTime/compare/infinity-throws-rangeerror.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_compare("intl402/Temporal/ZonedDateTime/compare/sub-minute-offset.js",False)

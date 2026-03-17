@@ -1,7 +1,9 @@
 # String_prototype_toLocaleLowerCase
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.String_prototype_toLocaleLowerCase`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_toLocaleLowerCase`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.String_prototype_toLocaleLowerCase`
 
 Full test name:
 

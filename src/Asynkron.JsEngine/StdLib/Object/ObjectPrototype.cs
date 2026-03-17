@@ -557,7 +557,9 @@ public sealed partial class ObjectPrototype
 
             current = current switch
             {
-                JsProxy proxy => proxy.GetPrototypeWithTrap(),
+                // OrdinarySetPrototypeOf must not invoke a proxy's getPrototypeOf trap
+                // while checking for cycles; exotic prototypes terminate the walk.
+                JsProxy => null,
                 JsObject jsObject => jsObject.Prototype,
                 IPrototypeAccessorProvider provider => provider.PrototypeAccessor,
                 _ => null

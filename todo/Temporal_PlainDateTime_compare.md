@@ -1,7 +1,9 @@
 # Temporal_PlainDateTime_compare
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDateTime_compare`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_compare`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDateTime_compare`
 
 Full test name:
 

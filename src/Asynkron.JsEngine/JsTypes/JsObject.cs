@@ -233,6 +233,11 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             throw new ThrowSignal(JsValue.Undefined);
         }
 
+        if (WouldCreatePrototypeCycle(candidate))
+        {
+            throw new ThrowSignal(JsValue.Undefined);
+        }
+
         MarkMutated();
         PrototypeAccessor = candidate as IJsPropertyAccessor;
         Prototype = candidate as JsObject;
@@ -245,6 +250,30 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                 DescribePrototype(previous),
                 DescribePrototype(candidate));
         }
+    }
+
+    private bool WouldCreatePrototypeCycle(IJsPropertyAccessor? candidate)
+    {
+        IJsPropertyAccessor? current = candidate;
+        for (var depth = 0; current is not null && depth < JsEngineConstants.MaxPrototypeChainDepth; depth++)
+        {
+            if (ReferenceEquals(current, this))
+            {
+                return true;
+            }
+
+            current = current switch
+            {
+                // OrdinarySetPrototypeOf stops walking when it encounters an exotic
+                // prototype with a non-ordinary [[GetPrototypeOf]] such as Proxy.
+                JsProxy => null,
+                IPrototypeAccessorProvider { PrototypeAccessor: { } protoAccessor } => protoAccessor,
+                IJsObjectLike objectLike => objectLike.Prototype,
+                _ => null
+            };
+        }
+
+        return false;
     }
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
@@ -870,6 +899,66 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             }
         }
 
+        if (TryResolveReceiverObject(receiver, out var receiverObject) && !ReferenceEquals(receiverObject, this))
+        {
+            var receiverDesc = receiverObject.GetOwnPropertyDescriptor(name);
+            if (receiverDesc is not null)
+            {
+                if (receiverDesc.IsAccessorDescriptor)
+                {
+                    receiverDesc.Set?.Invoke(new SingleValueArgs(JsValue.FromObjectUnsafe(value)),
+                        JsValue.FromObjectUnsafe(receiverObject));
+                    return;
+                }
+
+                if (!receiverDesc.Writable)
+                {
+                    return;
+                }
+
+                if (receiverObject is IPropertyDefinitionHost receiverDefinitionHost)
+                {
+                    if (!receiverDefinitionHost.TryDefineProperty(name,
+                            new PropertyDescriptor { JsValue = JsValue.FromObjectUnsafe(value) }))
+                    {
+                        return;
+                    }
+                }
+                else
+                {
+                    receiverObject.DefineProperty(name,
+                        new PropertyDescriptor { JsValue = JsValue.FromObjectUnsafe(value) });
+                }
+
+                return;
+            }
+
+            if (receiverObject is IExtensibilityControl { IsExtensible: false })
+            {
+                return;
+            }
+
+            var newDesc = new PropertyDescriptor
+            {
+                JsValue = JsValue.FromObjectUnsafe(value),
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
+            };
+
+            if (receiverObject is IPropertyDefinitionHost host && !host.TryDefineProperty(name, newDesc))
+            {
+                return;
+            }
+
+            if (receiverObject is not IPropertyDefinitionHost)
+            {
+                receiverObject.DefineProperty(name, newDesc);
+            }
+
+            return;
+        }
+
         // Frozen objects cannot have properties modified
         if (IsFrozen)
         {
@@ -887,6 +976,22 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         if (!propertyExists)
         {
             TrackPropertyInsertion(name);
+        }
+    }
+
+    private static bool TryResolveReceiverObject(object? receiver, out IJsObjectLike receiverObject)
+    {
+        switch (receiver)
+        {
+            case IJsObjectLike objectLike:
+                receiverObject = objectLike;
+                return true;
+            case JsValue jsValue when jsValue.TryGetObject<IJsObjectLike>(out var objectLike):
+                receiverObject = objectLike;
+                return true;
+            default:
+                receiverObject = null!;
+                return false;
         }
     }
 
@@ -1072,6 +1177,12 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         {
             currentDescriptor = CreateDataDescriptorFromExistingValue(existingValue);
         }
+        else if (!hadStoredDescriptor &&
+                 _virtualPropertyProvider is not null &&
+                 _virtualPropertyProvider.TryGetOwnProperty(name, out _, out var virtualDescriptor))
+        {
+            currentDescriptor = virtualDescriptor;
+        }
 
         if (currentDescriptor is null)
         {
@@ -1151,6 +1262,12 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         if (!hadStoredDescriptor && hadDataSlot)
         {
             currentDescriptor = CreateDataDescriptorFromExistingValue(existingValue);
+        }
+        else if (!hadStoredDescriptor &&
+                 _virtualPropertyProvider is not null &&
+                 _virtualPropertyProvider.TryGetOwnProperty(name, out _, out var virtualDescriptor))
+        {
+            currentDescriptor = virtualDescriptor;
         }
 
         if (currentDescriptor is null)
@@ -2262,7 +2379,11 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         // when defined via shorthand { __proto__ } syntax. The prototype is stored in
         // _prototypeAccessor and Prototype fields, not as a property.
         return name.StartsWith(GetterPrefix, StringComparison.Ordinal) ||
-               name.StartsWith(SetterPrefix, StringComparison.Ordinal);
+               name.StartsWith(SetterPrefix, StringComparison.Ordinal) ||
+               string.Equals(name, "__value__", StringComparison.Ordinal) ||
+               string.Equals(name, "__regex__", StringComparison.Ordinal) ||
+               string.Equals(name, "__arguments__", StringComparison.Ordinal) ||
+               string.Equals(name, "__promise__", StringComparison.Ordinal);
     }
 
     private static bool IsSymbolKey(string key)

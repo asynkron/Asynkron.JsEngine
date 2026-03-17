@@ -643,33 +643,6 @@ public static class ReflectHelper
 
         var proto = protoArg.IsNull ? null : protoArg.ObjectValue as IJsPropertyAccessor;
 
-        // Check for non-extensible target: if target is not extensible, proto must be same as current prototype
-        if (target is IExtensibilityControl { IsExtensible: false })
-        {
-            var currentProto = target.Prototype;
-            if (!ReferenceEquals(proto, currentProto))
-            {
-                return new JsValue(false);
-            }
-
-            return new JsValue(true);
-        }
-
-        // Check for cycle: walk proto's prototype chain; if we find target, return false
-        if (proto is not null)
-        {
-            var current = proto as IJsObjectLike;
-            while (current is not null)
-            {
-                if (ReferenceEquals(current, target))
-                {
-                    return new JsValue(false);
-                }
-
-                current = current.Prototype;
-            }
-        }
-
         // 3. Return ? target.[[SetPrototypeOf]](proto).
         try
         {

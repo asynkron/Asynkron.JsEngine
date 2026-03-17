@@ -1,7 +1,9 @@
 # Temporal_PlainYearMonth_prototype_subtract
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainYearMonth_prototype_subtract`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainYearMonth_prototype_subtract`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainYearMonth_prototype_subtract`
 
 Full test name:
 

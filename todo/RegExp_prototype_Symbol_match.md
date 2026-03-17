@@ -41,8 +41,6 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_prototype_Symbol_match("built-ins/RegExp/prototype/Symbol.match/g-get-result-err.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_prototype_Symbol_match("built-ins/RegExp/prototype/Symbol.match/g-init-lastindex-err.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_prototype_Symbol_match("built-ins/RegExp/prototype/Symbol.match/g-init-lastindex-err.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_prototype_Symbol_match("built-ins/RegExp/prototype/Symbol.match/g-match-empty-advance-lastindex.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_prototype_Symbol_match("built-ins/RegExp/prototype/Symbol.match/g-match-empty-advance-lastindex.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_prototype_Symbol_match("built-ins/RegExp/prototype/Symbol.match/g-match-empty-coerce-lastindex-err.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_prototype_Symbol_match("built-ins/RegExp/prototype/Symbol.match/g-match-empty-coerce-lastindex-err.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_prototype_Symbol_match("built-ins/RegExp/prototype/Symbol.match/g-match-empty-set-lastindex-err.js",False)

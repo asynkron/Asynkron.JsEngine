@@ -1,7 +1,9 @@
 # Temporal_Now_plainDateTimeISO
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Now_plainDateTimeISO`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Now_plainDateTimeISO`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Now_plainDateTimeISO`
 
 Full test name:
 

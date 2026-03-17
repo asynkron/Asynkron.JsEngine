@@ -67,6 +67,9 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     /// <inheritdoc />
     public ref readonly JsValue AsJsValue => ref _cachedJsValue;
 
+    private RealmState? ErrorRealm => RealmState.Current ?? _realm;
+    private RealmState? CurrentOperationRealm => RealmState.Current ?? _realm;
+
     // --- [[IsExtensible]] with trap ---
     public bool IsExtensible
     {
@@ -81,7 +84,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 {
                     throw StandardLibrary.ThrowTypeError(
                         "'isExtensible' on proxy: trap result does not reflect extensibility of proxy target",
-                        realm: _realm);
+                        realm: ErrorRealm);
                 }
 
                 return booleanTrapResult;
@@ -104,7 +107,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 {
                     throw StandardLibrary.ThrowTypeError(
                         "'preventExtensions' on proxy: trap returned truish but the proxy target is extensible",
-                        realm: _realm);
+                        realm: ErrorRealm);
                 }
             }
 
@@ -125,16 +128,16 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     public JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
     {
         _ = Handler ?? throw StandardLibrary.ThrowTypeError("Cannot perform operation on a revoked Proxy",
-            realm: _realm);
+            realm: ErrorRealm);
 
         if (Target is not IJsCallable callableTarget)
         {
-            throw StandardLibrary.ThrowTypeError("Proxy target is not callable", realm: _realm);
+            throw StandardLibrary.ThrowTypeError("Proxy target is not callable", realm: ErrorRealm);
         }
 
         if (TryGetTrap("apply", out var trap))
         {
-            var argArray = JsValue.FromJsArray(new JsArray(arguments, _realm));
+            var argArray = JsValue.FromJsArray(new JsArray(arguments, CurrentOperationRealm));
             var args = new[] { _targetJsValue, thisValue, argArray };
             return trap.Invoke(args, _handlerJsValue);
         }
@@ -146,11 +149,11 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     internal JsValue Construct(IReadOnlyList<JsValue> arguments, IJsCallable newTarget)
     {
         _ = Handler ?? throw StandardLibrary.ThrowTypeError("Cannot perform operation on a revoked Proxy",
-            realm: _realm);
+            realm: ErrorRealm);
 
         if (TryGetTrap("construct", out var trap))
         {
-            var argArray = JsValue.FromJsArray(new JsArray(arguments, _realm));
+            var argArray = JsValue.FromJsArray(new JsArray(arguments, CurrentOperationRealm));
             var args = new[] { _targetJsValue, argArray, JsValue.FromObjectUnsafe(newTarget) };
             var trapResult = trap.Invoke(args, _handlerJsValue);
 
@@ -159,7 +162,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             {
                 throw StandardLibrary.ThrowTypeError(
                     "'construct' on proxy: trap returned non-Object",
-                    realm: _realm);
+                    realm: ErrorRealm);
             }
 
             return trapResult;
@@ -168,7 +171,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         // No trap: fall through to target [[Construct]]
         if (Target is not IJsCallable callableTarget)
         {
-            throw StandardLibrary.ThrowTypeError("Proxy target is not a constructor", realm: _realm);
+            throw StandardLibrary.ThrowTypeError("Proxy target is not a constructor", realm: ErrorRealm);
         }
 
         // Delegate to ReflectHelper.Construct for proper construction semantics
@@ -207,7 +210,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         if (!trapResult.IsObject)
         {
             throw StandardLibrary.ThrowTypeError(
-                "CreateListFromArrayLike called on non-object", realm: _realm);
+                "CreateListFromArrayLike called on non-object", realm: ErrorRealm);
         }
 
         // Extract keys and validate types
@@ -220,7 +223,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             if (!seen.Add(key))
             {
                 throw StandardLibrary.ThrowTypeError(
-                    "'ownKeys' on proxy: trap returned duplicate entries", realm: _realm);
+                    "'ownKeys' on proxy: trap returned duplicate entries", realm: ErrorRealm);
             }
         }
 
@@ -260,7 +263,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 {
                     throw StandardLibrary.ThrowTypeError(
                         "'ownKeys' on proxy: trap result did not include '" + key + "'",
-                        realm: _realm);
+                        realm: ErrorRealm);
                 }
             }
 
@@ -278,7 +281,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                     {
                         throw StandardLibrary.ThrowTypeError(
                             "'ownKeys' on proxy: trap result did not include '" + key + "'",
-                            realm: _realm);
+                            realm: ErrorRealm);
                     }
                 }
 
@@ -287,7 +290,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 {
                     throw StandardLibrary.ThrowTypeError(
                         "'ownKeys' on proxy: trap returned extra keys but the proxy target is not extensible",
-                        realm: _realm);
+                        realm: ErrorRealm);
                 }
             }
         }
@@ -337,7 +340,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         if (arrayLike is null)
         {
             throw StandardLibrary.ThrowTypeError(
-                "CreateListFromArrayLike called on non-object", realm: _realm);
+                "CreateListFromArrayLike called on non-object", realm: ErrorRealm);
         }
 
         if (!arrayLike.TryGetProperty("length", out var lengthVal))
@@ -366,6 +369,11 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return element.AsString();
         }
 
+        if (element.IsSymbol && element.TryUnwrap<JsSymbol>(out var primitiveSymbol))
+        {
+            return JsSymbol.PropertyKey(primitiveSymbol);
+        }
+
         if (element.TryGetObject<JsSymbol>(out var symbol))
         {
             return JsSymbol.PropertyKey(symbol);
@@ -373,7 +381,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         throw StandardLibrary.ThrowTypeError(
             "'ownKeys' on proxy: trap result included a non-String, non-Symbol key",
-            realm: _realm);
+            realm: ErrorRealm);
     }
 
     // --- [[Get]] with invariant checks ---
@@ -406,7 +414,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                         throw StandardLibrary.ThrowTypeError(
                             "'get' on proxy: property '" + name +
                             "' is a read-only and non-configurable data property on the proxy target but the proxy did not return its actual value",
-                            realm: _realm);
+                            realm: ErrorRealm);
                     }
                 }
                 else if (targetDesc.IsAccessorDescriptor && targetDesc.Get is null)
@@ -417,7 +425,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                         throw StandardLibrary.ThrowTypeError(
                             "'get' on proxy: property '" + name +
                             "' is a non-configurable accessor property on the proxy target and does not have a getter function, but the trap did not return 'undefined'",
-                            realm: _realm);
+                            realm: ErrorRealm);
                     }
                 }
             }
@@ -452,7 +460,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             var result = trap.Invoke(args, _handlerJsValue);
             if (!JsOps.ToBoolean(result))
             {
-                throw StandardLibrary.ThrowTypeError("Proxy 'set' trap returned a falsy value", realm: _realm);
+                throw StandardLibrary.ThrowTypeError("Proxy 'set' trap returned a falsy value", realm: ErrorRealm);
             }
 
             // Invariant checks per ES spec 10.5.9 step 14
@@ -467,7 +475,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                         throw StandardLibrary.ThrowTypeError(
                             "'set' on proxy: trap returned truish for property '" + name +
                             "' which exists in the proxy target as a non-configurable and non-writable data property with a different value",
-                            realm: _realm);
+                            realm: ErrorRealm);
                     }
                 }
                 else if (targetDesc.IsAccessorDescriptor && targetDesc.Set is null)
@@ -476,14 +484,35 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                     throw StandardLibrary.ThrowTypeError(
                         "'set' on proxy: trap returned truish for property '" + name +
                         "' which exists in the proxy target as a non-configurable and non-writable accessor property without a setter",
-                        realm: _realm);
+                        realm: ErrorRealm);
                 }
             }
 
             return;
         }
 
-        Target.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromJsProxy(this) : receiver);
+        var effectiveReceiver = receiver.IsUndefined ? JsValue.FromJsProxy(this) : receiver;
+        if (effectiveReceiver.TryGetObject<JsProxy>(out var receiverProxy) &&
+            Target is JsObject targetObject &&
+            !targetObject.HasProperty(name))
+        {
+            var newDesc = new PropertyDescriptor
+            {
+                JsValue = value,
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
+            };
+
+            if (!receiverProxy.TryDefineProperty(name, newDesc))
+            {
+                return;
+            }
+
+            return;
+        }
+
+        Target.SetProperty(name, value, effectiveReceiver);
     }
 
     public void SetProperty(string name, JsValue value)
@@ -502,7 +531,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         if (TryGetTrap("defineProperty", out var trap))
         {
-            var descriptorObject = CreateDescriptorObject(descriptor);
+            var descriptorObject = CreateDescriptorObject(descriptor, CurrentOperationRealm);
             var args = new[]
             {
                 _targetJsValue, JsValue.FromObjectUnsafe(DecodePropertyKey(name)),
@@ -512,7 +541,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             if (!JsOps.ToBoolean(result))
             {
                 throw StandardLibrary.ThrowTypeError("Proxy 'defineProperty' trap returned a falsy value",
-                    realm: _realm);
+                    realm: ErrorRealm);
             }
 
             // Invariant checks per ES spec 10.5.6
@@ -520,7 +549,11 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return;
         }
 
-        Target.DefineProperty(name, descriptor);
+        if (!TryForwardDefineProperty(name, descriptor))
+        {
+            throw StandardLibrary.ThrowTypeError("Proxy 'defineProperty' trap returned a falsy value",
+                realm: ErrorRealm);
+        }
     }
 
     // --- [[GetOwnProperty]] with invariant checks ---
@@ -537,15 +570,15 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             var result = trap.Invoke(args, _handlerJsValue);
 
             // Invariant: result must be Object or undefined
-            if (!result.IsUndefined && !result.IsNull && !result.IsObject)
+            if (!result.IsUndefined && !result.IsObject)
             {
                 throw StandardLibrary.ThrowTypeError(
                     "'getOwnPropertyDescriptor' on proxy: trap returned neither Object nor undefined for property '" +
                     name + "'",
-                    realm: _realm);
+                    realm: ErrorRealm);
             }
 
-            var resultDesc = ConvertPropertyDescriptor(result, _realm);
+            var resultDesc = ConvertPropertyDescriptor(result, ErrorRealm);
 
             // Get the target's own property descriptor for invariant validation
             var targetDesc = Target.GetOwnPropertyDescriptor(name);
@@ -561,7 +594,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                         throw StandardLibrary.ThrowTypeError(
                             "'getOwnPropertyDescriptor' on proxy: trap returned undefined for property '" + name +
                             "' which is a non-configurable own property of the proxy target",
-                            realm: _realm);
+                            realm: ErrorRealm);
                     }
 
                     if (!TargetIsExtensible())
@@ -570,7 +603,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                         throw StandardLibrary.ThrowTypeError(
                             "'getOwnPropertyDescriptor' on proxy: trap returned undefined for property '" + name +
                             "' which exists in the non-extensible proxy target",
-                            realm: _realm);
+                            realm: ErrorRealm);
                     }
                 }
 
@@ -589,7 +622,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                     throw StandardLibrary.ThrowTypeError(
                         "'getOwnPropertyDescriptor' on proxy: trap returned incompatible property descriptor for property '" +
                         name + "'",
-                        realm: _realm);
+                        realm: ErrorRealm);
                 }
 
                 // If result says non-configurable but target says configurable
@@ -598,7 +631,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                     throw StandardLibrary.ThrowTypeError(
                         "'getOwnPropertyDescriptor' on proxy: trap reported non-configurable for property '" + name +
                         "' but the property is configurable on the proxy target",
-                        realm: _realm);
+                        realm: ErrorRealm);
                 }
 
                 // If result says non-configurable non-writable but target says writable
@@ -609,7 +642,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                     throw StandardLibrary.ThrowTypeError(
                         "'getOwnPropertyDescriptor' on proxy: trap reported non-configurable and non-writable for property '" +
                         name + "' but the property is writable on the proxy target",
-                        realm: _realm);
+                        realm: ErrorRealm);
                 }
             }
             else
@@ -620,7 +653,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                     throw StandardLibrary.ThrowTypeError(
                         "'getOwnPropertyDescriptor' on proxy: trap returned a descriptor for property '" + name +
                         "' that does not exist on the non-extensible proxy target",
-                        realm: _realm);
+                        realm: ErrorRealm);
                 }
 
                 if (resultDesc.HasConfigurable && !resultDesc.Configurable)
@@ -628,7 +661,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                     throw StandardLibrary.ThrowTypeError(
                         "'getOwnPropertyDescriptor' on proxy: trap reported non-configurable for property '" + name +
                         "' that does not exist on the proxy target",
-                        realm: _realm);
+                        realm: ErrorRealm);
                 }
             }
 
@@ -654,7 +687,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             if (!JsOps.ToBoolean(result))
             {
                 throw StandardLibrary.ThrowTypeError("Proxy 'setPrototypeOf' trap returned a falsy value",
-                    realm: _realm);
+                    realm: ErrorRealm);
             }
 
             // Invariant: if target is not extensible, trap result must match target prototype
@@ -665,7 +698,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 {
                     throw StandardLibrary.ThrowTypeError(
                         "'setPrototypeOf' on proxy: trap returned truish for setting a new prototype on a non-extensible proxy target",
-                        realm: _realm);
+                        realm: ErrorRealm);
                 }
             }
 
@@ -704,7 +737,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                         throw StandardLibrary.ThrowTypeError(
                             "'deleteProperty' on proxy: trap returned truish for property '" + name +
                             "' which is non-configurable in the proxy target",
-                            realm: _realm);
+                            realm: ErrorRealm);
                     }
 
                     // ES2020+: if target is not extensible, cannot delete existing property
@@ -713,7 +746,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                         throw StandardLibrary.ThrowTypeError(
                             "'deleteProperty' on proxy: trap returned truish for property '" + name +
                             "' but the proxy target is not extensible",
-                            realm: _realm);
+                            realm: ErrorRealm);
                     }
                 }
             }
@@ -744,7 +777,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         if (TryGetTrap("defineProperty", out var trap))
         {
-            var descriptorObject = CreateDescriptorObject(descriptor);
+            var descriptorObject = CreateDescriptorObject(descriptor, CurrentOperationRealm);
             var args = new[]
             {
                 _targetJsValue, JsValue.FromObjectUnsafe(DecodePropertyKey(name)),
@@ -762,8 +795,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         try
         {
-            Target.DefineProperty(name, descriptor);
-            return true;
+            return TryForwardDefineProperty(name, descriptor);
         }
         catch (ThrowSignal)
         {
@@ -794,7 +826,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                         throw StandardLibrary.ThrowTypeError(
                             "'has' on proxy: trap returned falsish for property '" + name +
                             "' which exists in the proxy target as non-configurable",
-                            realm: _realm);
+                            realm: ErrorRealm);
                     }
 
                     if (!TargetIsExtensible())
@@ -802,12 +834,17 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                         throw StandardLibrary.ThrowTypeError(
                             "'has' on proxy: trap returned falsish for property '" + name +
                             "' but the proxy target is not extensible",
-                            realm: _realm);
+                            realm: ErrorRealm);
                     }
                 }
             }
 
             return booleanTrapResult;
+        }
+
+        if (Target is JsProxy proxyTarget)
+        {
+            return proxyTarget.HasProperty(name);
         }
 
         if (Target is JsObject jsObject && jsObject.HasProperty(name))
@@ -852,7 +889,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                     {
                         throw StandardLibrary.ThrowTypeError(
                             "'getPrototypeOf' on proxy: proxy target is non-extensible but the trap did not return its actual prototype",
-                            realm: _realm);
+                            realm: ErrorRealm);
                     }
                 }
 
@@ -865,7 +902,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             {
                 throw StandardLibrary.ThrowTypeError(
                     "Proxy getPrototypeOf trap must return an object or null",
-                    realm: _realm);
+                    realm: ErrorRealm);
             }
 
             // Invariant: if target is not extensible, must match target prototype
@@ -876,7 +913,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 {
                     throw StandardLibrary.ThrowTypeError(
                         "'getPrototypeOf' on proxy: proxy target is non-extensible but the trap did not return its actual prototype",
-                        realm: _realm);
+                        realm: ErrorRealm);
                 }
             }
 
@@ -885,15 +922,21 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return resultObj;
         }
 
-        IJsPropertyAccessor? proto = Target.Prototype;
-        if (proto is null && Target is IPrototypeAccessorProvider provider)
-        {
-            proto = provider.PrototypeAccessor;
-        }
+        var proto = GetTargetPrototype();
 
         _meta.SetPrototype(proto);
         _privateStorage.SetPrototype(_meta.Prototype);
         return proto;
+    }
+
+    internal bool IsCallableTarget()
+    {
+        return Target switch
+        {
+            JsProxy proxyTarget => proxyTarget.IsCallableTarget(),
+            IJsCallable => true,
+            _ => false
+        };
     }
 
     // --- Helper: check target extensibility ---
@@ -905,6 +948,11 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     // --- Helper: get target prototype ---
     private IJsPropertyAccessor? GetTargetPrototype()
     {
+        if (Target is JsProxy proxyTarget)
+        {
+            return proxyTarget.GetPrototypeWithTrap();
+        }
+
         var proto = Target.Prototype;
         if (proto is null && Target is IPrototypeAccessorProvider provider)
         {
@@ -929,7 +977,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 throw StandardLibrary.ThrowTypeError(
                     "'defineProperty' on proxy: trap returned truish for defining property '" + name +
                     "' on a non-extensible proxy target",
-                    realm: _realm);
+                    realm: ErrorRealm);
             }
 
             // 19b: cannot define non-configurable property that doesn't exist on target
@@ -938,7 +986,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 throw StandardLibrary.ThrowTypeError(
                     "'defineProperty' on proxy: trap returned truish for defining non-configurable property '" + name +
                     "' which is either non-existent or configurable in the proxy target",
-                    realm: _realm);
+                    realm: ErrorRealm);
             }
         }
         else
@@ -950,7 +998,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 throw StandardLibrary.ThrowTypeError(
                     "'defineProperty' on proxy: trap returned truish for property '" + name +
                     "' which is incompatible with the existing property on the proxy target",
-                    realm: _realm);
+                    realm: ErrorRealm);
             }
 
             // 20b: cannot make non-configurable if target property is configurable
@@ -959,7 +1007,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 throw StandardLibrary.ThrowTypeError(
                     "'defineProperty' on proxy: trap returned truish for defining non-configurable property '" + name +
                     "' which is configurable in the proxy target",
-                    realm: _realm);
+                    realm: ErrorRealm);
             }
 
             // 20c: cannot make non-writable if target is non-configurable and writable
@@ -970,7 +1018,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                     throw StandardLibrary.ThrowTypeError(
                         "'defineProperty' on proxy: trap returned truish for defining non-writable property '" + name +
                         "' which is writable and non-configurable in the proxy target",
-                        realm: _realm);
+                        realm: ErrorRealm);
                 }
             }
         }
@@ -1076,7 +1124,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     private bool TryGetTrap(string trapName, out IJsCallable callable)
     {
         var handler = Handler ?? throw StandardLibrary.ThrowTypeError("Cannot perform operation on a revoked Proxy",
-            realm: _realm);
+            realm: ErrorRealm);
 
         if (!handler.TryGetProperty(trapName, out var trapValueObj))
         {
@@ -1093,11 +1141,29 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         if (!trapValueObj.IsObject || !trapValueObj.TryGetObject<IJsCallable>(out var callableTrap))
         {
-            throw StandardLibrary.ThrowTypeError($"Proxy handler's '{trapName}' trap is not callable", realm: _realm);
+            throw StandardLibrary.ThrowTypeError($"Proxy handler's '{trapName}' trap is not callable", realm: ErrorRealm);
         }
 
         callable = callableTrap;
         return true;
+    }
+
+    private bool TryForwardDefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        if (Target is IPropertyDefinitionHost definitionHost)
+        {
+            return definitionHost.TryDefineProperty(name, descriptor);
+        }
+
+        try
+        {
+            Target.DefineProperty(name, descriptor);
+            return true;
+        }
+        catch (ThrowSignal)
+        {
+            return false;
+        }
     }
 
     private static object DecodePropertyKey(string propertyName)
@@ -1176,9 +1242,11 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         return descriptor;
     }
 
-    private static JsObject CreateDescriptorObject(PropertyDescriptor descriptor)
+    private static JsObject CreateDescriptorObject(PropertyDescriptor descriptor, RealmState? realm)
     {
-        var result = new JsObject();
+        var result = realm is null
+            ? new JsObject()
+            : new JsObject(realm.ObjectPrototype) { RealmState = realm };
 
         if (descriptor.IsAccessorDescriptor)
         {

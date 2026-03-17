@@ -1,7 +1,9 @@
 # Temporal_PlainMonthDay_prototype_toJSON
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainMonthDay_prototype_toJSON`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toJSON`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainMonthDay_prototype_toJSON`
 
 Full test name:
 

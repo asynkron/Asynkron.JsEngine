@@ -1,7 +1,9 @@
 # Temporal_ZonedDateTime_prototype_toPlainDateTime
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_toPlainDateTime`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_toPlainDateTime`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_toPlainDateTime`
 
 Full test name:
 

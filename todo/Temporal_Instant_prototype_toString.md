@@ -1,7 +1,9 @@
 # Temporal_Instant_prototype_toString
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Instant_prototype_toString`
+FQNs:
+
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Instant_prototype_toString`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Instant_prototype_toString`
 
 Full test name:
 

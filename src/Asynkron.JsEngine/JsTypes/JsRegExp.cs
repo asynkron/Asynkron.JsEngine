@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+using Asynkron.JsEngine.StdLib.RegExp;
 
 #endregion
 
@@ -499,6 +500,27 @@ public sealed class JsRegExp
                 {
                     AppendCodePoint(builder, 0, hasUnicodeFlag, ignoreCase, true);
                     i++;
+                    continue;
+                }
+
+                // Handle Unicode property escapes: \p{...} and \P{...}
+                if (hasUnicodeFlag && i + 1 < pattern.Length && pattern[i + 1] is 'p' or 'P')
+                {
+                    var isNegated = pattern[i + 1] == 'P';
+                    if (i + 2 >= pattern.Length || pattern[i + 2] != '{')
+                    {
+                        throw new ParseException("Invalid regular expression: incomplete unicode property escape.");
+                    }
+
+                    var endBrace = pattern.IndexOf('}', i + 3);
+                    if (endBrace == -1)
+                    {
+                        throw new ParseException("Invalid regular expression: incomplete unicode property escape.");
+                    }
+
+                    var propertyExpr = pattern.Substring(i + 3, endBrace - (i + 3));
+                    builder.Append(BuildPropertyEscapePattern(propertyExpr, isNegated));
+                    i = endBrace;
                     continue;
                 }
 
@@ -1471,6 +1493,73 @@ public sealed class JsRegExp
                 break;
             }
 
+            // Handle \p{...} and \P{...} inside character classes
+            if (cursor + 1 < pattern.Length && pattern[cursor] == '\\' &&
+                pattern[cursor + 1] is 'p' or 'P')
+            {
+                var isNegatedProp = pattern[cursor + 1] == 'P';
+                if (cursor + 2 >= pattern.Length || pattern[cursor + 2] != '{')
+                {
+                    throw new ParseException(
+                        "Invalid regular expression: incomplete unicode property escape.");
+                }
+
+                var endBrace = pattern.IndexOf('}', cursor + 3);
+                if (endBrace == -1)
+                {
+                    throw new ParseException(
+                        "Invalid regular expression: incomplete unicode property escape.");
+                }
+
+                var propertyExpr = pattern.Substring(cursor + 3, endBrace - (cursor + 3));
+                var propRanges = UnicodePropertyData.Resolve(propertyExpr);
+                if (propRanges is null)
+                {
+                    throw new ParseException(
+                        $"Invalid regular expression: invalid unicode property escape \\{(isNegatedProp ? 'P' : 'p')}{{{propertyExpr}}}.");
+                }
+
+                // Add resolved ranges to BMP/astral lists
+                // For \P{...} inside a character class, we need the complement
+                // But inside [...], negation is handled by the class-level ^ if present.
+                // ECMAScript spec says \P{X} inside a class adds the complement of X.
+                if (isNegatedProp)
+                {
+                    // Complement: all code points NOT in propRanges
+                    var complementRanges = ComplementCodePointRanges(propRanges);
+                    foreach (var (s, e) in complementRanges)
+                    {
+                        if (e <= 0xFFFF)
+                            bmpRanges.Add((s, e));
+                        else if (s > 0xFFFF)
+                            astralRanges.Add((s, e));
+                        else
+                        {
+                            bmpRanges.Add((s, 0xFFFF));
+                            astralRanges.Add((0x10000, e));
+                        }
+                    }
+                }
+                else
+                {
+                    foreach (var (s, e) in propRanges)
+                    {
+                        if (e <= 0xFFFF)
+                            bmpRanges.Add((s, e));
+                        else if (s > 0xFFFF)
+                            astralRanges.Add((s, e));
+                        else
+                        {
+                            bmpRanges.Add((s, 0xFFFF));
+                            astralRanges.Add((0x10000, e));
+                        }
+                    }
+                }
+
+                cursor = endBrace + 1;
+                continue;
+            }
+
             var cp = ParseClassCodePoint(pattern, ref cursor);
             if (IsHighSurrogate(cp) &&
                 TryParseLowSurrogate(pattern, ref cursor, out var trail))
@@ -1521,6 +1610,208 @@ public sealed class JsRegExp
 
         index = cursor;
         return BuildUnicodeClassPattern(negate, bmpRanges, astralRanges);
+    }
+
+    /// <summary>
+    /// Builds a .NET regex pattern for a Unicode property escape (\p{...} or \P{...}).
+    /// Resolves the property name to code point ranges and generates a compatible pattern.
+    /// </summary>
+    private static string BuildPropertyEscapePattern(string propertyExpression, bool negate)
+    {
+        var ranges = UnicodePropertyData.Resolve(propertyExpression);
+        if (ranges is null)
+        {
+            throw new ParseException(
+                $"Invalid regular expression: invalid unicode property escape \\{(negate ? 'P' : 'p')}{{{propertyExpression}}}.");
+        }
+
+        if (ranges.Length == 0)
+        {
+            // Empty property — matches nothing (or everything if negated)
+            return negate ? AnyCodePointPattern : "(?!)"; // (?!) = fail/never match
+        }
+
+        // Split into BMP and astral ranges
+        var bmpRanges = new List<(int Start, int End)>();
+        var astralRanges = new List<(int Start, int End)>();
+
+        foreach (var (start, end) in ranges)
+        {
+            if (end <= 0xFFFF)
+            {
+                // Entirely BMP — but exclude surrogates (0xD800-0xDFFF) from the range
+                if (start <= 0xD7FF && end >= 0xD800)
+                {
+                    // Range spans into surrogates
+                    if (start <= 0xD7FF)
+                        bmpRanges.Add((start, Math.Min(end, 0xD7FF)));
+                    if (end >= 0xE000)
+                        bmpRanges.Add((Math.Max(start, 0xE000), end));
+                }
+                else if (start >= 0xD800 && end <= 0xDFFF)
+                {
+                    // Entirely surrogates — skip for regex matching purposes
+                }
+                else
+                {
+                    bmpRanges.Add((start, end));
+                }
+            }
+            else if (start > 0xFFFF)
+            {
+                // Entirely astral
+                astralRanges.Add((start, end));
+            }
+            else
+            {
+                // Spans BMP and astral
+                if (start <= 0xD7FF)
+                    bmpRanges.Add((start, 0xD7FF));
+                if (0xE000 <= 0xFFFF)
+                    bmpRanges.Add((Math.Max(start, 0xE000), 0xFFFF));
+                astralRanges.Add((0x10000, end));
+            }
+        }
+
+        var bmpContent = BuildBmpClassContent(bmpRanges);
+        var astralContent = BuildSurrogatePairRanges(astralRanges);
+
+        if (!negate)
+        {
+            if (astralContent.Length == 0)
+            {
+                return bmpContent.Length > 0 ? $"[{bmpContent}]" : "(?!)";
+            }
+
+            var sb = new StringBuilder();
+            sb.Append("(?:");
+            var needsPipe = false;
+            if (bmpContent.Length > 0)
+            {
+                sb.Append('[');
+                sb.Append(bmpContent);
+                sb.Append(']');
+                needsPipe = true;
+            }
+
+            if (astralContent.Length > 0)
+            {
+                if (needsPipe)
+                    sb.Append('|');
+                sb.Append(astralContent);
+            }
+
+            sb.Append(')');
+            return sb.ToString();
+        }
+
+        // Negated: match any code point NOT in the set
+        var disallowed = new StringBuilder();
+        disallowed.Append("(?:");
+        var needsSeparator = false;
+        if (bmpContent.Length > 0)
+        {
+            disallowed.Append('[');
+            disallowed.Append(bmpContent);
+            disallowed.Append(']');
+            needsSeparator = true;
+        }
+
+        if (astralContent.Length > 0)
+        {
+            if (needsSeparator)
+                disallowed.Append('|');
+            disallowed.Append(astralContent);
+        }
+
+        disallowed.Append(')');
+        return $"(?:(?!{disallowed}){AnyCodePointPattern})";
+    }
+
+    /// <summary>
+    /// Builds a compact regex pattern for astral (supplementary plane) code point ranges
+    /// using surrogate pair ranges instead of enumerating individual code points.
+    /// </summary>
+    private static string BuildSurrogatePairRanges(List<(int Start, int End)> ranges)
+    {
+        if (ranges.Count == 0)
+            return string.Empty;
+
+        var sb = new StringBuilder();
+        var first = true;
+
+        foreach (var (start, end) in ranges)
+        {
+            var highStart = (char)(((start - 0x10000) >> 10) + 0xD800);
+            var lowStart = (char)(((start - 0x10000) & 0x3FF) + 0xDC00);
+            var highEnd = (char)(((end - 0x10000) >> 10) + 0xD800);
+            var lowEnd = (char)(((end - 0x10000) & 0x3FF) + 0xDC00);
+
+            if (highStart == highEnd)
+            {
+                // Single high surrogate, range of low surrogates
+                if (!first) sb.Append('|');
+                first = false;
+                sb.Append(EscapeCharClassCodeUnit(highStart));
+                sb.Append('[');
+                sb.Append(EscapeCharClassCodeUnit(lowStart));
+                if (lowStart != lowEnd)
+                {
+                    sb.Append('-');
+                    sb.Append(EscapeCharClassCodeUnit(lowEnd));
+                }
+                sb.Append(']');
+            }
+            else
+            {
+                // Multiple high surrogates
+                // First partial: highStart [lowStart-\uDFFF]
+                if (!first) sb.Append('|');
+                first = false;
+                sb.Append(EscapeCharClassCodeUnit(highStart));
+                sb.Append('[');
+                sb.Append(EscapeCharClassCodeUnit(lowStart));
+                if (lowStart != 0xDFFF)
+                {
+                    sb.Append('-');
+                    sb.Append(EscapeCharClassCodeUnit(0xDFFF));
+                }
+                sb.Append(']');
+
+                // Middle: [highStart+1..highEnd-1] [\uDC00-\uDFFF] (full low range)
+                if (highStart + 1 <= highEnd - 1)
+                {
+                    sb.Append('|');
+                    sb.Append('[');
+                    sb.Append(EscapeCharClassCodeUnit(highStart + 1));
+                    if (highStart + 1 != highEnd - 1)
+                    {
+                        sb.Append('-');
+                        sb.Append(EscapeCharClassCodeUnit(highEnd - 1));
+                    }
+                    sb.Append(']');
+                    sb.Append('[');
+                    sb.Append(EscapeCharClassCodeUnit(0xDC00));
+                    sb.Append('-');
+                    sb.Append(EscapeCharClassCodeUnit(0xDFFF));
+                    sb.Append(']');
+                }
+
+                // Last partial: highEnd [\uDC00-lowEnd]
+                sb.Append('|');
+                sb.Append(EscapeCharClassCodeUnit(highEnd));
+                sb.Append('[');
+                sb.Append(EscapeCharClassCodeUnit(0xDC00));
+                if (0xDC00 != lowEnd)
+                {
+                    sb.Append('-');
+                    sb.Append(EscapeCharClassCodeUnit(lowEnd));
+                }
+                sb.Append(']');
+            }
+        }
+
+        return sb.ToString();
     }
 
     private static string BuildUnicodeClassPattern(bool negate, List<(int Start, int End)> bmpRanges,
@@ -1750,6 +2041,46 @@ public sealed class JsRegExp
 
         codePoint = 0;
         return false;
+    }
+
+    /// <summary>
+    /// Computes the complement of a set of code point ranges within [0, 0x10FFFF],
+    /// excluding surrogates (0xD800-0xDFFF).
+    /// </summary>
+    private static (int Start, int End)[] ComplementCodePointRanges((int Start, int End)[] ranges)
+    {
+        var result = new List<(int, int)>();
+        var prev = 0;
+        foreach (var (start, end) in ranges)
+        {
+            if (prev < start)
+            {
+                // Add gap, but skip surrogates
+                AddRangeExcludingSurrogates(result, prev, start - 1);
+            }
+
+            prev = end + 1;
+        }
+
+        if (prev <= 0x10FFFF)
+        {
+            AddRangeExcludingSurrogates(result, prev, 0x10FFFF);
+        }
+
+        return result.ToArray();
+
+        static void AddRangeExcludingSurrogates(List<(int, int)> list, int s, int e)
+        {
+            if (e < 0xD800 || s > 0xDFFF)
+            {
+                list.Add((s, e));
+            }
+            else
+            {
+                if (s < 0xD800) list.Add((s, 0xD7FF));
+                if (e > 0xDFFF) list.Add((0xE000, e));
+            }
+        }
     }
 
     private static bool IsHighSurrogate(int value)

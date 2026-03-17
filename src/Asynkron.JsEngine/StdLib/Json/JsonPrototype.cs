@@ -31,11 +31,13 @@ public sealed partial class JsonPrototype
     {
         if (args.Count == 0)
         {
-            return new JsValue("undefined");
+            return JsValue.Undefined;
         }
 
-        // StringifyValue handles JsValue directly - no need to unwrap
-        // TODO: replacer and space are not yet supported; fallback to basic stringify.
-        return new JsValue(StringifyValue(args[0]));
+        var value = args[0];
+        var replacer = args.GetArgument(1);
+        var space = args.GetArgument(2);
+
+        return JsonHelper.Stringify(value, replacer, space);
     }
 }

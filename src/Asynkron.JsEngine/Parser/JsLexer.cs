@@ -1884,37 +1884,38 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
 
         var escapedChar = Peek();
 
-        // Detect unicode/hex escapes that decode to a line terminator (e.g. \u000A)
+        // Unicode/hex escapes in regex literals: \uXXXX and \xXX are valid even when
+        // the decoded value is a line terminator (e.g. \u000A). Per the ECMAScript spec,
+        // the lexer only prohibits raw line terminator characters in regex source text.
+        // The escape sequence characters themselves (\, u, 0, 0, 0, A) are all non-terminators.
         if (escapedChar == 'u')
         {
-            if (TryPeekUnicodeEscape(out var codePoint, out var consumedChars) &&
-                IsLineTerminator((char)codePoint))
+            if (TryPeekUnicodeEscape(out _, out var consumedChars))
             {
-                throw new ParseException("Unterminated regex literal - newline in pattern.");
+                // Consume the valid escape sequence characters
+                pattern.Append(Advance()); // 'u'
+                for (var i = 0; i < consumedChars && !IsAtEnd; i++)
+                {
+                    pattern.Append(Advance());
+                }
+
+                return;
             }
 
-            // Consume the escape sequence characters
+            // Not a valid unicode escape — consume just 'u' (identity escape per Annex B)
             pattern.Append(Advance()); // 'u'
-            for (var i = 0; i < consumedChars && !IsAtEnd; i++)
-            {
-                pattern.Append(Advance());
-            }
             return;
         }
 
         if (escapedChar == 'x')
         {
-            if (TryPeekHexEscape(out var codePoint) && IsLineTerminator((char)codePoint))
-            {
-                throw new ParseException("Unterminated regex literal - newline in pattern.");
-            }
-
             pattern.Append(Advance()); // 'x'
             // Consume only valid hex digits (per Annex B, incomplete \x is identity escape)
             for (var i = 0; i < 2 && !IsAtEnd && IsHexDigit(Peek()); i++)
             {
                 pattern.Append(Advance());
             }
+
             return;
         }
 

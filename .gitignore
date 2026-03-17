@@ -420,3 +420,4 @@ FodyWeavers.xsd
 # Local quickdup scratch
 src/.quickdup/
 .quickdup/
+tools/.unicode-cache/

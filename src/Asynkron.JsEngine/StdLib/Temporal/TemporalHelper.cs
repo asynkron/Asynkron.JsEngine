@@ -89,6 +89,111 @@ public static class TemporalHelper
         "expand"
     };
 
+    /// <summary>
+    /// Known calendar identifiers per ECMA-402 / Temporal spec.
+    /// </summary>
+    private static readonly HashSet<string> ValidCalendarIds = new(StringComparer.Ordinal)
+    {
+        "iso8601",
+        "buddhist",
+        "chinese",
+        "coptic",
+        "dangi",
+        "ethioaa",
+        "ethiopic",
+        "gregory",
+        "hebrew",
+        "indian",
+        "islamic",
+        "islamic-civil",
+        "islamic-rgsa",
+        "islamic-tbla",
+        "islamic-umalqura",
+        "japanese",
+        "persian",
+        "roc"
+    };
+
+    /// <summary>
+    /// Deprecated calendar aliases → canonical ID.
+    /// </summary>
+    private static readonly Dictionary<string, string> CalendarAliases = new(StringComparer.Ordinal)
+    {
+        ["islamicc"] = "islamic-civil"
+    };
+
+    /// <summary>
+    /// Converts a Temporal calendar argument to a canonical calendar identifier.
+    /// Performs ASCII lowercasing and validation per the Temporal spec.
+    /// </summary>
+    /// <param name="calendarArg">The JS value for the calendar argument.</param>
+    /// <returns>Canonical calendar ID string.</returns>
+    private static string ToTemporalCalendarIdentifier(JsValue calendarArg)
+    {
+        // If undefined, default to iso8601
+        if (calendarArg.IsUndefined)
+            return "iso8601";
+
+        // Must be a string — TypeError for other types (except undefined)
+        if (!calendarArg.IsString)
+        {
+            throw StandardLibrary.ThrowTypeError(
+                $"{JsOps.TypeOf(calendarArg).AsString()} is not a valid calendar");
+        }
+
+        var id = calendarArg.AsString();
+
+        // Validate: must not be empty, must not contain '[' (no ISO string annotations)
+        if (string.IsNullOrEmpty(id) || id.Contains('['))
+        {
+            throw StandardLibrary.ThrowRangeError($"invalid calendar identifier: '{id}'");
+        }
+
+        // ASCII-lowercase only (NOT Unicode case folding - \u0130 must NOT become 'i')
+        id = AsciiLowercase(id);
+
+        // Map deprecated aliases
+        if (CalendarAliases.TryGetValue(id, out var canonical))
+            id = canonical;
+
+        // Validate against known calendar list
+        if (!ValidCalendarIds.Contains(id))
+        {
+            throw StandardLibrary.ThrowRangeError($"invalid calendar identifier: '{id}'");
+        }
+
+        return id;
+    }
+
+    /// <summary>
+    /// ASCII-only lowercase. Does not perform Unicode case folding.
+    /// Per Temporal spec, only A-Z are lowercased.
+    /// </summary>
+    private static string AsciiLowercase(string s)
+    {
+        var hasUpper = false;
+        foreach (var c in s)
+        {
+            if (c is >= 'A' and <= 'Z')
+            {
+                hasUpper = true;
+                break;
+            }
+        }
+
+        if (!hasUpper)
+            return s;
+
+        return string.Create(s.Length, s, static (span, src) =>
+        {
+            for (var i = 0; i < src.Length; i++)
+            {
+                var c = src[i];
+                span[i] = c is >= 'A' and <= 'Z' ? (char)(c + 32) : c;
+            }
+        });
+    }
+
     // Cached prototypes per realm - stored via WeakReference to avoid memory leaks
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<RealmState, TemporalPrototypes>
         _prototypeCache = new();
@@ -599,16 +704,16 @@ public static class TemporalHelper
         var ctor = new HostFunction((_, args) =>
         {
             var duration = new JsTemporalDuration(
-                GetNumberArg(args, 0),  // years
-                GetNumberArg(args, 1),  // months
-                GetNumberArg(args, 2),  // weeks
-                GetNumberArg(args, 3),  // days
-                GetNumberArg(args, 4),  // hours
-                GetNumberArg(args, 5),  // minutes
-                GetNumberArg(args, 6),  // seconds
-                GetNumberArg(args, 7),  // milliseconds
-                GetNumberArg(args, 8),  // microseconds
-                GetNumberArg(args, 9)); // nanoseconds
+                GetDurationArg(args, 0),  // years
+                GetDurationArg(args, 1),  // months
+                GetDurationArg(args, 2),  // weeks
+                GetDurationArg(args, 3),  // days
+                GetDurationArg(args, 4),  // hours
+                GetDurationArg(args, 5),  // minutes
+                GetDurationArg(args, 6),  // seconds
+                GetDurationArg(args, 7),  // milliseconds
+                GetDurationArg(args, 8),  // microseconds
+                GetDurationArg(args, 9)); // nanoseconds
 
             return WrapDuration(duration, realm, prototype);
         }, realm)
@@ -806,7 +911,8 @@ public static class TemporalHelper
             var year = (int)JsOps.ToNumber(args.GetArgument(0));
             var month = (int)JsOps.ToNumber(args.GetArgument(1));
             var day = (int)JsOps.ToNumber(args.GetArgument(2));
-            var calendar = args.Count > 3 && !args[3].IsUndefined ? JsOps.ToJsString(args[3]) : "iso8601";
+            var calendarArg = args.Count > 3 ? args[3] : JsValue.Undefined;
+            var calendar = ToTemporalCalendarIdentifier(calendarArg);
 
             var date = new JsTemporalPlainDate(year, month, day, calendar);
             return WrapPlainDate(date, realm, prototype);
@@ -1213,7 +1319,8 @@ public static class TemporalHelper
             var millisecond = args.Count > 6 ? (int)JsOps.ToNumber(args[6]) : 0;
             var microsecond = args.Count > 7 ? (int)JsOps.ToNumber(args[7]) : 0;
             var nanosecond = args.Count > 8 ? (int)JsOps.ToNumber(args[8]) : 0;
-            var calendar = args.Count > 9 && !args[9].IsUndefined ? JsOps.ToJsString(args[9]) : "iso8601";
+            var calendarArg = args.Count > 9 ? args[9] : JsValue.Undefined;
+            var calendar = ToTemporalCalendarIdentifier(calendarArg);
 
             var dt = new JsTemporalPlainDateTime(year, month, day, hour, minute, second,
                 millisecond, microsecond, nanosecond, calendar);
@@ -1470,7 +1577,7 @@ public static class TemporalHelper
             var calendarArg = args.Count > 2 ? args[2] : JsValue.Undefined;
 
             var timeZoneId = JsOps.ToJsString(timeZoneArg);
-            var calendar = calendarArg.IsUndefined ? "iso8601" : JsOps.ToJsString(calendarArg);
+            var calendar = ToTemporalCalendarIdentifier(calendarArg);
 
             JsTemporalInstant instant;
             if (epochNanoseconds.TryGetBigInt(out var bigInt))
@@ -1626,7 +1733,8 @@ public static class TemporalHelper
         {
             var year = (int)JsOps.ToNumber(args.GetArgument(0));
             var month = (int)JsOps.ToNumber(args.GetArgument(1));
-            var calendar = args.Count > 2 && !args[2].IsUndefined ? JsOps.ToJsString(args[2]) : "iso8601";
+            var calendarArg = args.Count > 2 ? args[2] : JsValue.Undefined;
+            var calendar = ToTemporalCalendarIdentifier(calendarArg);
 
             var ym = new JsTemporalPlainYearMonth(year, month, calendar);
             return WrapPlainYearMonth(ym, realm, prototype);
@@ -1729,7 +1837,8 @@ public static class TemporalHelper
         {
             var month = (int)JsOps.ToNumber(args.GetArgument(0));
             var day = (int)JsOps.ToNumber(args.GetArgument(1));
-            var calendar = args.Count > 2 && !args[2].IsUndefined ? JsOps.ToJsString(args[2]) : "iso8601";
+            var calendarArg = args.Count > 2 ? args[2] : JsValue.Undefined;
+            var calendar = ToTemporalCalendarIdentifier(calendarArg);
 
             var md = new JsTemporalPlainMonthDay(month, day, calendar);
             return WrapPlainMonthDay(md, realm, prototype);
@@ -1817,6 +1926,32 @@ public static class TemporalHelper
         }
 
         return JsOps.ToNumber(args[index]);
+    }
+
+    /// <summary>
+    /// Gets a Duration component argument and validates per the Temporal spec:
+    /// - Must be a finite integer (no fractional, no Infinity, no NaN)
+    /// </summary>
+    private static double GetDurationArg(IReadOnlyList<JsValue> args, int index)
+    {
+        if (index >= args.Count || args[index].IsUndefined)
+        {
+            return 0;
+        }
+
+        var value = JsOps.ToNumber(args[index]);
+
+        if (double.IsNaN(value) || double.IsInfinity(value))
+        {
+            throw StandardLibrary.ThrowRangeError("Duration field value is not finite");
+        }
+
+        if (value != Math.Truncate(value))
+        {
+            throw StandardLibrary.ThrowRangeError("Duration field value is not an integer");
+        }
+
+        return value;
     }
 
     private static long ParseOffsetToSeconds(string offset)

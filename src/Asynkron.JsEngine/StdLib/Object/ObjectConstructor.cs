@@ -480,7 +480,13 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     private static JsValue GetOwnPropertyDescriptor(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
-        if (args.Count == 0 || !TryGetObject(args[0], realmState, out var obj))
+        var targetValue = args.GetArgument(0);
+        if (targetValue.IsNullOrUndefined)
+        {
+            throw ThrowTypeError("Cannot convert undefined or null to object", realm: realmState);
+        }
+
+        if (!TryGetObject(targetValue, realmState, out var obj))
         {
             return JsValue.Undefined;
         }

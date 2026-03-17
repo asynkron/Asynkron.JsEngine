@@ -132,6 +132,25 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     }
 
     /// <summary>
+    ///     Checks if an entry key is still alive (not deleted).
+    ///     Used by iterators to skip tombstones in the insertion order list.
+    /// </summary>
+    internal bool IsEntryAlive(object? key)
+    {
+        if (key is null)
+        {
+            return _hasNullKey;
+        }
+
+        if (ReferenceEquals(key, Symbol.Undefined))
+        {
+            return _hasUndefinedKey;
+        }
+
+        return _map.ContainsKey(key);
+    }
+
+    /// <summary>
     ///     Internal method to get value by object key (used by iteration methods).
     /// </summary>
     private JsValue GetByObjectKey(object? key)
@@ -251,7 +270,8 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
 
             _hasNullKey = false;
             _nullValue = JsValue.Undefined;
-            _insertionOrder.Remove(null);
+            // Don't remove from _insertionOrder — ForEach uses index-based iteration
+            // and removing would shift indices, corrupting the loop.
             return true;
         }
 
@@ -265,7 +285,6 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
 
             _hasUndefinedKey = false;
             _undefinedValue = JsValue.Undefined;
-            _insertionOrder.Remove(Symbol.Undefined);
             return true;
         }
 
@@ -276,7 +295,8 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
             return false;
         }
 
-        _insertionOrder.Remove(keyObj);
+        // Don't remove from _insertionOrder — ForEach uses index-based iteration
+        // and removing would shift indices, corrupting the loop.
         return true;
     }
 
@@ -298,8 +318,43 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public void ForEach(IJsCallable callback, JsValue thisArg)
     {
-        foreach (var key in _insertionOrder)
+        // Use index-based loop to allow modification during iteration.
+        // Per the spec, forEach visits entries that exist at the time each step
+        // is taken and also visits entries added during iteration.
+        for (var i = 0; i < _insertionOrder.Count; i++)
         {
+            var key = _insertionOrder[i];
+
+            // Handle null key
+            if (key is null)
+            {
+                if (!_hasNullKey)
+                {
+                    continue;
+                }
+
+                callback.Invoke([_nullValue, JsValue.Null, _cachedJsValue], thisArg);
+                continue;
+            }
+
+            // Handle undefined key (stored as Symbol.Undefined sentinel)
+            if (ReferenceEquals(key, Symbol.Undefined))
+            {
+                if (!_hasUndefinedKey)
+                {
+                    continue;
+                }
+
+                callback.Invoke([_undefinedValue, JsValue.Undefined, _cachedJsValue], thisArg);
+                continue;
+            }
+
+            // Skip entries that were deleted during iteration
+            if (!_map.ContainsKey(key))
+            {
+                continue;
+            }
+
             var value = GetByObjectKey(key);
             callback.Invoke([value, JsValue.FromObjectUnsafe(key), _cachedJsValue], thisArg);
         }
@@ -310,11 +365,25 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public JsArray Entries()
     {
-        var entries = new List<JsValue>(_insertionOrder.Count);
+        var entries = new List<JsValue>();
         foreach (var key in _insertionOrder)
         {
-            var pair = new JsArray([JsValue.FromObjectUnsafe(key), GetByObjectKey(key)]);
-            entries.Add(JsValue.FromJsArray(pair));
+            if (key is null)
+            {
+                if (!_hasNullKey) continue;
+                entries.Add(JsValue.FromJsArray(new JsArray([JsValue.Null, _nullValue])));
+            }
+            else if (ReferenceEquals(key, Symbol.Undefined))
+            {
+                if (!_hasUndefinedKey) continue;
+                entries.Add(JsValue.FromJsArray(new JsArray([JsValue.Undefined, _undefinedValue])));
+            }
+            else
+            {
+                if (!_map.ContainsKey(key)) continue;
+                var pair = new JsArray([JsValue.FromObjectUnsafe(key), GetByObjectKey(key)]);
+                entries.Add(JsValue.FromJsArray(pair));
+            }
         }
 
         return new JsArray(entries);
@@ -325,10 +394,21 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public JsArray Keys()
     {
-        var keys = new List<JsValue>(_insertionOrder.Count);
+        var keys = new List<JsValue>();
         foreach (var key in _insertionOrder)
         {
-            keys.Add(JsValue.FromObjectUnsafe(key));
+            if (key is null)
+            {
+                if (_hasNullKey) keys.Add(JsValue.Null);
+            }
+            else if (ReferenceEquals(key, Symbol.Undefined))
+            {
+                if (_hasUndefinedKey) keys.Add(JsValue.Undefined);
+            }
+            else
+            {
+                if (_map.ContainsKey(key)) keys.Add(JsValue.FromObjectUnsafe(key));
+            }
         }
 
         return new JsArray(keys);
@@ -339,10 +419,21 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public JsArray Values()
     {
-        var values = new List<JsValue>(_insertionOrder.Count);
+        var values = new List<JsValue>();
         foreach (var key in _insertionOrder)
         {
-            values.Add(GetByObjectKey(key));
+            if (key is null)
+            {
+                if (_hasNullKey) values.Add(_nullValue);
+            }
+            else if (ReferenceEquals(key, Symbol.Undefined))
+            {
+                if (_hasUndefinedKey) values.Add(_undefinedValue);
+            }
+            else
+            {
+                if (_map.ContainsKey(key)) values.Add(GetByObjectKey(key));
+            }
         }
 
         return new JsArray(values);

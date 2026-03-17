@@ -764,20 +764,48 @@ public static partial class NumberHelper
             mantDotPos = mantissa.Length;
         }
 
-        var decimalPos = mantDotPos + exponent;
+        // n = decimalPos is the exponent in the spec sense: s × 10^(n-k) = x
+        var n = mantDotPos + exponent;
+        var k = digits.Length;
 
-        string result;
-        if (decimalPos >= digits.Length)
+        // Trim trailing zeros from digits to get the minimal k
+        var trimmedDigits = digits.TrimEnd('0');
+        if (trimmedDigits.Length == 0)
         {
-            result = digits + new string('0', decimalPos - digits.Length);
+            trimmedDigits = "0";
         }
-        else if (decimalPos <= 0)
+
+        k = trimmedDigits.Length;
+
+        // ES2024 7.1.12.1 Number::toString steps 5-9:
+        string result;
+        if (k <= n && n <= 21)
         {
-            result = "0." + new string('0', -decimalPos) + digits;
+            // Step 5: k ≤ n ≤ 21 → s₁...sₖ followed by (n-k) zeros
+            result = trimmedDigits + new string('0', n - k);
+        }
+        else if (0 < n && n <= 21)
+        {
+            // Step 6: 0 < n ≤ 21 (and n < k) → s₁...sₙ.sₙ₊₁...sₖ
+            result = trimmedDigits[..n] + "." + trimmedDigits[n..];
+        }
+        else if (-5 < n && n <= 0)
+        {
+            // Step 7: -5 < n ≤ 0 → "0." + zeros + digits
+            result = "0." + new string('0', -n) + trimmedDigits;
+        }
+        else if (k == 1)
+        {
+            // Step 8: single digit with exponent
+            var exp = n - 1;
+            result = trimmedDigits + "e" + (exp >= 0 ? "+" : "") + exp.ToString(CultureInfo.InvariantCulture);
         }
         else
         {
-            result = digits[..decimalPos] + "." + digits[decimalPos..];
+            // Step 9: multiple digits with exponent
+            var exp = n - 1;
+            result = trimmedDigits[..1] + "." + trimmedDigits[1..] + "e" + (exp >= 0 ? "+" : "") +
+                     exp.ToString(CultureInfo.InvariantCulture);
         }
 
         return isNeg ? "-" + result : result;

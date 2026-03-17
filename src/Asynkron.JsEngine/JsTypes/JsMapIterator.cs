@@ -26,24 +26,30 @@ internal sealed class JsMapIterator : JsIteratorBase
             return IteratorResultObject.DoneUndefined.AsJsValue;
         }
 
-        if (_index >= _map.EntryCount)
+        // Skip deleted entries (tombstones left in _insertionOrder)
+        while (_index < _map.EntryCount)
         {
-            _done = true;
-            return IteratorResultObject.DoneUndefined.AsJsValue;
+            var entry = _map.GetEntry(_index++);
+            if (!_map.IsEntryAlive(entry.Key))
+            {
+                continue;
+            }
+
+            var key = JsValue.FromObjectUnsafe(entry.Key);
+            var value = entry.Value;
+
+            var result = _kind switch
+            {
+                MapIterationKind.Keys => key,
+                MapIterationKind.Values => value,
+                _ => CreateEntryPair(key, value)
+            };
+
+            return IteratorResultObject.Create(result, false);
         }
 
-        var entry = _map.GetEntry(_index++);
-        var key = JsValue.FromObjectUnsafe(entry.Key);
-        var value = entry.Value;
-
-        var result = _kind switch
-        {
-            MapIterationKind.Keys => key,
-            MapIterationKind.Values => value,
-            _ => CreateEntryPair(key, value)
-        };
-
-        return IteratorResultObject.Create(result, false);
+        _done = true;
+        return IteratorResultObject.DoneUndefined.AsJsValue;
     }
 
     private JsValue CreateEntryPair(JsValue key, JsValue value)

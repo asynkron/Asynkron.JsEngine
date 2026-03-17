@@ -499,7 +499,20 @@ public static partial class NumberHelper
             trimmed = "0";
         }
 
-        exponent = dotPosition - 1;
+        // Skip leading zeros and adjust exponent accordingly
+        // e.g., "00001" with dotPosition=1 means 0.0001 = 1e-4
+        var leadingZeros = 0;
+        while (leadingZeros < trimmed.Length - 1 && trimmed[leadingZeros] == '0')
+        {
+            leadingZeros++;
+        }
+
+        if (leadingZeros > 0)
+        {
+            trimmed = trimmed[leadingZeros..];
+        }
+
+        exponent = dotPosition - 1 - leadingZeros;
 
         mantissa = trimmed.Length == 1
             ? trimmed
@@ -518,6 +531,20 @@ public static partial class NumberHelper
 
         // Get enough digits for the requested precision
         GetExactDigits(x, totalDigits + 1, out var digits, out var dotPosition);
+
+        // Skip leading zeros and adjust dotPosition
+        // e.g., for 0.0001: digits="0000100...", dotPosition=1 → skip 4 zeros, dotPosition=-3
+        var leadingZeros = 0;
+        while (leadingZeros < digits.Length - 1 && digits[leadingZeros] == '0')
+        {
+            leadingZeros++;
+        }
+
+        if (leadingZeros > 0)
+        {
+            digits = digits[leadingZeros..];
+            dotPosition -= leadingZeros;
+        }
 
         exponent = dotPosition - 1;
 

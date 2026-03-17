@@ -402,10 +402,11 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
         var returnFunc = new HostFunction((_, _) =>
             ExecuteIteratorCommand(shortCircuitIfDone: false, done, ref isExecuting, realm, () =>
             {
+                var alreadyDone = done;
                 done = true;
-                if (currentIterated is not null)
+                if (!alreadyDone && currentIterated is not null)
                 {
-                    // Forward return to the current active iterator
+                    // Forward return to the current active iterator only on first call
                     IteratorPrototype.IteratorCloseNormal(currentIterated.Iterator);
                 }
 

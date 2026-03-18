@@ -144,7 +144,8 @@ public static class ReflectHelper
              ReferenceEquals(hostCtor, realm.ArrayBufferConstructor) ||
              ReferenceEquals(hostCtor, realm.SharedArrayBufferConstructor) ||
              ReferenceEquals(hostCtor, realm.DataViewConstructor) ||
-             ReferenceEquals(hostCtor, realm.PromiseConstructor)))
+             ReferenceEquals(hostCtor, realm.PromiseConstructor) ||
+             IsConcreteTypedArrayConstructor(hostCtor, realm)))
         {
             var constructContext = realm.CreateContext(pushScope: false);
             return hostCtor.InvokeWithContext(argList, JsValue.Undefined, constructContext,
@@ -1067,6 +1068,21 @@ public static class ReflectHelper
                 realmObject = null;
                 return false;
         }
+    }
+
+    /// <summary>
+    /// Returns true if the given HostFunction is a concrete typed array constructor
+    /// (e.g. Int8Array, Float64Array) that manages its own prototype resolution.
+    /// These constructors have their Properties prototype set to the %TypedArray% constructor's Properties.
+    /// </summary>
+    private static bool IsConcreteTypedArrayConstructor(HostFunction hostCtor, RealmState realm)
+    {
+        if (realm.TypedArrayConstructor is null)
+        {
+            return false;
+        }
+
+        return ReferenceEquals(hostCtor.PropertiesObject.Prototype, realm.TypedArrayConstructor.PropertiesObject);
     }
 
     /// <summary>

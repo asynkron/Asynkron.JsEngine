@@ -312,6 +312,35 @@ public sealed class JsRegExp
         SetProperty("lastIndex", (double)value);
     }
 
+    /// <summary>
+    ///     Sets lastIndex with strict semantics (throws TypeError on non-writable).
+    ///     Corresponds to Set(R, "lastIndex", value, true) in the spec.
+    /// </summary>
+    internal void SetLastIndexStrict(int value)
+    {
+        var descriptor = JsObject.GetOwnPropertyDescriptor("lastIndex");
+        if (descriptor is not null)
+        {
+            if (descriptor.IsAccessorDescriptor)
+            {
+                descriptor.Set?.Invoke(new SingleValueArgs(new JsValue((double)value)), JsObject.AsJsValue);
+                return;
+            }
+
+            if (!descriptor.Writable)
+            {
+                throw StandardLibrary.ThrowTypeError("Cannot assign to read only property 'lastIndex'",
+                    realm: RealmState);
+            }
+
+            JsObject["lastIndex"] = (double)value;
+            descriptor.JsValue = new JsValue((double)value);
+            return;
+        }
+
+        SetProperty("lastIndex", (double)value);
+    }
+
     internal JsArray CreateMatchArray(Match match, string input)
     {
         var result = new JsArray(RealmState);

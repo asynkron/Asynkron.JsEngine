@@ -155,7 +155,8 @@ public sealed partial class FunctionPrototype
         // ES spec requires "caller" and "arguments" to be "poison pill" accessors
         // on Function.prototype that throw TypeError when accessed.
         // See ECMA-262 AddRestrictedFunctionProperties
-        var thrower = new HostFunction((_, _) =>
+        // Per spec, these should use the shared %ThrowTypeError% intrinsic per realm.
+        var thrower = Realm.ThrowTypeErrorIntrinsic ?? new HostFunction((_, _) =>
                 throw ThrowTypeError(
                     "'caller' and 'arguments' are restricted function properties and cannot be accessed in this context.",
                     realm: Realm), Realm,

@@ -22,14 +22,11 @@ public sealed partial class ProxyConstructor(IJsObjectLike prototype, RealmState
 
     protected override void ConfigureConstructor(HostFunction constructor)
     {
-        constructor.DefineProperty("prototype",
-            new PropertyDescriptor
-            {
-                Value = Symbol.Undefined,
-                Writable = false,
-                Enumerable = false,
-                Configurable = false
-            });
+        // Per spec 26.2.2: The Proxy constructor does not have a prototype property
+        // because proxy exotic objects do not have a [[Prototype]] internal slot
+        // that requires initialization. Remove the prototype property added by generated code.
+        // The generated property is non-configurable, so we must force-delete it.
+        constructor.Properties.ForceDeleteOwnProperty("prototype");
 
         // Marker to make class heritage resolution reject Proxy as a base.
         constructor.DefineProperty("__proxyHasNoPrototype__",
@@ -40,6 +37,18 @@ public sealed partial class ProxyConstructor(IJsObjectLike prototype, RealmState
                 Enumerable = false,
                 Configurable = false
             });
+
+        // Per spec 26.2.1.1 step 1: If NewTarget is undefined, throw a TypeError exception.
+        // Proxy must be called with new; calling as a function is not allowed.
+        constructor.SetInvokeWithContext((args, thisValue, context, newTarget) =>
+        {
+            if (newTarget.IsUndefined)
+            {
+                throw ThrowTypeError("Constructor Proxy requires 'new'", realm: Realm);
+            }
+
+            return ConstructInstance(thisValue, args);
+        });
     }
 
     [JsConstructorMethod("revocable", Length = 2d)]

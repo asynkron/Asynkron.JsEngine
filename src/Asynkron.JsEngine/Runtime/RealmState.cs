@@ -123,6 +123,13 @@ public sealed class RealmState
     public IJsCallable? PromiseConstructor { get; set; }
     public JsObject? PromisePrototype { get; set; }
 
+    /// <summary>
+    /// The %ThrowTypeError% intrinsic function per realm. Per spec, this is a single shared
+    /// frozen function that throws a TypeError when called. Used for strict mode arguments
+    /// callee/caller accessors and Function.prototype.caller/arguments.
+    /// </summary>
+    public HostFunction? ThrowTypeErrorIntrinsic { get; set; }
+
     // Internal flags to avoid re-attaching built-in surfaces per instance
     public bool StringPrototypeMethodsInitialized { get; set; }
 

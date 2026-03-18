@@ -65,7 +65,7 @@ public static class ReflectHelper
 
         // 1. If IsConstructor(target) is false, throw a TypeError exception.
         var targetArg = args.Count > 0 ? args[0] : JsValue.Undefined;
-        if (!targetArg.TryGetObject<IJsCallable>(out var target))
+        if (!JsOps.IsConstructor(targetArg) || !targetArg.TryGetObject<IJsCallable>(out var target))
         {
             throw ThrowTypeError("Reflect.construct: target is not a constructor", realm: realm);
         }
@@ -75,7 +75,7 @@ public static class ReflectHelper
         IJsCallable newTarget;
         if (args.Count > 2)
         {
-            if (!args[2].TryGetObject<IJsCallable>(out var ctor))
+            if (!JsOps.IsConstructor(args[2]) || !args[2].TryGetObject<IJsCallable>(out var ctor))
             {
                 throw ThrowTypeError("newTarget is not a constructor", realm: realm);
             }
@@ -129,6 +129,12 @@ public static class ReflectHelper
         }
 
         if (newTarget is ICallableMetadata { DisallowConstruct: true })
+        {
+            throw ThrowTypeError("newTarget is not a constructor", realm: realm);
+        }
+
+        // For Proxy-wrapped non-constructors used as newTarget
+        if (newTarget is JsProxy && !JsOps.IsConstructor(JsValue.FromObjectUnsafe(newTarget)))
         {
             throw ThrowTypeError("newTarget is not a constructor", realm: realm);
         }

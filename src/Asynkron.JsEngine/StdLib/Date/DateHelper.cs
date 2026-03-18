@@ -668,8 +668,7 @@ public static class DateHelper
         }
 
         var index = 0;
-        var year = 0;
-
+        int year;
         if (value[index] is '+' or '-')
         {
             var sign = value[index++];
@@ -703,8 +702,6 @@ public static class DateHelper
             index += 4;
         }
 
-        var month = 1;
-        var day = 1;
         var hasTime = false;
 
         if (index == value.Length)
@@ -720,6 +717,8 @@ public static class DateHelper
         }
 
         index++;
+
+        int month;
         if (index + 2 > value.Length || !TryParseTwoDigits(value.Slice(index, 2), out month))
         {
             timeValue = double.NaN;
@@ -741,6 +740,7 @@ public static class DateHelper
         }
 
         index++;
+        int day;
         if (index + 2 > value.Length || !TryParseTwoDigits(value.Slice(index, 2), out day))
         {
             timeValue = double.NaN;
@@ -1191,16 +1191,11 @@ public static class DateHelper
         JsValue localesArg,
         JsValue optionsArg,
         RealmState realm,
-        Func<JsObject>? defaultOptionsFactory)
+        string required = "any",
+        string defaults = "all")
     {
         var dateObj = RequireDateObject(dateThis, realm);
-        var effectiveOptionsArg = optionsArg;
-        if (defaultOptionsFactory is not null &&
-            optionsArg.IsSymbol &&
-            ReferenceEquals(optionsArg.AsSymbol(), Symbol.Undefined))
-        {
-            effectiveOptionsArg = new JsValue(defaultOptionsFactory());
-        }
+        var effectiveOptionsArg = ToDateTimeOptions(optionsArg, required, defaults, realm);
 
         if (realm.Engine?.GlobalObject is not { } global ||
             !global.TryGetProperty("Intl", out var intlVal) || !intlVal.TryGetObject<JsObject>(out var intlObj) ||
@@ -1279,5 +1274,102 @@ public static class DateHelper
         opts.SetProperty("minute", "numeric");
         opts.SetProperty("second", "numeric");
         return opts;
+    }
+
+    private static readonly string[] DateComponents =
+        ["weekday", "year", "month", "day"];
+
+    private static readonly string[] TimeComponents =
+        ["dayPeriod", "hour", "minute", "second", "fractionalSecondDigits"];
+
+    /// <summary>
+    /// ECMA-402 ToDateTimeOptions(options, required, defaults).
+    /// Merges default date/time components into options when the relevant components are missing.
+    /// </summary>
+    internal static JsValue ToDateTimeOptions(JsValue optionsArg, string required, string defaults, RealmState realm)
+    {
+        JsObject options;
+        if (optionsArg.IsUndefined)
+        {
+            options = new JsObject(realm.ObjectPrototype);
+        }
+        else if (optionsArg.TryGetObject<JsObject>(out var obj))
+        {
+            // Copy properties to a new object to avoid mutating the caller's object
+            options = new JsObject(realm.ObjectPrototype);
+            foreach (var key in obj.GetOwnPropertyKeysInOrder(includeSymbols: false))
+            {
+                if (obj.TryGetProperty(key, out var val))
+                {
+                    options.SetProperty(key, val);
+                }
+            }
+        }
+        else
+        {
+            options = new JsObject(realm.ObjectPrototype);
+        }
+
+        var needDefaults = true;
+
+        // If required is "date" or "any", check for date components
+        if (required is "date" or "any")
+        {
+            foreach (var comp in DateComponents)
+            {
+                if (options.TryGetProperty(comp, out var v) && !v.IsUndefined)
+                {
+                    needDefaults = false;
+                    break;
+                }
+            }
+        }
+
+        // If still need defaults and required is "time" or "any", check for time components
+        if (needDefaults && required is "time" or "any")
+        {
+            foreach (var comp in TimeComponents)
+            {
+                if (options.TryGetProperty(comp, out var v) && !v.IsUndefined)
+                {
+                    needDefaults = false;
+                    break;
+                }
+            }
+        }
+
+        // Check for dateStyle/timeStyle
+        if (needDefaults)
+        {
+            if ((required is "date" or "any") && options.TryGetProperty("dateStyle", out var ds) && !ds.IsUndefined)
+            {
+                needDefaults = false;
+            }
+
+            if (needDefaults && (required is "time" or "any") && options.TryGetProperty("timeStyle", out var ts) && !ts.IsUndefined)
+            {
+                needDefaults = false;
+            }
+        }
+
+        // Apply defaults
+        if (needDefaults)
+        {
+            if (defaults is "date" or "all")
+            {
+                options.SetProperty("year", "numeric");
+                options.SetProperty("month", "numeric");
+                options.SetProperty("day", "numeric");
+            }
+
+            if (defaults is "time" or "all")
+            {
+                options.SetProperty("hour", "numeric");
+                options.SetProperty("minute", "numeric");
+                options.SetProperty("second", "numeric");
+            }
+        }
+
+        return new JsValue(options);
     }
 }

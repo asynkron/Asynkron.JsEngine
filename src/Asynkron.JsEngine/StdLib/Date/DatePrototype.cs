@@ -807,7 +807,7 @@ public sealed partial class DatePrototype
         }
 
         return FormatWithIntlDateTime(thisValue, args.GetArgument(0), args.GetArgument(1),
-            Realm, () => CreateDefaultDateTimeOptions(Realm));
+            Realm, required: "any", defaults: "all");
     }
 
     [JsHostMethod("toLocaleDateString", Length = 0d)]
@@ -820,7 +820,7 @@ public sealed partial class DatePrototype
         }
 
         return FormatWithIntlDateTime(thisValue, args.GetArgument(0), args.GetArgument(1),
-            Realm, () => CreateDefaultDateOptions(Realm));
+            Realm, required: "date", defaults: "date");
     }
 
     [JsHostMethod("toLocaleTimeString", Length = 0d)]
@@ -833,7 +833,7 @@ public sealed partial class DatePrototype
         }
 
         return FormatWithIntlDateTime(thisValue, args.GetArgument(0), args.GetArgument(1),
-            Realm, () => CreateDefaultTimeOptions(Realm));
+            Realm, required: "time", defaults: "time");
     }
 
     /* FLAKY */

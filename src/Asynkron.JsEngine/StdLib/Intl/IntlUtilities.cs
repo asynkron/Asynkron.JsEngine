@@ -1207,6 +1207,128 @@ internal static partial class IntlUtilities
         public Dictionary<string, string> Lookup { get; } = lookup;
     }
 
+    /// <summary>
+    /// Maps numbering system IDs to the Unicode code point of their zero digit.
+    /// Most numbering systems have contiguous digit blocks (0-9 = zeroCodePoint + 0..9).
+    /// </summary>
+    private static readonly Dictionary<string, int> NumberingSystemZeroDigits = new(StringComparer.Ordinal)
+    {
+        ["arab"] = 0x0660,
+        ["arabext"] = 0x06F0,
+        ["bali"] = 0x1B50,
+        ["beng"] = 0x09E6,
+        ["cham"] = 0xAA50,
+        ["deva"] = 0x0966,
+        ["fullwide"] = 0xFF10,
+        ["gujr"] = 0x0AE6,
+        ["guru"] = 0x0A66,
+        ["java"] = 0xA9D0,
+        ["kali"] = 0xA900,
+        ["khmr"] = 0x17E0,
+        ["knda"] = 0x0CE6,
+        ["lana"] = 0x1A80,
+        ["lanatham"] = 0x1A90,
+        ["laoo"] = 0x0ED0,
+        ["lepc"] = 0x1C40,
+        ["limb"] = 0x1946,
+        ["mlym"] = 0x0D66,
+        ["mong"] = 0x1810,
+        ["mtei"] = 0xABF0,
+        ["mymr"] = 0x1040,
+        ["mymrshan"] = 0x1090,
+        ["nkoo"] = 0x07C0,
+        ["olck"] = 0x1C50,
+        ["orya"] = 0x0B66,
+        ["saur"] = 0xA8D0,
+        ["sund"] = 0x1BB0,
+        ["takr"] = 0x116C0,
+        ["talu"] = 0x19D0,
+        ["tamldec"] = 0x0BE6,
+        ["telu"] = 0x0C66,
+        ["thai"] = 0x0E50,
+        ["tibt"] = 0x0F20,
+        ["vaii"] = 0xA620,
+        ["wara"] = 0x118E0,
+        ["cakm"] = 0x11136,
+        ["modi"] = 0x11650,
+        ["mroo"] = 0x16A60,
+        ["osma"] = 0x104A0,
+        ["rohg"] = 0x10D30,
+        ["shrd"] = 0x111D0,
+        ["sind"] = 0x112F0,
+        ["sora"] = 0x110F0,
+        ["wcho"] = 0x1E2F0
+    };
+
+    /// <summary>
+    /// Translate Latin digits (0-9) in a string to the target numbering system's digits.
+    /// </summary>
+    internal static string TranslateDigits(string input, string numberingSystem)
+    {
+        if (numberingSystem is "latn" || string.IsNullOrEmpty(input))
+        {
+            return input;
+        }
+
+        if (numberingSystem is "hanidec")
+        {
+            return TranslateHanidecDigits(input);
+        }
+
+        if (!NumberingSystemZeroDigits.TryGetValue(numberingSystem, out var zeroCodePoint))
+        {
+            return input;
+        }
+
+        var sb = new System.Text.StringBuilder(input.Length * 2);
+        foreach (var ch in input)
+        {
+            if (ch >= '0' && ch <= '9')
+            {
+                var digit = ch - '0';
+                sb.Append(char.ConvertFromUtf32(zeroCodePoint + digit));
+            }
+            else
+            {
+                sb.Append(ch);
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Translate Latin digits to Chinese numeral characters (hanidec system).
+    /// These are not contiguous in Unicode, so each must be mapped individually.
+    /// </summary>
+    private static string TranslateHanidecDigits(string input)
+    {
+        ReadOnlySpan<char> hanDigits = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+        var sb = new System.Text.StringBuilder(input.Length);
+        foreach (var ch in input)
+        {
+            if (ch >= '0' && ch <= '9')
+            {
+                sb.Append(hanDigits[ch - '0']);
+            }
+            else
+            {
+                sb.Append(ch);
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Returns the appropriate decimal separator for a given numbering system.
+    /// Arabic numbering systems use the Arabic decimal separator (U+066B).
+    /// </summary>
+    internal static string GetDecimalSeparator(string numberingSystem)
+    {
+        return numberingSystem is "arab" or "arabext" ? "\u066B" : ".";
+    }
+
     [GeneratedRegex(@"^(([a-z]{2,3}|[a-z]{5,8})(-([a-z]{4}))?(-([a-z]{2}|[0-9]{3}))?(-([a-z0-9]{5,8}|(?:[0-9][a-z0-9]{3})))*(-((u((-([a-z0-9][a-z](-[a-z0-9]{3,8})*))+|((-([a-z0-9]{3,8}))+(-([a-z0-9][a-z](-[a-z0-9]{3,8})*))*)))|(t((-(([a-z]{2,3}|[a-z]{5,8})(-([a-z]{4}))?(-([a-z]{2}|[0-9]{3}))?(-([a-z0-9]{5,8}|(?:[0-9][a-z0-9]{3})))*)(-([a-z][0-9](-[a-z0-9]{3,8})+))*)|(-([a-z][0-9](-[a-z0-9]{3,8})+))+))|(([0-9]|[a-sv-wy-z])(-[a-z0-9]{2,8})+)))*(-(x(-[a-z0-9]{1,8})+))?)$", RegexOptions.IgnoreCase | RegexOptions.Compiled, "sv-SE")]
     private static partial Regex MyRegex();
     [GeneratedRegex(@"-([0-9]|[a-wy-z])-(.*-)?\1(?![a-z0-9])", RegexOptions.IgnoreCase | RegexOptions.Compiled, "sv-SE")]

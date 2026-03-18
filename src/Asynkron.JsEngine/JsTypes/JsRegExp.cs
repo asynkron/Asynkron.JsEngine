@@ -108,12 +108,23 @@ public sealed class JsRegExp
         var startIndex = Global || Sticky ? GetLastIndex() : 0;
         if (startIndex > input.Length)
         {
-            startIndex = 0;
+            if (Global || Sticky)
+            {
+                SetLastIndex(0);
+            }
+
+            return false;
         }
 
         var match = EnsureRegex().Match(input, startIndex);
 
-        if (match.Success && Global)
+        // For sticky flag, the match must occur exactly at startIndex
+        if (Sticky && match.Success && match.Index != startIndex)
+        {
+            match = System.Text.RegularExpressions.Match.Empty;
+        }
+
+        if (match.Success && (Global || Sticky))
         {
             SetLastIndex(match.Index + match.Length);
         }
@@ -147,6 +158,12 @@ public sealed class JsRegExp
         }
 
         var match = EnsureRegex().Match(input, startIndex);
+
+        // For sticky flag, the match must occur exactly at startIndex
+        if (Sticky && match.Success && match.Index != startIndex)
+        {
+            match = System.Text.RegularExpressions.Match.Empty;
+        }
 
         if (!match.Success)
         {
@@ -266,12 +283,15 @@ public sealed class JsRegExp
             result.Push(captureValues[i]);
         }
 
-        // Add properties for exec-style results.
-        result.SetProperty("index", (double)match.Index);
-        result.SetProperty("input", input);
+        // Per spec: CreateDataProperty (define, not set) for index, input, groups.
+        result.DefineProperty("index",
+            new PropertyDescriptor { Value = (double)match.Index, Writable = true, Enumerable = true, Configurable = true });
+        result.DefineProperty("input",
+            new PropertyDescriptor { Value = new JsValue(input), Writable = true, Enumerable = true, Configurable = true });
 
         var groups = BuildGroupsObject(match, captureValues);
-        result.SetProperty("groups", groups is null ? JsValue.Undefined : JsValue.FromJsObject(groups));
+        result.DefineProperty("groups",
+            new PropertyDescriptor { Value = groups is null ? JsValue.Undefined : JsValue.FromJsObject(groups), Writable = true, Enumerable = true, Configurable = true });
 
         if (HasIndices)
         {
@@ -300,7 +320,13 @@ public sealed class JsRegExp
                 continue;
             }
 
-            groups ??= new JsObject();
+            if (groups is null)
+            {
+                groups = new JsObject();
+                // Per spec: groups object has null prototype (OrdinaryObjectCreate(null))
+                groups.SetPrototype(null);
+            }
+
             groups.SetProperty(name, captureValues[groupNumber]);
         }
 
@@ -353,7 +379,12 @@ public sealed class JsRegExp
                 continue;
             }
 
-            groups ??= new JsObject();
+            if (groups is null)
+            {
+                groups = new JsObject();
+                groups.SetPrototype(null);
+            }
+
             groups.SetProperty(name, indexValues[groupNumber]);
         }
 

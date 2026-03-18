@@ -119,4 +119,9 @@ public abstract class BigIntTypedArrayBase<TSelf>(
         var newByteOffset = _byteOffset + start * BYTES_PER_ELEMENT;
         return CreateFromBuffer(_buffer, newByteOffset, newLength);
     }
+
+    public override TypedArrayBase CreateSubarrayView(JsArrayBuffer buffer, int byteOffset, int length)
+    {
+        return CreateFromBuffer(buffer, byteOffset, length);
+    }
 }

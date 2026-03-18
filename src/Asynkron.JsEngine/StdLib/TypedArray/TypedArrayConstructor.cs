@@ -59,8 +59,9 @@ public sealed partial class TypedArrayConstructor(IJsObjectLike prototype, Realm
     {
         // 1. Let C be the this value.
         // 2. If IsConstructor(C) is false, throw a TypeError exception.
-        if (!thisValue.TryGetObject<IJsCallable>(out var ctor) ||
-            (ctor is HostFunction hf && hf.DisallowConstruct))
+        // Note: %TypedArray% has [[Construct]] (even though it throws), so IsConstructor returns true.
+        // We only reject truly non-callable values here.
+        if (!thisValue.TryGetObject<IJsCallable>(out var ctor))
         {
             throw ThrowTypeError("%TypedArray%.from requires a constructor as 'this'", realm: Realm);
         }
@@ -189,8 +190,7 @@ public sealed partial class TypedArrayConstructor(IJsObjectLike prototype, Realm
         // 2. Let items be the List of arguments passed to this function.
         // 3. Let C be the this value.
         // 4. If IsConstructor(C) is false, throw a TypeError exception.
-        if (!thisValue.TryGetObject<IJsCallable>(out var ctor) ||
-            (ctor is HostFunction hf && hf.DisallowConstruct))
+        if (!thisValue.TryGetObject<IJsCallable>(out var ctor))
         {
             throw ThrowTypeError("%TypedArray%.of requires a constructor as 'this'", realm: Realm);
         }

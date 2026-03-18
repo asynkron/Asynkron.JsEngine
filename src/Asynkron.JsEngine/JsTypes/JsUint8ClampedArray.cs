@@ -66,6 +66,11 @@ public sealed class JsUint8ClampedArray(JsArrayBuffer buffer, int byteOffset, in
         return new JsUint8ClampedArray(_buffer, newByteOffset, newLength);
     }
 
+    public override TypedArrayBase CreateSubarrayView(JsArrayBuffer buffer, int byteOffset, int length)
+    {
+        return new JsUint8ClampedArray(buffer, byteOffset, length);
+    }
+
     protected override TypedArrayBase CreateNewSameType(int length)
     {
         return FromLength(length);

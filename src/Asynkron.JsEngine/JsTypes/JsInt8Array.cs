@@ -50,6 +50,11 @@ public sealed class JsInt8Array(JsArrayBuffer buffer, int byteOffset, int length
         return new JsInt8Array(_buffer, newByteOffset, newLength);
     }
 
+    public override TypedArrayBase CreateSubarrayView(JsArrayBuffer buffer, int byteOffset, int length)
+    {
+        return new JsInt8Array(buffer, byteOffset, length);
+    }
+
     protected override TypedArrayBase CreateNewSameType(int length)
     {
         return FromLength(length);

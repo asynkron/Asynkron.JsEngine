@@ -1021,9 +1021,10 @@ public static partial class TypedAstEvaluator
             iterator.SetPrototype(prototype);
         }
 
-        iterator.SetProperty("next", (JsValue)new HostFunction(next));
-        iterator.SetProperty("return", (JsValue)new HostFunction(@return));
-        iterator.SetProperty("throw", (JsValue)new HostFunction(@throw));
+        // Generator iterator methods are not constructors per ES spec
+        iterator.SetProperty("next", (JsValue)new HostFunction(next, isConstructor: false));
+        iterator.SetProperty("return", (JsValue)new HostFunction(@return, isConstructor: false));
+        iterator.SetProperty("throw", (JsValue)new HostFunction(@throw, isConstructor: false));
         return iterator;
     }
 }

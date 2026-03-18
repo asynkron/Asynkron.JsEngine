@@ -120,7 +120,17 @@ public static partial class TypedAstEvaluator
                 {
                     if (runner._programCounter == runner._currentInstructionIndex)
                     {
-                        runner._programCounter = instruction.Next;
+                        // If we're inside a scheduled finally block and the throw updated the
+                        // pending completion, skip remaining finally code by jumping to EndFinally.
+                        // This prevents execution of code after the yield in the finally block.
+                        if (runner.TryGetEndFinallyJumpTarget(out var endFinallyTarget))
+                        {
+                            runner._programCounter = endFinallyTarget;
+                        }
+                        else
+                        {
+                            runner._programCounter = instruction.Next;
+                        }
                     }
                     returnValue = default;
                     return InstructionResult.Continue;
@@ -138,7 +148,17 @@ public static partial class TypedAstEvaluator
                 {
                     if (runner._programCounter == runner._currentInstructionIndex)
                     {
-                        runner._programCounter = instruction.Next;
+                        // If we're inside a scheduled finally block and the return updated the
+                        // pending completion, skip remaining finally code by jumping to EndFinally.
+                        // This prevents execution of code after the yield in the finally block.
+                        if (runner.TryGetEndFinallyJumpTarget(out var endFinallyTarget))
+                        {
+                            runner._programCounter = endFinallyTarget;
+                        }
+                        else
+                        {
+                            runner._programCounter = instruction.Next;
+                        }
                     }
                     returnValue = default;
                     return InstructionResult.Continue;

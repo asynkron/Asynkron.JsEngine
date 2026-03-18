@@ -1,6 +1,7 @@
 #region
 
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.BigIntHelper;
@@ -560,6 +561,13 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         if (proto is null && obj is IPrototypeAccessorProvider provider)
         {
             proto = provider.PrototypeAccessor;
+        }
+
+        // IteratorResultObject is a lightweight object that conceptually inherits from Object.prototype
+        // but doesn't store a prototype reference for pooling efficiency.
+        if (proto is null && obj is IteratorResultObject && realmState.ObjectPrototype is { } objProto)
+        {
+            proto = objProto;
         }
 
         if (proto is not IJsPropertyAccessor &&

@@ -48,6 +48,44 @@ internal static class GeneratorYieldLowerer
             return block with { Statements = rewritten };
         }
 
+        private TryStatement RewriteTryStatement(TryStatement tryStatement)
+        {
+            var rewrittenTryBlock = RewriteBlock(tryStatement.TryBlock);
+            var rewrittenCatch = tryStatement.Catch;
+            if (tryStatement.Catch is { Body: { } catchBody })
+            {
+                var rewrittenCatchBody = RewriteBlock(catchBody);
+                if (!ReferenceEquals(rewrittenCatchBody, catchBody))
+                {
+                    rewrittenCatch = tryStatement.Catch with { Body = rewrittenCatchBody };
+                }
+            }
+
+            var rewrittenFinally = tryStatement.Finally;
+            if (tryStatement.Finally is { } finallyBlock)
+            {
+                var rewrittenFinallyBlock = RewriteBlock(finallyBlock);
+                if (!ReferenceEquals(rewrittenFinallyBlock, finallyBlock))
+                {
+                    rewrittenFinally = rewrittenFinallyBlock;
+                }
+            }
+
+            if (ReferenceEquals(rewrittenTryBlock, tryStatement.TryBlock) &&
+                ReferenceEquals(rewrittenCatch, tryStatement.Catch) &&
+                ReferenceEquals(rewrittenFinally, tryStatement.Finally))
+            {
+                return tryStatement;
+            }
+
+            return tryStatement with
+            {
+                TryBlock = rewrittenTryBlock,
+                Catch = rewrittenCatch,
+                Finally = rewrittenFinally
+            };
+        }
+
         private ImmutableArray<StatementNode> RewriteStatements(ImmutableArray<StatementNode> statements, bool isStrict)
         {
             if (statements.IsDefaultOrEmpty)
@@ -65,6 +103,14 @@ internal static class GeneratorYieldLowerer
                     var rewrittenBlock = RewriteBlock(nestedBlock);
                     builder.Add(rewrittenBlock);
                     changed |= !ReferenceEquals(rewrittenBlock, nestedBlock);
+                    continue;
+                }
+
+                if (statement is TryStatement tryStatement)
+                {
+                    var rewrittenTry = RewriteTryStatement(tryStatement);
+                    builder.Add(rewrittenTry);
+                    changed |= !ReferenceEquals(rewrittenTry, tryStatement);
                     continue;
                 }
 

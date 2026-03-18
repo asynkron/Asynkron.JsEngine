@@ -985,35 +985,35 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
 
         await engine.Evaluate("g.next();");
 
+        // g.throw('boom') triggers inner finally, pauses at yield "inner-cleanup-1"
         await engine.Evaluate("const innerCleanup1 = g.throw('boom');");
         var innerCleanup1Value = await engine.Evaluate("innerCleanup1.value;");
         var innerCleanup1Done = await engine.Evaluate("innerCleanup1.done;");
 
-        await engine.Evaluate("const innerCleanup2 = g.throw('override');");
-        var innerCleanup2Value = await engine.Evaluate("innerCleanup2.value;");
-        var innerCleanup2Done = await engine.Evaluate("innerCleanup2.done;");
-
-        await engine.Evaluate("const outerCleanup1 = g.next();");
+        // Per ES spec: throw() on a generator paused at yield inside a finally block
+        // acts like a throw statement at that position, skipping remaining finally code.
+        // The throw propagates through yield* to the outer's try, triggering outer's finally.
+        await engine.Evaluate("const outerCleanup1 = g.throw('override');");
         var outerCleanup1Value = await engine.Evaluate("outerCleanup1.value;");
         var outerCleanup1Done = await engine.Evaluate("outerCleanup1.done;");
 
+        // Continue through outer finally
         await engine.Evaluate("const outerCleanup2 = g.next();");
         var outerCleanup2Value = await engine.Evaluate("outerCleanup2.value;");
         var outerCleanup2Done = await engine.Evaluate("outerCleanup2.done;");
 
-        var finalThrow = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("g.next();"));
-        var transcript = await engine.Evaluate("log.join(',');");
+        // After outer finally completes, the throw propagates
+        var finalThrow = await Assert.ThrowsAsync<ThrowSignal>(async () =>
+            await engine.Evaluate("g.next();"));
 
         Assert.Equal("inner-cleanup-1", innerCleanup1Value);
         Assert.False((bool)innerCleanup1Done!);
-        Assert.Equal("inner-cleanup-2", innerCleanup2Value);
-        Assert.False((bool)innerCleanup2Done!);
         Assert.Equal("outer-cleanup-1", outerCleanup1Value);
         Assert.False((bool)outerCleanup1Done!);
         Assert.Equal("outer-cleanup-2", outerCleanup2Value);
         Assert.False((bool)outerCleanup2Done!);
         Assert.Equal("override", finalThrow.ThrownValue);
-        Assert.Equal("inner-finally-1,inner-finally-2,outer-finally-1,outer-finally-2", transcript);
+        Assert.Equal("inner-finally-1,outer-finally-1,outer-finally-2", await engine.Evaluate("log.join(',');"));
     }
 
     [Fact(Timeout = 2000)]
@@ -1054,18 +1054,20 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
 
         await engine.Evaluate("g.next();");
 
+        // g.return(42) triggers inner finally, pauses at yield "inner-cleanup-1"
         await engine.Evaluate("const innerCleanup1 = g.return(42);");
         var innerCleanup1Value = await engine.Evaluate("innerCleanup1.value;");
         var innerCleanup1Done = await engine.Evaluate("innerCleanup1.done;");
 
-        await engine.Evaluate("const innerCleanup2 = g.return(99);");
-        var innerCleanup2Value = await engine.Evaluate("innerCleanup2.value;");
-        var innerCleanup2Done = await engine.Evaluate("innerCleanup2.done;");
-
-        await engine.Evaluate("const outerCleanup1 = g.next();");
+        // Per ES spec: return() on a generator paused at yield inside a finally block
+        // acts like a return statement, skipping remaining finally code.
+        // This completes the inner generator, then yield* sees it's done and the outer's
+        // try-finally triggers the outer finally block which yields "outer-cleanup-1".
+        await engine.Evaluate("const outerCleanup1 = g.return(99);");
         var outerCleanup1Value = await engine.Evaluate("outerCleanup1.value;");
         var outerCleanup1Done = await engine.Evaluate("outerCleanup1.done;");
 
+        // Continue through outer finally
         await engine.Evaluate("const outerCleanup2 = g.next();");
         var outerCleanup2Value = await engine.Evaluate("outerCleanup2.value;");
         var outerCleanup2Done = await engine.Evaluate("outerCleanup2.done;");
@@ -1073,19 +1075,16 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
         await engine.Evaluate("const finalResult = g.next();");
         var finalValue = await engine.Evaluate("finalResult.value;");
         var finalDone = await engine.Evaluate("finalResult.done;");
-        var transcript = await engine.Evaluate("log.join(',');");
 
         Assert.Equal("inner-cleanup-1", innerCleanup1Value);
         Assert.False((bool)innerCleanup1Done!);
-        Assert.Equal("inner-cleanup-2", innerCleanup2Value);
-        Assert.False((bool)innerCleanup2Done!);
         Assert.Equal("outer-cleanup-1", outerCleanup1Value);
         Assert.False((bool)outerCleanup1Done!);
         Assert.Equal("outer-cleanup-2", outerCleanup2Value);
         Assert.False((bool)outerCleanup2Done!);
         Assert.Equal(99.0, finalValue);
         Assert.True((bool)finalDone!);
-        Assert.Equal("inner-finally-1,inner-finally-2,outer-finally-1,outer-finally-2", transcript);
+        Assert.Equal("inner-finally-1,outer-finally-1,outer-finally-2", await engine.Evaluate("log.join(',');"));
     }
 
     [Fact(Timeout = 2000)]
@@ -1897,16 +1896,14 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
         var firstValue = await engine.Evaluate("firstCleanup.value;");
         var firstDone = await engine.Evaluate("firstCleanup.done;");
 
-        await engine.Evaluate("const secondCleanup = g.throw('override');");
-        var secondValue = await engine.Evaluate("secondCleanup.value;");
-        var secondDone = await engine.Evaluate("secondCleanup.done;");
-
-        var finalThrow = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("g.next();"));
+        // Per ES spec: throw() on a generator paused at yield inside a finally block
+        // acts like a throw statement at that position, skipping remaining finally code.
+        // The throw propagates out since there's no enclosing catch.
+        var finalThrow = await Assert.ThrowsAsync<ThrowSignal>(async () =>
+            await engine.Evaluate("g.throw('override');"));
 
         Assert.Equal("cleanup-a", firstValue);
         Assert.False((bool)firstDone!);
-        Assert.Equal("cleanup-b", secondValue);
-        Assert.False((bool)secondDone!);
         Assert.Equal("override", finalThrow.ThrownValue);
     }
 
@@ -1932,20 +1929,17 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
         var firstValue = await engine.Evaluate("firstCleanup.value;");
         var firstDone = await engine.Evaluate("firstCleanup.done;");
 
+        // Per ES spec: return() on a generator paused at yield inside a finally block
+        // acts like a return statement at that position, skipping remaining finally code.
+        // The generator completes immediately with {value: returnValue, done: true}.
         await engine.Evaluate("const secondCleanup = g.return(99);");
         var secondValue = await engine.Evaluate("secondCleanup.value;");
         var secondDone = await engine.Evaluate("secondCleanup.done;");
 
-        await engine.Evaluate("const finalResult = g.next();");
-        var finalValue = await engine.Evaluate("finalResult.value;");
-        var finalDone = await engine.Evaluate("finalResult.done;");
-
         Assert.Equal("cleanup-a", firstValue);
         Assert.False((bool)firstDone!);
-        Assert.Equal("cleanup-b", secondValue);
-        Assert.False((bool)secondDone!);
-        Assert.Equal(99.0, finalValue);
-        Assert.True((bool)finalDone!);
+        Assert.Equal(99.0, secondValue);
+        Assert.True((bool)secondDone!);
     }
 
     [Fact(Timeout = 2000)]

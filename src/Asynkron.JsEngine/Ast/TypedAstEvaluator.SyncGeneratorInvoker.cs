@@ -52,7 +52,9 @@ public static partial class TypedAstEvaluator
             // First create %GeneratorPrototype% if needed
             if (RealmState.GeneratorPrototype is null)
             {
-                var generatorProto = new JsObject();
+                // Use the generated prototype factory to get all required properties
+                // (Symbol.toStringTag, next/return/throw methods with proper descriptors, etc.)
+                var generatorProto = (JsObject)GeneratorPrototype.CreatePrototype(RealmState);
                 // %GeneratorPrototype% inherits from %IteratorPrototype%, which inherits from %Object.prototype%
                 var iteratorPrototype = RealmState.IteratorPrototype ??=
                     (JsObject)IteratorPrototype.CreatePrototype(RealmState);
@@ -82,6 +84,21 @@ public static partial class TypedAstEvaluator
                     });
 
                 RealmState.GeneratorFunctionPrototype = genFuncProto;
+
+                // %GeneratorPrototype%.constructor === %GeneratorFunction.prototype%
+                // Per ES spec: non-writable, non-enumerable, configurable.
+                if (RealmState.GeneratorPrototype is { } generatorProto &&
+                    generatorProto.GetOwnPropertyDescriptor("constructor") is null)
+                {
+                    generatorProto.DefineProperty("constructor",
+                        new PropertyDescriptor
+                        {
+                            Value = genFuncProto,
+                            Writable = false,
+                            Enumerable = false,
+                            Configurable = true
+                        });
+                }
 
                 // Create the GeneratorFunction constructor if we have access to the engine
                 if (RealmState is { Engine: { } engine, GeneratorFunctionConstructor: null })

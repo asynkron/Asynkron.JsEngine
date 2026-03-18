@@ -369,6 +369,28 @@ public static partial class TypedAstEvaluator
                    TryCatchStateRef.TryStack.Peek().FinallyScheduled;
         }
 
+        /// <summary>
+        /// Attempts to get the EndFinally jump target for the current try frame.
+        /// Returns true if we're inside a scheduled finally block that has an EndFinally target,
+        /// which means execution should skip remaining finally code and jump to EndFinally.
+        /// Used by generator return/throw handling to prevent executing code after yield in finally.
+        /// </summary>
+        private bool TryGetEndFinallyJumpTarget(out int endFinallyTarget)
+        {
+            if (TryCatchStateRef.TryStack.Count > 0)
+            {
+                var frame = TryCatchStateRef.TryStack.Peek();
+                if (frame.FinallyScheduled && frame.EndFinallyIndex >= 0)
+                {
+                    endFinallyTarget = frame.EndFinallyIndex;
+                    return true;
+                }
+            }
+
+            endFinallyTarget = -1;
+            return false;
+        }
+
         private JsValue CompleteReturn(JsValue value)
         {
             // Close any active iterators before completing (array patterns and for-of loops)

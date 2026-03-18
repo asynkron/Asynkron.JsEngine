@@ -15,6 +15,8 @@ public sealed class JsUint8Array(JsArrayBuffer buffer, int byteOffset, int lengt
 {
     public const int BYTES_PER_ELEMENT = 1;
 
+    public override string TypedArrayName => "Uint8Array";
+
     public static JsUint8Array FromLength(int length, RealmState? realmState = null)
     {
         var buffer = new JsArrayBuffer(length * BYTES_PER_ELEMENT, null, realmState);

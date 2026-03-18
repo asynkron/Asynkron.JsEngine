@@ -12,6 +12,8 @@ namespace Asynkron.JsEngine.JsTypes;
 public sealed class JsBigUint64Array(JsArrayBuffer buffer, int byteOffset, int length, bool isLengthTracking = false)
     : BigIntTypedArrayBase<JsBigUint64Array>(buffer, byteOffset, length, isLengthTracking)
 {
+    public override string TypedArrayName => "BigUint64Array";
+
     public static JsBigUint64Array FromLength(int length, RealmState? realmState = null)
     {
         return CreateFromLength(length, realmState, (buf, off, len) => new JsBigUint64Array(buf, off, len));

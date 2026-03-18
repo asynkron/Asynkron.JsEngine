@@ -86,7 +86,15 @@ public abstract class BigIntTypedArrayBase<TSelf>(
 
     public override void SetValue(int index, JsValue value)
     {
-        SetElement(index, StandardLibrary.ToBigInt(value, realmState: _buffer.RealmState));
+        var coerced = StandardLibrary.ToBigInt(value, realmState: _buffer.RealmState);
+
+        // Per spec, if the index is no longer valid after coercion, silently return.
+        if (IsDetachedOrOutOfBounds() || index < 0 || index >= Length)
+        {
+            return;
+        }
+
+        SetElement(index, coerced);
     }
 
     public JsBigInt GetBigIntElement(int index)

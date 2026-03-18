@@ -81,7 +81,9 @@ public static class TypedArrayHelper
         prototype.DeleteOwnProperty("includes");
 
         constructor.SetProperty("prototype", (JsValue)prototype);
-        constructor.Properties.SetPrototype(sharedTypedArrayCtor.PropertiesObject);
+        // Set the [[Prototype]] of each concrete TypedArray constructor to %TypedArray%
+        // so that Object.getPrototypeOf(Int8Array) === %TypedArray%.
+        constructor.SetPrototype(sharedTypedArrayCtor);
 
         return constructor;
 

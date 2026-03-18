@@ -16,6 +16,8 @@ public sealed class JsInt32Array(JsArrayBuffer buffer, int byteOffset, int lengt
 {
     public const int BYTES_PER_ELEMENT = 4;
 
+    public override string TypedArrayName => "Int32Array";
+
     public static JsInt32Array FromLength(int length, RealmState? realmState = null)
     {
         var buffer = new JsArrayBuffer(length * BYTES_PER_ELEMENT, null, realmState);

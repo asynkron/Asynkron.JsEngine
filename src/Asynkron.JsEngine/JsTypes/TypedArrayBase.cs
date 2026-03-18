@@ -199,6 +199,11 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
     /// </summary>
     public virtual bool IsBigIntArray => false;
 
+    /// <summary>
+    ///     The [[TypedArrayName]] internal slot value (e.g. "Int8Array", "Float64Array").
+    /// </summary>
+    public abstract string TypedArrayName { get; }
+
     internal bool IsLengthTracking => _isLengthTracking;
 
     public bool IsExtensible => _properties.IsExtensible;
@@ -217,7 +222,39 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        // Allow dynamically assigned properties and prototype chain lookups first.
+        // Per spec (sec-integer-indexed-exotic-objects-get-p-receiver),
+        // canonical numeric string indices must be resolved against the
+        // typed array element BEFORE falling through to the prototype chain.
+        // This prevents prototype properties like `{ 2: 'wrong value' }` from
+        // shadowing actual typed array elements.
+        if (TryParseIndex(name, out var index))
+        {
+            if (IsDetachedOrOutOfBounds())
+            {
+                value = JsValue.Undefined;
+                return false;
+            }
+
+            var length = Length;
+            if (index >= 0 && index < length)
+            {
+                if (_buffer.IsDetached)
+                {
+                    value = JsValue.Undefined;
+                    return false;
+                }
+
+                value = GetValueForIndex(index);
+                return true;
+            }
+
+            // Canonical numeric index that is out of range: return undefined,
+            // do NOT traverse the prototype chain.
+            value = JsValue.Undefined;
+            return false;
+        }
+
+        // Allow dynamically assigned properties and prototype chain lookups.
         if (_properties.TryGetProperty(name, receiver.IsUndefined ? _cachedJsValue : receiver, out value))
         {
             return true;
@@ -252,28 +289,6 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
             case "includes":
                 value = (JsValue)_includesFunction;
                 return true;
-        }
-
-        if (TryParseIndex(name, out var index))
-        {
-            if (IsDetachedOrOutOfBounds())
-            {
-                value = JsValue.Undefined;
-                return false;
-            }
-
-            var length = Length;
-            if (index >= 0 && index < length)
-            {
-                if (_buffer.IsDetached)
-                {
-                    value = JsValue.Undefined;
-                    return false;
-                }
-
-                value = GetValueForIndex(index);
-                return true;
-            }
         }
 
         value = JsValue.Undefined;
@@ -812,6 +827,13 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         if (context?.IsThrow == true)
         {
             throw new ThrowSignal(context.FlowValue);
+        }
+
+        // Per spec (IntegerIndexedElementSet), if the index is no longer valid
+        // after value coercion (e.g. buffer was resized during valueOf), silently return.
+        if (IsDetachedOrOutOfBounds() || index < 0 || index >= Length)
+        {
+            return;
         }
 
         SetElement(index, numeric);

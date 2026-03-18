@@ -589,19 +589,15 @@ public static class TemporalHelper
         AddPrototypeMethod(prototype, realm, "until", 1, (thisValue, args) =>
         {
             var instant = GetInstant(thisValue);
-            var other = ToTemporalInstant(args.GetArgument(0), realm);
-            var diffNanos = other.EpochNanoseconds - instant.EpochNanoseconds;
-            var duration = JsTemporalDuration.FromNanoseconds((double)diffNanos);
-            return WrapDuration(duration, realm, prototypes.DurationPrototype);
+            var options = args.Count > 1 ? args[1] : JsValue.Undefined;
+            return WrapDuration(DifferenceTemporalInstant("until", instant, args.GetArgument(0), options, realm), realm, prototypes.DurationPrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "since", 1, (thisValue, args) =>
         {
             var instant = GetInstant(thisValue);
-            var other = ToTemporalInstant(args.GetArgument(0), realm);
-            var diffNanos = instant.EpochNanoseconds - other.EpochNanoseconds;
-            var duration = JsTemporalDuration.FromNanoseconds((double)diffNanos);
-            return WrapDuration(duration, realm, prototypes.DurationPrototype);
+            var options = args.Count > 1 ? args[1] : JsValue.Undefined;
+            return WrapDuration(DifferenceTemporalInstant("since", instant, args.GetArgument(0), options, realm), realm, prototypes.DurationPrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "round", 1, (thisValue, args) =>
@@ -1109,17 +1105,15 @@ public static class TemporalHelper
         AddPrototypeMethod(prototype, realm, "until", 1, (thisValue, args) =>
         {
             var date = GetPlainDate(thisValue);
-            var other = ToTemporalPlainDate(args.GetArgument(0), realm);
-            var duration = date.Until(other);
-            return WrapDuration(duration, realm, prototypes.DurationPrototype);
+            var options = args.Count > 1 ? args[1] : JsValue.Undefined;
+            return WrapDuration(DifferenceTemporalPlainDate("until", date, args.GetArgument(0), options, realm), realm, prototypes.DurationPrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "since", 1, (thisValue, args) =>
         {
             var date = GetPlainDate(thisValue);
-            var other = ToTemporalPlainDate(args.GetArgument(0), realm);
-            var duration = date.Since(other);
-            return WrapDuration(duration, realm, prototypes.DurationPrototype);
+            var options = args.Count > 1 ? args[1] : JsValue.Undefined;
+            return WrapDuration(DifferenceTemporalPlainDate("since", date, args.GetArgument(0), options, realm), realm, prototypes.DurationPrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "with", 1, (thisValue, args) =>
@@ -1521,17 +1515,15 @@ public static class TemporalHelper
         AddPrototypeMethod(prototype, realm, "until", 1, (thisValue, args) =>
         {
             var time = GetPlainTime(thisValue);
-            var other = ToTemporalPlainTime(args.GetArgument(0), realm);
-            var duration = time.Until(other);
-            return WrapDuration(duration, realm, prototypes.DurationPrototype);
+            var options = args.Count > 1 ? args[1] : JsValue.Undefined;
+            return WrapDuration(DifferenceTemporalPlainTime("until", time, args.GetArgument(0), options, realm), realm, prototypes.DurationPrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "since", 1, (thisValue, args) =>
         {
             var time = GetPlainTime(thisValue);
-            var other = ToTemporalPlainTime(args.GetArgument(0), realm);
-            var duration = time.Since(other);
-            return WrapDuration(duration, realm, prototypes.DurationPrototype);
+            var options = args.Count > 1 ? args[1] : JsValue.Undefined;
+            return WrapDuration(DifferenceTemporalPlainTime("since", time, args.GetArgument(0), options, realm), realm, prototypes.DurationPrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "with", 1, (thisValue, args) =>
@@ -2024,17 +2016,15 @@ public static class TemporalHelper
         AddPrototypeMethod(prototype, realm, "until", 1, (thisValue, args) =>
         {
             var dt = GetPlainDateTime(thisValue);
-            var other = ToTemporalPlainDateTime(args.GetArgument(0), realm);
-            var duration = dt.Until(other);
-            return WrapDuration(duration, realm, prototypes.DurationPrototype);
+            var options = args.Count > 1 ? args[1] : JsValue.Undefined;
+            return WrapDuration(DifferenceTemporalPlainDateTime("until", dt, args.GetArgument(0), options, realm), realm, prototypes.DurationPrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "since", 1, (thisValue, args) =>
         {
             var dt = GetPlainDateTime(thisValue);
-            var other = ToTemporalPlainDateTime(args.GetArgument(0), realm);
-            var duration = dt.Since(other);
-            return WrapDuration(duration, realm, prototypes.DurationPrototype);
+            var options = args.Count > 1 ? args[1] : JsValue.Undefined;
+            return WrapDuration(DifferenceTemporalPlainDateTime("since", dt, args.GetArgument(0), options, realm), realm, prototypes.DurationPrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "with", 1, (thisValue, args) =>
@@ -2378,19 +2368,15 @@ public static class TemporalHelper
         AddPrototypeMethod(prototype, realm, "until", 1, (thisValue, args) =>
         {
             var zdt = GetZonedDateTime(thisValue);
-            var other = ToTemporalZonedDateTime(args.GetArgument(0), realm);
-            var diffNanos = other.Instant.EpochNanoseconds - zdt.Instant.EpochNanoseconds;
-            var duration = JsTemporalDuration.FromNanoseconds((double)diffNanos);
-            return WrapDuration(duration, realm, prototypes.DurationPrototype);
+            var options = args.Count > 1 ? args[1] : JsValue.Undefined;
+            return WrapDuration(DifferenceTemporalZonedDateTime("until", zdt, args.GetArgument(0), options, realm), realm, prototypes.DurationPrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "since", 1, (thisValue, args) =>
         {
             var zdt = GetZonedDateTime(thisValue);
-            var other = ToTemporalZonedDateTime(args.GetArgument(0), realm);
-            var diffNanos = zdt.Instant.EpochNanoseconds - other.Instant.EpochNanoseconds;
-            var duration = JsTemporalDuration.FromNanoseconds((double)diffNanos);
-            return WrapDuration(duration, realm, prototypes.DurationPrototype);
+            var options = args.Count > 1 ? args[1] : JsValue.Undefined;
+            return WrapDuration(DifferenceTemporalZonedDateTime("since", zdt, args.GetArgument(0), options, realm), realm, prototypes.DurationPrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "round", 1, (thisValue, args) =>
@@ -2764,23 +2750,15 @@ public static class TemporalHelper
         AddPrototypeMethod(prototype, realm, "until", 1, (thisValue, args) =>
         {
             var ym = GetPlainYearMonth(thisValue);
-            var other = ToTemporalPlainYearMonth(args.GetArgument(0), realm);
-            // Calculate difference in months
-            var monthsDiff = (other.Year - ym.Year) * 12 + (other.Month - ym.Month);
-            var years = monthsDiff / 12;
-            var months = monthsDiff % 12;
-            return WrapDuration(new JsTemporalDuration(years, months, 0, 0, 0, 0, 0, 0, 0, 0), realm, prototypes.DurationPrototype);
+            var options = args.Count > 1 ? args[1] : JsValue.Undefined;
+            return WrapDuration(DifferenceTemporalPlainYearMonth("until", ym, args.GetArgument(0), options, realm), realm, prototypes.DurationPrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "since", 1, (thisValue, args) =>
         {
             var ym = GetPlainYearMonth(thisValue);
-            var other = ToTemporalPlainYearMonth(args.GetArgument(0), realm);
-            // Calculate difference in months
-            var monthsDiff = (ym.Year - other.Year) * 12 + (ym.Month - other.Month);
-            var years = monthsDiff / 12;
-            var months = monthsDiff % 12;
-            return WrapDuration(new JsTemporalDuration(years, months, 0, 0, 0, 0, 0, 0, 0, 0), realm, prototypes.DurationPrototype);
+            var options = args.Count > 1 ? args[1] : JsValue.Undefined;
+            return WrapDuration(DifferenceTemporalPlainYearMonth("since", ym, args.GetArgument(0), options, realm), realm, prototypes.DurationPrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "with", 1, (thisValue, args) =>
@@ -4191,6 +4169,535 @@ public static class TemporalHelper
         }
         throw StandardLibrary.ThrowTypeError("Value is not a Temporal.PlainMonthDay");
     }
+
+    #region Since/Until infrastructure
+
+    private static readonly HashSet<string> TimeUnits = new(StringComparer.Ordinal)
+        { "hour", "minute", "second", "millisecond", "microsecond", "nanosecond" };
+
+    private static readonly HashSet<string> DateUnits = new(StringComparer.Ordinal)
+        { "year", "month", "week", "day" };
+
+    private static readonly HashSet<string> DateTimeUnits = new(StringComparer.Ordinal)
+        { "year", "month", "week", "day", "hour", "minute", "second", "millisecond", "microsecond", "nanosecond" };
+
+    private static readonly HashSet<string> YearMonthUnits = new(StringComparer.Ordinal)
+        { "year", "month" };
+
+    private readonly record struct DifferenceSettings(
+        string LargestUnit, string SmallestUnit, long RoundingIncrement, string RoundingMode);
+
+    private static string NegateRoundingMode(string mode) => mode switch
+    {
+        "ceil" => "floor",
+        "floor" => "ceil",
+        "halfCeil" => "halfFloor",
+        "halfFloor" => "halfCeil",
+        _ => mode
+    };
+
+    private static string NormalizeTemporalUnit(string unit) => unit switch
+    {
+        "years" => "year",
+        "months" => "month",
+        "weeks" => "week",
+        "days" => "day",
+        "hours" => "hour",
+        "minutes" => "minute",
+        "seconds" => "second",
+        "milliseconds" => "millisecond",
+        "microseconds" => "microsecond",
+        "nanoseconds" => "nanosecond",
+        _ => unit
+    };
+
+    private static TemporalUnit UnitRank(string unit) => unit switch
+    {
+        "nanosecond" => TemporalUnit.Nanosecond,
+        "microsecond" => TemporalUnit.Microsecond,
+        "millisecond" => TemporalUnit.Millisecond,
+        "second" => TemporalUnit.Second,
+        "minute" => TemporalUnit.Minute,
+        "hour" => TemporalUnit.Hour,
+        "day" => TemporalUnit.Day,
+        "week" => TemporalUnit.Week,
+        "month" => TemporalUnit.Month,
+        "year" => TemporalUnit.Year,
+        _ => throw new ArgumentException($"Unknown temporal unit: {unit}")
+    };
+
+    private static long? MaximumTemporalDurationRoundingIncrement(string unit) => unit switch
+    {
+        "year" or "month" or "week" or "day" => null,
+        "hour" => 24,
+        "minute" or "second" => 60,
+        "millisecond" or "microsecond" or "nanosecond" => 1000,
+        _ => null
+    };
+
+    private static DifferenceSettings GetDifferenceSettings(
+        string operation, JsValue options, RealmState realm, string methodName,
+        HashSet<string> validUnits, string fallbackSmallestUnit, string fallbackLargestUnit)
+    {
+        if (options.IsUndefined)
+            return new DifferenceSettings(fallbackLargestUnit, fallbackSmallestUnit, 1, "trunc");
+
+        var optionsObj = ValidateOptionsObject(options, realm, methodName);
+        if (optionsObj == null)
+            return new DifferenceSettings(fallbackLargestUnit, fallbackSmallestUnit, 1, "trunc");
+
+        // Read smallestUnit (use ToString for type coercion - Symbol throws TypeError)
+        var smallestUnit = fallbackSmallestUnit;
+        if (optionsObj.TryGetProperty("smallestUnit", out var smallestUnitVal) && !smallestUnitVal.IsUndefined)
+        {
+            var rawSmallest = JsOps.ToJsString(smallestUnitVal);
+            smallestUnit = NormalizeTemporalUnit(rawSmallest);
+            if (!validUnits.Contains(smallestUnit))
+                throw StandardLibrary.ThrowRangeError($"{methodName}: Invalid unit: {rawSmallest}", realm: realm);
+        }
+
+        // Default largestUnit = max(fallback, smallestUnit)
+        var defaultLargestUnit = UnitRank(smallestUnit) > UnitRank(fallbackLargestUnit)
+            ? smallestUnit : fallbackLargestUnit;
+
+        // Read largestUnit (use ToString for type coercion - Symbol throws TypeError)
+        var largestUnit = defaultLargestUnit;
+        if (optionsObj.TryGetProperty("largestUnit", out var largestUnitVal) && !largestUnitVal.IsUndefined)
+        {
+            var rawLargest = JsOps.ToJsString(largestUnitVal);
+            if (string.Equals(rawLargest, "auto", StringComparison.Ordinal))
+                largestUnit = defaultLargestUnit;
+            else
+            {
+                largestUnit = NormalizeTemporalUnit(rawLargest);
+                if (!validUnits.Contains(largestUnit))
+                    throw StandardLibrary.ThrowRangeError($"{methodName}: Invalid unit: {rawLargest}", realm: realm);
+            }
+        }
+
+        // Validate largestUnit >= smallestUnit
+        if (UnitRank(largestUnit) < UnitRank(smallestUnit))
+            throw StandardLibrary.ThrowRangeError(
+                $"{methodName}: largestUnit {largestUnit} cannot be smaller than smallestUnit {smallestUnit}",
+                realm: realm);
+
+        // Read roundingMode (default "trunc" for since/until)
+        var roundingMode = "trunc";
+        if (optionsObj.TryGetProperty("roundingMode", out var roundingModeVal) && !roundingModeVal.IsUndefined)
+        {
+            roundingMode = JsOps.ToJsString(roundingModeVal);
+            if (!ValidRoundingModes.Contains(roundingMode))
+                throw StandardLibrary.ThrowRangeError($"Invalid roundingMode: {roundingMode}", realm: realm);
+        }
+
+        // Negate rounding mode for "since"
+        if (string.Equals(operation, "since", StringComparison.Ordinal))
+            roundingMode = NegateRoundingMode(roundingMode);
+
+        // Read roundingIncrement (per spec: truncate to integer, validate range)
+        long roundingIncrement = 1;
+        if (optionsObj.TryGetProperty("roundingIncrement", out var incrementVal) && !incrementVal.IsUndefined)
+        {
+            var incrementNum = JsOps.ToNumber(incrementVal);
+            if (!double.IsFinite(incrementNum))
+                throw StandardLibrary.ThrowRangeError("roundingIncrement must be a finite number", realm: realm);
+            roundingIncrement = (long)Math.Truncate(incrementNum);
+            if (roundingIncrement < 1 || roundingIncrement > 1_000_000_000L)
+                throw StandardLibrary.ThrowRangeError("roundingIncrement must be between 1 and 1000000000", realm: realm);
+        }
+
+        // Validate roundingIncrement against maximum for the smallestUnit
+        // For since/until, maximum is exclusive (increment must be strictly less)
+        var maxIncrement = MaximumTemporalDurationRoundingIncrement(smallestUnit);
+        if (maxIncrement.HasValue)
+        {
+            if (roundingIncrement >= maxIncrement.Value ||
+                maxIncrement.Value % roundingIncrement != 0)
+                throw StandardLibrary.ThrowRangeError(
+                    $"roundingIncrement {roundingIncrement} is not valid for unit {smallestUnit}",
+                    realm: realm);
+        }
+
+        return new DifferenceSettings(largestUnit, smallestUnit, roundingIncrement, roundingMode);
+    }
+
+    // --- DifferenceTemporalPlainTime ---
+    private static JsTemporalDuration DifferenceTemporalPlainTime(
+        string operation, JsTemporalPlainTime time, JsValue otherArg, JsValue options,
+        RealmState realm)
+    {
+        var other = ToTemporalPlainTime(otherArg, realm);
+        var settings = GetDifferenceSettings(operation, options, realm,
+            $"Temporal.PlainTime.prototype.{operation}",
+            TimeUnits, "nanosecond", "hour");
+
+        // DifferenceTime: other - this (until direction)
+        var diffNanos = new BigInteger(other.TotalNanoseconds) - new BigInteger(time.TotalNanoseconds);
+
+        // Round if needed
+        if (!string.Equals(settings.SmallestUnit, "nanosecond", StringComparison.Ordinal) ||
+            settings.RoundingIncrement != 1)
+        {
+            var incrementNs = new BigInteger(GetUnitNanoseconds(settings.SmallestUnit)) * settings.RoundingIncrement;
+            diffNanos = RoundToIncrement(diffNanos, incrementNs, settings.RoundingMode);
+        }
+
+        // Balance to largestUnit
+        var result = BalanceTimeDurationToJsDuration(diffNanos, UnitRank(settings.LargestUnit), realm);
+
+        // For "since", negate
+        if (string.Equals(operation, "since", StringComparison.Ordinal))
+            result = result.Negated();
+
+        return result;
+    }
+
+    // --- DifferenceTemporalInstant ---
+    private static JsTemporalDuration DifferenceTemporalInstant(
+        string operation, JsTemporalInstant instant, JsValue otherArg, JsValue options,
+        RealmState realm)
+    {
+        var other = ToTemporalInstant(otherArg, realm);
+        var settings = GetDifferenceSettings(operation, options, realm,
+            $"Temporal.Instant.prototype.{operation}",
+            TimeUnits, "nanosecond", "second");
+
+        // Compute nanosecond difference (other - this, "until" direction)
+        var diffNanos = other.EpochNanoseconds - instant.EpochNanoseconds;
+
+        // Round if needed
+        if (!string.Equals(settings.SmallestUnit, "nanosecond", StringComparison.Ordinal) ||
+            settings.RoundingIncrement != 1)
+        {
+            var incrementNs = new BigInteger(GetUnitNanoseconds(settings.SmallestUnit)) * settings.RoundingIncrement;
+            diffNanos = RoundToIncrement(diffNanos, incrementNs, settings.RoundingMode);
+        }
+
+        // Balance to largestUnit
+        var result = BalanceTimeDurationToJsDuration(diffNanos, UnitRank(settings.LargestUnit), realm);
+
+        // For "since", negate
+        if (string.Equals(operation, "since", StringComparison.Ordinal))
+            result = result.Negated();
+
+        return result;
+    }
+
+    // --- DifferenceISODate ---
+    private static (int years, int months, int weeks, int days) DifferenceISODate(
+        int y1, int m1, int d1, int y2, int m2, int d2, string largestUnit)
+    {
+        if (string.Equals(largestUnit, "day", StringComparison.Ordinal))
+        {
+            var totalDays = (int)(IsoToDayNumber(y2, m2, d2) - IsoToDayNumber(y1, m1, d1));
+            return (0, 0, 0, totalDays);
+        }
+
+        if (string.Equals(largestUnit, "week", StringComparison.Ordinal))
+        {
+            var totalDays = (int)(IsoToDayNumber(y2, m2, d2) - IsoToDayNumber(y1, m1, d1));
+            var weeks = totalDays / 7;
+            var days = totalDays - weeks * 7;
+            return (0, 0, weeks, days);
+        }
+
+        // year or month: compute year+month difference, then leftover days
+        var totalMonths = (y2 - y1) * 12 + (m2 - m1);
+
+        // Intermediate date: start + totalMonths months (clamp day)
+        var (midYear, midMonth) = AddYearMonth(y1, m1, totalMonths);
+        var midDaysInMonth = DaysInISOMonth(midYear, midMonth);
+        var midDay = Math.Min(d1, midDaysInMonth);
+        var midEpoch = IsoToDayNumber(midYear, midMonth, midDay);
+        var endEpoch = IsoToDayNumber(y2, m2, d2);
+        var leftoverDays = (int)(endEpoch - midEpoch);
+
+        // If leftover days has wrong sign relative to totalMonths, adjust
+        if (totalMonths > 0 && leftoverDays < 0)
+        {
+            totalMonths--;
+            (midYear, midMonth) = AddYearMonth(y1, m1, totalMonths);
+            midDaysInMonth = DaysInISOMonth(midYear, midMonth);
+            midDay = Math.Min(d1, midDaysInMonth);
+            midEpoch = IsoToDayNumber(midYear, midMonth, midDay);
+            leftoverDays = (int)(endEpoch - midEpoch);
+        }
+        else if (totalMonths < 0 && leftoverDays > 0)
+        {
+            totalMonths++;
+            (midYear, midMonth) = AddYearMonth(y1, m1, totalMonths);
+            midDaysInMonth = DaysInISOMonth(midYear, midMonth);
+            midDay = Math.Min(d1, midDaysInMonth);
+            midEpoch = IsoToDayNumber(midYear, midMonth, midDay);
+            leftoverDays = (int)(endEpoch - midEpoch);
+        }
+
+        if (string.Equals(largestUnit, "month", StringComparison.Ordinal))
+            return (0, totalMonths, 0, leftoverDays);
+
+        // largestUnit is "year"
+        var years = totalMonths / 12;
+        var months = totalMonths - years * 12;
+        return (years, months, 0, leftoverDays);
+    }
+
+    private static int CompareISODate(int y1, int m1, int d1, int y2, int m2, int d2)
+    {
+        if (y1 != y2) return y1.CompareTo(y2);
+        if (m1 != m2) return m1.CompareTo(m2);
+        return d1.CompareTo(d2);
+    }
+
+    private static (int year, int month) AddYearMonth(int year, int month, int months)
+    {
+        var totalMonth = (long)(year * 12 + month - 1) + months;
+        var newYear = (int)Math.Floor(totalMonth / 12.0);
+        var newMonth = (int)(totalMonth - (long)newYear * 12) + 1;
+        return (newYear, newMonth);
+    }
+
+    private static int DaysInISOMonth(int year, int month) => month switch
+    {
+        1 or 3 or 5 or 7 or 8 or 10 or 12 => 31,
+        4 or 6 or 9 or 11 => 30,
+        2 => (year % 4 == 0 && year % 100 != 0) || year % 400 == 0 ? 29 : 28,
+        _ => throw new ArgumentOutOfRangeException(nameof(month))
+    };
+
+    // --- DifferenceTemporalPlainDate ---
+    private static JsTemporalDuration DifferenceTemporalPlainDate(
+        string operation, JsTemporalPlainDate date, JsValue otherArg, JsValue options,
+        RealmState realm)
+    {
+        var other = ToTemporalPlainDate(otherArg, realm);
+        var settings = GetDifferenceSettings(operation, options, realm,
+            $"Temporal.PlainDate.prototype.{operation}",
+            DateUnits, "day", "day");
+
+        var (years, months, weeks, days) = DifferenceISODate(
+            date.Year, date.Month, date.Day,
+            other.Year, other.Month, other.Day,
+            settings.LargestUnit);
+
+        var result = new JsTemporalDuration(years, months, weeks, days, 0, 0, 0, 0, 0, 0);
+
+        if (string.Equals(operation, "since", StringComparison.Ordinal))
+            result = result.Negated();
+
+        return result;
+    }
+
+    // --- DifferenceTemporalPlainDateTime ---
+    private static JsTemporalDuration DifferenceTemporalPlainDateTime(
+        string operation, JsTemporalPlainDateTime dt, JsValue otherArg, JsValue options,
+        RealmState realm)
+    {
+        var other = ToTemporalPlainDateTime(otherArg, realm);
+        var settings = GetDifferenceSettings(operation, options, realm,
+            $"Temporal.PlainDateTime.prototype.{operation}",
+            DateTimeUnits, "nanosecond", "day");
+
+        // If largestUnit is time-only, do epoch nanosecond difference
+        if (UnitRank(settings.LargestUnit) <= TemporalUnit.Hour)
+        {
+            var diffNanos = ToEpochNanoseconds(other) - ToEpochNanoseconds(dt);
+            if (!string.Equals(settings.SmallestUnit, "nanosecond", StringComparison.Ordinal) ||
+                settings.RoundingIncrement != 1)
+            {
+                var incNs = new BigInteger(GetUnitNanoseconds(settings.SmallestUnit)) * settings.RoundingIncrement;
+                diffNanos = RoundToIncrement(diffNanos, incNs, settings.RoundingMode);
+            }
+            var balanced = BalanceTimeDurationToJsDuration(diffNanos, UnitRank(settings.LargestUnit), realm);
+            if (string.Equals(operation, "since", StringComparison.Ordinal))
+                balanced = balanced.Negated();
+            return balanced;
+        }
+
+        // Date+time: compute time diff first, then borrow/carry days
+        var timeDiffNanos = new BigInteger(other.Time.TotalNanoseconds) -
+                            new BigInteger(dt.Time.TotalNanoseconds);
+
+        var dateSign = CompareISODate(dt.Date.Year, dt.Date.Month, dt.Date.Day,
+            other.Date.Year, other.Date.Month, other.Date.Day);
+        long timeExtraDays = 0;
+        if (timeDiffNanos < 0 && dateSign > 0)
+        {
+            timeExtraDays = -1;
+            timeDiffNanos += NanosecondsPerDay;
+        }
+        else if (timeDiffNanos > 0 && dateSign < 0)
+        {
+            timeExtraDays = 1;
+            timeDiffNanos -= NanosecondsPerDay;
+        }
+
+        var adjDate2Year = other.Date.Year;
+        var adjDate2Month = other.Date.Month;
+        var adjDate2Day = other.Date.Day;
+        if (timeExtraDays != 0)
+        {
+            var epochDay = IsoToDayNumber(other.Date.Year, other.Date.Month, other.Date.Day) + timeExtraDays;
+            (adjDate2Year, adjDate2Month, adjDate2Day) = DayNumberToIsoDate(epochDay);
+        }
+
+        var (years, months, weeks, days) = DifferenceISODate(
+            dt.Date.Year, dt.Date.Month, dt.Date.Day,
+            adjDate2Year, adjDate2Month, adjDate2Day,
+            settings.LargestUnit);
+
+        // Balance time to hours
+        var timeResult = BalanceTimeDurationToJsDuration(timeDiffNanos, TemporalUnit.Hour, realm);
+
+        var result = new JsTemporalDuration(
+            years, months, weeks, days,
+            timeResult.Hours, timeResult.Minutes, timeResult.Seconds,
+            timeResult.Milliseconds, timeResult.Microseconds, timeResult.Nanoseconds);
+
+        if (string.Equals(operation, "since", StringComparison.Ordinal))
+            result = result.Negated();
+
+        return result;
+    }
+
+    // --- DifferenceTemporalZonedDateTime ---
+    private static JsTemporalDuration DifferenceTemporalZonedDateTime(
+        string operation, JsTemporalZonedDateTime zdt, JsValue otherArg, JsValue options,
+        RealmState realm)
+    {
+        var other = ToTemporalZonedDateTime(otherArg, realm);
+        var settings = GetDifferenceSettings(operation, options, realm,
+            $"Temporal.ZonedDateTime.prototype.{operation}",
+            DateTimeUnits, "nanosecond", "hour");
+
+        // If largestUnit is time-only (hour or smaller), use epoch nanosecond difference
+        if (UnitRank(settings.LargestUnit) <= TemporalUnit.Hour)
+        {
+            var diffNanos = other.Instant.EpochNanoseconds - zdt.Instant.EpochNanoseconds;
+            if (!string.Equals(settings.SmallestUnit, "nanosecond", StringComparison.Ordinal) ||
+                settings.RoundingIncrement != 1)
+            {
+                var incNs = new BigInteger(GetUnitNanoseconds(settings.SmallestUnit)) * settings.RoundingIncrement;
+                diffNanos = RoundToIncrement(diffNanos, incNs, settings.RoundingMode);
+            }
+            var balanced = BalanceTimeDurationToJsDuration(diffNanos, UnitRank(settings.LargestUnit), realm);
+            if (string.Equals(operation, "since", StringComparison.Ordinal))
+                balanced = balanced.Negated();
+            return balanced;
+        }
+
+        // Date-containing: convert to local PlainDateTime and diff
+        var localDt1 = GetLocalPlainDateTime(zdt, realm);
+        var localDt2 = GetLocalPlainDateTime(other, realm);
+
+        var timeDiffNanos = new BigInteger(localDt2.Time.TotalNanoseconds) -
+                            new BigInteger(localDt1.Time.TotalNanoseconds);
+        var dateSign = CompareISODate(
+            localDt1.Date.Year, localDt1.Date.Month, localDt1.Date.Day,
+            localDt2.Date.Year, localDt2.Date.Month, localDt2.Date.Day);
+        long timeExtraDays = 0;
+        if (timeDiffNanos < 0 && dateSign > 0)
+        {
+            timeExtraDays = -1;
+            timeDiffNanos += NanosecondsPerDay;
+        }
+        else if (timeDiffNanos > 0 && dateSign < 0)
+        {
+            timeExtraDays = 1;
+            timeDiffNanos -= NanosecondsPerDay;
+        }
+
+        var ad2y = localDt2.Date.Year;
+        var ad2m = localDt2.Date.Month;
+        var ad2d = localDt2.Date.Day;
+        if (timeExtraDays != 0)
+        {
+            var epochDay = IsoToDayNumber(ad2y, ad2m, ad2d) + timeExtraDays;
+            (ad2y, ad2m, ad2d) = DayNumberToIsoDate(epochDay);
+        }
+
+        var (years, months, weeks, days) = DifferenceISODate(
+            localDt1.Date.Year, localDt1.Date.Month, localDt1.Date.Day,
+            ad2y, ad2m, ad2d, settings.LargestUnit);
+
+        var timeResult = BalanceTimeDurationToJsDuration(timeDiffNanos, TemporalUnit.Hour, realm);
+
+        var result = new JsTemporalDuration(
+            years, months, weeks, days,
+            timeResult.Hours, timeResult.Minutes, timeResult.Seconds,
+            timeResult.Milliseconds, timeResult.Microseconds, timeResult.Nanoseconds);
+
+        if (string.Equals(operation, "since", StringComparison.Ordinal))
+            result = result.Negated();
+
+        return result;
+    }
+
+    // --- DifferenceTemporalPlainYearMonth ---
+    private static JsTemporalDuration DifferenceTemporalPlainYearMonth(
+        string operation, JsTemporalPlainYearMonth ym, JsValue otherArg, JsValue options,
+        RealmState realm)
+    {
+        var other = ToTemporalPlainYearMonth(otherArg, realm);
+
+        if (!string.Equals(ym.Calendar, other.Calendar, StringComparison.Ordinal))
+            throw StandardLibrary.ThrowRangeError(
+                "PlainYearMonth.since/until requires same calendar", realm: realm);
+
+        var settings = GetDifferenceSettings(operation, options, realm,
+            $"Temporal.PlainYearMonth.prototype.{operation}",
+            YearMonthUnits, "month", "year");
+
+        var totalMonths = (other.Year - ym.Year) * 12 + (other.Month - ym.Month);
+
+        int years, months;
+        if (string.Equals(settings.LargestUnit, "month", StringComparison.Ordinal))
+        {
+            years = 0;
+            months = totalMonths;
+        }
+        else
+        {
+            years = totalMonths / 12;
+            months = totalMonths - years * 12;
+        }
+
+        // Handle smallestUnit = "year" (truncate months)
+        if (string.Equals(settings.SmallestUnit, "year", StringComparison.Ordinal))
+        {
+            // Round totalMonths to nearest year
+            var roundedTotal = (int)(long)RoundToIncrement(
+                new BigInteger(totalMonths),
+                new BigInteger(12) * settings.RoundingIncrement,
+                settings.RoundingMode);
+            years = roundedTotal / 12;
+            months = 0;
+        }
+        else if (settings.RoundingIncrement != 1)
+        {
+            // Round months
+            var roundedMonths = (int)(long)RoundToIncrement(
+                new BigInteger(totalMonths),
+                new BigInteger(settings.RoundingIncrement),
+                settings.RoundingMode);
+            if (string.Equals(settings.LargestUnit, "year", StringComparison.Ordinal))
+            {
+                years = roundedMonths / 12;
+                months = roundedMonths - years * 12;
+            }
+            else
+            {
+                years = 0;
+                months = roundedMonths;
+            }
+        }
+
+        var result = new JsTemporalDuration(years, months, 0, 0, 0, 0, 0, 0, 0, 0);
+        if (string.Equals(operation, "since", StringComparison.Ordinal))
+            result = result.Negated();
+        return result;
+    }
+
+    #endregion
 
     private readonly record struct TemporalRoundingOptions(string SmallestUnit, long Increment, string RoundingMode);
 

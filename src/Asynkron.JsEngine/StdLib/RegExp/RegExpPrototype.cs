@@ -21,8 +21,12 @@ public sealed partial class RegExpPrototype
     {
         var resolved = RequireRegExp(thisValue);
 
-        // Per spec: ToString(string) where string defaults to undefined => "undefined"
-        var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : "undefined";
+        if (args.Count == 0)
+        {
+            return new JsValue(false);
+        }
+
+        var input = JsOps.ToJsString(args[0]) ?? string.Empty;
         return new JsValue(resolved.Test(input));
     }
 
@@ -31,8 +35,12 @@ public sealed partial class RegExpPrototype
     {
         var resolved = RequireRegExp(thisValue);
 
-        // Per spec: ToString(string) where string defaults to undefined => "undefined"
-        var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : "undefined";
+        if (args.Count == 0)
+        {
+            return JsValue.Null;
+        }
+
+        var input = JsOps.ToJsString(args[0]) ?? string.Empty;
         var result = resolved.Exec(input);
         return result is null ? JsValue.Null : JsValue.FromObjectUnsafe(result);
     }
@@ -106,10 +114,6 @@ public sealed partial class RegExpPrototype
         try
         {
             ValidateGroupNames(pattern);
-
-            // Per spec B.2.5.1, we only need to check that the object has [[RegExpMatcher]] internal slot
-            // and is not RegExp.prototype itself. These checks are done above (lines 69-77).
-            // The constructor check is not required by the spec.
 
             var reinitialized = new JsRegExp(pattern, flags, Realm, target);
             target.SetProperty("__regex__", reinitialized);
@@ -260,8 +264,6 @@ public sealed partial class RegExpPrototype
         }
 
         Realm.RegExpPrototype ??= Prototype as JsObject;
-
-        // [Symbol.split] is registered via code generation from [JsSymbolMethod] attribute
     }
 
     private JsRegExp RequireRegExp(JsValue receiver)
@@ -321,283 +323,431 @@ public sealed partial class RegExpPrototype
         return builder.ToString();
     }
 
+    // =====================================================================
+    // ECMAScript spec: 22.2.5.8 RegExp.prototype[@@match] (string)
+    // =====================================================================
     [JsSymbolMethod("match", Length = 1d)]
     private JsValue MatchSymbol(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var resolved = RequireRegExp(thisValue);
+        // Step 1: If Type(rx) is not Object, throw a TypeError.
+        if (!thisValue.IsObject)
+        {
+            throw ThrowTypeError("RegExp.prototype[Symbol.match] requires an object receiver", realm: Realm);
+        }
+
+        // Step 2: Let S be ToString(string).
         var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : string.Empty;
 
-        if (!resolved.Global)
+        // Step 3: Let flags be ToString(Get(rx, "flags")).
+        JsOps.TryGetPropertyValue(thisValue, "flags", out var flagsValue);
+        var flags = JsOps.ToJsString(flagsValue);
+
+        // Step 4: If flags does not contain "g", return RegExpExec(rx, S).
+        var isGlobal = flags.Contains('g', StringComparison.Ordinal);
+
+        if (!isGlobal)
         {
-            var single = resolved.Exec(input);
-            return single is null ? JsValue.Null : JsValue.FromObjectUnsafe(single);
+            return RegExpExec(thisValue, input);
         }
 
-        resolved.SetLastIndex(0);
-        var matches = new JsArray(Realm);
+        // Step 5a: Let fullUnicode be flags contains "u".
+        var fullUnicode = flags.Contains('u', StringComparison.Ordinal);
 
+        // Step 5b: Set lastIndex to 0.
+        SetProperty(thisValue, "lastIndex", new JsValue(0d));
+
+        // Step 5c: Let A be ArrayCreate(0).
+        var results = new JsArray(Realm);
+        var n = 0;
+
+        // Step 5d: Repeat
         while (true)
         {
-            var match = resolved.Exec(input);
-            if (match is null)
+            var result = RegExpExec(thisValue, input);
+            if (result == JsValue.Null)
             {
-                break;
+                return n == 0 ? JsValue.Null : JsValue.FromJsArray(results);
             }
 
-            var matchText = match.Items.Count > 0 ? match.Items[0].ToJsString() : string.Empty;
-            matches.Push(matchText);
+            // Get matched string
+            JsOps.TryGetPropertyValue(result, "0", out var matchValue);
+            var matchStr = JsOps.ToJsString(matchValue);
+            results.Push(matchStr);
+            n++;
 
-            if (matchText.Length != 0)
+            if (matchStr.Length == 0)
             {
-                continue;
+                // Advance lastIndex to avoid infinite loop on zero-length match
+                JsOps.TryGetPropertyValue(thisValue, "lastIndex", out var lastIndexValue);
+                var thisIndex = ToLengthOrZero(lastIndexValue);
+                var nextIndex = AdvanceStringIndexDouble(input, thisIndex, fullUnicode);
+                SetProperty(thisValue, "lastIndex", new JsValue(nextIndex));
             }
-
-            // Avoid infinite loops on zero-length matches.
-            var nextIndex = AdvanceStringIndex(input, resolved.GetLastIndex(), resolved.Unicode);
-            resolved.SetLastIndex(nextIndex);
         }
-
-        return matches.Length == 0 ? JsValue.Null : JsValue.FromJsArray(matches);
     }
 
     [JsSymbolMethod("matchAll", Length = 1d)]
     private JsValue MatchAllSymbol(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        // ES2024 22.2.5.8 RegExp.prototype[@@matchAll](string)
-
-        // Step 2: If Type(R) is not Object, throw TypeError.
-        if (!thisValue.IsObject)
+        var resolved = RequireRegExp(thisValue);
+        if (!resolved.Global)
         {
-            throw ThrowTypeError("RegExp method called on incompatible receiver", realm: Realm);
+            throw ThrowTypeError("RegExp.prototype.matchAll requires a global RegExp", realm: Realm);
         }
 
-        // Step 3: Let S be ToString(string).
-        var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : "undefined";
-
-        // Step 4: Let C be SpeciesConstructor(R, %RegExp%).
-        var constructor = GetSpeciesConstructor(thisValue);
-
-        // Step 5: Let flags be ToString(Get(R, "flags")).
-        var context = Realm?.CreateContext();
-        JsOps.TryGetPropertyValue(thisValue, "flags", out var flagsRaw, context);
-        if (context?.IsThrow == true)
-        {
-            throw new ThrowSignal(context.FlowValue);
-        }
-
-        var flags = JsOps.ToJsString(flagsRaw) ?? string.Empty;
-
-        // Step 6: Let matcher be Construct(C, [R, flags]).
-        JsValue matcher;
-        if (constructor.TryGetCallable(out var ctor) && JsOps.IsConstructor(constructor))
-        {
-            matcher = ReflectHelper.Construct(ctor, [thisValue, new JsValue(flags)], ctor, Realm);
-        }
-        else
-        {
-            throw ThrowTypeError("Species constructor is not a constructor", realm: Realm);
-        }
-
-        // Step 7: Let lastIndex be ToLength(Get(R, "lastIndex")).
-        JsOps.TryGetPropertyValue(thisValue, "lastIndex", out var lastIndexRaw, context);
-        if (context?.IsThrow == true)
-        {
-            throw new ThrowSignal(context.FlowValue);
-        }
-
-        var lastIndex = StandardLibrary.ToLengthOrZero(lastIndexRaw);
-
-        // Step 8: Perform Set(matcher, "lastIndex", lastIndex, true).
-        SetPropertyStrict(matcher, "lastIndex", new JsValue((double)lastIndex));
-
-        // Step 9-10: Check flags for global and unicode.
-        var global = flags.Contains('g', StringComparison.Ordinal);
-        var fullUnicode = flags.Contains('u', StringComparison.Ordinal) ||
-                          flags.Contains('v', StringComparison.Ordinal);
-
-        // Step 11: Return CreateRegExpStringIterator(matcher, S, global, fullUnicode).
-        return CreateRegExpStringIterator(matcher, input, global, fullUnicode);
+        var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : string.Empty;
+        return JsValue.FromJsArray(resolved.MatchAll(input));
     }
 
-    /// <summary>
-    /// Abstract operation SpeciesConstructor(O, defaultConstructor).
-    /// Returns the species constructor or falls back to %RegExp%.
-    /// </summary>
-    private JsValue GetSpeciesConstructor(JsValue obj)
-    {
-        var defaultConstructor = Realm.RegExpConstructor is not null
-            ? JsValue.FromObjectUnsafe(Realm.RegExpConstructor)
-            : throw new InvalidOperationException("RegExp constructor not initialized.");
-
-        var context = Realm?.CreateContext();
-        if (!JsOps.TryGetPropertyValue(obj, "constructor", out var constructorValue, context))
-        {
-            if (context?.IsThrow == true)
-            {
-                throw new ThrowSignal(context.FlowValue);
-            }
-
-            return defaultConstructor;
-        }
-
-        if (context?.IsThrow == true)
-        {
-            throw new ThrowSignal(context.FlowValue);
-        }
-
-        if (constructorValue == JsValue.Undefined)
-        {
-            return defaultConstructor;
-        }
-
-        if (!constructorValue.IsObject)
-        {
-            throw ThrowTypeError("Constructor must be an object", realm: Realm);
-        }
-
-        if (!JsOps.TryGetPropertyValue(constructorValue, SymbolKeys.Species, out var speciesValue, context))
-        {
-            if (context?.IsThrow == true)
-            {
-                throw new ThrowSignal(context.FlowValue);
-            }
-
-            return defaultConstructor;
-        }
-
-        if (context?.IsThrow == true)
-        {
-            throw new ThrowSignal(context.FlowValue);
-        }
-
-        if (speciesValue.IsNullOrUndefined)
-        {
-            return defaultConstructor;
-        }
-
-        if (!JsOps.IsConstructor(speciesValue))
-        {
-            throw ThrowTypeError("Species constructor must be a constructor", realm: Realm);
-        }
-
-        return speciesValue;
-    }
-
-    /// <summary>
-    /// Creates a RegExpStringIterator per the ES spec.
-    /// </summary>
-    private JsValue CreateRegExpStringIterator(JsValue matcher, string input, bool global, bool fullUnicode)
-    {
-        var iterator = new JsRegExpStringIterator(matcher, input, global, fullUnicode, Realm,
-            Realm?.IteratorPrototype);
-
-        // Set up the "next" method.
-        var nextFn = new HostFunction((_, _) => iterator.Next(), isConstructor: false);
-        nextFn.DefineProperty("name", new PropertyDescriptor
-        {
-            Value = "next", Writable = false, Enumerable = false, Configurable = true
-        });
-        nextFn.DefineProperty("length", new PropertyDescriptor
-        {
-            Value = 0d, Writable = false, Enumerable = false, Configurable = true
-        });
-        iterator.SetProperty("next", JsValue.FromObjectUnsafe(nextFn));
-
-        // Set Symbol.toStringTag.
-        iterator.DefineProperty(SymbolKeys.ToStringTag,
-            new PropertyDescriptor
-            {
-                Value = "RegExp String Iterator", Writable = false, Enumerable = false, Configurable = true
-            });
-
-        return iterator.AsJsValue;
-    }
-
+    // =====================================================================
+    // ECMAScript spec: 22.2.5.10 RegExp.prototype[@@replace] (string, replaceValue)
+    // =====================================================================
     [JsSymbolMethod("replace", Length = 2d)]
     private JsValue ReplaceSymbol(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var resolved = RequireRegExp(thisValue);
+        // Step 1: If Type(rx) is not Object, throw a TypeError.
+        if (!thisValue.IsObject)
+        {
+            throw ThrowTypeError("RegExp.prototype[Symbol.replace] requires an object receiver", realm: Realm);
+        }
+
+        // Step 2: Let S be ToString(string).
         var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : string.Empty;
-        var replacement = args.GetArgument(1);
-        var regex = resolved.GetRegex();
-        var isFuncReplacer = replacement.TryGetObject<IJsCallable>(out var replacer);
-        var replaceText = isFuncReplacer ? null : JsOps.ToJsString(replacement);
+        var replaceValue = args.GetArgument(1);
 
-        var resultBuilder = new StringBuilder();
-        var resultLastIndex = 0;
+        // Step 3: Let lengthS be the length of S.
+        var lengthS = input.Length;
 
-        IEnumerable<Match> matches;
-        if (resolved.Global)
+        // Step 4: Let functionalReplace be IsCallable(replaceValue).
+        var functionalReplace = replaceValue.TryGetObject<IJsCallable>(out var replaceFn);
+
+        // Step 5: If functionalReplace is false, let replaceValue be ToString(replaceValue).
+        var replaceStr = functionalReplace ? string.Empty : JsOps.ToJsString(replaceValue);
+
+        // Step 6: Let flags be ToString(Get(rx, "flags")).
+        JsOps.TryGetPropertyValue(thisValue, "flags", out var flagsValue);
+        var flags = JsOps.ToJsString(flagsValue);
+
+        // Step 7: If flags contains "g", let global be true, else let global be false.
+        var isGlobal = flags.Contains('g', StringComparison.Ordinal);
+
+        bool fullUnicode = false;
+        if (isGlobal)
         {
-            matches = regex.Matches(input);
+            // Step 8: If global is true, let fullUnicode be ToBoolean(Get(rx, "unicode")).
+            fullUnicode = flags.Contains('u', StringComparison.Ordinal);
+            // Step 8b: Set lastIndex to 0.
+            SetProperty(thisValue, "lastIndex", new JsValue(0d));
         }
-        else
+
+        // Step 8: Let results be a new empty List.
+        var results = new List<JsValue>();
+
+        // Step 9: Let done be false.
+        // Step 10: Repeat, while done is false
+        while (true)
         {
-            var singleMatch = regex.Match(input);
-            matches = singleMatch.Success ? [singleMatch] : [];
-        }
-
-        foreach (var match in matches)
-        {
-            if (!match.Success)
-            {
-                continue;
-            }
-
-            if (match.Index > resultLastIndex)
-            {
-                resultBuilder.Append(input.AsSpan(resultLastIndex, match.Index - resultLastIndex));
-            }
-
-            if (isFuncReplacer)
-            {
-                var replaceArgs = BuildReplaceArguments(match, regex, input);
-                var replacementValue = replacer!.Invoke(replaceArgs, JsValue.Undefined);
-                resultBuilder.Append(replacementValue.ToJsString());
-            }
-            else
-            {
-                var substituted = GetRegExpSubstitution(replaceText!, input, match, regex);
-                resultBuilder.Append(substituted);
-            }
-
-            resultLastIndex = match.Index + match.Length;
-
-            if (match.Length == 0)
-            {
-                // Avoid infinite loop on zero-length matches
-                if (resultLastIndex < input.Length)
-                {
-                    resultBuilder.Append(input[resultLastIndex]);
-                    resultLastIndex++;
-                }
-                else
-                {
-                    break;
-                }
-            }
-
-            if (!resolved.Global)
+            var result = RegExpExec(thisValue, input);
+            if (result == JsValue.Null)
             {
                 break;
             }
+
+            results.Add(result);
+
+            if (!isGlobal)
+            {
+                break;
+            }
+
+            // Get matched string to check for zero-length match
+            JsOps.TryGetPropertyValue(result, "0", out var matchValue);
+            var matchStr = JsOps.ToJsString(matchValue);
+            if (matchStr.Length == 0)
+            {
+                JsOps.TryGetPropertyValue(thisValue, "lastIndex", out var lastIndexValue);
+                var thisIndex = ToLengthOrZero(lastIndexValue);
+                var nextIndex = AdvanceStringIndexDouble(input, thisIndex, fullUnicode);
+                SetProperty(thisValue, "lastIndex", new JsValue(nextIndex));
+            }
         }
 
-        if (resultLastIndex < input.Length)
+        // Step 14: Let accumulatedResult be the empty String.
+        var accumulatedResult = new StringBuilder();
+        // Step 15: Let nextSourcePosition be 0.
+        var nextSourcePosition = 0;
+
+        // Step 16: For each element result of results
+        foreach (var result in results)
         {
-            resultBuilder.Append(input.AsSpan(resultLastIndex));
+            // Step 16a: Let nCaptures be ToLength(Get(result, "length")).
+            JsOps.TryGetPropertyValue(result, "length", out var lengthValue);
+            var nCaptures = (int)ToLengthOrZero(lengthValue);
+            nCaptures = Math.Max(nCaptures - 1, 0);
+
+            // Step 16b: Let matched be ToString(Get(result, "0")).
+            JsOps.TryGetPropertyValue(result, "0", out var matchedValue);
+            var matched = JsOps.ToJsString(matchedValue);
+
+            // Step 16c: Let matchLength be the length of matched.
+            var matchLength = matched.Length;
+
+            // Step 16d: Let position be ToInteger(Get(result, "index")).
+            JsOps.TryGetPropertyValue(result, "index", out var positionValue);
+            var position = (int)JsOps.ToNumber(positionValue);
+            position = Math.Max(Math.Min(position, lengthS), 0);
+
+            // Step 16e-f: Build captures list.
+            var captures = new List<JsValue>(nCaptures);
+            for (var n = 1; n <= nCaptures; n++)
+            {
+                JsOps.TryGetPropertyValue(result, n.ToString(CultureInfo.InvariantCulture), out var captureN);
+                if (captureN != JsValue.Undefined)
+                {
+                    captureN = new JsValue(JsOps.ToJsString(captureN));
+                }
+
+                captures.Add(captureN);
+            }
+
+            // Step 16g: Let namedCaptures be Get(result, "groups").
+            JsOps.TryGetPropertyValue(result, "groups", out var namedCaptures);
+
+            string replacement;
+            if (functionalReplace)
+            {
+                // Step 16h: Build arguments: matched, captures..., position, S, [groups]
+                var fnArgs = new List<JsValue>(nCaptures + 4) { new(matched) };
+                fnArgs.AddRange(captures);
+                fnArgs.Add(new JsValue((double)position));
+                fnArgs.Add(new JsValue(input));
+                if (namedCaptures != JsValue.Undefined)
+                {
+                    fnArgs.Add(namedCaptures);
+                }
+
+                var replResult = replaceFn!.Invoke(fnArgs, JsValue.Undefined);
+                replacement = JsOps.ToJsString(replResult);
+            }
+            else
+            {
+                // Step 16l.i: If namedCaptures is not undefined, set namedCaptures to ToObject(namedCaptures).
+                if (namedCaptures != JsValue.Undefined)
+                {
+                    if (namedCaptures == JsValue.Null)
+                    {
+                        throw ThrowTypeError("Cannot convert null to object", realm: Realm);
+                    }
+                }
+
+                // Step 16l.ii: Let replacement be GetSubstitution(matched, S, position, captures, namedCaptures, replaceValue).
+                replacement = GetSubstitution(matched, input, position, captures, namedCaptures, replaceStr);
+            }
+
+            // Step 16j: If position >= nextSourcePosition
+            if (position >= nextSourcePosition)
+            {
+                accumulatedResult.Append(input.AsSpan(nextSourcePosition, position - nextSourcePosition));
+                accumulatedResult.Append(replacement);
+                nextSourcePosition = position + matchLength;
+            }
         }
 
-        return new JsValue(resultBuilder.ToString());
+        // Step 17: Append remainder of string.
+        if (nextSourcePosition < lengthS)
+        {
+            accumulatedResult.Append(input.AsSpan(nextSourcePosition));
+        }
+
+        return new JsValue(accumulatedResult.ToString());
     }
 
-    /// <summary>
-    /// ECMAScript GetSubstitution for RegExp replace with string replacement.
-    /// Handles $$ $&amp; $` $' $n $nn $&lt;name&gt; patterns per spec.
-    /// </summary>
-    private static string GetRegExpSubstitution(string replacement, string str, Match match, Regex regex)
+    [JsSymbolMethod("search", Length = 1d)]
+    private JsValue SearchSymbol(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        if (!thisValue.IsObject)
+        {
+            throw ThrowTypeError("RegExp.prototype[Symbol.search] requires an object receiver", realm: Realm);
+        }
+
+        var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : string.Empty;
+
+        // Save and restore lastIndex per spec
+        JsOps.TryGetPropertyValue(thisValue, "lastIndex", out var previousLastIndex);
+        SetProperty(thisValue, "lastIndex", new JsValue(0d));
+
+        var result = RegExpExec(thisValue, input);
+
+        SetProperty(thisValue, "lastIndex", previousLastIndex);
+
+        if (result == JsValue.Null)
+        {
+            return new JsValue(-1d);
+        }
+
+        JsOps.TryGetPropertyValue(result, "index", out var indexValue);
+        return indexValue;
+    }
+
+    // =====================================================================
+    // ECMAScript spec: 22.2.5.13 RegExp.prototype[@@split] (string, limit)
+    // =====================================================================
+    [JsSymbolMethod("split", Length = 2d)]
+    private JsValue SplitSymbol(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        // Step 1: If Type(rx) is not Object, throw a TypeError.
+        if (!thisValue.IsObject)
+        {
+            throw ThrowTypeError("RegExp.prototype[Symbol.split] requires an object receiver", realm: Realm);
+        }
+
+        var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : string.Empty;
+        var limitValue = args.GetArgument(1);
+
+        // Step 4: Let C be SpeciesConstructor(rx, %RegExp%).
+        var constructor = SpeciesConstructor(thisValue);
+
+        // Step 5: Let flags be ToString(Get(rx, "flags")).
+        JsOps.TryGetPropertyValue(thisValue, "flags", out var flagsValue);
+        var flags = JsOps.ToJsString(flagsValue);
+
+        // Step 6-8: Check for unicode and sticky flags, ensure y flag is present.
+        var unicodeMatching = flags.Contains('u', StringComparison.Ordinal);
+        var newFlags = flags.Contains('y', StringComparison.Ordinal) ? flags : flags + "y";
+
+        // Step 9: Let splitter be Construct(C, rx, newFlags).
+        var splitter = ConstructSplitter(constructor, thisValue, newFlags);
+
+        // Step 10: Let A be ArrayCreate(0).
+        var resultArray = new JsArray(Realm);
+
+        // Step 11: Let lengthA be 0.
+        // Step 12: Let lim
+        var limit = limitValue == JsValue.Undefined
+            ? uint.MaxValue
+            : ToUint32(limitValue);
+
+        if (limit == 0)
+        {
+            return JsValue.FromJsArray(resultArray);
+        }
+
+        var size = input.Length;
+        if (size == 0)
+        {
+            var z = RegExpExec(splitter, input);
+            if (z == JsValue.Null)
+            {
+                resultArray.Push(input);
+            }
+
+            return JsValue.FromJsArray(resultArray);
+        }
+
+        var p = 0;
+        var q = p;
+
+        while (q < size)
+        {
+            // Set lastIndex to q.
+            SetProperty(splitter, "lastIndex", new JsValue((double)q));
+
+            var z = RegExpExec(splitter, input);
+            if (z == JsValue.Null)
+            {
+                q = AdvanceStringIndex(input, q, unicodeMatching);
+                continue;
+            }
+
+            // Get e from lastIndex
+            JsOps.TryGetPropertyValue(splitter, "lastIndex", out var eValue);
+            var e = (int)ToLengthOrZero(eValue);
+            e = Math.Min(e, size);
+
+            if (e == p)
+            {
+                q = AdvanceStringIndex(input, q, unicodeMatching);
+                continue;
+            }
+
+            // Add substring from p to q
+            resultArray.Push(input.Substring(p, q - p));
+            if (resultArray.Length >= limit)
+            {
+                return JsValue.FromJsArray(resultArray);
+            }
+
+            p = e;
+
+            // Add capturing groups
+            JsOps.TryGetPropertyValue(z, "length", out var numberOfCapturesValue);
+            var numberOfCaptures = Math.Max((int)ToLengthOrZero(numberOfCapturesValue) - 1, 0);
+
+            for (var i = 1; i <= numberOfCaptures; i++)
+            {
+                JsOps.TryGetPropertyValue(z, i.ToString(CultureInfo.InvariantCulture), out var cap);
+                resultArray.Push(cap);
+                if (resultArray.Length >= limit)
+                {
+                    return JsValue.FromJsArray(resultArray);
+                }
+            }
+
+            q = p;
+        }
+
+        // Add tail
+        resultArray.Push(input[p..]);
+        return JsValue.FromJsArray(resultArray);
+    }
+
+    // =====================================================================
+    // RegExpExec abstract operation (ES2024 22.2.5.2.1)
+    // =====================================================================
+    private JsValue RegExpExec(JsValue r, string s)
+    {
+        // Step 1: Let exec be Get(R, "exec").
+        JsOps.TryGetPropertyValue(r, "exec", out var exec);
+
+        // Step 2: If IsCallable(exec) is true, then
+        if (exec.TryGetObject<IJsCallable>(out var callable))
+        {
+            var result = callable.Invoke(new SingleValueArgs(new JsValue(s)), r);
+            // Step 2c: If Type(result) is neither Object nor Null, throw TypeError.
+            if (result == JsValue.Null)
+            {
+                return JsValue.Null;
+            }
+
+            if (!result.IsObject)
+            {
+                throw ThrowTypeError("RegExp exec method returned a non-object or non-null result", realm: Realm);
+            }
+
+            return result;
+        }
+
+        // Step 3: If R does not have a [[RegExpMatcher]] internal slot, throw TypeError.
+        var resolved = ResolveRegExpInstance(r);
+        if (resolved is null)
+        {
+            throw ThrowTypeError("RegExp.prototype method called on incompatible receiver", realm: Realm);
+        }
+
+        // Step 4: Return RegExpBuiltinExec(R, S).
+        var builtinResult = resolved.Exec(s);
+        return builtinResult is null ? JsValue.Null : JsValue.FromObjectUnsafe(builtinResult);
+    }
+
+    // =====================================================================
+    // GetSubstitution (ES2024 22.1.3.18.1)
+    // With full support for $n, $nn, $<name>, $&, $`, $', $$
+    // =====================================================================
+    private static string GetSubstitution(string matched, string str, int position,
+        IReadOnlyList<JsValue> captures, JsValue namedCaptures, string replacement)
     {
         var result = new StringBuilder(replacement.Length);
+        var m = captures.Count; // number of capturing groups
 
         for (var i = 0; i < replacement.Length; i++)
         {
@@ -616,77 +766,87 @@ public sealed partial class RegExpPrototype
                     i++;
                     break;
                 case '&':
-                    result.Append(match.Value);
+                    result.Append(matched);
                     i++;
                     break;
                 case '`':
-                    result.Append(str.AsSpan(0, match.Index));
+                    result.Append(str.AsSpan(0, position));
                     i++;
                     break;
                 case '\'':
-                    var afterMatch = match.Index + match.Length;
+                    var afterMatch = position + matched.Length;
                     if (afterMatch < str.Length)
                     {
                         result.Append(str.AsSpan(afterMatch));
                     }
+
                     i++;
                     break;
                 case '<':
                 {
-                    var closeAngle = replacement.IndexOf('>', i + 2);
-                    if (closeAngle < 0)
+                    // Named group reference: $<name>
+                    if (namedCaptures == JsValue.Undefined || namedCaptures.IsNullOrUndefined)
                     {
                         result.Append("$<");
                         i++;
                         break;
                     }
 
-                    var groupName = replacement.Substring(i + 2, closeAngle - (i + 2));
-                    var group = regex.GroupNumberFromName(groupName);
-                    if (group >= 0 && match.Groups[group].Success)
+                    var closeBracket = replacement.IndexOf('>', i + 2);
+                    if (closeBracket == -1)
                     {
-                        result.Append(match.Groups[group].Value);
+                        result.Append("$<");
+                        i++;
+                        break;
                     }
 
-                    i = closeAngle;
+                    var groupName = replacement.Substring(i + 2, closeBracket - (i + 2));
+                    JsOps.TryGetPropertyValue(namedCaptures, groupName, out var capture);
+                    if (capture != JsValue.Undefined)
+                    {
+                        result.Append(JsOps.ToJsString(capture));
+                    }
+
+                    i = closeBracket;
                     break;
                 }
                 default:
+                {
                     if (next is >= '0' and <= '9')
                     {
-                        var captureCount = match.Groups.Count - 1;
                         var digit1 = next - '0';
-
-                        // Try two-digit reference first (e.g., $01, $12, $99)
+                        // Try two-digit reference first
                         if (i + 2 < replacement.Length && replacement[i + 2] is >= '0' and <= '9')
                         {
                             var digit2 = replacement[i + 2] - '0';
                             var twoDigit = (digit1 * 10) + digit2;
-                            if (twoDigit >= 1 && twoDigit <= captureCount)
+                            if (twoDigit >= 1 && twoDigit <= m)
                             {
-                                var captureGroup = match.Groups[twoDigit];
-                                if (captureGroup.Success)
+                                var capVal = captures[twoDigit - 1];
+                                if (capVal != JsValue.Undefined)
                                 {
-                                    result.Append(captureGroup.Value);
+                                    result.Append(JsOps.ToJsString(capVal));
                                 }
+
                                 i += 2;
                                 break;
                             }
                         }
 
-                        // Single digit reference (e.g., $1 through $9)
-                        if (digit1 >= 1 && digit1 <= captureCount)
+                        // Single-digit reference (only valid for 1-9)
+                        if (digit1 >= 1 && digit1 <= m)
                         {
-                            var captureGroup = match.Groups[digit1];
-                            if (captureGroup.Success)
+                            var capVal = captures[digit1 - 1];
+                            if (capVal != JsValue.Undefined)
                             {
-                                result.Append(captureGroup.Value);
+                                result.Append(JsOps.ToJsString(capVal));
                             }
+
                             i++;
                         }
                         else
                         {
-                            // No such capture, output literal $n
+                            // No valid reference, output literal $
                             result.Append('$');
                         }
                     }
@@ -694,148 +854,91 @@ public sealed partial class RegExpPrototype
                     {
                         result.Append('$');
                     }
+
                     break;
+                }
             }
         }
 
         return result.ToString();
     }
 
-    [JsSymbolMethod("search", Length = 1d)]
-    private JsValue SearchSymbol(JsValue thisValue, IReadOnlyList<JsValue> args)
+    // =====================================================================
+    // SpeciesConstructor - get @@species or fall back to %RegExp%
+    // =====================================================================
+    private JsValue SpeciesConstructor(JsValue thisValue)
     {
-        // ES2024 22.2.5.11 RegExp.prototype[@@search](string)
-        // Step 1-2: Require this to be an object.
-        if (!thisValue.IsObject)
+        JsOps.TryGetPropertyValue(thisValue, "constructor", out var ctor);
+        if (ctor == JsValue.Undefined || ctor.IsNullOrUndefined)
         {
-            throw ThrowTypeError("RegExp method called on incompatible receiver", realm: Realm);
+            return Realm.RegExpConstructor is not null
+                ? JsValue.FromObjectUnsafe(Realm.RegExpConstructor)
+                : JsValue.Undefined;
         }
 
-        // Step 3: Let S be ToString(string).
-        var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : "undefined";
-
-        var context = Realm?.CreateContext();
-
-        // Step 4: Let previousLastIndex be Get(rx, "lastIndex").
-        if (!JsOps.TryGetPropertyValue(thisValue, "lastIndex", out var previousLastIndex, context))
+        if (!ctor.IsObject)
         {
-            if (context?.IsThrow == true)
-            {
-                throw new ThrowSignal(context.FlowValue);
-            }
-
-            previousLastIndex = JsValue.Undefined;
+            throw ThrowTypeError("Species constructor is not an object", realm: Realm);
         }
 
-        if (context?.IsThrow == true)
+        JsOps.TryGetPropertyValue(ctor, SymbolKeys.Species, out var species);
+        if (species == JsValue.Undefined || species.IsNullOrUndefined)
         {
-            throw new ThrowSignal(context.FlowValue);
+            return Realm.RegExpConstructor is not null
+                ? JsValue.FromObjectUnsafe(Realm.RegExpConstructor)
+                : JsValue.Undefined;
         }
 
-        // Step 5: If SameValue(previousLastIndex, 0) is false, then
-        //   a. Perform Set(rx, "lastIndex", 0, true).
-        if (!JsOps.SameValue(previousLastIndex, new JsValue(0d)))
-        {
-            SetPropertyStrict(thisValue, "lastIndex", new JsValue(0d));
-        }
-
-        // Step 6: Let result be RegExpExec(rx, S).
-        var result = RegExpExecAbstract(thisValue, input);
-
-        // Step 7: Let currentLastIndex be Get(rx, "lastIndex").
-        JsOps.TryGetPropertyValue(thisValue, "lastIndex", out var currentLastIndex, context);
-        if (context?.IsThrow == true)
-        {
-            throw new ThrowSignal(context.FlowValue);
-        }
-
-        // Step 8: If SameValue(currentLastIndex, previousLastIndex) is false, then
-        //   a. Perform Set(rx, "lastIndex", previousLastIndex, true).
-        if (!JsOps.SameValue(currentLastIndex, previousLastIndex))
-        {
-            SetPropertyStrict(thisValue, "lastIndex", previousLastIndex);
-        }
-
-        // Step 9: If result is null, return -1.
-        if (result == JsValue.Null)
-        {
-            return new JsValue(-1d);
-        }
-
-        // Step 10: Return Get(result, "index").
-        if (JsOps.TryGetPropertyValue(result, "index", out var indexValue))
-        {
-            return indexValue;
-        }
-
-        return new JsValue(-1d);
+        return species;
     }
 
-    /// <summary>
-    /// Abstract operation RegExpExec(R, S).
-    /// Calls the 'exec' method on the object (which may be overridden), per spec.
-    /// </summary>
-    private JsValue RegExpExecAbstract(JsValue rx, string input)
+    private JsValue ConstructSplitter(JsValue constructor, JsValue rx, string newFlags)
     {
-        var context = Realm?.CreateContext();
-        if (JsOps.TryGetPropertyValue(rx, "exec", out var execProp, context) &&
-            execProp.TryGetObject<IJsCallable>(out var execCallable))
+        // If the constructor is the built-in RegExp constructor, optimize by creating directly
+        if (constructor.TryGetObject<IJsCallable>(out var callable))
         {
-            var result = execCallable.Invoke(new SingleValueArgs(new JsValue(input)), rx);
-            if (result == JsValue.Null || result.IsObject)
+            if (Realm.RegExpConstructor is not null &&
+                ReferenceEquals(callable, Realm.RegExpConstructor))
             {
-                return result;
-            }
-
-            throw ThrowTypeError("exec must return null or an object", realm: Realm);
-        }
-
-        // Fallback to built-in exec.
-        var resolved = ResolveRegExpInstance(rx);
-        if (resolved is null)
-        {
-            throw ThrowTypeError("RegExp method called on incompatible receiver", realm: Realm);
-        }
-
-        var execResult = resolved.Exec(input);
-        return execResult is null ? JsValue.Null : JsValue.FromObjectUnsafe(execResult);
-    }
-
-    /// <summary>
-    /// Performs Set(O, P, V, true) - the strict property set that throws on non-writable.
-    /// </summary>
-    private void SetPropertyStrict(JsValue target, string name, JsValue value)
-    {
-        if (!target.TryGetObject<JsObject>(out var obj))
-        {
-            throw ThrowTypeError("Cannot set property on non-object", realm: Realm);
-        }
-
-        var descriptor = obj.GetOwnPropertyDescriptor(name);
-        if (descriptor is not null)
-        {
-            if (descriptor.IsAccessorDescriptor)
-            {
-                if (descriptor.Set is not null)
+                // Use the fast path: extract pattern from rx and construct with newFlags
+                var resolved = ResolveRegExpInstance(rx);
+                if (resolved is not null)
                 {
-                    descriptor.Set.Invoke(new SingleValueArgs(value), target);
-                    return;
+                    var splitterObj = CreateRegExpLiteral(resolved.Pattern, newFlags, Realm);
+                    return JsValue.FromJsObject(splitterObj);
                 }
-
-                throw ThrowTypeError($"Cannot set property '{name}' which has only a getter", realm: Realm);
             }
 
-            if (!descriptor.Writable)
-            {
-                throw ThrowTypeError($"Cannot assign to read only property '{name}'", realm: Realm);
-            }
-
-            obj[name] = value;
-            descriptor.JsValue = value;
-            return;
+            return ReflectHelper.Construct(callable, [rx, new JsValue(newFlags)], callable, Realm);
         }
 
-        obj.SetProperty(name, value);
+        // Fallback: create a new RegExp from the resolved instance
+        var resolved2 = ResolveRegExpInstance(rx);
+        if (resolved2 is not null)
+        {
+            var splitterObj = CreateRegExpLiteral(resolved2.Pattern, newFlags, Realm);
+            return JsValue.FromJsObject(splitterObj);
+        }
+
+        throw ThrowTypeError("Species constructor is not a constructor", realm: Realm);
+    }
+
+    private static double AdvanceStringIndexDouble(string input, double index, bool unicode)
+    {
+        // Per spec: AdvanceStringIndex returns index + 1 or index + 2 for surrogate pairs
+        var intIndex = (int)Math.Min(index, input.Length);
+        if (!unicode || intIndex + 1 >= input.Length)
+        {
+            return index + 1;
+        }
+
+        var first = input[intIndex];
+        if (char.IsHighSurrogate(first) && intIndex + 1 < input.Length && char.IsLowSurrogate(input[intIndex + 1]))
+        {
+            return index + 2;
+        }
+
+        return index + 1;
     }
 
     private static int AdvanceStringIndex(string input, int index, bool unicode)
@@ -854,49 +957,19 @@ public sealed partial class RegExpPrototype
         return Math.Min(index + 1, input.Length);
     }
 
-    private static IReadOnlyList<JsValue> BuildReplaceArguments(Match match, Regex regex, string input)
+    private void SetProperty(JsValue target, string name, JsValue value)
     {
-        var args = new List<JsValue>(match.Groups.Count + 3)
+        if (target.TryGetObject<JsObject>(out var obj))
         {
-            new(match.Value)
-        };
-
-        for (var i = 1; i < match.Groups.Count; i++)
-        {
-            var group = match.Groups[i];
-            args.Add(group.Success ? new JsValue(group.Value) : JsValue.Undefined);
-        }
-
-        args.Add(new JsValue((double)match.Index));
-        args.Add(new JsValue(input));
-
-        var groups = BuildGroupsObject(match, regex);
-        if (groups is not null)
-        {
-            args.Add(JsValue.FromJsObject(groups));
-        }
-
-        return args;
-    }
-
-    private static JsObject? BuildGroupsObject(Match match, Regex regex)
-    {
-        JsObject? groups = null;
-
-        foreach (var name in match.Groups.Keys)
-        {
-            if (int.TryParse(name, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
+            // Check for non-writable property to throw TypeError (Set with Throw=true per spec)
+            var descriptor = obj.GetOwnPropertyDescriptor(name);
+            if (descriptor is not null && !descriptor.IsAccessorDescriptor && !descriptor.Writable)
             {
-                continue;
+                throw ThrowTypeError($"Cannot assign to read only property '{name}'", realm: Realm);
             }
 
-            var groupNumber = regex.GroupNumberFromName(name);
-            var group = match.Groups[groupNumber];
-            groups ??= new JsObject();
-            groups.SetProperty(name, group.Success ? new JsValue(group.Value) : JsValue.Undefined);
+            obj.SetProperty(name, value);
         }
-
-        return groups;
     }
 
     private static void AppendFlag(StringBuilder builder, JsValue receiver, string propertyName, char flag,
@@ -926,128 +999,5 @@ public sealed partial class RegExpPrototype
         }
 
         return value.IsTruthy;
-    }
-
-    [JsSymbolMethod("split", Length = 2d)]
-    private JsValue Split(JsValue thisValue, IReadOnlyList<JsValue> args)
-    {
-        var resolved = ResolveRegExpInstance(thisValue);
-        if (resolved is null)
-        {
-            throw ThrowTypeError("RegExp method called on incompatible receiver", realm: Realm);
-        }
-
-        var matchKey = SymbolKeys.Match;
-        var receiver = thisValue != JsValue.Null ? thisValue : new JsValue(resolved.JsObject);
-        JsOps.TryGetPropertyValue(receiver, matchKey, out _);
-
-        resolved = ResolveRegExpInstance(receiver) ?? resolved;
-
-        var input = args.Count > 0 ? JsOps.ToJsString(args[0]) : string.Empty;
-        var limitValue = args.GetArgument(1);
-        var forcedFlags = resolved.Flags.Contains('g', StringComparison.Ordinal)
-            ? resolved.Flags
-            : resolved.Flags + "g";
-        var splitter = new JsRegExp(resolved.Pattern, forcedFlags, Realm);
-
-        var limit = limitValue == JsValue.Undefined
-            ? uint.MaxValue
-            : ToUint32(limitValue);
-
-        var resultArray = new JsArray(Realm);
-        if (limit == 0)
-        {
-            return JsValue.FromJsArray(resultArray);
-        }
-
-        var size = input.Length;
-        if (size == 0)
-        {
-            // Empty string: if regex matches empty string, return empty array; otherwise return [input]
-            splitter.SetProperty("lastIndex", 0d);
-            var matchObj = splitter.Exec(input);
-            if (matchObj is null)
-            {
-                resultArray.Push(input);
-            }
-
-            return JsValue.FromJsArray(resultArray);
-        }
-
-        // ES spec 21.2.5.11 steps 11-24
-        // p = end of last match, q = current search position
-        var p = 0; // End position of last match
-        var q = 0; // Current search position
-
-        while (q < size)
-        {
-            // Step 24.a-b: Set lastIndex to q
-            splitter.SetProperty("lastIndex", (double)q);
-
-            // Step 24.c-d: Execute regex
-            var matchObj = splitter.Exec(input);
-
-            // Step 24.e: If no match, advance q and continue
-            if (matchObj is null)
-            {
-                q = AdvanceStringIndex(input, q);
-                continue;
-            }
-
-            // Step 24.f: Match found
-            // Get e = end position of match (lastIndex after exec)
-            var e = splitter.GetLastIndex();
-            e = Math.Min(e, size);
-
-            // Step 24.f.iii: If e = p (empty match at same position), advance q and continue
-            if (e == p)
-            {
-                q = AdvanceStringIndex(input, q);
-                continue;
-            }
-
-            // Step 24.f.iv-ix: Add substring and capture groups to result
-            if (!matchObj.TryGetProperty("index", out var idxVal))
-            {
-                break;
-            }
-
-            var matchIndex = (int)JsOps.ToNumber(idxVal);
-
-            // Add substring from p to matchIndex
-            resultArray.Push(input.Substring(p, matchIndex - p));
-            if (resultArray.Length >= limit)
-            {
-                return JsValue.FromJsArray(resultArray);
-            }
-
-            // Add capture groups (indices 1 to numberOfCaptures)
-            for (var i = 1; i < matchObj.Items.Count; i++)
-            {
-                resultArray.Push(matchObj.Items[i]);
-                if (resultArray.Length >= limit)
-                {
-                    return JsValue.FromJsArray(resultArray);
-                }
-            }
-
-            // Update p and q to e
-            p = e;
-            q = e;
-        }
-
-        // Step 25: Add the tail of the string
-        resultArray.Push(input[p..]);
-
-        return JsValue.FromJsArray(resultArray);
-    }
-
-    /// <summary>
-    /// Advances string index by one code point (handling surrogate pairs for Unicode).
-    /// </summary>
-    private static int AdvanceStringIndex(string _, int index)
-    {
-        // For simplicity, advance by 1. A full implementation would handle Unicode surrogate pairs.
-        return index + 1;
     }
 }

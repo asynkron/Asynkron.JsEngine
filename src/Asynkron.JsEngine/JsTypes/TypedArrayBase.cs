@@ -217,7 +217,24 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        // Allow dynamically assigned properties and prototype chain lookups first.
+        // Integer-indexed exotic object [[Get]] (P, Receiver)
+        // 1. If Type(P) is String, let numericIndex be CanonicalNumericIndexString(P).
+        // 2. If numericIndex is not undefined, return IntegerIndexedElementGet(O, numericIndex).
+        // 3. Return OrdinaryGet(O, P, Receiver).
+        if (TryCanonicalNumericIndex(name, out var numericIndex))
+        {
+            // This is a canonical numeric index -- do NOT consult the prototype chain.
+            if (!IsValidIntegerIndex(numericIndex))
+            {
+                value = JsValue.Undefined;
+                return false;
+            }
+
+            value = GetValueForIndex((int)numericIndex);
+            return true;
+        }
+
+        // OrdinaryGet path -- check own properties and prototype chain.
         if (_properties.TryGetProperty(name, receiver.IsUndefined ? _cachedJsValue : receiver, out value))
         {
             return true;
@@ -252,28 +269,6 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
             case "includes":
                 value = (JsValue)_includesFunction;
                 return true;
-        }
-
-        if (TryParseIndex(name, out var index))
-        {
-            if (IsDetachedOrOutOfBounds())
-            {
-                value = JsValue.Undefined;
-                return false;
-            }
-
-            var length = Length;
-            if (index >= 0 && index < length)
-            {
-                if (_buffer.IsDetached)
-                {
-                    value = JsValue.Undefined;
-                    return false;
-                }
-
-                value = GetValueForIndex(index);
-                return true;
-            }
         }
 
         value = JsValue.Undefined;
@@ -337,7 +332,9 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
                 throw new InvalidOperationException($"Cannot assign to read-only property '{name}' on typed arrays.");
         }
 
-        if (TryParseIndex(name, out var index))
+        // Integer-indexed exotic object [[Set]] (P, V, Receiver)
+        // If the key is a canonical numeric index string, handle via IntegerIndexedElementSet.
+        if (TryCanonicalNumericIndex(name, out var numericIndex))
         {
             if (IsBigIntArray)
             {
@@ -345,12 +342,12 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
                 var coerced = ToBigInt(value, realmState: _buffer.RealmState);
 
                 // If the view is detached/out-of-bounds or the index is invalid, ignore the write.
-                if (IsDetachedOrOutOfBounds() || index < 0 || index >= Length)
+                if (!IsValidIntegerIndex(numericIndex))
                 {
                     return;
                 }
 
-                SetValue(index, new JsValue(coerced));
+                SetValue((int)numericIndex, new JsValue(coerced));
                 return;
             }
 
@@ -369,16 +366,97 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
             }
 
             // If the view is detached/out-of-bounds or the index is invalid, ignore the write.
-            if (IsDetachedOrOutOfBounds() || index < 0 || index >= Length)
+            if (!IsValidIntegerIndex(numericIndex))
             {
                 return;
             }
 
-            SetElement(index, numeric);
+            SetElement((int)numericIndex, numeric);
             return;
         }
 
-        _properties.SetProperty(name, value, receiver.IsUndefined ? _cachedJsValue : receiver);
+        // OrdinarySet for non-numeric-index properties.
+        // We implement this directly rather than delegating to _properties.SetProperty
+        // to avoid receiver mismatch issues (the receiver is the typed array, not _properties).
+        OrdinarySet(name, value);
+    }
+
+    /// <summary>
+    ///     Implements OrdinarySet for ordinary (non-numeric-index) properties.
+    ///     Creates an own data property on the typed array if the property doesn't exist,
+    ///     or updates it if writable.
+    /// </summary>
+    private void OrdinarySet(string name, JsValue value)
+    {
+        // Check own property first
+        var ownDesc = _properties.GetOwnPropertyDescriptor(name);
+        if (ownDesc is not null)
+        {
+            if (ownDesc.IsAccessorDescriptor)
+            {
+                ownDesc.Set?.Invoke(new SingleValueArgs(value), _cachedJsValue);
+                return;
+            }
+
+            if (ownDesc.Writable)
+            {
+                // Update existing own data property
+                ownDesc.JsValue = value;
+                _properties.TryDefineProperty(name, new PropertyDescriptor { JsValue = value });
+            }
+
+            return;
+        }
+
+        // Walk prototype chain to find inherited property
+        IJsPropertyAccessor? proto = _properties.Prototype;
+        if (proto is null && _properties is IPrototypeAccessorProvider { PrototypeAccessor: { } protoAccessor })
+        {
+            proto = protoAccessor;
+        }
+
+        while (proto is not null)
+        {
+            if (proto is IJsObjectLike protoLike)
+            {
+                var protoDesc = protoLike.GetOwnPropertyDescriptor(name);
+                if (protoDesc is not null)
+                {
+                    if (protoDesc.IsAccessorDescriptor)
+                    {
+                        protoDesc.Set?.Invoke(new SingleValueArgs(value), _cachedJsValue);
+                        return;
+                    }
+
+                    if (!protoDesc.Writable)
+                    {
+                        return; // Silently fail
+                    }
+
+                    // Inherited writable data property -- create own property on this object
+                    break;
+                }
+
+                proto = protoLike.Prototype;
+                if (proto is null && protoLike is IPrototypeAccessorProvider { PrototypeAccessor: { } pa })
+                {
+                    proto = pa;
+                }
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        // Create a new own data property
+        _properties.TryDefineProperty(name, new PropertyDescriptor
+        {
+            JsValue = value,
+            Writable = true,
+            Enumerable = true,
+            Configurable = true
+        });
     }
 
     public ref readonly JsValue AsJsValue => ref _cachedJsValue;
@@ -407,28 +485,88 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
     public bool Delete(string name)
     {
+        // Integer-indexed exotic object [[Delete]] (P)
+        if (TryCanonicalNumericIndex(name, out var numericIndex))
+        {
+            // If IsValidIntegerIndex(O, numericIndex) is false, return true.
+            // Otherwise, return false (cannot delete indexed elements).
+            return !IsValidIntegerIndex(numericIndex);
+        }
+
         return _properties.DeleteOwnProperty(name);
+    }
+
+    /// <summary>
+    ///     Integer-indexed exotic object [[HasProperty]] (P).
+    ///     For canonical numeric index strings, returns whether the index is valid
+    ///     WITHOUT consulting the prototype chain.
+    /// </summary>
+    internal bool HasProperty(string name)
+    {
+        if (TryCanonicalNumericIndex(name, out var numericIndex))
+        {
+            return IsValidIntegerIndex(numericIndex);
+        }
+
+        // OrdinaryHasProperty: check own properties then prototype chain.
+        if (_properties.GetOwnPropertyDescriptor(name) is not null)
+        {
+            return true;
+        }
+
+        // Check built-in property names.
+        switch (name)
+        {
+            case "length":
+            case "byteLength":
+            case "byteOffset":
+            case "buffer":
+            case "BYTES_PER_ELEMENT":
+            case "set":
+            case "subarray":
+            case "indexOf":
+            case "includes":
+                return true;
+        }
+
+        // Walk prototype chain. Check PrototypeAccessor first to handle Proxy prototypes.
+        IJsPropertyAccessor? protoAccessor = _properties is IPrototypeAccessorProvider { PrototypeAccessor: { } pa }
+            ? pa
+            : _properties.Prototype;
+
+        if (protoAccessor is JsProxy protoProxy)
+        {
+            return protoProxy.HasProperty(name);
+        }
+
+        if (protoAccessor is JsObject protoObj)
+        {
+            return protoObj.HasProperty(name);
+        }
+
+        return false;
     }
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
     {
-        if (!TryParseIndex(name, out var index) || index < 0)
+        // Integer-indexed exotic object [[GetOwnProperty]] (P)
+        if (TryCanonicalNumericIndex(name, out var numericIndex))
         {
-            return _properties.GetOwnPropertyDescriptor(name);
+            if (!IsValidIntegerIndex(numericIndex))
+            {
+                return null;
+            }
+
+            return new PropertyDescriptor
+            {
+                Value = GetValueForIndex((int)numericIndex),
+                Writable = true,
+                Enumerable = true,
+                Configurable = false
+            };
         }
 
-        if (IsDetachedOrOutOfBounds() || index >= Length)
-        {
-            return null;
-        }
-
-        return new PropertyDescriptor
-        {
-            Value = GetValueForIndex(index),
-            Writable = true,
-            Enumerable = true,
-            Configurable = false
-        };
+        return _properties.GetOwnPropertyDescriptor(name);
     }
 
     public IEnumerable<string> GetOwnPropertyNames()
@@ -487,31 +625,34 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
     public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
     {
-        if (TryParseIndex(name, out var index))
+        // Integer-indexed exotic object [[DefineOwnProperty]] (P, Desc)
+        if (TryCanonicalNumericIndex(name, out var numericIndex))
         {
-            if (index < 0)
+            // If IsValidIntegerIndex(O, numericIndex) is false, return false.
+            if (!IsValidIntegerIndex(numericIndex))
             {
                 return false;
             }
 
-            // Integer-indexed exotic objects reject accessor descriptors and
-            // attribute changes that would make the property non-writable,
-            // non-enumerable, or configurable.
-            if (descriptor.IsAccessorDescriptor ||
-                descriptor is { HasWritable: true, Writable: false } ||
+            // Per ES2024 spec 10.4.5.3:
+            // If Desc has [[Configurable]] and it is false, return false.
+            // If Desc has [[Enumerable]] and it is false, return false.
+            // If IsAccessorDescriptor(Desc), return false.
+            // If Desc has [[Writable]] and it is false, return false.
+            if (descriptor is { HasConfigurable: true, Configurable: false } ||
                 descriptor is { HasEnumerable: true, Enumerable: false } ||
-                descriptor is { HasConfigurable: true, Configurable: true })
+                descriptor.IsAccessorDescriptor ||
+                descriptor is { HasWritable: true, Writable: false })
             {
                 return false;
             }
 
-            if (_buffer.IsDetached || IsDetachedOrOutOfBounds() || index >= Length)
+            // If Desc has a [[Value]] field, perform IntegerIndexedElementSet.
+            if (descriptor.HasValue)
             {
-                throw CreateOutOfBoundsTypeError();
+                SetValue((int)numericIndex, descriptor.JsValue);
             }
 
-            var value = descriptor.HasValue ? descriptor.JsValue : JsValue.Undefined;
-            SetValue(index, value);
             return true;
         }
 
@@ -814,6 +955,13 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
             throw new ThrowSignal(context.FlowValue);
         }
 
+        // Per IntegerIndexedElementSet: after coercion, if buffer is detached or index
+        // is no longer valid, the write is a no-op.
+        if (IsDetachedOrOutOfBounds() || index < 0 || index >= Length)
+        {
+            return;
+        }
+
         SetElement(index, numeric);
     }
 
@@ -960,6 +1108,12 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
     /// </summary>
     public bool DeleteProperty(string name)
     {
+        // Integer-indexed exotic object [[Delete]] (P)
+        if (TryCanonicalNumericIndex(name, out var numericIndex))
+        {
+            return !IsValidIntegerIndex(numericIndex);
+        }
+
         switch (name)
         {
             case "length":
@@ -976,10 +1130,83 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         return _properties.Remove(name);
     }
 
-    private static bool TryParseIndex(string candidate, out int index)
+    /// <summary>
+    ///     Implements the ECMAScript CanonicalNumericIndexString abstract operation.
+    ///     Returns true if the string is a canonical numeric index string, with the
+    ///     numeric value in <paramref name="numericIndex"/>.
+    ///     A string is a canonical numeric index string if ToString(ToNumber(s)) === s,
+    ///     or if s is "-0".
+    /// </summary>
+    internal static bool TryCanonicalNumericIndex(string candidate, out double numericIndex)
     {
-        return int.TryParse(candidate, NumberStyles.Integer, CultureInfo.InvariantCulture, out index);
+        // Step 1: If argument is "-0", return -0.
+        if (string.Equals(candidate, "-0", StringComparison.Ordinal))
+        {
+            numericIndex = -0.0d;
+            return true;
+        }
+
+        // Handle "Infinity" and "-Infinity" explicitly since double.TryParse may
+        // not handle them depending on culture.
+        if (string.Equals(candidate, "Infinity", StringComparison.Ordinal))
+        {
+            numericIndex = double.PositiveInfinity;
+            return true;
+        }
+
+        if (string.Equals(candidate, "-Infinity", StringComparison.Ordinal))
+        {
+            numericIndex = double.NegativeInfinity;
+            return true;
+        }
+
+        // Step 2: Let n be ToNumber(argument).
+        if (!double.TryParse(candidate, NumberStyles.Float | NumberStyles.AllowLeadingSign,
+                CultureInfo.InvariantCulture, out numericIndex))
+        {
+            return false;
+        }
+
+        // Step 3: If ToString(n) is not argument, return undefined.
+        var roundTripped = JsOps.ToCanonicalNumberString(numericIndex);
+        if (!string.Equals(roundTripped, candidate, StringComparison.Ordinal))
+        {
+            numericIndex = 0;
+            return false;
+        }
+
+        return true;
     }
+
+    /// <summary>
+    ///     Checks whether the given canonical numeric index is a valid integer index
+    ///     for this typed array. Per the spec, a valid integer index is an integer that
+    ///     is not -0, is non-negative, and is less than the array length.
+    /// </summary>
+    internal bool IsValidIntegerIndex(double numericIndex)
+    {
+        // IsInteger check
+        if (double.IsNaN(numericIndex) || double.IsInfinity(numericIndex))
+        {
+            return false;
+        }
+
+        // Check for -0
+        if (numericIndex == 0 && double.IsNegative(numericIndex))
+        {
+            return false;
+        }
+
+        // Must be a non-negative integer
+        if (numericIndex != Math.Floor(numericIndex) || numericIndex < 0)
+        {
+            return false;
+        }
+
+        var intIndex = (int)numericIndex;
+        return intIndex >= 0 && intIndex < Length;
+    }
+
 
     private static TypedArrayBase ResolveThis(JsValue thisValue, TypedArrayBase fallback)
     {

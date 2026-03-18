@@ -119,6 +119,8 @@ public static partial class StandardLibrary
         {
             case JsProxy proxy:
                 return proxy.HasProperty(propertyKey);
+            case TypedArrayBase typedArray:
+                return typedArray.HasProperty(propertyKey);
             case JsObject jsObject:
                 return jsObject.HasProperty(propertyKey);
             case IJsObjectLike objectLike:

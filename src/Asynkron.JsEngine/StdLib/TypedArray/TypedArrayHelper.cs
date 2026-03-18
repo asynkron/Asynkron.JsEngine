@@ -220,6 +220,91 @@ public static class TypedArrayHelper
                 return ta;
             }
 
+            // TypedArray(object) -- iterable or array-like
+            if (firstArg.TryGetObject<IJsPropertyAccessor>(out var objAccessor))
+            {
+                // Check for iterable: if object[@@iterator] is not undefined
+                var iteratorKey = SymbolKeys.Iterator;
+                if (objAccessor.TryGetProperty(iteratorKey, out var iteratorMethodVal) &&
+                    !iteratorMethodVal.IsUndefined && !iteratorMethodVal.IsNull)
+                {
+                    if (!iteratorMethodVal.TryGetObject<IJsCallable>(out var iteratorCallable))
+                    {
+                        throw ThrowTypeError("iterator is not callable", realm: realm);
+                    }
+
+                    // Collect values from the iterator
+                    var iteratorObj = iteratorCallable.Invoke([], firstArg);
+                    if (!iteratorObj.TryGetObject<IJsPropertyAccessor>(out var iteratorAccessor))
+                    {
+                        throw ThrowTypeError("Iterator did not return an object", realm: realm);
+                    }
+
+                    if (!iteratorAccessor.TryGetProperty("next", out var nextVal) ||
+                        !nextVal.TryGetObject<IJsCallable>(out var nextCallable))
+                    {
+                        throw ThrowTypeError("Iterator does not have a next method", realm: realm);
+                    }
+
+                    var collected = new List<JsValue>();
+                    while (true)
+                    {
+                        var nextResult = nextCallable.Invoke([], iteratorObj);
+                        if (!nextResult.TryGetObject<IJsPropertyAccessor>(out var nextResultAccessor))
+                        {
+                            throw ThrowTypeError("Iterator result is not an object", realm: realm);
+                        }
+
+                        var done = nextResultAccessor.TryGetProperty("done", out var doneVal) &&
+                                   JsOps.ToBoolean(doneVal);
+                        if (done)
+                        {
+                            break;
+                        }
+
+                        var value = nextResultAccessor.TryGetProperty("value", out var valueVal)
+                            ? valueVal
+                            : JsValue.Undefined;
+                        collected.Add(value);
+                    }
+
+                    var ta = CreateTargetFromLength(collected.Count, newTarget);
+                    for (var i = 0; i < collected.Count; i++)
+                    {
+                        ta.SetValue(i, collected[i]);
+                    }
+
+                    return ta;
+                }
+
+                // Array-like path: read "length" and iterate
+                if (objAccessor.TryGetProperty("length", out var lengthVal))
+                {
+                    var context = realm.CreateContext();
+                    var lenNumber = JsOps.ToNumber(lengthVal, context);
+                    if (context?.IsThrow == true)
+                    {
+                        throw new ThrowSignal(context.FlowValue);
+                    }
+
+                    var length = double.IsNaN(lenNumber) || lenNumber < 0
+                        ? 0
+                        : (int)Math.Min(lenNumber, int.MaxValue);
+
+                    var ta = CreateTargetFromLength(length, newTarget);
+                    for (var i = 0; i < length; i++)
+                    {
+                        var key = i.ToString(CultureInfo.InvariantCulture);
+                        var hasElement = objAccessor.TryGetProperty(key, out var element);
+                        // Per spec step 8c: Perform ? Set(O, Pk, kValue, true).
+                        // This must throw if the value coercion fails.
+                        ta.SetValue(i, hasElement ? element : JsValue.Undefined);
+                    }
+
+                    return ta;
+                }
+            }
+
             return CreateTargetFromLength(0, newTarget);
         }
     }

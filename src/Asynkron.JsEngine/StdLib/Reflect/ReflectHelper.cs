@@ -513,6 +513,31 @@ public static class ReflectHelper
             return proxy.TrySetProperty(propertyKey, value, receiver);
         }
 
+        // TypedArray exotic [[Set]] (P, V, Receiver):
+        // For canonical numeric index strings, the typed array intercepts the operation.
+        if (target is TypedArrayBase typedArray &&
+            TypedArrayBase.TryCanonicalNumericIndex(propertyKey, out var numericIndex))
+        {
+            // If SameValue(O, Receiver) is true, perform IntegerIndexedElementSet.
+            var isSameReceiver = receiver.TryGetObject<TypedArrayBase>(out var receiverTa) &&
+                                 ReferenceEquals(receiverTa, typedArray);
+            if (isSameReceiver)
+            {
+                typedArray.SetProperty(propertyKey, value, receiver);
+                return true;
+            }
+
+            // If IsValidIntegerIndex(O, numericIndex) is false, return true.
+            if (!typedArray.IsValidIntegerIndex(numericIndex))
+            {
+                return true;
+            }
+
+            // Valid index but different receiver -- fall through to OrdinarySet
+            // which will try to set on the receiver object.
+            return OrdinarySetWithReceiver(typedArray, propertyKey, value, receiver);
+        }
+
         if (target is IJsObjectLike objectLike)
         {
             return OrdinarySetWithReceiver(objectLike, propertyKey, value, receiver);

@@ -54,4 +54,23 @@ internal static class IsoCalendarHelpers
 
         return era * 146097 + doe - 719468; // adjust to Unix epoch (1970-01-01)
     }
+
+    /// <summary>
+    ///     Converts Unix epoch days to a proleptic Gregorian calendar date.
+    ///     Uses the Howard Hinnant civil_from_days algorithm.
+    ///     Works for all years including negative (extended) years.
+    /// </summary>
+    public static (int Year, int Month, int Day) EpochDaysToDate(long epochDays)
+    {
+        var z = epochDays + 719468;
+        var era = (z >= 0 ? z : z - 146096) / 146097;
+        var doe = z - era * 146097;
+        var yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+        var y = yoe + era * 400;
+        var doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+        var mp = (5 * doy + 2) / 153;
+        var d = doy - (153 * mp + 2) / 5 + 1;
+        var m = mp + (mp < 10 ? 3 : -9);
+        return ((int)(y + (m <= 2 ? 1 : 0)), (int)m, (int)d);
+    }
 }

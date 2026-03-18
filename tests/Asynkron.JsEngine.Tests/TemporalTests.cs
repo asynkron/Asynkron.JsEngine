@@ -263,8 +263,9 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
     public async Task Temporal_PlainMonthDay_ToString()
     {
         await using var engine = CreateEngine();
+        // Per Temporal spec, PlainMonthDay.toString uses ISO format --MM-DD
         var result = await engine.Evaluate("new Temporal.PlainMonthDay(12, 25).toString()");
-        Assert.Equal("12-25", result);
+        Assert.Equal("--12-25", result);
     }
 
     [Fact]
@@ -332,7 +333,7 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.PlainDate(2024, 12, 25).toPlainMonthDay().toString()");
-        Assert.Equal("12-25", result);
+        Assert.Equal("--12-25", result);
     }
 
     // PlainTime methods
@@ -390,7 +391,9 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
     public async Task Temporal_Duration_Blank()
     {
         await using var engine = CreateEngine();
-        var blank = await engine.Evaluate("Temporal.Duration.from({}).blank");
+        // Per spec: Duration.from({}) throws TypeError (no duration properties)
+        // Use new Temporal.Duration() instead for zero duration
+        var blank = await engine.Evaluate("new Temporal.Duration().blank");
         var notBlank = await engine.Evaluate("Temporal.Duration.from({hours: 1}).blank");
         Assert.Equal(true, blank);
         Assert.Equal(false, notBlank);

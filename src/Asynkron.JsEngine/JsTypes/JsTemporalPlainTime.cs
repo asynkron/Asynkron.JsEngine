@@ -180,16 +180,19 @@ public sealed class JsTemporalPlainTime : IEquatable<JsTemporalPlainTime>, IComp
     /// </summary>
     public JsTemporalPlainTime Add(JsTemporalDuration duration)
     {
-        var totalNanos = TotalNanoseconds +
-                         (long)(duration.Hours * NanosecondsPerHour) +
-                         (long)(duration.Minutes * NanosecondsPerMinute) +
-                         (long)(duration.Seconds * NanosecondsPerSecond) +
-                         (long)(duration.Milliseconds * NanosecondsPerMillisecond) +
-                         (long)(duration.Microseconds * NanosecondsPerMicrosecond) +
-                         (long)duration.Nanoseconds;
+        // Use BigInteger to prevent overflow with large duration values like 2^53 seconds
+        var bigNanos = new System.Numerics.BigInteger(TotalNanoseconds) +
+                       new System.Numerics.BigInteger(duration.Hours) * NanosecondsPerHour +
+                       new System.Numerics.BigInteger(duration.Minutes) * NanosecondsPerMinute +
+                       new System.Numerics.BigInteger(duration.Seconds) * NanosecondsPerSecond +
+                       new System.Numerics.BigInteger(duration.Milliseconds) * NanosecondsPerMillisecond +
+                       new System.Numerics.BigInteger(duration.Microseconds) * NanosecondsPerMicrosecond +
+                       new System.Numerics.BigInteger(duration.Nanoseconds);
 
         // Wrap around to stay within 24 hours
-        totalNanos = ((totalNanos % NanosecondsPerDay) + NanosecondsPerDay) % NanosecondsPerDay;
+        var mod = bigNanos % NanosecondsPerDay;
+        if (mod < 0) mod += NanosecondsPerDay;
+        var totalNanos = (long)mod;
 
         return FromNanoseconds(totalNanos);
     }

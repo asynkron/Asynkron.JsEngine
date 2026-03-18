@@ -385,10 +385,41 @@ public static class TemporalHelper
             return JsValue.FromObjectUnsafe(new JsBigInt(instant.EpochNanoseconds));
         });
 
-        AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, _) =>
+        AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, args) =>
         {
             var instant = GetInstant(thisValue);
-            return new JsValue(instant.ToString());
+            var options = args.GetArgument(0);
+            var optionsObj = ValidateOptionsObject(options, realm, "Temporal.Instant.prototype.toString");
+
+            // Per spec, options read in alphabetical order:
+            // fractionalSecondDigits, roundingMode, smallestUnit, timeZone
+            var (precision, roundingMode) = GetToStringPrecisionOptions(optionsObj, realm);
+
+            // Read timeZone (after smallestUnit per alphabetical order)
+            string? timeZoneId = null;
+            if (optionsObj is not null && optionsObj.TryGetProperty("timeZone", out var tzVal) && !tzVal.IsUndefined)
+            {
+                timeZoneId = ToTemporalTimeZoneSlot(tzVal, realm);
+            }
+
+            // Round the epoch nanoseconds
+            var epochNanos = instant.EpochNanoseconds;
+            if (!(precision.FractionalDigits == -1 && precision.Increment == 1))
+            {
+                var unitNanos = new BigInteger(GetUnitNanoseconds(precision.SmallestUnit)) * precision.Increment;
+                epochNanos = RoundToIncrement(epochNanos, unitNanos, roundingMode, treatNegativeAsPositive: true);
+            }
+
+            if (timeZoneId is null)
+            {
+                // No timezone: display in UTC with "Z" suffix
+                return new JsValue(FormatEpochNanosAsDateTime(epochNanos, 0, precision.FractionalDigits, useZSuffix: true));
+            }
+
+            // Timezone specified: display in that timezone with offset suffix
+            var zdt = new JsTemporalZonedDateTime(new JsTemporalInstant(epochNanos), timeZoneId);
+            var offsetNanos = zdt.OffsetNanoseconds;
+            return new JsValue(FormatEpochNanosAsDateTime(epochNanos, offsetNanos, precision.FractionalDigits, useZSuffix: false));
         });
 
         AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
@@ -419,29 +450,14 @@ public static class TemporalHelper
         {
             var instant = GetInstant(thisValue);
             var duration = ToTemporalDuration(args.GetArgument(0), realm);
-            // Instant only supports time units (hours, minutes, seconds, ms, us, ns)
-            var totalNanos = (long)(duration.Hours * 3600_000_000_000L +
-                                    duration.Minutes * 60_000_000_000L +
-                                    duration.Seconds * 1_000_000_000L +
-                                    duration.Milliseconds * 1_000_000L +
-                                    duration.Microseconds * 1_000L +
-                                    duration.Nanoseconds);
-            var newInstant = new JsTemporalInstant(instant.EpochNanoseconds + totalNanos);
-            return WrapInstant(newInstant, realm, prototype);
+            return AddDurationToInstant(instant, duration, 1, realm, prototype);
         });
 
         AddPrototypeMethod(prototype, realm, "subtract", 1, (thisValue, args) =>
         {
             var instant = GetInstant(thisValue);
             var duration = ToTemporalDuration(args.GetArgument(0), realm);
-            var totalNanos = (long)(duration.Hours * 3600_000_000_000L +
-                                    duration.Minutes * 60_000_000_000L +
-                                    duration.Seconds * 1_000_000_000L +
-                                    duration.Milliseconds * 1_000_000L +
-                                    duration.Microseconds * 1_000L +
-                                    duration.Nanoseconds);
-            var newInstant = new JsTemporalInstant(instant.EpochNanoseconds - totalNanos);
-            return WrapInstant(newInstant, realm, prototype);
+            return AddDurationToInstant(instant, duration, -1, realm, prototype);
         });
 
         AddPrototypeMethod(prototype, realm, "until", 1, (thisValue, args) =>
@@ -1624,46 +1640,59 @@ public static class TemporalHelper
             // Round the instant according to precision
             var epochNanos = zdt.Instant.EpochNanoseconds;
             var incrementNanoseconds = new BigInteger(GetUnitNanoseconds(precision.SmallestUnit)) * precision.Increment;
-            var rounded = RoundToIncrement(epochNanos, incrementNanoseconds, roundingMode);
-            var roundedInstant = new JsTemporalInstant(rounded);
-            var roundedZdt = new JsTemporalZonedDateTime(roundedInstant, zdt.TimeZoneId, zdt.Calendar);
+            var rounded = RoundToIncrement(epochNanos, incrementNanoseconds, roundingMode, treatNegativeAsPositive: true);
+
+            // Get offset nanoseconds — use FixedOffset directly when available to avoid
+            // .NET DateTimeOffset limitation for extended years outside 1-9999
+            long offsetNanos;
+            if (zdt.FixedOffset.HasValue)
+            {
+                offsetNanos = (long)zdt.FixedOffset.Value.TotalMilliseconds * 1_000_000;
+            }
+            else
+            {
+                // Named timezone — need to compute offset at the rounded instant
+                var roundedZdtForOffset = new JsTemporalZonedDateTime(new JsTemporalInstant(rounded), zdt.TimeZoneId, zdt.Calendar);
+                offsetNanos = roundedZdtForOffset.OffsetNanoseconds;
+            }
+
+            // Decompose into date/time components using BigInteger math (bypasses .NET DateTimeOffset)
+            var (year, month, day, hour, minute, second, ms, us, ns) =
+                EpochNanosToComponents(rounded, offsetNanos);
 
             // Build output
-            var datePart = $"{roundedZdt.Year:D4}-{roundedZdt.Month:D2}-{roundedZdt.Day:D2}";
-            var timePart = FormatTimeToString(
-                roundedZdt.Hour, roundedZdt.Minute, roundedZdt.Second,
-                roundedZdt.Millisecond, roundedZdt.Microsecond, roundedZdt.Nanosecond,
-                precision.FractionalDigits);
+            var datePart = $"{FormatYear(year)}-{month:D2}-{day:D2}";
+            var timePart = FormatTimeToString(hour, minute, second, ms, us, ns, precision.FractionalDigits);
 
             var result = $"{datePart}T{timePart}";
 
             if (!string.Equals(showOffset, "never", StringComparison.Ordinal))
             {
-                result += roundedZdt.Offset;
+                result += FormatOffsetNanoseconds(offsetNanos);
             }
 
             if (string.Equals(showTimeZone, "auto", StringComparison.Ordinal))
             {
-                result += $"[{roundedZdt.TimeZoneId}]";
+                result += $"[{zdt.TimeZoneId}]";
             }
             else if (string.Equals(showTimeZone, "critical", StringComparison.Ordinal))
             {
-                result += $"[!{roundedZdt.TimeZoneId}]";
+                result += $"[!{zdt.TimeZoneId}]";
             }
             // "never" — omit timezone
 
             if (string.Equals(showCalendar, "always", StringComparison.Ordinal))
             {
-                result += $"[u-ca={roundedZdt.Calendar}]";
+                result += $"[u-ca={zdt.Calendar}]";
             }
             else if (string.Equals(showCalendar, "critical", StringComparison.Ordinal))
             {
-                result += $"[!u-ca={roundedZdt.Calendar}]";
+                result += $"[!u-ca={zdt.Calendar}]";
             }
             else if (string.Equals(showCalendar, "auto", StringComparison.Ordinal) &&
-                     !string.Equals(roundedZdt.Calendar, "iso8601", StringComparison.Ordinal))
+                     !string.Equals(zdt.Calendar, "iso8601", StringComparison.Ordinal))
             {
-                result += $"[u-ca={roundedZdt.Calendar}]";
+                result += $"[u-ca={zdt.Calendar}]";
             }
 
             return new JsValue(result);
@@ -1682,13 +1711,59 @@ public static class TemporalHelper
             WrapInstant(GetZonedDateTime(thisValue).ToInstant(), realm, prototypes.InstantPrototype));
 
         AddPrototypeMethod(prototype, realm, "toPlainDateTime", 0, (thisValue, _) =>
-            WrapPlainDateTime(GetZonedDateTime(thisValue).ToPlainDateTime(), realm, prototypes.PlainDateTimePrototype));
+        {
+            var zdt = GetZonedDateTime(thisValue);
+            long offsetNanos;
+            if (zdt.FixedOffset.HasValue)
+            {
+                offsetNanos = (long)zdt.FixedOffset.Value.TotalMilliseconds * 1_000_000;
+            }
+            else
+            {
+                offsetNanos = zdt.OffsetNanoseconds;
+            }
+
+            var (year, month, day, hour, minute, second, ms, us, ns) =
+                EpochNanosToComponents(zdt.Instant.EpochNanoseconds, offsetNanos);
+            var pdt = new JsTemporalPlainDateTime(year, month, day, hour, minute, second, ms, us, ns, zdt.Calendar);
+            return WrapPlainDateTime(pdt, realm, prototypes.PlainDateTimePrototype);
+        });
 
         AddPrototypeMethod(prototype, realm, "toPlainDate", 0, (thisValue, _) =>
-            WrapPlainDate(GetZonedDateTime(thisValue).ToPlainDate(), realm, prototypes.PlainDatePrototype));
+        {
+            var zdt = GetZonedDateTime(thisValue);
+            long offsetNanos;
+            if (zdt.FixedOffset.HasValue)
+            {
+                offsetNanos = (long)zdt.FixedOffset.Value.TotalMilliseconds * 1_000_000;
+            }
+            else
+            {
+                offsetNanos = zdt.OffsetNanoseconds;
+            }
+
+            var (year, month, day, _, _, _, _, _, _) =
+                EpochNanosToComponents(zdt.Instant.EpochNanoseconds, offsetNanos);
+            return WrapPlainDate(new JsTemporalPlainDate(year, month, day, zdt.Calendar), realm, prototypes.PlainDatePrototype);
+        });
 
         AddPrototypeMethod(prototype, realm, "toPlainTime", 0, (thisValue, _) =>
-            WrapPlainTime(GetZonedDateTime(thisValue).ToPlainTime(), realm, prototypes.PlainTimePrototype));
+        {
+            var zdt = GetZonedDateTime(thisValue);
+            long offsetNanos;
+            if (zdt.FixedOffset.HasValue)
+            {
+                offsetNanos = (long)zdt.FixedOffset.Value.TotalMilliseconds * 1_000_000;
+            }
+            else
+            {
+                offsetNanos = zdt.OffsetNanoseconds;
+            }
+
+            var (_, _, _, hour, minute, second, ms, us, ns) =
+                EpochNanosToComponents(zdt.Instant.EpochNanoseconds, offsetNanos);
+            return WrapPlainTime(new JsTemporalPlainTime(hour, minute, second, ms, us, ns), realm, prototypes.PlainTimePrototype);
+        });
 
         AddPrototypeMethod(prototype, realm, "add", 1, (thisValue, args) =>
         {
@@ -2798,12 +2873,48 @@ public static class TemporalHelper
     }
 
     /// <summary>
+    ///     Per Temporal spec: AddDurationToInstant validates and computes Instant add/subtract.
+    ///     Rejects years, months, weeks, days. Uses BigInteger to prevent overflow.
+    /// </summary>
+    private static JsValue AddDurationToInstant(JsTemporalInstant instant, JsTemporalDuration duration,
+        int sign, RealmState realm, JsObject prototype)
+    {
+        if (duration.Years != 0 || duration.Months != 0 || duration.Weeks != 0 || duration.Days != 0)
+        {
+            throw StandardLibrary.ThrowRangeError(
+                "Temporal.Instant does not support years, months, weeks, or days in duration", realm: realm);
+        }
+
+        var totalNanos =
+            new BigInteger(duration.Hours) * 3_600_000_000_000L +
+            new BigInteger(duration.Minutes) * 60_000_000_000L +
+            new BigInteger(duration.Seconds) * 1_000_000_000L +
+            new BigInteger(duration.Milliseconds) * 1_000_000L +
+            new BigInteger(duration.Microseconds) * 1_000L +
+            new BigInteger(duration.Nanoseconds);
+        var result = instant.EpochNanoseconds + sign * totalNanos;
+        if (result < InstantMinEpochNanoseconds || result > InstantMaxEpochNanoseconds)
+        {
+            throw StandardLibrary.ThrowRangeError("Resulting Instant is out of range", realm: realm);
+        }
+
+        return WrapInstant(new JsTemporalInstant(result), realm, prototype);
+    }
+
+    /// <summary>
     ///     Per Temporal spec: IsValidDuration checks that the duration fields are within limits.
     ///     Normalizes to total nanoseconds, then checks totalSeconds against 2^53.
     /// </summary>
     private static bool IsValidDuration(double years, double months, double weeks, double days,
         double hours, double minutes, double seconds, double milliseconds, double microseconds, double nanoseconds)
     {
+        // Check for non-finite values first (prevents BigInteger overflow)
+        ReadOnlySpan<double> allFields = [years, months, weeks, days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds];
+        foreach (var f in allFields)
+        {
+            if (double.IsNaN(f) || double.IsInfinity(f)) return false;
+        }
+
         const double maxYMW = 4294967296; // 2^32
 
         // 1. Years, months, weeks must be in range (-2^32, 2^32)
@@ -3682,90 +3793,242 @@ public static class TemporalHelper
 
     private static JsTemporalInstant ToTemporalInstant(JsValue value, RealmState realm)
     {
-        // If it's already a Temporal.Instant
-        if (value.TryGetObject<JsObject>(out var obj) &&
-            obj.TryGetProperty(TemporalInstantSlot, out var slot) &&
-            slot.TryGetObject<JsTemporalInstant>(out var instant))
-        {
-            return instant;
-        }
-
-        // Try to parse as string
+        // 1. String - fast path
         if (value.IsString)
+            return ParseTemporalInstantString(value.AsString() ?? "", realm);
+
+        // 2. Non-string primitives → TypeError
+        if (value.IsUndefined || value.IsNull || value.IsBoolean || value.IsNumber || value.IsSymbol || value.IsBigInt)
+            throw StandardLibrary.ThrowTypeError("Cannot convert to Temporal.Instant", realm: realm);
+
+        // 3. Objects - check for Temporal types first
+        if (value.TryGetObject<JsObject>(out var obj))
         {
-            var str = value.AsString() ?? "";
+            if (obj.TryGetProperty(TemporalInstantSlot, out var slot) &&
+                slot.TryGetObject<JsTemporalInstant>(out var instant))
+                return instant;
 
-            // Strip bracket annotations (timezone/calendar) if present
-            var bracketIdx = str.IndexOf('[');
-            if (bracketIdx >= 0)
-            {
-                str = str[..bracketIdx];
-            }
-
-            // Try custom parsing first (preserves nanosecond precision, handles all years)
-            var parsed = ParseExtendedYearInstant(str);
-            if (parsed is not null)
-            {
-                return parsed;
-            }
-
-            // Fall back to standard ISO 8601 parsing
-            if (DateTimeOffset.TryParse(str, System.Globalization.CultureInfo.InvariantCulture,
-                    System.Globalization.DateTimeStyles.None, out var dto))
-            {
-                return new JsTemporalInstant(dto);
-            }
+            if (obj.TryGetProperty(TemporalZonedDateTimeSlot, out var zdtSlot) &&
+                zdtSlot.TryGetObject<JsTemporalZonedDateTime>(out var zdt))
+                return zdt.ToInstant();
         }
 
-        throw StandardLibrary.ThrowTypeError("Cannot convert to Temporal.Instant", realm: realm);
+        // 4. All remaining objects (JsObject, HostFunction, etc.) → convert to string via ToString, then parse
+        var str = JsOps.ToJsString(value);
+        return ParseTemporalInstantString(str, realm);
     }
 
     /// <summary>
-    ///     Parses an ISO 8601 instant string with extended year, year 0, or nanosecond precision.
-    ///     Handles formats: YYYY-MM-DDTHH:mm:ss[.fffffffff]Z, +YYYYYY-..., -YYYYYY-...
-    ///     Returns null if the string cannot be parsed.
+    ///     Parses and validates an ISO 8601 instant string.
+    ///     Requires a UTC offset (Z or ±HH:MM). Throws RangeError for invalid strings.
     /// </summary>
-    private static JsTemporalInstant? ParseExtendedYearInstant(string str)
+    private static JsTemporalInstant ParseTemporalInstantString(string str, RealmState realm)
+    {
+        if (string.IsNullOrEmpty(str))
+            throw StandardLibrary.ThrowRangeError("Invalid instant string", realm: realm);
+
+        // Reject Unicode minus sign (U+2212)
+        if (str.Contains('\u2212'))
+            throw StandardLibrary.ThrowRangeError("Unicode minus sign is not accepted in instant strings", realm: realm);
+
+        // Parse and validate bracket annotations
+        var baseStr = ParseAndValidateAnnotations(str, realm);
+
+        // Parse the base string as an instant
+        var parsed = ParseInstantBaseString(baseStr);
+        if (parsed is null)
+            throw StandardLibrary.ThrowRangeError($"Invalid instant string: {str}", realm: realm);
+
+        // Validate range
+        if (parsed.EpochNanoseconds < InstantMinEpochNanoseconds ||
+            parsed.EpochNanoseconds > InstantMaxEpochNanoseconds)
+            throw StandardLibrary.ThrowRangeError($"Instant out of representable range: {str}", realm: realm);
+
+        return parsed;
+    }
+
+    /// <summary>
+    ///     Parses and validates bracket annotations from an ISO string.
+    ///     Returns the base string (before any annotations).
+    ///     Throws RangeError for invalid annotations.
+    /// </summary>
+    private static string ParseAndValidateAnnotations(string input, RealmState realm)
+    {
+        var bracketIdx = input.IndexOf('[');
+        if (bracketIdx < 0)
+            return input;
+
+        // Check for trailing content after all annotations
+        var baseStr = input[..bracketIdx];
+        var remaining = input.AsSpan(bracketIdx);
+
+        var timeZoneAnnotationSeen = false;
+        var calendarAnnotationCount = 0;
+        var calendarCriticalSeen = false;
+
+        var pos = 0;
+        while (pos < remaining.Length)
+        {
+            if (remaining[pos] != '[')
+                throw StandardLibrary.ThrowRangeError("Invalid trailing content after annotations", realm: realm);
+            pos++;
+
+            var critical = false;
+            if (pos < remaining.Length && remaining[pos] == '!')
+            {
+                critical = true;
+                pos++;
+            }
+
+            var closeBracket = remaining[pos..].IndexOf(']');
+            if (closeBracket < 0)
+                throw StandardLibrary.ThrowRangeError("Unterminated bracket annotation", realm: realm);
+
+            var content = remaining.Slice(pos, closeBracket);
+            pos += closeBracket + 1;
+
+            var eqIdx = content.IndexOf('=');
+            if (eqIdx >= 0)
+            {
+                // Key=value annotation
+                var key = content[..eqIdx];
+
+                if (!IsValidAnnotationKey(key))
+                    throw StandardLibrary.ThrowRangeError("Invalid annotation key: keys must be lowercase", realm: realm);
+
+                if (key.SequenceEqual("u-ca".AsSpan()))
+                {
+                    calendarAnnotationCount++;
+                    if (critical) calendarCriticalSeen = true;
+                    if (calendarAnnotationCount > 1 && calendarCriticalSeen)
+                        throw StandardLibrary.ThrowRangeError("Multiple calendar annotations with critical flag", realm: realm);
+                }
+                else
+                {
+                    if (critical)
+                        throw StandardLibrary.ThrowRangeError("Unknown critical annotation", realm: realm);
+                }
+            }
+            else
+            {
+                // Timezone annotation
+                if (timeZoneAnnotationSeen)
+                    throw StandardLibrary.ThrowRangeError("Multiple time zone annotations", realm: realm);
+                timeZoneAnnotationSeen = true;
+
+                // Validate no sub-minute offsets in timezone annotations
+                if (content.Length > 0 && (content[0] == '+' || content[0] == '-'))
+                    ValidateTimezoneAnnotationOffset(content, realm);
+            }
+        }
+
+        return baseStr;
+    }
+
+    private static bool IsValidAnnotationKey(ReadOnlySpan<char> key)
+    {
+        foreach (var c in key)
+        {
+            if (c is not (>= 'a' and <= 'z' or '-' or '_' or >= '0' and <= '9'))
+                return false;
+        }
+        return key.Length > 0;
+    }
+
+    private static void ValidateTimezoneAnnotationOffset(ReadOnlySpan<char> content, RealmState realm)
+    {
+        // Timezone annotation offsets must not have sub-minute precision
+        // Valid colon format: ±HH:MM (5 chars after sign)
+        // Valid compact format: ±HH (2 chars) or ±HHMM (4 chars)
+        // Invalid: anything with seconds (±HH:MM:SS or ±HHMMSS or with fractional)
+        var body = content[1..];
+        var colonCount = 0;
+        foreach (var c in body)
+        {
+            if (c == ':') colonCount++;
+        }
+        // Colon format: more than 1 colon means sub-minute (HH:MM:SS)
+        if (colonCount > 1)
+            throw StandardLibrary.ThrowRangeError("Timezone annotation offset must not have sub-minute precision", realm: realm);
+        // Compact format (no colons): more than 4 digits means sub-minute (HHMMSS)
+        if (colonCount == 0 && body.Length > 4)
+            throw StandardLibrary.ThrowRangeError("Timezone annotation offset must not have sub-minute precision", realm: realm);
+        // Compact with dot: HHMM.fff or similar
+        if (body.Contains('.'))
+            throw StandardLibrary.ThrowRangeError("Timezone annotation offset must not have sub-minute precision", realm: realm);
+    }
+
+    /// <summary>
+    ///     Finds the index of the date-time separator (T, t, or space) in a string.
+    ///     Returns -1 if none found.
+    /// </summary>
+    private static int FindDateTimeSeparator(string str)
+    {
+        for (var i = 0; i < str.Length; i++)
+        {
+            if (str[i] is 'T' or 't' or ' ')
+                return i;
+        }
+        return -1;
+    }
+
+    private static JsTemporalInstant? ParseInstantBaseString(string str)
     {
         int year;
         string timePart;
 
-        if (str.Length > 0 && (str[0] == '+' || str[0] == '-' || str[0] == '\u2212'))
+        if (str.Length > 0 && (str[0] == '+' || str[0] == '-'))
         {
             // Extended year format: +YYYYYY-MM-DDTHH:mm:ssZ or -YYYYYY-MM-DDTHH:mm:ssZ
-            var sign = str[0] == '-' || str[0] == '\u2212' ? -1 : 1;
+            var sign = str[0] == '-' ? -1 : 1;
             var rest = str[1..];
 
-            var tIdx = rest.IndexOf('T');
+            var tIdx = FindDateTimeSeparator(rest);
             if (tIdx < 0) return null;
 
             var datePart = rest[..tIdx];
             timePart = rest[(tIdx + 1)..];
 
+            // Require exactly 6-digit year for extended format
             var lastDash = datePart.LastIndexOf('-');
             if (lastDash <= 0) return null;
             var secondLastDash = datePart.LastIndexOf('-', lastDash - 1);
             if (secondLastDash <= 0) return null;
 
-            if (!int.TryParse(datePart[..secondLastDash], System.Globalization.CultureInfo.InvariantCulture, out var yearAbs) ||
+            var yearStr = datePart[..secondLastDash];
+            if (yearStr.Length != 6) return null;
+
+            if (!int.TryParse(yearStr, System.Globalization.CultureInfo.InvariantCulture, out var yearAbs) ||
                 !int.TryParse(datePart[(secondLastDash + 1)..lastDash], System.Globalization.CultureInfo.InvariantCulture, out var month) ||
                 !int.TryParse(datePart[(lastDash + 1)..], System.Globalization.CultureInfo.InvariantCulture, out var day))
                 return null;
 
+            // Validate component lengths
+            if (datePart[(secondLastDash + 1)..lastDash].Length != 2) return null;
+            if (datePart[(lastDash + 1)..].Length != 2) return null;
+
             year = sign * yearAbs;
+
+            // Reject negative zero year (-000000)
+            if (sign == -1 && yearAbs == 0) return null;
+
             return ComputeInstantFromParts(year, month, day, timePart);
         }
 
         // Standard year format: YYYY-MM-DDTHH:mm:ss...
         {
-            var tIdx = str.IndexOf('T');
+            var tIdx = FindDateTimeSeparator(str);
             if (tIdx < 0) return null;
 
             var datePart = str[..tIdx];
             timePart = str[(tIdx + 1)..];
 
+            // Must be YYYY-MM-DD (exactly 3 dash-separated parts, year exactly 4 digits)
             var dashParts = datePart.Split('-');
-            if (dashParts.Length < 3) return null;
+            if (dashParts.Length != 3) return null;
+            if (dashParts[0].Length != 4) return null;
+            if (dashParts[1].Length != 2) return null;
+            if (dashParts[2].Length != 2) return null;
 
             if (!int.TryParse(dashParts[0], System.Globalization.CultureInfo.InvariantCulture, out year) ||
                 !int.TryParse(dashParts[1], System.Globalization.CultureInfo.InvariantCulture, out var month) ||
@@ -3778,54 +4041,94 @@ public static class TemporalHelper
 
     /// <summary>
     ///     Computes a JsTemporalInstant from date components and a time+offset string.
+    ///     Returns null if the time+offset string is invalid or missing a UTC offset.
     /// </summary>
-    private static JsTemporalInstant ComputeInstantFromParts(int year, int month, int day, string timePart)
+    private static JsTemporalInstant? ComputeInstantFromParts(int year, int month, int day, string timePart)
     {
-        // Remove timezone offset to get pure time
-        var offsetNanos = 0L;
+        if (string.IsNullOrEmpty(timePart)) return null;
+
+        // Extract UTC offset - REQUIRED for instant strings
+        long offsetNanos = 0;
+        var hasOffset = false;
+
         if (timePart.EndsWith('Z') || timePart.EndsWith('z'))
         {
+            hasOffset = true;
             timePart = timePart[..^1];
         }
         else
         {
             // Look for offset: last + or - followed by a digit
-            for (var i = timePart.Length - 1; i >= 2; i--)
+            for (var i = timePart.Length - 1; i >= 1; i--)
             {
                 if ((timePart[i] == '+' || timePart[i] == '-') && i + 1 < timePart.Length && char.IsDigit(timePart[i + 1]))
                 {
-                    offsetNanos = ParseOffsetToNanos(timePart[i..]);
+                    var parsedOffset = ParseOffsetToNanos(timePart[i..]);
+                    if (parsedOffset is null) return null;
+                    offsetNanos = parsedOffset.Value;
                     timePart = timePart[..i];
+                    hasOffset = true;
                     break;
                 }
             }
         }
 
-        // Parse HH:mm:ss[.fffffffff]
+        // Instant requires a UTC offset
+        if (!hasOffset) return null;
+
+        // Time part must not be empty after stripping offset
+        if (string.IsNullOrEmpty(timePart)) return null;
+
+        // Parse HH or HH:mm or HH:mm:ss[.fffffffff]
         var timeParts = timePart.Split(':');
-        var hour = timeParts.Length > 0 ? int.Parse(timeParts[0], System.Globalization.CultureInfo.InvariantCulture) : 0;
-        var minute = timeParts.Length > 1 ? int.Parse(timeParts[1], System.Globalization.CultureInfo.InvariantCulture) : 0;
+        if (timeParts.Length == 0 || timeParts[0].Length == 0) return null;
+
+        // Validate component lengths
+        if (timeParts[0].Length != 2) return null;
+        if (timeParts.Length > 1 && timeParts[1].Length != 2) return null;
+
+        if (!int.TryParse(timeParts[0], System.Globalization.CultureInfo.InvariantCulture, out var hour)) return null;
+        var minute = 0;
+        if (timeParts.Length > 1)
+        {
+            if (!int.TryParse(timeParts[1], System.Globalization.CultureInfo.InvariantCulture, out minute)) return null;
+        }
 
         var second = 0;
         long subSecondNanos = 0;
         if (timeParts.Length > 2)
         {
             var secStr = timeParts[2];
-            var dotIdx = secStr.IndexOf('.');
+            var dotIdx = FindDecimalSeparator(secStr);
             if (dotIdx >= 0)
             {
-                second = int.Parse(secStr[..dotIdx], System.Globalization.CultureInfo.InvariantCulture);
+                if (dotIdx != 2) return null;
+                if (!int.TryParse(secStr[..dotIdx], System.Globalization.CultureInfo.InvariantCulture, out second)) return null;
                 var frac = secStr[(dotIdx + 1)..];
-                // Pad to 9 digits for nanosecond precision
+                if (frac.Length == 0 || frac.Length > 9) return null;
                 frac = frac.PadRight(9, '0');
-                if (frac.Length > 9) frac = frac[..9];
-                subSecondNanos = long.Parse(frac, System.Globalization.CultureInfo.InvariantCulture);
+                if (!long.TryParse(frac, System.Globalization.CultureInfo.InvariantCulture, out subSecondNanos)) return null;
             }
             else
             {
-                second = int.Parse(secStr, System.Globalization.CultureInfo.InvariantCulture);
+                if (secStr.Length != 2) return null;
+                if (!int.TryParse(secStr, System.Globalization.CultureInfo.InvariantCulture, out second)) return null;
             }
         }
+
+        // Validate time ranges
+        if (hour > 23) return null;
+        if (minute > 59) return null;
+
+        // Handle leap second: 60 → 59
+        if (second == 60)
+            second = 59;
+        else if (second > 59)
+            return null;
+
+        // Validate date
+        if (month is < 1 or > 12) return null;
+        if (day < 1 || day > DaysInMonth(year, month)) return null;
 
         // Compute epoch days using shared helper (proleptic Gregorian)
         var epochDays = IsoCalendarHelpers.DateToEpochDays(year, month, day);
@@ -3841,35 +4144,82 @@ public static class TemporalHelper
         return new JsTemporalInstant(epochNanos);
     }
 
-    /// <summary>
-    ///     Parses an offset string like "+01:00", "-05:30" to nanoseconds.
-    /// </summary>
-    private static long ParseOffsetToNanos(string offsetStr)
+    private static int DaysInMonth(int year, int month)
     {
+        return month switch
+        {
+            1 or 3 or 5 or 7 or 8 or 10 or 12 => 31,
+            4 or 6 or 9 or 11 => 30,
+            2 => IsLeapYear(year) ? 29 : 28,
+            _ => 0
+        };
+    }
+
+    private static bool IsLeapYear(int year)
+    {
+        return (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+    }
+
+    /// <summary>
+    ///     Parses an offset string like "+01:00", "-05:30", "+00:19:32.37" to nanoseconds.
+    ///     Returns null if the offset string is invalid or out of range.
+    /// </summary>
+    private static long? ParseOffsetToNanos(string offsetStr)
+    {
+        if (offsetStr.Length < 2) return null;
         var sign = offsetStr[0] == '-' ? -1L : 1L;
         var body = offsetStr[1..];
         var parts = body.Split(':');
-        int hours, minutes = 0;
+        int hours, minutes = 0, seconds = 0;
+        long subSecondNanos = 0;
 
         if (parts.Length == 1)
         {
-            if (body.Length == 4)
+            // Compact format: HH or HHMM
+            if (body.Length == 2)
             {
-                hours = int.Parse(body[..2], System.Globalization.CultureInfo.InvariantCulture);
-                minutes = int.Parse(body[2..], System.Globalization.CultureInfo.InvariantCulture);
+                if (!int.TryParse(body, System.Globalization.CultureInfo.InvariantCulture, out hours)) return null;
+            }
+            else if (body.Length == 4)
+            {
+                if (!int.TryParse(body[..2], System.Globalization.CultureInfo.InvariantCulture, out hours)) return null;
+                if (!int.TryParse(body[2..], System.Globalization.CultureInfo.InvariantCulture, out minutes)) return null;
             }
             else
             {
-                hours = int.Parse(body, System.Globalization.CultureInfo.InvariantCulture);
+                return null;
             }
         }
         else
         {
-            hours = int.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture);
-            minutes = int.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
+            if (parts[0].Length != 2 || !int.TryParse(parts[0], System.Globalization.CultureInfo.InvariantCulture, out hours)) return null;
+            if (parts[1].Length != 2 || !int.TryParse(parts[1], System.Globalization.CultureInfo.InvariantCulture, out minutes)) return null;
+
+            if (parts.Length > 2)
+            {
+                var secStr = parts[2];
+                var dotIdx = secStr.IndexOf('.');
+                if (dotIdx >= 0)
+                {
+                    if (dotIdx != 2 || !int.TryParse(secStr[..dotIdx], System.Globalization.CultureInfo.InvariantCulture, out seconds)) return null;
+                    var frac = secStr[(dotIdx + 1)..];
+                    if (frac.Length == 0 || frac.Length > 9) return null;
+                    frac = frac.PadRight(9, '0');
+                    if (!long.TryParse(frac, System.Globalization.CultureInfo.InvariantCulture, out subSecondNanos)) return null;
+                }
+                else
+                {
+                    if (secStr.Length != 2 || !int.TryParse(secStr, System.Globalization.CultureInfo.InvariantCulture, out seconds)) return null;
+                }
+            }
         }
 
-        return sign * ((long)hours * 3_600_000_000_000L + (long)minutes * 60_000_000_000L);
+        // Validate offset range: must be < ±24:00
+        if (hours > 23) return null;
+        if (minutes > 59 || seconds > 59) return null;
+
+        return sign * ((long)hours * 3_600_000_000_000L + (long)minutes * 60_000_000_000L +
+                        (long)seconds * 1_000_000_000L + subSecondNanos);
     }
 
     private static JsTemporalDuration ToTemporalDuration(JsValue value, RealmState realm)
@@ -3882,30 +4232,64 @@ public static class TemporalHelper
             return duration;
         }
 
-        // If it's an object with duration properties
-        if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
-        {
-            return new JsTemporalDuration(
-                GetPropertyAsNumber(accessor, "years"),
-                GetPropertyAsNumber(accessor, "months"),
-                GetPropertyAsNumber(accessor, "weeks"),
-                GetPropertyAsNumber(accessor, "days"),
-                GetPropertyAsNumber(accessor, "hours"),
-                GetPropertyAsNumber(accessor, "minutes"),
-                GetPropertyAsNumber(accessor, "seconds"),
-                GetPropertyAsNumber(accessor, "milliseconds"),
-                GetPropertyAsNumber(accessor, "microseconds"),
-                GetPropertyAsNumber(accessor, "nanoseconds"));
-        }
-
-        // Try to parse as ISO 8601 duration string
+        // Try to parse as ISO 8601 duration string (check string BEFORE object per spec)
         if (value.IsString)
         {
             var str = value.AsString() ?? "";
             return ParseIsoDuration(str, realm);
         }
 
+        // If it's an object with duration properties
+        if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
+        {
+            // Per spec: read properties in alphabetical order using ToIntegerIfIntegral
+            var any = false;
+            var days = ReadDurationFieldFromBag(accessor, "days", ref any, realm);
+            var hours = ReadDurationFieldFromBag(accessor, "hours", ref any, realm);
+            var microseconds = ReadDurationFieldFromBag(accessor, "microseconds", ref any, realm);
+            var milliseconds = ReadDurationFieldFromBag(accessor, "milliseconds", ref any, realm);
+            var minutes = ReadDurationFieldFromBag(accessor, "minutes", ref any, realm);
+            var months = ReadDurationFieldFromBag(accessor, "months", ref any, realm);
+            var nanoseconds = ReadDurationFieldFromBag(accessor, "nanoseconds", ref any, realm);
+            var seconds = ReadDurationFieldFromBag(accessor, "seconds", ref any, realm);
+            var weeks = ReadDurationFieldFromBag(accessor, "weeks", ref any, realm);
+            var years = ReadDurationFieldFromBag(accessor, "years", ref any, realm);
+
+            if (!any)
+            {
+                throw StandardLibrary.ThrowTypeError(
+                    "Duration-like object must have at least one duration property", realm: realm);
+            }
+
+            RejectDurationSign(years, months, weeks, days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds, realm);
+            if (!IsValidDuration(years, months, weeks, days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds))
+            {
+                throw StandardLibrary.ThrowRangeError("Duration values are out of range", realm: realm);
+            }
+
+            return new JsTemporalDuration(years, months, weeks, days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds);
+        }
+
         throw StandardLibrary.ThrowTypeError("Cannot convert to Temporal.Duration", realm: realm);
+    }
+
+    /// <summary>
+    ///     Reads a duration field from a property bag with ToIntegerIfIntegral semantics.
+    /// </summary>
+    private static double ReadDurationFieldFromBag(IJsPropertyAccessor accessor, string name, ref bool any, RealmState? realm = null)
+    {
+        if (!accessor.TryGetProperty(name, out var v) || v.IsUndefined) return 0;
+        any = true;
+        var value = JsOps.ToNumber(v);
+        if (double.IsNaN(value) || double.IsInfinity(value))
+        {
+            throw StandardLibrary.ThrowRangeError($"Duration field '{name}' is not finite", realm: realm);
+        }
+        if (value != Math.Truncate(value))
+        {
+            throw StandardLibrary.ThrowRangeError($"Duration field '{name}' is not an integer", realm: realm);
+        }
+        return value == 0 ? 0 : value;
     }
 
     private static JsTemporalPlainDate ToTemporalPlainDate(JsValue value, RealmState realm)
@@ -3938,33 +4322,360 @@ public static class TemporalHelper
 
     private static JsTemporalPlainTime ToTemporalPlainTime(JsValue value, RealmState realm)
     {
-        // If it's already a Temporal.PlainTime
-        if (value.TryGetObject<JsObject>(out var obj) &&
-            obj.TryGetProperty(TemporalPlainTimeSlot, out var slot) &&
-            slot.TryGetObject<JsTemporalPlainTime>(out var time))
-        {
-            return time;
-        }
-
-        // Try to parse as string
+        // 1. String - fast path
         if (value.IsString)
+            return ParseTemporalPlainTimeString(value.AsString() ?? "", realm);
+
+        // 2. Non-string primitives → TypeError
+        if (value.IsUndefined || value.IsNull || value.IsBoolean || value.IsNumber || value.IsSymbol || value.IsBigInt)
+            throw StandardLibrary.ThrowTypeError("Cannot convert to Temporal.PlainTime", realm: realm);
+
+        // 3. Objects - check for Temporal types first
+        if (value.TryGetObject<JsObject>(out var obj))
         {
-            return JsTemporalPlainTime.From(value.AsString() ?? "");
+            if (obj.TryGetProperty(TemporalPlainTimeSlot, out var slot) &&
+                slot.TryGetObject<JsTemporalPlainTime>(out var time))
+                return time;
+
+            if (obj.TryGetProperty(TemporalZonedDateTimeSlot, out var zdtSlot) &&
+                zdtSlot.TryGetObject<JsTemporalZonedDateTime>(out var zdt))
+                return zdt.ToPlainTime();
+
+            if (obj.TryGetProperty(TemporalPlainDateTimeSlot, out var pdtSlot) &&
+                pdtSlot.TryGetObject<JsTemporalPlainDateTime>(out var pdt))
+                return pdt.ToPlainTime();
         }
 
-        // If it's an object with time properties
+        // 4. Per spec: ALL objects go through property bag path (not ToString)
         if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
-        {
-            var hour = (int)GetPropertyAsNumber(accessor, "hour");
-            var minute = (int)GetPropertyAsNumber(accessor, "minute");
-            var second = (int)GetPropertyAsNumber(accessor, "second");
-            var millisecond = (int)GetPropertyAsNumber(accessor, "millisecond");
-            var microsecond = (int)GetPropertyAsNumber(accessor, "microsecond");
-            var nanosecond = (int)GetPropertyAsNumber(accessor, "nanosecond");
-            return new JsTemporalPlainTime(hour, minute, second, millisecond, microsecond, nanosecond);
-        }
+            return ToTemporalPlainTimeFromPropertyBag(accessor, realm);
+
+        // 5. Object that doesn't implement IJsPropertyAccessor (e.g., HostFunction)
+        if (value.Kind == JsValueKind.Object)
+            throw StandardLibrary.ThrowTypeError("Cannot convert to Temporal.PlainTime: object has no time properties", realm: realm);
 
         throw StandardLibrary.ThrowTypeError("Cannot convert to Temporal.PlainTime", realm: realm);
+    }
+
+    private static JsTemporalPlainTime ToTemporalPlainTimeFromPropertyBag(IJsPropertyAccessor accessor, RealmState realm)
+    {
+        var hasAnyTimeProperty = false;
+        foreach (var prop in new[] { "hour", "minute", "second", "millisecond", "microsecond", "nanosecond" })
+        {
+            if (accessor.TryGetProperty(prop, out var val) && !val.IsUndefined)
+            {
+                hasAnyTimeProperty = true;
+                break;
+            }
+        }
+        if (!hasAnyTimeProperty)
+            throw StandardLibrary.ThrowTypeError("Object must have at least one time property", realm: realm);
+
+        var hour = (int)GetPropertyAsNumber(accessor, "hour");
+        var minute = (int)GetPropertyAsNumber(accessor, "minute");
+        var second = (int)GetPropertyAsNumber(accessor, "second");
+        var millisecond = (int)GetPropertyAsNumber(accessor, "millisecond");
+        var microsecond = (int)GetPropertyAsNumber(accessor, "microsecond");
+        var nanosecond = (int)GetPropertyAsNumber(accessor, "nanosecond");
+
+        // Handle leap second
+        if (second == 60) second = 59;
+
+        return new JsTemporalPlainTime(hour, minute, second, millisecond, microsecond, nanosecond);
+    }
+
+    /// <summary>
+    ///     Parses a PlainTime string. Rejects Z designator.
+    ///     Supports HH:MM, HH:MM:SS, HH:MM:SS.fff, and date-time strings (extracts time part).
+    /// </summary>
+    private static JsTemporalPlainTime ParseTemporalPlainTimeString(string str, RealmState realm)
+    {
+        if (string.IsNullOrEmpty(str))
+            throw StandardLibrary.ThrowRangeError("Invalid PlainTime string", realm: realm);
+
+        // Reject Unicode minus sign (U+2212)
+        if (str.Contains('\u2212'))
+            throw StandardLibrary.ThrowRangeError("Unicode minus sign is not accepted in PlainTime strings", realm: realm);
+
+        // Parse and validate bracket annotations
+        var baseStr = ParseAndValidateAnnotations(str, realm);
+
+        // Reject Z designator for PlainTime
+        if (baseStr.Contains('Z') || baseStr.Contains('z'))
+            throw StandardLibrary.ThrowRangeError("PlainTime strings must not contain a UTC designator (Z)", realm: realm);
+
+        // 1. T/t prefix → always valid as time
+        if (baseStr.Length > 0 && (baseStr[0] == 'T' || baseStr[0] == 't'))
+        {
+            var timePart = StripOffsetFromTimePart(baseStr[1..]);
+            return ParsePlainTimeComponents(timePart, realm);
+        }
+
+        // 2. Try to extract time from date-time string (contains T/t/space separator)
+        if (TryExtractTimeFromDateTime(baseStr, out var extracted))
+        {
+            // Check for year-zero (-000000)
+            if (baseStr.StartsWith("-000000", StringComparison.Ordinal))
+                throw StandardLibrary.ThrowRangeError("Negative zero year is not allowed", realm: realm);
+            var timePart = StripOffsetFromTimePart(extracted);
+            return ParsePlainTimeComponents(timePart, realm);
+        }
+
+        // 3. Check for extended year date-time without T separator (shouldn't match, but check year-zero)
+        if (baseStr.StartsWith("-000000", StringComparison.Ordinal))
+            throw StandardLibrary.ThrowRangeError("Negative zero year is not allowed", realm: realm);
+
+        // 4. Check for date-only string → reject (no implicit midnight)
+        if (IsDateOnlyString(baseStr))
+            throw StandardLibrary.ThrowRangeError("Date-only string cannot be used where PlainTime is expected", realm: realm);
+
+        // 5. Check for ambiguous string (could be date or time) → reject (requires T prefix)
+        if (IsAmbiguousTimeString(baseStr))
+            throw StandardLibrary.ThrowRangeError("Ambiguous string requires T prefix for PlainTime", realm: realm);
+
+        // 6. Bare time string
+        var bareTime = StripOffsetFromTimePart(baseStr);
+        return ParsePlainTimeComponents(bareTime, realm);
+    }
+
+    /// <summary>
+    ///     Checks if a string is a date-only string (YYYY-MM-DD or extended year format).
+    /// </summary>
+    private static bool IsDateOnlyString(string str)
+    {
+        // YYYY-MM-DD: 10 chars
+        if (str.Length >= 10 && str[4] == '-' && str[7] == '-' &&
+            AllDigits(str, 0, 4) && AllDigits(str, 5, 2) && AllDigits(str, 8, 2))
+        {
+            // Could have a trailing offset like -05:00, but no time part
+            // If length is exactly 10, it's date-only. If there's more, check it's just an offset.
+            if (str.Length == 10) return true;
+            // Check if the rest is an offset (starts with + or -)
+            if (str.Length > 10 && (str[10] == '+' || str[10] == '-')) return true;
+        }
+
+        // +YYYYYY-MM-DD or -YYYYYY-MM-DD: 13 chars
+        if (str.Length >= 13 && (str[0] == '+' || str[0] == '-') &&
+            str[7] == '-' && str[10] == '-' &&
+            AllDigits(str, 1, 6) && AllDigits(str, 8, 2) && AllDigits(str, 11, 2))
+        {
+            if (str.Length == 13) return true;
+            if (str.Length > 13 && (str[13] == '+' || str[13] == '-')) return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Checks if a bare string (no T prefix, no date-time separator) is ambiguous
+    ///     between a time string and a date string.
+    /// </summary>
+    private static bool IsAmbiguousTimeString(string str)
+    {
+        // YYYY-MM: 7 chars, e.g., "2021-12"
+        if (str.Length == 7 && str[4] == '-' && AllDigits(str, 0, 4) && AllDigits(str, 5, 2))
+        {
+            if (int.TryParse(str.AsSpan(5, 2), System.Globalization.CultureInfo.InvariantCulture, out var month) &&
+                month >= 1 && month <= 12)
+                return true;
+        }
+
+        // MMDD: 4 digits, e.g., "1214"
+        if (str.Length == 4 && AllDigits(str, 0, 4))
+        {
+            if (int.TryParse(str.AsSpan(0, 2), System.Globalization.CultureInfo.InvariantCulture, out var month) &&
+                int.TryParse(str.AsSpan(2, 2), System.Globalization.CultureInfo.InvariantCulture, out var day) &&
+                month >= 1 && month <= 12 && day >= 1 && day <= MaxDayForAmbiguityCheck(month))
+                return true;
+        }
+
+        // MM-DD: 5 chars with dash at 2, e.g., "12-14"
+        if (str.Length == 5 && str[2] == '-' && AllDigits(str, 0, 2) && AllDigits(str, 3, 2))
+        {
+            if (int.TryParse(str.AsSpan(0, 2), System.Globalization.CultureInfo.InvariantCulture, out var month) &&
+                month >= 1 && month <= 12)
+                return true;
+        }
+
+        // YYYYMM: 6 digits, e.g., "202112"
+        if (str.Length == 6 && AllDigits(str, 0, 6))
+        {
+            if (int.TryParse(str.AsSpan(4, 2), System.Globalization.CultureInfo.InvariantCulture, out var month) &&
+                month >= 1 && month <= 12)
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Maximum day number for ambiguity checking. Uses the maximum possible day
+    ///     for a month across all years (e.g., Feb can have 29 in leap years).
+    /// </summary>
+    private static int MaxDayForAmbiguityCheck(int month)
+    {
+        return month switch
+        {
+            1 or 3 or 5 or 7 or 8 or 10 or 12 => 31,
+            4 or 6 or 9 or 11 => 30,
+            2 => 29, // Feb 29 is valid in leap years
+            _ => 0
+        };
+    }
+
+    private static bool AllDigits(string str, int start, int count)
+    {
+        for (var i = start; i < start + count && i < str.Length; i++)
+        {
+            if (!char.IsDigit(str[i])) return false;
+        }
+        return start + count <= str.Length;
+    }
+
+    private static bool TryExtractTimeFromDateTime(string str, out string timePart)
+    {
+        timePart = "";
+        for (var i = 1; i < str.Length; i++)
+        {
+            if ((str[i] == 'T' || str[i] == 't' || str[i] == ' ') && i >= 4)
+            {
+                var datePart = str[..i];
+                if (datePart.Contains('-') || datePart.Length >= 8)
+                {
+                    var rest = str[(i + 1)..];
+                    if (rest.Length > 0) { timePart = rest; return true; }
+                    return false;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static string StripOffsetFromTimePart(string timePart)
+    {
+        // Strip trailing offset (e.g., +01:00 or -05:30)
+        for (var i = timePart.Length - 1; i >= 1; i--)
+        {
+            if ((timePart[i] == '+' || timePart[i] == '-') && i + 1 < timePart.Length && char.IsDigit(timePart[i + 1]))
+            {
+                return timePart[..i];
+            }
+        }
+        return timePart;
+    }
+
+    /// <summary>
+    ///     Finds the index of a decimal separator (. or ,) in a string.
+    /// </summary>
+    private static int FindDecimalSeparator(string str, int startIndex = 0)
+    {
+        for (var i = startIndex; i < str.Length; i++)
+        {
+            if (str[i] is '.' or ',') return i;
+        }
+        return -1;
+    }
+
+    private static JsTemporalPlainTime ParsePlainTimeComponents(string timePart, RealmState realm)
+    {
+        if (string.IsNullOrEmpty(timePart))
+            throw StandardLibrary.ThrowRangeError("Invalid PlainTime: empty time part", realm: realm);
+
+        int hour, minute = 0, second = 0, millisecond = 0, microsecond = 0, nanosecond = 0;
+
+        if (timePart.Contains(':'))
+        {
+            // Colon format: HH:MM or HH:MM:SS or HH:MM:SS.fffffffff (or comma separator)
+            var parts = timePart.Split(':');
+            if (parts[0].Length != 2 || !int.TryParse(parts[0], System.Globalization.CultureInfo.InvariantCulture, out hour))
+                throw StandardLibrary.ThrowRangeError($"Invalid PlainTime: {timePart}", realm: realm);
+            if (parts.Length > 1)
+            {
+                if (parts[1].Length != 2 || !int.TryParse(parts[1], System.Globalization.CultureInfo.InvariantCulture, out minute))
+                    throw StandardLibrary.ThrowRangeError($"Invalid PlainTime: {timePart}", realm: realm);
+            }
+            if (parts.Length > 2)
+            {
+                var secStr = parts[2];
+                var dotIdx = FindDecimalSeparator(secStr);
+                if (dotIdx >= 0)
+                {
+                    if (dotIdx != 2 || !int.TryParse(secStr[..dotIdx], System.Globalization.CultureInfo.InvariantCulture, out second))
+                        throw StandardLibrary.ThrowRangeError($"Invalid PlainTime: {timePart}", realm: realm);
+                    var frac = secStr[(dotIdx + 1)..];
+                    if (frac.Length == 0 || frac.Length > 9)
+                        throw StandardLibrary.ThrowRangeError($"Invalid PlainTime fractional seconds: {timePart}", realm: realm);
+                    frac = frac.PadRight(9, '0');
+                    if (!long.TryParse(frac, System.Globalization.CultureInfo.InvariantCulture, out var fracNanos))
+                        throw StandardLibrary.ThrowRangeError($"Invalid PlainTime fractional: {timePart}", realm: realm);
+                    millisecond = (int)(fracNanos / 1_000_000);
+                    microsecond = (int)(fracNanos % 1_000_000 / 1_000);
+                    nanosecond = (int)(fracNanos % 1_000);
+                }
+                else
+                {
+                    if (secStr.Length != 2 || !int.TryParse(secStr, System.Globalization.CultureInfo.InvariantCulture, out second))
+                        throw StandardLibrary.ThrowRangeError($"Invalid PlainTime: {timePart}", realm: realm);
+                }
+            }
+        }
+        else
+        {
+            // Compact format: HH or HHMM or HHMMSS or HHMMSS.fff (or comma separator)
+            if (timePart.Length == 2)
+            {
+                if (!int.TryParse(timePart, System.Globalization.CultureInfo.InvariantCulture, out hour))
+                    throw StandardLibrary.ThrowRangeError($"Invalid PlainTime: {timePart}", realm: realm);
+            }
+            else if (timePart.Length == 4)
+            {
+                if (!int.TryParse(timePart[..2], System.Globalization.CultureInfo.InvariantCulture, out hour) ||
+                    !int.TryParse(timePart[2..], System.Globalization.CultureInfo.InvariantCulture, out minute))
+                    throw StandardLibrary.ThrowRangeError($"Invalid PlainTime: {timePart}", realm: realm);
+            }
+            else if (timePart.Length >= 6)
+            {
+                if (!int.TryParse(timePart[..2], System.Globalization.CultureInfo.InvariantCulture, out hour) ||
+                    !int.TryParse(timePart[2..4], System.Globalization.CultureInfo.InvariantCulture, out minute))
+                    throw StandardLibrary.ThrowRangeError($"Invalid PlainTime: {timePart}", realm: realm);
+                var secPart = timePart[4..];
+                var dotIdx = FindDecimalSeparator(secPart);
+                if (dotIdx >= 0)
+                {
+                    if (!int.TryParse(secPart[..dotIdx], System.Globalization.CultureInfo.InvariantCulture, out second))
+                        throw StandardLibrary.ThrowRangeError($"Invalid PlainTime: {timePart}", realm: realm);
+                    var frac = secPart[(dotIdx + 1)..];
+                    if (frac.Length > 9) frac = frac[..9];
+                    frac = frac.PadRight(9, '0');
+                    if (!long.TryParse(frac, System.Globalization.CultureInfo.InvariantCulture, out var fracNanos))
+                        throw StandardLibrary.ThrowRangeError($"Invalid PlainTime fractional: {timePart}", realm: realm);
+                    millisecond = (int)(fracNanos / 1_000_000);
+                    microsecond = (int)(fracNanos % 1_000_000 / 1_000);
+                    nanosecond = (int)(fracNanos % 1_000);
+                }
+                else
+                {
+                    if (!int.TryParse(secPart, System.Globalization.CultureInfo.InvariantCulture, out second))
+                        throw StandardLibrary.ThrowRangeError($"Invalid PlainTime: {timePart}", realm: realm);
+                }
+            }
+            else
+            {
+                throw StandardLibrary.ThrowRangeError($"Invalid PlainTime: {timePart}", realm: realm);
+            }
+        }
+
+        // Validate ranges
+        if (hour > 23 || minute > 59)
+            throw StandardLibrary.ThrowRangeError($"PlainTime out of range: {timePart}", realm: realm);
+
+        // Handle leap second
+        if (second == 60)
+            second = 59;
+        else if (second > 59)
+            throw StandardLibrary.ThrowRangeError($"PlainTime seconds out of range: {timePart}", realm: realm);
+
+        return new JsTemporalPlainTime(hour, minute, second, millisecond, microsecond, nanosecond);
     }
 
     private static JsTemporalPlainDateTime ToTemporalPlainDateTime(JsValue value, RealmState realm)
@@ -4117,7 +4828,6 @@ public static class TemporalHelper
     private static JsTemporalDuration ParseIsoDuration(string str, RealmState realm)
     {
         // ISO 8601 duration parsing (P1Y2M3DT4H5M6S format)
-        // Supports optional leading '-' or '+' sign for negative/positive durations
         var s = str;
         var sign = 1;
         if (s.Length > 0 && (s[0] == '-' || s[0] == '\u2212'))
@@ -4155,33 +4865,64 @@ public static class TemporalHelper
             }
             else if (currentNumber.Length > 0)
             {
-                var value = double.Parse(currentNumber, System.Globalization.CultureInfo.InvariantCulture);
+                // Split integer/fractional parts to avoid double precision loss near 2^53
+                var dotIdx = currentNumber.IndexOf('.');
+                double intPart;
+                double fracPart = 0;
+                if (dotIdx >= 0)
+                {
+                    intPart = dotIdx > 0
+                        ? double.Parse(currentNumber[..dotIdx], System.Globalization.CultureInfo.InvariantCulture)
+                        : 0;
+                    fracPart = double.Parse("0" + currentNumber[dotIdx..], System.Globalization.CultureInfo.InvariantCulture);
+                }
+                else
+                {
+                    intPart = double.Parse(currentNumber, System.Globalization.CultureInfo.InvariantCulture);
+                }
                 currentNumber = "";
 
                 if (isTimePart)
                 {
                     switch (c)
                     {
-                        case 'H': hours = value; break;
-                        case 'M': minutes = value; break;
-                        case 'S':
-                            // Handle fractional seconds by splitting into s/ms/us/ns
-                            seconds = Math.Truncate(value);
-                            var frac = value - seconds;
-                            if (frac > 0)
+                        case 'H':
+                            hours = intPart;
+                            if (fracPart > 0)
                             {
-                                var fracNanos = frac * 1_000_000_000;
-                                milliseconds = Math.Truncate(fracNanos / 1_000_000);
-                                fracNanos -= milliseconds * 1_000_000;
-                                microseconds = Math.Truncate(fracNanos / 1_000);
-                                fracNanos -= microseconds * 1_000;
-                                nanoseconds = Math.Round(fracNanos);
+                                // Decompose fractional hours into minutes, then seconds, ms, us, ns
+                                var totalMinutes = fracPart * 60;
+                                minutes += Math.Truncate(totalMinutes);
+                                var remainingMinFrac = totalMinutes - Math.Truncate(totalMinutes);
+                                if (remainingMinFrac > 0)
+                                {
+                                    DecomposeFractionalSeconds(remainingMinFrac * 60,
+                                        ref seconds, ref milliseconds, ref microseconds, ref nanoseconds);
+                                }
+                            }
+                            break;
+                        case 'M':
+                            minutes += intPart;
+                            if (fracPart > 0)
+                            {
+                                // Decompose fractional minutes into seconds, ms, us, ns
+                                DecomposeFractionalSeconds(fracPart * 60,
+                                    ref seconds, ref milliseconds, ref microseconds, ref nanoseconds);
+                            }
+                            break;
+                        case 'S':
+                            seconds += intPart;
+                            if (fracPart > 0)
+                            {
+                                DecomposeFractionalSeconds(fracPart,
+                                    ref seconds, ref milliseconds, ref microseconds, ref nanoseconds);
                             }
                             break;
                     }
                 }
                 else
                 {
+                    var value = intPart + fracPart;
                     switch (c)
                     {
                         case 'Y': years = value; break;
@@ -4193,10 +4934,37 @@ public static class TemporalHelper
             }
         }
 
+        // Validate the parsed duration
+        if (!IsValidDuration(sign * years, sign * months, sign * weeks, sign * days,
+                sign * hours, sign * minutes, sign * seconds,
+                sign * milliseconds, sign * microseconds, sign * nanoseconds))
+        {
+            throw StandardLibrary.ThrowRangeError($"Duration string results in out-of-range values: {str}", realm: realm);
+        }
+
         return new JsTemporalDuration(
             sign * years, sign * months, sign * weeks, sign * days,
             sign * hours, sign * minutes, sign * seconds,
             sign * milliseconds, sign * microseconds, sign * nanoseconds);
+    }
+
+    /// <summary>
+    ///     Decomposes a fractional seconds value into seconds, ms, us, ns components.
+    /// </summary>
+    private static void DecomposeFractionalSeconds(double totalSeconds,
+        ref double seconds, ref double milliseconds, ref double microseconds, ref double nanoseconds)
+    {
+        seconds += Math.Truncate(totalSeconds);
+        var frac = totalSeconds - Math.Truncate(totalSeconds);
+        if (frac != 0)
+        {
+            var fracNanos = frac * 1_000_000_000;
+            milliseconds += Math.Truncate(fracNanos / 1_000_000);
+            fracNanos -= Math.Truncate(fracNanos / 1_000_000) * 1_000_000;
+            microseconds += Math.Truncate(fracNanos / 1_000);
+            fracNanos -= Math.Truncate(fracNanos / 1_000) * 1_000;
+            nanoseconds += Math.Round(fracNanos);
+        }
     }
 
     /// <summary>
@@ -4611,6 +5379,95 @@ public static class TemporalHelper
         }
 
         return (FromEpochNanoseconds(rounded), precision.FractionalDigits);
+    }
+
+    /// <summary>
+    /// Decomposes epoch nanoseconds + offset into date/time components using BigInteger math.
+    /// Bypasses .NET DateTimeOffset, so works for all years including extended years.
+    /// </summary>
+    private static (int Year, int Month, int Day, int Hour, int Minute, int Second,
+        int Millisecond, int Microsecond, int Nanosecond) EpochNanosToComponents(
+        BigInteger epochNanos, long offsetNanos)
+    {
+        var localNanos = epochNanos + offsetNanos;
+        var dayNumber = DivRemFloor(localNanos, new BigInteger(NanosecondsPerDay), out var remainder);
+        if (remainder < 0)
+        {
+            remainder += NanosecondsPerDay;
+            dayNumber--;
+        }
+
+        var (year, month, day) = IsoCalendarHelpers.EpochDaysToDate((long)dayNumber);
+
+        var rem = (long)remainder;
+        var hour = (int)(rem / NanosecondsPerHour);
+        rem %= NanosecondsPerHour;
+        var minute = (int)(rem / NanosecondsPerMinute);
+        rem %= NanosecondsPerMinute;
+        var second = (int)(rem / NanosecondsPerSecond);
+        rem %= NanosecondsPerSecond;
+        var millisecond = (int)(rem / 1_000_000L);
+        rem %= 1_000_000L;
+        var microsecond = (int)(rem / 1_000L);
+        var nanosecond = (int)(rem % 1_000L);
+
+        return (year, month, day, hour, minute, second, millisecond, microsecond, nanosecond);
+    }
+
+    /// <summary>
+    /// Formats a year for ISO 8601 output.
+    /// Years 0-9999: 4-digit zero-padded. Others: 6-digit with sign prefix.
+    /// </summary>
+    private static string FormatYear(int year)
+    {
+        if (year is >= 0 and <= 9999)
+        {
+            return year.ToString("D4", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        var sign = year < 0 ? "-" : "+";
+        var absYear = Math.Abs(year);
+        return $"{sign}{absYear.ToString("D6", System.Globalization.CultureInfo.InvariantCulture)}";
+    }
+
+    /// <summary>
+    /// Formats offset nanoseconds as an ISO 8601 offset string (e.g., "+01:00", "-05:30").
+    /// </summary>
+    private static string FormatOffsetNanoseconds(long offsetNanos)
+    {
+        // Per spec: round to nearest minute using halfExpand
+        var sign = offsetNanos >= 0 ? "+" : "-";
+        var absNanos = Math.Abs(offsetNanos);
+        var totalSeconds = absNanos / NanosecondsPerSecond;
+        var remainingSeconds = totalSeconds % 60;
+        var totalMinutes = totalSeconds / 60;
+        // halfExpand: round up if seconds >= 30
+        if (remainingSeconds >= 30)
+        {
+            totalMinutes++;
+        }
+
+        var hours = (int)(totalMinutes / 60);
+        var minutes = (int)(totalMinutes % 60);
+        return $"{sign}{hours:D2}:{minutes:D2}";
+    }
+
+    /// <summary>
+    /// Formats epoch nanoseconds as a full ISO 8601 date-time string.
+    /// Handles extended years and all precision modes. Bypasses .NET DateTimeOffset.
+    /// </summary>
+    private static string FormatEpochNanosAsDateTime(
+        BigInteger epochNanos, long offsetNanos, int fractionalDigits, bool useZSuffix)
+    {
+        var (year, month, day, hour, minute, second, ms, us, ns) =
+            EpochNanosToComponents(epochNanos, offsetNanos);
+
+        var yearStr = FormatYear(year);
+        var datePart = $"{yearStr}-{month:D2}-{day:D2}";
+        var timePart = FormatTimeToString(hour, minute, second, ms, us, ns, fractionalDigits);
+
+        var suffix = useZSuffix ? "Z" : FormatOffsetNanoseconds(offsetNanos);
+        return $"{datePart}T{timePart}{suffix}";
     }
 
     #endregion

@@ -1548,6 +1548,12 @@ internal static class JsOps
                 return proxy.HasProperty(propertyName);
             }
 
+            // TypedArray has its own [[HasProperty]] that intercepts canonical numeric indices.
+            if (current is TypedArrayBase typedArray)
+            {
+                return typedArray.HasProperty(propertyName);
+            }
+
             if (current is IJsObjectLike objLike)
             {
                 var descriptor = objLike.GetOwnPropertyDescriptor(propertyName);
@@ -1704,19 +1710,16 @@ internal static class JsOps
             return false;
         }
 
-        if (target.TryGetObject<TypedArrayBase>(out var typedArray) &&
-            TryResolveArrayIndexJsValue(propertyKey, out var typedIndex, context))
+        if (target.TryGetObject<TypedArrayBase>(out var typedArray))
         {
-            if (typedIndex >= 0 && typedIndex < typedArray.Length)
+            // For typed arrays, use CanonicalNumericIndexString to determine if the key is a numeric index.
+            var keyStr = ToPropertyName(propertyKey, context);
+            if (keyStr is not null && TypedArrayBase.TryCanonicalNumericIndex(keyStr, out _))
             {
-                value = JsValue.FromDouble(typedArray.GetElement(typedIndex));
+                // Canonical numeric index -- delegate to [[Get]] which handles valid/invalid indices
+                typedArray.TryGetProperty(keyStr, target, out value);
+                return true;
             }
-            else
-            {
-                value = JsValue.Undefined;
-            }
-
-            return true;
         }
 
         value = JsValue.Undefined;
@@ -2090,17 +2093,22 @@ internal static class JsOps
 
         }
 
-        if (!target.TryGetObject<TypedArrayBase>(out var typedArray) ||
-            !TryResolveArrayIndexJsValue(propertyKey, out var typedIndex, context))
+        if (!target.TryGetObject<TypedArrayBase>(out var typedArray))
         {
             return false;
         }
 
-        if (typedIndex >= 0 && typedIndex < typedArray.Length)
+        // For typed arrays, use CanonicalNumericIndexString to determine if the key is a numeric index.
+        // This is required because keys like "+1", "1.0", etc. should NOT be treated as numeric indices.
+        var keyStr = ToPropertyName(propertyKey, context);
+        if (keyStr is null || !TypedArrayBase.TryCanonicalNumericIndex(keyStr, out _))
         {
-            typedArray.SetElement(typedIndex, ToNumber(value, context));
+            return false;
         }
 
+        // The key is a canonical numeric index -- delegate to the typed array's SetProperty
+        // which handles all the exotic [[Set]] semantics (coercion, bounds checking, etc.)
+        typedArray.SetProperty(keyStr, value, target);
         return true;
 
     }
@@ -2137,13 +2145,14 @@ internal static class JsOps
 
         if (target.TryGetObject<TypedArrayBase>(out var typedArray))
         {
-            if (TryResolveArrayIndexJsValue(propertyKey, out _, context))
+            var propertyName = ToPropertyName(propertyKey, context);
+            if (propertyName is null)
             {
-                return false;
+                return true;
             }
 
-            var propertyName = ToPropertyName(propertyKey, context);
-            return propertyName is null || typedArray.DeleteProperty(propertyName);
+            // Use the TypedArray's Delete which handles CanonicalNumericIndexString properly.
+            return typedArray.Delete(propertyName);
         }
 
         if (target.TryGetObject<JsArgumentsObject>(out var argumentsObject))

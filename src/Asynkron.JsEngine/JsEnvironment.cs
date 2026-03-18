@@ -3083,6 +3083,11 @@ public sealed class JsEnvironment : IRentable
             return proxy.HasProperty(name);
         }
 
+        if (target is TypedArrayBase typedArray)
+        {
+            return typedArray.HasProperty(name);
+        }
+
         if (target is JsObject jsObject && jsObject.HasProperty(name))
         {
             return true;

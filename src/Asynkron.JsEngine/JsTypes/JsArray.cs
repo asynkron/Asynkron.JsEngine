@@ -420,6 +420,17 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return _properties.TryDefineProperty(name, descriptor);
         }
 
+        // Per ES spec 10.4.2.1 [[DefineOwnProperty]] step 3.d:
+        // If index >= oldLen and oldLenDesc.[[Writable]] is false, return false.
+        if (index >= _length)
+        {
+            var lengthDesc = _properties.GetOwnPropertyDescriptor("length");
+            if (lengthDesc is { HasWritable: true, Writable: false })
+            {
+                return false;
+            }
+        }
+
         // If the element exists in _items but not in _properties, we need to establish
         // the implicit descriptor first so that attributes like configurable=true are preserved.
         // Per ES spec, array elements have default attributes: writable=true, enumerable=true, configurable=true.

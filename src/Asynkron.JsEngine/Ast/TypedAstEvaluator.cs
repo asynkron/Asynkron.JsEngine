@@ -212,19 +212,23 @@ public static partial class TypedAstEvaluator
         {
             case JsValueKind.Object when value.ObjectValue is JsArray array:
                 {
-                    // First, enumerate numeric indices (array elements)
-                    for (var i = 0; i < array.Items.Count; i++)
-                    {
-                        yield return JsValue.FromString(i.ToString(CultureInfo.InvariantCulture));
-                    }
-
                     // Track seen keys to properly handle shadowing
                     var seenArrayKeys = new HashSet<string>(StringComparer.Ordinal);
 
-                    // Add all numeric indices as seen (already enumerated above)
+                    // First, enumerate numeric indices (array elements) - skip non-enumerable ones
                     for (var i = 0; i < array.Items.Count; i++)
                     {
-                        seenArrayKeys.Add(JsValueCache.GetIndexString(i));
+                        var indexKey = i.ToString(CultureInfo.InvariantCulture);
+                        seenArrayKeys.Add(indexKey);
+
+                        // Check if there's an explicit descriptor marking this index as non-enumerable
+                        var desc = array.GetOwnPropertyDescriptor(indexKey);
+                        if (desc is { Enumerable: false })
+                        {
+                            continue;
+                        }
+
+                        yield return JsValue.FromString(indexKey);
                     }
 
                     // Now enumerate non-index properties on the array and its prototype chain
@@ -256,11 +260,14 @@ public static partial class TypedAstEvaluator
                             yield return JsValue.FromString(key);
                         }
 
-                        // Move to prototype
+                        // Move to prototype - check both Prototype and PrototypeAccessor
                         currentArray = currentArray switch
                         {
-                            IJsObjectLike objectLike => objectLike.Prototype,
-                            IPrototypeAccessorProvider provider => provider.PrototypeAccessor,
+                            IJsObjectLike objectLike when objectLike.Prototype is not null => objectLike.Prototype,
+                            IPrototypeAccessorProvider provider when provider.PrototypeAccessor is not null =>
+                                provider.PrototypeAccessor,
+                            IJsObjectLike objectLike2 when objectLike2 is IPrototypeAccessorProvider prov2 =>
+                                prov2.PrototypeAccessor,
                             _ => null
                         };
                     }
@@ -340,11 +347,15 @@ public static partial class TypedAstEvaluator
                             yield return JsValue.FromString(key);
                         }
 
-                        // Move to prototype
+                        // Move to prototype - check both Prototype (JsObject) and PrototypeAccessor
+                        // to handle cases where the prototype is a HostFunction rather than a JsObject.
                         current = current switch
                         {
-                            IJsObjectLike objectLike => objectLike.Prototype,
-                            IPrototypeAccessorProvider provider => provider.PrototypeAccessor,
+                            IJsObjectLike objectLike when objectLike.Prototype is not null => objectLike.Prototype,
+                            IPrototypeAccessorProvider provider when provider.PrototypeAccessor is not null =>
+                                provider.PrototypeAccessor,
+                            IJsObjectLike objectLike2 when objectLike2 is IPrototypeAccessorProvider prov2 =>
+                                prov2.PrototypeAccessor,
                             _ => null
                         };
                     }

@@ -271,14 +271,14 @@ public static class ObjectHelper
                 jsObject.Freeze();
                 break;
             default:
-                // Fallback: seal first, then make data properties non-writable
+                // Fallback: seal first, then make data properties non-writable via DefineProperty
                 target.Seal();
                 foreach (var key in target.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
                 {
                     var desc = target.GetOwnPropertyDescriptor(key);
                     if (desc is { IsDataDescriptor: true, Writable: true })
                     {
-                        desc.Writable = false;
+                        target.DefineProperty(key, new PropertyDescriptor { Writable = false });
                     }
                 }
 

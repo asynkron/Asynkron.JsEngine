@@ -23,6 +23,7 @@ public sealed class JsEnvironment : IRentable
     internal static readonly object Uninitialized = new();
     private static readonly ConcurrentDictionary<int, WeakReference<JsEnvironment>> ScopeEnvironmentRegistry = new();
 
+    private HashSet<Symbol>? _annexBBlockedNames;
     private Dictionary<Symbol, List<Action<JsValue>>>? _bindingObservers;
     private HashSet<Symbol>? _bodyLexicalNames;
     private SourceReference? _creatingSource;
@@ -297,6 +298,7 @@ public sealed class JsEnvironment : IRentable
         LayoutId = -1;
 
         // Clear caches
+        _annexBBlockedNames?.Clear();
         _identifierBindingCache?.Clear();
         _bindingObservers?.Clear();
         _bodyLexicalNames?.Clear();
@@ -639,6 +641,7 @@ public sealed class JsEnvironment : IRentable
             _slotCount = 0;
         }
 
+        _annexBBlockedNames?.Clear();
         _identifierBindingCache?.Clear();
         _bindingObservers?.Clear();
         _bodyLexicalNames?.Clear();
@@ -2279,6 +2282,42 @@ public sealed class JsEnvironment : IRentable
     internal bool HasBodyLexicalName(Symbol name)
     {
         return _bodyLexicalNames?.Contains(name) == true;
+    }
+
+    /// <summary>
+    /// Sets the names that are blocked from Annex B.3.3 function-scope hoisting.
+    /// These are parameter names and body-level lexical names that prevent block-scoped
+    /// function declarations from being copied to the var environment at runtime.
+    /// </summary>
+    internal void SetAnnexBBlockedNames(HashSet<Symbol> names)
+    {
+        _annexBBlockedNames = names;
+    }
+
+    /// <summary>
+    /// Returns true if the given name is blocked from Annex B function-scope hoisting.
+    /// Walks up to the function scope to find the blocked names set.
+    /// </summary>
+    internal bool IsAnnexBBlocked(Symbol name)
+    {
+        // Check the current environment and walk up to the function scope
+        var current = this;
+        while (current is not null)
+        {
+            if (current._annexBBlockedNames?.Contains(name) == true)
+            {
+                return true;
+            }
+
+            if (current.IsFunctionScope)
+            {
+                break;
+            }
+
+            current = current.Enclosing;
+        }
+
+        return false;
     }
 
     /// <summary>

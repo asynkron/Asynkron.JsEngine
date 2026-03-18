@@ -60,6 +60,13 @@ public static partial class TypedAstEvaluator
             // AnnexB case in AST evaluation: we're at function scope evaluating a function
             // declaration from an if/else branch. The binding already exists with `undefined`,
             // we just need to update it with the function value.
+            // Per B.3.3.1/B.3.3.2: skip if the name is blocked (conflicts with a parameter
+            // or lexical binding in an enclosing scope).
+            if (environment.IsAnnexBBlocked(funcDecl.Name))
+            {
+                return JsValue.Unit;
+            }
+
             functionScope.AssignJsValue(funcDecl.Name, fnValueJs);
 
             // For global scope, also update the global object property.
@@ -71,17 +78,26 @@ public static partial class TypedAstEvaluator
         }
         else
         {
-            // Block-scoped case (IR execution path): create lexical binding in block environment.
-            environment.DefineJsValue(
-                funcDecl.Name,
-                fnValueJs,
-                isLexicalBinding: true,
-                blocksFunctionScopeOverride: true);
+            var isBlocked = !context.CurrentScope.IsStrict &&
+                            environment.IsAnnexBBlocked(funcDecl.Name);
+
+            // Block-scoped case: create lexical binding in block environment.
+            // When AnnexB is blocked (param/lexical conflict) and we're in the body
+            // environment (no explicit block for if-branches), skip the binding to
+            // avoid shadowing the parameter/lexical.
+            if (!isBlocked || !environment.IsBodyEnvironment)
+            {
+                environment.DefineJsValue(
+                    funcDecl.Name,
+                    fnValueJs,
+                    isLexicalBinding: true,
+                    blocksFunctionScopeOverride: true);
+            }
 
             // For hoisted functions in sloppy mode, also update the function-scope binding.
             // This implements Annex B.3.3.3 semantics where block-scoped functions also
             // update the outer function-scope binding.
-            if (functionScope.HasFunctionScopedBinding(funcDecl.Name))
+            if (!isBlocked && functionScope.HasFunctionScopedBinding(funcDecl.Name))
             {
                 functionScope.AssignJsValue(funcDecl.Name, fnValueJs);
 

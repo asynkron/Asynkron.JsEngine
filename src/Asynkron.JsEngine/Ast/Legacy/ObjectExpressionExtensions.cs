@@ -214,8 +214,18 @@ public static partial class TypedAstEvaluator
                             ? propertyAccessor
                             : ToObjectForDestructuringJsValue(spreadValueJs, context);
 
-                        foreach (var key in accessor.GetEnumerableOwnPropertyKeysInOrder())
+                        // CopyDataProperties per ECMA-262:
+                        // 1. Get ALL own property keys (including symbols) via [[OwnPropertyKeys]]
+                        // 2. For each key, get descriptor via [[GetOwnProperty]]
+                        // 3. Only if descriptor exists and is enumerable, get value via [[Get]]
+                        foreach (var key in accessor.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
                         {
+                            var desc = accessor.GetOwnPropertyDescriptor(key);
+                            if (desc is not { Enumerable: true })
+                            {
+                                continue;
+                            }
+
                             var spreadPropertyValue = accessor.TryGetProperty(key, out var val)
                                 ? val
                                 : JsValue.Undefined;

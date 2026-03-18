@@ -319,28 +319,20 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
             }
         }
 
-        // Check if this needs custom parsing (year 0000, extended year, or nanosecond precision)
-        var needsCustomParsing = remaining.Length > 0 &&
-            (remaining[0] == '+' || remaining[0] == '-' || remaining[0] == '\u2212' ||
-             remaining.StartsWith("0000", StringComparison.Ordinal));
-
-        if (!needsCustomParsing)
-        {
-            // Try standard parsing for normal years
-            if (DateTimeOffset.TryParse(remaining, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dto))
-            {
-                timeZoneId ??= TimeZoneInfo.Local.Id;
-                var instant = new JsTemporalInstant(dto);
-                return new JsTemporalZonedDateTime(instant, timeZoneId, calendar);
-            }
-        }
-
-        // Custom parsing for extended years, year 0, and nanosecond precision
+        // Try custom parsing first (preserves nanosecond precision, handles all years)
         var parsed = ParseIsoDateTimeWithOffset(remaining);
         if (parsed is not null)
         {
             timeZoneId ??= TimeZoneInfo.Local.Id;
             return new JsTemporalZonedDateTime(parsed, timeZoneId, calendar);
+        }
+
+        // Fall back to standard DateTimeOffset parsing
+        if (DateTimeOffset.TryParse(remaining, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dto))
+        {
+            timeZoneId ??= TimeZoneInfo.Local.Id;
+            var instant = new JsTemporalInstant(dto);
+            return new JsTemporalZonedDateTime(instant, timeZoneId, calendar);
         }
 
         throw new FormatException($"Invalid ZonedDateTime string: {isoString}");

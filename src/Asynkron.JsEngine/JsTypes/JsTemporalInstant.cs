@@ -37,14 +37,28 @@ public sealed class JsTemporalInstant(BigInteger epochNanoseconds)
     public BigInteger EpochNanoseconds { get; } = epochNanoseconds;
 
     /// <summary>
-    ///     The number of milliseconds since the Unix epoch, truncated toward zero.
+    ///     The number of milliseconds since the Unix epoch, floored (toward negative infinity).
     /// </summary>
-    public long EpochMilliseconds => (long)(EpochNanoseconds / NanosecondsPerMillisecond);
+    public long EpochMilliseconds => (long)FloorDiv(EpochNanoseconds, NanosecondsPerMillisecond);
 
     /// <summary>
-    ///     The number of seconds since the Unix epoch, truncated toward zero.
+    ///     The number of seconds since the Unix epoch, floored (toward negative infinity).
     /// </summary>
-    public long EpochSeconds => (long)(EpochNanoseconds / NanosecondsPerSecond);
+    public long EpochSeconds => (long)FloorDiv(EpochNanoseconds, NanosecondsPerSecond);
+
+    /// <summary>
+    ///     Floor division for BigInteger (rounds toward negative infinity instead of toward zero).
+    /// </summary>
+    private static BigInteger FloorDiv(BigInteger a, long b)
+    {
+        var (quotient, remainder) = BigInteger.DivRem(a, b);
+        // If remainder is non-zero and signs differ, adjust toward negative infinity
+        if (remainder != 0 && (a < 0) != (b < 0))
+        {
+            quotient--;
+        }
+        return quotient;
+    }
 
     /// <summary>
     ///     Creates a Temporal.Instant representing the current moment.

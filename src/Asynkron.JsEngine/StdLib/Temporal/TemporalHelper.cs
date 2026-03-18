@@ -6377,8 +6377,11 @@ public static class TemporalHelper
                 duration.Seconds, duration.Milliseconds, duration.Microseconds, duration.Nanoseconds);
 
             var unitNs = new BigInteger(GetUnitNanoseconds(unit));
-            // Return as double: totalNs / unitNs (with proper precision)
-            return BigIntegerToDouble(totalNs * 1_000_000_000 / unitNs) / 1_000_000_000.0;
+            // Use quotient+remainder to preserve double precision:
+            // integer division truncates, so we split into whole + fraction
+            var quotient = totalNs / unitNs;
+            var remainder = totalNs % unitNs;
+            return (double)quotient + (double)remainder / (double)unitNs;
         }
 
         // Calendar-aware path: need relativeTo
@@ -6416,7 +6419,9 @@ public static class TemporalHelper
                             IsoToDayNumber(relativeTo.Year, relativeTo.Month, relativeTo.Day);
             var totalNs = new BigInteger(totalDays) * NanosecondsPerDay + timeNs;
             var unitNs = new BigInteger(GetUnitNanoseconds(unit));
-            return BigIntegerToDouble(totalNs * 1_000_000_000 / unitNs) / 1_000_000_000.0;
+            var q = totalNs / unitNs;
+            var r = totalNs % unitNs;
+            return (double)q + (double)r / (double)unitNs;
         }
 
         if (string.Equals(unit, "day", StringComparison.Ordinal))
@@ -6509,7 +6514,9 @@ public static class TemporalHelper
             var endZdt = relativeTo.Add(duration);
             var diffNs = endZdt.Instant.EpochNanoseconds - relativeTo.Instant.EpochNanoseconds;
             var unitNs = new BigInteger(GetUnitNanoseconds(unit));
-            return BigIntegerToDouble(diffNs * 1_000_000_000 / unitNs) / 1_000_000_000.0;
+            var q = diffNs / unitNs;
+            var r = diffNs % unitNs;
+            return (double)q + (double)r / (double)unitNs;
         }
 
         if (string.Equals(unit, "day", StringComparison.Ordinal))

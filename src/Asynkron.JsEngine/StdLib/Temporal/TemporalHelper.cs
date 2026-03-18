@@ -2,6 +2,7 @@
 
 using System.Linq;
 using System.Numerics;
+using System.Text;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 
@@ -87,6 +88,19 @@ public static class TemporalHelper
         "halfTrunc",
         "halfEven",
         "expand"
+    };
+
+    private static readonly HashSet<string> ValidOffsetOptions = new(StringComparer.Ordinal)
+    {
+        "auto",
+        "never"
+    };
+
+    private static readonly HashSet<string> ValidTimeZoneNameOptions = new(StringComparer.Ordinal)
+    {
+        "auto",
+        "never",
+        "critical"
     };
 
     /// <summary>
@@ -599,10 +613,21 @@ public static class TemporalHelper
         AddPrototypeGetter(prototype, realm, "blank", tv => new JsValue(GetDuration(tv).Blank));
 
         // Prototype methods
-        AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, _) =>
+        AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, args) =>
         {
             var duration = GetDuration(thisValue);
-            return new JsValue(duration.ToString());
+            var options = args.GetArgument(0);
+            var optionsObj = ValidateOptionsObject(options, realm, "Temporal.Duration.prototype.toString");
+            var (precision, roundingMode) = GetToStringPrecisionOptions(optionsObj, realm);
+
+            // Duration doesn't support "minute" smallestUnit
+            if (precision.FractionalDigits == -2)
+            {
+                throw StandardLibrary.ThrowRangeError(
+                    "\"minute\" is not a valid value for smallestUnit in toString", realm: realm);
+            }
+
+            return new JsValue(FormatDurationToString(duration, precision, roundingMode));
         });
 
         AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
@@ -1074,8 +1099,14 @@ public static class TemporalHelper
         AddPrototypeGetter(prototype, realm, "nanosecond", tv => new JsValue(GetPlainTime(tv).Nanosecond));
 
         // Prototype methods
-        AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, _) =>
-            new JsValue(GetPlainTime(thisValue).ToString()));
+        AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, args) =>
+        {
+            var time = GetPlainTime(thisValue);
+            var options = args.GetArgument(0);
+            var optionsObj = ValidateOptionsObject(options, realm, "Temporal.PlainTime.prototype.toString");
+            var (precision, roundingMode) = GetToStringPrecisionOptions(optionsObj, realm);
+            return new JsValue(RoundAndFormatPlainTime(time, precision, roundingMode));
+        });
 
         AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
             new JsValue(GetPlainTime(thisValue).ToString()));
@@ -1279,42 +1310,37 @@ public static class TemporalHelper
             // Per spec, options must be accessed in alphabetical order:
             // calendarName, fractionalSecondDigits, roundingMode, smallestUnit
             var showCalendar = GetTemporalShowCalendarNameOption(optionsObj, realm);
+            var (precision, roundingMode) = GetToStringPrecisionOptions(optionsObj, realm);
 
-            // Read remaining options in alphabetical order (for observable property access order)
-            if (optionsObj is not null)
-            {
-                // fractionalSecondDigits
-                if (optionsObj.TryGetProperty("fractionalSecondDigits", out var fracDigitsVal) && !fracDigitsVal.IsUndefined)
-                {
-                    // TODO: Use fractionalSecondDigits for rounding
-                }
+            // Round the datetime
+            var (roundedDt, fracDigits) = RoundPlainDateTimeForToString(dt, precision, roundingMode, realm);
 
-                // roundingMode
-                if (optionsObj.TryGetProperty("roundingMode", out var roundingModeVal) && !roundingModeVal.IsUndefined)
-                {
-                    // TODO: Use roundingMode for rounding
-                }
+            // Format the time part
+            var timePart = FormatTimeToString(
+                roundedDt.Hour, roundedDt.Minute, roundedDt.Second,
+                roundedDt.Millisecond, roundedDt.Microsecond, roundedDt.Nanosecond,
+                fracDigits);
 
-                // smallestUnit
-                if (optionsObj.TryGetProperty("smallestUnit", out var smallestUnitVal) && !smallestUnitVal.IsUndefined)
-                {
-                    // TODO: Use smallestUnit for rounding
-                }
-            }
+            // Format the date part using proper year formatting (6-digit for extended years)
+            var datePart = roundedDt.Date.ToStringBasic();
+            var result = $"{datePart}T{timePart}";
 
+            // Append calendar if needed
             if (string.Equals(showCalendar, "always", StringComparison.Ordinal))
             {
-                return new JsValue(dt.ToStringWithCalendar());
+                result += $"[u-ca={roundedDt.Calendar}]";
             }
-            if (string.Equals(showCalendar, "critical", StringComparison.Ordinal))
+            else if (string.Equals(showCalendar, "critical", StringComparison.Ordinal))
             {
-                return new JsValue(dt.ToStringWithCalendar(critical: true));
+                result += $"[!u-ca={roundedDt.Calendar}]";
             }
-            if (string.Equals(showCalendar, "never", StringComparison.Ordinal))
+            else if (string.Equals(showCalendar, "auto", StringComparison.Ordinal) &&
+                     !string.Equals(roundedDt.Calendar, "iso8601", StringComparison.Ordinal))
             {
-                return new JsValue(dt.ToStringBasic());
+                result += $"[u-ca={roundedDt.Calendar}]";
             }
-            return new JsValue(dt.ToString());
+
+            return new JsValue(result);
         });
 
         AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
@@ -1581,8 +1607,67 @@ public static class TemporalHelper
         });
 
         // Prototype methods
-        AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, _) =>
-            new JsValue(GetZonedDateTime(thisValue).ToString()));
+        AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, args) =>
+        {
+            var zdt = GetZonedDateTime(thisValue);
+            var options = args.GetArgument(0);
+            var optionsObj = ValidateOptionsObject(options, realm, "Temporal.ZonedDateTime.prototype.toString");
+
+            // Read options in strict alphabetical order per spec:
+            // calendarName, fractionalSecondDigits, offset, roundingMode, smallestUnit, timeZoneName
+            var showCalendar = GetTemporalShowCalendarNameOption(optionsObj, realm);
+            var (precision, roundingMode) = GetToStringPrecisionOptionsWithInterleave(
+                optionsObj, realm, "offset", ValidOffsetOptions, "auto",
+                "timeZoneName", ValidTimeZoneNameOptions, "auto",
+                out var showOffset, out var showTimeZone);
+
+            // Round the instant according to precision
+            var epochNanos = zdt.Instant.EpochNanoseconds;
+            var incrementNanoseconds = new BigInteger(GetUnitNanoseconds(precision.SmallestUnit)) * precision.Increment;
+            var rounded = RoundToIncrement(epochNanos, incrementNanoseconds, roundingMode);
+            var roundedInstant = new JsTemporalInstant(rounded);
+            var roundedZdt = new JsTemporalZonedDateTime(roundedInstant, zdt.TimeZoneId, zdt.Calendar);
+
+            // Build output
+            var datePart = $"{roundedZdt.Year:D4}-{roundedZdt.Month:D2}-{roundedZdt.Day:D2}";
+            var timePart = FormatTimeToString(
+                roundedZdt.Hour, roundedZdt.Minute, roundedZdt.Second,
+                roundedZdt.Millisecond, roundedZdt.Microsecond, roundedZdt.Nanosecond,
+                precision.FractionalDigits);
+
+            var result = $"{datePart}T{timePart}";
+
+            if (!string.Equals(showOffset, "never", StringComparison.Ordinal))
+            {
+                result += roundedZdt.Offset;
+            }
+
+            if (string.Equals(showTimeZone, "auto", StringComparison.Ordinal))
+            {
+                result += $"[{roundedZdt.TimeZoneId}]";
+            }
+            else if (string.Equals(showTimeZone, "critical", StringComparison.Ordinal))
+            {
+                result += $"[!{roundedZdt.TimeZoneId}]";
+            }
+            // "never" — omit timezone
+
+            if (string.Equals(showCalendar, "always", StringComparison.Ordinal))
+            {
+                result += $"[u-ca={roundedZdt.Calendar}]";
+            }
+            else if (string.Equals(showCalendar, "critical", StringComparison.Ordinal))
+            {
+                result += $"[!u-ca={roundedZdt.Calendar}]";
+            }
+            else if (string.Equals(showCalendar, "auto", StringComparison.Ordinal) &&
+                     !string.Equals(roundedZdt.Calendar, "iso8601", StringComparison.Ordinal))
+            {
+                result += $"[u-ca={roundedZdt.Calendar}]";
+            }
+
+            return new JsValue(result);
+        });
 
         AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
             new JsValue(GetZonedDateTime(thisValue).ToString()));
@@ -2578,6 +2663,35 @@ public static class TemporalHelper
         }
 
         return overflow;
+    }
+
+    /// <summary>
+    /// Generic helper to read a string option from an options object.
+    /// Returns defaultValue if the option is undefined or options is null.
+    /// Throws RangeError if the value is not in the validValues set.
+    /// </summary>
+    private static string GetTemporalStringOption(
+        IJsPropertyAccessor? optionsObj, string optionName,
+        HashSet<string> validValues, string defaultValue, RealmState realm)
+    {
+        if (optionsObj is null)
+        {
+            return defaultValue;
+        }
+
+        if (!optionsObj.TryGetProperty(optionName, out var val) || val.IsUndefined)
+        {
+            return defaultValue;
+        }
+
+        var str = JsOps.ToJsString(val);
+        if (!validValues.Contains(str))
+        {
+            throw StandardLibrary.ThrowRangeError(
+                $"\"{str}\" is not a valid value for {optionName} option", realm: realm);
+        }
+
+        return str;
     }
 
     /// <summary>
@@ -4083,6 +4197,420 @@ public static class TemporalHelper
             sign * years, sign * months, sign * weeks, sign * days,
             sign * hours, sign * minutes, sign * seconds,
             sign * milliseconds, sign * microseconds, sign * nanoseconds);
+    }
+
+    /// <summary>
+    /// Result of ToSecondsStringPrecision spec operation.
+    /// FractionalDigits: -1 = "auto", -2 = "minute" (omit seconds), 0-9 = exact digit count.
+    /// </summary>
+    private readonly record struct SecondsStringPrecision(int FractionalDigits, string SmallestUnit, long Increment);
+
+    /// <summary>
+    /// Implements the Temporal spec's ToSecondsStringPrecision + roundingMode parsing for toString methods.
+    /// Reads options in alphabetical order: fractionalSecondDigits, roundingMode, smallestUnit.
+    /// Returns precision info and roundingMode (default "trunc" for toString).
+    /// </summary>
+    private static (SecondsStringPrecision Precision, string RoundingMode) GetToStringPrecisionOptions(
+        IJsPropertyAccessor? optionsObj, RealmState realm)
+    {
+        if (optionsObj is null)
+        {
+            return (new SecondsStringPrecision(-1, "nanosecond", 1), "trunc");
+        }
+
+        // Step 1: Read fractionalSecondDigits (alphabetical order)
+        int fractionalDigits = -1; // -1 = auto
+        bool hasFracDigits = false;
+        if (optionsObj.TryGetProperty("fractionalSecondDigits", out var fracDigitsVal) && !fracDigitsVal.IsUndefined)
+        {
+            hasFracDigits = true;
+            if (fracDigitsVal.IsNumber)
+            {
+                var num = fracDigitsVal.AsDouble();
+                if (double.IsNaN(num))
+                {
+                    throw StandardLibrary.ThrowRangeError("fractionalSecondDigits must not be NaN", realm: realm);
+                }
+
+                var floored = (int)Math.Floor(num);
+                if (floored < 0 || floored > 9 || double.IsInfinity(num))
+                {
+                    throw StandardLibrary.ThrowRangeError(
+                        $"{num.ToString(System.Globalization.CultureInfo.InvariantCulture)} is out of range for fractionalSecondDigits (0-9)",
+                        realm: realm);
+                }
+
+                fractionalDigits = floored;
+            }
+            else
+            {
+                // Not a number type: convert to string
+                var str = JsOps.ToJsString(fracDigitsVal);
+                if (!string.Equals(str, "auto", StringComparison.Ordinal))
+                {
+                    throw StandardLibrary.ThrowRangeError(
+                        $"\"{str}\" is not a valid value for fractionalSecondDigits", realm: realm);
+                }
+                // fractionalDigits stays -1 (auto)
+            }
+        }
+
+        // Step 2: Read roundingMode (alphabetical order)
+        var roundingMode = "trunc";
+        if (optionsObj.TryGetProperty("roundingMode", out var roundingModeVal) && !roundingModeVal.IsUndefined)
+        {
+            roundingMode = JsOps.ToJsString(roundingModeVal);
+            if (!ValidRoundingModes.Contains(roundingMode))
+            {
+                throw StandardLibrary.ThrowRangeError($"Invalid roundingMode: {roundingMode}", realm: realm);
+            }
+        }
+
+        // Step 3: Read smallestUnit (alphabetical order) — overrides fractionalSecondDigits
+        if (optionsObj.TryGetProperty("smallestUnit", out var smallestUnitVal) && !smallestUnitVal.IsUndefined)
+        {
+            var smallestUnit = JsOps.ToJsString(smallestUnitVal);
+            smallestUnit = NormalizeSmallestUnit(smallestUnit);
+
+            var precision = smallestUnit switch
+            {
+                "minute" => new SecondsStringPrecision(-2, "minute", 1),
+                "second" => new SecondsStringPrecision(0, "second", 1),
+                "millisecond" => new SecondsStringPrecision(3, "millisecond", 1),
+                "microsecond" => new SecondsStringPrecision(6, "microsecond", 1),
+                "nanosecond" => new SecondsStringPrecision(9, "nanosecond", 1),
+                _ => throw StandardLibrary.ThrowRangeError(
+                    $"\"{smallestUnit}\" is not a valid value for smallestUnit in toString", realm: realm)
+            };
+            return (precision, roundingMode);
+        }
+
+        // No smallestUnit — use fractionalSecondDigits
+        if (hasFracDigits && fractionalDigits >= 0)
+        {
+            var (unit, increment) = fractionalDigits switch
+            {
+                0 => ("second", 1L),
+                1 => ("nanosecond", 100_000_000L),
+                2 => ("nanosecond", 10_000_000L),
+                3 => ("nanosecond", 1_000_000L),
+                4 => ("nanosecond", 100_000L),
+                5 => ("nanosecond", 10_000L),
+                6 => ("nanosecond", 1_000L),
+                7 => ("nanosecond", 100L),
+                8 => ("nanosecond", 10L),
+                _ => ("nanosecond", 1L) // 9
+            };
+            return (new SecondsStringPrecision(fractionalDigits, unit, increment), roundingMode);
+        }
+
+        // Default: auto
+        return (new SecondsStringPrecision(-1, "nanosecond", 1), roundingMode);
+    }
+
+    /// <summary>
+    /// Like GetToStringPrecisionOptions, but reads additional string options interleaved at the correct
+    /// alphabetical positions. For ZonedDateTime: calendarName, fractionalSecondDigits, offset, roundingMode, smallestUnit, timeZoneName.
+    /// </summary>
+    private static (SecondsStringPrecision Precision, string RoundingMode) GetToStringPrecisionOptionsWithInterleave(
+        IJsPropertyAccessor? optionsObj, RealmState realm,
+        string afterFracOptionName, HashSet<string> afterFracValidValues, string afterFracDefault,
+        string afterSmallestOptionName, HashSet<string> afterSmallestValidValues, string afterSmallestDefault,
+        out string afterFracResult, out string afterSmallestResult)
+    {
+        if (optionsObj is null)
+        {
+            afterFracResult = afterFracDefault;
+            afterSmallestResult = afterSmallestDefault;
+            return (new SecondsStringPrecision(-1, "nanosecond", 1), "trunc");
+        }
+
+        // Step 1: Read fractionalSecondDigits
+        int fractionalDigits = -1;
+        bool hasFracDigits = false;
+        if (optionsObj.TryGetProperty("fractionalSecondDigits", out var fracDigitsVal) && !fracDigitsVal.IsUndefined)
+        {
+            hasFracDigits = true;
+            if (fracDigitsVal.IsNumber)
+            {
+                var num = fracDigitsVal.AsDouble();
+                if (double.IsNaN(num))
+                {
+                    throw StandardLibrary.ThrowRangeError("fractionalSecondDigits must not be NaN", realm: realm);
+                }
+
+                var floored = (int)Math.Floor(num);
+                if (floored < 0 || floored > 9 || double.IsInfinity(num))
+                {
+                    throw StandardLibrary.ThrowRangeError(
+                        $"{num.ToString(System.Globalization.CultureInfo.InvariantCulture)} is out of range for fractionalSecondDigits (0-9)",
+                        realm: realm);
+                }
+
+                fractionalDigits = floored;
+            }
+            else
+            {
+                var str = JsOps.ToJsString(fracDigitsVal);
+                if (!string.Equals(str, "auto", StringComparison.Ordinal))
+                {
+                    throw StandardLibrary.ThrowRangeError(
+                        $"\"{str}\" is not a valid value for fractionalSecondDigits", realm: realm);
+                }
+            }
+        }
+
+        // Step 2: Read the interleaved option (e.g. "offset") — between fractionalSecondDigits and roundingMode
+        afterFracResult = GetTemporalStringOption(optionsObj, afterFracOptionName, afterFracValidValues, afterFracDefault, realm);
+
+        // Step 3: Read roundingMode
+        var roundingMode = "trunc";
+        if (optionsObj.TryGetProperty("roundingMode", out var roundingModeVal) && !roundingModeVal.IsUndefined)
+        {
+            roundingMode = JsOps.ToJsString(roundingModeVal);
+            if (!ValidRoundingModes.Contains(roundingMode))
+            {
+                throw StandardLibrary.ThrowRangeError($"Invalid roundingMode: {roundingMode}", realm: realm);
+            }
+        }
+
+        // Step 4: Read smallestUnit
+        if (optionsObj.TryGetProperty("smallestUnit", out var smallestUnitVal) && !smallestUnitVal.IsUndefined)
+        {
+            var smallestUnit = JsOps.ToJsString(smallestUnitVal);
+            smallestUnit = NormalizeSmallestUnit(smallestUnit);
+
+            // Step 5: Read the trailing option (e.g. "timeZoneName") — after smallestUnit
+            afterSmallestResult = GetTemporalStringOption(optionsObj, afterSmallestOptionName, afterSmallestValidValues, afterSmallestDefault, realm);
+
+            var precision = smallestUnit switch
+            {
+                "minute" => new SecondsStringPrecision(-2, "minute", 1),
+                "second" => new SecondsStringPrecision(0, "second", 1),
+                "millisecond" => new SecondsStringPrecision(3, "millisecond", 1),
+                "microsecond" => new SecondsStringPrecision(6, "microsecond", 1),
+                "nanosecond" => new SecondsStringPrecision(9, "nanosecond", 1),
+                _ => throw StandardLibrary.ThrowRangeError(
+                    $"\"{smallestUnit}\" is not a valid value for smallestUnit in toString", realm: realm)
+            };
+            return (precision, roundingMode);
+        }
+
+        // Step 5: Read the trailing option when no smallestUnit
+        afterSmallestResult = GetTemporalStringOption(optionsObj, afterSmallestOptionName, afterSmallestValidValues, afterSmallestDefault, realm);
+
+        if (hasFracDigits && fractionalDigits >= 0)
+        {
+            var (unit, increment) = fractionalDigits switch
+            {
+                0 => ("second", 1L),
+                1 => ("nanosecond", 100_000_000L),
+                2 => ("nanosecond", 10_000_000L),
+                3 => ("nanosecond", 1_000_000L),
+                4 => ("nanosecond", 100_000L),
+                5 => ("nanosecond", 10_000L),
+                6 => ("nanosecond", 1_000L),
+                7 => ("nanosecond", 100L),
+                8 => ("nanosecond", 10L),
+                _ => ("nanosecond", 1L)
+            };
+            return (new SecondsStringPrecision(fractionalDigits, unit, increment), roundingMode);
+        }
+
+        return (new SecondsStringPrecision(-1, "nanosecond", 1), roundingMode);
+    }
+
+    /// <summary>
+    /// Formats a time as ISO 8601 string with the specified precision.
+    /// FractionalDigits: -2 = minute only, -1 = auto, 0-9 = exact digits.
+    /// </summary>
+    private static string FormatTimeToString(
+        int hour, int minute, int second,
+        int millisecond, int microsecond, int nanosecond,
+        int fractionalDigits)
+    {
+        // "minute" precision — no seconds at all
+        if (fractionalDigits == -2)
+        {
+            return $"{hour:D2}:{minute:D2}";
+        }
+
+        var baseTime = $"{hour:D2}:{minute:D2}:{second:D2}";
+
+        // 0 fractional digits — seconds only
+        if (fractionalDigits == 0)
+        {
+            return baseTime;
+        }
+
+        var totalSubSecondNanos = (long)millisecond * 1_000_000L + (long)microsecond * 1_000L + nanosecond;
+
+        // Auto mode: strip trailing zeros, but always show seconds
+        if (fractionalDigits == -1)
+        {
+            if (totalSubSecondNanos == 0)
+            {
+                return baseTime;
+            }
+
+            var fractionStr = totalSubSecondNanos.ToString("D9", System.Globalization.CultureInfo.InvariantCulture).TrimEnd('0');
+            return $"{baseTime}.{fractionStr}";
+        }
+
+        // Exact number of digits (1-9)
+        var fullFraction = totalSubSecondNanos.ToString("D9", System.Globalization.CultureInfo.InvariantCulture);
+        return $"{baseTime}.{fullFraction[..fractionalDigits]}";
+    }
+
+    /// <summary>
+    /// Formats a Duration with the specified precision options.
+    /// The fractionalSecondDigits controls the sub-second portion of the seconds component.
+    /// </summary>
+    private static string FormatDurationToString(
+        JsTemporalDuration duration, SecondsStringPrecision precision, string roundingMode)
+    {
+        var sign = duration.Sign;
+        var absYears = (long)Math.Abs(duration.Years);
+        var absMonths = (long)Math.Abs(duration.Months);
+        var absWeeks = (long)Math.Abs(duration.Weeks);
+        var absDays = (long)Math.Abs(duration.Days);
+        var absHours = (long)Math.Abs(duration.Hours);
+        var absMinutes = (long)Math.Abs(duration.Minutes);
+        var absSeconds = (long)Math.Abs(duration.Seconds);
+        var absMilliseconds = (long)Math.Abs(duration.Milliseconds);
+        var absMicroseconds = (long)Math.Abs(duration.Microseconds);
+        var absNanoseconds = (long)Math.Abs(duration.Nanoseconds);
+
+        // Round the sub-second part based on precision
+        var totalSubSecondNanos = absMilliseconds * 1_000_000L +
+                                  absMicroseconds * 1_000L +
+                                  absNanoseconds;
+
+        if (precision.Increment > 1 || !string.Equals(precision.SmallestUnit, "nanosecond", StringComparison.Ordinal))
+        {
+            var totalNanos = new BigInteger(absSeconds) * NanosecondsPerSecond + new BigInteger(totalSubSecondNanos);
+            var incrementNanos = new BigInteger(GetUnitNanoseconds(precision.SmallestUnit)) * precision.Increment;
+            totalNanos = RoundToIncrement(totalNanos, incrementNanos, roundingMode);
+            absSeconds = (long)(totalNanos / NanosecondsPerSecond);
+            totalSubSecondNanos = (long)(totalNanos % NanosecondsPerSecond);
+        }
+
+        var sb = new StringBuilder();
+        if (sign < 0)
+        {
+            sb.Append('-');
+        }
+
+        sb.Append('P');
+
+        if (absYears != 0)
+        {
+            sb.Append(System.Globalization.CultureInfo.InvariantCulture, $"{absYears}Y");
+        }
+
+        if (absMonths != 0)
+        {
+            sb.Append(System.Globalization.CultureInfo.InvariantCulture, $"{absMonths}M");
+        }
+
+        if (absWeeks != 0)
+        {
+            sb.Append(System.Globalization.CultureInfo.InvariantCulture, $"{absWeeks}W");
+        }
+
+        if (absDays != 0)
+        {
+            sb.Append(System.Globalization.CultureInfo.InvariantCulture, $"{absDays}D");
+        }
+
+        var hasTimePart = absHours != 0 || absMinutes != 0 || absSeconds != 0 || totalSubSecondNanos != 0;
+        // If fractionalDigits is explicitly set and >= 0, always show time part with seconds
+        var forcedPrecision = precision.FractionalDigits >= 0;
+        if (hasTimePart || forcedPrecision)
+        {
+            sb.Append('T');
+            if (absHours != 0)
+            {
+                sb.Append(System.Globalization.CultureInfo.InvariantCulture, $"{absHours}H");
+            }
+
+            if (absMinutes != 0)
+            {
+                sb.Append(System.Globalization.CultureInfo.InvariantCulture, $"{absMinutes}M");
+            }
+
+            if (absSeconds != 0 || totalSubSecondNanos != 0 || forcedPrecision)
+            {
+                sb.Append(System.Globalization.CultureInfo.InvariantCulture, $"{absSeconds}");
+
+                var fractionalDigits = precision.FractionalDigits;
+                if (fractionalDigits == -1)
+                {
+                    // Auto: include fraction only if non-zero, trim trailing zeros
+                    if (totalSubSecondNanos != 0)
+                    {
+                        var fractionStr = totalSubSecondNanos.ToString("D9", System.Globalization.CultureInfo.InvariantCulture).TrimEnd('0');
+                        sb.Append('.');
+                        sb.Append(fractionStr);
+                    }
+                }
+                else if (fractionalDigits > 0)
+                {
+                    var fullFraction = totalSubSecondNanos.ToString("D9", System.Globalization.CultureInfo.InvariantCulture);
+                    sb.Append('.');
+                    sb.Append(fullFraction.AsSpan(0, fractionalDigits));
+                }
+                // fractionalDigits == 0: no fraction
+
+                sb.Append('S');
+            }
+        }
+
+        // Handle zero duration
+        if (sb.Length == 1 || (sb.Length == 2 && sb[0] == '-'))
+        {
+            return "PT0S";
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Rounds a PlainTime for toString and returns the formatted string.
+    /// Handles rounding, midnight wrapping, and precision formatting.
+    /// </summary>
+    private static string RoundAndFormatPlainTime(
+        JsTemporalPlainTime time, SecondsStringPrecision precision, string roundingMode)
+    {
+        var totalNanoseconds = new BigInteger(time.TotalNanoseconds);
+        var incrementNanoseconds = new BigInteger(GetUnitNanoseconds(precision.SmallestUnit)) * precision.Increment;
+        var rounded = RoundToIncrement(totalNanoseconds, incrementNanoseconds, roundingMode);
+        var normalized = PositiveMod(rounded, NanosecondsPerDay);
+        var roundedTime = CreatePlainTimeFromNanoseconds((long)normalized);
+
+        return FormatTimeToString(
+            roundedTime.Hour, roundedTime.Minute, roundedTime.Second,
+            roundedTime.Millisecond, roundedTime.Microsecond, roundedTime.Nanosecond,
+            precision.FractionalDigits);
+    }
+
+    /// <summary>
+    /// Rounds a PlainDateTime for toString and returns the rounded date/time.
+    /// Handles date rollover from time rounding.
+    /// </summary>
+    private static (JsTemporalPlainDateTime RoundedDateTime, int FractionalDigits) RoundPlainDateTimeForToString(
+        JsTemporalPlainDateTime dt, SecondsStringPrecision precision, string roundingMode, RealmState realm)
+    {
+        var totalNanoseconds = ToEpochNanoseconds(dt);
+        var incrementNanoseconds = new BigInteger(GetUnitNanoseconds(precision.SmallestUnit)) * precision.Increment;
+        var rounded = RoundToIncrement(totalNanoseconds, incrementNanoseconds, roundingMode, treatNegativeAsPositive: true);
+
+        if (rounded < PlainDateTimeMinEpochNanoseconds || rounded > PlainDateTimeMaxEpochNanoseconds)
+        {
+            throw StandardLibrary.ThrowRangeError("Temporal.PlainDateTime is out of range", realm: realm);
+        }
+
+        return (FromEpochNanoseconds(rounded), precision.FractionalDigits);
     }
 
     #endregion

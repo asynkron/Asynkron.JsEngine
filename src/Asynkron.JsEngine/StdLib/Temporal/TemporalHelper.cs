@@ -838,9 +838,9 @@ public static class TemporalHelper
         AddPrototypeGetter(prototype, realm, "monthsInYear", tv => new JsValue(GetPlainDate(tv).MonthsInYear));
         AddPrototypeGetter(prototype, realm, "inLeapYear", tv => new JsValue(GetPlainDate(tv).InLeapYear));
         AddPrototypeGetter(prototype, realm, "calendarId", tv => new JsValue(GetPlainDate(tv).Calendar));
-        AddPrototypeGetter(prototype, realm, "daysInWeek", _ => new JsValue(7)); // ISO 8601 always has 7 days per week
-        AddPrototypeGetter(prototype, realm, "era", _ => JsValue.Undefined); // ISO 8601 calendar has no era
-        AddPrototypeGetter(prototype, realm, "eraYear", _ => JsValue.Undefined); // ISO 8601 calendar has no era
+        AddPrototypeGetter(prototype, realm, "daysInWeek", tv => { GetPlainDate(tv); return new JsValue(7); }); // ISO 8601 always has 7 days per week
+        AddPrototypeGetter(prototype, realm, "era", tv => { GetPlainDate(tv); return JsValue.Undefined; }); // ISO 8601 calendar has no era
+        AddPrototypeGetter(prototype, realm, "eraYear", tv => { GetPlainDate(tv); return JsValue.Undefined; }); // ISO 8601 calendar has no era
 
         // Prototype methods
         AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, _) =>
@@ -1210,9 +1210,9 @@ public static class TemporalHelper
         AddPrototypeGetter(prototype, realm, "monthsInYear", tv => new JsValue(GetPlainDateTime(tv).MonthsInYear));
         AddPrototypeGetter(prototype, realm, "inLeapYear", tv => new JsValue(GetPlainDateTime(tv).InLeapYear));
         AddPrototypeGetter(prototype, realm, "calendarId", tv => new JsValue(GetPlainDateTime(tv).Calendar));
-        AddPrototypeGetter(prototype, realm, "daysInWeek", _ => new JsValue(7)); // ISO 8601 always has 7 days per week
-        AddPrototypeGetter(prototype, realm, "era", _ => JsValue.Undefined); // ISO 8601 calendar has no era
-        AddPrototypeGetter(prototype, realm, "eraYear", _ => JsValue.Undefined); // ISO 8601 calendar has no era
+        AddPrototypeGetter(prototype, realm, "daysInWeek", tv => { GetPlainDateTime(tv); return new JsValue(7); });
+        AddPrototypeGetter(prototype, realm, "era", tv => { GetPlainDateTime(tv); return JsValue.Undefined; });
+        AddPrototypeGetter(prototype, realm, "eraYear", tv => { GetPlainDateTime(tv); return JsValue.Undefined; });
 
         // Prototype methods
         AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, args) =>
@@ -1493,10 +1493,10 @@ public static class TemporalHelper
         AddPrototypeGetter(prototype, realm, "timeZoneId", tv => new JsValue(GetZonedDateTime(tv).TimeZoneId));
         AddPrototypeGetter(prototype, realm, "offset", tv => new JsValue(GetZonedDateTime(tv).Offset));
         AddPrototypeGetter(prototype, realm, "calendarId", tv => new JsValue(GetZonedDateTime(tv).Calendar));
-        AddPrototypeGetter(prototype, realm, "daysInWeek", _ => new JsValue(7)); // ISO 8601 always has 7 days per week
-        AddPrototypeGetter(prototype, realm, "monthsInYear", _ => new JsValue(12)); // ISO 8601 always has 12 months per year
-        AddPrototypeGetter(prototype, realm, "era", _ => JsValue.Undefined); // ISO 8601 calendar has no era
-        AddPrototypeGetter(prototype, realm, "eraYear", _ => JsValue.Undefined); // ISO 8601 calendar has no era
+        AddPrototypeGetter(prototype, realm, "daysInWeek", tv => { GetZonedDateTime(tv); return new JsValue(7); });
+        AddPrototypeGetter(prototype, realm, "monthsInYear", tv => { GetZonedDateTime(tv); return new JsValue(12); });
+        AddPrototypeGetter(prototype, realm, "era", tv => { GetZonedDateTime(tv); return JsValue.Undefined; });
+        AddPrototypeGetter(prototype, realm, "eraYear", tv => { GetZonedDateTime(tv); return JsValue.Undefined; });
         AddPrototypeGetter(prototype, realm, "offsetNanoseconds", tv =>
         {
             var zdt = GetZonedDateTime(tv);
@@ -1778,8 +1778,8 @@ public static class TemporalHelper
         AddPrototypeGetter(prototype, realm, "monthsInYear", tv => new JsValue(GetPlainYearMonth(tv).MonthsInYear));
         AddPrototypeGetter(prototype, realm, "inLeapYear", tv => new JsValue(GetPlainYearMonth(tv).InLeapYear));
         AddPrototypeGetter(prototype, realm, "calendarId", tv => new JsValue(GetPlainYearMonth(tv).Calendar));
-        AddPrototypeGetter(prototype, realm, "era", _ => JsValue.Undefined); // ISO 8601 calendar has no era
-        AddPrototypeGetter(prototype, realm, "eraYear", _ => JsValue.Undefined); // ISO 8601 calendar has no era
+        AddPrototypeGetter(prototype, realm, "era", tv => { GetPlainYearMonth(tv); return JsValue.Undefined; });
+        AddPrototypeGetter(prototype, realm, "eraYear", tv => { GetPlainYearMonth(tv); return JsValue.Undefined; });
 
         // Prototype methods
         AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, args) =>
@@ -1968,8 +1968,26 @@ public static class TemporalHelper
         AddPrototypeGetter(prototype, realm, "calendarId", tv => new JsValue(GetPlainMonthDay(tv).Calendar));
 
         // Prototype methods
-        AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, _) =>
-            new JsValue(GetPlainMonthDay(thisValue).ToString()));
+        AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, args) =>
+        {
+            var md = GetPlainMonthDay(thisValue);
+            var showCalendar = "auto";
+            if (args.Count > 0 && args[0].TryGetObject<IJsPropertyAccessor>(out var opts) &&
+                opts.TryGetProperty("calendarName", out var calVal) && calVal.IsString)
+            {
+                showCalendar = calVal.AsString();
+            }
+            if (string.Equals(showCalendar, "always", StringComparison.Ordinal) ||
+                string.Equals(showCalendar, "critical", StringComparison.Ordinal))
+            {
+                return new JsValue(md.ToStringWithCalendar());
+            }
+            if (string.Equals(showCalendar, "never", StringComparison.Ordinal))
+            {
+                return new JsValue(md.ToStringBasic());
+            }
+            return new JsValue(md.ToString());
+        });
 
         AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
             new JsValue(GetPlainMonthDay(thisValue).ToString()));

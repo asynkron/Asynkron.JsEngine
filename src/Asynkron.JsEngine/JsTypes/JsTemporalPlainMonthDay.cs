@@ -125,16 +125,42 @@ public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay
     }
 
     /// <summary>
-    ///     Returns Temporal month-day string (MM-DD).
+    ///     Returns basic month-day string (MM-DD) without calendar annotation.
+    /// </summary>
+    public string ToStringBasic()
+    {
+        return $"{Month:D2}-{Day:D2}";
+    }
+
+    /// <summary>
+    ///     Returns Temporal month-day string (MM-DD), with calendar annotation for non-ISO calendars.
     /// </summary>
     public override string ToString()
     {
-        var result = $"--{Month:D2}-{Day:D2}";
+        var result = $"{Month:D2}-{Day:D2}";
         if (!string.Equals(Calendar, "iso8601", StringComparison.Ordinal))
         {
-            result += $"[u-ca={Calendar}]";
+            result += $"-{ReferenceYear:D2}[u-ca={Calendar}]";
         }
         return result;
+    }
+
+    /// <summary>
+    ///     Returns month-day string with reference year and calendar annotation (YYYY-MM-DD[u-ca=calendar]).
+    /// </summary>
+    public string ToStringWithCalendar()
+    {
+        return FormatYear(ReferenceYear) + $"-{Month:D2}-{Day:D2}[u-ca={Calendar}]";
+    }
+
+    private static string FormatYear(int year)
+    {
+        if (year is >= 0 and <= 9999)
+        {
+            return year.ToString("D4", CultureInfo.InvariantCulture);
+        }
+        var absYear = Math.Abs(year);
+        return (year < 0 ? "-" : "+") + absYear.ToString("D6", CultureInfo.InvariantCulture);
     }
 
     public static bool operator ==(JsTemporalPlainMonthDay? left, JsTemporalPlainMonthDay? right)

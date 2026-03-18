@@ -1,5 +1,3 @@
-using System.Numerics;
-using Asynkron.JsEngine.JsTypes;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -456,67 +454,38 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
     }
 
     [Fact]
-    public async Task Debug_ZDT_ToPlainDateTime_Limits_Direct()
+    public async Task Debug_PlainDate_From_Simple()
     {
-        // Test the C# types directly to bypass JS evaluation
-        var epochNanos = BigInteger.Parse("-8640000000000000000000");
-        var instant = new JsTemporalInstant(epochNanos);
-        var zdt = new JsTemporalZonedDateTime(instant, "-23:59");
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("Temporal.PlainDate.from('1976-11-18').toString()");
+        output.WriteLine($"Result: {result}");
+        Assert.Equal("1976-11-18", result);
+    }
 
-        output.WriteLine($"FixedOffset: {zdt.FixedOffset}");
-        output.WriteLine($"FixedOffset.TotalMilliseconds: {zdt.FixedOffset?.TotalMilliseconds}");
-        output.WriteLine($"FixedOffset.TotalSeconds: {zdt.FixedOffset?.TotalSeconds}");
+    [Fact]
+    public async Task Debug_PlainDate_Add_Basic()
+    {
+        await using var engine = CreateEngine();
+        // From the basic.js Test262 test
+        var result = await engine.Evaluate(@"
+            var date = Temporal.PlainDate.from('1976-11-18');
+            var r1 = date.add({ years: 43 });
+            r1.year + '/' + r1.month + '/' + r1.day;
+        ");
+        output.WriteLine($"Result: {result}");
+        Assert.Equal("2019/11/18", result);
+    }
 
-        // Test if ToDateTimeOffset throws
-        try
-        {
-            var dto = instant.ToDateTimeOffset();
-            output.WriteLine($"ToDateTimeOffset succeeded: {dto}");
-        }
-        catch (Exception ex)
-        {
-            output.WriteLine($"ToDateTimeOffset threw: {ex.GetType().Name}: {ex.Message}");
-        }
-
-        // Test the direct calculation
-        var offsetNanos = (long)zdt.FixedOffset!.Value.TotalMilliseconds * 1_000_000;
-        output.WriteLine($"offsetNanos: {offsetNanos}");
-
-        var localNanos = epochNanos + offsetNanos;
-        output.WriteLine($"localNanos: {localNanos}");
-
-        // Test EpochDaysToDate directly
-        var dayNumber = -100_000_001L;
-        var dateResult = IsoCalendarHelpers.EpochDaysToDate(dayNumber);
-        output.WriteLine($"EpochDaysToDate({dayNumber}): Year={dateResult.Year} Month={dateResult.Month} Day={dateResult.Day}");
-
-        // Test with UTC (dayNumber = -100_000_000)
-        var dateResult2 = IsoCalendarHelpers.EpochDaysToDate(-100_000_000L);
-        output.WriteLine($"EpochDaysToDate(-100000000): Year={dateResult2.Year} Month={dateResult2.Month} Day={dateResult2.Day}");
-
-        // Manual BigInteger division test
-        var nanosPerDay = new BigInteger(86_400_000_000_000L);
-        var q = BigInteger.DivRem(localNanos, nanosPerDay, out var r);
-        output.WriteLine($"BigInteger.DivRem: quotient={q}, remainder={r}");
-        if (r < 0)
-        {
-            r += nanosPerDay;
-            q -= 1;
-            output.WriteLine($"After floor adjustment: quotient={q}, remainder={r}");
-        }
-        var dateResult3 = IsoCalendarHelpers.EpochDaysToDate((long)q);
-        output.WriteLine($"EpochDaysToDate({q}): Year={dateResult3.Year} Month={dateResult3.Month} Day={dateResult3.Day}");
-        output.WriteLine($"Remainder nanos: {r}");
-        output.WriteLine($"Remainder seconds: {r / 1_000_000_000}");
-        output.WriteLine($"Hour: {r / 3_600_000_000_000} Minute: {r % 3_600_000_000_000 / 60_000_000_000}");
-
-        // Now test through JS
+    [Fact]
+    public async Task Debug_PlainDate_Add_Days()
+    {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
-            var zdt = new Temporal.ZonedDateTime(-8640000000000000000000n, '-23:59');
-            var pdt = zdt.toPlainDateTime();
-            JSON.stringify({year: pdt.year, month: pdt.month, day: pdt.day, hour: pdt.hour, minute: pdt.minute});
+            var p10d = new Temporal.Duration(0,0,0,10);
+            var r = Temporal.PlainDate.from('2021-07-16').add(p10d);
+            r.year + '-' + r.month + '-' + r.day;
         ");
-        output.WriteLine($"JS result: {result}");
+        output.WriteLine($"Result: {result}");
+        Assert.Equal("2021-7-26", result);
     }
 }

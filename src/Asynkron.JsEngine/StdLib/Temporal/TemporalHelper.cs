@@ -47,8 +47,9 @@ public static class TemporalHelper
     private static readonly BigInteger InstantMaxEpochNanoseconds =
         new BigInteger(864) * BigInteger.Pow(10, 19);
     private static readonly BigInteger InstantMinEpochNanoseconds = -InstantMaxEpochNanoseconds;
-    private static readonly BigInteger PlainDateTimeMinEpochNanoseconds = InstantMinEpochNanoseconds + 1;
-    private static readonly BigInteger PlainDateTimeMaxEpochNanoseconds = InstantMaxEpochNanoseconds - 1;
+    // Per spec ISODateTimeWithinLimits: ns > nsMinInstant - nsPerDay AND ns < nsMaxInstant + nsPerDay
+    private static readonly BigInteger PlainDateTimeMinEpochNanoseconds = InstantMinEpochNanoseconds - NanosecondsPerDay + 1;
+    private static readonly BigInteger PlainDateTimeMaxEpochNanoseconds = InstantMaxEpochNanoseconds + NanosecondsPerDay - 1;
     private static readonly Dictionary<string, long> PlainDateTimeRoundingIncrements = new(StringComparer.Ordinal)
     {
         ["day"] = 1,
@@ -154,45 +155,134 @@ public static class TemporalHelper
 
     /// <summary>
     /// Converts a Temporal calendar argument to a canonical calendar identifier.
-    /// Performs ASCII lowercasing and validation per the Temporal spec.
+    /// Per spec: handles Temporal objects (reads internal calendar), strings (validates or parses ISO),
+    /// and throws TypeError for anything else including undefined.
     /// </summary>
-    /// <param name="calendarArg">The JS value for the calendar argument.</param>
-    /// <returns>Canonical calendar ID string.</returns>
     private static string ToTemporalCalendarIdentifier(JsValue calendarArg)
     {
-        // If undefined, default to iso8601
-        if (calendarArg.IsUndefined)
-            return "iso8601";
-
-        // Must be a string — TypeError for other types (except undefined)
+        // Step 1: If not a string, check for Temporal objects or throw
         if (!calendarArg.IsString)
         {
+            // Check for Temporal objects with internal calendar slots
+            if (calendarArg.TryGetObject<JsObject>(out var obj))
+            {
+                if (obj.TryGetProperty(TemporalPlainDateSlot, out var slot) && slot.TryGetObject<JsTemporalPlainDate>(out var pd))
+                    return pd.Calendar;
+                if (obj.TryGetProperty(TemporalPlainDateTimeSlot, out slot) && slot.TryGetObject<JsTemporalPlainDateTime>(out var pdt))
+                    return pdt.Calendar;
+                if (obj.TryGetProperty(TemporalPlainMonthDaySlot, out slot) && slot.TryGetObject<JsTemporalPlainMonthDay>(out var pmd))
+                    return pmd.Calendar;
+                if (obj.TryGetProperty(TemporalPlainYearMonthSlot, out slot) && slot.TryGetObject<JsTemporalPlainYearMonth>(out var pym))
+                    return pym.Calendar;
+                if (obj.TryGetProperty(TemporalZonedDateTimeSlot, out slot) && slot.TryGetObject<JsTemporalZonedDateTime>(out var zdt))
+                    return zdt.Calendar;
+            }
+
             throw StandardLibrary.ThrowTypeError(
                 $"{JsOps.TypeOf(calendarArg).AsString()} is not a valid calendar");
         }
 
+        // Step 2-4: String handling
         var id = calendarArg.AsString();
+        return ValidateCalendarId(id);
+    }
 
-        // Validate: must not be empty, must not contain '[' (no ISO string annotations)
-        if (string.IsNullOrEmpty(id) || id.Contains('['))
+    /// <summary>
+    /// Validates and canonicalizes a calendar identifier string.
+    /// If not a known calendar ID, tries to parse as ISO string to extract calendar annotation.
+    /// </summary>
+    private static string ValidateCalendarId(string id)
+    {
+        if (string.IsNullOrEmpty(id))
         {
             throw StandardLibrary.ThrowRangeError($"invalid calendar identifier: '{id}'");
         }
 
         // ASCII-lowercase only (NOT Unicode case folding - \u0130 must NOT become 'i')
-        id = AsciiLowercase(id);
+        var lowered = AsciiLowercase(id);
 
         // Map deprecated aliases
-        if (CalendarAliases.TryGetValue(id, out var canonical))
-            id = canonical;
+        if (CalendarAliases.TryGetValue(lowered, out var canonical))
+            lowered = canonical;
 
-        // Validate against known calendar list
-        if (!ValidCalendarIds.Contains(id))
+        // Check if it's a known calendar ID directly
+        if (ValidCalendarIds.Contains(lowered))
+        {
+            return lowered;
+        }
+
+        // Not a known calendar ID — try to parse as ISO 8601 string
+        // Extract calendar annotation [u-ca=xxx] if present, otherwise default to iso8601
+        var calendarFromString = ParseTemporalCalendarString(id);
+
+        var calLowered = AsciiLowercase(calendarFromString);
+        if (CalendarAliases.TryGetValue(calLowered, out var calCanonical))
+            calLowered = calCanonical;
+
+        if (!ValidCalendarIds.Contains(calLowered))
         {
             throw StandardLibrary.ThrowRangeError($"invalid calendar identifier: '{id}'");
         }
 
-        return id;
+        return calLowered;
+    }
+
+    /// <summary>
+    /// Parses a Temporal calendar string. Tries to extract [u-ca=xxx] annotation from ISO string.
+    /// If no annotation is present but the string parses as valid ISO, returns "iso8601".
+    /// </summary>
+    private static string ParseTemporalCalendarString(string str)
+    {
+        // Look for calendar annotation [u-ca=xxx]
+        var annotationStart = str.IndexOf("[u-ca=", StringComparison.Ordinal);
+        if (annotationStart >= 0)
+        {
+            var valueStart = annotationStart + 6; // length of "[u-ca="
+            var end = str.IndexOf(']', valueStart);
+            if (end > valueStart)
+            {
+                return str.Substring(valueStart, end - valueStart);
+            }
+        }
+
+        // No calendar annotation — validate as ISO-like string and default to "iso8601"
+        // Accept various ISO formats: dates, date-times, month-day, year-month
+        // Basic validation: must look like an ISO string (starts with digit or sign, or MM-DD format)
+        if (IsValidISOCalendarString(str))
+        {
+            return "iso8601";
+        }
+
+        throw StandardLibrary.ThrowRangeError($"invalid calendar identifier: '{str}'");
+    }
+
+    /// <summary>
+    /// Basic validation that a string could be an ISO 8601 date/time string
+    /// for the purpose of calendar string extraction.
+    /// </summary>
+    private static bool IsValidISOCalendarString(string str)
+    {
+        if (string.IsNullOrEmpty(str)) return false;
+
+        // Handle MM-DD format (e.g., "01-01")
+        if (str.Length >= 5 && str[2] == '-' && char.IsAsciiDigit(str[0]) && char.IsAsciiDigit(str[1]))
+        {
+            return true;
+        }
+
+        // Handle YYYY-MM format (e.g., "2020-01")
+        if (str.Length >= 7 && str[4] == '-' && char.IsAsciiDigit(str[0]))
+        {
+            return true;
+        }
+
+        // Handle +/-YYYYYY format
+        if ((str[0] == '+' || str[0] == '-') && str.Length >= 7)
+        {
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -1066,7 +1156,9 @@ public static class TemporalHelper
             var day = partialDay ?? date.Day;
 
             // Pre-validate: reject fundamentally invalid values before options processing
-            if (month is < 1 or > 12 || day < 1)
+            // Only reject values that are ALWAYS invalid regardless of overflow mode
+            // (day < 1, month < 1 are never valid; month > 12 can be constrained)
+            if (month < 1 || day < 1)
             {
                 throw StandardLibrary.ThrowRangeError("Invalid ISO date value", realm: realm);
             }
@@ -1101,6 +1193,13 @@ public static class TemporalHelper
                 time = new JsTemporalPlainTime(0, 0, 0, 0, 0, 0);
             }
             var dt = date.ToPlainDateTime(time);
+            // ISODateTimeWithinLimits check
+            var epochNanos = ToEpochNanoseconds(dt);
+            if (epochNanos < PlainDateTimeMinEpochNanoseconds || epochNanos > PlainDateTimeMaxEpochNanoseconds)
+            {
+                throw StandardLibrary.ThrowRangeError("PlainDateTime is out of representable range", realm: realm);
+            }
+
             return WrapPlainDateTime(dt, realm, prototypes.PlainDateTimePrototype);
         });
 
@@ -1116,6 +1215,13 @@ public static class TemporalHelper
             var date = GetPlainDate(thisValue);
             var md = date.ToPlainMonthDay();
             return WrapPlainMonthDay(md, realm, prototypes.PlainMonthDayPrototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "withCalendar", 1, (thisValue, args) =>
+        {
+            var date = GetPlainDate(thisValue);
+            var calendar = ToTemporalCalendarIdentifier(args.GetArgument(0));
+            return WrapPlainDate(new JsTemporalPlainDate(date.Year, date.Month, date.Day, calendar), realm, prototype);
         });
 
         AddPrototypeMethod(prototype, realm, "toZonedDateTime", 1, (thisValue, args) =>
@@ -1168,7 +1274,7 @@ public static class TemporalHelper
             var month = ToIntegerWithRangeCheck(args.GetArgument(1), "month", realm);
             var day = ToIntegerWithRangeCheck(args.GetArgument(2), "day", realm);
             var calendarArg = args.Count > 3 ? args[3] : JsValue.Undefined;
-            var calendar = ToTemporalCalendarIdentifier(calendarArg);
+            var calendar = calendarArg.IsUndefined ? "iso8601" : ToTemporalCalendarIdentifier(calendarArg);
 
             RejectISODate(year, month, day, realm);
             var date = new JsTemporalPlainDate(year, month, day, calendar);
@@ -1619,6 +1725,13 @@ public static class TemporalHelper
             return WrapPlainMonthDay(md, realm, prototypes.PlainMonthDayPrototype);
         });
 
+        AddPrototypeMethod(prototype, realm, "withCalendar", 1, (thisValue, args) =>
+        {
+            var dt = GetPlainDateTime(thisValue);
+            var calendar = ToTemporalCalendarIdentifier(args.GetArgument(0));
+            return WrapPlainDateTime(new JsTemporalPlainDateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second, dt.Millisecond, dt.Microsecond, dt.Nanosecond, calendar), realm, prototype);
+        });
+
         AddPrototypeMethod(prototype, realm, "toZonedDateTime", 1, (thisValue, args) =>
         {
             var dt = GetPlainDateTime(thisValue);
@@ -1722,7 +1835,7 @@ public static class TemporalHelper
             var nanosecond = partialNanosecond ?? dt.Nanosecond;
 
             // Pre-validate: reject fundamentally invalid values before options processing
-            if (month is < 1 or > 12 || day < 1)
+            if (month < 1 || day < 1)
             {
                 throw StandardLibrary.ThrowRangeError("Invalid ISO date value", realm: realm);
             }
@@ -1747,7 +1860,14 @@ public static class TemporalHelper
                 RejectISOTime(hour, minute, second, millisecond, microsecond, nanosecond, realm);
             }
 
-            return WrapPlainDateTime(new JsTemporalPlainDateTime(year, month, day, hour, minute, second, millisecond, microsecond, nanosecond, dt.Calendar), realm, prototype);
+            var result = new JsTemporalPlainDateTime(year, month, day, hour, minute, second, millisecond, microsecond, nanosecond, dt.Calendar);
+            var epochNanos = ToEpochNanoseconds(result);
+            if (epochNanos < PlainDateTimeMinEpochNanoseconds || epochNanos > PlainDateTimeMaxEpochNanoseconds)
+            {
+                throw StandardLibrary.ThrowRangeError("PlainDateTime is out of representable range", realm: realm);
+            }
+
+            return WrapPlainDateTime(result, realm, prototype);
         });
 
         AddPrototypeMethod(prototype, realm, "round", 1, (thisValue, args) =>
@@ -1784,7 +1904,7 @@ public static class TemporalHelper
             var microsecond = ToIntegerOrDefault(args, 7, "microsecond", realm);
             var nanosecond = ToIntegerOrDefault(args, 8, "nanosecond", realm);
             var calendarArg = args.Count > 9 ? args[9] : JsValue.Undefined;
-            var calendar = ToTemporalCalendarIdentifier(calendarArg);
+            var calendar = calendarArg.IsUndefined ? "iso8601" : ToTemporalCalendarIdentifier(calendarArg);
 
             RejectISODate(year, month, day, realm);
             RejectTemporalTimeRange(hour, minute, second, millisecond, microsecond, nanosecond, realm);
@@ -1977,6 +2097,13 @@ public static class TemporalHelper
             var zdt = GetZonedDateTime(thisValue);
             var pdt = ZonedDateTimeToPlainDateTime(zdt);
             return WrapPlainTime(new JsTemporalPlainTime(pdt.Hour, pdt.Minute, pdt.Second, pdt.Millisecond, pdt.Microsecond, pdt.Nanosecond), realm, prototypes.PlainTimePrototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "withCalendar", 1, (thisValue, args) =>
+        {
+            var zdt = GetZonedDateTime(thisValue);
+            var calendar = ToTemporalCalendarIdentifier(args.GetArgument(0));
+            return WrapZonedDateTime(new JsTemporalZonedDateTime(zdt.Instant, zdt.TimeZoneId, calendar), realm, prototype);
         });
 
         AddPrototypeMethod(prototype, realm, "add", 1, (thisValue, args) =>
@@ -2213,7 +2340,7 @@ public static class TemporalHelper
             var calendarArg = args.Count > 2 ? args[2] : JsValue.Undefined;
 
             var timeZoneId = ToTemporalTimeZoneSlot(timeZoneArg, realm);
-            var calendar = ToTemporalCalendarIdentifier(calendarArg);
+            var calendar = calendarArg.IsUndefined ? "iso8601" : ToTemporalCalendarIdentifier(calendarArg);
 
             JsTemporalInstant instant;
             if (epochNanoseconds.TryGetBigInt(out var bigInt))
@@ -2384,10 +2511,10 @@ public static class TemporalHelper
             var year = partialYear ?? ym.Year;
             var month = ResolveISOMonth(partialMonth, partialMonthCode, ym.Month, realm);
 
-            // Pre-validate: reject fundamentally invalid values before options processing
-            if (month is < 1 or > 12)
+            // Pre-validate: reject fundamentally invalid month before options processing
+            if (month < 1)
             {
-                throw StandardLibrary.ThrowRangeError("Month value is out of range (1-12)", realm: realm);
+                throw StandardLibrary.ThrowRangeError("Month value is out of range", realm: realm);
             }
 
             var options = args.Count > 1 ? args[1] : JsValue.Undefined;
@@ -2455,7 +2582,7 @@ public static class TemporalHelper
             var year = (int)JsOps.ToNumber(args.GetArgument(0));
             var month = (int)JsOps.ToNumber(args.GetArgument(1));
             var calendarArg = args.Count > 2 ? args[2] : JsValue.Undefined;
-            var calendar = ToTemporalCalendarIdentifier(calendarArg);
+            var calendar = calendarArg.IsUndefined ? "iso8601" : ToTemporalCalendarIdentifier(calendarArg);
 
             var ym = new JsTemporalPlainYearMonth(year, month, calendar);
             return ApplyNewTargetPrototype(WrapPlainYearMonth(ym, realm, prototype), newTarget, ctor, prototype);
@@ -2575,7 +2702,7 @@ public static class TemporalHelper
             var day = partialDay ?? md.Day;
 
             // Pre-validate: reject fundamentally invalid values before options processing
-            if (month is < 1 or > 12 || day < 1)
+            if (month < 1 || day < 1)
             {
                 throw StandardLibrary.ThrowRangeError("Invalid ISO date value", realm: realm);
             }
@@ -2654,7 +2781,7 @@ public static class TemporalHelper
             var month = (int)JsOps.ToNumber(args.GetArgument(0));
             var day = (int)JsOps.ToNumber(args.GetArgument(1));
             var calendarArg = args.Count > 2 ? args[2] : JsValue.Undefined;
-            var calendar = ToTemporalCalendarIdentifier(calendarArg);
+            var calendar = calendarArg.IsUndefined ? "iso8601" : ToTemporalCalendarIdentifier(calendarArg);
 
             var md = new JsTemporalPlainMonthDay(month, day, calendar);
             return ApplyNewTargetPrototype(WrapPlainMonthDay(md, realm, prototype), newTarget, ctor, prototype);
@@ -4819,9 +4946,7 @@ public static class TemporalHelper
         // Validate calendar if present
         if (accessor.TryGetProperty("calendar", out var calVal) && !calVal.IsUndefined)
         {
-            var calStr = JsOps.ToJsString(calVal);
-            if (!string.Equals(calStr, "iso8601", StringComparison.OrdinalIgnoreCase))
-                throw StandardLibrary.ThrowRangeError($"Unsupported calendar: {calStr}", realm: realm);
+            ValidateTemporalCalendarValue(calVal, realm);
         }
 
         // Read year (required)
@@ -4892,28 +5017,34 @@ public static class TemporalHelper
         // Parse and validate bracket annotations
         var baseStr = ParseAndValidateAnnotations(str, realm);
 
-        // Determine if this is a date-time or date-only string
-        // For PlainDate: Z designator is ALWAYS rejected.
-        // Offset on date-only string is rejected. Offset on date-time string is allowed.
+        // Validate calendar annotation - only iso8601 is supported
+        ValidateCalendarAnnotation(str, realm);
 
-        // Check for Z designator BEFORE parsing
+        // For PlainDate: Z designator is ALWAYS rejected.
         if (HasZDesignator(baseStr))
             throw StandardLibrary.ThrowRangeError("Z designator not allowed in PlainDate string", realm: realm);
 
-        // Split into date and optional time parts
-        string dateStr;
-        var hasTimePart = false;
-
-        // Handle sign prefix for extended year
+        // Split into date and optional time+offset parts
         var startIdx = 0;
         if (baseStr.Length > 0 && (baseStr[0] == '+' || baseStr[0] == '-'))
             startIdx = 1;
 
         var tIdx = FindDateTimeSeparator(baseStr[startIdx..]);
+        string dateStr;
+        var hasTimePart = false;
+
         if (tIdx >= 0)
         {
-            tIdx += startIdx; // Adjust for sign prefix
+            tIdx += startIdx;
             dateStr = baseStr[..tIdx];
+            var afterT = baseStr[(tIdx + 1)..];
+
+            // T with empty time → reject
+            if (afterT.Length == 0)
+                throw StandardLibrary.ThrowRangeError($"Invalid PlainDate string: {str}", realm: realm);
+
+            // Validate the time+offset portion - strip offset, then validate time format
+            ValidateDateTimeTimePart(afterT, realm);
             hasTimePart = true;
         }
         else
@@ -4925,8 +5056,9 @@ public static class TemporalHelper
         if (!hasTimePart && DateOnlyStringHasOffset(dateStr))
             throw StandardLibrary.ThrowRangeError("UTC offset without time is not valid for PlainDate", realm: realm);
 
-        // If no time part, strip trailing offset (shouldn't be any at this point)
-        // If has time part, just use the date part as-is
+        // Check for trailing junk after date-only string
+        if (!hasTimePart)
+            ValidateDateOnlyNoTrailing(dateStr, startIdx, realm);
 
         int year, month, day;
 
@@ -4988,13 +5120,96 @@ public static class TemporalHelper
             }
         }
 
-        // Validate date
-        if (month is < 1 or > 12)
-            throw StandardLibrary.ThrowRangeError($"Invalid PlainDate string: month {month} out of range", realm: realm);
-        if (day < 1 || day > IsoCalendarHelpers.DaysInMonth(year, month))
-            throw StandardLibrary.ThrowRangeError($"Invalid PlainDate string: day {day} out of range", realm: realm);
+        // Validate date (includes range check)
+        RejectISODate(year, month, day, realm);
 
         return new JsTemporalPlainDate(year, month, day);
+    }
+
+    private static void ValidateTemporalCalendarValue(JsValue calVal, RealmState realm)
+    {
+        // Per spec: calendar must be a string (or undefined, handled by caller)
+        // null, boolean, number, bigint, symbol, object → TypeError
+        if (calVal.IsNull || calVal.IsBoolean || calVal.IsNumber || calVal.IsSymbol || calVal.IsBigInt)
+            throw StandardLibrary.ThrowTypeError("Calendar must be a string", realm: realm);
+
+        // Objects (non-string) → TypeError
+        if (calVal.Kind == JsValueKind.Object)
+            throw StandardLibrary.ThrowTypeError("Calendar must be a string", realm: realm);
+
+        if (!calVal.IsString)
+            throw StandardLibrary.ThrowTypeError("Calendar must be a string", realm: realm);
+
+        var calStr = calVal.AsString() ?? "";
+
+        // Direct calendar ID
+        if (string.Equals(calStr, "iso8601", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        // Try to parse as ISO string and extract calendar
+        // If the string contains [u-ca=...], extract the calendar
+        var ucaIdx = calStr.IndexOf("[u-ca=", StringComparison.Ordinal);
+        if (ucaIdx < 0) ucaIdx = calStr.IndexOf("[!u-ca=", StringComparison.Ordinal);
+        if (ucaIdx >= 0)
+        {
+            var eqIdx = calStr.IndexOf('=', ucaIdx);
+            var closeIdx = calStr.IndexOf(']', eqIdx);
+            if (eqIdx >= 0 && closeIdx > eqIdx)
+            {
+                var embeddedCal = calStr[(eqIdx + 1)..closeIdx];
+                if (!string.Equals(embeddedCal, "iso8601", StringComparison.OrdinalIgnoreCase))
+                    throw StandardLibrary.ThrowRangeError($"Unsupported calendar: {embeddedCal}", realm: realm);
+                return;
+            }
+        }
+
+        // Validate it's a valid ISO string (date, datetime, year-month, month-day formats)
+        // If it looks like a valid ISO format, treat it as iso8601 calendar
+        if (LooksLikeISOCalendarString(calStr))
+            return;
+
+        throw StandardLibrary.ThrowRangeError($"Invalid calendar string: {calStr}", realm: realm);
+    }
+
+    private static bool LooksLikeISOCalendarString(string str)
+    {
+        // Accept various ISO-like date/datetime strings as calendar identifiers
+        // These all resolve to "iso8601" calendar:
+        // YYYY-MM-DD, YYYY-MM-DDTHH:MM:SS, YYYY-MM, MM-DD, etc.
+        if (str.Length < 4) return false;
+
+        // Standard date: YYYY-MM-DD or YYYY-MM-DDTHH...
+        if (str.Length >= 10 && char.IsDigit(str[0]) && char.IsDigit(str[1]) &&
+            char.IsDigit(str[2]) && char.IsDigit(str[3]) && str[4] == '-')
+            return true;
+
+        // Year-month: YYYY-MM (7 chars)
+        if (str.Length >= 7 && char.IsDigit(str[0]) && str[4] == '-' && char.IsDigit(str[5]))
+            return true;
+
+        // Month-day: MM-DD (5 chars)
+        if (str.Length >= 5 && char.IsDigit(str[0]) && char.IsDigit(str[1]) &&
+            str[2] == '-' && char.IsDigit(str[3]) && char.IsDigit(str[4]))
+            return true;
+
+        return false;
+    }
+
+    private static void ValidateCalendarAnnotation(string str, RealmState realm)
+    {
+        // Find calendar annotation [u-ca=xxx]
+        var idx = str.IndexOf("[u-ca=", StringComparison.Ordinal);
+        if (idx < 0) idx = str.IndexOf("[!u-ca=", StringComparison.Ordinal);
+        if (idx < 0) return;
+
+        var eqIdx = str.IndexOf('=', idx);
+        if (eqIdx < 0) return;
+        var close = str.IndexOf(']', eqIdx);
+        if (close < 0) return;
+
+        var calValue = str[(eqIdx + 1)..close];
+        if (!string.Equals(calValue, "iso8601", StringComparison.OrdinalIgnoreCase))
+            throw StandardLibrary.ThrowRangeError($"Unsupported calendar: {calValue}", realm: realm);
     }
 
     private static bool HasZDesignator(string str)
@@ -5028,6 +5243,118 @@ public static class TemporalHelper
         // Something after the date - check if it's an offset
         var after = dateStr[dateLen];
         return after is 'Z' or 'z' or '+' or '-';
+    }
+
+    private static void ValidateDateTimeTimePart(string afterT, RealmState realm)
+    {
+        // Strip offset from time part for validation
+        var timePart = afterT;
+        var offsetPart = "";
+        if (timePart.EndsWith('Z') || timePart.EndsWith('z'))
+        {
+            offsetPart = timePart[^1..];
+            timePart = timePart[..^1];
+        }
+        else
+        {
+            for (var i = timePart.Length - 1; i >= 1; i--)
+            {
+                if ((timePart[i] == '+' || timePart[i] == '-') && i + 1 < timePart.Length && char.IsDigit(timePart[i + 1]))
+                {
+                    offsetPart = timePart[i..];
+                    timePart = timePart[..i];
+                    break;
+                }
+            }
+        }
+
+        // Validate offset if present - use ParseOffsetToNanos which rejects junk
+        if (offsetPart.Length > 1)
+        {
+            var parsed = ParseOffsetToNanos(offsetPart);
+            if (parsed is null)
+                throw StandardLibrary.ThrowRangeError("Invalid offset in date-time string", realm: realm);
+        }
+
+        if (timePart.Length == 0)
+            throw StandardLibrary.ThrowRangeError("Invalid time part in date-time string", realm: realm);
+
+        // Validate time format: HH or HH:MM or HH:MM:SS[.f] or HHMM or HHMMSS[.f]
+        if (timePart.Length < 2 || !char.IsDigit(timePart[0]) || !char.IsDigit(timePart[1]))
+            throw StandardLibrary.ThrowRangeError("Invalid time part in date-time string", realm: realm);
+
+        if (timePart.Contains(':'))
+        {
+            var parts = timePart.Split(':');
+            if (parts[0].Length != 2) throw StandardLibrary.ThrowRangeError("Invalid time part", realm: realm);
+            if (parts.Length > 1 && parts[1].Length != 2) throw StandardLibrary.ThrowRangeError("Invalid time part", realm: realm);
+            if (parts.Length > 2)
+            {
+                var secPart = parts[2];
+                var dotIdx = FindDecimalSeparator(secPart);
+                var secDigits = dotIdx >= 0 ? secPart[..dotIdx] : secPart;
+                if (secDigits.Length != 2) throw StandardLibrary.ThrowRangeError("Invalid time part", realm: realm);
+            }
+        }
+        else
+        {
+            // Compact: HH, HHMM, HHMMSS[.f]
+            if (timePart.Length > 2 && timePart.Length < 4) throw StandardLibrary.ThrowRangeError("Invalid time part", realm: realm);
+            if (timePart.Length > 4 && timePart.Length < 6)
+            {
+                var dotIdx = FindDecimalSeparator(timePart);
+                if (dotIdx < 0 || dotIdx < 4) throw StandardLibrary.ThrowRangeError("Invalid time part", realm: realm);
+            }
+        }
+
+        // Validate time values
+        if (int.TryParse(timePart.AsSpan(0, 2), System.Globalization.CultureInfo.InvariantCulture, out var hour) && hour > 23)
+            throw StandardLibrary.ThrowRangeError("Hour out of range", realm: realm);
+
+        // Validate minute
+        if (timePart.Contains(':'))
+        {
+            var parts2 = timePart.Split(':');
+            if (parts2.Length > 1 && int.TryParse(parts2[1], System.Globalization.CultureInfo.InvariantCulture, out var min) && min > 59)
+                throw StandardLibrary.ThrowRangeError("Minute out of range", realm: realm);
+            if (parts2.Length > 2)
+            {
+                var secStr = parts2[2];
+                var dotPos = FindDecimalSeparator(secStr);
+                var secDigitStr = dotPos >= 0 ? secStr[..dotPos] : secStr;
+                if (int.TryParse(secDigitStr, System.Globalization.CultureInfo.InvariantCulture, out var sec) && sec > 60)
+                    throw StandardLibrary.ThrowRangeError("Second out of range", realm: realm);
+            }
+        }
+        else if (timePart.Length >= 4)
+        {
+            if (int.TryParse(timePart.AsSpan(2, 2), System.Globalization.CultureInfo.InvariantCulture, out var min) && min > 59)
+                throw StandardLibrary.ThrowRangeError("Minute out of range", realm: realm);
+            if (timePart.Length >= 6)
+            {
+                if (int.TryParse(timePart.AsSpan(4, 2), System.Globalization.CultureInfo.InvariantCulture, out var sec) && sec > 60)
+                    throw StandardLibrary.ThrowRangeError("Second out of range", realm: realm);
+            }
+        }
+    }
+
+    private static void ValidateDateOnlyNoTrailing(string dateStr, int startIdx, RealmState realm)
+    {
+        // Determine expected date string length
+        int expectedLen;
+        if (startIdx > 0)
+            expectedLen = 1 + 6 + 1 + 2 + 1 + 2; // ±YYYYYY-MM-DD = 14
+        else
+        {
+            // YYYY-MM-DD (10) or YYYYMMDD (8)
+            if (dateStr.Length >= 5 && dateStr[4] == '-')
+                expectedLen = 10;
+            else
+                expectedLen = 8;
+        }
+
+        if (dateStr.Length > expectedLen)
+            throw StandardLibrary.ThrowRangeError("Trailing content after date string", realm: realm);
     }
 
     private static string StripBracketAnnotations(string str, RealmState realm)

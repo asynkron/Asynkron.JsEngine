@@ -102,15 +102,67 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
             return CreateRegExpLiteral("(?:)", "", Realm, target);
         }
 
-        if (args is [{ IsObject: true } _] && args[0].AsObject() is { } existingObj &&
+        var patternArg = args[0];
+        var flagsArg = args.Count > 1 ? args[1] : JsValue.Undefined;
+
+        // Check if the first argument is a RegExp object (has __regex__ internal slot).
+        if (patternArg.IsObject && patternArg.AsObject() is { } existingObj &&
             existingObj.TryGetProperty("__regex__", out var internalRegex) &&
             internalRegex.TryGetObject<JsRegExp>(out var existing))
         {
-            return CreateRegExpLiteral(existing.Pattern, existing.Flags, Realm, target);
+            // Per spec: if flags argument is provided, use it; otherwise use the RegExp's original flags.
+            var flags = flagsArg != JsValue.Undefined
+                ? JsOps.ToJsString(flagsArg) ?? string.Empty
+                : existing.Flags;
+            return CreateRegExpLiteral(existing.Pattern, flags, Realm, target);
         }
 
-        var pattern = JsOps.ToJsString(args[0]) ?? string.Empty;
-        var flags = args.Count > 1 ? JsOps.ToJsString(args[1]) ?? string.Empty : string.Empty;
-        return CreateRegExpLiteral(pattern, flags, Realm, target);
+        // Per spec: check IsRegExp(pattern). This may trigger Symbol.match getter.
+        if (patternArg.IsObject && IsRegExpLike(patternArg))
+        {
+            // Pattern is a regexp-like object without __regex__. Extract source and flags.
+            JsOps.TryGetPropertyValue(patternArg, "source", out var sourceValue);
+            var pattern = JsOps.ToJsString(sourceValue) ?? string.Empty;
+            string flags;
+            if (flagsArg != JsValue.Undefined)
+            {
+                flags = JsOps.ToJsString(flagsArg) ?? string.Empty;
+            }
+            else
+            {
+                JsOps.TryGetPropertyValue(patternArg, "flags", out var flagsValue);
+                flags = JsOps.ToJsString(flagsValue) ?? string.Empty;
+            }
+
+            return CreateRegExpLiteral(pattern, flags, Realm, target);
+        }
+
+        var patternStr = patternArg == JsValue.Undefined
+            ? "(?:)"
+            : JsOps.ToJsString(patternArg) ?? string.Empty;
+        var flagsStr = flagsArg != JsValue.Undefined
+            ? JsOps.ToJsString(flagsArg) ?? string.Empty
+            : string.Empty;
+        return CreateRegExpLiteral(patternStr, flagsStr, Realm, target);
+    }
+
+    /// <summary>
+    /// Checks IsRegExp(argument) per ES spec 7.2.8.
+    /// Accesses Symbol.match property and returns true if it's truthy or if it's a RegExp.
+    /// </summary>
+    private static bool IsRegExpLike(JsValue argument)
+    {
+        if (!argument.IsObject)
+        {
+            return false;
+        }
+
+        if (JsOps.TryGetPropertyValue(argument, Ast.SymbolKeys.Match, out var matchValue) &&
+            !matchValue.IsUndefined)
+        {
+            return matchValue.IsTruthy;
+        }
+
+        return argument.TryGetObject<JsRegExp>(out _);
     }
 }

@@ -525,7 +525,7 @@ public sealed class StringMethodsTests(ITestOutputHelper output) : InternalTestB
 
                                                        let str = "test1test2test3";
                                                        let regex = /test\d/g;
-                                                       let matches = str.matchAll(regex);
+                                                       let matches = [...str.matchAll(regex)];
                                                        matches.length;
 
                                            """);

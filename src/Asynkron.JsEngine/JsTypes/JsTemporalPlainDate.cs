@@ -187,52 +187,122 @@ public sealed class JsTemporalPlainDate(int year, int month, int day, string cal
 
     /// <summary>
     ///     Adds a duration to this date.
+    ///     The duration's time units should already be balanced into days before calling.
     /// </summary>
-    public JsTemporalPlainDate Add(JsTemporalDuration duration)
+    public JsTemporalPlainDate Add(JsTemporalDuration duration, string overflow = "constrain")
     {
-        var date = ToDateOnly();
-
         // Add years and months
-        if (duration.Years != 0 || duration.Months != 0)
+        var newYear = Year + (long)duration.Years;
+        var newMonth = Month + (long)duration.Months;
+
+        // Normalize months
+        while (newMonth > 12)
         {
-            var newYear = Year + (int)duration.Years;
-            var newMonth = Month + (int)duration.Months;
-
-            // Normalize months
-            while (newMonth > 12)
-            {
-                newMonth -= 12;
-                newYear++;
-            }
-            while (newMonth < 1)
-            {
-                newMonth += 12;
-                newYear--;
-            }
-
-            // Clamp day to valid range for new month
-            var daysInNewMonth = DateTime.DaysInMonth(newYear, newMonth);
-            var newDay = Math.Min(Day, daysInNewMonth);
-
-            date = new DateOnly(newYear, newMonth, newDay);
+            newMonth -= 12;
+            newYear++;
+        }
+        while (newMonth < 1)
+        {
+            newMonth += 12;
+            newYear--;
         }
 
-        // Add weeks and days
-        var totalDays = (int)(duration.Weeks * 7 + duration.Days);
-        if (totalDays != 0)
+        var intYear = (int)newYear;
+        var intMonth = (int)newMonth;
+
+        // DaysInMonth needs a valid year for leap year calculation;
+        // use the actual year but handle extreme ranges
+        var daysInNewMonth = ISODaysInMonth(intYear, intMonth);
+
+        if (string.Equals(overflow, "reject", StringComparison.Ordinal))
         {
-            date = date.AddDays(totalDays);
+            // In reject mode, if the original day doesn't fit in the new month, throw
+            if (Day > daysInNewMonth)
+            {
+                throw new ArgumentException($"Day {Day} does not exist in month {intMonth} of year {intYear}");
+            }
         }
 
-        return new JsTemporalPlainDate(date, Calendar);
+        // Clamp day to valid range for new month (constrain behavior)
+        var newDay = Math.Min(Day, daysInNewMonth);
+
+        // Add weeks and days using epoch day arithmetic to support full Temporal range
+        var totalDays = (long)(duration.Weeks * 7 + duration.Days);
+        var epochDay = ISODateToEpochDay(intYear, intMonth, newDay) + totalDays;
+
+        // Convert back to calendar date
+        var (resultYear, resultMonth, resultDay) = EpochDayToISODate(epochDay);
+        return new JsTemporalPlainDate(resultYear, resultMonth, resultDay, Calendar);
     }
 
     /// <summary>
     ///     Subtracts a duration from this date.
+    ///     The duration's time units should already be balanced into days before calling.
     /// </summary>
-    public JsTemporalPlainDate Subtract(JsTemporalDuration duration)
+    public JsTemporalPlainDate Subtract(JsTemporalDuration duration, string overflow = "constrain")
     {
-        return Add(duration.Negated());
+        return Add(duration.Negated(), overflow);
+    }
+
+    /// <summary>
+    ///     Returns the number of days in the given ISO month, handling any year.
+    /// </summary>
+    private static int ISODaysInMonth(int year, int month)
+    {
+        return month switch
+        {
+            1 or 3 or 5 or 7 or 8 or 10 or 12 => 31,
+            4 or 6 or 9 or 11 => 30,
+            2 => IsISOLeapYear(year) ? 29 : 28,
+            _ => throw new ArgumentOutOfRangeException(nameof(month))
+        };
+    }
+
+    /// <summary>
+    ///     Returns whether the year is a leap year in the ISO 8601 calendar.
+    /// </summary>
+    private static bool IsISOLeapYear(int year)
+    {
+        return (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+    }
+
+    /// <summary>
+    ///     Converts an ISO date to an epoch day number (days since 1970-01-01).
+    ///     Uses a standard algorithm that supports the full Temporal date range.
+    /// </summary>
+    private static long ISODateToEpochDay(int year, int month, int day)
+    {
+        // Algorithm from https://howardhinnant.github.io/date_algorithms.html
+        var y = (long)year;
+        if (month <= 2)
+        {
+            y--;
+        }
+
+        var era = (y >= 0 ? y : y - 399) / 400;
+        var yoe = y - era * 400;                                    // year of era [0, 399]
+        var doy = (153 * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1; // day of year [0, 365]
+        var doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;          // day of era [0, 146096]
+        return era * 146097 + doe - 719468;                         // epoch day
+    }
+
+    /// <summary>
+    ///     Converts an epoch day number back to an ISO date (year, month, day).
+    /// </summary>
+    private static (int year, int month, int day) EpochDayToISODate(long epochDay)
+    {
+        // Algorithm from https://howardhinnant.github.io/date_algorithms.html
+        var z = epochDay + 719468;
+        var era = (z >= 0 ? z : z - 146096) / 146097;
+        var doe = z - era * 146097;                                  // day of era [0, 146096]
+        var yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365; // year of era [0, 399]
+        var y = yoe + era * 400;
+        var doy = doe - (365 * yoe + yoe / 4 - yoe / 100);          // day of year [0, 365]
+        var mp = (5 * doy + 2) / 153;                                // month index [0, 11]
+        var d = (int)(doy - (153 * mp + 2) / 5 + 1);                // day [1, 31]
+        var m = (int)(mp + (mp < 10 ? 3 : -9));                     // month [1, 12]
+        var yr = (int)(y + (m <= 2 ? 1 : 0));
+        return (yr, m, d);
     }
 
     /// <summary>

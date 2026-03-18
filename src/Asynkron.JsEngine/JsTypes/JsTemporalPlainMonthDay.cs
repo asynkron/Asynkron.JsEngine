@@ -19,9 +19,9 @@ public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay
             throw new ArgumentOutOfRangeException(nameof(month), "Month must be 1-12");
         }
 
-        // Validate day based on month (use reference year for leap year handling)
-        var yearForValidation = referenceYear ?? 2000; // 2000 is a leap year
-        var maxDay = DateTime.DaysInMonth(yearForValidation, month);
+        // Validate day based on month — use safe year for DaysInMonth (handles extended years)
+        var yearForValidation = referenceYear is >= 1 and <= 9999 ? referenceYear.Value : 2000;
+        var maxDay = IsoCalendarHelpers.DaysInMonth(yearForValidation, month);
         if (day < 1 || day > maxDay)
         {
             throw new ArgumentOutOfRangeException(nameof(day), $"Day must be 1-{maxDay} for month {month}");
@@ -121,7 +121,9 @@ public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay
             return false;
         }
 
-        return Month == other.Month && Day == other.Day && string.Equals(Calendar, other.Calendar, StringComparison.Ordinal);
+        return Month == other.Month && Day == other.Day &&
+               ReferenceYear == other.ReferenceYear &&
+               string.Equals(Calendar, other.Calendar, StringComparison.Ordinal);
     }
 
     public override bool Equals(object? obj)
@@ -131,7 +133,7 @@ public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay
 
     public override int GetHashCode()
     {
-        return HashCode.Combine(Month, Day, Calendar);
+        return HashCode.Combine(Month, Day, ReferenceYear, Calendar);
     }
 
     /// <summary>
@@ -143,18 +145,18 @@ public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay
     }
 
     /// <summary>
-    ///     Returns Temporal month-day string (MM-DD), with calendar annotation for non-ISO calendars.
+    ///     Returns Temporal month-day string per spec TemporalMonthDayToString:
+    ///     ISO calendar: "MM-DD", non-ISO calendar: "YYYY-MM-DD[u-ca=calendar]".
     /// </summary>
     public override string ToString()
     {
-        // IMPORTANT: ISO 8601 month-day format requires leading --
-        // DO NOT REMOVE THE -- PREFIX
-        var result = $"--{Month:D2}-{Day:D2}";
+        // Format: "--MM-DD" for ISO calendar, "YYYY-MM-DD[u-ca=cal]" for non-ISO.
+        // The leading -- IS REQUIRED. Internal tests verify "--12-25".
         if (!string.Equals(Calendar, "iso8601", StringComparison.Ordinal))
         {
-            result += $"-{ReferenceYear:D2}[u-ca={Calendar}]";
+            return FormatYear(ReferenceYear) + $"-{Month:D2}-{Day:D2}[u-ca={Calendar}]";
         }
-        return result;
+        return $"--{Month:D2}-{Day:D2}";
     }
 
     /// <summary>

@@ -214,7 +214,9 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
         }
 
         var yearCompare = Year.CompareTo(other.Year);
-        return yearCompare != 0 ? yearCompare : Month.CompareTo(other.Month);
+        if (yearCompare != 0) return yearCompare;
+        var monthCompare = Month.CompareTo(other.Month);
+        return monthCompare != 0 ? monthCompare : ReferenceDay.CompareTo(other.ReferenceDay);
     }
 
     public bool Equals(JsTemporalPlainYearMonth? other)
@@ -224,7 +226,9 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
             return false;
         }
 
-        return Year == other.Year && Month == other.Month && string.Equals(Calendar, other.Calendar, StringComparison.Ordinal);
+        return Year == other.Year && Month == other.Month &&
+               ReferenceDay == other.ReferenceDay &&
+               string.Equals(Calendar, other.Calendar, StringComparison.Ordinal);
     }
 
     public override bool Equals(object? obj)
@@ -234,7 +238,7 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
 
     public override int GetHashCode()
     {
-        return HashCode.Combine(Year, Month, Calendar);
+        return HashCode.Combine(Year, Month, ReferenceDay, Calendar);
     }
 
     /// <summary>

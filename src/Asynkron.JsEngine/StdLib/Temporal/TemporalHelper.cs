@@ -225,26 +225,14 @@ public static class TemporalHelper
         if (CalendarAliases.TryGetValue(lowered, out var canonical))
             lowered = canonical;
 
-        // Check if it's a known calendar ID directly
+        // Per spec: the calendar argument must be a known calendar identifier directly.
+        // ISO strings with calendar annotations (e.g., "1997-12-04[u-ca=iso8601]") are NOT valid.
         if (ValidCalendarIds.Contains(lowered))
         {
             return lowered;
         }
 
-        // Not a known calendar ID — try to parse as ISO 8601 string
-        // Extract calendar annotation [u-ca=xxx] if present, otherwise default to iso8601
-        var calendarFromString = ParseTemporalCalendarString(id);
-
-        var calLowered = AsciiLowercase(calendarFromString);
-        if (CalendarAliases.TryGetValue(calLowered, out var calCanonical))
-            calLowered = calCanonical;
-
-        if (!ValidCalendarIds.Contains(calLowered))
-        {
-            throw StandardLibrary.ThrowRangeError($"invalid calendar identifier: '{id}'");
-        }
-
-        return calLowered;
+        throw StandardLibrary.ThrowRangeError($"invalid calendar identifier: '{id}'");
     }
 
     /// <summary>
@@ -2881,13 +2869,29 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowTypeError("Temporal.PlainYearMonth cannot be called without 'new'", realm: realm);
             }
 
-            var year = (int)JsOps.ToNumber(args.GetArgument(0));
-            var month = (int)JsOps.ToNumber(args.GetArgument(1));
+            // Per spec: ToIntegerWithTruncation handles Infinity/NaN → RangeError
+            var year = ToIntegerWithTruncation(args.GetArgument(0), realm);
+            var month = ToIntegerWithTruncation(args.GetArgument(1), realm);
             var calendarArg = args.Count > 2 ? args[2] : JsValue.Undefined;
             var calendar = calendarArg.IsUndefined ? "iso8601" : ToTemporalCalendarIdentifier(calendarArg);
             // 4th arg is referenceISODay per spec
             var refDayArg = args.Count > 3 ? args[3] : JsValue.Undefined;
-            int? refDay = refDayArg.IsUndefined ? null : (int)JsOps.ToNumber(refDayArg);
+            int? refDay = refDayArg.IsUndefined ? null : ToIntegerWithTruncation(refDayArg, realm);
+
+            // Validate month range (1-12)
+            if (month is < 1 or > 12)
+                throw StandardLibrary.ThrowRangeError("Month value is out of range (1-12)", realm: realm);
+
+            // Validate refDay if provided
+            if (refDay.HasValue)
+            {
+                var maxDay = IsoCalendarHelpers.DaysInMonth(year is >= 1 and <= 9999 ? year : 2000, month);
+                if (refDay.Value < 1 || refDay.Value > maxDay)
+                    throw StandardLibrary.ThrowRangeError("Day value is out of range", realm: realm);
+            }
+
+            // ISOYearMonthWithinLimits: check year-month range (NOT full date)
+            RejectISOYearMonthRange(year, month, realm);
 
             var ym = new JsTemporalPlainYearMonth(year, month, calendar, refDay);
             return ApplyNewTargetPrototype(WrapPlainYearMonth(ym, realm, prototype), newTarget, ctor, prototype);
@@ -3100,13 +3104,17 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowTypeError("Temporal.PlainMonthDay cannot be called without 'new'", realm: realm);
             }
 
-            var month = (int)JsOps.ToNumber(args.GetArgument(0));
-            var day = (int)JsOps.ToNumber(args.GetArgument(1));
+            // Per spec: ToIntegerWithTruncation handles Infinity/NaN → RangeError
+            var month = ToIntegerWithTruncation(args.GetArgument(0), realm);
+            var day = ToIntegerWithTruncation(args.GetArgument(1), realm);
             var calendarArg = args.Count > 2 ? args[2] : JsValue.Undefined;
             var calendar = calendarArg.IsUndefined ? "iso8601" : ToTemporalCalendarIdentifier(calendarArg);
             // 4th arg is referenceISOYear per spec
             var refYearArg = args.Count > 3 ? args[3] : JsValue.Undefined;
-            int? refYear = refYearArg.IsUndefined ? null : (int)JsOps.ToNumber(refYearArg);
+            int? refYear = refYearArg.IsUndefined ? null : ToIntegerWithTruncation(refYearArg, realm);
+
+            // Validate ISO date fields and range (RejectISODate checks both)
+            RejectISODate(refYear ?? 1972, month, day, realm);
 
             var md = new JsTemporalPlainMonthDay(month, day, calendar, refYear);
             return ApplyNewTargetPrototype(WrapPlainMonthDay(md, realm, prototype), newTarget, ctor, prototype);
@@ -3548,14 +3556,14 @@ public static class TemporalHelper
     }
 
     /// <summary>
-    /// Parses a monthCode string (e.g., "M01" through "M12") and returns the month number.
-    /// For the ISO calendar, leap month codes (ending in L) are not valid.
-    /// This is the "semantic" check that happens after year type validation.
+    /// Resolves a well-formed monthCode to its month number for the ISO calendar.
+    /// Must be called after ValidateMonthCodeSyntax. Throws RangeError for values
+    /// not valid in ISO calendar (out of range, leap months).
     /// </summary>
-    private static int ParseMonthCode(string monthCode, RealmState realm)
+    private static int ResolveISOMonthCode(string monthCode, RealmState realm)
     {
-        // For ISO calendar: must be exactly 3 chars (no L suffix), M01-M12
-        if (monthCode.Length == 3 && monthCode[0] == 'M' &&
+        // ISO calendar: no leap months (L suffix), months 01-12 only
+        if (monthCode.Length == 3 &&
             int.TryParse(monthCode.AsSpan(1), System.Globalization.NumberStyles.None,
                 System.Globalization.CultureInfo.InvariantCulture, out var m) &&
             m is >= 1 and <= 12)
@@ -3564,6 +3572,12 @@ public static class TemporalHelper
         }
 
         throw StandardLibrary.ThrowRangeError($"Invalid monthCode: {monthCode}", realm: realm);
+    }
+
+    private static int ParseMonthCode(string monthCode, RealmState realm)
+    {
+        ValidateMonthCodeSyntax(monthCode, realm);
+        return ResolveISOMonthCode(monthCode, realm);
     }
 
     /// <summary>
@@ -3956,6 +3970,22 @@ public static class TemporalHelper
         {
             throw StandardLibrary.ThrowRangeError("Date value is out of representable range", realm: realm);
         }
+    }
+
+    /// <summary>
+    /// ISOYearMonthWithinLimits — validates that a year-month is within the representable range.
+    /// Only checks year and month, NOT the day (unlike RejectISODate).
+    /// </summary>
+    private static void RejectISOYearMonthRange(int year, int month, RealmState? realm = null)
+    {
+        if (year < IsoDateMin.year || year > IsoDateMax.year)
+            throw StandardLibrary.ThrowRangeError("Date value is out of representable range", realm: realm);
+
+        if (year == IsoDateMin.year && month < IsoDateMin.month)
+            throw StandardLibrary.ThrowRangeError("Date value is out of representable range", realm: realm);
+
+        if (year == IsoDateMax.year && month > IsoDateMax.month)
+            throw StandardLibrary.ThrowRangeError("Date value is out of representable range", realm: realm);
     }
 
     private static void RejectISOTime(int hour, int minute, int second, int millisecond, int microsecond, int nanosecond, RealmState? realm = null)
@@ -5700,8 +5730,8 @@ public static class TemporalHelper
 
         if (hasMonthCode)
         {
-            // MonthCode SEMANTIC validation (is it valid for ISO calendar?)
-            month = ParseMonthCode(monthCodeStr!, realm);
+            // MonthCode SEMANTIC validation (syntax already validated above)
+            month = ResolveISOMonthCode(monthCodeStr!, realm);
             if (hasMonth)
             {
                 var explicitMonth = ToIntegerWithTruncation(monthVal, realm);
@@ -7089,23 +7119,34 @@ public static class TemporalHelper
             if (accessor.TryGetProperty("calendar", out var calVal) && !calVal.IsUndefined)
                 ValidateTemporalCalendarValue(calVal, realm);
 
+            // PrepareTemporalFields reads in alphabetical order: month, monthCode, year
+            accessor.TryGetProperty("month", out var monthVal);
+            var hasMonth = !monthVal.IsUndefined;
+
+            accessor.TryGetProperty("monthCode", out var monthCodeVal);
+            var hasMonthCode = !monthCodeVal.IsUndefined;
+
+            // Phase 1: Validate monthCode SYNTAX early (before year type validation)
+            string? monthCodeStr = null;
+            if (hasMonthCode)
+            {
+                monthCodeStr = JsOps.ToJsString(monthCodeVal);
+                ValidateMonthCodeSyntax(monthCodeStr, realm);
+            }
+
+            // Read year (required) — may throw TypeError for Symbol values
             if (!accessor.TryGetProperty("year", out var yearVal) || yearVal.IsUndefined)
                 throw StandardLibrary.ThrowTypeError("Property bag for PlainYearMonth must have 'year'", realm: realm);
             var year = ToIntegerWithTruncation(yearVal, realm);
 
-            int month;
-            accessor.TryGetProperty("month", out var monthVal);
-            accessor.TryGetProperty("monthCode", out var monthCodeVal);
-            var hasMonth = !monthVal.IsUndefined;
-            var hasMonthCode = !monthCodeVal.IsUndefined;
-
+            // Phase 2: Resolve month from monthCode or month property
             if (!hasMonth && !hasMonthCode)
                 throw StandardLibrary.ThrowTypeError("Property bag for PlainYearMonth must have 'month' or 'monthCode'", realm: realm);
 
+            int month;
             if (hasMonthCode)
             {
-                var monthCode = JsOps.ToJsString(monthCodeVal);
-                month = ParseMonthCode(monthCode, realm);
+                month = ResolveISOMonthCode(monthCodeStr!, realm);
                 if (hasMonth)
                 {
                     var explicitMonth = ToIntegerWithTruncation(monthVal, realm);
@@ -7243,35 +7284,48 @@ public static class TemporalHelper
             if (!hasMonth && !hasMonthCode)
                 throw StandardLibrary.ThrowTypeError("Property bag for PlainMonthDay must have 'month' or 'monthCode'", realm: realm);
 
+            // Phase 1: Validate monthCode SYNTAX early (throws RangeError for malformed codes
+            // like "L99M", "m1" before other fields are read)
+            string? monthCodeStr = null;
             if (hasMonthCode)
             {
-                var monthCode = JsOps.ToJsString(monthCodeVal);
-                month = ParseMonthCode(monthCode, realm);
-                if (hasMonth)
-                {
-                    var explicitMonth = ToIntegerWithTruncation(monthVal, realm);
-                    if (explicitMonth != month)
-                        throw StandardLibrary.ThrowRangeError("month and monthCode must agree", realm: realm);
-                }
+                monthCodeStr = JsOps.ToJsString(monthCodeVal);
+                ValidateMonthCodeSyntax(monthCodeStr, realm);
+            }
+
+            // Read day
+            if (!accessor.TryGetProperty("day", out var dayVal) || dayVal.IsUndefined)
+                throw StandardLibrary.ThrowTypeError("Property bag for PlainMonthDay must have 'day'", realm: realm);
+            var day = ToIntegerWithTruncation(dayVal, realm);
+
+            // Read month (if provided alongside monthCode, convert for later conflict check)
+            int? explicitMonth = null;
+            if (hasMonth && hasMonthCode)
+                explicitMonth = ToIntegerWithTruncation(monthVal, realm);
+
+            // Read optional year — this may throw TypeError for Symbol values,
+            // which must happen BEFORE monthCode suitability validation (per spec)
+            accessor.TryGetProperty("year", out var yearVal);
+            var hasYear = !yearVal.IsUndefined;
+            var yearForValidation = hasYear ? ToIntegerWithTruncation(yearVal, realm) : 1972;
+
+            // Phase 2: Resolve monthCode VALUE (throws RangeError for codes not valid
+            // in ISO calendar like "M99L", "M13", "M00")
+            if (hasMonthCode)
+            {
+                month = ResolveISOMonthCode(monthCodeStr!, realm);
+                if (explicitMonth.HasValue && explicitMonth.Value != month)
+                    throw StandardLibrary.ThrowRangeError("month and monthCode must agree", realm: realm);
             }
             else
             {
                 month = ToIntegerWithTruncation(monthVal, realm);
             }
 
-            if (!accessor.TryGetProperty("day", out var dayVal) || dayVal.IsUndefined)
-                throw StandardLibrary.ThrowTypeError("Property bag for PlainMonthDay must have 'day'", realm: realm);
-            var day = ToIntegerWithTruncation(dayVal, realm);
-
-            // Read optional year for Feb 29 validation
-            accessor.TryGetProperty("year", out var yearVal);
-            var hasYear = !yearVal.IsUndefined;
-            var yearForValidation = hasYear ? ToIntegerWithTruncation(yearVal, realm) : 1972;
-
-            // Validate month
-            if (month < 1 || month == 0)
+            // Validate month and day ranges
+            if (month < 1)
                 throw StandardLibrary.ThrowRangeError($"Month {month} is out of range", realm: realm);
-            if (day < 1 || day == 0)
+            if (day < 1)
                 throw StandardLibrary.ThrowRangeError($"Day {day} is out of range", realm: realm);
 
             if (string.Equals(overflow, "reject", StringComparison.Ordinal))

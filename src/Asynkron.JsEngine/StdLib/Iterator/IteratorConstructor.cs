@@ -231,16 +231,19 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
     {
         alreadyIterator = false;
 
-        // Handle string primitives -- they are iterable via Symbol.iterator on the String wrapper
-        if (value.TryGetString(out _))
+        // Per spec GetIteratorFlattenable(obj, iterate-strings):
+        // If obj is not an Object, only strings are allowed
+        if (value.Kind != JsValueKind.Object)
         {
-            // Strings need to go through their Symbol.iterator
-            if (!value.TryGetPropertyAccessor(out var strAccessor))
+            if (!value.TryGetString(out _))
             {
                 throw StandardLibrary.ThrowTypeError("Iterator.from requires an object or string", null, realm);
             }
 
-            if (strAccessor.TryGetProperty(SymbolKeys.Iterator, out var strIterMethod) &&
+            // Handle string primitives via realm's StringPrototype with receiver
+            var stringProto = realm?.StringPrototype;
+            if (stringProto is not null &&
+                stringProto.TryGetProperty(SymbolKeys.Iterator, value, out var strIterMethod) &&
                 strIterMethod.TryGetObject<IJsCallable>(out var strIterCallable))
             {
                 var strResult = strIterCallable.Invoke([], value);
@@ -256,18 +259,16 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
             throw StandardLibrary.ThrowTypeError("Value is not iterable", null, realm);
         }
 
-        // Use TryGetPropertyAccessor to handle both JsObject and JsArray
+        // Value is an object
         if (!value.TryGetPropertyAccessor(out var accessor))
         {
             throw StandardLibrary.ThrowTypeError("Iterator.from requires an object", null, realm);
         }
 
-        // Check for Symbol.iterator
         if (accessor.TryGetProperty(SymbolKeys.Iterator, out var iterMethod))
         {
             if (iterMethod.IsNullOrUndefined)
             {
-                // Symbol.iterator is null/undefined -- fall back to treating as iterator-like
                 alreadyIterator = true;
                 if (!value.TryGetObject<IJsObjectLike>(out var objLike))
                 {
@@ -279,7 +280,6 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
 
             if (iterMethod.TryGetObject<IJsCallable>(out var iterCallable))
             {
-                // Symbol.iterator is callable -- call it
                 var result = iterCallable.Invoke([], value);
                 if (!result.TryGetObject<IJsObjectLike>(out var iterObj))
                 {
@@ -290,11 +290,9 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
                 return GetIteratorDirectStatic(iterObj);
             }
 
-            // Symbol.iterator is truthy but not callable -- TypeError
             throw StandardLibrary.ThrowTypeError("Symbol.iterator is not a function", null, realm);
         }
 
-        // No Symbol.iterator -- treat as iterator-like
         alreadyIterator = true;
         if (!value.TryGetObject<IJsObjectLike>(out var fallbackObj))
         {
@@ -408,7 +406,7 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
                     return returnMethod.Invoke([], JsValue.FromObjectUnsafe(iterated.Iterator));
                 }
 
-                return CreateIterResult(JsValue.Undefined, true);
+                return CreateIterResult(JsValue.Undefined, true, realm);
             }), isConstructor: false);
 
         wrapper.SetProperty("next", (JsValue)nextFunc);
@@ -418,11 +416,11 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
         wrapper.SetProperty(SymbolKeys.Iterator,
             (JsValue)new HostFunction((thisVal, _) => thisVal, isConstructor: false));
 
-        // Set the prototype to Iterator.prototype
-        var iteratorProto = realm?.IteratorPrototype;
-        if (iteratorProto is not null)
+        // Set the prototype to %WrapForValidIteratorPrototype%
+        var wrapProto = EnsureWrapForValidIteratorPrototype(realm);
+        if (wrapProto is not null)
         {
-            wrapper.SetPrototype(iteratorProto);
+            wrapper.SetPrototype(wrapProto);
         }
 
         return new JsValue(wrapper);
@@ -466,7 +464,7 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
                     if (iterableIndex >= iterables.Count)
                     {
                         done = true;
-                        return CreateIterResult(JsValue.Undefined, true);
+                        return CreateIterResult(JsValue.Undefined, true, realm);
                     }
 
                     var (nextIterableValue, iterMethod) = iterables[iterableIndex++];
@@ -487,21 +485,18 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
                 done = true;
                 if (!alreadyDone && currentIterated is not null)
                 {
-                    // Forward return to the current active iterator only on first call
                     IteratorPrototype.IteratorCloseNormal(currentIterated.Iterator);
                 }
 
-                return CreateIterResult(JsValue.Undefined, true);
+                return CreateIterResult(JsValue.Undefined, true, realm);
             }), isConstructor: false);
 
         iterator.SetProperty("next", (JsValue)nextFunc);
         iterator.SetProperty("return", (JsValue)returnFunc);
 
-        // Set Symbol.iterator to return self
         iterator.SetProperty(SymbolKeys.Iterator,
             (JsValue)new HostFunction((thisVal, _) => thisVal, isConstructor: false));
 
-        // Set the prototype to Iterator.prototype
         var iteratorProto = realm?.IteratorPrototype;
         if (iteratorProto is not null)
         {
@@ -511,9 +506,14 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
         return new JsValue(iterator);
     }
 
-    private static JsValue CreateIterResult(JsValue value, bool done)
+    private static JsValue CreateIterResult(JsValue value, bool done, RealmState? realm = null)
     {
-        var result = new JsObject();
+        var result = new JsObject { RealmState = realm };
+        if (realm?.ObjectPrototype is { } objProto)
+        {
+            result.SetPrototype(objProto);
+        }
+
         result.SetProperty("value", value);
         result.SetProperty("done", done);
         return new JsValue(result);
@@ -533,7 +533,7 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
 
         if (shortCircuitIfDone && done)
         {
-            return CreateIterResult(JsValue.Undefined, true);
+            return CreateIterResult(JsValue.Undefined, true, realm);
         }
 
         isExecuting = true;
@@ -545,6 +545,16 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
         {
             isExecuting = false;
         }
+    }
+
+    private static JsObject? EnsureWrapForValidIteratorPrototype(RealmState? realm)
+    {
+        if (realm is null) return null;
+        if (realm.WrapForValidIteratorPrototype is { } existing) return existing;
+        var proto = new JsObject { RealmState = realm };
+        if (realm.IteratorPrototype is { } iteratorProto) proto.SetPrototype(iteratorProto);
+        realm.WrapForValidIteratorPrototype = proto;
+        return proto;
     }
 
     #endregion

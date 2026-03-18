@@ -24,6 +24,18 @@ public sealed class JsRegExp
     private const string UnicodeDotPattern =
         @"(?<![\uD800-\uDBFF])(?:[^\n\r\u2028\u2029]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|[\uDC00-\uDFFF])";
 
+    /// <summary>
+    /// JavaScript's dot (.) without dotAll flag: matches any single UTF-16 code unit
+    /// except the four JS line terminators (\n, \r, \u2028, \u2029).
+    /// .NET's default dot only excludes \n, so we must use an explicit character class.
+    /// </summary>
+    private const string LegacyDotPattern = @"[^\n\r\u2028\u2029]";
+
+    /// <summary>
+    /// JavaScript's dot (.) with dotAll flag and no unicode: matches any single UTF-16 code unit.
+    /// </summary>
+    private const string LegacyDotAllPattern = @"[\s\S]";
+
     private const string UnicodeNonWhitespacePattern =
         @"(?<![\uD800-\uDBFF])(?:[^\s]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|[\uDC00-\uDFFF])";
 
@@ -42,7 +54,7 @@ public sealed class JsRegExp
         ValidateFlags(Flags);
         var hasUnicodeFlag = Flags.Contains('u', StringComparison.Ordinal) ||
                              Flags.Contains('v', StringComparison.Ordinal);
-        _normalizedPattern = NormalizePattern(pattern, hasUnicodeFlag, IgnoreCase);
+        _normalizedPattern = NormalizePattern(pattern, hasUnicodeFlag, IgnoreCase, DotAll);
 
         // Convert JavaScript regex flags to .NET RegexOptions
         var options = RegexOptions.CultureInvariant;
@@ -253,7 +265,7 @@ public sealed class JsRegExp
         SetProperty("lastIndex", (double)value);
     }
 
-    private JsArray CreateMatchArray(Match match, string input)
+    internal JsArray CreateMatchArray(Match match, string input)
     {
         var result = new JsArray(RealmState);
         var captureValues = new JsValue[match.Groups.Count];
@@ -360,11 +372,11 @@ public sealed class JsRegExp
         return groups;
     }
 
-    private static string NormalizePattern(string pattern, bool hasUnicodeFlag, bool ignoreCase)
+    private static string NormalizePattern(string pattern, bool hasUnicodeFlag, bool ignoreCase, bool dotAll)
     {
         if (!hasUnicodeFlag)
         {
-            return NormalizeLegacyPattern(pattern, ignoreCase);
+            return NormalizeLegacyPattern(pattern, ignoreCase, dotAll);
         }
 
         if (string.IsNullOrEmpty(pattern))
@@ -630,7 +642,7 @@ public sealed class JsRegExp
 
             if (hasUnicodeFlag && c == '.')
             {
-                builder.Append(UnicodeDotPattern);
+                builder.Append(dotAll ? AnyCodePointPattern : UnicodeDotPattern);
                 continue;
             }
 
@@ -679,7 +691,7 @@ public sealed class JsRegExp
         return builder.ToString();
     }
 
-    private static string NormalizeLegacyPattern(string pattern, bool ignoreCase)
+    private static string NormalizeLegacyPattern(string pattern, bool ignoreCase, bool dotAll)
     {
         if (string.IsNullOrEmpty(pattern))
         {
@@ -694,6 +706,10 @@ public sealed class JsRegExp
         var captureCount = 0;
         var totalCaptures = CountLegacyCaptures(pattern);
         var lastClassAtomWasSingle = false;
+        // Track currently open (not yet closed) capture group numbers for self-backreference detection.
+        // In JavaScript, a back-reference to a group that hasn't finished capturing matches empty string.
+        var openGroupStack = new Stack<int>();
+        var groupDepth = 0;
 
         for (var i = 0; i < pattern.Length; i++)
         {
@@ -872,14 +888,15 @@ public sealed class JsRegExp
                         if (int.TryParse(numText, NumberStyles.None, CultureInfo.InvariantCulture, out var value) &&
                             value > 0 && value <= totalCaptures)
                         {
-                            if (value <= captureCount)
+                            if (value <= captureCount && !openGroupStack.Contains(value))
                             {
                                 builder.Append('\\');
                                 builder.Append(numText);
                             }
                             else
                             {
-                                // Forward reference behaves like an empty string in JS.
+                                // Forward reference or self-reference to an open group
+                                // behaves like matching empty string in JavaScript.
                                 builder.Append("(?:)");
                             }
 
@@ -933,6 +950,7 @@ public sealed class JsRegExp
 
             if (!inCharClass && c == '(')
             {
+                groupDepth++;
                 var hasQuestion = i + 1 < pattern.Length && pattern[i + 1] == '?';
                 var isNamedCapture = hasQuestion && i + 2 < pattern.Length && pattern[i + 2] == '<' &&
                                      (i + 3 >= pattern.Length || (pattern[i + 3] != '=' && pattern[i + 3] != '!'));
@@ -940,6 +958,12 @@ public sealed class JsRegExp
                 if (!hasQuestion || isNamedCapture)
                 {
                     captureCount++;
+                    openGroupStack.Push(captureCount);
+                }
+                else
+                {
+                    // Non-capturing group: push 0 as sentinel
+                    openGroupStack.Push(0);
                 }
 
                 // Track named groups as they are defined
@@ -952,6 +976,15 @@ public sealed class JsRegExp
                         var normalizedName = NormalizeGroupNameToken(name);
                         definedSoFar.Add(normalizedName);
                     }
+                }
+            }
+
+            if (!inCharClass && c == ')' && groupDepth > 0)
+            {
+                groupDepth--;
+                if (openGroupStack.Count > 0)
+                {
+                    openGroupStack.Pop();
                 }
             }
 
@@ -1000,6 +1033,15 @@ public sealed class JsRegExp
 
                 builder.Append(c);
                 lastClassAtomWasSingle = false;
+                continue;
+            }
+
+            // Replace '.' outside character classes with JS-correct dot pattern.
+            // .NET's '.' only excludes \n, but JS excludes \n, \r, \u2028, \u2029.
+            // With dotAll (s flag), dot matches any single code unit.
+            if (!inCharClass && c == '.')
+            {
+                builder.Append(dotAll ? LegacyDotAllPattern : LegacyDotPattern);
                 continue;
             }
 

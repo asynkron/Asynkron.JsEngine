@@ -372,13 +372,48 @@ public sealed partial class RegExpPrototype
     private JsValue MatchAllSymbol(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var resolved = RequireRegExp(thisValue);
-        if (!resolved.Global)
-        {
-            throw ThrowTypeError("RegExp.prototype.matchAll requires a global RegExp", realm: Realm);
-        }
-
         var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : string.Empty;
-        return JsValue.FromJsArray(resolved.MatchAll(input));
+        var regex = resolved.GetRegex();
+        var matches = regex.Matches(input);
+        var matchIndex = 0;
+        var global = resolved.Global;
+        var iterator = new JsObject { RealmState = Realm };
+        var regExpIterProto = EnsureRegExpStringIteratorPrototype(Realm);
+        iterator.SetPrototype(regExpIterProto);
+
+        var nextFunc = new HostFunction((_, _) =>
+        {
+            var result = new JsObject();
+            if (matchIndex < matches.Count)
+            {
+                var match = matches[matchIndex];
+                matchIndex++;
+                if (!global) matchIndex = matches.Count;
+                result.SetProperty("value", JsValue.FromJsArray(resolved.CreateMatchArray(match, input)));
+                result.SetProperty("done", false);
+            }
+            else
+            {
+                result.SetProperty("value", JsValue.Undefined);
+                result.SetProperty("done", true);
+            }
+
+            return new JsValue(result);
+        }, Realm, false);
+
+        iterator.SetProperty("next", (JsValue)nextFunc);
+        return new JsValue(iterator);
+    }
+
+    private static JsObject EnsureRegExpStringIteratorPrototype(RealmState realm)
+    {
+        if (realm.RegExpStringIteratorPrototype is { } existing) return existing;
+        var proto = new JsObject { RealmState = realm };
+        if (realm.IteratorPrototype is not null) proto.SetPrototype(realm.IteratorPrototype);
+        else if (realm.ObjectPrototype is not null) proto.SetPrototype(realm.ObjectPrototype);
+        proto.DefineProperty(SymbolKeys.ToStringTag, new PropertyDescriptor { Value = "RegExp String Iterator", Writable = false, Enumerable = false, Configurable = true });
+        realm.RegExpStringIteratorPrototype = proto;
+        return proto;
     }
 
     [JsSymbolMethod("replace", Length = 2d)]

@@ -1144,6 +1144,29 @@ public sealed partial class StringPrototype
 
         // Per spec: if no args, use undefined (which becomes empty-string global regexp)
         var matcher = args.Count > 0 ? args[0] : JsValue.Undefined;
+
+        // Per spec 22.1.3.14: If regexp is neither undefined nor null, check for global flag
+        if (!matcher.IsUndefined && !matcher.IsNull)
+        {
+            var ctx = Realm?.CreateContext();
+            // IsRegExp check: has Symbol.match property that is truthy
+            if (JsOps.TryGetPropertyValue(matcher, SymbolKeys.Match, out var matchProp, ctx) &&
+                !matchProp.IsUndefined)
+            {
+                // Get flags property using full property resolution
+                if (JsOps.TryGetPropertyValue(matcher, "flags", out var flagsProp, ctx))
+                {
+                    var flags = JsOps.ToJsString(flagsProp) ?? string.Empty;
+                    if (!flags.Contains('g'))
+                    {
+                        throw ThrowTypeError(
+                            "String.prototype.matchAll called with a non-global RegExp argument",
+                            realm: Realm);
+                    }
+                }
+            }
+        }
+
         var method = GetMethod(matcher, SymbolKeys.MatchAll, "@@matchAll");
         if (method is not null)
         {
@@ -1258,6 +1281,9 @@ public sealed partial class StringPrototype
         var index = 0;
         var iterator = new JsObject();
 
+        var stringIterProto = EnsureStringIteratorPrototype(Realm);
+        iterator.SetPrototype(stringIterProto);
+
         iterator.SetHostedProperty("next", new HostFunction(Next, Realm, false));
 
         return new JsValue(iterator);
@@ -1279,6 +1305,28 @@ public sealed partial class StringPrototype
 
             return new JsValue(result);
         }
+    }
+
+    private static JsObject EnsureStringIteratorPrototype(RealmState realm)
+    {
+        if (realm.StringIteratorPrototype is { } existing)
+        {
+            return existing;
+        }
+
+        var proto = new JsObject { RealmState = realm };
+        if (realm.IteratorPrototype is not null)
+        {
+            proto.SetPrototype(realm.IteratorPrototype);
+        }
+        else if (realm.ObjectPrototype is not null)
+        {
+            proto.SetPrototype(realm.ObjectPrototype);
+        }
+
+        proto.DefineProperty(SymbolKeys.ToStringTag, new PropertyDescriptor { Value = "String Iterator", Writable = false, Enumerable = false, Configurable = true });
+        realm.StringIteratorPrototype = proto;
+        return proto;
     }
 
     protected override void ConfigurePrototype()

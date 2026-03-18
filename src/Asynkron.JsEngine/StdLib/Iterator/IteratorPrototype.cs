@@ -1,6 +1,7 @@
 #region
 
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 
@@ -12,7 +13,7 @@ namespace Asynkron.JsEngine.StdLib;
 /// Iterator prototype provides helper methods for working with iterators.
 /// These are the Iterator Helper methods from the ECMAScript proposal.
 /// </summary>
-[JsPrototype("Iterator", ToStringTag = "Iterator")]
+[JsPrototype("Iterator")]
 public sealed partial class IteratorPrototype : JsPrototype
 {
     /// <summary>
@@ -415,6 +416,75 @@ public sealed partial class IteratorPrototype : JsPrototype
         }
 
         return JsValue.Undefined;
+    }
+
+    /// <summary>
+    /// Configures Iterator.prototype[Symbol.toStringTag] as an accessor property
+    /// per the ECMAScript specification with SetterThatIgnoresPrototypeProperties.
+    /// </summary>
+    protected override void ConfigurePrototype()
+    {
+        if (Prototype is not JsObject proto)
+        {
+            return;
+        }
+
+        var getter = new HostFunction((_, _) => (JsValue)"Iterator", Realm, false);
+        getter.DefineProperty("length", new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
+        getter.DefineProperty("name", new PropertyDescriptor { Value = "get [Symbol.toStringTag]", Writable = false, Enumerable = false, Configurable = true });
+
+        var home = proto;
+        var setter = new HostFunction((thisValue, args) =>
+        {
+            var v = args.Count > 0 ? args[0] : JsValue.Undefined;
+            if (!thisValue.TryGetObject<IJsObjectLike>(out var receiverObject))
+            {
+                throw StandardLibrary.ThrowTypeError("Iterator.prototype[Symbol.toStringTag] setter requires an object", realm: Realm);
+            }
+
+            if (ReferenceEquals(receiverObject, home))
+            {
+                throw StandardLibrary.ThrowTypeError("Cannot set Symbol.toStringTag on Iterator.prototype", realm: Realm);
+            }
+
+            var desc = receiverObject.GetOwnPropertyDescriptor(SymbolKeys.ToStringTag);
+            if (desc is null)
+            {
+                if (receiverObject is IExtensibilityControl { IsExtensible: false })
+                {
+                    throw StandardLibrary.ThrowTypeError("Cannot define property Symbol.toStringTag on non-extensible object", realm: Realm);
+                }
+
+                receiverObject.DefineProperty(SymbolKeys.ToStringTag, new PropertyDescriptor { Value = v, Writable = true, Enumerable = true, Configurable = true });
+            }
+            else
+            {
+                if (desc.IsAccessorDescriptor)
+                {
+                    if (desc.Set is null)
+                    {
+                        throw StandardLibrary.ThrowTypeError("Cannot set property Symbol.toStringTag that has only a getter", realm: Realm);
+                    }
+
+                    desc.Set.Invoke([v], thisValue);
+                }
+                else
+                {
+                    if (!desc.Writable)
+                    {
+                        throw StandardLibrary.ThrowTypeError("Cannot assign to read only property Symbol.toStringTag", realm: Realm);
+                    }
+
+                    receiverObject.DefineProperty(SymbolKeys.ToStringTag, new PropertyDescriptor { JsValue = v });
+                }
+            }
+
+            return JsValue.Undefined;
+        }, Realm, false);
+        setter.DefineProperty("length", new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
+        setter.DefineProperty("name", new PropertyDescriptor { Value = "set [Symbol.toStringTag]", Writable = false, Enumerable = false, Configurable = true });
+
+        proto.DefineProperty(SymbolKeys.ToStringTag, new PropertyDescriptor { Get = getter, Set = setter, Enumerable = false, Configurable = true });
     }
 
     #region Iterator Record
@@ -832,12 +902,8 @@ public sealed partial class IteratorPrototype : JsPrototype
 
                 var value = IteratorValue(next);
 
-                if (remaining <= 0)
-                {
-                    // This was the last item, close the underlying iterator
-                    state.MarkDone();
-                    IteratorCloseNormal(iterated.Iterator);
-                }
+                // Per spec: IteratorClose is deferred to the NEXT next() call
+                // when remaining reaches 0 (checked at the top of the loop).
 
                 return CreateIterResult(value, false);
             }

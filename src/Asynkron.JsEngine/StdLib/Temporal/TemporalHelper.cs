@@ -3129,7 +3129,7 @@ public static class TemporalHelper
 
             // Per spec: validate options object
             var resolvedOpts = ValidateOptionsObject(options, realm, "Temporal.PlainMonthDay.from");
-            GetTemporalOverflowOption(resolvedOpts, realm);
+            var overflowOpt = GetTemporalOverflowOption(resolvedOpts, realm);
 
             // If item is already a PlainMonthDay, create a copy preserving referenceYear
             if (item.TryGetObject<JsObject>(out var fromObj) &&
@@ -3141,7 +3141,7 @@ public static class TemporalHelper
                 return WrapPlainMonthDay(copy, realm, prototype);
             }
 
-            var md = ToTemporalPlainMonthDay(item, realm);
+            var md = ToTemporalPlainMonthDay(item, realm, overflowOpt);
             return WrapPlainMonthDay(md, realm, prototype);
         });
         ctor.DefineProperty("from",
@@ -6729,12 +6729,14 @@ public static class TemporalHelper
     {
         if (dateStr.Length > 0 && (dateStr[0] == '+' || dateStr[0] == '-'))
         {
-            // Extended year: ±YYYYYY-MM (exactly one dash after sign)
+            // Extended year formats
             var sign = dateStr[0] == '-' ? -1 : 1;
             var rest = dateStr[1..];
             var dashCount = rest.Count(c => c == '-');
+
             if (dashCount == 1)
             {
+                // ±YYYYYY-MM (dash-separated)
                 var dashIdx = rest.IndexOf('-');
                 if (dashIdx > 0 &&
                     int.TryParse(rest.AsSpan(0, dashIdx), System.Globalization.CultureInfo.InvariantCulture, out var yearAbs) &&
@@ -6747,15 +6749,42 @@ public static class TemporalHelper
                     return (sign * yearAbs, month);
                 }
             }
-            // More than 1 dash → full date format, return null
+
+            if (dashCount == 0 && rest.Length == 8 && AllDigits(rest, 0, 8))
+            {
+                // ±YYYYYYMM (compact, 8 digits after sign)
+                if (int.TryParse(rest.AsSpan(0, 6), System.Globalization.CultureInfo.InvariantCulture, out var yearAbs) &&
+                    int.TryParse(rest.AsSpan(6, 2), System.Globalization.CultureInfo.InvariantCulture, out var month))
+                {
+                    if (sign == -1 && yearAbs == 0)
+                        throw StandardLibrary.ThrowRangeError("Negative zero year is not allowed", realm: realm);
+                    if (month < 1 || month > 12)
+                        throw StandardLibrary.ThrowRangeError($"Month {month} is out of range", realm: realm);
+                    return (sign * yearAbs, month);
+                }
+            }
+
+            // More dashes or other formats → full date, return null
             return null;
         }
 
-        // Standard year: YYYY-MM (exactly 7 chars, no extra dashes)
+        // Standard year: YYYY-MM (exactly 7 chars, dash at position 4)
         if (dateStr.Length == 7 && dateStr[4] == '-')
         {
             if (int.TryParse(dateStr.AsSpan(0, 4), System.Globalization.CultureInfo.InvariantCulture, out var year) &&
                 int.TryParse(dateStr.AsSpan(5, 2), System.Globalization.CultureInfo.InvariantCulture, out var month))
+            {
+                if (month < 1 || month > 12)
+                    throw StandardLibrary.ThrowRangeError($"Month {month} is out of range", realm: realm);
+                return (year, month);
+            }
+        }
+
+        // YYYYMM compact (exactly 6 digits, no dashes)
+        if (dateStr.Length == 6 && AllDigits(dateStr, 0, 6))
+        {
+            if (int.TryParse(dateStr.AsSpan(0, 4), System.Globalization.CultureInfo.InvariantCulture, out var year) &&
+                int.TryParse(dateStr.AsSpan(4, 2), System.Globalization.CultureInfo.InvariantCulture, out var month))
             {
                 if (month < 1 || month > 12)
                     throw StandardLibrary.ThrowRangeError($"Month {month} is out of range", realm: realm);
@@ -6840,6 +6869,92 @@ public static class TemporalHelper
         }
 
         RejectISODate(year, month, day, realm);
+        return (year, month, day);
+    }
+
+    /// <summary>
+    ///     Like ParseDatePart but only validates month/day, not the year range.
+    ///     Used for PlainMonthDay where extended years (±999999) are valid in the input string
+    ///     even though they exceed the PlainDate representable range.
+    /// </summary>
+    private static (int year, int month, int day) ParseDatePartNoRangeCheck(string dateStr, string originalStr,
+        RealmState realm)
+    {
+        // Parse the same way as ParseDatePart but validate only month and day
+        int year, month, day;
+        var startIdx = 0;
+        if (dateStr.Length > 0 && (dateStr[0] == '+' || dateStr[0] == '-'))
+            startIdx = 1;
+
+        if (startIdx == 1)
+        {
+            var sign = dateStr[0] == '-' ? -1 : 1;
+            var datePart = dateStr[1..];
+
+            if (datePart.Length == 10 && AllDigits(datePart, 0, 10))
+            {
+                if (!int.TryParse(datePart.AsSpan(0, 6), System.Globalization.CultureInfo.InvariantCulture, out var yearAbs) ||
+                    !int.TryParse(datePart.AsSpan(6, 2), System.Globalization.CultureInfo.InvariantCulture, out month) ||
+                    !int.TryParse(datePart.AsSpan(8, 2), System.Globalization.CultureInfo.InvariantCulture, out day))
+                    throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
+                year = sign * yearAbs;
+                if (sign == -1 && yearAbs == 0)
+                    throw StandardLibrary.ThrowRangeError("Negative zero year is not allowed", realm: realm);
+            }
+            else
+            {
+                var lastDash = datePart.LastIndexOf('-');
+                if (lastDash <= 0)
+                    throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
+                var secondLastDash = datePart.LastIndexOf('-', lastDash - 1);
+                if (secondLastDash <= 0)
+                    throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
+                var yearStr = datePart[..secondLastDash];
+                if (yearStr.Length != 6)
+                    throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
+                if (!int.TryParse(yearStr, System.Globalization.CultureInfo.InvariantCulture, out var yearAbs) ||
+                    !int.TryParse(datePart[(secondLastDash + 1)..lastDash], System.Globalization.CultureInfo.InvariantCulture, out month) ||
+                    !int.TryParse(datePart[(lastDash + 1)..], System.Globalization.CultureInfo.InvariantCulture, out day))
+                    throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
+                if (datePart[(secondLastDash + 1)..lastDash].Length != 2 || datePart[(lastDash + 1)..].Length != 2)
+                    throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
+                year = sign * yearAbs;
+                if (sign == -1 && yearAbs == 0)
+                    throw StandardLibrary.ThrowRangeError("Negative zero year is not allowed", realm: realm);
+            }
+        }
+        else
+        {
+            if (dateStr.Contains('-'))
+            {
+                var dashParts = dateStr.Split('-');
+                if (dashParts.Length != 3 || dashParts[0].Length != 4 || dashParts[1].Length != 2 || dashParts[2].Length != 2)
+                    throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
+                if (!int.TryParse(dashParts[0], System.Globalization.CultureInfo.InvariantCulture, out year) ||
+                    !int.TryParse(dashParts[1], System.Globalization.CultureInfo.InvariantCulture, out month) ||
+                    !int.TryParse(dashParts[2], System.Globalization.CultureInfo.InvariantCulture, out day))
+                    throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
+            }
+            else if (dateStr.Length == 8 && AllDigits(dateStr, 0, 8))
+            {
+                if (!int.TryParse(dateStr.AsSpan(0, 4), System.Globalization.CultureInfo.InvariantCulture, out year) ||
+                    !int.TryParse(dateStr.AsSpan(4, 2), System.Globalization.CultureInfo.InvariantCulture, out month) ||
+                    !int.TryParse(dateStr.AsSpan(6, 2), System.Globalization.CultureInfo.InvariantCulture, out day))
+                    throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
+            }
+            else
+            {
+                throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
+            }
+        }
+
+        // Only validate month and day, NOT year range
+        if (month is < 1 or > 12)
+            throw StandardLibrary.ThrowRangeError("Month value is out of range (1-12)", realm: realm);
+        var daysInMonth = DateTime.DaysInMonth(year is >= 1 and <= 9999 ? year : 2000, month);
+        if (day < 1 || day > daysInMonth)
+            throw StandardLibrary.ThrowRangeError("Day value is out of range", realm: realm);
+
         return (year, month, day);
     }
 
@@ -7016,7 +7131,8 @@ public static class TemporalHelper
         throw StandardLibrary.ThrowTypeError("Cannot convert to Temporal.PlainYearMonth", realm: realm);
     }
 
-    private static JsTemporalPlainMonthDay ToTemporalPlainMonthDay(JsValue value, RealmState realm)
+    private static JsTemporalPlainMonthDay ToTemporalPlainMonthDay(JsValue value, RealmState realm,
+        string overflow = "constrain")
     {
         // 1. String: parse with validation
         if (value.IsString)
@@ -7091,7 +7207,9 @@ public static class TemporalHelper
 
             // Parse as a full date (YYYY-MM-DD) and extract month+day
             // For ISO calendar, referenceISOYear is always 1972 (spec default), not the parsed year
-            var (_, month, day) = ParseDatePart(baseStr, str, realm);
+            // Use ParseDatePartNoRangeCheck because extended year ranges (e.g., ±999999) are valid
+            // for PlainMonthDay even though they exceed the PlainDate representable range
+            var (_, month, day) = ParseDatePartNoRangeCheck(baseStr, str, realm);
             return new JsTemporalPlainMonthDay(month, day);
         }
 
@@ -7145,13 +7263,34 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowTypeError("Property bag for PlainMonthDay must have 'day'", realm: realm);
             var day = ToIntegerWithTruncation(dayVal, realm);
 
-            if (month < 1)
+            // Read optional year for Feb 29 validation
+            accessor.TryGetProperty("year", out var yearVal);
+            var hasYear = !yearVal.IsUndefined;
+            var yearForValidation = hasYear ? ToIntegerWithTruncation(yearVal, realm) : 1972;
+
+            // Validate month
+            if (month < 1 || month == 0)
                 throw StandardLibrary.ThrowRangeError($"Month {month} is out of range", realm: realm);
-            month = Math.Min(month, 12);
-            if (day < 1)
+            if (day < 1 || day == 0)
                 throw StandardLibrary.ThrowRangeError($"Day {day} is out of range", realm: realm);
-            var maxDay = IsoCalendarHelpers.DaysInMonth(2000, month);
-            day = Math.Min(day, maxDay);
+
+            if (string.Equals(overflow, "reject", StringComparison.Ordinal))
+            {
+                if (month > 12)
+                    throw StandardLibrary.ThrowRangeError($"Month {month} is out of range", realm: realm);
+                var maxDayReject = IsoCalendarHelpers.DaysInMonth(
+                    yearForValidation is >= 1 and <= 9999 ? yearForValidation : 2000, month);
+                if (day > maxDayReject)
+                    throw StandardLibrary.ThrowRangeError($"Day {day} is out of range for month {month}", realm: realm);
+            }
+            else
+            {
+                // Constrain
+                month = Math.Min(month, 12);
+                var maxDay = IsoCalendarHelpers.DaysInMonth(
+                    yearForValidation is >= 1 and <= 9999 ? yearForValidation : 2000, month);
+                day = Math.Min(day, maxDay);
+            }
 
             return new JsTemporalPlainMonthDay(month, day);
         }

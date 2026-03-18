@@ -253,9 +253,9 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
     public async Task Temporal_PlainMonthDay_Constructor()
     {
         await using var engine = CreateEngine();
-        var month = await engine.Evaluate("new Temporal.PlainMonthDay(12, 25).month");
+        var monthCode = await engine.Evaluate("new Temporal.PlainMonthDay(12, 25).monthCode");
         var day = await engine.Evaluate("new Temporal.PlainMonthDay(12, 25).day");
-        Assert.Equal(12d, month);
+        Assert.Equal("M12", monthCode);
         Assert.Equal(25d, day);
     }
 

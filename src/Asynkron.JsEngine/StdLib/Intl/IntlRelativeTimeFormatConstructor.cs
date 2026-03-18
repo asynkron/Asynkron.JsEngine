@@ -14,17 +14,39 @@ public sealed partial class IntlRelativeTimeFormatConstructor(IJsObjectLike prot
 {
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
+        // Step 1: If NewTarget is undefined, throw a TypeError exception.
+        if (!thisValue.IsObject || thisValue.AsObject() is not { IsConstructing: true })
+        {
+            throw StandardLibrary.ThrowTypeError(
+                "Constructor Intl.RelativeTimeFormat requires 'new'", realm: Realm);
+        }
+
         var localesArg = args.GetArgument(0);
         var optionsArg = args.GetArgument(1);
         var (_, resolvedLocale) = IntlHelper.ResolveIntlLocales(localesArg, Realm);
-        var options = NormalizeOptions(optionsArg);
-        var numberingSystem = ReadNumberingSystem(options);
-        var numeric = ReadStringOption(options, "numeric", ["always", "auto"], "always");
-        var style = ReadStringOption(options, "style", ["long", "short", "narrow"], "long");
+
+        // Per spec: Let options be ? GetOptionsObject(options).
+        var options = IntlOptionHelpers.GetOptionsObject(optionsArg, Realm, "RelativeTimeFormat");
+
+        // Read options in spec order: localeMatcher, numberingSystem, style, numeric
+        // Step 7: localeMatcher
+        _ = IntlOptionHelpers.GetStringOption(options, "localeMatcher", Realm, "RelativeTimeFormat",
+            ["lookup", "best fit"], "best fit");
+
+        // Step 8-9: numberingSystem (custom validation - not a fixed list)
+        var numberingSystem = ResolveNumberingSystem(options, resolvedLocale);
+
+        // Step 14: style
+        var style = IntlOptionHelpers.GetStringOption(options, "style", Realm, "RelativeTimeFormat",
+            ["long", "short", "narrow"], "long");
+
+        // Step 16: numeric
+        var numeric = IntlOptionHelpers.GetStringOption(options, "numeric", Realm, "RelativeTimeFormat",
+            ["always", "auto"], "always");
 
         var instance = PrepareThisObject(thisValue);
-        IntlRelativeTimeFormatPrototype.InitializeInternalSlots(instance, resolvedLocale, numberingSystem, numeric,
-            style);
+        IntlRelativeTimeFormatPrototype.InitializeInternalSlots(instance, numberingSystem.Locale,
+            numberingSystem.NumberingSystem, numeric, style);
         return new JsValue(instance);
     }
 
@@ -33,65 +55,63 @@ public sealed partial class IntlRelativeTimeFormatConstructor(IJsObjectLike prot
         IntlHelper.ConfigureSupportedLocalesOf(constructor, Realm);
     }
 
-    private JsObject? NormalizeOptions(JsValue optionsArg)
+    private (string NumberingSystem, string Locale) ResolveNumberingSystem(IJsPropertyAccessor? options,
+        string resolvedLocale)
     {
-        if (optionsArg.IsNullOrUndefined)
+        // Extract unicode extension numbering system from locale (e.g., "en-u-nu-arab" -> "arab")
+        var unicodeKeywords = IntlUtilities.ParseUnicodeExtensionKeywords(resolvedLocale);
+        string? extensionNu = null;
+        if (unicodeKeywords.TryGetValue("nu", out var nuValues) && nuValues.Count > 0)
         {
-            return null;
+            extensionNu = nuValues[0];
         }
 
-        if (optionsArg.IsObject && optionsArg.AsObject() is { } jsObject)
+        var baseLocale = IntlUtilities.RemoveUnicodeExtensions(resolvedLocale);
+
+        // Read numberingSystem option with ToString conversion (per spec: GetOption with type "string")
+        string? optionNu = null;
+        if (options is not null && options.TryGetProperty("numberingSystem", out var rawValue) &&
+            !rawValue.IsUndefined)
         {
-            return jsObject;
+            var numberingSystem = StandardLibrary.JsValueToString(rawValue, Realm);
+
+            // Per spec step 8a: If numberingSystem does not match the type sequence
+            // (from UTS 35 Unicode Locale Identifier, section 3.2), throw a RangeError exception.
+            if (!IntlUtilities.IsValidUnicodeTypeNonterminal(numberingSystem))
+            {
+                throw StandardLibrary.ThrowRangeError(
+                    $"Invalid numbering system '{numberingSystem}'", realm: Realm);
+            }
+
+            // Only use option if it's a recognized/supported numbering system
+            if (IntlUtilities.TryNormalizeNumberingSystem(numberingSystem, out var canonical))
+            {
+                optionNu = canonical;
+            }
         }
 
-        throw StandardLibrary.ThrowTypeError("Intl.RelativeTimeFormat options must be an object", realm: Realm);
-    }
-
-    private string ReadNumberingSystem(JsObject? options)
-    {
-        if (options is null || !options.TryGetProperty("numberingSystem", out var value) ||
-            value.IsUndefined)
+        // Resolution: option > unicode extension > default
+        if (optionNu is not null)
         {
-            return "latn";
+            // Option value wins. If it matches the extension, keep extension in locale.
+            if (extensionNu is not null &&
+                string.Equals(optionNu, extensionNu, StringComparison.Ordinal))
+            {
+                return (optionNu, resolvedLocale);
+            }
+
+            // Option differs from extension or no extension: use base locale
+            return (optionNu, baseLocale);
         }
 
-        if (!value.TryGetString(out var numberingSystem))
+        if (extensionNu is not null &&
+            IntlUtilities.TryNormalizeNumberingSystem(extensionNu, out var validExtNu))
         {
-            throw StandardLibrary.ThrowTypeError(
-                "Intl.RelativeTimeFormat numberingSystem option must be a string", realm: Realm);
+            // Unicode extension is valid: keep extension in locale
+            return (validExtNu, resolvedLocale);
         }
 
-        if (!IntlUtilities.TryNormalizeNumberingSystem(numberingSystem, out var canonical))
-        {
-            throw StandardLibrary.ThrowRangeError(
-                $"Unsupported numberingSystem '{numberingSystem}'", realm: Realm);
-        }
-
-        return canonical;
-    }
-
-    private string ReadStringOption(JsObject? options, string propertyName, IReadOnlyList<string> allowed,
-        string defaultValue)
-    {
-        if (options is null || !options.TryGetProperty(propertyName, out var rawValue) ||
-            rawValue.IsUndefined)
-        {
-            return defaultValue;
-        }
-
-        if (!rawValue.TryGetString(out var strValue))
-        {
-            throw StandardLibrary.ThrowTypeError(
-                $"Intl.RelativeTimeFormat {propertyName} option must be a string", realm: Realm);
-        }
-
-        if (!allowed.Contains(strValue, StringComparer.Ordinal))
-        {
-            throw StandardLibrary.ThrowRangeError(
-                $"Intl.RelativeTimeFormat {propertyName} option '{strValue}' is not supported", realm: Realm);
-        }
-
-        return strValue;
+        // Neither option nor extension is valid: use default, strip extensions
+        return ("latn", baseLocale);
     }
 }

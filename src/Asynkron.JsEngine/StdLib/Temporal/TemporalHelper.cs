@@ -4516,7 +4516,7 @@ public static class TemporalHelper
         int relY, int relM, int relD, // relativeTo (the "start" date)
         int destY, int destM, int destD, // the "end" date
         string smallestUnit, long roundingIncrement, string roundingMode,
-        string largestUnit = "year")
+        string largestUnit = "year", BigInteger timeDiffNanos = default)
     {
         // Determine overall sign of the duration
         int sign;
@@ -4579,17 +4579,43 @@ public static class TemporalHelper
                 var totalWeeks = totalDays / 7;
                 var remainderDays = totalDays - totalWeeks * 7;
 
-                var rounded = RoundFractionalUnit(totalWeeks, remainderDays, 7, roundingIncrement, roundingMode);
-                return (0, 0, (int)rounded, 0);
+                // Include time remainder: total nanos = remainderDays * nsPerDay + timeDiffNanos
+                // denominator = 7 * nsPerDay
+                var remainderNanos = new BigInteger(remainderDays) * NanosecondsPerDay + timeDiffNanos;
+                var weekNanos = new BigInteger(7) * NanosecondsPerDay;
+
+                // Use BigInteger rounding: scaledValue = totalWeeks * weekNanos + sign * |remainderNanos|
+                var wkSign = totalWeeks != 0 ? Math.Sign(totalWeeks) :
+                    (remainderNanos > 0 ? 1 : remainderNanos < 0 ? -1 : 0);
+                if (wkSign == 0) return (0, 0, 0, 0);
+                var absRemainder = BigInteger.Abs(remainderNanos);
+                var absWeekNanos = BigInteger.Abs(weekNanos);
+                var scaledValue = new BigInteger(totalWeeks) * absWeekNanos + wkSign * absRemainder;
+                var scaledIncrement = new BigInteger(roundingIncrement) * absWeekNanos;
+                var rounded = RoundToIncrement(scaledValue, scaledIncrement, roundingMode);
+                return (0, 0, (int)(rounded / absWeekNanos), 0);
             }
             case "day":
             {
                 var totalDays = destEpoch - IsoToDayNumber(relY, relM, relD);
 
-                // For days, use integer rounding with RoundToIncrement
-                var rounded = RoundToIncrement(new BigInteger(totalDays),
+                // Include time remainder for fractional day
+                if (timeDiffNanos != 0)
+                {
+                    var daySign = totalDays != 0 ? Math.Sign(totalDays) :
+                        (timeDiffNanos > 0 ? 1 : timeDiffNanos < 0 ? -1 : 0);
+                    if (daySign == 0) return (0, 0, 0, 0);
+                    var absTimeNanos = BigInteger.Abs(timeDiffNanos);
+                    var absNsPerDay = new BigInteger(NanosecondsPerDay);
+                    var scaledValue = new BigInteger(totalDays) * absNsPerDay + daySign * absTimeNanos;
+                    var scaledIncrement = new BigInteger(roundingIncrement) * absNsPerDay;
+                    var rounded = RoundToIncrement(scaledValue, scaledIncrement, roundingMode);
+                    return (0, 0, 0, (int)(rounded / absNsPerDay));
+                }
+
+                var roundedDays = RoundToIncrement(new BigInteger(totalDays),
                     new BigInteger(roundingIncrement), roundingMode);
-                return (0, 0, 0, (int)rounded);
+                return (0, 0, 0, (int)roundedDays);
             }
             default:
                 return (years, months, weeks, days);
@@ -4748,13 +4774,13 @@ public static class TemporalHelper
         var smallestUnitRank = UnitRank(settings.SmallestUnit);
         if (smallestUnitRank >= TemporalUnit.Day)
         {
-            // Rounding to a date unit — round the date part, zero time
+            // Rounding to a date unit — round the date part, include time fraction for week/day
             (years, months, weeks, days) = RoundDateDuration(
                 years, months, weeks, days,
                 dt.Date.Year, dt.Date.Month, dt.Date.Day,
                 adjEndY, adjEndM, adjEndD,
                 settings.SmallestUnit, settings.RoundingIncrement, settings.RoundingMode,
-                settings.LargestUnit);
+                settings.LargestUnit, timeDiffNanos);
 
             var result = new JsTemporalDuration(years, months, weeks, days, 0, 0, 0, 0, 0, 0);
             if (isSince)
@@ -4768,6 +4794,23 @@ public static class TemporalHelper
         {
             var incNs = new BigInteger(GetUnitNanoseconds(settings.SmallestUnit)) * settings.RoundingIncrement;
             timeDiffNanos = RoundToIncrement(timeDiffNanos, incNs, settings.RoundingMode);
+        }
+
+        // Check for day overflow after time rounding
+        // (e.g., rounding 23:59:59.999999999 to microseconds with expand → 24:00:00 = 1 extra day)
+        if (timeDiffNanos >= NanosecondsPerDay || timeDiffNanos <= -NanosecondsPerDay)
+        {
+            var dayOverflow = (long)(timeDiffNanos / NanosecondsPerDay);
+            timeDiffNanos -= dayOverflow * NanosecondsPerDay;
+
+            // Adjust end date and recompute date diff
+            var newEndEpoch = IsoToDayNumber(adjEndY, adjEndM, adjEndD) + dayOverflow;
+            (adjEndY, adjEndM, adjEndD) = DayNumberToIsoDate(newEndEpoch);
+
+            (years, months, weeks, days) = DifferenceISODate(
+                dt.Date.Year, dt.Date.Month, dt.Date.Day,
+                adjEndY, adjEndM, adjEndD,
+                settings.LargestUnit);
         }
 
         // Balance time to hours
@@ -4855,13 +4898,13 @@ public static class TemporalHelper
         var zdtSmallestRank = UnitRank(settings.SmallestUnit);
         if (zdtSmallestRank >= TemporalUnit.Day)
         {
-            // Rounding to a date unit — round date part, zero time
+            // Rounding to a date unit — round date part, include time fraction for week/day
             (years, months, weeks, days) = RoundDateDuration(
                 years, months, weeks, days,
                 localDt.Date.Year, localDt.Date.Month, localDt.Date.Day,
                 adjEndY, adjEndM, adjEndD,
                 settings.SmallestUnit, settings.RoundingIncrement, settings.RoundingMode,
-                settings.LargestUnit);
+                settings.LargestUnit, timeDiffNanos);
 
             var zdtResult = new JsTemporalDuration(years, months, weeks, days, 0, 0, 0, 0, 0, 0);
             if (isSince)
@@ -4875,6 +4918,21 @@ public static class TemporalHelper
         {
             var incNs = new BigInteger(GetUnitNanoseconds(settings.SmallestUnit)) * settings.RoundingIncrement;
             timeDiffNanos = RoundToIncrement(timeDiffNanos, incNs, settings.RoundingMode);
+        }
+
+        // Check for day overflow after time rounding
+        if (timeDiffNanos >= NanosecondsPerDay || timeDiffNanos <= -NanosecondsPerDay)
+        {
+            var dayOverflow = (long)(timeDiffNanos / NanosecondsPerDay);
+            timeDiffNanos -= dayOverflow * NanosecondsPerDay;
+
+            var newEndEpoch = IsoToDayNumber(adjEndY, adjEndM, adjEndD) + dayOverflow;
+            (adjEndY, adjEndM, adjEndD) = DayNumberToIsoDate(newEndEpoch);
+
+            (years, months, weeks, days) = DifferenceISODate(
+                localDt.Date.Year, localDt.Date.Month, localDt.Date.Day,
+                adjEndY, adjEndM, adjEndD,
+                settings.LargestUnit);
         }
 
         var timeResult = BalanceTimeDurationToJsDuration(timeDiffNanos, TemporalUnit.Hour, realm);

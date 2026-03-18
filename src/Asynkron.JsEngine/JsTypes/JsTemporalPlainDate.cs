@@ -315,29 +315,46 @@ public sealed class JsTemporalPlainDate(int year, int month, int day, string cal
     }
 
     /// <summary>
+    ///     Returns basic ISO date string without calendar annotation.
+    /// </summary>
+    public string ToStringBasic()
+    {
+        return FormatYear() + $"-{Month:D2}-{Day:D2}";
+    }
+
+    /// <summary>
     ///     Returns ISO 8601 date string.
     ///     Standard years: YYYY-MM-DD. Extended years: +YYYYYY-MM-DD or -YYYYYY-MM-DD.
+    ///     Includes calendar annotation for non-ISO calendars.
     /// </summary>
     public override string ToString()
     {
-        string yearStr;
-        if (Year is >= 0 and <= 9999)
-        {
-            yearStr = Year.ToString("D4", CultureInfo.InvariantCulture);
-        }
-        else
-        {
-            // Extended year format with sign prefix and 6 digits
-            var absYear = Math.Abs(Year);
-            yearStr = (Year < 0 ? "-" : "+") + absYear.ToString("D6", CultureInfo.InvariantCulture);
-        }
-
-        var result = $"{yearStr}-{Month.ToString("D2", CultureInfo.InvariantCulture)}-{Day.ToString("D2", CultureInfo.InvariantCulture)}";
+        var result = FormatYear() + $"-{Month:D2}-{Day:D2}";
         if (!string.Equals(Calendar, "iso8601", StringComparison.Ordinal))
         {
             result += $"[u-ca={Calendar}]";
         }
         return result;
+    }
+
+    /// <summary>
+    ///     Returns ISO date string with calendar annotation (YYYY-MM-DD[u-ca=calendar]).
+    ///     When critical is true, uses [!u-ca=calendar] format.
+    /// </summary>
+    public string ToStringWithCalendar(bool critical = false)
+    {
+        var prefix = critical ? "!" : "";
+        return FormatYear() + $"-{Month:D2}-{Day:D2}[{prefix}u-ca={Calendar}]";
+    }
+
+    private string FormatYear()
+    {
+        if (Year is >= 0 and <= 9999)
+        {
+            return Year.ToString("D4", CultureInfo.InvariantCulture);
+        }
+        var absYear = Math.Abs(Year);
+        return (Year < 0 ? "-" : "+") + absYear.ToString("D6", CultureInfo.InvariantCulture);
     }
 
     public static bool operator ==(JsTemporalPlainDate? left, JsTemporalPlainDate? right)

@@ -260,10 +260,12 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
 
     /// <summary>
     ///     Returns year-month string with reference day and calendar annotation (YYYY-MM-DD[u-ca=calendar]).
+    ///     When critical is true, uses [!u-ca=calendar] format.
     /// </summary>
-    public string ToStringWithCalendar()
+    public string ToStringWithCalendar(bool critical = false)
     {
-        return FormatYear() + $"-{Month:D2}-{ReferenceDay:D2}[u-ca={Calendar}]";
+        var prefix = critical ? "!" : "";
+        return FormatYear() + $"-{Month:D2}-{ReferenceDay:D2}[{prefix}u-ca={Calendar}]";
     }
 
     private string FormatYear()

@@ -277,22 +277,38 @@ public sealed class JsTemporalPlainDateTime : IEquatable<JsTemporalPlainDateTime
     }
 
     /// <summary>
+    ///     Returns basic ISO datetime string without calendar annotation.
+    /// </summary>
+    public string ToStringBasic()
+    {
+        return $"{Date.ToStringBasic()}T{Time}";
+    }
+
+    /// <summary>
     ///     Returns ISO 8601 datetime string (YYYY-MM-DDTHH:mm:ss.sssssssss).
     /// </summary>
     public override string ToString()
     {
-        var datePart = Date.ToString();
+        var datePart = Date.ToStringBasic();
+        var calendar = Date.Calendar;
         var timePart = Time.ToString();
 
-        // Remove calendar annotation from date if present (we'll add it at the end)
-        var bracketIndex = datePart.IndexOf('[');
-        var calendarAnnotation = bracketIndex >= 0 ? datePart[bracketIndex..] : "";
-        if (bracketIndex >= 0)
+        if (!string.Equals(calendar, "iso8601", StringComparison.Ordinal))
         {
-            datePart = datePart[..bracketIndex];
+            return $"{datePart}T{timePart}[u-ca={calendar}]";
         }
 
-        return $"{datePart}T{timePart}{calendarAnnotation}";
+        return $"{datePart}T{timePart}";
+    }
+
+    /// <summary>
+    ///     Returns ISO datetime string with calendar annotation.
+    ///     When critical is true, uses [!u-ca=calendar] format.
+    /// </summary>
+    public string ToStringWithCalendar(bool critical = false)
+    {
+        var prefix = critical ? "!" : "";
+        return $"{Date.ToStringBasic()}T{Time}[{prefix}u-ca={Date.Calendar}]";
     }
 
     public static bool operator ==(JsTemporalPlainDateTime? left, JsTemporalPlainDateTime? right)

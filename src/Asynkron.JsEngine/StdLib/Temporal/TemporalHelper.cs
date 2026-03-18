@@ -843,8 +843,27 @@ public static class TemporalHelper
         AddPrototypeGetter(prototype, realm, "eraYear", tv => { GetPlainDate(tv); return JsValue.Undefined; }); // ISO 8601 calendar has no era
 
         // Prototype methods
-        AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, _) =>
-            new JsValue(GetPlainDate(thisValue).ToString()));
+        AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, args) =>
+        {
+            var date = GetPlainDate(thisValue);
+            var options = args.GetArgument(0);
+            var optionsObj = ValidateOptionsObject(options, realm, "Temporal.PlainDate.prototype.toString");
+            var showCalendar = GetTemporalShowCalendarNameOption(optionsObj, realm);
+
+            if (string.Equals(showCalendar, "always", StringComparison.Ordinal))
+            {
+                return new JsValue(date.ToStringWithCalendar());
+            }
+            if (string.Equals(showCalendar, "critical", StringComparison.Ordinal))
+            {
+                return new JsValue(date.ToStringWithCalendar(critical: true));
+            }
+            if (string.Equals(showCalendar, "never", StringComparison.Ordinal))
+            {
+                return new JsValue(date.ToStringBasic());
+            }
+            return new JsValue(date.ToString());
+        });
 
         AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
             new JsValue(GetPlainDate(thisValue).ToString()));
@@ -1223,44 +1242,44 @@ public static class TemporalHelper
             // Per spec: GetOptionsObject throws TypeError if options is not undefined and not an object
             var optionsObj = ValidateOptionsObject(options, realm, "Temporal.PlainDateTime.prototype.toString");
 
-            // Default values
-            var calendarName = "auto";
-            var fractionalSecondDigits = "auto";
-            var roundingMode = "trunc";
-            string? smallestUnit = null;
-
             // Per spec, options must be accessed in alphabetical order:
             // calendarName, fractionalSecondDigits, roundingMode, smallestUnit
+            var showCalendar = GetTemporalShowCalendarNameOption(optionsObj, realm);
+
+            // Read remaining options in alphabetical order (for observable property access order)
             if (optionsObj is not null)
             {
-                // 1. Get calendarName
-                if (optionsObj.TryGetProperty("calendarName", out var calendarNameVal) && !calendarNameVal.IsUndefined)
-                {
-                    calendarName = JsOps.ToJsString(calendarNameVal);
-                }
-
-                // 2. Get fractionalSecondDigits
+                // fractionalSecondDigits
                 if (optionsObj.TryGetProperty("fractionalSecondDigits", out var fracDigitsVal) && !fracDigitsVal.IsUndefined)
                 {
-                    fractionalSecondDigits = JsOps.ToJsString(fracDigitsVal);
+                    // TODO: Use fractionalSecondDigits for rounding
                 }
 
-                // 3. Get roundingMode
+                // roundingMode
                 if (optionsObj.TryGetProperty("roundingMode", out var roundingModeVal) && !roundingModeVal.IsUndefined)
                 {
-                    roundingMode = JsOps.ToJsString(roundingModeVal);
+                    // TODO: Use roundingMode for rounding
                 }
 
-                // 4. Get smallestUnit
+                // smallestUnit
                 if (optionsObj.TryGetProperty("smallestUnit", out var smallestUnitVal) && !smallestUnitVal.IsUndefined)
                 {
-                    smallestUnit = JsOps.ToJsString(smallestUnitVal);
+                    // TODO: Use smallestUnit for rounding
                 }
             }
 
-            // For now, just return the basic ISO string
-            // TODO: Implement rounding based on smallestUnit/roundingMode/fractionalSecondDigits
-            // TODO: Implement calendarName annotation handling
+            if (string.Equals(showCalendar, "always", StringComparison.Ordinal))
+            {
+                return new JsValue(dt.ToStringWithCalendar());
+            }
+            if (string.Equals(showCalendar, "critical", StringComparison.Ordinal))
+            {
+                return new JsValue(dt.ToStringWithCalendar(critical: true));
+            }
+            if (string.Equals(showCalendar, "never", StringComparison.Ordinal))
+            {
+                return new JsValue(dt.ToStringBasic());
+            }
             return new JsValue(dt.ToString());
         });
 
@@ -1785,18 +1804,17 @@ public static class TemporalHelper
         AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, args) =>
         {
             var ym = GetPlainYearMonth(thisValue);
-            var showCalendar = "auto";
-            if (args.Count > 0 && args[0].TryGetObject<IJsPropertyAccessor>(out var opts) &&
-                opts.TryGetProperty("calendarName", out var calVal) && calVal.IsString)
-            {
-                showCalendar = calVal.AsString();
-            }
-            // Per spec: when calendarName is "always" or calendar is not iso8601, include reference day and calendar
-            if (string.Equals(showCalendar, "always", StringComparison.Ordinal) ||
-                (string.Equals(showCalendar, "auto", StringComparison.Ordinal) &&
-                 !string.Equals(ym.Calendar, "iso8601", StringComparison.Ordinal)))
+            var options = args.GetArgument(0);
+            var optionsObj = ValidateOptionsObject(options, realm, "Temporal.PlainYearMonth.prototype.toString");
+            var showCalendar = GetTemporalShowCalendarNameOption(optionsObj, realm);
+
+            if (string.Equals(showCalendar, "always", StringComparison.Ordinal))
             {
                 return new JsValue(ym.ToStringWithCalendar());
+            }
+            if (string.Equals(showCalendar, "critical", StringComparison.Ordinal))
+            {
+                return new JsValue(ym.ToStringWithCalendar(critical: true));
             }
             if (string.Equals(showCalendar, "never", StringComparison.Ordinal))
             {
@@ -1962,7 +1980,7 @@ public static class TemporalHelper
             new PropertyDescriptor { Value = "Temporal.PlainMonthDay", Writable = false, Enumerable = false, Configurable = true });
 
         // Prototype getters
-        AddPrototypeGetter(prototype, realm, "month", tv => new JsValue(GetPlainMonthDay(tv).Month));
+        // Note: PlainMonthDay does NOT have month or year getters per spec — use monthCode instead
         AddPrototypeGetter(prototype, realm, "day", tv => new JsValue(GetPlainMonthDay(tv).Day));
         AddPrototypeGetter(prototype, realm, "monthCode", tv => new JsValue(GetPlainMonthDay(tv).MonthCode));
         AddPrototypeGetter(prototype, realm, "calendarId", tv => new JsValue(GetPlainMonthDay(tv).Calendar));
@@ -1971,16 +1989,17 @@ public static class TemporalHelper
         AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, args) =>
         {
             var md = GetPlainMonthDay(thisValue);
-            var showCalendar = "auto";
-            if (args.Count > 0 && args[0].TryGetObject<IJsPropertyAccessor>(out var opts) &&
-                opts.TryGetProperty("calendarName", out var calVal) && calVal.IsString)
-            {
-                showCalendar = calVal.AsString();
-            }
-            if (string.Equals(showCalendar, "always", StringComparison.Ordinal) ||
-                string.Equals(showCalendar, "critical", StringComparison.Ordinal))
+            var options = args.GetArgument(0);
+            var optionsObj = ValidateOptionsObject(options, realm, "Temporal.PlainMonthDay.prototype.toString");
+            var showCalendar = GetTemporalShowCalendarNameOption(optionsObj, realm);
+
+            if (string.Equals(showCalendar, "always", StringComparison.Ordinal))
             {
                 return new JsValue(md.ToStringWithCalendar());
+            }
+            if (string.Equals(showCalendar, "critical", StringComparison.Ordinal))
+            {
+                return new JsValue(md.ToStringWithCalendar(critical: true));
             }
             if (string.Equals(showCalendar, "never", StringComparison.Ordinal))
             {
@@ -2406,6 +2425,35 @@ public static class TemporalHelper
         }
 
         return accessor;
+    }
+
+    /// <summary>
+    /// Gets the calendarName option from a validated options object.
+    /// Returns "auto", "always", "never", or "critical".
+    /// Throws RangeError for invalid values.
+    /// </summary>
+    private static string GetTemporalShowCalendarNameOption(IJsPropertyAccessor? optionsObj, RealmState realm)
+    {
+        if (optionsObj is null)
+        {
+            return "auto";
+        }
+
+        if (!optionsObj.TryGetProperty("calendarName", out var calendarNameVal) || calendarNameVal.IsUndefined)
+        {
+            return "auto";
+        }
+
+        var calendarName = JsOps.ToJsString(calendarNameVal);
+        if (!string.Equals(calendarName, "auto", StringComparison.Ordinal) &&
+            !string.Equals(calendarName, "always", StringComparison.Ordinal) &&
+            !string.Equals(calendarName, "never", StringComparison.Ordinal) &&
+            !string.Equals(calendarName, "critical", StringComparison.Ordinal))
+        {
+            throw StandardLibrary.ThrowRangeError($"{calendarName} is an invalid value for calendarName option", realm: realm);
+        }
+
+        return calendarName;
     }
 
     private static double GetNumberArg(IReadOnlyList<JsValue> args, int index)

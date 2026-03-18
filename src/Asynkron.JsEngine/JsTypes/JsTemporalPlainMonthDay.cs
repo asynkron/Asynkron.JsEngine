@@ -45,26 +45,36 @@ public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay
     public string MonthCode => $"M{Month:D2}";
 
     /// <summary>
-    ///     Creates a PlainMonthDay from an ISO 8601 string (--MM-DD or MM-DD).
+    ///     Creates a PlainMonthDay from an ISO 8601 string.
+    ///     Accepts: --MM-DD, MM-DD, or YYYY-MM-DD (year is used as reference year).
     /// </summary>
     public static JsTemporalPlainMonthDay From(string isoString)
     {
-        // Handle format: --MM-DD or MM-DD
+        // Handle format: --MM-DD
         if (isoString.StartsWith("--", StringComparison.Ordinal))
         {
             isoString = isoString[2..];
         }
 
         var parts = isoString.Split('-');
-        if (parts.Length < 2)
+        if (parts.Length >= 3)
         {
-            throw new FormatException($"Invalid PlainMonthDay string: {isoString}");
+            // YYYY-MM-DD format — extract month and day, use year as reference
+            var refYear = int.Parse(parts[0], CultureInfo.InvariantCulture);
+            var month = int.Parse(parts[1], CultureInfo.InvariantCulture);
+            var day = int.Parse(parts[2], CultureInfo.InvariantCulture);
+            return new JsTemporalPlainMonthDay(month, day, referenceYear: refYear);
         }
 
-        var month = int.Parse(parts[0], CultureInfo.InvariantCulture);
-        var day = int.Parse(parts[1], CultureInfo.InvariantCulture);
+        if (parts.Length >= 2)
+        {
+            // MM-DD format
+            var month = int.Parse(parts[0], CultureInfo.InvariantCulture);
+            var day = int.Parse(parts[1], CultureInfo.InvariantCulture);
+            return new JsTemporalPlainMonthDay(month, day);
+        }
 
-        return new JsTemporalPlainMonthDay(month, day);
+        throw new FormatException($"Invalid PlainMonthDay string: {isoString}");
     }
 
     /// <summary>
@@ -147,10 +157,12 @@ public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay
 
     /// <summary>
     ///     Returns month-day string with reference year and calendar annotation (YYYY-MM-DD[u-ca=calendar]).
+    ///     When critical is true, uses [!u-ca=calendar] format.
     /// </summary>
-    public string ToStringWithCalendar()
+    public string ToStringWithCalendar(bool critical = false)
     {
-        return FormatYear(ReferenceYear) + $"-{Month:D2}-{Day:D2}[u-ca={Calendar}]";
+        var prefix = critical ? "!" : "";
+        return FormatYear(ReferenceYear) + $"-{Month:D2}-{Day:D2}[{prefix}u-ca={Calendar}]";
     }
 
     private static string FormatYear(int year)

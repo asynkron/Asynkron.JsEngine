@@ -2,37 +2,12 @@
 
 FQNs:
 
-- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toString`
 - `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainMonthDay_prototype_toString`
 
 Full test name:
 
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toString("built-ins/Temporal/PlainMonthDay/prototype/toString/calendarname-always.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toString("built-ins/Temporal/PlainMonthDay/prototype/toString/calendarname-always.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toString("built-ins/Temporal/PlainMonthDay/prototype/toString/calendarname-auto.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toString("built-ins/Temporal/PlainMonthDay/prototype/toString/calendarname-auto.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toString("built-ins/Temporal/PlainMonthDay/prototype/toString/calendarname-critical.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toString("built-ins/Temporal/PlainMonthDay/prototype/toString/calendarname-critical.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toString("built-ins/Temporal/PlainMonthDay/prototype/toString/calendarname-invalid-string.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toString("built-ins/Temporal/PlainMonthDay/prototype/toString/calendarname-invalid-string.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toString("built-ins/Temporal/PlainMonthDay/prototype/toString/calendarname-never.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toString("built-ins/Temporal/PlainMonthDay/prototype/toString/calendarname-never.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toString("built-ins/Temporal/PlainMonthDay/prototype/toString/calendarname-undefined.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toString("built-ins/Temporal/PlainMonthDay/prototype/toString/calendarname-undefined.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toString("built-ins/Temporal/PlainMonthDay/prototype/toString/calendarname-wrong-type.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toString("built-ins/Temporal/PlainMonthDay/prototype/toString/calendarname-wrong-type.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toString("built-ins/Temporal/PlainMonthDay/prototype/toString/options-object.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toString("built-ins/Temporal/PlainMonthDay/prototype/toString/options-object.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toString("built-ins/Temporal/PlainMonthDay/prototype/toString/options-wrong-type.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toString("built-ins/Temporal/PlainMonthDay/prototype/toString/options-wrong-type.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toString("built-ins/Temporal/PlainMonthDay/prototype/toString/order-of-operations.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainMonthDay_prototype_toString("built-ins/Temporal/PlainMonthDay/prototype/toString/order-of-operations.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainMonthDay_prototype_toString("intl402/Temporal/PlainMonthDay/prototype/toString/calendarname-always.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainMonthDay_prototype_toString("intl402/Temporal/PlainMonthDay/prototype/toString/calendarname-always.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainMonthDay_prototype_toString("intl402/Temporal/PlainMonthDay/prototype/toString/calendarname-auto.js",False)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainMonthDay_prototype_toString("intl402/Temporal/PlainMonthDay/prototype/toString/calendarname-auto.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainMonthDay_prototype_toString("intl402/Temporal/PlainMonthDay/prototype/toString/calendarname-critical.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainMonthDay_prototype_toString("intl402/Temporal/PlainMonthDay/prototype/toString/calendarname-critical.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainMonthDay_prototype_toString("intl402/Temporal/PlainMonthDay/prototype/toString/calendarname-never.js",False)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainMonthDay_prototype_toString("intl402/Temporal/PlainMonthDay/prototype/toString/calendarname-never.js",True)
 - Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainMonthDay_prototype_toString("intl402/Temporal/PlainMonthDay/prototype/toString/calendarname-undefined.js",False)

@@ -7888,8 +7888,8 @@ public static class TemporalHelper
             }
 
             // Full date (YYYY-MM-DD) — extract year+month, discard day per spec
-            // (ParseTemporalYearMonthString does not carry the day through)
-            var (year, month, _) = ParseDatePart(baseStr, str, realm);
+            // Use ParseDatePartNoRangeCheck: day is discarded, only year+month range matters
+            var (year, month, _) = ParseDatePartNoRangeCheck(baseStr, str, realm);
             RejectISOYearMonthRange(year, month, realm);
             return new JsTemporalPlainYearMonth(year, month);
         }

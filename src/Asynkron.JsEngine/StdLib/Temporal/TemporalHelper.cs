@@ -7824,11 +7824,16 @@ public static class TemporalHelper
             // Try to parse as YYYY-MM (no day) first, then fall back to full YYYY-MM-DD
             var ymResult = TryParseYearMonth(baseStr, str, realm);
             if (ymResult.HasValue)
+            {
+                RejectISOYearMonthRange(ymResult.Value.year, ymResult.Value.month, realm);
                 return new JsTemporalPlainYearMonth(ymResult.Value.year, ymResult.Value.month);
+            }
 
-            // Full date (YYYY-MM-DD) — extract year+month with day as referenceDay
-            var (year, month, day) = ParseDatePart(baseStr, str, realm);
-            return new JsTemporalPlainYearMonth(year, month, referenceDay: day);
+            // Full date (YYYY-MM-DD) — extract year+month, discard day per spec
+            // (ParseTemporalYearMonthString does not carry the day through)
+            var (year, month, _) = ParseDatePart(baseStr, str, realm);
+            RejectISOYearMonthRange(year, month, realm);
+            return new JsTemporalPlainYearMonth(year, month);
         }
 
         // 2. Non-string primitives → TypeError
@@ -7898,6 +7903,7 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowRangeError($"Month {month} is out of range", realm: realm);
             month = Math.Min(month, 12);
 
+            RejectISOYearMonthRange(year, month, realm);
             return new JsTemporalPlainYearMonth(year, month);
         }
 

@@ -15,6 +15,8 @@ public sealed class JsFloat32Array(JsArrayBuffer buffer, int byteOffset, int len
 {
     public const int BYTES_PER_ELEMENT = 4;
 
+    public override string TypedArrayName => "Float32Array";
+
     public static JsFloat32Array FromLength(int length, RealmState? realmState = null)
     {
         var buffer = new JsArrayBuffer(length * BYTES_PER_ELEMENT, null, realmState);

@@ -16,6 +16,8 @@ public sealed class JsInt16Array(JsArrayBuffer buffer, int byteOffset, int lengt
 {
     public const int BYTES_PER_ELEMENT = 2;
 
+    public override string TypedArrayName => "Int16Array";
+
     public static JsInt16Array FromLength(int length, RealmState? realmState = null)
     {
         var buffer = new JsArrayBuffer(length * BYTES_PER_ELEMENT, null, realmState);

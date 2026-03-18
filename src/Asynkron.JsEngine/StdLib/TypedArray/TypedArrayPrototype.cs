@@ -2,6 +2,7 @@
 
 using System.Globalization;
 using System.Reflection;
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using Microsoft.Extensions.Logging;
@@ -12,7 +13,7 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 namespace Asynkron.JsEngine.StdLib;
 
 [JsPrototype("TypedArray", ToStringTag = "TypedArray")]
-[JsSymbolAlias("iterator", "values", Writable = false)]
+[JsSymbolAlias("iterator", "values", Writable = true)]
 public sealed partial class TypedArrayPrototype
 {
     #region Accessor Properties (buffer, byteLength, byteOffset, length)
@@ -296,6 +297,50 @@ public sealed partial class TypedArrayPrototype
                     Configurable = true
                 });
         }
+
+        // Per spec (sec-get-%typedarray%.prototype-@@tostringtag),
+        // %TypedArray%.prototype[@@toStringTag] is an accessor property whose
+        // set accessor is undefined. The getter returns the [[TypedArrayName]]
+        // of the this value, or undefined if this does not have [[TypedArrayName]].
+        // The source generator sets this as a data property with value "TypedArray",
+        // so we must override it here with a proper getter.
+        var toStringTagGetter = new HostFunction((thisValue, _) =>
+        {
+            // 1. Let O be the this value.
+            // 2. If O is not an Object, return undefined.
+            if (thisValue.Kind != JsValueKind.Object)
+            {
+                return JsValue.Undefined;
+            }
+
+            // 3. If O does not have a [[TypedArrayName]] internal slot, return undefined.
+            if (thisValue.ObjectValue is not TypedArrayBase typedArray)
+            {
+                return JsValue.Undefined;
+            }
+
+            // 4. Return O.[[TypedArrayName]].
+            return JsValue.FromObjectUnsafe(typedArray.TypedArrayName);
+        }, Realm, isConstructor: false);
+        toStringTagGetter.DefineProperty("length",
+            new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
+        toStringTagGetter.DefineProperty("name",
+            new PropertyDescriptor
+            {
+                Value = "get [Symbol.toStringTag]",
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
+            });
+
+        (Prototype as JsObject)?.TryDefineProperty(
+            SymbolKeys.ToStringTag,
+            new PropertyDescriptor
+            {
+                Get = toStringTagGetter,
+                Enumerable = false,
+                Configurable = true
+            });
     }
 
     #region Private Implementation Methods
@@ -335,7 +380,9 @@ public sealed partial class TypedArrayPrototype
 
         var accumulator = JsValue.Undefined;
         var hasAccumulator = false;
-        if (args.Count > 1 && !args[1].IsUndefined)
+        // Per spec, the initialValue is present when the argument count is > 1,
+        // regardless of whether the value is undefined.
+        if (args.Count > 1)
         {
             accumulator = args[1];
             hasAccumulator = true;
@@ -343,16 +390,6 @@ public sealed partial class TypedArrayPrototype
 
         while (k >= 0 && k < length)
         {
-            if (typedArray.IsDetachedOrOutOfBounds())
-            {
-                throw typedArray.CreateOutOfBoundsTypeError();
-            }
-
-            if (k >= typedArray.Length)
-            {
-                break;
-            }
-
             var value = typedArray.GetValueForIndex(k);
 
             if (!hasAccumulator)
@@ -396,16 +433,6 @@ public sealed partial class TypedArrayPrototype
         var result = SpeciesCreate(typedArray, length);
         for (var k = 0; k < length; k++)
         {
-            if (typedArray.IsDetachedOrOutOfBounds())
-            {
-                throw typedArray.CreateOutOfBoundsTypeError();
-            }
-
-            if (k >= typedArray.Length)
-            {
-                break;
-            }
-
             var value = typedArray.GetValueForIndex(k);
             var mapped = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
             result.SetValue(k, mapped);
@@ -433,16 +460,6 @@ public sealed partial class TypedArrayPrototype
         var kept = new List<JsValue>();
         for (var k = 0; k < length; k++)
         {
-            if (typedArray.IsDetachedOrOutOfBounds())
-            {
-                throw typedArray.CreateOutOfBoundsTypeError();
-            }
-
-            if (k >= typedArray.Length)
-            {
-                break;
-            }
-
             var value = typedArray.GetValueForIndex(k);
             var result = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
             if (IsTruthy(result))
@@ -613,19 +630,13 @@ public sealed partial class TypedArrayPrototype
             envAware.CallingJsEnvironment = globalEnv;
         }
 
+        // Capture length upfront. Per spec, the loop runs on the originally captured
+        // length even if the buffer is detached or resized during iteration.
         var length = typedArray.Length;
         for (var k = 0; k < length; k++)
         {
-            if (typedArray.IsDetachedOrOutOfBounds())
-            {
-                throw typedArray.CreateOutOfBoundsTypeError();
-            }
-
-            if (k >= typedArray.Length)
-            {
-                break;
-            }
-
+            // If the buffer was resized and this index is now beyond bounds, use undefined.
+            // If the buffer was detached, GetValueForIndex returns undefined.
             var value = typedArray.GetValueForIndex(k);
             callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
         }

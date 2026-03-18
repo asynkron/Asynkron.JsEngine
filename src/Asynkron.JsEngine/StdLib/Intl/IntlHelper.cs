@@ -106,6 +106,16 @@ public static partial class IntlHelper
                 Configurable = true
             });
 
+        var pluralRulesCtor = IntlPluralRulesConstructor.CreateConstructor(realm);
+        intl.DefineProperty("PluralRules",
+            new PropertyDescriptor
+            {
+                Value = pluralRulesCtor,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
+            });
+
         // Register getCanonicalLocales and supportedValuesOf via source-generated registration
         RegisterHostFunctions(intl, realm);
 

@@ -490,23 +490,46 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
     }
 
     [Fact]
-    public async Task Debug_ZonedDateTime_WithPlainTime_Basic()
+    public async Task Debug_Duration_Add_OutOfRange3()
     {
+        // Test that (double)BigInteger gives correct IEEE 754 rounding
+        var bi = System.Numerics.BigInteger.Parse("9007199254740991926258");
+        var d = (double)bi;
+        output.WriteLine($"BigInteger: {bi}");
+        output.WriteLine($"(double)BigInteger: {d:R}");
+        output.WriteLine($"new BigInteger((double)BigInteger): {new System.Numerics.BigInteger(d)}");
+        output.WriteLine($"Expected nearest: 9007199254740992000000");
+
         await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
-            var zdt = Temporal.ZonedDateTime.from('2015-12-07T03:24:30.000003500[-08:00]');
-            var result = zdt.withPlainTime({ hour: 10 });
-            var expected = Temporal.ZonedDateTime.from('2015-12-07T10:00:00-08:00[-08:00]');
-            JSON.stringify({
-                resultEpoch: result.epochNanoseconds.toString(),
-                expectedEpoch: expected.epochNanoseconds.toString(),
-                resultStr: result.toString(),
-                expectedStr: expected.toString(),
-                resultTz: result.timeZoneId,
-                expectedTz: expected.timeZoneId,
-                equals: result.equals(expected)
-            });
+            var one = Temporal.Duration.from({nanoseconds: 9.007199254740991e+24});
+            var two = Temporal.Duration.from({microseconds: 1_000_000});
+            var info = 'one.ns=' + one.nanoseconds + ' two.us=' + two.microseconds;
+            try {
+                var r = one.add(two);
+                info += ' result=' + r.toString() + ' r.us=' + r.microseconds + ' r.ns=' + r.nanoseconds;
+            } catch (e) {
+                info += ' error=' + e.constructor.name + ': ' + e.message;
+            }
+            info;
         ");
         output.WriteLine($"Result: {result}");
+        Assert.True(result?.ToString()?.Contains("error=RangeError"), $"Expected RangeError, got: {result}");
+    }
+
+    [Fact]
+    public async Task PlainMonthDay_From_ShortFormat()
+    {
+        await using var engine = CreateEngine();
+        // Both MM-DD and --MM-DD should be accepted
+        var r1 = await engine.Evaluate("Temporal.PlainMonthDay.from('01-15').day === 15");
+        Assert.Equal(true, r1);
+
+        var r2 = await engine.Evaluate("Temporal.PlainMonthDay.from('--01-15').day === 15");
+        Assert.Equal(true, r2);
+
+        // Check month
+        var r3 = await engine.Evaluate("Temporal.PlainMonthDay.from('01-15').monthCode");
+        Assert.Equal("M01", r3);
     }
 }

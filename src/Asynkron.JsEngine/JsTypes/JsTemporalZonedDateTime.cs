@@ -38,9 +38,20 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
         TimeZone = ResolveTimeZone(timeZoneId, out var fixedOffset);
         FixedOffset = fixedOffset;
 
-        // Determine timezone offset using DateTime (microsecond precision is sufficient for offset lookup)
-        var localDateTime = new DateTime(year, month, day, hour, minute, second, millisecond, microsecond);
-        var offset = FixedOffset ?? TimeZone.GetUtcOffset(localDateTime);
+        // Determine timezone offset — only create DateTime for non-fixed timezones
+        // (DateTime can't handle extreme years outside 1-9999)
+        TimeSpan offset;
+        if (FixedOffset.HasValue)
+        {
+            offset = FixedOffset.Value;
+        }
+        else
+        {
+            var localDateTime = new DateTime(
+                Math.Clamp(year, 1, 9999), month, day,
+                hour, minute, second, millisecond, microsecond);
+            offset = TimeZone.GetUtcOffset(localDateTime);
+        }
 
         // Compute epoch nanoseconds with full nanosecond precision
         var epochDays = IsoCalendarHelpers.DateToEpochDays(year, month, day);

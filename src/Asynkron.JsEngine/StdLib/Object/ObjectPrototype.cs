@@ -139,11 +139,30 @@ public sealed partial class ObjectPrototype
             return "RegExp";
         }
 
-        // Check for [[BooleanData]], [[NumberData]], [[StringData]] via __value__ property
-        // and prototype chain
+        // Check for [[BooleanData]], [[NumberData]], [[StringData]] via __value__ property.
+        // Determine the wrapper type by the type of the stored value itself,
+        // not the prototype chain. This handles Number.prototype, String.prototype, etc.
+        // which are themselves wrapper objects but sit at the root of their prototype chains.
         if (obj.GetOwnPropertyDescriptor("__value__") is { } valueDesc)
         {
-            // Determine which wrapper type by checking the prototype chain
+            var innerValue = valueDesc.JsValue;
+            if (innerValue.IsNumber)
+            {
+                return "Number";
+            }
+
+            if (innerValue.IsString)
+            {
+                return "String";
+            }
+
+            if (innerValue.IsBoolean)
+            {
+                return "Boolean";
+            }
+
+            // Fall through -- __value__ exists but is not a recognized wrapper type.
+            // Also check the prototype chain as a fallback for custom subtypes.
             var proto = obj.Prototype;
             while (proto is not null)
             {

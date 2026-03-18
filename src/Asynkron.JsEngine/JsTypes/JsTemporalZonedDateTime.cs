@@ -332,6 +332,27 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
         if (parsed is not null)
         {
             timeZoneId ??= TimeZoneInfo.Local.Id;
+
+            // If no explicit offset in the string, the parsed instant represents local time
+            // in the given timezone — we need to subtract the timezone offset to get UTC
+            if (!HasExplicitOffset(remaining))
+            {
+                var tz = ResolveTimeZone(timeZoneId, out var fixedOff);
+                TimeSpan tzOffset;
+                if (fixedOff.HasValue)
+                {
+                    tzOffset = fixedOff.Value;
+                }
+                else
+                {
+                    // Use the parsed instant as approximate local time to determine offset
+                    var approxLocal = parsed.ToDateTimeOffset().DateTime;
+                    tzOffset = tz.GetUtcOffset(approxLocal);
+                }
+                var offsetNanosTz = tzOffset.Ticks * 100L;
+                parsed = JsTemporalInstant.FromEpochNanoseconds(parsed.EpochNanoseconds - offsetNanosTz);
+            }
+
             return new JsTemporalZonedDateTime(parsed, timeZoneId, calendar);
         }
 
@@ -496,6 +517,33 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
         }
 
         return sign * ((long)hours * 3_600_000_000_000L + (long)minutes * 60_000_000_000L);
+    }
+
+    /// <summary>
+    ///     Checks if an ISO datetime string has an explicit UTC offset (Z, +HH:MM, -HH:MM, etc.).
+    /// </summary>
+    private static bool HasExplicitOffset(string str)
+    {
+        // Check for trailing Z/z
+        if (str.Length > 0 && (str[^1] == 'Z' || str[^1] == 'z'))
+            return true;
+
+        // Find the T separator
+        var tIdx = str.IndexOf('T');
+        if (tIdx < 0)
+            return false;
+
+        var timePart = str[(tIdx + 1)..];
+
+        // Look for +/- followed by digits in the time part (offset indicator)
+        for (var i = timePart.Length - 1; i >= 2; i--)
+        {
+            if ((timePart[i] == '+' || timePart[i] == '-') &&
+                i + 1 < timePart.Length && char.IsDigit(timePart[i + 1]))
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>

@@ -488,4 +488,25 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
         output.WriteLine($"Result: {result}");
         Assert.Equal("2021-7-26", result);
     }
+
+    [Fact]
+    public async Task Debug_ZonedDateTime_WithPlainTime_Basic()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            var zdt = Temporal.ZonedDateTime.from('2015-12-07T03:24:30.000003500[-08:00]');
+            var result = zdt.withPlainTime({ hour: 10 });
+            var expected = Temporal.ZonedDateTime.from('2015-12-07T10:00:00-08:00[-08:00]');
+            JSON.stringify({
+                resultEpoch: result.epochNanoseconds.toString(),
+                expectedEpoch: expected.epochNanoseconds.toString(),
+                resultStr: result.toString(),
+                expectedStr: expected.toString(),
+                resultTz: result.timeZoneId,
+                expectedTz: expected.timeZoneId,
+                equals: result.equals(expected)
+            });
+        ");
+        output.WriteLine($"Result: {result}");
+    }
 }

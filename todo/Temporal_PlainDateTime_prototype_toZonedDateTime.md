@@ -1,53 +1,8 @@
 # Temporal_PlainDateTime_prototype_toZonedDateTime
 
+Status: 40/66 passing (26 remaining = disambiguation, DST, operation ordering, intl402 timezone features)
+
 FQNs:
 
 - `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime`
 - `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDateTime_prototype_toZonedDateTime`
-
-Full test name:
-
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/disambiguation-invalid-string.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/disambiguation-invalid-string.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/disambiguation-wrong-type.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/disambiguation-wrong-type.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/fixed-offset-near-date-time-limits.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/fixed-offset-near-date-time-limits.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/invalid-instant.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/invalid-instant.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/negative-year.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/negative-year.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/options-wrong-type.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/options-wrong-type.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/order-of-operations.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/order-of-operations.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/plain-date-time-near-limits.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/plain-date-time-near-limits.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/timezone-case-insensitive.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/timezone-case-insensitive.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/timezone-string-datetime.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/timezone-string-datetime.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/timezone-string-leap-second.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/timezone-string-leap-second.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/timezone-string-multiple-offsets.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/timezone-string-multiple-offsets.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/timezone-string-year-zero.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/timezone-string-year-zero.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/timezone-wrong-type.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/timezone-wrong-type.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/two-digit-year.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/two-digit-year.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/year-zero.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_toZonedDateTime("built-ins/Temporal/PlainDateTime/prototype/toZonedDateTime/year-zero.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDateTime_prototype_toZonedDateTime("intl402/Temporal/PlainDateTime/prototype/toZonedDateTime/disambiguation-undefined.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDateTime_prototype_toZonedDateTime("intl402/Temporal/PlainDateTime/prototype/toZonedDateTime/disambiguation-undefined.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDateTime_prototype_toZonedDateTime("intl402/Temporal/PlainDateTime/prototype/toZonedDateTime/dst-disambiguation.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDateTime_prototype_toZonedDateTime("intl402/Temporal/PlainDateTime/prototype/toZonedDateTime/dst-disambiguation.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDateTime_prototype_toZonedDateTime("intl402/Temporal/PlainDateTime/prototype/toZonedDateTime/multiple-instants.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDateTime_prototype_toZonedDateTime("intl402/Temporal/PlainDateTime/prototype/toZonedDateTime/multiple-instants.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDateTime_prototype_toZonedDateTime("intl402/Temporal/PlainDateTime/prototype/toZonedDateTime/options-undefined.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDateTime_prototype_toZonedDateTime("intl402/Temporal/PlainDateTime/prototype/toZonedDateTime/options-undefined.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDateTime_prototype_toZonedDateTime("intl402/Temporal/PlainDateTime/prototype/toZonedDateTime/order-of-operations.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDateTime_prototype_toZonedDateTime("intl402/Temporal/PlainDateTime/prototype/toZonedDateTime/order-of-operations.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDateTime_prototype_toZonedDateTime("intl402/Temporal/PlainDateTime/prototype/toZonedDateTime/timezone-string-datetime.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDateTime_prototype_toZonedDateTime("intl402/Temporal/PlainDateTime/prototype/toZonedDateTime/timezone-string-datetime.js",True)

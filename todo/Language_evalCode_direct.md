@@ -5,6 +5,7 @@ FQN:
 
 Full test name:
 
+- Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/func-block-decl-eval-func-no-skip-param.js",False)
 - Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-a-eval-func-existing-block-fn-update.js",False)
 - Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-a-eval-func-existing-fn-update.js",False)
 - Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/func-if-decl-else-decl-a-eval-func-no-skip-param.js",False)
@@ -20,6 +21,8 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/func-if-stmt-else-decl-eval-func-existing-block-fn-update.js",False)
 - Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/func-if-stmt-else-decl-eval-func-existing-fn-update.js",False)
 - Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/func-if-stmt-else-decl-eval-func-no-skip-param.js",False)
+- Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/func-switch-case-eval-func-no-skip-param.js",False)
+- Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/func-switch-dflt-eval-func-no-skip-param.js",False)
 - Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-decl-a-eval-global-block-scoping.js",False)
 - Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-decl-a-eval-global-existing-block-fn-update.js",False)
 - Asynkron.JsEngine.Tests.Test262.AnnexBTests.Language_evalCode_direct("annexB/language/eval-code/direct/global-if-decl-else-decl-a-eval-global-existing-fn-update.js",False)

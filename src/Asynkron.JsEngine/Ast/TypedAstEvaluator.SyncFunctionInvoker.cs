@@ -870,6 +870,44 @@ public static partial class TypedAstEvaluator
                 _function.Source, _functionDescription, isBodyEnvironment: true);
             executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
 
+            // Per Annex B.3.3.1: compute names blocked from AnnexB function-scope hoisting.
+            // These are body-level lexical names, parameter names, and non-simple catch params.
+            {
+                var hoistPlanForBlocked = ((IAstCacheable<HoistPlan>)_function.Body).GetOrCreateCache();
+                var catchNamesForBlocked = hoistPlanForBlocked.CatchParameterNames;
+                var simpleCatchNamesForBlocked = hoistPlanForBlocked.SimpleCatchParameterNames;
+                if (!_isStrict && (bodyLexicalNames.Count > 0 || _parameterNames.Length > 0 ||
+                                   catchNamesForBlocked.Count > 0 || _argumentsObjectNeeded))
+                {
+                    var blockedNames =
+                        new HashSet<Symbol>(bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
+                    foreach (var pn in _parameterNames)
+                    {
+                        blockedNames.Add(pn);
+                    }
+
+                    // B.3.5: non-simple catch parameters (destructured) block AnnexB hoisting
+                    foreach (var cn in catchNamesForBlocked)
+                    {
+                        if (!simpleCatchNamesForBlocked.Contains(cn))
+                        {
+                            blockedNames.Add(cn);
+                        }
+                    }
+
+                    // Per spec step 22.f: when argumentsObjectNeeded, "arguments" blocks AnnexB
+                    if (_argumentsObjectNeeded)
+                    {
+                        blockedNames.Add(Symbol.Arguments);
+                    }
+
+                    if (blockedNames.Count > 0)
+                    {
+                        varEnvironment.SetAnnexBBlockedNames(blockedNames);
+                    }
+                }
+            }
+
             // Mark environment as default derived constructor for special argument forwarding per ES spec 15.7.14
             if (_function.IsDefaultDerivedConstructor)
             {

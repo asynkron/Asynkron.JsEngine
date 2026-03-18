@@ -358,22 +358,19 @@ public static partial class TypedAstEvaluator
                         }
                         else if (inBlockScope && !context.CurrentScope.IsStrict)
                         {
-                            // Per Annex B.3.3.3 step ii: "If replacing the FunctionDeclaration f with a
-                            // VariableStatement that has F as a BindingIdentifier would not produce any
-                            // Early Errors for body, then..." -- if the function name conflicts with a
-                            // lexical binding (let/const) in an outer scope, skip the var hoisting.
-                            // This check only applies to eval code (B.3.3.3), not regular scripts (B.3.3.1).
-                            if (context.ExecutionKind == ExecutionKind.Eval &&
-                                lexicalNames.Contains(functionDeclaration.Name))
+                            // Per Annex B.3.3.1/B.3.3.2/B.3.3.3: "If replacing the FunctionDeclaration f
+                            // with a VariableStatement that has F as a BindingIdentifier would not produce
+                            // any Early Errors for body/script, then..." -- if the function name conflicts
+                            // with a lexical binding (let/const) in an outer scope, skip the var hoisting.
+                            if (lexicalNames.Contains(functionDeclaration.Name))
                             {
                                 break;
                             }
 
                             // Annex B.3.5: If the catch parameter is not a simple identifier (e.g. destructuring),
                             // any var binding with the same name in the catch body would be an early error.
-                            // Per B.3.3.3, skip AnnexB var-style function hoisting in direct eval in that case.
-                            if (context.ExecutionKind == ExecutionKind.Eval &&
-                                catchParameterNames.Contains(functionDeclaration.Name) &&
+                            // Per B.3.3.1/B.3.3.2/B.3.3.3, skip AnnexB var-style function hoisting in that case.
+                            if (catchParameterNames.Contains(functionDeclaration.Name) &&
                                 !simpleCatchParameterNames.Contains(functionDeclaration.Name))
                             {
                                 break;

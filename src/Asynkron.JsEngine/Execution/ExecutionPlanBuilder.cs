@@ -222,6 +222,55 @@ internal sealed partial class ExecutionPlanBuilder
         var parameterNames = new List<Symbol>();
         function.CollectParameterNamesFromFunction(parameterNames);
         var hoistedFunctions = CollectHoistedFunctionSymbols(function.Body);
+
+        // Per Annex B.3.3.1/B.3.3.2: filter out block-scoped function names that conflict
+        // with parameter names (BoundNames of argumentsList), body-level lexical names,
+        // or non-simple catch parameters (B.3.5). These should NOT get var-scoped slots.
+        if (!function.Body.IsStrict && hoistedFunctions.Count > 0)
+        {
+            var hoistPlan = ((IAstCacheable<HoistPlan>)function.Body).GetOrCreateCache();
+            var bodyLexNames = hoistPlan.LexicalNames;
+            var simpleCatchNames = hoistPlan.SimpleCatchParameterNames;
+            var catchNames = hoistPlan.CatchParameterNames;
+            var blocked = new HashSet<Symbol>(bodyLexNames, ReferenceEqualityComparer<Symbol>.Instance);
+            blocked.ExceptWith(simpleCatchNames);
+            foreach (var pn in parameterNames)
+            {
+                blocked.Add(pn);
+            }
+
+            // B.3.5: non-simple catch parameters (destructured) block var hoisting
+            foreach (var cn in catchNames)
+            {
+                if (!simpleCatchNames.Contains(cn))
+                {
+                    blocked.Add(cn);
+                }
+            }
+
+            // Per spec FunctionDeclarationInstantiation step 22.f: when argumentsObjectNeeded
+            // is true, "arguments" is appended to parameterNames and blocks AnnexB hoisting.
+            if (!function.IsArrow)
+            {
+                var argumentsIsParam = parameterNames.Contains(Symbol.Arguments);
+                var argumentsInBodyLex = bodyLexNames.Contains(Symbol.Arguments) &&
+                                         !simpleCatchNames.Contains(Symbol.Arguments);
+                var hasParamExpressions = function.Parameters.Any(p =>
+                    p.DefaultValue is not null || p.Pattern is not null);
+                var canSkipForBodyDecl = !hasParamExpressions && argumentsInBodyLex;
+                var argumentsObjectNeeded = !argumentsIsParam && !canSkipForBodyDecl;
+                if (argumentsObjectNeeded)
+                {
+                    blocked.Add(Symbol.Arguments);
+                }
+            }
+
+            if (blocked.Count > 0)
+            {
+                hoistedFunctions.RemoveAll(name => blocked.Contains(name));
+            }
+        }
+
         var seedSlots = new List<Symbol>(_slotSymbols.Count + hoistedFunctions.Count + parameterNames.Count);
         var seen = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
 

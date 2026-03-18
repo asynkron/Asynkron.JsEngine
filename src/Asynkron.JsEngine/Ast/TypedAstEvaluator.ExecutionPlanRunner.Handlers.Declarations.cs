@@ -50,17 +50,29 @@ public static partial class TypedAstEvaluator
                 }
                 else
                 {
+                    var isBlocked = !ctx.CurrentScope.IsStrict &&
+                                    (environment.IsAnnexBBlocked(funcDecl.Name) ||
+                                     HasEnclosingLexicalBinding(environment.Enclosing, funcDecl.Name));
+
                     // Block-scoped: create lexical binding in the current block environment.
-                    environment.DefineJsValue(
-                        funcDecl.Name,
-                        fnValueJs,
-                        isLexicalBinding: true,
-                        blocksFunctionScopeOverride: true);
+                    // Per B.3.3.1/B.3.3.2: when AnnexB hoisting is blocked (parameter/lexical
+                    // conflict), only create the binding if we're in a real block environment,
+                    // not the function body environment. In if-branches without an explicit block,
+                    // the function declaration runs in the body environment -- skip the binding
+                    // to avoid shadowing the parameter/lexical.
+                    if (!isBlocked || !environment.IsBodyEnvironment)
+                    {
+                        environment.DefineJsValue(
+                            funcDecl.Name,
+                            fnValueJs,
+                            isLexicalBinding: true,
+                            blocksFunctionScopeOverride: true);
+                    }
 
                     // For hoisted functions in sloppy mode, also update the function-scope binding.
                     // This implements Annex B semantics where block-scoped functions also
                     // update the outer function-scope binding.
-                    if (!ctx.CurrentScope.IsStrict)
+                    if (!isBlocked)
                     {
                         if (TryFindEnclosingNonLexicalBindingEnvironment(environment.Enclosing, funcDecl.Name,
                                 out var bindingEnvironment))
@@ -94,6 +106,37 @@ public static partial class TypedAstEvaluator
                 }
 
                 bindingEnvironment = null!;
+                return false;
+            }
+
+            /// <summary>
+            /// Checks if there's a non-catch lexical binding for the name in any enclosing
+            /// scope between the current environment and the function scope. This implements
+            /// the "would produce early errors" check for Annex B.3.3.
+            /// Per B.3.5, simple catch parameters do not block var hoisting.
+            /// Only block-level lexical bindings (let/const/class/function declarations with
+            /// BlocksFunctionScopeOverride) are checked. Catch parameter bindings (which also
+            /// have IsLexical but NOT BlocksFunctionScopeOverride) are excluded.
+            /// </summary>
+            static bool HasEnclosingLexicalBinding(JsEnvironment? start, Symbol name)
+            {
+                var current = start;
+                while (current is not null)
+                {
+                    if (current.IsFunctionScope)
+                    {
+                        break;
+                    }
+
+                    ref var slot = ref current.TryGetSlotRef(name);
+                    if (!Unsafe.IsNullRef(ref slot) && slot.IsLexical && slot.BlocksFunctionScopeOverride)
+                    {
+                        return true;
+                    }
+
+                    current = current.Enclosing;
+                }
+
                 return false;
             }
         }

@@ -38,12 +38,35 @@ public static partial class TypedAstEvaluator
 
             var parameterNames = ((IAstCacheable<FunctionParameterNamesPlan>)_function).GetOrCreateCache()
                 .ParameterNames;
+            var catchParameterNamesRaw = hoistPlan.CatchParameterNames;
             var blockedFunctionVarNames = bodyLexicalNames.Count == 0
                 ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
                 : new HashSet<Symbol>(bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
             foreach (var parameterName in parameterNames)
             {
                 blockedFunctionVarNames.Add(parameterName);
+            }
+
+            // B.3.5: non-simple catch parameters (destructured) block AnnexB hoisting
+            foreach (var cn in catchParameterNamesRaw)
+            {
+                if (!simpleCatchParameterNames.Contains(cn))
+                {
+                    blockedFunctionVarNames.Add(cn);
+                }
+            }
+
+            // Per spec step 22.f: when argumentsObjectNeeded, "arguments" blocks AnnexB hoisting
+            {
+                var argumentsIsParam = parameterNames.Contains(Symbol.Arguments);
+                var argumentsInBodyLex = bodyLexicalNames.Contains(Symbol.Arguments) &&
+                                         !simpleCatchParameterNames.Contains(Symbol.Arguments);
+                var canSkipForBodyDecl = !hasParameterExpressions && argumentsInBodyLex;
+                var argumentsObjectNeeded = !argumentsIsParam && !canSkipForBodyDecl;
+                if (argumentsObjectNeeded)
+                {
+                    blockedFunctionVarNames.Add(Symbol.Arguments);
+                }
             }
 
             JsEnvironment parameterEnvironment;
@@ -67,6 +90,13 @@ public static partial class TypedAstEvaluator
             var executionEnvironment = JsEnvironment.CreateInstance(varEnvironment, false, _isStrict,
                 _function.Source, description, isBodyEnvironment: true);
             executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
+
+            // Store names that block Annex B.3.3 function-scope hoisting so runtime
+            // HandleFunctionDeclaration can skip the var-binding update for these names.
+            if (blockedFunctionVarNames.Count > 0 && !_isStrict)
+            {
+                varEnvironment.SetAnnexBBlockedNames(blockedFunctionVarNames);
+            }
 
             // Initialize slots for generator-internal variables (iterator states, values, etc.) FIRST.
             // This must happen BEFORE hoisting lexical bindings because the IR uses 0-based slot indices.

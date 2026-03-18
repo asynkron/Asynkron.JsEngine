@@ -663,7 +663,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
         // Canonical numeric index strings that are not valid integer indices
         // (e.g. "-0", "-1") always return false (define fails silently).
-        if (IsCanonicalNumericIndexString(name))
+        if (TryCanonicalNumericIndex(name, out _))
         {
             return false;
         }

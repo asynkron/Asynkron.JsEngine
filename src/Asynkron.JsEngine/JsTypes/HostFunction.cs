@@ -64,6 +64,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
     }
 
     internal bool IsBoundFunction { get; set; }
+    internal IJsCallable? BoundTargetFunction { get; set; }
 
     /// <summary>
     ///     Optional realm/global object that owns this host function. Used for
@@ -131,11 +132,6 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
     /// </summary>
     public string? ConstructErrorMessage { get; set; }
 
-    /// <summary>
-    ///     When true, this constructor handles newTarget and prototype resolution
-    ///     internally via its InvokeWithContext handler. Reflect.construct should
-    ///     NOT pre-resolve the prototype before calling it.
-    /// </summary>
     public bool HandlesConstructInternally { get; set; }
 
     internal JsObject Properties { get; }
@@ -428,15 +424,29 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
             var finalArgs = Combine(boundArgs, innerArgs);
             return target.Invoke(finalArgs, boundThis);
         }, realmState, false)
-        { IsBoundFunction = true, IsConstructor = targetIsConstructor };
+        { IsBoundFunction = true, IsConstructor = targetIsConstructor, BoundTargetFunction = target };
 
         // ES spec: Set the bound function's length and name properties
         // length = max(0, target.length - boundArgs.length)
         double targetLength = 0;
-        if (target is IJsPropertyAccessor targetAccessor &&
-            targetAccessor.TryGetProperty("length", out var lenVal) && lenVal.IsNumber)
+        if (target is IJsPropertyAccessor targetAccessor)
         {
-            targetLength = lenVal.NumberValue;
+            var ownLength = targetAccessor.GetOwnPropertyDescriptor("length");
+            if (ownLength is { HasValue: true })
+            {
+                var lenVal = ownLength.JsValue;
+                if (lenVal.IsNumber)
+                {
+                    var numericLength = lenVal.NumberValue;
+                    var integerLength =
+                        double.IsNaN(numericLength) || numericLength == 0
+                            ? 0
+                            : double.IsInfinity(numericLength)
+                                ? numericLength
+                                : Math.Truncate(numericLength);
+                    targetLength = Math.Max(0, integerLength);
+                }
+            }
         }
 
         var boundLength = Math.Max(0, targetLength - boundArgs.Count);

@@ -60,6 +60,7 @@ public static partial class TypedAstEvaluator
         private bool _isConstructorEnabled;
         private bool _isDerivedClassConstructor;
         private JsObject? _prototypeObject;
+        private Parser.SourceReference? _sourceReferenceOverride;
         private IJsEnvironmentAwareCallable? _superConstructor;
         private IJsPropertyAccessor? _superPrototype;
 
@@ -278,6 +279,7 @@ public static partial class TypedAstEvaluator
 
         public bool IsArrowFunction { get; }
         public RealmState RealmState { get; }
+        public Parser.SourceReference? SourceReference => _sourceReferenceOverride ?? _function.Source;
 
         public bool IsExtensible => _properties.IsExtensible;
 
@@ -327,6 +329,11 @@ public static partial class TypedAstEvaluator
                 });
         }
 
+        internal void SetSourceReference(Parser.SourceReference? sourceReference)
+        {
+            _sourceReferenceOverride = sourceReference;
+        }
+
         public JsEnvironment? CallingJsEnvironment { get; set; }
 
         public JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
@@ -363,19 +370,19 @@ public static partial class TypedAstEvaluator
 
         public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
         {
-            // Arrow functions, async functions, and non-constructor functions should not have a "prototype" property
-            // Per ES spec: Arrow functions and async functions are not constructors and don't have prototype property
+            if (_properties.TryGetProperty(name, receiver.IsUndefined ? _cachedJsValue : receiver,
+                    out value))
+            {
+                return true;
+            }
+
+            // Arrow functions, async functions, and non-constructor functions do not expose
+            // a default "prototype" property, but an explicitly defined own property must still win.
             if (string.Equals(name, "prototype", StringComparison.Ordinal) &&
                 (IsArrowFunction || IsAsyncFunction || _wasAsyncFunction || !_isConstructorEnabled))
             {
                 value = JsValue.Undefined;
                 return false;
-            }
-
-            if (_properties.TryGetProperty(name, receiver.IsUndefined ? _cachedJsValue : receiver,
-                    out value))
-            {
-                return true;
             }
 
             // Provide minimal Function.prototype-style helpers for typed
@@ -625,6 +632,7 @@ public static partial class TypedAstEvaluator
             JsValue newTarget)
         {
             var context = RealmState.RentContext(pushScope: false);
+            var constructErrorRealm = callingContext?.RealmState ?? context.RealmState;
             context.AllowIdentifierCache = _allowIdentifierCache;
             RealmState.Logger?.LogInformation(
                 "InvokeWithContext enter func={Function} isAsync={IsAsync} wasAsync={WasAsync}",
@@ -1320,7 +1328,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                             {
                                 // If `this` is uninitialized (e.g., derived ctor without super()), surface a JS ReferenceError.
                                 var errorObject =
-                                    StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
+                                    StandardLibrary.CreateReferenceError(ex.Message, context, constructErrorRealm);
                                 throw new ThrowSignal(errorObject);
                             }
                             catch (ThrowSignal signal) when (_isDerivedClassConstructor &&
@@ -1330,7 +1338,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                                 var errorObject = StandardLibrary.CreateReferenceError(
                                     "ReferenceError: this is not defined - must call super() in derived class constructor",
                                     context,
-                                    context.RealmState);
+                                    constructErrorRealm);
                                 throw new ThrowSignal(errorObject);
                             }
 
@@ -1351,7 +1359,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                                 throw StandardLibrary.ThrowTypeError(
                                     "Derived constructors may only return object or undefined",
                                     context,
-                                    context.RealmState);
+                                    constructErrorRealm);
                             }
 
                             try
@@ -1375,7 +1383,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                                     var errorObject = StandardLibrary.CreateReferenceError(
                                         "ReferenceError: this is not defined - must call super() in derived class constructor",
                                         context,
-                                        context.RealmState);
+                                        constructErrorRealm);
                                     throw new ThrowSignal(errorObject);
                                 }
                             }
@@ -1389,7 +1397,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                                 if (_isDerivedClassConstructor)
                                 {
                                     var errorObject =
-                                        StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
+                                        StandardLibrary.CreateReferenceError(ex.Message, context, constructErrorRealm);
                                     throw new ThrowSignal(errorObject);
                                 }
 
@@ -1404,7 +1412,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                                 var errorObject = StandardLibrary.CreateReferenceError(
                                     "ReferenceError: this is not defined - must call super() in derived class constructor",
                                     context,
-                                    context.RealmState);
+                                    constructErrorRealm);
                                 throw new ThrowSignal(errorObject);
                             }
                         }

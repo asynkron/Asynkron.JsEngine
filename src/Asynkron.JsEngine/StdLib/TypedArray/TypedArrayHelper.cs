@@ -300,92 +300,42 @@ public static class TypedArrayHelper
                 return 0;
             }
 
-            // TypedArray(object) -- iterable or array-like
-            if (firstArg.TryGetObject<IJsPropertyAccessor>(out var objAccessor))
+            // 2. Let integerIndex be ? ToIntegerOrInfinity(value)
+            // ToIntegerOrInfinity: ToNumber then truncate
+            var number = JsOps.ToNumber(value);
+            double integerIndex;
+            if (double.IsNaN(number))
             {
-                // Check for iterable: if object[@@iterator] is not undefined
-                var iteratorKey = SymbolKeys.Iterator;
-                if (objAccessor.TryGetProperty(iteratorKey, out var iteratorMethodVal) &&
-                    !iteratorMethodVal.IsUndefined && !iteratorMethodVal.IsNull)
-                {
-                    if (!iteratorMethodVal.TryGetObject<IJsCallable>(out var iteratorCallable))
-                    {
-                        throw ThrowTypeError("iterator is not callable", realm: realm);
-                    }
-
-                    // Collect values from the iterator
-                    var iteratorObj = iteratorCallable.Invoke([], firstArg);
-                    if (!iteratorObj.TryGetObject<IJsPropertyAccessor>(out var iteratorAccessor))
-                    {
-                        throw ThrowTypeError("Iterator did not return an object", realm: realm);
-                    }
-
-                    if (!iteratorAccessor.TryGetProperty("next", out var nextVal) ||
-                        !nextVal.TryGetObject<IJsCallable>(out var nextCallable))
-                    {
-                        throw ThrowTypeError("Iterator does not have a next method", realm: realm);
-                    }
-
-                    var collected = new List<JsValue>();
-                    while (true)
-                    {
-                        var nextResult = nextCallable.Invoke([], iteratorObj);
-                        if (!nextResult.TryGetObject<IJsPropertyAccessor>(out var nextResultAccessor))
-                        {
-                            throw ThrowTypeError("Iterator result is not an object", realm: realm);
-                        }
-
-                        var done = nextResultAccessor.TryGetProperty("done", out var doneVal) &&
-                                   JsOps.ToBoolean(doneVal);
-                        if (done)
-                        {
-                            break;
-                        }
-
-                        var value = nextResultAccessor.TryGetProperty("value", out var valueVal)
-                            ? valueVal
-                            : JsValue.Undefined;
-                        collected.Add(value);
-                    }
-
-                    var ta = CreateTargetFromLength(collected.Count, newTarget);
-                    for (var i = 0; i < collected.Count; i++)
-                    {
-                        ta.SetValue(i, collected[i]);
-                    }
-
-                    return ta;
-                }
-
-                // Array-like path: read "length" and iterate
-                if (objAccessor.TryGetProperty("length", out var lengthVal))
-                {
-                    var context = realm.CreateContext();
-                    var lenNumber = JsOps.ToNumber(lengthVal, context);
-                    if (context?.IsThrow == true)
-                    {
-                        throw new ThrowSignal(context.FlowValue);
-                    }
-
-                    var length = double.IsNaN(lenNumber) || lenNumber < 0
-                        ? 0
-                        : (int)Math.Min(lenNumber, int.MaxValue);
-
-                    var ta = CreateTargetFromLength(length, newTarget);
-                    for (var i = 0; i < length; i++)
-                    {
-                        var key = i.ToString(CultureInfo.InvariantCulture);
-                        var hasElement = objAccessor.TryGetProperty(key, out var element);
-                        // Per spec step 8c: Perform ? Set(O, Pk, kValue, true).
-                        // This must throw if the value coercion fails.
-                        ta.SetValue(i, hasElement ? element : JsValue.Undefined);
-                    }
-
-                    return ta;
-                }
+                integerIndex = 0;
+            }
+            else if (number == 0 || double.IsInfinity(number))
+            {
+                integerIndex = number;
+            }
+            else
+            {
+                integerIndex = Math.Truncate(number);
             }
 
-            return CreateTargetFromLength(0, newTarget);
+            // 3. If integerIndex < 0, throw a RangeError exception
+            if (integerIndex < 0)
+            {
+                throw ThrowRangeError("Invalid typed array length", realm: realm);
+            }
+
+            // 4. Let index = ToLength(integerIndex) = min(max(integerIndex, 0), 2^53 - 1)
+            const double maxSafeInteger = 9007199254740991d; // 2^53 - 1
+            var index = Math.Min(integerIndex, maxSafeInteger);
+
+            // 5. If SameValue(integerIndex, index) is false, throw a RangeError
+            // This catches Infinity: ToLength(Infinity) = 2^53-1, but SameValue(Infinity, 2^53-1) is false
+            // ReSharper disable once CompareOfFloatsByEqualityOperator
+            if (integerIndex != index)
+            {
+                throw ThrowRangeError("Invalid typed array length", realm: realm);
+            }
+
+            return (int)Math.Min(index, int.MaxValue);
         }
     }
 

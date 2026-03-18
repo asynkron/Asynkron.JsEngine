@@ -55,6 +55,7 @@ public static partial class TypedAstEvaluator
         public bool IsArrowFunction => false;
         public bool DisallowConstruct => true;
         public RealmState RealmState { get; } = realmState;
+        public SourceReference? SourceReference => _function.Source;
 
         public bool IsExtensible => _properties.IsExtensible;
 

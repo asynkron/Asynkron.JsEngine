@@ -1307,6 +1307,17 @@ internal static class JsOps
         };
     }
 
+    [MethodImpl(JsEngineConstants.Inlining)]
+    public static bool IsCallable(JsValue value)
+    {
+        return value.ObjectValue switch
+        {
+            JsProxy proxy => proxy.IsCallableTarget(),
+            IJsCallable => true,
+            _ => false
+        };
+    }
+
     public static string GetRequiredPropertyName(JsValue value, EvaluationContext? context = null)
     {
         var name = ToPropertyName(value, context);

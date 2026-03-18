@@ -17,12 +17,30 @@ public sealed partial class FunctionPrototype
     [JsHostMethod("toString", Length = 0d)]
     private static JsValue ToString(JsValue thisValue)
     {
-        if (thisValue.TryGetObject<IJsCallable>(out _))
+        if (thisValue.TryGetObject<ICallableMetadata>(out var metadata) &&
+            metadata.SourceReference?.GetText() is { Length: > 0 } sourceText)
+        {
+            return new JsValue(sourceText);
+        }
+
+        var isCallable = thisValue.ObjectValue switch
+        {
+            JsProxy proxy => proxy.IsCallableTarget(),
+            IJsCallable => true,
+            _ => false
+        };
+
+        if (isCallable)
         {
             return new JsValue("function() { [native code] }");
         }
 
-        return new JsValue("function undefined() { [native code] }");
+        var realm = thisValue.TryGetObject<ICallableMetadata>(out var callableMetadata)
+            ? callableMetadata.RealmState
+            : thisValue.TryGetObject<JsObject>(out var obj)
+                ? obj.RealmState
+                : null;
+        throw ThrowTypeError("Function.prototype.toString called on incompatible receiver", realm: realm);
     }
 
     [JsHostMethod("call", Length = 1d)]
@@ -97,9 +115,14 @@ public sealed partial class FunctionPrototype
     [JsSymbolMethod("hasInstance", Length = 1d, Writable = false, Configurable = false)]
     private JsValue HasInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        if (!thisValue.TryGetObject<IJsPropertyAccessor>(out _))
+        if (!JsOps.IsCallable(thisValue))
         {
-            throw ThrowTypeError("Function.prototype[@@hasInstance] called on non-object", realm: Realm);
+            return new JsValue(false);
+        }
+
+        if (thisValue.ObjectValue is HostFunction { IsBoundFunction: true, BoundTargetFunction: { } boundTarget })
+        {
+            return HasInstance(JsValue.FromObjectUnsafe((object)boundTarget), args);
         }
 
         var candidate = args.GetArgument(0);

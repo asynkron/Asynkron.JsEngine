@@ -108,9 +108,9 @@ public sealed class JsAstParser(
 
             if (Check(TokenType.Async) && CheckAheadOnSameLine(TokenType.Function))
             {
-                _ = Advance(); /*asyncToken*/
+                var asyncToken = Advance();
                 var functionToken = Advance();
-                return ParseFunctionDeclaration(true, functionToken);
+                return ParseFunctionDeclaration(true, asyncToken);
             }
 
             if (Match(TokenType.Function))
@@ -784,8 +784,11 @@ public sealed class JsAstParser(
             }
 
             Consume(TokenType.RightBrace, "Expected '}' after class body.");
-            var ctor = constructor ?? CreateDefaultConstructor(className, extendsExpression is not null);
             var sourceReference = CreateSourceReference(classToken);
+            var ctor = (constructor ?? CreateDefaultConstructor(className, extendsExpression is not null)) with
+            {
+                Source = sourceReference
+            };
             return new ClassDefinition(sourceReference, extendsExpression, ctor, members, fields, staticBlocks,
                 staticElements);
         }
@@ -855,7 +858,7 @@ public sealed class JsAstParser(
 
                     if (Check(TokenType.LeftParen))
                     {
-                        var function = ParseClassMethod(null, fieldToken, false, false);
+                        var function = ParseClassMethod(null, CreateSourceReference(fieldToken), false, false);
                         members.Add(new ClassMember(CreateSourceReference(fieldToken), ClassMemberKind.Method,
                             privateLexeme, function, isStatic, IsPrivate: true));
                         continue;
@@ -920,7 +923,8 @@ public sealed class JsAstParser(
                         Consume(TokenType.LeftParen, "Expected '(' after getter name.");
                         Consume(TokenType.RightParen, "Expected ')' after getter parameters.");
                         var body = ParseBlock();
-                        var function = new FunctionExpression(body.Source ?? CreateSourceReference(methodNameToken),
+                        var functionSource = CreateSourceReference(accessorToken);
+                        var function = new FunctionExpression(functionSource ?? body.Source ?? CreateSourceReference(methodNameToken),
                             null,
                             ImmutableArray<FunctionParameter>.Empty, body, false, false);
                         members.Add(new ClassMember(CreateSourceReference(methodNameToken), ClassMemberKind.Getter,
@@ -933,7 +937,8 @@ public sealed class JsAstParser(
                         var setterParameters = ParseSetterParameters();
                         Consume(TokenType.RightParen, "Expected ')' after setter parameter.");
                         var body = ParseBlock();
-                        var function = new FunctionExpression(body.Source ?? CreateSourceReference(methodNameToken),
+                        var functionSource = CreateSourceReference(accessorToken);
+                        var function = new FunctionExpression(functionSource ?? body.Source ?? CreateSourceReference(methodNameToken),
                             null,
                             setterParameters, body, false, false);
                         members.Add(new ClassMember(CreateSourceReference(methodNameToken), ClassMemberKind.Setter,
@@ -947,7 +952,7 @@ public sealed class JsAstParser(
                 if (IsAsyncToken())
                 {
                     var checkpoint = _current;
-                    Advance(); // async
+                    var asyncToken = Advance(); // async
                     var isAsyncGeneratorMethod = Match(TokenType.Star);
 
                     if (IsPropertyNameToken(Peek()) || Check(TokenType.LeftBracket))
@@ -990,7 +995,7 @@ public sealed class JsAstParser(
                                     source);
                             }
 
-                            var function = ParseClassMethod(null, asyncMethodNameToken, isAsyncGeneratorMethod, true);
+                            var function = ParseClassMethod(null, CreateSourceReference(asyncToken), isAsyncGeneratorMethod, true);
                             members.Add(new ClassMember(CreateSourceReference(asyncMethodNameToken),
                                 ClassMemberKind.Method, asyncMethodName, function, isStatic,
                                 computedName is not null, computedName, isPrivateAsyncMethod));
@@ -1004,10 +1009,11 @@ public sealed class JsAstParser(
                 }
 
                 var isGeneratorMethod = Match(TokenType.Star);
+                var generatorMethodSource = isGeneratorMethod ? CreateSourceReference(Previous()) : null;
 
                 if (Check(TokenType.LeftBracket))
                 {
-                    Advance(); // [
+                    var computedStartToken = Advance(); // [
                     var nameExpression = ParseComputedPropertyNameExpression();
                     var closing = Consume(TokenType.RightBracket, "Expected ']' after computed property name.");
                     var hasInitializer = Match(TokenType.Equal);
@@ -1039,7 +1045,9 @@ public sealed class JsAstParser(
                         continue;
                     }
 
-                    var function = ParseClassMethod(null, closing, isGeneratorMethod, false);
+                    var function = ParseClassMethod(null,
+                        generatorMethodSource ?? CreateSourceReference(computedStartToken),
+                        isGeneratorMethod, false);
                     members.Add(new ClassMember(CreateSourceReference(closing), ClassMemberKind.Method, string.Empty,
                         function, isStatic, true, nameExpression));
                     continue;
@@ -1092,11 +1100,13 @@ public sealed class JsAstParser(
                             throw new ParseException("Constructor cannot be a generator.", methodNameToken, source);
                         }
 
-                        constructor = ParseClassMethod(className, methodNameToken, false, false);
+                        constructor = ParseClassMethod(className, CreateSourceReference(methodNameToken), false, false);
                     }
                     else
                     {
-                        var function = ParseClassMethod(null, methodNameToken, isGeneratorMethod, false);
+                        var function = ParseClassMethod(null,
+                            generatorMethodSource ?? CreateSourceReference(methodNameToken),
+                            isGeneratorMethod, false);
                         members.Add(new ClassMember(CreateSourceReference(methodNameToken), ClassMemberKind.Method,
                             methodName, function, isStatic, IsPrivate: isPrivateMethod));
                     }
@@ -1126,7 +1136,7 @@ public sealed class JsAstParser(
             return expression;
         }
 
-        private FunctionExpression ParseClassMethod(Symbol? functionName, Token methodNameToken, bool isGenerator,
+        private FunctionExpression ParseClassMethod(Symbol? functionName, SourceReference? startSource, bool isGenerator,
             bool isAsync)
         {
             Consume(TokenType.LeftParen, "Expected '(' after method name.");
@@ -1134,7 +1144,7 @@ public sealed class JsAstParser(
             var parameters = ParseParameterList();
             Consume(TokenType.RightParen, "Expected ')' after method parameters.");
             var body = ParseBlock();
-            var sourceReference = body.Source ?? CreateSourceReference(methodNameToken);
+            var sourceReference = CreateSourceReferenceFromStart(startSource) ?? body.Source;
             return new FunctionExpression(sourceReference, functionName, parameters, body, isAsync, isGenerator,
                 WasAsync: isAsync);
         }
@@ -1383,9 +1393,9 @@ public sealed class JsAstParser(
             {
                 if (Check(TokenType.Async) && CheckAheadOnSameLine(TokenType.Function))
                 {
-                    Advance(); // async
+                    var asyncToken = Advance(); // async
                     var functionToken = Advance(); // function
-                    return ParseExportDefaultFunction(CreateSourceReference(keyword), functionToken, true);
+                    return ParseExportDefaultFunction(CreateSourceReference(keyword), functionToken, true, asyncToken);
                 }
 
                 if (Check(TokenType.At))
@@ -1465,9 +1475,9 @@ public sealed class JsAstParser(
 
             if (Check(TokenType.Async) && CheckAheadOnSameLine(TokenType.Function))
             {
-                _ = Advance(); /*asyncToken*/
+                var asyncToken = Advance();
                 var functionToken = Advance();
-                var declaration = ParseFunctionDeclaration(true, functionToken);
+                var declaration = ParseFunctionDeclaration(true, asyncToken);
                 return new ExportDeclarationStatement(CreateSourceReference(keyword), declaration);
             }
 
@@ -1552,7 +1562,7 @@ public sealed class JsAstParser(
         }
 
         private ExportDefaultStatement ParseExportDefaultFunction(SourceReference? exportSource, Token functionToken,
-            bool isAsync)
+            bool isAsync, Token? startTokenOverride = null)
         {
             var isGenerator = Match(TokenType.Star);
             Symbol? name = null;
@@ -1562,7 +1572,7 @@ public sealed class JsAstParser(
                 name = Symbol.Intern(nameToken.Lexeme);
             }
 
-            var function = ParseFunctionTail(name, functionToken, isAsync, isGenerator);
+            var function = ParseFunctionTail(name, startTokenOverride ?? functionToken, isAsync, isGenerator);
             if (name is not null)
             {
                 var declaration = new FunctionDeclaration(function.Source ?? CreateSourceReference(functionToken), name,
@@ -2547,7 +2557,7 @@ public sealed class JsAstParser(
                 if (Check(TokenType.Function) && Peek().Line == asyncToken.Line)
                 {
                     Advance(); // function
-                    var asyncFunction = ParseFunctionExpression(isAsync: true);
+                    var asyncFunction = ParseFunctionExpression(isAsync: true, startTokenOverride: asyncToken);
                     return ApplyCallSuffix(asyncFunction, allowCallSuffix);
                 }
 
@@ -2905,7 +2915,7 @@ public sealed class JsAstParser(
                 if (IsAsyncToken())
                 {
                     var checkpoint = _current;
-                    Advance(); // async
+                    var asyncToken = Advance(); // async
                     var isAsyncGeneratorMethod = Match(TokenType.Star);
                     if (Check(TokenType.Colon))
                     {
@@ -2921,7 +2931,8 @@ public sealed class JsAstParser(
                             var parameters = ParseParameterList();
                             Consume(TokenType.RightParen, "Expected ')' after method parameters.");
                             var body = ParseBlock();
-                            var asyncMethod = new FunctionExpression(body.Source ?? asyncKeySource, null, parameters,
+                            var asyncMethodSource = CreateSourceReference(asyncToken);
+                            var asyncMethod = new FunctionExpression(asyncMethodSource ?? body.Source ?? asyncKeySource, null, parameters,
                                 body,
                                 true, isAsyncGeneratorMethod, WasAsync: true);
                             members.Add(new ObjectMember(asyncMethod.Source ?? asyncKeySource, ObjectMemberKind.Method,
@@ -2936,12 +2947,13 @@ public sealed class JsAstParser(
 
                 if (Check(TokenType.Get) && !IsGetOrSetPropertyName())
                 {
-                    Advance(); // get
+                    var getterToken = Advance(); // get
                     var (getterKey, getterIsComputed, getterKeySource) = ParseObjectPropertyKey();
                     Consume(TokenType.LeftParen, "Expected '(' after getter name.");
                     Consume(TokenType.RightParen, "Expected ')' after getter parameters.");
                     var body = ParseBlock();
-                    var function = new FunctionExpression(body.Source ?? getterKeySource, null,
+                    var functionSource = CreateSourceReference(getterToken);
+                    var function = new FunctionExpression(functionSource ?? body.Source ?? getterKeySource, null,
                         ImmutableArray<FunctionParameter>.Empty, body, false, false);
                     members.Add(new ObjectMember(function.Source ?? getterKeySource, ObjectMemberKind.Getter, getterKey,
                         null, function, getterIsComputed, false, null));
@@ -2950,13 +2962,14 @@ public sealed class JsAstParser(
 
                 if (Check(TokenType.Set) && !IsGetOrSetPropertyName())
                 {
-                    Advance(); // set
+                    var setterToken = Advance(); // set
                     var (setterKey, setterIsComputed, setterKeySource) = ParseObjectPropertyKey();
                     Consume(TokenType.LeftParen, "Expected '(' after setter name.");
                     var setterParameters = ParseSetterParameters();
                     Consume(TokenType.RightParen, "Expected ')' after setter parameter.");
                     var body = ParseBlock();
-                    var function = new FunctionExpression(body.Source ?? setterKeySource, null,
+                    var functionSource = CreateSourceReference(setterToken);
+                    var function = new FunctionExpression(functionSource ?? body.Source ?? setterKeySource, null,
                         setterParameters, body, false, false);
                     members.Add(new ObjectMember(function.Source ?? setterKeySource, ObjectMemberKind.Setter, setterKey,
                         null, function, setterIsComputed, false, setterParameters[0].Name));
@@ -2964,6 +2977,7 @@ public sealed class JsAstParser(
                 }
 
                 var isGeneratorMethod = Match(TokenType.Star);
+                var generatorMethodSource = isGeneratorMethod ? CreateSourceReference(Previous()) : null;
                 var (key, isComputed, keySource) = ParseObjectPropertyKey();
 
                 ExpressionNode? value = null;
@@ -2976,7 +2990,8 @@ public sealed class JsAstParser(
                     var parameters = ParseParameterList();
                     Consume(TokenType.RightParen, "Expected ')' after method parameters.");
                     var body = ParseBlock();
-                    method = new FunctionExpression(body.Source, null, parameters, body, false, isGeneratorMethod);
+                    var methodSource = CreateSourceReferenceFromStart(generatorMethodSource ?? keySource);
+                    method = new FunctionExpression(methodSource ?? body.Source, null, parameters, body, false, isGeneratorMethod);
                     kind = ObjectMemberKind.Method;
                 }
                 else if (Match(TokenType.Colon))
@@ -3199,12 +3214,13 @@ public sealed class JsAstParser(
         {
             if (Match(TokenType.LeftBracket))
             {
+                var bracketToken = Previous();
                 var previousAllowIn = _allowInExpressions;
                 _allowInExpressions = true; // Computed property names always allow `in` (B.3.1 / 12.2.6.7).
                 var expr = ParseExpression();
                 _allowInExpressions = previousAllowIn;
                 Consume(TokenType.RightBracket, "Expected ']' after computed property key.");
-                return (expr, true, expr.Source);
+                return (expr, true, CreateSourceReference(bracketToken) ?? expr.Source);
             }
 
             if (Match(TokenType.String))
@@ -3236,9 +3252,10 @@ public sealed class JsAstParser(
             return IsPropertyNameToken(Peek()) ? Advance() : throw new ParseException(message, Peek(), source);
         }
 
-        private ExpressionNode ParseFunctionExpression(Symbol? explicitName = null, bool isAsync = false)
+        private ExpressionNode ParseFunctionExpression(Symbol? explicitName = null, bool isAsync = false,
+            Token? startTokenOverride = null)
         {
-            var functionKeyword = Previous();
+            var functionKeyword = startTokenOverride ?? Previous();
             var isGenerator = Match(TokenType.Star);
             var name = explicitName;
             if (name is not null || !CheckParameterIdentifier())
@@ -3281,7 +3298,7 @@ public sealed class JsAstParser(
             }
 
             var body = ParseBlock(true);
-            var sourceReference = body.Source ?? CreateSourceReference(startToken);
+            var sourceReference = CreateSourceReference(startToken) ?? body.Source;
             return new FunctionExpression(sourceReference, name, parameters, body, isAsync, isGenerator,
                 WasAsync: isAsync);
         }
@@ -4116,13 +4133,9 @@ public sealed class JsAstParser(
                 body = new BlockStatement(expression.Source, [returnStatement], false);
             }
 
-            var sourceReference = body.Source;
-            sourceReference = sourceReference switch
-            {
-                null when headToken is not null => CreateSourceReference(headToken),
-                null => fallbackSource,
-                _ => sourceReference
-            };
+            var sourceReference = headToken is not null
+                ? CreateSourceReference(headToken)
+                : CreateSourceReferenceFromStart(fallbackSource) ?? body.Source ?? fallbackSource;
 
             return new FunctionExpression(sourceReference, null, parameters, body, isAsync, false, true, isAsync);
         }
@@ -4750,6 +4763,25 @@ public sealed class JsAstParser(
                 endToken.EndPosition,
                 startToken.Line,
                 startToken.Column,
+                endToken.Line,
+                endToken.Column
+            );
+        }
+
+        private SourceReference? CreateSourceReferenceFromStart(SourceReference? startSource)
+        {
+            if (startSource is null || _current <= 0 || _current > _tokens.Count)
+            {
+                return startSource;
+            }
+
+            var endToken = _tokens[Math.Max(0, _current - 1)];
+            return new SourceReference(
+                source,
+                startSource.StartPosition,
+                endToken.EndPosition,
+                startSource.StartLine,
+                startSource.StartColumn,
                 endToken.Line,
                 endToken.Column
             );

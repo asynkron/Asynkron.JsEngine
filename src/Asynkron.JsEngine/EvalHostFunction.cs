@@ -53,6 +53,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
     public RealmState RealmState => Engine.RealmState;
 
+    public SourceReference? SourceReference => null;
+
     public JsObject? Prototype => _properties.Prototype;
 
     public bool IsSealed => _properties.IsSealed;

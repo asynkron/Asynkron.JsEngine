@@ -525,8 +525,9 @@ public sealed class JsEvaluatorTests(ITestOutputHelper output) : InternalTestBas
         var ctorProtoHasX = ctorProtoObject.TryGetProperty("x", out _);
         Assert.True(ctorProtoHasX);
         var ctorProtoHash = RuntimeHelpers.GetHashCode(ctorProtoObject);
-        var proxyProtoHash =
-            RuntimeHelpers.GetHashCode(Assert.IsAssignableFrom<JsObject>(await engine.Evaluate("Proxy.prototype")));
+        // Per ES spec 26.2.2, Proxy has no prototype property, so Proxy.prototype is undefined.
+        var proxyProtoRaw = await engine.Evaluate("Proxy.prototype");
+        var proxyProtoHash = proxyProtoRaw is JsObject proxyProtoObj ? RuntimeHelpers.GetHashCode(proxyProtoObj) : 0;
         Assert.True(JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(ctorValue), "prototype", out var ctorProtoViaOps));
         var ctorProtoViaOpsObject = Assert.IsType<JsObject>(ctorProtoViaOps.ObjectValue, exactMatch: false);
         var ctorProtoViaOpsHasX = ctorProtoViaOpsObject.TryGetProperty("x", out _);

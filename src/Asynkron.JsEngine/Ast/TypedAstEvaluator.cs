@@ -869,7 +869,7 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        if (right.ObjectValue is IJsCallable)
+        if (JsOps.IsCallable(right))
         {
             return OrdinaryHasInstanceJsValue(left, right, context);
         }
@@ -882,9 +882,14 @@ public static partial class TypedAstEvaluator
     private static bool OrdinaryHasInstanceJsValue(in JsValue candidate, in JsValue constructor,
         EvaluationContext context)
     {
-        if (constructor.ObjectValue is not IJsCallable)
+        if (!JsOps.IsCallable(constructor))
         {
             return false;
+        }
+
+        if (constructor.ObjectValue is HostFunction { IsBoundFunction: true, BoundTargetFunction: { } boundTarget })
+        {
+            return OrdinaryHasInstanceJsValue(candidate, JsValue.FromObjectUnsafe((object)boundTarget), context);
         }
 
         if (candidate.Kind != JsValueKind.Object)

@@ -187,6 +187,7 @@ public static partial class TypedAstEvaluator
             typedFunction.SetInstanceFields(resolvedInstanceFields);
             typedFunction.SetIsClassConstructor(definition.Extends is not null);
             typedFunction.SetPrivateNameScope(privateNameScope);
+            typedFunction.SetSourceReference(definition.Source);
             if (privateNameScope is not null)
             {
                 typedFunction.AddPrivateBrand(privateNameScope.BrandToken);

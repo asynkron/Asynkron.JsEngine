@@ -140,8 +140,7 @@ public static class ReflectHelper
         }
 
         if (target is HostFunction hostCtor &&
-            (hostCtor.HandlesConstructInternally ||
-             ReferenceEquals(hostCtor, realm.ArrayBufferConstructor) ||
+            (ReferenceEquals(hostCtor, realm.ArrayBufferConstructor) ||
              ReferenceEquals(hostCtor, realm.SharedArrayBufferConstructor) ||
              ReferenceEquals(hostCtor, realm.DataViewConstructor) ||
              ReferenceEquals(hostCtor, realm.PromiseConstructor) ||
@@ -1081,6 +1080,11 @@ public static class ReflectHelper
                 realmObject = null;
                 return false;
             case HostFunction hostFunction:
+                if (hostFunction.IsBoundFunction && hostFunction.BoundTargetFunction is { } boundTarget)
+                {
+                    return TryGetRealmInfo(boundTarget, out realmState, out realmObject);
+                }
+
                 realmState = hostFunction.RealmState;
                 realmObject = hostFunction.Realm;
                 return realmState is not null || realmObject is not null;

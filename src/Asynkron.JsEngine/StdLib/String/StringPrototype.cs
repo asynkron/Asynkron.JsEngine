@@ -420,13 +420,13 @@ public sealed partial class StringPrototype
     [JsHostMethod("toLowerCase", Length = 0d)]
     private JsValue ToLowerCase(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        return new JsValue(ResolveString(thisValue).ToLowerInvariant());
+        return new JsValue(ToEcmaLowerCase(ResolveString(thisValue)));
     }
 
     [JsHostMethod("toUpperCase", Length = 0d)]
     private JsValue ToUpperCase(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        return new JsValue(ResolveString(thisValue).ToUpperInvariant());
+        return new JsValue(ToEcmaUpperCase(ResolveString(thisValue)));
     }
 
     // ECMAScript whitespace: all Unicode "White_Space" chars plus \uFEFF (BOM/ZWNBSP).
@@ -1872,12 +1872,24 @@ public sealed partial class StringPrototype
     }
 
     [JsHostMethod("toLocaleLowerCase", Length = 0d)]
-    public JsValue ToLocaleLowerCase(JsValue thisValue, IReadOnlyList<JsValue> args) =>
-        ResolveString(thisValue).ToLower(ResolveCulture(args));
+    public JsValue ToLocaleLowerCase(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var value = ResolveString(thisValue);
+        var culture = ResolveCulture(args);
+        return new JsValue(Equals(culture, CultureInfo.InvariantCulture)
+            ? ToEcmaLowerCase(value)
+            : value.ToLower(culture));
+    }
 
     [JsHostMethod("toLocaleUpperCase", Length = 0d)]
-    public JsValue ToLocaleUpperCase(JsValue thisValue, IReadOnlyList<JsValue> args) =>
-        ResolveString(thisValue).ToUpper(ResolveCulture(args));
+    public JsValue ToLocaleUpperCase(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var value = ResolveString(thisValue);
+        var culture = ResolveCulture(args);
+        return new JsValue(Equals(culture, CultureInfo.InvariantCulture)
+            ? ToEcmaUpperCase(value)
+            : ToEcmaLocaleUpperCase(value, culture));
+    }
 
     private static CultureInfo ResolveCulture(IReadOnlyList<JsValue> args)
     {

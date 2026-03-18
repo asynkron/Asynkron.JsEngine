@@ -1,5 +1,6 @@
 #region
 
+using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 
 #endregion
@@ -13,4 +14,6 @@ public interface ICallableMetadata
     bool DisallowConstruct { get; }
 
     RealmState RealmState { get; }
+
+    SourceReference? SourceReference { get; }
 }

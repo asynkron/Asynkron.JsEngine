@@ -47,6 +47,18 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         return TryGetObject(arg, realmState, out var coerced) ? coerced : null;
     }
 
+    private static IEnumerable<string> EnumerateEnumerableOwnStringKeys(IJsPropertyAccessor obj)
+    {
+        foreach (var key in obj.GetOwnPropertyKeysInOrder(includeSymbols: false, includeNonEnumerable: true))
+        {
+            var desc = obj.GetOwnPropertyDescriptor(key);
+            if (desc is { Enumerable: true })
+            {
+                yield return key;
+            }
+        }
+    }
+
     // Static methods registered via code generation
 
     [JsConstructorMethod("keys", Length = 1d)]
@@ -59,13 +71,9 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         }
 
         var keys = new JsArray(realmState);
-        foreach (var key in obj.GetEnumerablePropertyNames())
+        foreach (var key in EnumerateEnumerableOwnStringKeys(obj))
         {
-            var desc = obj.GetOwnPropertyDescriptor(key);
-            if (desc is { Enumerable: true })
-            {
-                keys.Push(key);
-            }
+            keys.Push(key);
         }
 
         return JsValue.FromJsArray(keys);
@@ -82,12 +90,10 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
 
         var values = new JsArray(realmState);
         var receiver = JsValue.FromObjectUnsafe(obj);
-        foreach (var key in obj.GetEnumerablePropertyNames())
+        foreach (var key in EnumerateEnumerableOwnStringKeys(obj))
         {
-            if (obj.TryGetProperty(key, receiver, out var value))
-            {
-                values.Push(value);
-            }
+            obj.TryGetProperty(key, receiver, out var value);
+            values.Push(value);
         }
 
         return JsValue.FromJsArray(values);
@@ -104,13 +110,9 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
 
         var entries = new JsArray(realmState);
         var receiver = JsValue.FromObjectUnsafe(obj);
-        foreach (var key in obj.GetEnumerablePropertyNames())
+        foreach (var key in EnumerateEnumerableOwnStringKeys(obj))
         {
-            if (!obj.TryGetProperty(key, receiver, out var value))
-            {
-                continue;
-            }
-
+            obj.TryGetProperty(key, receiver, out var value);
             var entry = new JsArray([key, value], realmState);
             entries.Push(entry);
         }

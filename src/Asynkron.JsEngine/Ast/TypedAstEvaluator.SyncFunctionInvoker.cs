@@ -454,20 +454,17 @@ public static partial class TypedAstEvaluator
 
         PropertyDescriptor? IJsPropertyAccessor.GetOwnPropertyDescriptor(string name)
         {
-            var descriptor = _properties.GetOwnPropertyDescriptor(name);
-            if (descriptor is not null && string.Equals(name, "name", StringComparison.Ordinal))
-            {
-                descriptor.Writable = false;
-                descriptor.Enumerable = false;
-                descriptor.Configurable = true;
-            }
-
-            return descriptor;
+            return _properties.GetOwnPropertyDescriptor(name);
         }
 
         IEnumerable<string> IJsPropertyAccessor.GetOwnPropertyNames()
         {
             return _properties.GetOwnPropertyNames();
+        }
+
+        public IEnumerable<string> GetEnumerablePropertyNames()
+        {
+            return _properties.GetEnumerablePropertyNames();
         }
 
         public IEnumerable<string> GetOwnPropertyKeysInOrder(bool includeSymbols = true,

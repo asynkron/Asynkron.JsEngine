@@ -7277,7 +7277,21 @@ internal static class UnicodePropertyData
                 // Resolve script alias
                 if (ScriptAliases.TryGetValue(value, out var canonical))
                     value = canonical;
-                return ScriptExtensionRanges.GetValueOrDefault(value);
+                var scriptExtensionRanges = ScriptExtensionRanges.GetValueOrDefault(value);
+                if (scriptExtensionRanges is not null)
+                {
+                    return scriptExtensionRanges;
+                }
+
+                // ECMAScript treats Unknown/Zzzz as a valid Script_Extensions value.
+                // Our generated Script_Extensions table omits it, but the engine
+                // must still accept the escape during regexp compilation.
+                if (string.Equals(value, "Unknown", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Array.Empty<(int Start, int End)>();
+                }
+
+                return null;
             }
 
             return null; // Unknown property key

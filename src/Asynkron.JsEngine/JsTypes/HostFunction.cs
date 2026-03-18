@@ -294,6 +294,19 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
         }
     }
 
+    public IEnumerable<string> GetEnumerablePropertyNames()
+    {
+        foreach (var key in Properties.GetEnumerablePropertyNames())
+        {
+            if (!_isConstructor && string.Equals(key, "prototype", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            yield return key;
+        }
+    }
+
     public JsObject? Prototype
     {
         get

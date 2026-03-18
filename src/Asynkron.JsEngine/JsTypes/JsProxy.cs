@@ -188,7 +188,14 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     public IEnumerable<string> GetEnumerablePropertyNames()
     {
-        return GetOwnPropertyKeysInOrder(true, false);
+        foreach (var key in GetOwnPropertyKeysInOrder(includeSymbols: false, includeNonEnumerable: true))
+        {
+            var desc = GetOwnPropertyDescriptor(key);
+            if (desc is { Enumerable: true })
+            {
+                yield return key;
+            }
+        }
     }
 
     public IEnumerable<string> GetOwnPropertyKeysInOrder(bool includeSymbols = true, bool includeNonEnumerable = true)

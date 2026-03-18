@@ -1066,12 +1066,21 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
     internal void SeedIntrinsicConstructorKeys()
     {
+        SeedIntrinsicFunctionKeys(includePrototype: true);
+    }
+
+    internal void SeedIntrinsicFunctionKeys(bool includePrototype)
+    {
         var state = State;
         state.PropertyInsertionOrder.Clear();
         state.PropertyInsertionNodes.Clear();
         SeedOwnPropertyInsertion("length");
         SeedOwnPropertyInsertion("name");
-        SeedOwnPropertyInsertion("prototype");
+        if (includePrototype)
+        {
+            SeedOwnPropertyInsertion("prototype");
+        }
+
         foreach (var existing in Keys)
         {
             SeedOwnPropertyInsertion(existing);

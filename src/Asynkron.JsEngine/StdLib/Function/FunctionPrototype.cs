@@ -25,12 +25,6 @@ public sealed partial class FunctionPrototype
         return new JsValue("function undefined() { [native code] }");
     }
 
-    [JsHostMethod("valueOf", Length = 0d)]
-    private static JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
-    {
-        return thisValue;
-    }
-
     [JsHostMethod("call", Length = 1d)]
     private JsValue Call(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -144,6 +138,12 @@ public sealed partial class FunctionPrototype
         if (Prototype is IJsPropertyAccessor accessor)
         {
             DefineConstantProperty(accessor, "length", 0d, true);
+            DefineConstantProperty(accessor, "name", string.Empty, true);
+        }
+
+        if (Prototype is HostFunction hostFunction)
+        {
+            hostFunction.Properties.SeedIntrinsicFunctionKeys(includePrototype: false);
         }
 
         AttachArgumentsPoison();

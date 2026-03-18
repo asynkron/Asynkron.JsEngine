@@ -460,19 +460,25 @@ public sealed partial class StringPrototype
     [JsHostMethod("split", Length = 2d)]
     private JsValue Split(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var value = ResolveString(thisValue);
+        // Per spec step 1: Let O be ? RequireObjectCoercible(this value).
+        RequireObjectCoercible(thisValue);
+
         var separatorValue = args.Count > 0 ? args[0] : JsValue.Undefined;
         var limitValue = args.Count > 1 ? args[1] : JsValue.Undefined;
 
-        // Per spec step 4: If separator is not undefined/null, check for @@split
+        // Per spec step 2-3: If separator is not undefined/null, check for @@split
         if (!separatorValue.IsNullOrUndefined)
         {
             var splitMethod = GetMethod(separatorValue, SymbolKeys.Split, "@@split");
             if (splitMethod is not null)
             {
-                return splitMethod.Invoke([new JsValue(value), limitValue], separatorValue);
+                // Pass original O (thisValue), not the stringified value
+                return splitMethod.Invoke([thisValue, limitValue], separatorValue);
             }
         }
+
+        // Per spec step 4: Let S be ? ToString(O).
+        var value = CoerceToString(thisValue);
 
         // Per spec step 8: Let lim be ToUint32(limit) - evaluated BEFORE ToString(separator)
         uint lim;
@@ -527,15 +533,25 @@ public sealed partial class StringPrototype
     [JsHostMethod("replace", Length = 2d)]
     private JsValue Replace(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var value = ResolveString(thisValue);
+        // Per spec 22.1.3.18:
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        RequireObjectCoercible(thisValue);
+
         var search = args.GetArgument(0);
         var replacement = args.GetArgument(1);
 
-        var replaceMethod = GetMethod(search, SymbolKeys.Replace, "@@replace");
-        if (replaceMethod is not null)
+        // 2. If searchValue is not undefined/null, check for @@replace
+        if (!search.IsNullOrUndefined)
         {
-            return replaceMethod.Invoke([new JsValue(value), replacement], search);
+            var replaceMethod = GetMethod(search, SymbolKeys.Replace, "@@replace");
+            if (replaceMethod is not null)
+            {
+                return replaceMethod.Invoke([thisValue, replacement], search);
+            }
         }
+
+        // 3. Let string be ? ToString(O).
+        var value = CoerceToString(thisValue);
 
         // Per spec: Convert searchValue to string (handles null->"null", undefined->"undefined")
         var searchString = CoerceToString(search);
@@ -576,40 +592,90 @@ public sealed partial class StringPrototype
     [JsHostMethod("match", Length = 1d)]
     private JsValue Match(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var value = ResolveString(thisValue);
+        // Per spec 22.1.3.12:
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        RequireObjectCoercible(thisValue);
 
         // Per spec: if no args, use undefined (which becomes empty-string regexp)
         var searchValue = args.Count > 0 ? args[0] : JsValue.Undefined;
-        var matcher = GetMethod(searchValue, SymbolKeys.Match, "@@match");
-        if (matcher is not null)
+
+        // 2. If regexp is not undefined/null, check for @@match
+        if (!searchValue.IsNullOrUndefined)
         {
-            return matcher.Invoke(new SingleValueArgs(new JsValue(value)), searchValue);
+            var matcher = GetMethod(searchValue, SymbolKeys.Match, "@@match");
+            if (matcher is not null)
+            {
+                return matcher.Invoke(new SingleValueArgs(thisValue), searchValue);
+            }
         }
 
-        var regex = ToRegExpValue(searchValue, string.Empty, false);
-        IAsJsValue? execResult = regex.Global ? regex.MatchAll(value) : regex.Exec(value);
-        return execResult is null ? JsValue.Null : JsValue.FromObjectUnsafe(execResult);
+        // 3. Let string be ? ToString(O).
+        var value = CoerceToString(thisValue);
+
+        // 4. Let rx be ? RegExpCreate(regexp, undefined).
+        var regex = ToRegExpObject(searchValue, string.Empty);
+
+        // 5. Return ? Invoke(rx, @@match, << string >>).
+        var matchMethod = GetMethod(regex, SymbolKeys.Match, "@@match");
+        if (matchMethod is not null)
+        {
+            return matchMethod.Invoke(new SingleValueArgs(new JsValue(value)), regex);
+        }
+
+        // Fallback if @@match is not found (shouldn't happen for proper RegExp)
+        var resolved = ResolveRegExpFromObject(regex);
+        if (resolved is not null)
+        {
+            IAsJsValue? execResult = resolved.Global ? resolved.MatchAll(value) : resolved.Exec(value);
+            return execResult is null ? JsValue.Null : JsValue.FromObjectUnsafe(execResult);
+        }
+
+        return JsValue.Null;
     }
 
     [JsHostMethod("search", Length = 1d)]
     private JsValue Search(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var value = ResolveString(thisValue);
+        // Per spec 22.1.3.20:
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        RequireObjectCoercible(thisValue);
 
         // Per spec: if no args, use undefined (which becomes empty-string regexp)
         var searchValue = args.Count > 0 ? args[0] : JsValue.Undefined;
-        var searchMethod = GetMethod(searchValue, SymbolKeys.Search, "@@search");
-        if (searchMethod is not null)
+
+        // 2. If regexp is not undefined/null, check for @@search
+        if (!searchValue.IsNullOrUndefined)
         {
-            return searchMethod.Invoke(new SingleValueArgs(new JsValue(value)), searchValue);
+            var searchMethod = GetMethod(searchValue, SymbolKeys.Search, "@@search");
+            if (searchMethod is not null)
+            {
+                return searchMethod.Invoke(new SingleValueArgs(thisValue), searchValue);
+            }
         }
 
-        var regex = ToRegExpValue(searchValue, string.Empty, false);
-        var result = regex.Exec(value);
-        if (result is not null && result.TryGetProperty("index", out var indexObj) &&
-            indexObj.TryGetDouble(out var d))
+        // 3. Let string be ? ToString(O).
+        var value = CoerceToString(thisValue);
+
+        // 4. Let rx be ? RegExpCreate(regexp, undefined).
+        var rxObj = ToRegExpObject(searchValue, string.Empty);
+
+        // 5. Return ? Invoke(rx, @@search, << string >>).
+        var rxSearchMethod = GetMethod(rxObj, SymbolKeys.Search, "@@search");
+        if (rxSearchMethod is not null)
         {
-            return new JsValue(d);
+            return rxSearchMethod.Invoke(new SingleValueArgs(new JsValue(value)), rxObj);
+        }
+
+        // Fallback
+        var regex = ResolveRegExpFromObject(rxObj);
+        if (regex is not null)
+        {
+            var result = regex.Exec(value);
+            if (result is not null && result.TryGetProperty("index", out var indexObj) &&
+                indexObj.TryGetDouble(out var d))
+            {
+                return new JsValue(d);
+            }
         }
 
         return new JsValue(-1d);
@@ -909,19 +975,35 @@ public sealed partial class StringPrototype
     [JsHostMethod("replaceAll", Length = 2d)]
     private JsValue ReplaceAll(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var value = ResolveString(thisValue);
+        // Per spec 22.1.3.19:
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        RequireObjectCoercible(thisValue);
+
         var searchValue = args.GetArgument(0);
         var replaceValue = args.GetArgument(1);
 
         // Per spec step 2: If searchValue is neither undefined nor null
         if (!searchValue.IsNullOrUndefined)
         {
-            // Step 2a: IsRegExp check
-            if (IsRegExp(searchValue))
+            // Step 2a: Let isRegExp be ? IsRegExp(searchValue).
+            var isRegExp = IsRegExpAbrupt(searchValue);
+
+            if (isRegExp)
             {
                 // Step 2b: Get flags and check for "g"
-                if (JsOps.TryGetPropertyValue(searchValue, "flags", out var flagsValue))
+                var context = Realm?.CreateContext();
+                if (JsOps.TryGetPropertyValue(searchValue, "flags", out var flagsValue, context))
                 {
+                    if (context?.IsThrow == true)
+                    {
+                        throw new ThrowSignal(context.FlowValue);
+                    }
+
+                    if (flagsValue.IsNullOrUndefined)
+                    {
+                        throw ThrowTypeError("String.prototype.replaceAll called with a non-global RegExp argument", realm: Realm);
+                    }
+
                     var flagsStr = CoerceToString(flagsValue);
                     if (!flagsStr.Contains('g', StringComparison.Ordinal))
                     {
@@ -930,6 +1012,11 @@ public sealed partial class StringPrototype
                 }
                 else
                 {
+                    if (context?.IsThrow == true)
+                    {
+                        throw new ThrowSignal(context.FlowValue);
+                    }
+
                     throw ThrowTypeError("String.prototype.replaceAll called with a non-global RegExp argument", realm: Realm);
                 }
             }
@@ -938,14 +1025,18 @@ public sealed partial class StringPrototype
             var replaceMethod = GetMethod(searchValue, SymbolKeys.Replace, "@@replace");
             if (replaceMethod is not null)
             {
-                return replaceMethod.Invoke([new JsValue(value), replaceValue], searchValue);
+                return replaceMethod.Invoke([thisValue, replaceValue], searchValue);
             }
         }
 
-        // Per spec step 7: Let searchString = ToString(searchValue)
+        // Per spec step 3: Let string be ? ToString(O).
+        var value = CoerceToString(thisValue);
+        // Per spec step 4: Let searchString = ? ToString(searchValue)
         var searchString = CoerceToString(searchValue);
         // Per spec step 5: Let functionalReplace = IsCallable(replaceValue)
         var functionalReplace = replaceValue.TryGetObject<IJsCallable>(out var replacer);
+        // Per spec step 6: If functionalReplace is false, let replaceValue be ? ToString(replaceValue)
+        string? replaceStr = functionalReplace ? null : CoerceToString(replaceValue);
         // Per spec step 8: Let searchLength = the length of searchString
         var searchLength = searchString.Length;
 
@@ -1002,8 +1093,7 @@ public sealed partial class StringPrototype
             }
             else
             {
-                var replaceStr = CoerceToString(replaceValue);
-                replacement = GetSubstitution(replaceStr, value, searchString, position, null);
+                replacement = GetSubstitution(replaceStr!, value, searchString, position, null);
             }
 
             result.Append(replacement);
@@ -1109,15 +1199,43 @@ public sealed partial class StringPrototype
     [JsHostMethod("localeCompare", Length = 1d)]
     private JsValue LocaleCompare(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var value = ResolveString(thisValue);
-        if (args.Count == 0)
+        // Per spec 22.1.3.11:
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        RequireObjectCoercible(thisValue);
+        // 2. Let S be ? ToString(O).
+        var value = CoerceToString(thisValue);
+        // 3. Let That be ? ToString(that). Missing argument -> undefined -> "undefined"
+        var thatArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        var compareString = CoerceToString(thatArg);
+
+        // Per spec: If Intl.Collator is available, use new Intl.Collator(locales, options).compare(S, That)
+        var localesArg = args.Count > 1 ? args[1] : JsValue.Undefined;
+        var optionsArg = args.Count > 2 ? args[2] : JsValue.Undefined;
+
+        // Look up Intl.Collator from the engine's global object
+        if (Realm?.Engine?.GlobalObject is JsObject globalObj &&
+            globalObj.TryGetProperty("Intl", out var intlVal) &&
+            intlVal.TryGetObject<JsObject>(out var intlObj) &&
+            intlObj.TryGetProperty("Collator", out var collatorVal) &&
+            collatorVal.TryGetObject<IJsCallable>(out var collatorCtor))
         {
-            return new JsValue(0d);
+            // Create a Collator instance -- this will throw for invalid locales/options per spec
+            var collatorValue = ReflectHelper.Construct(collatorCtor, [localesArg, optionsArg], collatorCtor, Realm);
+            if (JsOps.TryGetPropertyValue(collatorValue, "compare", out var compareFn) &&
+                compareFn.TryGetObject<IJsCallable>(out var compareCallable))
+            {
+                return compareCallable.Invoke([new JsValue(value), new JsValue(compareString)], JsValue.Undefined);
+            }
         }
 
-        var compareString = JsOps.ToJsString(args[0]);
+        // Fallback: simple comparison with normalization to -1/0/1
         var result = string.Compare(value, compareString, StringComparison.CurrentCulture);
-        return new JsValue((double)result);
+        if (result < 0)
+        {
+            return new JsValue(-1d);
+        }
+
+        return result > 0 ? new JsValue(1d) : new JsValue(0d);
     }
 
     [JsHostMethod("normalize", Length = 0d)]
@@ -1140,18 +1258,82 @@ public sealed partial class StringPrototype
     [JsHostMethod("matchAll", Length = 1d)]
     private JsValue MatchAll(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var value = ResolveString(thisValue);
+        // Per spec 22.1.3.13:
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        RequireObjectCoercible(thisValue);
 
-        // Per spec: if no args, use undefined (which becomes empty-string global regexp)
         var matcher = args.Count > 0 ? args[0] : JsValue.Undefined;
-        var method = GetMethod(matcher, SymbolKeys.MatchAll, "@@matchAll");
-        if (method is not null)
+
+        // 2. If regexp is not undefined/null
+        if (!matcher.IsNullOrUndefined)
         {
-            return method.Invoke(new SingleValueArgs(new JsValue(value)), matcher);
+            // 2a. Let isRegExp be ? IsRegExp(regexp).
+            var isRegExp = IsRegExpAbrupt(matcher);
+            if (isRegExp)
+            {
+                // 2b. If isRegExp, check flags for "g" and throw TypeError if missing
+                var context = Realm?.CreateContext();
+                if (JsOps.TryGetPropertyValue(matcher, "flags", out var flagsValue, context))
+                {
+                    if (context?.IsThrow == true)
+                    {
+                        throw new ThrowSignal(context.FlowValue);
+                    }
+
+                    if (flagsValue.IsNullOrUndefined)
+                    {
+                        throw ThrowTypeError("String.prototype.matchAll called with a non-global RegExp argument", realm: Realm);
+                    }
+
+                    var flagsStr = CoerceToString(flagsValue);
+                    if (!flagsStr.Contains('g', StringComparison.Ordinal))
+                    {
+                        throw ThrowTypeError("String.prototype.matchAll called with a non-global RegExp argument", realm: Realm);
+                    }
+                }
+                else
+                {
+                    if (context?.IsThrow == true)
+                    {
+                        throw new ThrowSignal(context.FlowValue);
+                    }
+
+                    throw ThrowTypeError("String.prototype.matchAll called with a non-global RegExp argument", realm: Realm);
+                }
+            }
+
+            // 2c. Let matcher be ? GetMethod(regexp, @@matchAll).
+            var method = GetMethod(matcher, SymbolKeys.MatchAll, "@@matchAll");
+            if (method is not null)
+            {
+                return method.Invoke(new SingleValueArgs(thisValue), matcher);
+            }
         }
 
-        var regex = ToRegExpValue(matcher, "g", true);
-        return JsValue.FromJsArray(regex.MatchAll(value));
+        // 3. Let string be ? ToString(O).
+        var value = CoerceToString(thisValue);
+
+        // 4. Let rx be ? RegExpCreate(regexp, "g").
+        var rxObj = ToRegExpObject(matcher, "g");
+
+        // 5. Return ? Invoke(rx, @@matchAll, << string >>).
+        // Per spec Invoke = GetV + Call. If the method is undefined/null, throw TypeError.
+        if (!JsOps.TryGetPropertyValue(rxObj, SymbolKeys.MatchAll, out var matchAllProp))
+        {
+            throw ThrowTypeError("matchAll method is not defined", realm: Realm);
+        }
+
+        if (matchAllProp.IsNullOrUndefined)
+        {
+            throw ThrowTypeError("matchAll method is not defined", realm: Realm);
+        }
+
+        if (!matchAllProp.TryGetObject<IJsCallable>(out var rxMatchAllCallable))
+        {
+            throw ThrowTypeError("@@matchAll is not callable", realm: Realm);
+        }
+
+        return rxMatchAllCallable.Invoke(new SingleValueArgs(new JsValue(value)), rxObj);
     }
 
     // HTML wrapper methods (Annex B)
@@ -1251,34 +1433,105 @@ public sealed partial class StringPrototype
         return new JsValue($"<a href=\"{EscapeAttr(url)}\">{value}</a>");
     }
 
+    private const string StringIteratorBrand = "__stringIterator__";
+    private const string StringIteratorStringSlot = "__iteratedString__";
+    private const string StringIteratorIndexSlot = "__iteratorNextIndex__";
+    private JsObject? _stringIteratorPrototype;
+
+    private JsObject GetOrCreateStringIteratorPrototype()
+    {
+        if (_stringIteratorPrototype is not null)
+        {
+            return _stringIteratorPrototype;
+        }
+
+        var proto = new JsObject { RealmState = Realm };
+
+        var nextFunc = new HostFunction((thisVal, __) =>
+        {
+            // Per spec 22.1.5.2.1: If O does not have all internal slots of a String Iterator, throw TypeError
+            // Must check OWN property (not prototype chain) to validate internal slots
+            if (!thisVal.TryGetObject<JsObject>(out var thisObj) ||
+                thisObj.GetOwnPropertyDescriptor(StringIteratorBrand) is null)
+            {
+                throw ThrowTypeError(
+                    "%StringIteratorPrototype%.next requires that 'this' be a String Iterator instance",
+                    realm: Realm);
+            }
+
+            if (!thisObj.TryGetProperty(StringIteratorStringSlot, out var strVal) ||
+                !strVal.TryGetString(out var str))
+            {
+                // Exhausted iterator
+                var doneResult = new JsObject();
+                doneResult.SetProperty("value", JsValue.Undefined);
+                doneResult.SetProperty("done", true);
+                return new JsValue(doneResult);
+            }
+
+            if (!thisObj.TryGetProperty(StringIteratorIndexSlot, out var idxVal) ||
+                !idxVal.TryGetDouble(out var idxNum))
+            {
+                idxNum = 0;
+            }
+
+            var idx = (int)idxNum;
+            if (idx >= str.Length)
+            {
+                // Remove the iterated string to signal completion
+                thisObj.Delete(StringIteratorStringSlot);
+                var doneResult = new JsObject();
+                doneResult.SetProperty("value", JsValue.Undefined);
+                doneResult.SetProperty("done", true);
+                return new JsValue(doneResult);
+            }
+
+            var currentValue = StringHelper.ReadCodePoint(str, ref idx);
+            thisObj.SetProperty(StringIteratorIndexSlot, (double)idx);
+
+            var result = new JsObject();
+            result.SetProperty("value", currentValue);
+            result.SetProperty("done", false);
+            return new JsValue(result);
+        }, Realm, false);
+
+        // Set proper function metadata per spec
+        nextFunc.DefineProperty("length",
+            new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
+        nextFunc.DefineProperty("name",
+            new PropertyDescriptor { Value = "next", Writable = false, Enumerable = false, Configurable = true });
+
+        proto.SetProperty("next", (JsValue)nextFunc);
+
+        // Set @@toStringTag
+        proto.DefineProperty(SymbolKeys.ToStringTag,
+            new PropertyDescriptor { Value = "String Iterator", Writable = false, Enumerable = false, Configurable = true });
+
+        // Chain to %IteratorPrototype% if available
+        if (Realm?.IteratorPrototype is not null)
+        {
+            proto.SetPrototype(Realm.IteratorPrototype);
+        }
+
+        _stringIteratorPrototype = proto;
+        return proto;
+    }
+
     [JsSymbolMethod("iterator", Length = 0d)]
     private JsValue CreateIterator(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var value = ResolveString(thisValue);
-        var index = 0;
-        var iterator = new JsObject();
+        var iterator = new JsObject { RealmState = Realm };
 
-        iterator.SetHostedProperty("next", new HostFunction(Next, Realm, false));
+        // Set internal slots
+        iterator.SetProperty(StringIteratorBrand, true);
+        iterator.SetProperty(StringIteratorStringSlot, value);
+        iterator.SetProperty(StringIteratorIndexSlot, 0d);
+
+        // Set prototype to %StringIteratorPrototype%
+        iterator.SetPrototype(GetOrCreateStringIteratorPrototype());
 
         return new JsValue(iterator);
-
-        JsValue Next(JsValue _, IReadOnlyList<JsValue> __)
-        {
-            var result = new JsObject();
-            if (index < value.Length)
-            {
-                var currentValue = StringHelper.ReadCodePoint(value, ref index);
-                result.SetProperty("value", currentValue);
-                result.SetProperty("done", false);
-            }
-            else
-            {
-                result.SetProperty("value", JsValue.Undefined);
-                result.SetProperty("done", true);
-            }
-
-            return new JsValue(result);
-        }
     }
 
     protected override void ConfigurePrototype()
@@ -1295,6 +1548,14 @@ public sealed partial class StringPrototype
     }
 
     // Helper methods
+
+    private void RequireObjectCoercible(JsValue thisValue)
+    {
+        if (thisValue.IsNullOrUndefined)
+        {
+            throw ThrowTypeError("Cannot convert undefined or null to object", realm: Realm);
+        }
+    }
 
     private string ResolveString(JsValue thisValue)
     {
@@ -1382,6 +1643,39 @@ public sealed partial class StringPrototype
         return argument.TryGetObject<JsRegExp>(out _);
     }
 
+    /// <summary>
+    /// IsRegExp that propagates abrupt completions from getting Symbol.match.
+    /// Per spec 7.2.8 IsRegExp ( argument ) with ? semantics.
+    /// </summary>
+    private bool IsRegExpAbrupt(JsValue argument)
+    {
+        if (!argument.IsObject)
+        {
+            return false;
+        }
+
+        var context = Realm?.CreateContext();
+        if (JsOps.TryGetPropertyValue(argument, SymbolKeys.Match, out var matchValue, context))
+        {
+            if (context?.IsThrow == true)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+
+            if (!matchValue.IsUndefined)
+            {
+                return matchValue.IsTruthy;
+            }
+        }
+        else if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        // Otherwise check if it's a RegExp object
+        return argument.TryGetObject<JsRegExp>(out _);
+    }
+
     private static bool TryResolveRegExp(JsValue candidate, out JsRegExp regex)
     {
         if (candidate.TryGetObject<JsRegExp>(out var direct))
@@ -1450,6 +1744,10 @@ public sealed partial class StringPrototype
         var pattern = candidate.IsUndefined
             ? string.Empty
             : candidate.ToJsString(ctx, Realm);
+        if (ctx?.IsThrow == true)
+        {
+            throw new ThrowSignal(ctx.FlowValue);
+        }
 
         var created = new JsRegExp(pattern, defaultFlags ?? string.Empty, Realm);
         if (requireGlobal && !created.Global)
@@ -1458,6 +1756,33 @@ public sealed partial class StringPrototype
         }
 
         return created;
+    }
+
+    /// <summary>
+    /// Creates a proper RegExp object (with prototype chain) via RegExpCreate.
+    /// Returns a JsValue wrapping the RegExp JsObject, so symbol methods are accessible.
+    /// </summary>
+    private JsValue ToRegExpObject(JsValue candidate, string defaultFlags)
+    {
+        var ctx = Realm?.CreateContext();
+        var pattern = candidate.IsUndefined
+            ? string.Empty
+            : candidate.ToJsString(ctx, Realm);
+        if (ctx?.IsThrow == true)
+        {
+            throw new ThrowSignal(ctx.FlowValue);
+        }
+
+        var regExpObj = RegExpHelper.CreateRegExpLiteral(pattern, defaultFlags ?? string.Empty, Realm);
+        return new JsValue(regExpObj);
+    }
+
+    /// <summary>
+    /// Resolves a JsRegExp from a JsValue that wraps a RegExp object.
+    /// </summary>
+    private static JsRegExp? ResolveRegExpFromObject(JsValue value)
+    {
+        return RegExpHelper.ResolveRegExpInstance(value);
     }
 
     private static string EscapeAttr(string input)

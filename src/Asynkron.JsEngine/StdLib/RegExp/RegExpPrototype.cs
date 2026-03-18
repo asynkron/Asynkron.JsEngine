@@ -388,62 +388,185 @@ public sealed partial class RegExpPrototype
         var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : string.Empty;
         var replacement = args.GetArgument(1);
         var regex = resolved.GetRegex();
+        var isFuncReplacer = replacement.TryGetObject<IJsCallable>(out var replacer);
+        var replaceText = isFuncReplacer ? null : JsOps.ToJsString(replacement);
 
-        if (replacement.TryGetObject<IJsCallable>(out var replacer))
-        {
-            var builder = new StringBuilder();
-            var lastIndex = 0;
+        var resultBuilder = new StringBuilder();
+        var resultLastIndex = 0;
 
-            foreach (Match match in regex.Matches(input))
-            {
-                if (!match.Success)
-                {
-                    continue;
-                }
-
-                if (!resolved.Global && lastIndex > 0)
-                {
-                    break;
-                }
-
-                if (match.Index > lastIndex)
-                {
-                    builder.Append(input.AsSpan(lastIndex, match.Index - lastIndex));
-                }
-
-                var replaceArgs = BuildReplaceArguments(match, regex, input);
-                var replacementValue = replacer.Invoke(replaceArgs, JsValue.Undefined);
-                builder.Append(replacementValue.ToJsString());
-
-                lastIndex = match.Index + match.Length;
-                if (!resolved.Global)
-                {
-                    break;
-                }
-            }
-
-            if (lastIndex < input.Length)
-            {
-                builder.Append(input.AsSpan(lastIndex));
-            }
-
-            return new JsValue(builder.ToString());
-        }
-
-        var replaceText = JsOps.ToJsString(replacement);
+        IEnumerable<Match> matches;
         if (resolved.Global)
         {
-            return new JsValue(regex.Replace(input, replaceText));
+            matches = regex.Matches(input);
         }
-
-        var singleMatch = regex.Match(input);
-        if (!singleMatch.Success)
+        else
         {
-            return new JsValue(input);
+            var singleMatch = regex.Match(input);
+            matches = singleMatch.Success ? [singleMatch] : [];
         }
 
-        return new JsValue(string.Concat(input.AsSpan(0, singleMatch.Index), replaceText,
-            input.AsSpan(singleMatch.Index + singleMatch.Length)));
+        foreach (var match in matches)
+        {
+            if (!match.Success)
+            {
+                continue;
+            }
+
+            if (match.Index > resultLastIndex)
+            {
+                resultBuilder.Append(input.AsSpan(resultLastIndex, match.Index - resultLastIndex));
+            }
+
+            if (isFuncReplacer)
+            {
+                var replaceArgs = BuildReplaceArguments(match, regex, input);
+                var replacementValue = replacer!.Invoke(replaceArgs, JsValue.Undefined);
+                resultBuilder.Append(replacementValue.ToJsString());
+            }
+            else
+            {
+                var substituted = GetRegExpSubstitution(replaceText!, input, match, regex);
+                resultBuilder.Append(substituted);
+            }
+
+            resultLastIndex = match.Index + match.Length;
+
+            if (match.Length == 0)
+            {
+                // Avoid infinite loop on zero-length matches
+                if (resultLastIndex < input.Length)
+                {
+                    resultBuilder.Append(input[resultLastIndex]);
+                    resultLastIndex++;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            if (!resolved.Global)
+            {
+                break;
+            }
+        }
+
+        if (resultLastIndex < input.Length)
+        {
+            resultBuilder.Append(input.AsSpan(resultLastIndex));
+        }
+
+        return new JsValue(resultBuilder.ToString());
+    }
+
+    /// <summary>
+    /// ECMAScript GetSubstitution for RegExp replace with string replacement.
+    /// Handles $$ $&amp; $` $' $n $nn $&lt;name&gt; patterns per spec.
+    /// </summary>
+    private static string GetRegExpSubstitution(string replacement, string str, Match match, Regex regex)
+    {
+        var result = new StringBuilder(replacement.Length);
+
+        for (var i = 0; i < replacement.Length; i++)
+        {
+            var ch = replacement[i];
+            if (ch != '$' || i + 1 >= replacement.Length)
+            {
+                result.Append(ch);
+                continue;
+            }
+
+            var next = replacement[i + 1];
+            switch (next)
+            {
+                case '$':
+                    result.Append('$');
+                    i++;
+                    break;
+                case '&':
+                    result.Append(match.Value);
+                    i++;
+                    break;
+                case '`':
+                    result.Append(str.AsSpan(0, match.Index));
+                    i++;
+                    break;
+                case '\'':
+                    var afterMatch = match.Index + match.Length;
+                    if (afterMatch < str.Length)
+                    {
+                        result.Append(str.AsSpan(afterMatch));
+                    }
+                    i++;
+                    break;
+                case '<':
+                {
+                    var closeAngle = replacement.IndexOf('>', i + 2);
+                    if (closeAngle < 0)
+                    {
+                        result.Append("$<");
+                        i++;
+                        break;
+                    }
+
+                    var groupName = replacement.Substring(i + 2, closeAngle - (i + 2));
+                    var group = regex.GroupNumberFromName(groupName);
+                    if (group >= 0 && match.Groups[group].Success)
+                    {
+                        result.Append(match.Groups[group].Value);
+                    }
+
+                    i = closeAngle;
+                    break;
+                }
+                default:
+                    if (next is >= '0' and <= '9')
+                    {
+                        var captureCount = match.Groups.Count - 1;
+                        var digit1 = next - '0';
+
+                        // Try two-digit reference first (e.g., $01, $12, $99)
+                        if (i + 2 < replacement.Length && replacement[i + 2] is >= '0' and <= '9')
+                        {
+                            var digit2 = replacement[i + 2] - '0';
+                            var twoDigit = (digit1 * 10) + digit2;
+                            if (twoDigit >= 1 && twoDigit <= captureCount)
+                            {
+                                var captureGroup = match.Groups[twoDigit];
+                                if (captureGroup.Success)
+                                {
+                                    result.Append(captureGroup.Value);
+                                }
+                                i += 2;
+                                break;
+                            }
+                        }
+
+                        // Single digit reference (e.g., $1 through $9)
+                        if (digit1 >= 1 && digit1 <= captureCount)
+                        {
+                            var captureGroup = match.Groups[digit1];
+                            if (captureGroup.Success)
+                            {
+                                result.Append(captureGroup.Value);
+                            }
+                            i++;
+                        }
+                        else
+                        {
+                            // No such capture, output literal $n
+                            result.Append('$');
+                        }
+                    }
+                    else
+                    {
+                        result.Append('$');
+                    }
+                    break;
+            }
+        }
+
+        return result.ToString();
     }
 
     [JsSymbolMethod("search", Length = 1d)]

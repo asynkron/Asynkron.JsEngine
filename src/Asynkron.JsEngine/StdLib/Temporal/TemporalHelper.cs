@@ -920,14 +920,36 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowTypeError("Temporal.PlainDate.prototype.with requires an object argument", realm: realm);
             }
 
-            // Validate options (second argument)
+            // Per spec: RejectTemporalLikeObject
+            RejectTemporalLikeObject(accessor, realm);
+
+            // Per spec: read fields in alphabetical order with ToIntegerWithTruncation
+            var hasAny = false;
+            var day = ReadTemporalField(accessor, "day", date.Day, realm, ref hasAny);
+            var hasExplicitMonth = false;
+            var month = date.Month;
+            if (accessor.TryGetProperty("month", out var monthVal) && !monthVal.IsUndefined)
+            {
+                hasAny = true;
+                hasExplicitMonth = true;
+                month = ToIntegerWithRangeCheck(monthVal, "month", realm);
+            }
+
+            var monthFromCode = ReadMonthCode(accessor, realm, ref hasAny);
+            var year = ReadTemporalField(accessor, "year", date.Year, realm, ref hasAny);
+
+            if (!hasAny)
+            {
+                throw StandardLibrary.ThrowTypeError("Temporal.PlainDate.prototype.with requires at least one recognized property", realm: realm);
+            }
+
+            // Resolve month from monthCode if provided
+            month = ResolveMonth(month, monthFromCode, hasExplicitMonth, realm);
+
+            // Per spec: validate options AFTER reading fields
             var options = args.Count > 1 ? args[1] : JsValue.Undefined;
             var optionsObj = ValidateOptionsObject(options, realm, "Temporal.PlainDate.prototype.with");
             var overflow = GetTemporalOverflowOption(optionsObj, realm);
-
-            var year = accessor.TryGetProperty("year", out var v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : date.Year;
-            var month = accessor.TryGetProperty("month", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : date.Month;
-            var day = accessor.TryGetProperty("day", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : date.Day;
 
             if (string.Equals(overflow, "constrain", StringComparison.Ordinal))
             {
@@ -939,6 +961,14 @@ public static class TemporalHelper
             }
 
             return WrapPlainDate(new JsTemporalPlainDate(year, month, day, date.Calendar), realm, prototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "withCalendar", 1, (thisValue, args) =>
+        {
+            var date = GetPlainDate(thisValue);
+            var calendarArg = args.GetArgument(0);
+            var calendar = ToTemporalCalendarIdentifierStrict(calendarArg, realm);
+            return WrapPlainDate(new JsTemporalPlainDate(date.Year, date.Month, date.Day, calendar), realm, prototype);
         });
 
         AddPrototypeMethod(prototype, realm, "toPlainDateTime", 0, (thisValue, args) =>
@@ -1132,17 +1162,27 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowTypeError("Temporal.PlainTime.prototype.with requires an object argument", realm: realm);
             }
 
-            // Validate options (second argument)
+            // Per spec: RejectTemporalLikeObject — reject objects with calendar or timeZone
+            RejectTemporalLikeObject(accessor, realm);
+
+            // Per spec: read fields in alphabetical order, using ToIntegerWithTruncation
+            var hasAny = false;
+            var hour = ReadTemporalField(accessor, "hour", time.Hour, realm, ref hasAny);
+            var microsecond = ReadTemporalField(accessor, "microsecond", time.Microsecond, realm, ref hasAny);
+            var millisecond = ReadTemporalField(accessor, "millisecond", time.Millisecond, realm, ref hasAny);
+            var minute = ReadTemporalField(accessor, "minute", time.Minute, realm, ref hasAny);
+            var nanosecond = ReadTemporalField(accessor, "nanosecond", time.Nanosecond, realm, ref hasAny);
+            var second = ReadTemporalField(accessor, "second", time.Second, realm, ref hasAny);
+
+            if (!hasAny)
+            {
+                throw StandardLibrary.ThrowTypeError("Temporal.PlainTime.prototype.with requires at least one recognized property", realm: realm);
+            }
+
+            // Per spec: validate options AFTER reading fields
             var options = args.Count > 1 ? args[1] : JsValue.Undefined;
             var optionsObj = ValidateOptionsObject(options, realm, "Temporal.PlainTime.prototype.with");
             var overflow = GetTemporalOverflowOption(optionsObj, realm);
-
-            var hour = accessor.TryGetProperty("hour", out var v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : time.Hour;
-            var minute = accessor.TryGetProperty("minute", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : time.Minute;
-            var second = accessor.TryGetProperty("second", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : time.Second;
-            var millisecond = accessor.TryGetProperty("millisecond", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : time.Millisecond;
-            var microsecond = accessor.TryGetProperty("microsecond", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : time.Microsecond;
-            var nanosecond = accessor.TryGetProperty("nanosecond", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : time.Nanosecond;
 
             if (string.Equals(overflow, "constrain", StringComparison.Ordinal))
             {
@@ -1425,20 +1465,42 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowTypeError("Temporal.PlainDateTime.prototype.with requires an object argument", realm: realm);
             }
 
-            // Validate options (second argument)
+            // Per spec: RejectTemporalLikeObject
+            RejectTemporalLikeObject(accessor, realm);
+
+            // Per spec: read fields in alphabetical order with ToIntegerWithTruncation
+            var hasAny = false;
+            var day = ReadTemporalField(accessor, "day", dt.Day, realm, ref hasAny);
+            var hour = ReadTemporalField(accessor, "hour", dt.Hour, realm, ref hasAny);
+            var microsecond = ReadTemporalField(accessor, "microsecond", dt.Microsecond, realm, ref hasAny);
+            var millisecond = ReadTemporalField(accessor, "millisecond", dt.Millisecond, realm, ref hasAny);
+            var minute = ReadTemporalField(accessor, "minute", dt.Minute, realm, ref hasAny);
+            var hasExplicitMonth = false;
+            var month = dt.Month;
+            if (accessor.TryGetProperty("month", out var monthVal) && !monthVal.IsUndefined)
+            {
+                hasAny = true;
+                hasExplicitMonth = true;
+                month = ToIntegerWithRangeCheck(monthVal, "month", realm);
+            }
+
+            var monthFromCode = ReadMonthCode(accessor, realm, ref hasAny);
+            var nanosecond = ReadTemporalField(accessor, "nanosecond", dt.Nanosecond, realm, ref hasAny);
+            var second = ReadTemporalField(accessor, "second", dt.Second, realm, ref hasAny);
+            var year = ReadTemporalField(accessor, "year", dt.Year, realm, ref hasAny);
+
+            if (!hasAny)
+            {
+                throw StandardLibrary.ThrowTypeError("Temporal.PlainDateTime.prototype.with requires at least one recognized property", realm: realm);
+            }
+
+            // Resolve month from monthCode if provided
+            month = ResolveMonth(month, monthFromCode, hasExplicitMonth, realm);
+
+            // Per spec: validate options AFTER reading fields
             var options = args.Count > 1 ? args[1] : JsValue.Undefined;
             var optionsObj = ValidateOptionsObject(options, realm, "Temporal.PlainDateTime.prototype.with");
             var overflow = GetTemporalOverflowOption(optionsObj, realm);
-
-            var year = accessor.TryGetProperty("year", out var v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : dt.Year;
-            var month = accessor.TryGetProperty("month", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : dt.Month;
-            var day = accessor.TryGetProperty("day", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : dt.Day;
-            var hour = accessor.TryGetProperty("hour", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : dt.Hour;
-            var minute = accessor.TryGetProperty("minute", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : dt.Minute;
-            var second = accessor.TryGetProperty("second", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : dt.Second;
-            var millisecond = accessor.TryGetProperty("millisecond", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : dt.Millisecond;
-            var microsecond = accessor.TryGetProperty("microsecond", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : dt.Microsecond;
-            var nanosecond = accessor.TryGetProperty("nanosecond", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : dt.Nanosecond;
 
             if (string.Equals(overflow, "constrain", StringComparison.Ordinal))
             {
@@ -1457,6 +1519,16 @@ public static class TemporalHelper
             }
 
             return WrapPlainDateTime(new JsTemporalPlainDateTime(year, month, day, hour, minute, second, millisecond, microsecond, nanosecond, dt.Calendar), realm, prototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "withCalendar", 1, (thisValue, args) =>
+        {
+            var dt = GetPlainDateTime(thisValue);
+            var calendarArg = args.GetArgument(0);
+            var calendar = ToTemporalCalendarIdentifier(calendarArg);
+            return WrapPlainDateTime(new JsTemporalPlainDateTime(
+                dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second,
+                dt.Millisecond, dt.Microsecond, dt.Nanosecond, calendar), realm, prototype);
         });
 
         AddPrototypeMethod(prototype, realm, "round", 1, (thisValue, args) =>
@@ -1713,6 +1785,19 @@ public static class TemporalHelper
             return WrapZonedDateTime(startOfDayZdt, realm, prototype);
         });
 
+        AddPrototypeMethod(prototype, realm, "withCalendar", 1, (thisValue, args) =>
+        {
+            var zdt = GetZonedDateTime(thisValue);
+            var calendarArg = args.GetArgument(0);
+            var calendar = ToTemporalCalendarIdentifier(calendarArg);
+            var newZdt = new JsTemporalZonedDateTime(
+                zdt.Year, zdt.Month, zdt.Day,
+                zdt.Hour, zdt.Minute, zdt.Second,
+                zdt.Millisecond, zdt.Microsecond, zdt.Nanosecond,
+                zdt.TimeZoneId, calendar);
+            return WrapZonedDateTime(newZdt, realm, prototype);
+        });
+
         AddPrototypeMethod(prototype, realm, "withTimeZone", 1, (thisValue, args) =>
         {
             var zdt = GetZonedDateTime(thisValue);
@@ -1939,13 +2024,35 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowTypeError("Temporal.PlainYearMonth.prototype.with requires an object argument", realm: realm);
             }
 
-            // Validate options (second argument)
+            // Per spec: RejectTemporalLikeObject
+            RejectTemporalLikeObject(accessor, realm);
+
+            // Per spec: read fields in alphabetical order
+            var hasAny = false;
+            var hasExplicitMonth = false;
+            var month = ym.Month;
+            if (accessor.TryGetProperty("month", out var monthVal) && !monthVal.IsUndefined)
+            {
+                hasAny = true;
+                hasExplicitMonth = true;
+                month = ToIntegerWithRangeCheck(monthVal, "month", realm);
+            }
+
+            var monthFromCode = ReadMonthCode(accessor, realm, ref hasAny);
+            var year = ReadTemporalField(accessor, "year", ym.Year, realm, ref hasAny);
+
+            if (!hasAny)
+            {
+                throw StandardLibrary.ThrowTypeError("Temporal.PlainYearMonth.prototype.with requires at least one recognized property", realm: realm);
+            }
+
+            // Resolve month from monthCode if provided
+            month = ResolveMonth(month, monthFromCode, hasExplicitMonth, realm);
+
+            // Per spec: validate options AFTER reading fields
             var options = args.Count > 1 ? args[1] : JsValue.Undefined;
             var optionsObj = ValidateOptionsObject(options, realm, "Temporal.PlainYearMonth.prototype.with");
             var overflow = GetTemporalOverflowOption(optionsObj, realm);
-
-            var year = accessor.TryGetProperty("year", out var v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : ym.Year;
-            var month = accessor.TryGetProperty("month", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : ym.Month;
 
             if (string.Equals(overflow, "constrain", StringComparison.Ordinal))
             {
@@ -2105,18 +2212,42 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowTypeError("Temporal.PlainMonthDay.prototype.with requires an object argument", realm: realm);
             }
 
-            // Validate options (second argument)
+            // Per spec: RejectTemporalLikeObject
+            RejectTemporalLikeObject(accessor, realm);
+
+            // Per spec: read fields in alphabetical order (day, month, monthCode, year)
+            var hasAny = false;
+            var day = ReadTemporalField(accessor, "day", md.Day, realm, ref hasAny);
+            var hasExplicitMonth = false;
+            var month = md.Month;
+            if (accessor.TryGetProperty("month", out var monthVal) && !monthVal.IsUndefined)
+            {
+                hasAny = true;
+                hasExplicitMonth = true;
+                month = ToIntegerWithRangeCheck(monthVal, "month", realm);
+            }
+
+            var monthFromCode = ReadMonthCode(accessor, realm, ref hasAny);
+            // PlainMonthDay with() also reads year per spec (for reference year)
+            var refYear = ReadTemporalField(accessor, "year", md.ReferenceYear, realm, ref hasAny);
+
+            if (!hasAny)
+            {
+                throw StandardLibrary.ThrowTypeError("Temporal.PlainMonthDay.prototype.with requires at least one recognized property", realm: realm);
+            }
+
+            // Resolve month from monthCode if provided
+            month = ResolveMonth(month, monthFromCode, hasExplicitMonth, realm);
+
+            // Per spec: validate options AFTER reading fields
             var options = args.Count > 1 ? args[1] : JsValue.Undefined;
             var optionsObj = ValidateOptionsObject(options, realm, "Temporal.PlainMonthDay.prototype.with");
             var overflow = GetTemporalOverflowOption(optionsObj, realm);
 
-            var month = accessor.TryGetProperty("month", out var v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : md.Month;
-            var day = accessor.TryGetProperty("day", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : md.Day;
-
             if (string.Equals(overflow, "constrain", StringComparison.Ordinal))
             {
                 month = Math.Clamp(month, 1, 12);
-                var maxDay = DateTime.DaysInMonth(md.ReferenceYear, month);
+                var maxDay = DateTime.DaysInMonth(refYear, month);
                 day = Math.Clamp(day, 1, maxDay);
             }
             else
@@ -2126,14 +2257,14 @@ public static class TemporalHelper
                     throw StandardLibrary.ThrowRangeError("Month value is out of range (1-12)", realm: realm);
                 }
 
-                var maxDay = DateTime.DaysInMonth(md.ReferenceYear, month);
+                var maxDay = DateTime.DaysInMonth(refYear, month);
                 if (day < 1 || day > maxDay)
                 {
                     throw StandardLibrary.ThrowRangeError("Day value is out of range", realm: realm);
                 }
             }
 
-            return WrapPlainMonthDay(new JsTemporalPlainMonthDay(month, day, md.Calendar), realm, prototype);
+            return WrapPlainMonthDay(new JsTemporalPlainMonthDay(month, day, md.Calendar, refYear), realm, prototype);
         });
 
         AddPrototypeMethod(prototype, realm, "toPlainDate", 1, (thisValue, args) =>
@@ -2578,6 +2709,83 @@ public static class TemporalHelper
         }
 
         return overflow;
+    }
+
+    /// <summary>
+    /// Per Temporal spec: RejectTemporalLikeObject — throws TypeError if the object has
+    /// a calendar or timeZone property. Used in with() methods to reject Temporal objects.
+    /// </summary>
+    private static void RejectTemporalLikeObject(IJsPropertyAccessor accessor, RealmState realm)
+    {
+        if (accessor.TryGetProperty("calendar", out var calVal) && !calVal.IsUndefined)
+        {
+            throw StandardLibrary.ThrowTypeError("with() argument must not have a calendar property", realm: realm);
+        }
+
+        if (accessor.TryGetProperty("timeZone", out var tzVal) && !tzVal.IsUndefined)
+        {
+            throw StandardLibrary.ThrowTypeError("with() argument must not have a timeZone property", realm: realm);
+        }
+    }
+
+    /// <summary>
+    /// Reads a temporal field from an object using ToIntegerWithTruncation.
+    /// Sets hasAny to true if the property was found and not undefined.
+    /// Per spec, properties are read via Get then ToIntegerWithTruncation (which triggers valueOf).
+    /// </summary>
+    private static int ReadTemporalField(IJsPropertyAccessor accessor, string name, int defaultValue, RealmState realm, ref bool hasAny)
+    {
+        if (accessor.TryGetProperty(name, out var v) && !v.IsUndefined)
+        {
+            hasAny = true;
+            return ToIntegerWithRangeCheck(v, name, realm);
+        }
+
+        return defaultValue;
+    }
+
+    /// <summary>
+    /// Reads a monthCode property from a temporal-like object and returns the month number.
+    /// Per spec, monthCode is a string like "M01" through "M12".
+    /// Returns null if monthCode is not present or undefined.
+    /// </summary>
+    private static int? ReadMonthCode(IJsPropertyAccessor accessor, RealmState realm, ref bool hasAny)
+    {
+        if (!accessor.TryGetProperty("monthCode", out var v) || v.IsUndefined)
+        {
+            return null;
+        }
+
+        hasAny = true;
+        var monthCode = JsOps.ToJsString(v);
+        if (monthCode.Length >= 2 && monthCode[0] == 'M' &&
+            int.TryParse(monthCode.AsSpan(1), System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out var month) &&
+            month is >= 1 and <= 12)
+        {
+            return month;
+        }
+
+        throw StandardLibrary.ThrowRangeError($"Invalid monthCode: {monthCode}", realm: realm);
+    }
+
+    /// <summary>
+    /// Resolves month from explicit month value and monthCode.
+    /// Per spec: if both are provided, they must agree.
+    /// </summary>
+    private static int ResolveMonth(int month, int? monthFromCode, bool hasExplicitMonth, RealmState realm)
+    {
+        if (monthFromCode is null)
+        {
+            return month;
+        }
+
+        if (hasExplicitMonth && month != monthFromCode.Value)
+        {
+            throw StandardLibrary.ThrowRangeError("month and monthCode must agree", realm: realm);
+        }
+
+        return monthFromCode.Value;
     }
 
     /// <summary>

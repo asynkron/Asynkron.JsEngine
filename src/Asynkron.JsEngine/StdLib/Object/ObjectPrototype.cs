@@ -143,11 +143,12 @@ public sealed partial class ObjectPrototype
         // and prototype chain
         if (obj.GetOwnPropertyDescriptor("__value__") is { } valueDesc)
         {
-            // Determine which wrapper type by checking the prototype chain
-            var proto = obj.Prototype;
-            while (proto is not null)
+            // Determine which wrapper type by checking the object itself and its prototype chain.
+            // Start with the object itself (e.g., Number.prototype has its own constructor property).
+            JsObject? current = obj;
+            while (current is not null)
             {
-                if (proto.GetOwnPropertyDescriptor("constructor") is { } ctorDesc &&
+                if (current.GetOwnPropertyDescriptor("constructor") is { } ctorDesc &&
                     ctorDesc.JsValue.TryGetObject<HostFunction>(out var ctor))
                 {
                     if (ctor.TryGetProperty("name", out var nameValue) && nameValue.IsString)
@@ -159,7 +160,7 @@ public sealed partial class ObjectPrototype
                     }
                 }
 
-                proto = proto.Prototype;
+                current = current.Prototype;
             }
         }
 

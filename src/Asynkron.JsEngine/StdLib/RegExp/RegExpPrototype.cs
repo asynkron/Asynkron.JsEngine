@@ -431,9 +431,22 @@ public sealed partial class RegExpPrototype
         }
 
         var replaceText = JsOps.ToJsString(replacement);
+
         if (resolved.Global)
         {
-            return new JsValue(regex.Replace(input, replaceText));
+            var builder2 = new StringBuilder();
+            var lastIndex2 = 0;
+            foreach (Match m in regex.Matches(input))
+            {
+                if (!m.Success) continue;
+                if (m.Index > lastIndex2)
+                    builder2.Append(input.AsSpan(lastIndex2, m.Index - lastIndex2));
+                builder2.Append(ApplyReplaceSubstitution(replaceText, input, m, regex, resolved));
+                lastIndex2 = m.Index + m.Length;
+            }
+            if (lastIndex2 < input.Length)
+                builder2.Append(input.AsSpan(lastIndex2));
+            return new JsValue(builder2.ToString());
         }
 
         var singleMatch = regex.Match(input);
@@ -442,7 +455,8 @@ public sealed partial class RegExpPrototype
             return new JsValue(input);
         }
 
-        return new JsValue(string.Concat(input.AsSpan(0, singleMatch.Index), replaceText,
+        var replaced = ApplyReplaceSubstitution(replaceText, input, singleMatch, regex, resolved);
+        return new JsValue(string.Concat(input.AsSpan(0, singleMatch.Index), replaced,
             input.AsSpan(singleMatch.Index + singleMatch.Length)));
     }
 
@@ -522,6 +536,160 @@ public sealed partial class RegExpPrototype
         }
 
         return groups;
+    }
+
+    /// <summary>
+    /// Applies ECMAScript GetSubstitution for regex replacement strings.
+    /// Handles $$, $&amp;, $`, $', $n, $nn, and $&lt;name&gt; patterns.
+    /// </summary>
+    private static string ApplyReplaceSubstitution(string replacement, string str, Match match, Regex regex,
+        JsRegExp resolved)
+    {
+        var result = new StringBuilder(replacement.Length);
+        var hasNamedGroups = false;
+
+        // Check if regex has named groups
+        foreach (var name in match.Groups.Keys)
+        {
+            if (!int.TryParse(name, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
+            {
+                hasNamedGroups = true;
+                break;
+            }
+        }
+
+        for (var i = 0; i < replacement.Length; i++)
+        {
+            var ch = replacement[i];
+            if (ch != '$' || i + 1 >= replacement.Length)
+            {
+                result.Append(ch);
+                continue;
+            }
+
+            var next = replacement[i + 1];
+            switch (next)
+            {
+                case '$':
+                    result.Append('$');
+                    i++;
+                    break;
+                case '&':
+                    result.Append(match.Value);
+                    i++;
+                    break;
+                case '`':
+                    result.Append(str.AsSpan(0, match.Index));
+                    i++;
+                    break;
+                case '\'':
+                    var afterMatch = match.Index + match.Length;
+                    if (afterMatch < str.Length)
+                    {
+                        result.Append(str.AsSpan(afterMatch));
+                    }
+
+                    i++;
+                    break;
+                case '<':
+                {
+                    // $<name> - named group replacement
+                    if (!hasNamedGroups)
+                    {
+                        // If the regex has no named groups, $<name> is treated as literal
+                        result.Append('$');
+                        break;
+                    }
+
+                    var endBracket = replacement.IndexOf('>', i + 2);
+                    if (endBracket == -1)
+                    {
+                        // No closing > found, treat as literal
+                        result.Append('$');
+                        break;
+                    }
+
+                    var groupName = replacement.Substring(i + 2, endBracket - (i + 2));
+
+                    // Map from JS name back to .NET name using the resolved regexp's mapping
+                    var dotNetName = groupName;
+                    if (resolved.GroupNameMapping is not null)
+                    {
+                        // Reverse lookup: find the sanitized name for this original JS name
+                        foreach (var kvp in resolved.GroupNameMapping)
+                        {
+                            if (string.Equals(kvp.Value, groupName, StringComparison.Ordinal))
+                            {
+                                dotNetName = kvp.Key;
+                                break;
+                            }
+                        }
+                    }
+
+                    try
+                    {
+                        var group = regex.GroupNumberFromName(dotNetName) >= 0
+                            ? match.Groups[dotNetName]
+                            : null;
+                        if (group is not null && group.Success)
+                        {
+                            result.Append(group.Value);
+                        }
+                    }
+                    catch
+                    {
+                        // Group name not found, replace with empty string per spec
+                    }
+
+                    i = endBracket;
+                    break;
+                }
+                default:
+                    if (next is >= '1' and <= '9')
+                    {
+                        var digit1 = next - '0';
+                        if (i + 2 < replacement.Length && replacement[i + 2] is >= '0' and <= '9')
+                        {
+                            var digit2 = replacement[i + 2] - '0';
+                            var twoDigit = digit1 * 10 + digit2;
+                            if (twoDigit < match.Groups.Count)
+                            {
+                                var group = match.Groups[twoDigit];
+                                if (group.Success)
+                                {
+                                    result.Append(group.Value);
+                                }
+
+                                i += 2;
+                                break;
+                            }
+                        }
+
+                        if (digit1 < match.Groups.Count)
+                        {
+                            var group = match.Groups[digit1];
+                            if (group.Success)
+                            {
+                                result.Append(group.Value);
+                            }
+
+                            i++;
+                        }
+                        else
+                        {
+                            result.Append('$');
+                        }
+                    }
+                    else
+                    {
+                        result.Append('$');
+                    }
+
+                    break;
+            }
+        }
+
+        return result.ToString();
     }
 
     private static void AppendFlag(StringBuilder builder, JsValue receiver, string propertyName, char flag,

@@ -40,17 +40,63 @@ public static class TypedArrayHelper
 
         HostFunction constructor = null!;
         constructor = new HostFunction((thisValue, args) =>
-            JsValue.FromObjectUnsafe(ConstructTypedArray(args, thisValue.IsNullish ? (JsValue)constructor : thisValue)))
+        {
+            // Calling without new: throw TypeError per spec step 2
+            throw ThrowTypeError(constructorName + " is not a function", realm: realm);
+        })
         {
             RealmState = realm
         };
-        constructor.SetInvokeWithContext((args, _, _, newTarget) =>
-            JsValue.FromObjectUnsafe(ConstructTypedArray(args,
-                newTarget.IsNullish ? (JsValue)constructor : newTarget)));
+        constructor.SetInvokeWithContext((args, _, context, newTarget) =>
+        {
+            // Per spec: If NewTarget is undefined, throw a TypeError exception.
+            // However, internal calls via ctor.Invoke() (e.g., from TypedArray.from/of)
+            // pass undefined newTarget through InvokeWithContext. We distinguish these
+            // by checking if there's an active evaluation context.
+            if (newTarget.IsUndefined)
+            {
+                // If called from JS code (call expression), context is non-null.
+                // If called from internal ctor.Invoke(), context is null and we use
+                // the constructor itself as newTarget.
+                if (context is not null)
+                {
+                    throw ThrowTypeError(constructorName + " is not a function", realm: realm);
+                }
 
-        constructor.SetProperty("BYTES_PER_ELEMENT", JsValue.FromNumber((double)bytesPerElement));
+                newTarget = (JsValue)constructor;
+            }
+
+            return JsValue.FromObjectUnsafe(ConstructTypedArray(args, newTarget));
+        });
+
+        // BYTES_PER_ELEMENT: { writable: false, enumerable: false, configurable: false }
+        constructor.DefineProperty("BYTES_PER_ELEMENT",
+            new PropertyDescriptor
+            {
+                Value = JsValue.FromNumber((double)bytesPerElement),
+                Writable = false,
+                Enumerable = false,
+                Configurable = false
+            });
         prototype.SetPrototype(realm.ObjectPrototype);
-        prototype.SetProperty("constructor", (JsValue)constructor);
+        // constructor on prototype: { writable: true, enumerable: false, configurable: true }
+        prototype.DefineProperty("constructor",
+            new PropertyDescriptor
+            {
+                Value = (JsValue)constructor,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
+            });
+        // BYTES_PER_ELEMENT on prototype: { writable: false, enumerable: false, configurable: false }
+        prototype.DefineProperty("BYTES_PER_ELEMENT",
+            new PropertyDescriptor
+            {
+                Value = JsValue.FromNumber((double)bytesPerElement),
+                Writable = false,
+                Enumerable = false,
+                Configurable = false
+            });
         var toStringTagKey = SymbolKeys.ToStringTag;
         prototype.DefineProperty(toStringTagKey,
             new PropertyDescriptor
@@ -68,6 +114,15 @@ public static class TypedArrayHelper
                 Enumerable = false,
                 Configurable = true
             });
+        // length property: value 3, { writable: false, enumerable: false, configurable: true }
+        constructor.DefineProperty("length",
+            new PropertyDescriptor
+            {
+                Value = JsValue.FromNumber(3d),
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
+            });
 
         if (sharedPrototype is not null)
         {
@@ -80,7 +135,15 @@ public static class TypedArrayHelper
         prototype.DeleteOwnProperty("lastIndexOf");
         prototype.DeleteOwnProperty("includes");
 
-        constructor.SetProperty("prototype", (JsValue)prototype);
+        // prototype: { writable: false, enumerable: false, configurable: false }
+        constructor.DefineProperty("prototype",
+            new PropertyDescriptor
+            {
+                Value = (JsValue)prototype,
+                Writable = false,
+                Enumerable = false,
+                Configurable = false
+            });
         constructor.Properties.SetPrototype(sharedTypedArrayCtor.PropertiesObject);
 
         return constructor;
@@ -137,90 +200,142 @@ public static class TypedArrayHelper
                 firstArg.GetType().Name,
                 newTarget.GetType().Name);
 
-            // TypedArray(length)
-            if (firstArg.TryGetDouble(out var d))
+            // Per spec: if Type(firstArg) is Object, handle as typed array / array / buffer / object
+            if (firstArg.Kind == JsValueKind.Object)
             {
-                return CreateTargetFromLength((int)d, newTarget);
-            }
-
-            // TypedArray(array)
-            if (firstArg.TryGetObject<JsArray>(out var array))
-            {
-                var ta = fromArray(array, realm);
-                ta.SetPrototype(ResolvePrototype(newTarget));
-                return ta;
-            }
-
-            // TypedArray(typedArray)
-            if (firstArg.TryGetObject<TypedArrayBase>(out var srcTypedArray))
-            {
-                if (srcTypedArray.IsDetachedOrOutOfBounds())
+                // TypedArray(array)
+                if (firstArg.TryGetObject<JsArray>(out var array))
                 {
-                    throw srcTypedArray.CreateOutOfBoundsTypeError();
+                    var ta = fromArray(array, realm);
+                    ta.SetPrototype(ResolvePrototype(newTarget));
+                    return ta;
                 }
 
-                var length = srcTypedArray.Length;
-                realm.Logger?.LogInformation(
-                    "TypedArray ctor from typed array: srcLength={Length} srcType={Type} bufferLength={BufferLength} offset={Offset} tracking={Tracking} resizable={Resizable}",
-                    length,
-                    srcTypedArray.GetType().Name,
-                    srcTypedArray.Buffer.ByteLength,
-                    srcTypedArray.ByteOffset,
-                    srcTypedArray.IsLengthTracking,
-                    srcTypedArray.Buffer.Resizable);
-                var ta = CreateTargetFromLength(length, newTarget);
-                realm.Logger?.LogInformation("TypedArray ctor target length={Length} newTarget={NewTargetType}",
-                    ta.Length,
-                    newTarget.GetType().Name);
-                if (length == 0)
+                // TypedArray(typedArray)
+                if (firstArg.TryGetObject<TypedArrayBase>(out var srcTypedArray))
                 {
+                    if (srcTypedArray.IsDetachedOrOutOfBounds())
+                    {
+                        throw srcTypedArray.CreateOutOfBoundsTypeError();
+                    }
+
+                    var length = srcTypedArray.Length;
                     realm.Logger?.LogInformation(
-                        "TypedArray ctor from typed array zero-length source type={Type} bufferLength={BufferLength} offset={Offset} resizable={Resizable}",
+                        "TypedArray ctor from typed array: srcLength={Length} srcType={Type} bufferLength={BufferLength} offset={Offset} tracking={Tracking} resizable={Resizable}",
+                        length,
                         srcTypedArray.GetType().Name,
                         srcTypedArray.Buffer.ByteLength,
                         srcTypedArray.ByteOffset,
+                        srcTypedArray.IsLengthTracking,
                         srcTypedArray.Buffer.Resizable);
-                }
-
-                for (var i = 0; i < length; i++)
-                {
-                    var value = srcTypedArray switch
+                    var ta = CreateTargetFromLength(length, newTarget);
+                    realm.Logger?.LogInformation("TypedArray ctor target length={Length} newTarget={NewTargetType}",
+                        ta.Length,
+                        newTarget.GetType().Name);
+                    if (length == 0)
                     {
-                        JsBigInt64Array bi64 => (JsValue)bi64.GetBigIntElement(i),
-                        JsBigUint64Array bu64 => (JsValue)bu64.GetBigIntElement(i),
-                        _ => srcTypedArray.GetValueForIndex(i)
-                    };
-                    if (i < 8)
-                    {
-                        realm.Logger?.LogInformation("TypedArray ctor copy [{Index}]={Value}", i, value);
+                        realm.Logger?.LogInformation(
+                            "TypedArray ctor from typed array zero-length source type={Type} bufferLength={BufferLength} offset={Offset} resizable={Resizable}",
+                            srcTypedArray.GetType().Name,
+                            srcTypedArray.Buffer.ByteLength,
+                            srcTypedArray.ByteOffset,
+                            srcTypedArray.Buffer.Resizable);
                     }
 
-                    ta.SetValue(i, value);
+                    for (var i = 0; i < length; i++)
+                    {
+                        var value = srcTypedArray switch
+                        {
+                            JsBigInt64Array bi64 => (JsValue)bi64.GetBigIntElement(i),
+                            JsBigUint64Array bu64 => (JsValue)bu64.GetBigIntElement(i),
+                            _ => srcTypedArray.GetValueForIndex(i)
+                        };
+                        if (i < 8)
+                        {
+                            realm.Logger?.LogInformation("TypedArray ctor copy [{Index}]={Value}", i, value);
+                        }
+
+                        ta.SetValue(i, value);
+                    }
+
+                    return ta;
                 }
 
-                return ta;
+                // TypedArray(buffer, byteOffset, length)
+                if (firstArg.TryGetObject<JsArrayBuffer>(out var buffer) ||
+                    (firstArg.TryGetObject<IJsPropertyAccessor>(out var bufferAccessor) &&
+                     bufferAccessor.TryGetProperty("_internalArrayBuffer", out var internalBufferVal) &&
+                     internalBufferVal.TryGetObject<JsArrayBuffer>(out buffer)))
+                {
+                    var byteOffset = args.Count > 1 && args[1].TryGetDouble(out var d1) ? (int)d1 : 0;
+
+                    var lengthProvided = args.Count > 2 && args[2].TryGetDouble(out _);
+                    var length = lengthProvided
+                        ? (int)args[2].ToNumber()
+                        : (buffer.ByteLength - byteOffset) / bytesPerElement;
+                    var isLengthTracking = buffer.Resizable && !lengthProvided;
+
+                    var ta = fromBuffer(buffer, byteOffset, length, isLengthTracking, realm);
+                    ta.SetPrototype(ResolvePrototype(newTarget));
+                    return ta;
+                }
+
+                // TypedArray(object) - use array-like or iterable protocol
+                return CreateTargetFromLength(0, newTarget);
             }
 
-            // TypedArray(buffer, byteOffset, length)
-            if (firstArg.TryGetObject<JsArrayBuffer>(out var buffer) ||
-                (firstArg.TryGetObject<IJsPropertyAccessor>(out var bufferAccessor) &&
-                 bufferAccessor.TryGetProperty("_internalArrayBuffer", out var internalBufferVal) &&
-                 internalBufferVal.TryGetObject<JsArrayBuffer>(out buffer)))
+            // Type(firstArg) is not Object: treat as length via ToIndex
+            var elementLength = ToIndex(firstArg, realm);
+            return CreateTargetFromLength(elementLength, newTarget);
+        }
+
+        /// <summary>
+        /// Implements ToIndex per ES spec 7.1.22.
+        /// </summary>
+        static int ToIndex(JsValue value, RealmState realm)
+        {
+            // 1. If value is undefined, return 0
+            if (value.IsUndefined)
             {
-                var byteOffset = args.Count > 1 && args[1].TryGetDouble(out var d1) ? (int)d1 : 0;
-
-                var lengthProvided = args.Count > 2 && args[2].TryGetDouble(out _);
-                var length = lengthProvided
-                    ? (int)args[2].ToNumber()
-                    : (buffer.ByteLength - byteOffset) / bytesPerElement;
-                var isLengthTracking = buffer.Resizable && !lengthProvided;
-
-                var ta = fromBuffer(buffer, byteOffset, length, isLengthTracking, realm);
-                ta.SetPrototype(ResolvePrototype(newTarget));
-                return ta;
+                return 0;
             }
 
-            return CreateTargetFromLength(0, newTarget);
+            // 2. Let integerIndex be ? ToIntegerOrInfinity(value)
+            // ToIntegerOrInfinity: ToNumber then truncate
+            var number = JsOps.ToNumber(value);
+            double integerIndex;
+            if (double.IsNaN(number))
+            {
+                integerIndex = 0;
+            }
+            else if (number == 0 || double.IsInfinity(number))
+            {
+                integerIndex = number;
+            }
+            else
+            {
+                integerIndex = Math.Truncate(number);
+            }
+
+            // 3. If integerIndex < 0, throw a RangeError exception
+            if (integerIndex < 0)
+            {
+                throw ThrowRangeError("Invalid typed array length", realm: realm);
+            }
+
+            // 4. Let index = ToLength(integerIndex) = min(max(integerIndex, 0), 2^53 - 1)
+            const double maxSafeInteger = 9007199254740991d; // 2^53 - 1
+            var index = Math.Min(integerIndex, maxSafeInteger);
+
+            // 5. If SameValue(integerIndex, index) is false, throw a RangeError
+            // This catches Infinity: ToLength(Infinity) = 2^53-1, but SameValue(Infinity, 2^53-1) is false
+            // ReSharper disable once CompareOfFloatsByEqualityOperator
+            if (integerIndex != index)
+            {
+                throw ThrowRangeError("Invalid typed array length", realm: realm);
+            }
+
+            return (int)Math.Min(index, int.MaxValue);
         }
     }
 

@@ -59,8 +59,9 @@ public sealed partial class TypedArrayConstructor(IJsObjectLike prototype, Realm
     {
         // 1. Let C be the this value.
         // 2. If IsConstructor(C) is false, throw a TypeError exception.
-        if (!thisValue.TryGetObject<IJsCallable>(out var ctor) ||
-            (ctor is HostFunction hf && hf.DisallowConstruct))
+        // Note: %TypedArray% has IsConstructor=true even though DisallowConstruct=true,
+        // because per spec %TypedArray% has a [[Construct]] internal method.
+        if (!IsTypedArrayConstructorLike(thisValue, out var ctor))
         {
             throw ThrowTypeError("%TypedArray%.from requires a constructor as 'this'", realm: Realm);
         }
@@ -86,73 +87,100 @@ public sealed partial class TypedArrayConstructor(IJsObjectLike prototype, Realm
 
         var source = args[0];
 
-        // Check for iterable
+        // 6. Let usingIterator be ? GetMethod(items, @@iterator).
+        // The GetMethod call uses [[Get]] which may invoke getters that throw.
+        // We must let those exceptions propagate.
         var iteratorKey = SymbolKeys.Iterator;
-        if (source.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
-            accessor.TryGetProperty(iteratorKey, out var methodVal) &&
-            !methodVal.IsUndefined)
+        if (source.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
-            if (!methodVal.TryGetObject<IJsCallable>(out var callableIterator))
+            // TryGetProperty will invoke getters; if the getter throws, it propagates.
+            if (accessor.TryGetProperty(iteratorKey, out var methodVal) &&
+                !methodVal.IsUndefined && !methodVal.IsNull)
             {
-                throw ThrowTypeError("Iterator method is not callable", realm: Realm);
-            }
-
-            var iteratorObj = callableIterator.Invoke([], source);
-            if (!iteratorObj.TryGetObject<IJsPropertyAccessor>(out var iteratorAccessor))
-            {
-                throw ThrowTypeError("Iterator method did not return an object", realm: Realm);
-            }
-
-            if (!iteratorAccessor.TryGetProperty("next", out var nextVal) ||
-                !nextVal.TryGetObject<IJsCallable>(out var nextCallable))
-            {
-                throw ThrowTypeError("Iterator result does not expose next", realm: Realm);
-            }
-
-            var collected = new List<JsValue>();
-            while (true)
-            {
-                var nextResult = nextCallable.Invoke([], iteratorObj);
-                if (!nextResult.TryGetObject<IJsPropertyAccessor>(out var nextResultAccessor))
+                if (!methodVal.TryGetObject<IJsCallable>(out var callableIterator))
                 {
-                    throw ThrowTypeError("Iterator result is not an object", realm: Realm);
+                    throw ThrowTypeError("Iterator method is not callable", realm: Realm);
                 }
 
-                var done = nextResultAccessor.TryGetProperty("done", out var doneVal) &&
-                           JsOps.ToBoolean(doneVal);
-                if (done)
+                var iteratorObj = callableIterator.Invoke([], source);
+                if (!iteratorObj.TryGetObject<IJsPropertyAccessor>(out var iteratorAccessor))
                 {
-                    return CreateAndPopulateTypedArray(ctor, collected, mapFn, mapThis);
+                    throw ThrowTypeError("Iterator method did not return an object", realm: Realm);
                 }
 
-                var value = nextResultAccessor.TryGetProperty("value", out var valueVal)
-                    ? valueVal
-                    : JsValue.Undefined;
-                collected.Add(value);
+                if (!iteratorAccessor.TryGetProperty("next", out var nextVal) ||
+                    !nextVal.TryGetObject<IJsCallable>(out var nextCallable))
+                {
+                    throw ThrowTypeError("Iterator result does not expose next", realm: Realm);
+                }
+
+                var collected = new List<JsValue>();
+                while (true)
+                {
+                    var nextResult = nextCallable.Invoke([], iteratorObj);
+                    if (!nextResult.TryGetObject<IJsPropertyAccessor>(out var nextResultAccessor))
+                    {
+                        throw ThrowTypeError("Iterator result is not an object", realm: Realm);
+                    }
+
+                    var done = nextResultAccessor.TryGetProperty("done", out var doneVal) &&
+                               JsOps.ToBoolean(doneVal);
+                    if (done)
+                    {
+                        return CreateAndPopulateTypedArray(ctor, collected, mapFn, mapThis);
+                    }
+
+                    var value = nextResultAccessor.TryGetProperty("value", out var valueVal)
+                        ? valueVal
+                        : JsValue.Undefined;
+                    collected.Add(value);
+                }
             }
-        }
 
-        // Array-like fallback
-        if (source.TryGetObject<IJsPropertyAccessor>(out var arrayLike) &&
-            arrayLike.TryGetProperty("length", out var lengthVal))
-        {
-            var lenNumber = JsOps.ToNumber(lengthVal);
-            var length = double.IsNaN(lenNumber) || lenNumber < 0
-                ? 0
-                : (int)Math.Min(lenNumber, int.MaxValue);
-
-            var collected = new List<JsValue>(length);
-            for (var i = 0; i < length; i++)
+            // 7. Let arrayLike be source (no iterator, use array-like path).
+            // Let len be ? ToLength(? Get(arrayLike, "length")).
+            if (accessor.TryGetProperty("length", out var lengthVal))
             {
-                var key = i.ToString(CultureInfo.InvariantCulture);
-                var hasElement = arrayLike.TryGetProperty(key, out var element);
-                collected.Add(hasElement ? element : JsValue.Undefined);
-            }
+                var lenNumber = JsOps.ToNumber(lengthVal);
+                var length = double.IsNaN(lenNumber) || lenNumber < 0
+                    ? 0
+                    : (int)Math.Min(lenNumber, int.MaxValue);
 
-            return CreateAndPopulateTypedArray(ctor, collected, mapFn, mapThis);
+                var collected = new List<JsValue>(length);
+                for (var i = 0; i < length; i++)
+                {
+                    var key = i.ToString(CultureInfo.InvariantCulture);
+                    var hasElement = accessor.TryGetProperty(key, out var element);
+                    collected.Add(hasElement ? element : JsValue.Undefined);
+                }
+
+                return CreateAndPopulateTypedArray(ctor, collected, mapFn, mapThis);
+            }
         }
 
         return CreateAndPopulateTypedArray(ctor, [], mapFn, mapThis);
+    }
+
+    /// <summary>
+    /// Checks if a value is a constructor suitable for TypedArray.from/of.
+    /// Per spec, %TypedArray% has [[Construct]] even though it always throws,
+    /// so IsConstructor(%TypedArray%) should return true.
+    /// </summary>
+    private static bool IsTypedArrayConstructorLike(JsValue value, out IJsCallable ctor)
+    {
+        if (!value.TryGetObject<IJsCallable>(out ctor!))
+        {
+            return false;
+        }
+
+        // For HostFunction: accept if IsConstructor is true (even with DisallowConstruct)
+        if (ctor is HostFunction hf)
+        {
+            return hf.IsConstructor;
+        }
+
+        // For other callables, use the standard IsConstructor check
+        return JsOps.IsConstructor(value);
     }
 
     private JsValue CreateAndPopulateTypedArray(IJsCallable ctor, IList<JsValue> values, IJsCallable? mapFn, JsValue mapThis)
@@ -171,6 +199,15 @@ public sealed partial class TypedArrayConstructor(IJsObjectLike prototype, Realm
             {
                 value = mapFn.Invoke([value, JsValue.FromDouble(i)], mapThis);
             }
+
+            // Per spec: Perform ? Set(targetObj, Pk, mappedValue, true).
+            // If the buffer was detached or resized by the mapper, ignore the index
+            // (Set on a detached/out-of-bounds typed array is a no-op for numeric indices).
+            if (typed.IsDetachedOrOutOfBounds() || i >= typed.Length)
+            {
+                continue;
+            }
+
             typed.SetValue(i, value);
         }
 
@@ -189,8 +226,7 @@ public sealed partial class TypedArrayConstructor(IJsObjectLike prototype, Realm
         // 2. Let items be the List of arguments passed to this function.
         // 3. Let C be the this value.
         // 4. If IsConstructor(C) is false, throw a TypeError exception.
-        if (!thisValue.TryGetObject<IJsCallable>(out var ctor) ||
-            (ctor is HostFunction hf && hf.DisallowConstruct))
+        if (!IsTypedArrayConstructorLike(thisValue, out var ctor))
         {
             throw ThrowTypeError("%TypedArray%.of requires a constructor as 'this'", realm: Realm);
         }

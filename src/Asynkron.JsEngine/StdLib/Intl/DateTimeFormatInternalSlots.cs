@@ -10,7 +10,8 @@ internal sealed class DateTimeFormatInternalSlots
 {
     public static readonly string[] ComponentNames =
     [
-        "weekday", "era", "year", "month", "day", "hour", "minute", "second", "timeZoneName"
+        "weekday", "era", "year", "month", "day", "dayPeriod", "hour", "minute", "second",
+        "fractionalSecondDigits", "timeZoneName"
     ];
 
     public string Locale { get; init; } = CultureInfo.CurrentCulture.Name;
@@ -18,9 +19,8 @@ internal sealed class DateTimeFormatInternalSlots
     public string Calendar { get; init; } = "gregory";
     public string NumberingSystem { get; init; } = "latn";
     public string HourCycle { get; init; } = "h23";
-    public string LocaleMatcher { get; init; } = "best fit";
-    public string FormatMatcher { get; init; } = "best fit";
+    public bool? Hour12 { get; init; }
     public string? DateStyle { get; init; }
     public string? TimeStyle { get; init; }
-    public Dictionary<string, string> Components { get; } = new();
+    public Dictionary<string, string> Components { get; init; } = new(StringComparer.Ordinal);
 }

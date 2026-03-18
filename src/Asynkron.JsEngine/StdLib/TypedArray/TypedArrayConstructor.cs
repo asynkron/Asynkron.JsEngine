@@ -158,7 +158,12 @@ public sealed partial class TypedArrayConstructor(IJsObjectLike prototype, Realm
     private JsValue CreateAndPopulateTypedArray(IJsCallable ctor, IList<JsValue> values, IJsCallable? mapFn, JsValue mapThis)
     {
         var length = values.Count;
-        var taObj = ctor.Invoke(new SingleValueArgs(JsValue.FromDouble(length)), JsValue.FromObjectUnsafe(ctor));
+        // Use InvokeWithContext to properly pass newTarget for construction.
+        var ctorValue = JsValue.FromObjectUnsafe(ctor);
+        var taObj = ctor is HostFunction hostCtor
+            ? hostCtor.InvokeWithContext(new SingleValueArgs(JsValue.FromDouble(length)),
+                JsValue.Undefined, null, ctorValue)
+            : ctor.Invoke(new SingleValueArgs(JsValue.FromDouble(length)), ctorValue);
         if (!taObj.TryGetObject<TypedArrayBase>(out var typed))
         {
             throw ThrowTypeError("%TypedArray%.from: constructor did not return a typed array", realm: Realm);
@@ -196,7 +201,11 @@ public sealed partial class TypedArrayConstructor(IJsObjectLike prototype, Realm
         }
 
         // 5. Let newObj be ? TypedArrayCreate(C, « 𝔽(len) »).
-        var taObj = ctor.Invoke(new SingleValueArgs(JsValue.FromDouble(length)), JsValue.FromObjectUnsafe(ctor));
+        var ctorValue = JsValue.FromObjectUnsafe(ctor);
+        var taObj = ctor is HostFunction hostCtor2
+            ? hostCtor2.InvokeWithContext(new SingleValueArgs(JsValue.FromDouble(length)),
+                JsValue.Undefined, null, ctorValue)
+            : ctor.Invoke(new SingleValueArgs(JsValue.FromDouble(length)), ctorValue);
         if (!taObj.TryGetObject<TypedArrayBase>(out var typed))
         {
             throw ThrowTypeError("%TypedArray%.of: constructor did not return a typed array", realm: Realm);

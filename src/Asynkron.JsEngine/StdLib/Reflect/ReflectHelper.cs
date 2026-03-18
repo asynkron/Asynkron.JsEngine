@@ -134,7 +134,8 @@ public static class ReflectHelper
         }
 
         if (target is HostFunction hostCtor &&
-            (ReferenceEquals(hostCtor, realm.ArrayBufferConstructor) ||
+            (hostCtor.HandlesConstructInternally ||
+             ReferenceEquals(hostCtor, realm.ArrayBufferConstructor) ||
              ReferenceEquals(hostCtor, realm.SharedArrayBufferConstructor) ||
              ReferenceEquals(hostCtor, realm.DataViewConstructor) ||
              ReferenceEquals(hostCtor, realm.PromiseConstructor)))

@@ -131,6 +131,13 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
     /// </summary>
     public string? ConstructErrorMessage { get; set; }
 
+    /// <summary>
+    ///     When true, this constructor handles newTarget and prototype resolution
+    ///     internally via its InvokeWithContext handler. Reflect.construct should
+    ///     NOT pre-resolve the prototype before calling it.
+    /// </summary>
+    public bool HandlesConstructInternally { get; set; }
+
     internal JsObject Properties { get; }
 
     internal JsObject PropertiesObject => Properties;

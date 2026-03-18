@@ -263,9 +263,9 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
     public async Task Temporal_PlainMonthDay_ToString()
     {
         await using var engine = CreateEngine();
-        // Per Temporal spec, PlainMonthDay.toString uses ISO format --MM-DD
+        // Per Temporal spec TemporalMonthDayToString, ISO calendar uses MM-DD format
         var result = await engine.Evaluate("new Temporal.PlainMonthDay(12, 25).toString()");
-        Assert.Equal("--12-25", result);
+        Assert.Equal("12-25", result);
     }
 
     [Fact]
@@ -333,7 +333,7 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.PlainDate(2024, 12, 25).toPlainMonthDay().toString()");
-        Assert.Equal("--12-25", result);
+        Assert.Equal("12-25", result);
     }
 
     // PlainTime methods

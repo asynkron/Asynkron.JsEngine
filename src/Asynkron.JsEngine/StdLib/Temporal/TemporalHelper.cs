@@ -2977,14 +2977,34 @@ public static class TemporalHelper
             {
                 return new JsValue(md.ToStringBasic());
             }
-            return new JsValue(md.ToString());
+            // "auto" mode per spec TemporalMonthDayToString:
+            // ISO calendar → MM-DD, non-ISO → YYYY-MM-DD[u-ca=cal]
+            if (string.Equals(md.Calendar, "iso8601", StringComparison.Ordinal))
+            {
+                return new JsValue(md.ToStringBasic());
+            }
+            return new JsValue(md.ToStringWithCalendar());
         });
 
         AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
-            new JsValue(GetPlainMonthDay(thisValue).ToString()));
+        {
+            var md = GetPlainMonthDay(thisValue);
+            if (string.Equals(md.Calendar, "iso8601", StringComparison.Ordinal))
+            {
+                return new JsValue(md.ToStringBasic());
+            }
+            return new JsValue(md.ToStringWithCalendar());
+        });
 
         AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, _) =>
-            new JsValue(GetPlainMonthDay(thisValue).ToString()));
+        {
+            var md = GetPlainMonthDay(thisValue);
+            if (string.Equals(md.Calendar, "iso8601", StringComparison.Ordinal))
+            {
+                return new JsValue(md.ToStringBasic());
+            }
+            return new JsValue(md.ToStringWithCalendar());
+        });
 
         AddPrototypeMethod(prototype, realm, "valueOf", 0, (_, _) =>
             throw StandardLibrary.ThrowTypeError("Temporal.PlainMonthDay.prototype.valueOf does not support implicit conversion", realm: realm));

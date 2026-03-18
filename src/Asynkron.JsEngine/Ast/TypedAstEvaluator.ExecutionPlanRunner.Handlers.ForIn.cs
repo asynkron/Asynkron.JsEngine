@@ -233,19 +233,23 @@ public static partial class TypedAstEvaluator
 
         private static void CollectArrayPropertyKeys(JsArray array, List<JsValue> keys)
         {
-            // First, enumerate numeric indices (array elements)
-            for (var i = 0; i < array.Items.Count; i++)
-            {
-                keys.Add(JsValue.FromString(i.ToString(CultureInfo.InvariantCulture)));
-            }
-
             // Track seen keys to properly handle shadowing
             var seenKeys = new HashSet<string>(StringComparer.Ordinal);
 
-            // Add all numeric indices as seen (already enumerated above)
+            // First, enumerate numeric indices (array elements) - skip non-enumerable ones
             for (var i = 0; i < array.Items.Count; i++)
             {
-                seenKeys.Add(JsValueCache.GetIndexString(i));
+                var indexKey = i.ToString(CultureInfo.InvariantCulture);
+                seenKeys.Add(indexKey);
+
+                // Check if there's an explicit descriptor marking this index as non-enumerable
+                var desc = array.GetOwnPropertyDescriptor(indexKey);
+                if (desc is { Enumerable: false })
+                {
+                    continue;
+                }
+
+                keys.Add(JsValue.FromString(indexKey));
             }
 
             // Now enumerate non-index properties on the array and its prototype chain

@@ -134,8 +134,6 @@ internal static class JsValueExtensions
                     return b ? "true" : "false";
                 case JsBigInt bigIntVal:
                     return bigIntVal.ToString();
-                case JsArray arrayVal:
-                    return ArrayToString(arrayVal);
                 case IJsPropertyAccessor accessor:
                     {
                         var primitive = JsOps.ToPrimitive(JsValue.FromObjectUnsafe(accessor), ToPrimitiveHint.String, context);

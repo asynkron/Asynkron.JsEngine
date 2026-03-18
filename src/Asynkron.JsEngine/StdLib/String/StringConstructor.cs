@@ -271,10 +271,16 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
 
     private void InitializeWrapper(JsObject wrapper, IReadOnlyList<JsValue> args)
     {
-        var str = ResolveString(args);
+        // Per spec: new String(value) calls ToString(value) which throws TypeError for Symbols.
+        var str = ResolveStringForConstruct(args);
         InitializeStringWrapper(str, wrapper, Realm);
     }
 
+    /// <summary>
+    /// Used when String() is called as a function (without new).
+    /// Per spec 22.1.1.1: If NewTarget is undefined and Type(value) is Symbol,
+    /// return SymbolDescriptiveString(value).
+    /// </summary>
     private string ResolveString(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
@@ -288,6 +294,29 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
             return typedSymbol.ToString();
         }
 
+        var context = Realm.CreateContext();
+        var str = JsOps.ToJsString(value, context);
+        if (context.IsThrow)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        return str;
+    }
+
+    /// <summary>
+    /// Used when String() is called as a constructor (with new).
+    /// Per spec 22.1.1.1: Let s be ? ToString(value). This throws TypeError for Symbols.
+    /// </summary>
+    private string ResolveStringForConstruct(IReadOnlyList<JsValue> args)
+    {
+        if (args.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var value = args.GetArgument(0);
+        // No special Symbol handling here -- ToString(Symbol) throws TypeError per spec.
         var context = Realm.CreateContext();
         var str = JsOps.ToJsString(value, context);
         if (context.IsThrow)

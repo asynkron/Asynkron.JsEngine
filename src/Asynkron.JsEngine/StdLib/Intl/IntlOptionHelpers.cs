@@ -10,7 +10,7 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 internal static class IntlOptionHelpers
 {
     /// <summary>
-    /// JsValue overload that avoids boxing. Per spec, uses ToObject on non-undefined values.
+    /// JsValue overload that avoids boxing.
     /// </summary>
     public static IJsPropertyAccessor? GetOptionsObject(JsValue optionsArg, RealmState realm, string typeName)
     {
@@ -24,14 +24,13 @@ internal static class IntlOptionHelpers
             throw StandardLibrary.ThrowTypeError($"Intl.{typeName} options must be an object", realm: realm);
         }
 
-        // Per spec: Let options be ? ToObject(options).
-        // ToObject wraps primitives (boolean, number, string, symbol) in their wrapper objects.
         if (optionsArg.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
             return accessor;
         }
 
-        // For primitive types (boolean, number, string, symbol), ToObject wraps them.
+        // Per spec: Let options be ? ToObject(options).
+        // ToObject wraps primitives (boolean, number, string, symbol) in their wrapper objects.
         return StandardLibrary.ToObjectPropertyAccessor(optionsArg, $"Intl.{typeName}", realm);
     }
 

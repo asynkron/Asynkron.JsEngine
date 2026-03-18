@@ -47,19 +47,28 @@ internal static class NumericStringParser
         }
 
         var span = trimmed.AsSpan();
+        var hasSign = false;
         var isNegative = false;
 
         if (span.Length > 0 && (span[0] == '+' || span[0] == '-'))
         {
+            hasSign = true;
             isNegative = span[0] == '-';
             span = span[1..];
         }
 
+        // Per ECMAScript spec, binary (0b/0B), octal (0o/0O), and hex (0x/0X) literals
+        // with a leading sign (+/-) are NOT valid numeric literals and must return NaN.
         if (TryParsePrefixedInteger(span, 16, NumberStyles.AllowHexSpecifier, out var prefixed) ||
             TryParseBinary(span, out prefixed) ||
             TryParseOctal(span, out prefixed))
         {
-            return (double)(isNegative ? -prefixed : prefixed);
+            if (hasSign)
+            {
+                return double.NaN;
+            }
+
+            return (double)prefixed;
         }
 
         // ECMAScript requires case-sensitive "Infinity" - double.TryParse accepts any casing,

@@ -42,6 +42,13 @@ public sealed class JsRegExp
     private readonly string _normalizedPattern;
     private readonly RegexOptions _regexOptions;
 
+    /// <summary>
+    /// Maps .NET-safe group names back to original ECMAScript group names.
+    /// ECMAScript allows '$' and unicode chars in group names that .NET doesn't support.
+    /// Key = sanitized name (used in .NET regex), Value = original JS name.
+    /// </summary>
+    private readonly Dictionary<string, string>? _groupNameMapping;
+
     private Regex? _compiledRegex;
 
     public JsRegExp(string pattern, string flags = "", RealmState? realmState = null, JsObject? existingObject = null)
@@ -54,7 +61,8 @@ public sealed class JsRegExp
         ValidateFlags(Flags);
         var hasUnicodeFlag = Flags.Contains('u', StringComparison.Ordinal) ||
                              Flags.Contains('v', StringComparison.Ordinal);
-        _normalizedPattern = NormalizePattern(pattern, hasUnicodeFlag, IgnoreCase, DotAll);
+        var normalized = NormalizePattern(pattern, hasUnicodeFlag, IgnoreCase, DotAll);
+        _normalizedPattern = SanitizeGroupNamesForDotNet(normalized, out _groupNameMapping);
 
         // Convert JavaScript regex flags to .NET RegexOptions
         var options = RegexOptions.CultureInvariant;
@@ -101,6 +109,12 @@ public sealed class JsRegExp
 
     public JsObject JsObject { get; }
     internal RealmState? RealmState { get; }
+
+    /// <summary>
+    /// Mapping from sanitized .NET group names back to original ECMAScript group names.
+    /// Null if no sanitization was needed.
+    /// </summary>
+    internal Dictionary<string, string>? GroupNameMapping => _groupNameMapping;
 
     private void SetProperty(string name, JsValue value, JsValue receiver)
     {
@@ -283,12 +297,28 @@ public sealed class JsRegExp
         result.SetProperty("input", input);
 
         var groups = BuildGroupsObject(match, captureValues);
-        result.SetProperty("groups", groups is null ? JsValue.Undefined : JsValue.FromJsObject(groups));
+        // Per spec step 26, groups is created with CreateDataProperty (DefinePropertyOrThrow),
+        // not [[Set]], to bypass inherited setters on Array.prototype.
+        result.DefineProperty("groups", new PropertyDescriptor
+        {
+            Value = groups is null ? JsValue.Undefined : JsValue.FromJsObject(groups),
+            Writable = true,
+            Enumerable = true,
+            Configurable = true
+        });
 
         if (HasIndices)
         {
             var indices = BuildIndicesArray(match);
-            result.SetProperty("indices", JsValue.FromJsArray(indices));
+            // Per spec, indices is created with CreateDataProperty (DefinePropertyOrThrow),
+            // not [[Set]], so it must bypass inherited setters on Array.prototype.
+            result.DefineProperty("indices", new PropertyDescriptor
+            {
+                Value = JsValue.FromJsArray(indices),
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
+            });
         }
 
         return result;
@@ -312,8 +342,24 @@ public sealed class JsRegExp
                 continue;
             }
 
-            groups ??= new JsObject();
-            groups.SetProperty(name, captureValues[groupNumber]);
+            if (groups is null)
+            {
+                // Per spec step 24: groups = ObjectCreate(null)
+                groups = new JsObject();
+                groups.SetPrototype(null);
+            }
+
+            // Map back from .NET-sanitized name to the original ECMAScript group name
+            var originalName = GetOriginalGroupName(name);
+
+            // Per spec, properties are created with CreateDataProperty
+            groups.DefineProperty(originalName, new PropertyDescriptor
+            {
+                Value = captureValues[groupNumber],
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
+            });
         }
 
         return groups;
@@ -344,11 +390,19 @@ public sealed class JsRegExp
         }
 
         var groups = BuildIndicesGroupsObject(match, regex, indexValues);
-        indices.SetProperty("groups", groups is null ? JsValue.Undefined : JsValue.FromJsObject(groups));
+        // Per spec, groups is created with CreateDataProperty (DefinePropertyOrThrow),
+        // not [[Set]], to bypass inherited setters on Array.prototype.
+        indices.DefineProperty("groups", new PropertyDescriptor
+        {
+            Value = groups is null ? JsValue.Undefined : JsValue.FromJsObject(groups),
+            Writable = true,
+            Enumerable = true,
+            Configurable = true
+        });
         return indices;
     }
 
-    private static JsObject? BuildIndicesGroupsObject(Match match, Regex regex, JsValue[] indexValues)
+    private JsObject? BuildIndicesGroupsObject(Match match, Regex regex, JsValue[] indexValues)
     {
         JsObject? groups = null;
 
@@ -365,8 +419,23 @@ public sealed class JsRegExp
                 continue;
             }
 
-            groups ??= new JsObject();
-            groups.SetProperty(name, indexValues[groupNumber]);
+            if (groups is null)
+            {
+                // Per spec (MakeIndicesArray step 10): groups = ObjectCreate(null)
+                groups = new JsObject();
+                groups.SetPrototype(null);
+            }
+
+            // Map back from .NET-sanitized name to the original ECMAScript group name
+            var originalName = GetOriginalGroupName(name);
+
+            groups.DefineProperty(originalName, new PropertyDescriptor
+            {
+                Value = indexValues[groupNumber],
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
+            });
         }
 
         return groups;
@@ -1302,6 +1371,176 @@ public sealed class JsRegExp
         }
 
         return builder.ToString();
+    }
+
+    /// <summary>
+    /// Post-process a normalized regex pattern to replace group names that contain
+    /// characters not supported by .NET (like '$') with safe alternatives.
+    /// Returns the sanitized pattern and a mapping from sanitized names to original names.
+    /// </summary>
+    private static string SanitizeGroupNamesForDotNet(string pattern, out Dictionary<string, string>? mapping)
+    {
+        mapping = null;
+
+        // Quick check: if no '$' in the pattern, no sanitization needed
+        if (!pattern.Contains('$'))
+        {
+            return pattern;
+        }
+
+        var result = new StringBuilder(pattern.Length);
+        var i = 0;
+        var escaped = false;
+        var inCharClass = false;
+
+        while (i < pattern.Length)
+        {
+            var c = pattern[i];
+
+            if (escaped)
+            {
+                result.Append(c);
+                escaped = false;
+                i++;
+                continue;
+            }
+
+            if (c == '\\')
+            {
+                result.Append(c);
+                escaped = true;
+                i++;
+                continue;
+            }
+
+            if (c == '[' && !inCharClass)
+            {
+                inCharClass = true;
+                result.Append(c);
+                i++;
+                continue;
+            }
+
+            if (c == ']' && inCharClass)
+            {
+                inCharClass = false;
+                result.Append(c);
+                i++;
+                continue;
+            }
+
+            if (inCharClass)
+            {
+                result.Append(c);
+                i++;
+                continue;
+            }
+
+            // Check for named group: (?<name>  (but not (?<= or (?<!)
+            if (c == '(' && i + 2 < pattern.Length && pattern[i + 1] == '?' && pattern[i + 2] == '<'
+                && i + 3 < pattern.Length && pattern[i + 3] != '=' && pattern[i + 3] != '!')
+            {
+                var end = pattern.IndexOf('>', i + 3);
+                if (end != -1)
+                {
+                    var name = pattern.Substring(i + 3, end - (i + 3));
+                    if (NeedsGroupNameSanitization(name))
+                    {
+                        var sanitized = SanitizeGroupName(name);
+                        mapping ??= new Dictionary<string, string>();
+                        mapping[sanitized] = name;
+                        result.Append("(?<");
+                        result.Append(sanitized);
+                        result.Append('>');
+                        i = end + 1;
+                        continue;
+                    }
+                }
+            }
+
+            // Check for backreference: \k<name>
+            if (c == '\\' && i + 1 < pattern.Length && pattern[i + 1] == 'k'
+                && i + 2 < pattern.Length && pattern[i + 2] == '<')
+            {
+                var end = pattern.IndexOf('>', i + 3);
+                if (end != -1)
+                {
+                    var name = pattern.Substring(i + 3, end - (i + 3));
+                    if (NeedsGroupNameSanitization(name))
+                    {
+                        var sanitized = SanitizeGroupName(name);
+                        result.Append("\\k<");
+                        result.Append(sanitized);
+                        result.Append('>');
+                        i = end + 1;
+                        continue;
+                    }
+                }
+            }
+
+            // Check for conditional: (?(name)
+            if (c == '(' && i + 1 < pattern.Length && pattern[i + 1] == '?'
+                && i + 2 < pattern.Length && pattern[i + 2] == '(')
+            {
+                var end = pattern.IndexOf(')', i + 3);
+                if (end != -1)
+                {
+                    var name = pattern.Substring(i + 3, end - (i + 3));
+                    if (NeedsGroupNameSanitization(name))
+                    {
+                        var sanitized = SanitizeGroupName(name);
+                        result.Append("(?(");
+                        result.Append(sanitized);
+                        result.Append(')');
+                        i = end + 1;
+                        continue;
+                    }
+                }
+            }
+
+            result.Append(c);
+            i++;
+        }
+
+        return result.ToString();
+    }
+
+    /// <summary>
+    /// Returns true if a group name contains characters not supported by .NET regex.
+    /// </summary>
+    private static bool NeedsGroupNameSanitization(string name)
+    {
+        foreach (var ch in name)
+        {
+            if (ch == '$')
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Replaces characters in a group name that .NET regex doesn't support.
+    /// </summary>
+    private static string SanitizeGroupName(string name)
+    {
+        return name.Replace("$", "_dollar_", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Returns the original ECMAScript group name from a .NET regex group name,
+    /// using the mapping if available.
+    /// </summary>
+    private string GetOriginalGroupName(string dotNetName)
+    {
+        if (_groupNameMapping is not null && _groupNameMapping.TryGetValue(dotNetName, out var original))
+        {
+            return original;
+        }
+
+        return dotNetName;
     }
 
     private static bool ContainsSurrogateCodeUnit(string value)

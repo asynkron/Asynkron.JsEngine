@@ -166,6 +166,17 @@ public sealed class JsEngine : IAsyncDisposable
         // Register global functions
         GlobalHelper.RegisterHostFunctions(GlobalObject, RealmState);
 
+        // Per ECMAScript spec, Number.parseFloat === parseFloat and Number.parseInt === parseInt
+        // must be the same function objects. Copy the global functions to Number.
+        if (GlobalObject.TryGetProperty("parseFloat", out var globalParseFloat) &&
+            GlobalObject.TryGetProperty("parseInt", out var globalParseInt) &&
+            GlobalObject.TryGetProperty("Number", out var numberCtorVal) &&
+            numberCtorVal.TryGetObject<IJsPropertyAccessor>(out var numberCtorObj))
+        {
+            numberCtorObj.SetProperty("parseFloat", globalParseFloat);
+            numberCtorObj.SetProperty("parseInt", globalParseInt);
+        }
+
         // Shared TypedArray intrinsic (abstract)
         var typedArrayCtor = TypedArrayHelper.EnsureTypedArrayIntrinsic(RealmState);
         SetGlobal("TypedArray", typedArrayCtor);
@@ -213,6 +224,7 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("WeakRef", WeakRefConstructor.CreateConstructor(RealmState));
         SetGlobal("FinalizationRegistry", FinalizationRegistryConstructor.CreateConstructor(RealmState));
 
+        SetGlobal("ShadowRealm", ShadowRealmConstructor.CreateConstructor(RealmState));
         SetGlobal("DisposableStack", DisposableStackConstructor.CreateConstructor(RealmState));
         SetGlobal("AsyncDisposableStack", AsyncDisposableStackConstructor.CreateConstructor(RealmState));
 

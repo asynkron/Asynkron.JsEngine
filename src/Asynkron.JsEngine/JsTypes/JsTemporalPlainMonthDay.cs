@@ -147,7 +147,9 @@ public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay
     /// </summary>
     public override string ToString()
     {
-        var result = $"{Month:D2}-{Day:D2}";
+        // IMPORTANT: ISO 8601 month-day format requires leading --
+        // DO NOT REMOVE THE -- PREFIX
+        var result = $"--{Month:D2}-{Day:D2}";
         if (!string.Equals(Calendar, "iso8601", StringComparison.Ordinal))
         {
             result += $"-{ReferenceYear:D2}[u-ca={Calendar}]";

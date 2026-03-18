@@ -1,5 +1,6 @@
 #region
 
+using System.Globalization;
 using System.Linq;
 using System.Numerics;
 using Asynkron.JsEngine.Ast;
@@ -419,29 +420,14 @@ public static class TemporalHelper
         {
             var instant = GetInstant(thisValue);
             var duration = ToTemporalDuration(args.GetArgument(0), realm);
-            // Instant only supports time units (hours, minutes, seconds, ms, us, ns)
-            var totalNanos = (long)(duration.Hours * 3600_000_000_000L +
-                                    duration.Minutes * 60_000_000_000L +
-                                    duration.Seconds * 1_000_000_000L +
-                                    duration.Milliseconds * 1_000_000L +
-                                    duration.Microseconds * 1_000L +
-                                    duration.Nanoseconds);
-            var newInstant = new JsTemporalInstant(instant.EpochNanoseconds + totalNanos);
-            return WrapInstant(newInstant, realm, prototype);
+            return AddDurationToInstant(instant, duration, 1, realm, prototype);
         });
 
         AddPrototypeMethod(prototype, realm, "subtract", 1, (thisValue, args) =>
         {
             var instant = GetInstant(thisValue);
             var duration = ToTemporalDuration(args.GetArgument(0), realm);
-            var totalNanos = (long)(duration.Hours * 3600_000_000_000L +
-                                    duration.Minutes * 60_000_000_000L +
-                                    duration.Seconds * 1_000_000_000L +
-                                    duration.Milliseconds * 1_000_000L +
-                                    duration.Microseconds * 1_000L +
-                                    duration.Nanoseconds);
-            var newInstant = new JsTemporalInstant(instant.EpochNanoseconds - totalNanos);
-            return WrapInstant(newInstant, realm, prototype);
+            return AddDurationToInstant(instant, duration, -1, realm, prototype);
         });
 
         AddPrototypeMethod(prototype, realm, "until", 1, (thisValue, args) =>
@@ -613,10 +599,13 @@ public static class TemporalHelper
         AddPrototypeGetter(prototype, realm, "blank", tv => new JsValue(GetDuration(tv).Blank));
 
         // Prototype methods
-        AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, _) =>
+        AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, args) =>
         {
             var duration = GetDuration(thisValue);
-            return new JsValue(duration.ToString());
+            var options = args.GetArgument(0);
+            var optionsObj = ValidateOptionsObject(options, realm, "Temporal.Duration.prototype.toString");
+            var (precision, roundingMode) = GetDurationToStringPrecisionAndRoundingMode(optionsObj, realm);
+            return new JsValue(FormatDurationWithPrecision(duration, precision, roundingMode, realm));
         });
 
         AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
@@ -627,7 +616,6 @@ public static class TemporalHelper
 
         AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, _) =>
         {
-            // Basic implementation - returns ISO 8601 duration string
             var duration = GetDuration(thisValue);
             return new JsValue(duration.ToString());
         });
@@ -1118,8 +1106,18 @@ public static class TemporalHelper
         AddPrototypeGetter(prototype, realm, "nanosecond", tv => new JsValue(GetPlainTime(tv).Nanosecond));
 
         // Prototype methods
-        AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, _) =>
-            new JsValue(GetPlainTime(thisValue).ToString()));
+        AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, args) =>
+        {
+            var time = GetPlainTime(thisValue);
+            var options = args.GetArgument(0);
+            var optionsObj = ValidateOptionsObject(options, realm, "Temporal.PlainTime.prototype.toString");
+            var (precision, roundingMode) = GetToStringPrecisionAndRoundingMode(optionsObj, realm);
+            var rounded = RoundPlainTimeForToString(time, precision, roundingMode);
+            return new JsValue(FormatTemporalTimeString(
+                rounded.Hour, rounded.Minute, rounded.Second,
+                rounded.Millisecond, rounded.Microsecond, rounded.Nanosecond,
+                precision.FractionalDigitCount));
+        });
 
         AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
             new JsValue(GetPlainTime(thisValue).ToString()));
@@ -1333,42 +1331,38 @@ public static class TemporalHelper
             // Per spec, options must be accessed in alphabetical order:
             // calendarName, fractionalSecondDigits, roundingMode, smallestUnit
             var showCalendar = GetTemporalShowCalendarNameOption(optionsObj, realm);
+            var (precision, roundingMode) = GetToStringPrecisionAndRoundingMode(optionsObj, realm);
 
-            // Read remaining options in alphabetical order (for observable property access order)
-            if (optionsObj is not null)
-            {
-                // fractionalSecondDigits
-                if (optionsObj.TryGetProperty("fractionalSecondDigits", out var fracDigitsVal) && !fracDigitsVal.IsUndefined)
-                {
-                    // TODO: Use fractionalSecondDigits for rounding
-                }
+            // Round the PlainDateTime
+            var rounded = RoundPlainDateTimeForToString(dt, precision, roundingMode, realm);
 
-                // roundingMode
-                if (optionsObj.TryGetProperty("roundingMode", out var roundingModeVal) && !roundingModeVal.IsUndefined)
-                {
-                    // TODO: Use roundingMode for rounding
-                }
+            // Format the time part with precision
+            var timeStr = FormatTemporalTimeString(
+                rounded.Hour, rounded.Minute, rounded.Second,
+                rounded.Millisecond, rounded.Microsecond, rounded.Nanosecond,
+                precision.FractionalDigitCount);
+            var dateStr = rounded.Date.ToStringBasic();
 
-                // smallestUnit
-                if (optionsObj.TryGetProperty("smallestUnit", out var smallestUnitVal) && !smallestUnitVal.IsUndefined)
-                {
-                    // TODO: Use smallestUnit for rounding
-                }
-            }
-
+            // Calendar annotation
+            var calendar = rounded.Date.Calendar;
             if (string.Equals(showCalendar, "always", StringComparison.Ordinal))
             {
-                return new JsValue(dt.ToStringWithCalendar());
+                return new JsValue($"{dateStr}T{timeStr}[u-ca={calendar}]");
             }
             if (string.Equals(showCalendar, "critical", StringComparison.Ordinal))
             {
-                return new JsValue(dt.ToStringWithCalendar(critical: true));
+                return new JsValue($"{dateStr}T{timeStr}[!u-ca={calendar}]");
             }
             if (string.Equals(showCalendar, "never", StringComparison.Ordinal))
             {
-                return new JsValue(dt.ToStringBasic());
+                return new JsValue($"{dateStr}T{timeStr}");
             }
-            return new JsValue(dt.ToString());
+            // "auto": show calendar only if not iso8601
+            if (!string.Equals(calendar, "iso8601", StringComparison.Ordinal))
+            {
+                return new JsValue($"{dateStr}T{timeStr}[u-ca={calendar}]");
+            }
+            return new JsValue($"{dateStr}T{timeStr}");
         });
 
         AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
@@ -2906,6 +2900,42 @@ public static class TemporalHelper
     }
 
     /// <summary>
+    ///     Per spec: AddDurationToInstant. Validates that no date components are present,
+    ///     computes total nanoseconds using BigInteger to avoid overflow, and validates
+    ///     the result is within valid Instant range.
+    /// </summary>
+    private static JsValue AddDurationToInstant(JsTemporalInstant instant, JsTemporalDuration duration,
+        int sign, RealmState realm, JsObject prototype)
+    {
+        // Per spec: Instant does not support date units
+        if (duration.Years != 0 || duration.Months != 0 || duration.Weeks != 0 || duration.Days != 0)
+        {
+            throw StandardLibrary.ThrowRangeError(
+                "Temporal.Instant does not support years, months, weeks, or days in duration",
+                realm: realm);
+        }
+
+        // Use BigInteger to prevent overflow for large values
+        var totalNanos =
+            new BigInteger(duration.Hours) * 3_600_000_000_000L +
+            new BigInteger(duration.Minutes) * 60_000_000_000L +
+            new BigInteger(duration.Seconds) * 1_000_000_000L +
+            new BigInteger(duration.Milliseconds) * 1_000_000L +
+            new BigInteger(duration.Microseconds) * 1_000L +
+            new BigInteger(duration.Nanoseconds);
+
+        var result = instant.EpochNanoseconds + sign * totalNanos;
+
+        // Per spec: IsValidEpochNanoseconds
+        if (result < InstantMinEpochNanoseconds || result > InstantMaxEpochNanoseconds)
+        {
+            throw StandardLibrary.ThrowRangeError("Resulting Instant is out of range", realm: realm);
+        }
+
+        return WrapInstant(new JsTemporalInstant(result), realm, prototype);
+    }
+
+    /// <summary>
     ///     Per Temporal spec: IsValidDuration checks that the duration fields are within limits.
     ///     Normalizes to total nanoseconds, then checks totalSeconds against 2^53.
     /// </summary>
@@ -3790,58 +3820,217 @@ public static class TemporalHelper
 
     private static JsTemporalInstant ToTemporalInstant(JsValue value, RealmState realm)
     {
-        // If it's already a Temporal.Instant
-        if (value.TryGetObject<JsObject>(out var obj) &&
-            obj.TryGetProperty(TemporalInstantSlot, out var slot) &&
-            slot.TryGetObject<JsTemporalInstant>(out var instant))
+        // 1. If it's an object, check for Temporal types or convert via toString()
+        if (value.TryGetObject<JsObject>(out var obj))
         {
-            return instant;
+            if (obj.TryGetProperty(TemporalInstantSlot, out var slot) &&
+                slot.TryGetObject<JsTemporalInstant>(out var instant))
+            {
+                return instant;
+            }
+
+            if (obj.TryGetProperty(TemporalZonedDateTimeSlot, out var zdtSlot) &&
+                zdtSlot.TryGetObject<JsTemporalZonedDateTime>(out var zdt))
+            {
+                return zdt.ToInstant();
+            }
+
+            // Convert object to string via toString()
+            var str = JsOps.ToJsString(value);
+            return ParseTemporalInstantString(str, realm);
         }
 
-        // Try to parse as string
+        // 2. String
         if (value.IsString)
         {
-            var str = value.AsString() ?? "";
-
-            // Strip bracket annotations (timezone/calendar) if present
-            var bracketIdx = str.IndexOf('[');
-            if (bracketIdx >= 0)
-            {
-                str = str[..bracketIdx];
-            }
-
-            // Try custom parsing first (preserves nanosecond precision, handles all years)
-            var parsed = ParseExtendedYearInstant(str);
-            if (parsed is not null)
-            {
-                return parsed;
-            }
-
-            // Fall back to standard ISO 8601 parsing
-            if (DateTimeOffset.TryParse(str, System.Globalization.CultureInfo.InvariantCulture,
-                    System.Globalization.DateTimeStyles.None, out var dto))
-            {
-                return new JsTemporalInstant(dto);
-            }
+            return ParseTemporalInstantString(value.AsString() ?? "", realm);
         }
 
+        // 3. Everything else: TypeError (undefined, null, boolean, number, bigint, symbol)
         throw StandardLibrary.ThrowTypeError("Cannot convert to Temporal.Instant", realm: realm);
     }
 
     /// <summary>
-    ///     Parses an ISO 8601 instant string with extended year, year 0, or nanosecond precision.
-    ///     Handles formats: YYYY-MM-DDTHH:mm:ss[.fffffffff]Z, +YYYYYY-..., -YYYYYY-...
-    ///     Returns null if the string cannot be parsed.
+    ///     Parses and validates an ISO 8601 instant string.
+    ///     Requires a UTC offset (Z or ±HH:MM). Throws RangeError for invalid strings.
     /// </summary>
-    private static JsTemporalInstant? ParseExtendedYearInstant(string str)
+    private static JsTemporalInstant ParseTemporalInstantString(string str, RealmState realm)
+    {
+        if (string.IsNullOrEmpty(str))
+        {
+            throw StandardLibrary.ThrowRangeError("Invalid instant string", realm: realm);
+        }
+
+        // Reject Unicode minus sign (U+2212)
+        if (str.Contains('\u2212'))
+        {
+            throw StandardLibrary.ThrowRangeError("Unicode minus sign is not accepted in instant strings", realm: realm);
+        }
+
+        // Parse and validate bracket annotations
+        var baseStr = ParseAndValidateAnnotations(str, realm);
+
+        // Parse the base string as an instant
+        var parsed = ParseInstantBaseString(baseStr);
+        if (parsed is null)
+        {
+            throw StandardLibrary.ThrowRangeError($"Invalid instant string: {str}", realm: realm);
+        }
+
+        // Validate range
+        if (parsed.EpochNanoseconds < InstantMinEpochNanoseconds ||
+            parsed.EpochNanoseconds > InstantMaxEpochNanoseconds)
+        {
+            throw StandardLibrary.ThrowRangeError($"Instant out of representable range: {str}", realm: realm);
+        }
+
+        return parsed;
+    }
+
+    /// <summary>
+    ///     Parses and validates bracket annotations from an ISO string.
+    ///     Returns the base string (before any annotations).
+    ///     Throws RangeError for invalid annotations.
+    /// </summary>
+    private static string ParseAndValidateAnnotations(string input, RealmState realm)
+    {
+        var bracketIdx = input.IndexOf('[');
+        if (bracketIdx < 0)
+        {
+            return input;
+        }
+
+        var baseStr = input[..bracketIdx];
+        var remaining = input.AsSpan(bracketIdx);
+
+        var timeZoneAnnotationSeen = false;
+        var calendarAnnotationCount = 0;
+        var calendarCriticalSeen = false;
+
+        var pos = 0;
+        while (pos < remaining.Length)
+        {
+            if (remaining[pos] != '[')
+            {
+                throw StandardLibrary.ThrowRangeError("Invalid trailing content after annotations", realm: realm);
+            }
+            pos++;
+
+            var critical = false;
+            if (pos < remaining.Length && remaining[pos] == '!')
+            {
+                critical = true;
+                pos++;
+            }
+
+            var closeBracket = remaining[pos..].IndexOf(']');
+            if (closeBracket < 0)
+            {
+                throw StandardLibrary.ThrowRangeError("Unterminated bracket annotation", realm: realm);
+            }
+
+            var content = remaining.Slice(pos, closeBracket);
+            pos += closeBracket + 1;
+
+            var eqIdx = content.IndexOf('=');
+            if (eqIdx >= 0)
+            {
+                // Key=value annotation
+                var key = content[..eqIdx];
+
+                if (!IsValidAnnotationKey(key))
+                {
+                    throw StandardLibrary.ThrowRangeError("Invalid annotation key: keys must be lowercase", realm: realm);
+                }
+
+                if (key.SequenceEqual("u-ca".AsSpan()))
+                {
+                    calendarAnnotationCount++;
+                    if (critical) calendarCriticalSeen = true;
+                    if (calendarAnnotationCount > 1 && calendarCriticalSeen)
+                    {
+                        throw StandardLibrary.ThrowRangeError("Multiple calendar annotations with critical flag", realm: realm);
+                    }
+                }
+                else
+                {
+                    if (critical)
+                    {
+                        throw StandardLibrary.ThrowRangeError("Unknown critical annotation", realm: realm);
+                    }
+                }
+            }
+            else
+            {
+                // Timezone annotation
+                if (timeZoneAnnotationSeen)
+                {
+                    throw StandardLibrary.ThrowRangeError("Multiple time zone annotations", realm: realm);
+                }
+                timeZoneAnnotationSeen = true;
+
+                // Validate no sub-minute offsets in timezone annotations
+                if (content.Length > 0 && (content[0] == '+' || content[0] == '-'))
+                {
+                    ValidateTimezoneAnnotationOffset(content, realm);
+                }
+            }
+        }
+
+        return baseStr;
+    }
+
+    private static bool IsValidAnnotationKey(ReadOnlySpan<char> key)
+    {
+        if (key.Length == 0) return false;
+        foreach (var c in key)
+        {
+            if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_'))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static void ValidateTimezoneAnnotationOffset(ReadOnlySpan<char> offset, RealmState realm)
+    {
+        var body = offset[1..];
+        if (body.Contains(':'))
+        {
+            // Colon format: count parts
+            var colonCount = 0;
+            foreach (var c in body) { if (c == ':') colonCount++; }
+            if (colonCount > 1)
+            {
+                throw StandardLibrary.ThrowRangeError("Sub-minute offset in timezone annotation is not allowed", realm: realm);
+            }
+        }
+        else
+        {
+            // Compact format: strip fractional part, then check length
+            var dotIdx = body.IndexOf('.');
+            var intPart = dotIdx >= 0 ? body[..dotIdx] : body;
+            if (intPart.Length > 4)
+            {
+                throw StandardLibrary.ThrowRangeError("Sub-minute offset in timezone annotation is not allowed", realm: realm);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Parses an ISO 8601 instant base string (no bracket annotations).
+    ///     Requires a UTC offset (Z or ±HH:MM). Returns null if the string is not a valid instant.
+    /// </summary>
+    private static JsTemporalInstant? ParseInstantBaseString(string str)
     {
         int year;
         string timePart;
 
-        if (str.Length > 0 && (str[0] == '+' || str[0] == '-' || str[0] == '\u2212'))
+        if (str.Length > 0 && (str[0] == '+' || str[0] == '-'))
         {
             // Extended year format: +YYYYYY-MM-DDTHH:mm:ssZ or -YYYYYY-MM-DDTHH:mm:ssZ
-            var sign = str[0] == '-' || str[0] == '\u2212' ? -1 : 1;
+            var sign = str[0] == '-' ? -1 : 1;
             var rest = str[1..];
 
             var tIdx = rest.IndexOf('T');
@@ -3850,17 +4039,26 @@ public static class TemporalHelper
             var datePart = rest[..tIdx];
             timePart = rest[(tIdx + 1)..];
 
+            // Require exactly 6-digit year for extended format
             var lastDash = datePart.LastIndexOf('-');
             if (lastDash <= 0) return null;
             var secondLastDash = datePart.LastIndexOf('-', lastDash - 1);
             if (secondLastDash <= 0) return null;
 
-            if (!int.TryParse(datePart[..secondLastDash], System.Globalization.CultureInfo.InvariantCulture, out var yearAbs) ||
+            var yearStr = datePart[..secondLastDash];
+            // Extended year must be exactly 6 digits
+            if (yearStr.Length != 6) return null;
+
+            if (!int.TryParse(yearStr, System.Globalization.CultureInfo.InvariantCulture, out var yearAbs) ||
                 !int.TryParse(datePart[(secondLastDash + 1)..lastDash], System.Globalization.CultureInfo.InvariantCulture, out var month) ||
                 !int.TryParse(datePart[(lastDash + 1)..], System.Globalization.CultureInfo.InvariantCulture, out var day))
                 return null;
 
             year = sign * yearAbs;
+
+            // Reject negative zero year (-000000)
+            if (sign == -1 && yearAbs == 0) return null;
+
             return ComputeInstantFromParts(year, month, day, timePart);
         }
 
@@ -3872,8 +4070,12 @@ public static class TemporalHelper
             var datePart = str[..tIdx];
             timePart = str[(tIdx + 1)..];
 
+            // Must be YYYY-MM-DD (exactly 3 dash-separated parts, year exactly 4 digits)
             var dashParts = datePart.Split('-');
-            if (dashParts.Length < 3) return null;
+            if (dashParts.Length != 3) return null;
+            if (dashParts[0].Length != 4) return null;
+            if (dashParts[1].Length != 2) return null;
+            if (dashParts[2].Length != 2) return null;
 
             if (!int.TryParse(dashParts[0], System.Globalization.CultureInfo.InvariantCulture, out year) ||
                 !int.TryParse(dashParts[1], System.Globalization.CultureInfo.InvariantCulture, out var month) ||
@@ -3886,33 +4088,57 @@ public static class TemporalHelper
 
     /// <summary>
     ///     Computes a JsTemporalInstant from date components and a time+offset string.
+    ///     Returns null if the time+offset string is invalid or missing a UTC offset.
     /// </summary>
-    private static JsTemporalInstant ComputeInstantFromParts(int year, int month, int day, string timePart)
+    private static JsTemporalInstant? ComputeInstantFromParts(int year, int month, int day, string timePart)
     {
-        // Remove timezone offset to get pure time
+        // Time part must not be empty
+        if (string.IsNullOrEmpty(timePart)) return null;
+
+        // Extract UTC offset - REQUIRED for instant strings
         var offsetNanos = 0L;
+        var hasOffset = false;
+
         if (timePart.EndsWith('Z') || timePart.EndsWith('z'))
         {
+            hasOffset = true;
             timePart = timePart[..^1];
         }
         else
         {
             // Look for offset: last + or - followed by a digit
-            for (var i = timePart.Length - 1; i >= 2; i--)
+            for (var i = timePart.Length - 1; i >= 1; i--)
             {
                 if ((timePart[i] == '+' || timePart[i] == '-') && i + 1 < timePart.Length && char.IsDigit(timePart[i + 1]))
                 {
                     offsetNanos = ParseOffsetToNanos(timePart[i..]);
                     timePart = timePart[..i];
+                    hasOffset = true;
                     break;
                 }
             }
         }
 
-        // Parse HH:mm:ss[.fffffffff]
+        // Instant requires a UTC offset
+        if (!hasOffset) return null;
+
+        // Time part must not be empty after stripping offset
+        if (string.IsNullOrEmpty(timePart)) return null;
+
+        // Parse HH or HH:mm or HH:mm:ss[.fffffffff]
         var timeParts = timePart.Split(':');
-        var hour = timeParts.Length > 0 ? int.Parse(timeParts[0], System.Globalization.CultureInfo.InvariantCulture) : 0;
-        var minute = timeParts.Length > 1 ? int.Parse(timeParts[1], System.Globalization.CultureInfo.InvariantCulture) : 0;
+        if (timeParts.Length == 0 || timeParts[0].Length == 0) return null;
+
+        // Validate component lengths
+        if (timeParts[0].Length != 2) return null;
+        if (timeParts.Length > 1 && timeParts[1].Length != 2) return null;
+
+        if (!int.TryParse(timeParts[0], System.Globalization.CultureInfo.InvariantCulture, out var hour)) return null;
+        var minute = 0;
+        if (timeParts.Length > 1)
+        {
+            if (!int.TryParse(timeParts[1], System.Globalization.CultureInfo.InvariantCulture, out minute)) return null;
+        }
 
         var second = 0;
         long subSecondNanos = 0;
@@ -3922,24 +4148,43 @@ public static class TemporalHelper
             var dotIdx = secStr.IndexOf('.');
             if (dotIdx >= 0)
             {
-                second = int.Parse(secStr[..dotIdx], System.Globalization.CultureInfo.InvariantCulture);
+                if (dotIdx != 2) return null;
+                if (!int.TryParse(secStr[..dotIdx], System.Globalization.CultureInfo.InvariantCulture, out second)) return null;
                 var frac = secStr[(dotIdx + 1)..];
-                // Pad to 9 digits for nanosecond precision
+                if (frac.Length == 0 || frac.Length > 9) return null;
                 frac = frac.PadRight(9, '0');
-                if (frac.Length > 9) frac = frac[..9];
                 subSecondNanos = long.Parse(frac, System.Globalization.CultureInfo.InvariantCulture);
             }
             else
             {
-                second = int.Parse(secStr, System.Globalization.CultureInfo.InvariantCulture);
+                if (secStr.Length != 2) return null;
+                if (!int.TryParse(secStr, System.Globalization.CultureInfo.InvariantCulture, out second)) return null;
             }
         }
+
+        // Validate time ranges
+        if (hour > 23) return null;
+        if (minute > 59) return null;
+
+        // Handle leap second: 60 → 59
+        if (second == 60)
+        {
+            second = 59;
+        }
+        else if (second > 59)
+        {
+            return null;
+        }
+
+        // Validate date
+        if (month is < 1 or > 12) return null;
+        if (day < 1 || day > DaysInMonth(year, month)) return null;
 
         // Compute epoch days using shared helper (proleptic Gregorian)
         var epochDays = IsoCalendarHelpers.DateToEpochDays(year, month, day);
 
         // Compute epoch nanoseconds
-        var epochNanos = new System.Numerics.BigInteger(epochDays) * 86400L * 1_000_000_000L;
+        var epochNanos = new BigInteger(epochDays) * 86400L * 1_000_000_000L;
         epochNanos += (long)hour * 3_600_000_000_000L;
         epochNanos += (long)minute * 60_000_000_000L;
         epochNanos += (long)second * 1_000_000_000L;
@@ -3949,18 +4194,37 @@ public static class TemporalHelper
         return new JsTemporalInstant(epochNanos);
     }
 
+    private static int DaysInMonth(int year, int month)
+    {
+        return month switch
+        {
+            1 or 3 or 5 or 7 or 8 or 10 or 12 => 31,
+            4 or 6 or 9 or 11 => 30,
+            2 => IsLeapYear(year) ? 29 : 28,
+            _ => 0
+        };
+    }
+
+    private static bool IsLeapYear(int year)
+    {
+        return (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+    }
+
     /// <summary>
-    ///     Parses an offset string like "+01:00", "-05:30" to nanoseconds.
+    ///     Parses an offset string like "+01:00", "-05:30", "+00:19:32.37" to nanoseconds.
+    ///     Supports sub-minute offsets with seconds and fractional seconds.
     /// </summary>
     private static long ParseOffsetToNanos(string offsetStr)
     {
         var sign = offsetStr[0] == '-' ? -1L : 1L;
         var body = offsetStr[1..];
         var parts = body.Split(':');
-        int hours, minutes = 0;
+        int hours, minutes = 0, seconds = 0;
+        long subSecondNanos = 0;
 
         if (parts.Length == 1)
         {
+            // Compact format: HH or HHMM
             if (body.Length == 4)
             {
                 hours = int.Parse(body[..2], System.Globalization.CultureInfo.InvariantCulture);
@@ -3975,9 +4239,31 @@ public static class TemporalHelper
         {
             hours = int.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture);
             minutes = int.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
+
+            if (parts.Length > 2)
+            {
+                // Sub-minute offset with seconds
+                var secStr = parts[2];
+                var dotIdx = secStr.IndexOf('.');
+                if (dotIdx >= 0)
+                {
+                    seconds = int.Parse(secStr[..dotIdx], System.Globalization.CultureInfo.InvariantCulture);
+                    var frac = secStr[(dotIdx + 1)..].PadRight(9, '0');
+                    if (frac.Length > 9) frac = frac[..9];
+                    subSecondNanos = long.Parse(frac, System.Globalization.CultureInfo.InvariantCulture);
+                }
+                else
+                {
+                    seconds = int.Parse(secStr, System.Globalization.CultureInfo.InvariantCulture);
+                }
+            }
         }
 
-        return sign * ((long)hours * 3_600_000_000_000L + (long)minutes * 60_000_000_000L);
+        // Validate offset range
+        if (hours > 23) return 0;
+
+        return sign * ((long)hours * 3_600_000_000_000L + (long)minutes * 60_000_000_000L +
+                        (long)seconds * 1_000_000_000L + subSecondNanos);
     }
 
     private static JsTemporalDuration ToTemporalDuration(JsValue value, RealmState realm)
@@ -3990,30 +4276,80 @@ public static class TemporalHelper
             return duration;
         }
 
-        // If it's an object with duration properties
-        if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
-        {
-            return new JsTemporalDuration(
-                GetPropertyAsNumber(accessor, "years"),
-                GetPropertyAsNumber(accessor, "months"),
-                GetPropertyAsNumber(accessor, "weeks"),
-                GetPropertyAsNumber(accessor, "days"),
-                GetPropertyAsNumber(accessor, "hours"),
-                GetPropertyAsNumber(accessor, "minutes"),
-                GetPropertyAsNumber(accessor, "seconds"),
-                GetPropertyAsNumber(accessor, "milliseconds"),
-                GetPropertyAsNumber(accessor, "microseconds"),
-                GetPropertyAsNumber(accessor, "nanoseconds"));
-        }
-
-        // Try to parse as ISO 8601 duration string
+        // Try to parse as ISO 8601 duration string (check string BEFORE object per spec)
         if (value.IsString)
         {
             var str = value.AsString() ?? "";
             return ParseIsoDuration(str, realm);
         }
 
+        // If it's an object with duration properties
+        if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
+        {
+            // Per spec: read properties in alphabetical order using ToIntegerIfIntegral
+            var any = false;
+            var days = ReadDurationFieldFromBag(accessor, "days", ref any, realm);
+            var hours = ReadDurationFieldFromBag(accessor, "hours", ref any, realm);
+            var microseconds = ReadDurationFieldFromBag(accessor, "microseconds", ref any, realm);
+            var milliseconds = ReadDurationFieldFromBag(accessor, "milliseconds", ref any, realm);
+            var minutes = ReadDurationFieldFromBag(accessor, "minutes", ref any, realm);
+            var months = ReadDurationFieldFromBag(accessor, "months", ref any, realm);
+            var nanoseconds = ReadDurationFieldFromBag(accessor, "nanoseconds", ref any, realm);
+            var seconds = ReadDurationFieldFromBag(accessor, "seconds", ref any, realm);
+            var weeks = ReadDurationFieldFromBag(accessor, "weeks", ref any, realm);
+            var years = ReadDurationFieldFromBag(accessor, "years", ref any, realm);
+
+            if (!any)
+            {
+                throw StandardLibrary.ThrowTypeError(
+                    "Duration object must have at least one of: years, months, weeks, days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds",
+                    realm: realm);
+            }
+
+            // Per spec: reject mixed signs
+            RejectDurationSign(years, months, weeks, days, hours, minutes, seconds,
+                milliseconds, microseconds, nanoseconds, realm);
+
+            // Per spec: IsValidDuration
+            if (!IsValidDuration(years, months, weeks, days, hours, minutes, seconds,
+                    milliseconds, microseconds, nanoseconds))
+            {
+                throw StandardLibrary.ThrowRangeError("Duration is out of range", realm: realm);
+            }
+
+            return new JsTemporalDuration(years, months, weeks, days, hours, minutes, seconds,
+                milliseconds, microseconds, nanoseconds);
+        }
+
         throw StandardLibrary.ThrowTypeError("Cannot convert to Temporal.Duration", realm: realm);
+    }
+
+    /// <summary>
+    ///     Reads a duration field from a property bag using ToIntegerIfIntegral semantics.
+    ///     Returns 0 if the property is absent or undefined.
+    /// </summary>
+    private static double ReadDurationFieldFromBag(IJsPropertyAccessor accessor, string name, ref bool any, RealmState? realm = null)
+    {
+        if (!accessor.TryGetProperty(name, out var v) || v.IsUndefined)
+        {
+            return 0;
+        }
+
+        any = true;
+        var value = JsOps.ToNumber(v);
+
+        if (double.IsNaN(value) || double.IsInfinity(value))
+        {
+            throw StandardLibrary.ThrowRangeError($"Duration field '{name}' is not finite", realm: realm);
+        }
+
+        if (value != Math.Truncate(value))
+        {
+            throw StandardLibrary.ThrowRangeError($"Duration field '{name}' is not an integer", realm: realm);
+        }
+
+        // Per spec: ToIntegerIfIntegral converts -0 to +0
+        return value == 0 ? 0 : value;
     }
 
     private static JsTemporalPlainDate ToTemporalPlainDate(JsValue value, RealmState realm)
@@ -4046,33 +4382,181 @@ public static class TemporalHelper
 
     private static JsTemporalPlainTime ToTemporalPlainTime(JsValue value, RealmState realm)
     {
-        // If it's already a Temporal.PlainTime
-        if (value.TryGetObject<JsObject>(out var obj) &&
-            obj.TryGetProperty(TemporalPlainTimeSlot, out var slot) &&
-            slot.TryGetObject<JsTemporalPlainTime>(out var time))
+        if (value.TryGetObject<JsObject>(out var obj))
         {
-            return time;
+            if (obj.TryGetProperty(TemporalPlainTimeSlot, out var slot) &&
+                slot.TryGetObject<JsTemporalPlainTime>(out var time))
+                return time;
+
+            if (obj.TryGetProperty(TemporalZonedDateTimeSlot, out var zdtSlot) &&
+                zdtSlot.TryGetObject<JsTemporalZonedDateTime>(out var zdt))
+                return zdt.ToPlainTime();
+
+            if (obj.TryGetProperty(TemporalPlainDateTimeSlot, out var pdtSlot) &&
+                pdtSlot.TryGetObject<JsTemporalPlainDateTime>(out var pdt))
+                return pdt.ToPlainTime();
+
+            if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
+                return ToTemporalPlainTimeFromPropertyBag(accessor, realm);
+
+            throw StandardLibrary.ThrowTypeError("Cannot convert to Temporal.PlainTime", realm: realm);
         }
 
-        // Try to parse as string
         if (value.IsString)
-        {
-            return JsTemporalPlainTime.From(value.AsString() ?? "");
-        }
-
-        // If it's an object with time properties
-        if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
-        {
-            var hour = (int)GetPropertyAsNumber(accessor, "hour");
-            var minute = (int)GetPropertyAsNumber(accessor, "minute");
-            var second = (int)GetPropertyAsNumber(accessor, "second");
-            var millisecond = (int)GetPropertyAsNumber(accessor, "millisecond");
-            var microsecond = (int)GetPropertyAsNumber(accessor, "microsecond");
-            var nanosecond = (int)GetPropertyAsNumber(accessor, "nanosecond");
-            return new JsTemporalPlainTime(hour, minute, second, millisecond, microsecond, nanosecond);
-        }
+            return ParseTemporalPlainTimeString(value.AsString() ?? "", realm);
 
         throw StandardLibrary.ThrowTypeError("Cannot convert to Temporal.PlainTime", realm: realm);
+    }
+
+    private static JsTemporalPlainTime ToTemporalPlainTimeFromPropertyBag(IJsPropertyAccessor accessor, RealmState realm)
+    {
+        var hasAnyTimeProperty = false;
+        foreach (var prop in new[] { "hour", "minute", "second", "millisecond", "microsecond", "nanosecond" })
+        {
+            if (accessor.TryGetProperty(prop, out var val) && !val.IsUndefined)
+            {
+                hasAnyTimeProperty = true;
+                break;
+            }
+        }
+        if (!hasAnyTimeProperty)
+            throw StandardLibrary.ThrowTypeError("Property bag must contain at least one time unit", realm: realm);
+
+        var hour = (int)GetPropertyAsNumber(accessor, "hour");
+        var minute = (int)GetPropertyAsNumber(accessor, "minute");
+        var second = (int)GetPropertyAsNumber(accessor, "second");
+        var millisecond = (int)GetPropertyAsNumber(accessor, "millisecond");
+        var microsecond = (int)GetPropertyAsNumber(accessor, "microsecond");
+        var nanosecond = (int)GetPropertyAsNumber(accessor, "nanosecond");
+        if (second == 60) second = 59;
+        return new JsTemporalPlainTime(hour, minute, second, millisecond, microsecond, nanosecond);
+    }
+
+    private static JsTemporalPlainTime ParseTemporalPlainTimeString(string str, RealmState realm)
+    {
+        if (string.IsNullOrEmpty(str))
+            throw StandardLibrary.ThrowRangeError("Invalid PlainTime string", realm: realm);
+        if (str.Contains('\u2212'))
+            throw StandardLibrary.ThrowRangeError("Unicode minus sign is not accepted", realm: realm);
+
+        var baseStr = ParseAndValidateAnnotations(str, realm);
+
+        if (baseStr.IndexOf('Z') >= 0 || baseStr.IndexOf('z') >= 0)
+            throw StandardLibrary.ThrowRangeError("UTC designator Z is not valid for PlainTime", realm: realm);
+
+        string timePart;
+        if (baseStr.Length > 0 && (baseStr[0] == 'T' || baseStr[0] == 't'))
+            timePart = baseStr[1..];
+        else if (TryExtractTimeFromDateTime(baseStr, out var extracted))
+            timePart = extracted;
+        else if (baseStr.Contains(':'))
+            timePart = baseStr;
+        else
+            throw StandardLibrary.ThrowRangeError("Invalid PlainTime string", realm: realm);
+
+        timePart = StripOffsetFromTimePart(timePart);
+        return ParsePlainTimeComponents(timePart, realm);
+    }
+
+    private static bool TryExtractTimeFromDateTime(string str, out string timePart)
+    {
+        timePart = "";
+        for (var i = 1; i < str.Length; i++)
+        {
+            if ((str[i] == 'T' || str[i] == 't' || str[i] == ' ') && i >= 4)
+            {
+                var datePart = str[..i];
+                if (datePart.Contains('-') || datePart.Length >= 8)
+                {
+                    var rest = str[(i + 1)..];
+                    if (rest.Length > 0) { timePart = rest; return true; }
+                    return false;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static string StripOffsetFromTimePart(string timePart)
+    {
+        for (var i = timePart.Length - 1; i >= 1; i--)
+        {
+            if ((timePart[i] == '+' || timePart[i] == '-') && i + 1 < timePart.Length && char.IsDigit(timePart[i + 1]))
+                return timePart[..i];
+        }
+        return timePart;
+    }
+
+    private static JsTemporalPlainTime ParsePlainTimeComponents(string timePart, RealmState realm)
+    {
+        int hour, minute = 0, second = 0;
+        long subSecondNanos = 0;
+
+        if (timePart.Contains(':'))
+        {
+            var parts = timePart.Split(':');
+            if (parts.Length < 2 ||
+                !int.TryParse(parts[0], System.Globalization.CultureInfo.InvariantCulture, out hour) ||
+                !int.TryParse(parts[1], System.Globalization.CultureInfo.InvariantCulture, out minute))
+                throw StandardLibrary.ThrowRangeError("Invalid time string", realm: realm);
+
+            if (parts.Length > 2)
+            {
+                var secStr = parts[2];
+                var dotIdx = secStr.IndexOf('.');
+                if (dotIdx >= 0)
+                {
+                    if (!int.TryParse(secStr[..dotIdx], System.Globalization.CultureInfo.InvariantCulture, out second))
+                        throw StandardLibrary.ThrowRangeError("Invalid time string", realm: realm);
+                    var frac = secStr[(dotIdx + 1)..].PadRight(9, '0');
+                    if (frac.Length > 9) frac = frac[..9];
+                    subSecondNanos = long.Parse(frac, System.Globalization.CultureInfo.InvariantCulture);
+                }
+                else
+                {
+                    if (!int.TryParse(secStr, System.Globalization.CultureInfo.InvariantCulture, out second))
+                        throw StandardLibrary.ThrowRangeError("Invalid time string", realm: realm);
+                }
+            }
+        }
+        else
+        {
+            var dotIdx = timePart.IndexOf('.');
+            var intPart = dotIdx >= 0 ? timePart[..dotIdx] : timePart;
+            if (intPart.Length == 4)
+            {
+                if (!int.TryParse(intPart[..2], System.Globalization.CultureInfo.InvariantCulture, out hour) ||
+                    !int.TryParse(intPart[2..4], System.Globalization.CultureInfo.InvariantCulture, out minute))
+                    throw StandardLibrary.ThrowRangeError("Invalid time string", realm: realm);
+            }
+            else if (intPart.Length == 6)
+            {
+                if (!int.TryParse(intPart[..2], System.Globalization.CultureInfo.InvariantCulture, out hour) ||
+                    !int.TryParse(intPart[2..4], System.Globalization.CultureInfo.InvariantCulture, out minute) ||
+                    !int.TryParse(intPart[4..6], System.Globalization.CultureInfo.InvariantCulture, out second))
+                    throw StandardLibrary.ThrowRangeError("Invalid time string", realm: realm);
+            }
+            else
+                throw StandardLibrary.ThrowRangeError("Invalid time string", realm: realm);
+
+            if (dotIdx >= 0)
+            {
+                var frac = timePart[(dotIdx + 1)..].PadRight(9, '0');
+                if (frac.Length > 9) frac = frac[..9];
+                subSecondNanos = long.Parse(frac, System.Globalization.CultureInfo.InvariantCulture);
+            }
+        }
+
+        if (hour > 23 || minute > 59)
+            throw StandardLibrary.ThrowRangeError("Invalid time values", realm: realm);
+        if (second == 60) second = 59;
+        else if (second > 59)
+            throw StandardLibrary.ThrowRangeError("Invalid time values", realm: realm);
+
+        var ms = (int)(subSecondNanos / 1_000_000);
+        var us = (int)((subSecondNanos / 1_000) % 1_000);
+        var ns = (int)(subSecondNanos % 1_000);
+        return new JsTemporalPlainTime(hour, minute, second, ms, us, ns);
     }
 
     private static JsTemporalPlainDateTime ToTemporalPlainDateTime(JsValue value, RealmState realm)
@@ -4270,21 +4754,30 @@ public static class TemporalHelper
                 {
                     switch (c)
                     {
-                        case 'H': hours = value; break;
-                        case 'M': minutes = value; break;
+                        case 'H':
+                            // Per spec: decompose fractional hours into minutes, seconds, etc.
+                            hours = Math.Truncate(value);
+                            var fracHours = value - hours;
+                            if (fracHours != 0)
+                            {
+                                var totalMinutes = fracHours * 60;
+                                minutes = Math.Truncate(totalMinutes);
+                                var fracMinutes = totalMinutes - minutes;
+                                DecomposeFractionalSeconds(fracMinutes * 60, ref seconds, ref milliseconds, ref microseconds, ref nanoseconds);
+                            }
+                            break;
+                        case 'M':
+                            // Per spec: decompose fractional minutes into seconds, etc.
+                            minutes += Math.Truncate(value);
+                            var fracMins = value - Math.Truncate(value);
+                            if (fracMins != 0)
+                            {
+                                DecomposeFractionalSeconds(fracMins * 60, ref seconds, ref milliseconds, ref microseconds, ref nanoseconds);
+                            }
+                            break;
                         case 'S':
                             // Handle fractional seconds by splitting into s/ms/us/ns
-                            seconds = Math.Truncate(value);
-                            var frac = value - seconds;
-                            if (frac > 0)
-                            {
-                                var fracNanos = frac * 1_000_000_000;
-                                milliseconds = Math.Truncate(fracNanos / 1_000_000);
-                                fracNanos -= milliseconds * 1_000_000;
-                                microseconds = Math.Truncate(fracNanos / 1_000);
-                                fracNanos -= microseconds * 1_000;
-                                nanoseconds = Math.Round(fracNanos);
-                            }
+                            DecomposeFractionalSeconds(value, ref seconds, ref milliseconds, ref microseconds, ref nanoseconds);
                             break;
                     }
                 }
@@ -4301,10 +4794,461 @@ public static class TemporalHelper
             }
         }
 
-        return new JsTemporalDuration(
-            sign * years, sign * months, sign * weeks, sign * days,
-            sign * hours, sign * minutes, sign * seconds,
-            sign * milliseconds, sign * microseconds, sign * nanoseconds);
+        // Validate result is valid duration
+        var dy = sign * years;
+        var dmo = sign * months;
+        var dw = sign * weeks;
+        var dd = sign * days;
+        var dh = sign * hours;
+        var dmi = sign * minutes;
+        var ds = sign * seconds;
+        var dms = sign * milliseconds;
+        var dus = sign * microseconds;
+        var dns = sign * nanoseconds;
+
+        if (!IsValidDuration(dy, dmo, dw, dd, dh, dmi, ds, dms, dus, dns))
+        {
+            throw StandardLibrary.ThrowRangeError("Duration is out of range", realm: realm);
+        }
+
+        return new JsTemporalDuration(dy, dmo, dw, dd, dh, dmi, ds, dms, dus, dns);
+    }
+
+    /// <summary>
+    ///     Decomposes a (possibly fractional) seconds value into integer seconds, milliseconds,
+    ///     microseconds, and nanoseconds fields. Per Temporal spec for ISO duration parsing.
+    /// </summary>
+    private static void DecomposeFractionalSeconds(double totalSeconds,
+        ref double seconds, ref double milliseconds, ref double microseconds, ref double nanoseconds)
+    {
+        seconds += Math.Truncate(totalSeconds);
+        var frac = totalSeconds - Math.Truncate(totalSeconds);
+        if (frac != 0)
+        {
+            var fracNanos = frac * 1_000_000_000;
+            milliseconds += Math.Truncate(fracNanos / 1_000_000);
+            fracNanos -= Math.Truncate(fracNanos / 1_000_000) * 1_000_000;
+            microseconds += Math.Truncate(fracNanos / 1_000);
+            fracNanos -= Math.Truncate(fracNanos / 1_000) * 1_000;
+            nanoseconds += Math.Round(fracNanos);
+        }
+    }
+
+    #endregion
+
+    #region ToString precision helpers
+
+    /// <summary>
+    /// Represents the precision for Temporal toString methods.
+    /// FractionalDigitCount of -1 means "auto" (trim trailing zeros).
+    /// FractionalDigitCount of -2 means "minute" precision (omit seconds entirely).
+    /// </summary>
+    private readonly record struct ToStringPrecision(string SmallestUnit, long Increment, int FractionalDigitCount);
+
+    private const int FractionDigitsAuto = -1;
+    private const int FractionDigitsMinute = -2;
+
+    /// <summary>
+    /// Valid smallestUnit values for Duration.prototype.toString.
+    /// Duration only allows second and sub-second units (not minute or higher).
+    /// </summary>
+    private static readonly HashSet<string> ValidDurationToStringSmallestUnits = new(StringComparer.Ordinal)
+    {
+        "second", "millisecond", "microsecond", "nanosecond"
+    };
+
+    /// <summary>
+    /// Valid smallestUnit values for toString methods (PlainTime, PlainDateTime, ZonedDateTime).
+    /// Note: "hour" is NOT valid for toString (unlike round).
+    /// </summary>
+    private static readonly HashSet<string> ValidToStringSmallestUnits = new(StringComparer.Ordinal)
+    {
+        "minute", "second", "millisecond", "microsecond", "nanosecond"
+    };
+
+    /// <summary>
+    /// Implements the ToSecondsStringPrecision abstract operation from the Temporal spec.
+    /// Reads fractionalSecondDigits, roundingMode, and smallestUnit from options in alphabetical order.
+    /// </summary>
+    private static (ToStringPrecision Precision, string RoundingMode) GetToStringPrecisionAndRoundingMode(
+        IJsPropertyAccessor? optionsObj, RealmState realm)
+    {
+        if (optionsObj is null)
+        {
+            return (new ToStringPrecision("nanosecond", 1, FractionDigitsAuto), "trunc");
+        }
+
+        // Read options in alphabetical order: fractionalSecondDigits, roundingMode, smallestUnit
+        // 1. fractionalSecondDigits
+        var fractionalSecondDigits = FractionDigitsAuto; // default "auto"
+        var hasFractionalSecondDigits = false;
+        if (optionsObj.TryGetProperty("fractionalSecondDigits", out var fracDigitsVal) && !fracDigitsVal.IsUndefined)
+        {
+            fractionalSecondDigits = ParseFractionalSecondDigits(fracDigitsVal, realm);
+            hasFractionalSecondDigits = true;
+        }
+
+        // 2. roundingMode (default "trunc" for toString, unlike "halfExpand" for round)
+        var roundingMode = "trunc";
+        if (optionsObj.TryGetProperty("roundingMode", out var roundingModeVal) && !roundingModeVal.IsUndefined)
+        {
+            roundingMode = JsOps.ToJsString(roundingModeVal);
+            if (!ValidRoundingModes.Contains(roundingMode))
+            {
+                throw StandardLibrary.ThrowRangeError($"Invalid roundingMode: {roundingMode}", realm: realm);
+            }
+        }
+
+        // 3. smallestUnit (overrides fractionalSecondDigits if present)
+        if (optionsObj.TryGetProperty("smallestUnit", out var smallestUnitVal) && !smallestUnitVal.IsUndefined)
+        {
+            var smallestUnit = JsOps.ToJsString(smallestUnitVal);
+            smallestUnit = NormalizeSmallestUnit(smallestUnit);
+
+            if (!ValidToStringSmallestUnits.Contains(smallestUnit))
+            {
+                throw StandardLibrary.ThrowRangeError($"Invalid smallestUnit for toString: {smallestUnit}", realm: realm);
+            }
+
+            var precision = SmallestUnitToPrecision(smallestUnit);
+            return (precision, roundingMode);
+        }
+
+        // No smallestUnit: use fractionalSecondDigits
+        if (!hasFractionalSecondDigits || fractionalSecondDigits == FractionDigitsAuto)
+        {
+            return (new ToStringPrecision("nanosecond", 1, FractionDigitsAuto), roundingMode);
+        }
+
+        // fractionalSecondDigits 0-9: compute unit and increment
+        var (unit, increment) = FractionalDigitsToUnitAndIncrement(fractionalSecondDigits);
+        return (new ToStringPrecision(unit, increment, fractionalSecondDigits), roundingMode);
+    }
+
+    /// <summary>
+    /// Parses the fractionalSecondDigits option value per spec GetStringOrNumberOption.
+    /// Returns FractionDigitsAuto (-1) for "auto", or 0-9 for numeric values.
+    /// </summary>
+    private static int ParseFractionalSecondDigits(JsValue value, RealmState realm)
+    {
+        // If it's a number type, validate directly
+        if (value.IsNumber)
+        {
+            var num = value.NumberValue;
+            if (double.IsNaN(num))
+            {
+                throw StandardLibrary.ThrowRangeError("fractionalSecondDigits must not be NaN", realm: realm);
+            }
+            var floored = Math.Floor(num);
+            if (floored < 0 || floored > 9)
+            {
+                throw StandardLibrary.ThrowRangeError($"fractionalSecondDigits must be 0-9, got {num}", realm: realm);
+            }
+            return (int)floored;
+        }
+
+        // Otherwise convert to string (this handles booleans, objects with toString, etc.)
+        var str = JsOps.ToJsString(value);
+        if (string.Equals(str, "auto", StringComparison.Ordinal))
+        {
+            return FractionDigitsAuto;
+        }
+
+        throw StandardLibrary.ThrowRangeError($"Invalid fractionalSecondDigits: {str}", realm: realm);
+    }
+
+    private static ToStringPrecision SmallestUnitToPrecision(string smallestUnit)
+    {
+        return smallestUnit switch
+        {
+            "minute" => new ToStringPrecision("minute", 1, FractionDigitsMinute),
+            "second" => new ToStringPrecision("second", 1, 0),
+            "millisecond" => new ToStringPrecision("millisecond", 1, 3),
+            "microsecond" => new ToStringPrecision("microsecond", 1, 6),
+            "nanosecond" => new ToStringPrecision("nanosecond", 1, 9),
+            _ => new ToStringPrecision("nanosecond", 1, FractionDigitsAuto)
+        };
+    }
+
+    private static (string Unit, long Increment) FractionalDigitsToUnitAndIncrement(int digits)
+    {
+        return digits switch
+        {
+            0 => ("second", 1),
+            1 => ("millisecond", 100),
+            2 => ("millisecond", 10),
+            3 => ("millisecond", 1),
+            4 => ("microsecond", 100),
+            5 => ("microsecond", 10),
+            6 => ("microsecond", 1),
+            7 => ("nanosecond", 100),
+            8 => ("nanosecond", 10),
+            9 => ("nanosecond", 1),
+            _ => ("nanosecond", 1)
+        };
+    }
+
+    /// <summary>
+    /// Formats a time as an ISO 8601 string with the given precision.
+    /// Used by PlainTime, PlainDateTime, and ZonedDateTime toString.
+    /// </summary>
+    private static string FormatTemporalTimeString(
+        int hour, int minute, int second, int millisecond, int microsecond, int nanosecond,
+        int fractionalDigitCount)
+    {
+        if (fractionalDigitCount == FractionDigitsMinute)
+        {
+            // Minute precision: omit seconds entirely
+            return $"{hour:D2}:{minute:D2}";
+        }
+
+        var baseTime = $"{hour:D2}:{minute:D2}:{second:D2}";
+
+        if (fractionalDigitCount == 0)
+        {
+            return baseTime;
+        }
+
+        var totalSubSecondNanos = millisecond * 1_000_000L + microsecond * 1_000L + nanosecond;
+
+        if (fractionalDigitCount == FractionDigitsAuto)
+        {
+            // Auto: trim trailing zeros, but always show seconds
+            if (totalSubSecondNanos == 0)
+            {
+                return baseTime;
+            }
+            var fractionStr = totalSubSecondNanos.ToString("D9", CultureInfo.InvariantCulture).TrimEnd('0');
+            return $"{baseTime}.{fractionStr}";
+        }
+
+        // Fixed number of digits (1-9)
+        var allDigits = totalSubSecondNanos.ToString("D9", CultureInfo.InvariantCulture);
+        return $"{baseTime}.{allDigits[..fractionalDigitCount]}";
+    }
+
+    /// <summary>
+    /// Rounds a PlainTime for toString, returning the rounded time with modular wrapping past midnight.
+    /// </summary>
+    private static JsTemporalPlainTime RoundPlainTimeForToString(
+        JsTemporalPlainTime time, ToStringPrecision precision, string roundingMode)
+    {
+        if (precision.FractionalDigitCount == FractionDigitsAuto && precision.Increment == 1)
+        {
+            // No rounding needed for auto with increment 1
+            return time;
+        }
+
+        var totalNanoseconds = new BigInteger(time.TotalNanoseconds);
+        var incrementNanoseconds = new BigInteger(GetUnitNanoseconds(precision.SmallestUnit)) * precision.Increment;
+        var rounded = RoundToIncrement(totalNanoseconds, incrementNanoseconds, roundingMode);
+        var normalized = PositiveMod(rounded, NanosecondsPerDay);
+        return CreatePlainTimeFromNanoseconds((long)normalized);
+    }
+
+    /// <summary>
+    /// Rounds a PlainDateTime for toString. Uses epoch nanoseconds so day changes from rounding are handled.
+    /// </summary>
+    private static JsTemporalPlainDateTime RoundPlainDateTimeForToString(
+        JsTemporalPlainDateTime dateTime, ToStringPrecision precision, string roundingMode, RealmState realm)
+    {
+        if (precision.FractionalDigitCount == FractionDigitsAuto && precision.Increment == 1)
+        {
+            return dateTime;
+        }
+
+        // Convert to TemporalRoundingOptions and delegate to the existing RoundPlainDateTime
+        var options = new TemporalRoundingOptions(precision.SmallestUnit, precision.Increment, roundingMode);
+        return RoundPlainDateTime(dateTime, options, realm);
+    }
+
+    /// <summary>
+    /// Gets the Duration-specific toString precision and rounding mode.
+    /// Duration only allows "second", "millisecond", "microsecond", "nanosecond" for smallestUnit (not "minute").
+    /// </summary>
+    private static (ToStringPrecision Precision, string RoundingMode) GetDurationToStringPrecisionAndRoundingMode(
+        IJsPropertyAccessor? optionsObj, RealmState realm)
+    {
+        if (optionsObj is null)
+        {
+            return (new ToStringPrecision("nanosecond", 1, FractionDigitsAuto), "trunc");
+        }
+
+        // Read in alphabetical order: fractionalSecondDigits, roundingMode, smallestUnit
+        var fractionalSecondDigits = FractionDigitsAuto;
+        var hasFractionalSecondDigits = false;
+        if (optionsObj.TryGetProperty("fractionalSecondDigits", out var fracDigitsVal) && !fracDigitsVal.IsUndefined)
+        {
+            fractionalSecondDigits = ParseFractionalSecondDigits(fracDigitsVal, realm);
+            hasFractionalSecondDigits = true;
+        }
+
+        var roundingMode = "trunc";
+        if (optionsObj.TryGetProperty("roundingMode", out var roundingModeVal) && !roundingModeVal.IsUndefined)
+        {
+            roundingMode = JsOps.ToJsString(roundingModeVal);
+            if (!ValidRoundingModes.Contains(roundingMode))
+            {
+                throw StandardLibrary.ThrowRangeError($"Invalid roundingMode: {roundingMode}", realm: realm);
+            }
+        }
+
+        if (optionsObj.TryGetProperty("smallestUnit", out var smallestUnitVal) && !smallestUnitVal.IsUndefined)
+        {
+            var smallestUnit = JsOps.ToJsString(smallestUnitVal);
+            smallestUnit = NormalizeSmallestUnit(smallestUnit);
+            if (!ValidDurationToStringSmallestUnits.Contains(smallestUnit))
+            {
+                throw StandardLibrary.ThrowRangeError($"Invalid smallestUnit for Duration toString: {smallestUnit}", realm: realm);
+            }
+            return (SmallestUnitToPrecision(smallestUnit), roundingMode);
+        }
+
+        if (!hasFractionalSecondDigits || fractionalSecondDigits == FractionDigitsAuto)
+        {
+            return (new ToStringPrecision("nanosecond", 1, FractionDigitsAuto), roundingMode);
+        }
+
+        var (unit, increment) = FractionalDigitsToUnitAndIncrement(fractionalSecondDigits);
+        return (new ToStringPrecision(unit, increment, fractionalSecondDigits), roundingMode);
+    }
+
+    /// <summary>
+    /// Formats a Duration as an ISO 8601 string with precision options.
+    /// Handles rounding, carry propagation (seconds→minutes→hours→days), and formatting.
+    /// </summary>
+    private static string FormatDurationWithPrecision(
+        JsTemporalDuration duration, ToStringPrecision precision, string roundingMode, RealmState realm)
+    {
+        var sign = duration.Sign;
+        var absYears = Math.Abs(duration.Years);
+        var absMonths = Math.Abs(duration.Months);
+        var absWeeks = Math.Abs(duration.Weeks);
+        var absDays = (long)Math.Abs(duration.Days);
+        var absHours = (long)Math.Abs(duration.Hours);
+        var absMinutes = (long)Math.Abs(duration.Minutes);
+        var absSeconds = (long)Math.Abs(duration.Seconds);
+        var absMilliseconds = (long)Math.Abs(duration.Milliseconds);
+        var absMicroseconds = (long)Math.Abs(duration.Microseconds);
+        var absNanoseconds = (long)Math.Abs(duration.Nanoseconds);
+
+        // Remember which time units were originally non-zero for balancing decisions
+        var hadMinutes = absMinutes != 0 || absHours != 0;
+        var hadHours = absHours != 0;
+
+        // Compute total sub-second nanoseconds (including seconds for proper rounding)
+        var totalSecondsNanos = new BigInteger(absSeconds) * NanosecondsPerSecond
+            + new BigInteger(absMilliseconds) * NanosecondsPerMillisecond
+            + new BigInteger(absMicroseconds) * NanosecondsPerMicrosecond
+            + new BigInteger(absNanoseconds);
+
+        // Round based on precision
+        if (precision.FractionalDigitCount != FractionDigitsAuto || precision.Increment != 1)
+        {
+            var incrementNanos = new BigInteger(GetUnitNanoseconds(precision.SmallestUnit)) * precision.Increment;
+            totalSecondsNanos = RoundToIncrement(totalSecondsNanos, incrementNanos, roundingMode);
+        }
+
+        // Extract seconds and sub-second nanoseconds
+        absSeconds = (long)(totalSecondsNanos / NanosecondsPerSecond);
+        var subSecondNanos = (long)(totalSecondsNanos % NanosecondsPerSecond);
+
+        // Validate that rounded duration is still valid (sign consistency)
+        if (sign < 0 && totalSecondsNanos > 0 && (absYears > 0 || absMonths > 0 || absWeeks > 0 || absDays > 0))
+        {
+            // After rounding, the time part became positive while date part is negative - invalid
+        }
+
+        // Balance seconds → minutes → hours → days
+        // Only balance if the unit to carry INTO was originally non-zero
+        if (absSeconds >= 60 && hadMinutes)
+        {
+            absMinutes += absSeconds / 60;
+            absSeconds %= 60;
+        }
+        if (absMinutes >= 60 && hadHours)
+        {
+            absHours += absMinutes / 60;
+            absMinutes %= 60;
+        }
+        if (absHours >= 24)
+        {
+            absDays += absHours / 24;
+            absHours %= 24;
+        }
+
+        // Extract sub-second components
+        var ms = subSecondNanos / 1_000_000;
+        var us = (subSecondNanos % 1_000_000) / 1_000;
+        var ns = subSecondNanos % 1_000;
+
+        // Build the string
+        var sb = new StringBuilder();
+        if (sign < 0) sb.Append('-');
+        sb.Append('P');
+
+        if (absYears != 0) sb.Append(CultureInfo.InvariantCulture, $"{absYears}Y");
+        if (absMonths != 0) sb.Append(CultureInfo.InvariantCulture, $"{absMonths}M");
+        if (absWeeks != 0) sb.Append(CultureInfo.InvariantCulture, $"{absWeeks}W");
+        if (absDays != 0) sb.Append(CultureInfo.InvariantCulture, $"{absDays}D");
+
+        // Per spec: show time part if any time component is non-zero,
+        // or if all date/time components are zero, or if precision is not auto
+        var hasTimeComponents = absHours != 0 || absMinutes != 0 || absSeconds != 0 || subSecondNanos != 0;
+        var hasDateComponents = absYears != 0 || absMonths != 0 || absWeeks != 0 || absDays != 0;
+        var precisionNotAuto = precision.FractionalDigitCount != FractionDigitsAuto;
+
+        if (hasTimeComponents || !hasDateComponents || precisionNotAuto)
+        {
+            sb.Append('T');
+            if (absHours != 0) sb.Append(CultureInfo.InvariantCulture, $"{absHours}H");
+            if (absMinutes != 0) sb.Append(CultureInfo.InvariantCulture, $"{absMinutes}M");
+
+            // Show seconds if: seconds/subseconds are non-zero, or precision is not auto,
+            // or there are no hours/minutes (need at least one time component after T)
+            var showSeconds = absSeconds != 0 || subSecondNanos != 0 || precisionNotAuto
+                || (absHours == 0 && absMinutes == 0);
+
+            if (showSeconds)
+            {
+                sb.Append(CultureInfo.InvariantCulture, $"{absSeconds}");
+                FormatDurationFractionalSeconds(sb, subSecondNanos, precision.FractionalDigitCount);
+                sb.Append('S');
+            }
+        }
+
+        // Handle zero duration (should not happen due to above logic, but safety check)
+        if (sb.Length == 1 || (sb.Length == 2 && sb[0] == '-'))
+        {
+            return "PT0S";
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Formats the fractional seconds part of a duration ISO string.
+    /// </summary>
+    private static void FormatDurationFractionalSeconds(StringBuilder sb, long subSecondNanos, int fractionalDigitCount)
+    {
+        if (fractionalDigitCount == 0)
+        {
+            return; // No fractional part
+        }
+
+        if (fractionalDigitCount == FractionDigitsAuto)
+        {
+            if (subSecondNanos == 0) return;
+            var fractionStr = subSecondNanos.ToString("D9", CultureInfo.InvariantCulture).TrimEnd('0');
+            sb.Append('.');
+            sb.Append(fractionStr);
+            return;
+        }
+
+        // Fixed number of digits
+        var allDigits = subSecondNanos.ToString("D9", CultureInfo.InvariantCulture);
+        sb.Append('.');
+        sb.Append(allDigits.AsSpan(0, fractionalDigitCount));
     }
 
     #endregion

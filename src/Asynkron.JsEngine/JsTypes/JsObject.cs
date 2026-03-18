@@ -597,6 +597,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         IsFrozen = original.IsFrozen;
         IsSealed = original.IsSealed;
         IsExtensible = original.IsExtensible;
+        IsImmutablePrototype = original.IsImmutablePrototype;
         IsConstructing = original.IsConstructing;
         _virtualPropertyProvider = original._virtualPropertyProvider;
         _promiseSlot = cloneValue(original._promiseSlot) as JsPromise;

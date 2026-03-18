@@ -68,7 +68,7 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
         Instant = new JsTemporalInstant(localEpochNanos - offsetNanos);
     }
 
-    private static TimeZoneInfo ResolveTimeZone(string timeZoneId, out TimeSpan? fixedOffset)
+    internal static TimeZoneInfo ResolveTimeZone(string timeZoneId, out TimeSpan? fixedOffset)
     {
         fixedOffset = null;
         if (TryParseOffsetTimeZone(timeZoneId, out var offset))
@@ -382,7 +382,7 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
     ///     Parses an ISO datetime string with offset into a JsTemporalInstant.
     ///     Handles extended year format, year 0, and nanosecond precision.
     /// </summary>
-    private static JsTemporalInstant? ParseIsoDateTimeWithOffset(string str)
+    internal static JsTemporalInstant? ParseIsoDateTimeWithOffset(string str)
     {
         int year, sign = 1;
         ReadOnlySpan<char> afterDate;
@@ -533,7 +533,7 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
     /// <summary>
     ///     Checks if an ISO datetime string has an explicit UTC offset (Z, +HH:MM, -HH:MM, etc.).
     /// </summary>
-    private static bool HasExplicitOffset(string str)
+    internal static bool HasExplicitOffset(string str)
     {
         // Check for trailing Z/z
         if (str.Length > 0 && (str[^1] == 'Z' || str[^1] == 'z'))

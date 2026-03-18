@@ -24,9 +24,17 @@ internal static class IntlNumberFormatter
         if (double.IsNaN(value))
         {
             var symbol = slots.Culture.NumberFormat.NaNSymbol;
-            // NaN never gets a sign per spec
-            return IntlNumberFormatResult.FromParts(symbol,
+            var result = IntlNumberFormatResult.FromParts(symbol,
                 [new NumberFormatPart("nan", symbol)]);
+            // NaN gets a "+" sign only for "always" signDisplay
+            if (string.Equals(slots.SignDisplay, "always", StringComparison.Ordinal))
+            {
+                var plus = slots.Culture.NumberFormat.PositiveSign;
+                result.Formatted = $"{plus}{result.Formatted}";
+                result.Parts?.Insert(0, new NumberFormatPart("plusSign", plus));
+            }
+
+            return result;
         }
 
         if (double.IsInfinity(value))
@@ -57,13 +65,18 @@ internal static class IntlNumberFormatter
         // Note: do NOT clear IsNegative here for zero coefficients.
         // Negative zero (-0) must retain its sign per the spec.
 
-        if (slots.UseSignificantDigits)
+        if (string.Equals(slots.RoundingType, "morePrecision", StringComparison.Ordinal) ||
+            string.Equals(slots.RoundingType, "lessPrecision", StringComparison.Ordinal))
+        {
+            ApplyRoundingPriority(quantity, slots, wasNegative);
+        }
+        else if (slots.UseSignificantDigits)
         {
             ApplyMaximumSignificantDigits(quantity, slots.MaximumSignificantDigits!.Value,
                 wasNegative, slots.RoundingMode);
             EnsureMinimumSignificantDigits(quantity, slots.MinimumSignificantDigits!.Value);
         }
-        else if (slots.Notation is not "scientific" and not "engineering")
+        else if (slots.Notation is not "scientific" and not "engineering" and not "compact")
         {
             if (slots.RoundingIncrement > 1)
             {
@@ -74,6 +87,7 @@ internal static class IntlNumberFormatter
             {
                 // For scientific/engineering notation, fraction digits are applied to the mantissa
                 // in FormatScientificNotation, not to the raw quantity
+                // For compact notation, rounding is handled inside FormatCompactNotation
                 ApplyMaximumFractionDigits(quantity, slots.MaximumFractionDigits,
                     wasNegative, slots.RoundingMode);
             }
@@ -83,19 +97,26 @@ internal static class IntlNumberFormatter
         {
             "scientific" => FormatScientificNotation(quantity, slots, true),
             "engineering" => FormatScientificNotation(quantity, slots, false),
+            "compact" => FormatCompactNotation(quantity, slots),
             _ => FormatDecimalWithParts(quantity, slots)
         };
 
-        ApplySignDisplay(result, wasNegative, quantity.Coefficient.IsZero, slots);
+        var isZero = quantity.Coefficient.IsZero;
+
+        // Currency formatting handles sign+symbol together (accounting format needs this)
+        if (string.Equals(slots.Style, "currency", StringComparison.Ordinal) &&
+            slots.Currency is { Length: > 0 })
+        {
+            return FormatCurrencyComplete(result, slots, wasNegative, isZero);
+        }
+
+        ApplySignDisplay(result, wasNegative, isZero, slots);
 
         return slots.Style switch
         {
-            "percent" => IntlNumberFormatResult.FromLiteral(
-                ApplyPercentPattern(result.Formatted, slots.Culture.NumberFormat)),
-            "currency" when slots.Currency is { Length: > 0 } =>
-                IntlNumberFormatResult.FromLiteral(FormatCurrency(result.Formatted, slots)),
+            "percent" => FormatPercentComplete(result, slots),
             "unit" when slots.Unit is { Length: > 0 } =>
-                IntlNumberFormatResult.FromLiteral($"{result.Formatted} {slots.Unit}"),
+                FormatUnitComplete(result, slots),
             _ => result
         };
     }
@@ -358,6 +379,528 @@ internal static class IntlNumberFormatter
         }
     }
 
+    private static IntlNumberFormatResult FormatCompactNotation(
+        DecimalQuantity quantity,
+        IntlNumberFormatInternalSlots slots)
+    {
+        if (quantity.Coefficient.IsZero)
+        {
+            var zeroParts = new List<NumberFormatPart> { new("integer", "0") };
+            return IntlNumberFormatResult.FromParts("0", zeroParts);
+        }
+
+        // Compute the magnitude of the number
+        var digits = quantity.Coefficient.ToString(CultureInfo.InvariantCulture);
+        var integerDigitCount = digits.Length - quantity.Scale;
+
+        // Find the appropriate compact pattern
+        var isShort = !string.Equals(slots.CompactDisplay, "long", StringComparison.Ordinal);
+        var (divisorPower, compactSuffix) = GetCompactPattern(integerDigitCount, slots.Culture, isShort);
+
+        // Divide by the compact divisor (0 if no compact pattern applies)
+        if (divisorPower > 0)
+        {
+            DivideByPowerOfTen(quantity, divisorPower);
+        }
+
+        // Recalculate mantissa integer digit count after division
+        var mantissaDigits = quantity.Coefficient.ToString(CultureInfo.InvariantCulture);
+        var mantissaIntDigits = mantissaDigits.Length - quantity.Scale;
+        if (mantissaIntDigits < 0) mantissaIntDigits = 0;
+
+        // Apply rounding based on type
+        if (slots.RoundingType is "compactRounding")
+        {
+            // Compact rounding: use max(2, mantissaIntegerDigits) significant digits
+            // This matches CLDR compact pattern behavior:
+            // "000K" pattern → 3 sig digits, "00K" → 2, "0K" → 2 (min 2)
+            var sigDigits = Math.Max(2, mantissaIntDigits);
+            ApplyMaximumSignificantDigits(quantity, sigDigits);
+            EnsureMinimumSignificantDigits(quantity, 1);
+        }
+        else if (slots.UseSignificantDigits)
+        {
+            ApplyMaximumSignificantDigits(quantity, slots.MaximumSignificantDigits!.Value);
+            EnsureMinimumSignificantDigits(quantity, slots.MinimumSignificantDigits!.Value);
+        }
+        else
+        {
+            ApplyMaximumFractionDigits(quantity, slots.MaximumFractionDigits);
+        }
+
+        if (divisorPower == 0 || string.IsNullOrEmpty(compactSuffix))
+        {
+            // No compact suffix - format as regular decimal
+            return FormatDecimalWithParts(quantity, slots);
+        }
+
+        var separator = GetCompactSeparator(slots.Culture.TwoLetterISOLanguageName, isShort);
+
+        var decimal_ = FormatDecimal(quantity, slots, "false", true);
+        var parts = new List<NumberFormatPart>();
+
+        var integer = decimal_.IntegerDigits.Length > 0 ? decimal_.IntegerDigits : "0";
+        parts.Add(new NumberFormatPart("integer", integer));
+        if (!string.IsNullOrEmpty(decimal_.FractionDigits))
+        {
+            parts.Add(new NumberFormatPart("decimal", decimal_.DecimalSeparator));
+            parts.Add(new NumberFormatPart("fraction", decimal_.FractionDigits));
+        }
+
+        if (separator.Length > 0)
+        {
+            parts.Add(new NumberFormatPart("literal", separator));
+        }
+
+        parts.Add(new NumberFormatPart("compact", compactSuffix));
+
+        var formatted = $"{decimal_.Formatted}{separator}{compactSuffix}";
+        return IntlNumberFormatResult.FromParts(formatted, parts);
+    }
+
+    /// <summary>
+    /// Returns the separator string between a number and its compact suffix.
+    /// </summary>
+    private static string GetCompactSeparator(string lang, bool isShort)
+    {
+        // CJK: no separator for either short or long
+        if (lang is "ja" or "ko" or "zh")
+        {
+            return string.Empty;
+        }
+
+        // German short: NBSP
+        if (isShort && lang is "de")
+        {
+            return "\u00A0";
+        }
+
+        // Long display (non-CJK): regular space
+        if (!isShort)
+        {
+            return " ";
+        }
+
+        // English/French/etc short: no separator
+        return string.Empty;
+    }
+
+    private static (int divisorPower, string suffix) GetCompactPattern(
+        int integerDigitCount, CultureInfo culture, bool isShort)
+    {
+        var lang = culture.TwoLetterISOLanguageName;
+
+        // For Indian locale (en-IN), use lakh/crore system
+        if (string.Equals(culture.Name, "en-IN", StringComparison.OrdinalIgnoreCase))
+        {
+            return integerDigitCount switch
+            {
+                >= 8 => (7, isShort ? "Cr" : "crore"),
+                >= 6 => (5, isShort ? "L" : "lakh"),
+                >= 4 => (3, isShort ? "K" : "thousand"),
+                _ => (0, string.Empty)
+            };
+        }
+
+        // Standard patterns (en-US, most locales)
+        if (lang is "en" or "fr" or "es" or "pt" or "it")
+        {
+            return integerDigitCount switch
+            {
+                >= 13 => (12, isShort ? "T" : "trillion"),
+                >= 10 => (9, isShort ? "B" : "billion"),
+                >= 7 => (6, isShort ? "M" : "million"),
+                >= 4 => (3, isShort ? "K" : "thousand"),
+                _ => (0, string.Empty)
+            };
+        }
+
+        // German: short uses Mio./Mrd./Bio. only at >= 7 digits
+        // Long uses Tausend/Millionen/Milliarden/Billionen at >= 4 digits
+        if (lang is "de")
+        {
+            if (isShort)
+            {
+                return integerDigitCount switch
+                {
+                    >= 13 => (12, "Bio."),
+                    >= 10 => (9, "Mrd."),
+                    >= 7 => (6, "Mio."),
+                    _ => (0, string.Empty)
+                };
+            }
+
+            return integerDigitCount switch
+            {
+                >= 13 => (12, "Billionen"),
+                >= 10 => (9, "Milliarden"),
+                >= 7 => (6, "Millionen"),
+                >= 4 => (3, "Tausend"),
+                _ => (0, string.Empty)
+            };
+        }
+
+        // Japanese: 万 (10K), 億 (100M), 兆 (1T) — same for short and long
+        if (lang is "ja")
+        {
+            return integerDigitCount switch
+            {
+                >= 13 => (12, "兆"),
+                >= 9 => (8, "億"),
+                >= 5 => (4, "万"),
+                _ => (0, string.Empty)
+            };
+        }
+
+        // Korean: 천 (1K), 만 (10K), 억 (100M), 조 (1T) — same for short and long
+        if (lang is "ko")
+        {
+            return integerDigitCount switch
+            {
+                >= 13 => (12, "조"),
+                >= 9 => (8, "억"),
+                >= 5 => (4, "만"),
+                >= 4 => (3, "천"),
+                _ => (0, string.Empty)
+            };
+        }
+
+        // Chinese: 萬 (10K), 億 (100M), 兆 (1T) — same for short and long
+        if (lang is "zh")
+        {
+            return integerDigitCount switch
+            {
+                >= 13 => (12, "兆"),
+                >= 9 => (8, "億"),
+                >= 5 => (4, "萬"),
+                _ => (0, string.Empty)
+            };
+        }
+
+        // Default: use English-style K/M/B/T
+        return integerDigitCount switch
+        {
+            >= 13 => (12, isShort ? "T" : "trillion"),
+            >= 10 => (9, isShort ? "B" : "billion"),
+            >= 7 => (6, isShort ? "M" : "million"),
+            >= 4 => (3, isShort ? "K" : "thousand"),
+            _ => (0, string.Empty)
+        };
+    }
+
+    private static void DivideByPowerOfTen(DecimalQuantity quantity, int power)
+    {
+        if (power <= 0 || quantity.Coefficient.IsZero)
+        {
+            return;
+        }
+
+        quantity.Scale += power;
+    }
+
+    private static IntlNumberFormatResult FormatUnitComplete(
+        IntlNumberFormatResult numberResult,
+        IntlNumberFormatInternalSlots slots)
+    {
+        var lang = slots.Culture.TwoLetterISOLanguageName;
+        var display = slots.UnitDisplay;
+        var unit = slots.Unit!;
+        var number = numberResult.Formatted;
+        var numberParts = numberResult.Parts ?? [new NumberFormatPart("integer", number)];
+
+        // For long compound units with CJK prefix-number-suffix patterns
+        var perIndex = unit.IndexOf("-per-", StringComparison.Ordinal);
+        if (perIndex >= 0 && string.Equals(display, "long", StringComparison.Ordinal))
+        {
+            var numerator = unit[..perIndex];
+            var denominator = unit[(perIndex + 5)..];
+            var result = FormatLongCompoundUnitParts(number, numberParts, numerator, denominator, lang);
+            if (result != null)
+            {
+                return result;
+            }
+        }
+
+        var unitName = GetUnitDisplayName(unit, display, lang);
+        var separator = GetUnitSeparator(lang, display);
+
+        // Symbol-like units (%, °, °C, °F) never use a space
+        if (unitName is "%" or "°" or "°C" or "°F")
+        {
+            separator = string.Empty;
+        }
+
+        var parts = new List<NumberFormatPart>(numberParts);
+        if (separator.Length > 0)
+        {
+            parts.Add(new NumberFormatPart("literal", separator));
+        }
+
+        parts.Add(new NumberFormatPart("unit", unitName));
+        return IntlNumberFormatResult.FromParts($"{number}{separator}{unitName}", parts);
+    }
+
+    /// <summary>
+    /// Format long compound units for CJK locales that use prefix-number-suffix patterns.
+    /// Returns null for locales that use the standard "{number} {unit per unit}" pattern.
+    /// </summary>
+    private static IntlNumberFormatResult? FormatLongCompoundUnitParts(
+        string number, List<NumberFormatPart> numberParts,
+        string numerator, string denominator, string lang)
+    {
+        var numName = GetLongUnitName(numerator, lang);
+
+        // Japanese: "時速 {number} キロメートル"
+        if (lang is "ja" && denominator is "hour")
+        {
+            var parts = new List<NumberFormatPart>();
+            parts.Add(new NumberFormatPart("unit", "時速"));
+            parts.Add(new NumberFormatPart("literal", " "));
+            parts.AddRange(numberParts);
+            parts.Add(new NumberFormatPart("literal", " "));
+            parts.Add(new NumberFormatPart("unit", numName));
+            return IntlNumberFormatResult.FromParts($"時速 {number} {numName}", parts);
+        }
+
+        // Korean: "시속 {number}킬로미터" (no space before unit name)
+        if (lang is "ko" && denominator is "hour")
+        {
+            var parts = new List<NumberFormatPart>();
+            parts.Add(new NumberFormatPart("unit", "시속"));
+            parts.Add(new NumberFormatPart("literal", " "));
+            parts.AddRange(numberParts);
+            parts.Add(new NumberFormatPart("unit", numName));
+            return IntlNumberFormatResult.FromParts($"시속 {number}{numName}", parts);
+        }
+
+        // Chinese: "每小時 {number} 公里"
+        if (lang is "zh" && denominator is "hour")
+        {
+            var denName = GetLongUnitName(denominator, lang);
+            var parts = new List<NumberFormatPart>();
+            parts.Add(new NumberFormatPart("unit", $"每{denName}"));
+            parts.Add(new NumberFormatPart("literal", " "));
+            parts.AddRange(numberParts);
+            parts.Add(new NumberFormatPart("literal", " "));
+            parts.Add(new NumberFormatPart("unit", numName));
+            return IntlNumberFormatResult.FromParts($"每{denName} {number} {numName}", parts);
+        }
+
+        return null;
+    }
+
+    private static string GetUnitSeparator(string lang, string display)
+    {
+        // German: always use space, even for narrow
+        if (lang is "de")
+        {
+            return " ";
+        }
+
+        // Korean narrow/short: no space
+        if (lang is "ko" && display is not "long")
+        {
+            return string.Empty;
+        }
+
+        // Narrow: no space (except German handled above)
+        if (string.Equals(display, "narrow", StringComparison.Ordinal))
+        {
+            return string.Empty;
+        }
+
+        // Short and long: space
+        return " ";
+    }
+
+    private static string GetUnitDisplayName(string unit, string display, string lang)
+    {
+        // Handle compound units (e.g. "kilometer-per-hour")
+        var perIndex = unit.IndexOf("-per-", StringComparison.Ordinal);
+        if (perIndex >= 0)
+        {
+            var numerator = unit[..perIndex];
+            var denominator = unit[(perIndex + 5)..];
+            var numName = GetSimpleUnitName(numerator, display, lang);
+            var denName = GetSimpleUnitName(denominator, display, lang);
+
+            if (string.Equals(display, "long", StringComparison.Ordinal))
+            {
+                return lang switch
+                {
+                    "en" => $"{GetLongUnitName(numerator, lang)} per {GetLongUnitName(denominator, lang)}",
+                    "de" => $"{GetLongUnitName(numerator, lang)} pro {GetLongUnitName(denominator, lang)}",
+                    _ => $"{numName}/{denName}"
+                };
+            }
+
+            return $"{numName}/{denName}";
+        }
+
+        if (string.Equals(display, "long", StringComparison.Ordinal))
+        {
+            return GetLongUnitName(unit, lang);
+        }
+
+        return GetSimpleUnitName(unit, display, lang);
+    }
+
+    private static string GetSimpleUnitName(string unit, string display, string lang)
+    {
+        if (string.Equals(display, "long", StringComparison.Ordinal))
+        {
+            return GetLongUnitName(unit, lang);
+        }
+
+        // Chinese short/narrow uses localized characters
+        if (lang is "zh")
+        {
+            return GetChineseShortUnitName(unit);
+        }
+
+        // Short and narrow use abbreviations
+        return unit switch
+        {
+            "kilometer" => "km",
+            "meter" => "m",
+            "centimeter" => "cm",
+            "millimeter" => "mm",
+            "mile" => "mi",
+            "foot" => "ft",
+            "inch" => "in",
+            "yard" => "yd",
+            "hour" => "h",
+            "minute" => "min",
+            "second" => "s",
+            "millisecond" => "ms",
+            "kilogram" => "kg",
+            "gram" => "g",
+            "pound" => "lb",
+            "ounce" => "oz",
+            "liter" => lang is "en" ? "L" : "l",
+            "milliliter" => lang is "en" ? "mL" : "ml",
+            "gallon" => "gal",
+            "celsius" => "°C",
+            "fahrenheit" => "°F",
+            "percent" => "%",
+            "degree" => "°",
+            "acre" => "ac",
+            "hectare" => "ha",
+            "byte" => lang is "en" ? "byte" : "B",
+            "kilobyte" => "kB",
+            "megabyte" => "MB",
+            "gigabyte" => "GB",
+            _ => unit
+        };
+    }
+
+    private static string GetChineseShortUnitName(string unit)
+    {
+        return unit switch
+        {
+            "kilometer" => "公里",
+            "meter" => "公尺",
+            "centimeter" => "公分",
+            "millimeter" => "公釐",
+            "hour" => "小時",
+            "minute" => "分鐘",
+            "second" => "秒",
+            "kilogram" => "公斤",
+            "gram" => "克",
+            "liter" => "公升",
+            "milliliter" => "毫升",
+            "celsius" => "°C",
+            "fahrenheit" => "°F",
+            "percent" => "%",
+            "degree" => "°",
+            _ => unit
+        };
+    }
+
+    private static string GetLongUnitName(string unit, string lang)
+    {
+        if (lang is "en")
+        {
+            return unit switch
+            {
+                "kilometer" => "kilometers",
+                "meter" => "meters",
+                "centimeter" => "centimeters",
+                "millimeter" => "millimeters",
+                "mile" => "miles",
+                "foot" => "feet",
+                "inch" => "inches",
+                "yard" => "yards",
+                "hour" => "hour",
+                "minute" => "minutes",
+                "second" => "seconds",
+                "millisecond" => "milliseconds",
+                "kilogram" => "kilograms",
+                "gram" => "grams",
+                "pound" => "pounds",
+                "ounce" => "ounces",
+                "liter" => "liters",
+                "milliliter" => "milliliters",
+                "gallon" => "gallons",
+                "celsius" => "degrees Celsius",
+                "fahrenheit" => "degrees Fahrenheit",
+                "percent" => "percent",
+                "degree" => "degrees",
+                _ => unit
+            };
+        }
+
+        if (lang is "de")
+        {
+            return unit switch
+            {
+                "kilometer" => "Kilometer",
+                "meter" => "Meter",
+                "hour" => "Stunde",
+                "kilogram" => "Kilogramm",
+                "liter" => "Liter",
+                "celsius" => "Grad Celsius",
+                _ => unit
+            };
+        }
+
+        if (lang is "ja")
+        {
+            return unit switch
+            {
+                "kilometer" => "キロメートル",
+                "hour" => "時間",
+                "kilogram" => "キログラム",
+                _ => unit
+            };
+        }
+
+        if (lang is "ko")
+        {
+            return unit switch
+            {
+                "kilometer" => "킬로미터",
+                "hour" => "시간",
+                "kilogram" => "킬로그램",
+                _ => unit
+            };
+        }
+
+        if (lang is "zh")
+        {
+            return unit switch
+            {
+                "kilometer" => "公里",
+                "hour" => "小時",
+                "kilogram" => "公斤",
+                _ => unit
+            };
+        }
+
+        // Default: English-style
+        return unit;
+    }
+
     private static DecimalQuantity? TryCreateDecimalQuantity(double value)
     {
         if (value == 0d)
@@ -399,6 +942,76 @@ internal static class IntlNumberFormatter
         }
 
         return quotient;
+    }
+
+    private static void ApplyRoundingPriority(
+        DecimalQuantity quantity,
+        IntlNumberFormatInternalSlots slots,
+        bool wasNegative)
+    {
+        // Apply both significant digits and fraction digits rounding independently
+        var sdQuantity = new DecimalQuantity
+        {
+            Coefficient = quantity.Coefficient,
+            Scale = quantity.Scale,
+            IsNegative = quantity.IsNegative
+        };
+        ApplyMaximumSignificantDigits(sdQuantity, slots.MaximumSignificantDigits!.Value,
+            wasNegative, slots.RoundingMode);
+        EnsureMinimumSignificantDigits(sdQuantity, slots.MinimumSignificantDigits!.Value);
+
+        var fdQuantity = new DecimalQuantity
+        {
+            Coefficient = quantity.Coefficient,
+            Scale = quantity.Scale,
+            IsNegative = quantity.IsNegative
+        };
+        ApplyMaximumFractionDigits(fdQuantity, slots.MaximumFractionDigits,
+            wasNegative, slots.RoundingMode);
+
+        // Compare using rounding magnitudes from the MAXIMUM constraints.
+        // SD magnitude = floor(log10(|x|)) - maxSig + 1
+        // FD magnitude = -maxFrac
+        // morePrecision: pick the result with smaller magnitude (more precise)
+        // lessPrecision: pick the result with larger magnitude (less precise)
+        var maxSig = slots.MaximumSignificantDigits!.Value;
+        var maxFrac = slots.MaximumFractionDigits;
+        var fdMagnitude = -maxFrac;
+
+        int sdMagnitude;
+        if (quantity.Coefficient.IsZero)
+        {
+            sdMagnitude = 1 - maxSig;
+        }
+        else
+        {
+            var digits = quantity.Coefficient.ToString(CultureInfo.InvariantCulture);
+            var exponent = digits.Length - quantity.Scale - 1; // floor(log10(|x|))
+            sdMagnitude = exponent - maxSig + 1;
+        }
+
+        bool useSD;
+        if (string.Equals(slots.RoundingType, "morePrecision", StringComparison.Ordinal))
+        {
+            useSD = sdMagnitude < fdMagnitude; // SD is more precise
+        }
+        else
+        {
+            useSD = sdMagnitude > fdMagnitude; // SD is less precise
+        }
+
+        var chosen = useSD ? sdQuantity : fdQuantity;
+        quantity.Coefficient = chosen.Coefficient;
+        quantity.Scale = chosen.Scale;
+
+        // Ensure the minimum constraint of the chosen path is satisfied.
+        // For FD: ensure MinimumFractionDigits; for SD: EnsureMinimumSignificantDigits already applied.
+        if (!useSD && quantity.Scale < slots.MinimumFractionDigits)
+        {
+            var diff = slots.MinimumFractionDigits - quantity.Scale;
+            quantity.Coefficient *= Pow10(diff);
+            quantity.Scale = slots.MinimumFractionDigits;
+        }
     }
 
     private static void ApplyRoundingIncrement(
@@ -509,6 +1122,20 @@ internal static class IntlNumberFormatter
             var integerZeros = diff - quantity.Scale;
             quantity.Coefficient = rounded * Pow10(integerZeros);
             quantity.Scale = 0;
+        }
+
+        // Normalize: remove trailing zeros from fractional part of coefficient.
+        // These can be artifacts of floating-point imprecision (e.g. 1.23e-30 → G17 → "12300...").
+        // EnsureMinimumSignificantDigits will add back any needed for minimum SD.
+        NormalizeTrailingZeros(quantity);
+    }
+
+    private static void NormalizeTrailingZeros(DecimalQuantity quantity)
+    {
+        while (quantity.Scale > 0 && !quantity.Coefficient.IsZero && quantity.Coefficient % 10 == 0)
+        {
+            quantity.Coefficient /= 10;
+            quantity.Scale--;
         }
     }
 
@@ -683,46 +1310,251 @@ internal static class IntlNumberFormatter
         return result;
     }
 
-    private static string ApplyPercentPattern(string formatted, NumberFormatInfo format)
+    private static IntlNumberFormatResult FormatPercentComplete(
+        IntlNumberFormatResult numberResult, IntlNumberFormatInternalSlots slots)
     {
-        var symbol = format.PercentSymbol;
-        var pattern = format.PercentPositivePattern;
-        var space = pattern is 0 or 3 ? "\u00A0" : string.Empty;
-        return pattern switch
+        var nfi = slots.Culture.NumberFormat;
+        var symbol = nfi.PercentSymbol;
+        var pattern = nfi.PercentPositivePattern;
+        var numberParts = numberResult.Parts ?? [new NumberFormatPart("integer", numberResult.Formatted)];
+
+        var parts = new List<NumberFormatPart>();
+        string formatted;
+
+        // Patterns: 0 = "n %" (space+after), 1 = "n%" (after), 2 = "%n" (before), 3 = "% n" (before+space)
+        if (pattern is 2 or 3)
         {
-            0 => $"{formatted}{space}{symbol}",
-            1 => $"{formatted}{symbol}",
-            2 => $"{symbol}{formatted}",
-            3 => $"{symbol}{space}{formatted}",
-            _ => $"{formatted}{symbol}"
+            parts.Add(new NumberFormatPart("percentSign", symbol));
+            if (pattern is 3)
+            {
+                parts.Add(new NumberFormatPart("literal", "\u00A0"));
+            }
+
+            parts.AddRange(numberParts);
+            formatted = pattern is 3
+                ? $"{symbol}\u00A0{numberResult.Formatted}"
+                : $"{symbol}{numberResult.Formatted}";
+        }
+        else
+        {
+            parts.AddRange(numberParts);
+            if (pattern is 0)
+            {
+                parts.Add(new NumberFormatPart("literal", "\u00A0"));
+            }
+
+            parts.Add(new NumberFormatPart("percentSign", symbol));
+            formatted = pattern is 0
+                ? $"{numberResult.Formatted}\u00A0{symbol}"
+                : $"{numberResult.Formatted}{symbol}";
+        }
+
+        return IntlNumberFormatResult.FromParts(formatted, parts);
+    }
+
+    private static IntlNumberFormatResult FormatCurrencyComplete(
+        IntlNumberFormatResult numberResult,
+        IntlNumberFormatInternalSlots slots,
+        bool wasNegative,
+        bool isZero)
+    {
+        var symbol = GetCurrencySymbol(slots.Currency!, slots.CurrencyDisplay, slots.Culture);
+        var nfi = slots.Culture.NumberFormat;
+        var bare = numberResult.Formatted; // number without sign
+
+        var signDisplay = slots.SignDisplay;
+        var isAccounting = string.Equals(slots.CurrencySign, "accounting", StringComparison.Ordinal);
+
+        // Determine sign behavior
+        var showAccountingNegative = false;
+        var showMinus = false;
+        var showPlus = false;
+
+        if (!string.Equals(signDisplay, "never", StringComparison.Ordinal))
+        {
+            if (wasNegative)
+            {
+                var showSign = signDisplay switch
+                {
+                    "auto" or "always" => true,
+                    "exceptZero" or "negative" => !isZero,
+                    _ => true
+                };
+
+                if (showSign)
+                {
+                    if (isAccounting && UseParenthesesForAccounting(slots.Culture))
+                    {
+                        showAccountingNegative = true;
+                    }
+                    else
+                    {
+                        showMinus = true;
+                    }
+                }
+            }
+            else
+            {
+                showPlus = signDisplay switch
+                {
+                    "always" => true,
+                    "exceptZero" => !isZero,
+                    _ => false
+                };
+            }
+        }
+
+        // Build parts list for the currency formatted result
+        // CLDR uses NBSP (U+00A0) for the space between number and symbol in patterns 2,3
+        const string nbsp = "\u00A0";
+        var positivePattern = nfi.CurrencyPositivePattern;
+        var numberParts = numberResult.Parts ?? [new NumberFormatPart("integer", bare)];
+
+        var parts = new List<NumberFormatPart>();
+        var sb = new StringBuilder();
+
+        if (showAccountingNegative)
+        {
+            // Accounting negative: ( symbol number )
+            parts.Add(new NumberFormatPart("literal", "("));
+            sb.Append('(');
+
+            if (positivePattern is 0 or 2)
+            {
+                // Symbol before number
+                parts.Add(new NumberFormatPart("currency", symbol));
+                sb.Append(symbol);
+                if (positivePattern is 2)
+                {
+                    parts.Add(new NumberFormatPart("literal", nbsp));
+                    sb.Append(nbsp);
+                }
+
+                parts.AddRange(numberParts);
+                sb.Append(bare);
+            }
+            else
+            {
+                // Number before symbol (patterns 1, 3)
+                parts.AddRange(numberParts);
+                sb.Append(bare);
+                if (positivePattern is 3)
+                {
+                    parts.Add(new NumberFormatPart("literal", nbsp));
+                    sb.Append(nbsp);
+                }
+
+                parts.Add(new NumberFormatPart("currency", symbol));
+                sb.Append(symbol);
+            }
+
+            parts.Add(new NumberFormatPart("literal", ")"));
+            sb.Append(')');
+        }
+        else
+        {
+            // Non-accounting: optional sign + symbol + number
+            if (showMinus)
+            {
+                parts.Add(new NumberFormatPart("minusSign", nfi.NegativeSign));
+                sb.Append(nfi.NegativeSign);
+            }
+            else if (showPlus)
+            {
+                parts.Add(new NumberFormatPart("plusSign", nfi.PositiveSign));
+                sb.Append(nfi.PositiveSign);
+            }
+
+            if (positivePattern is 0 or 2)
+            {
+                // Symbol before number
+                parts.Add(new NumberFormatPart("currency", symbol));
+                sb.Append(symbol);
+                if (positivePattern is 2)
+                {
+                    parts.Add(new NumberFormatPart("literal", nbsp));
+                    sb.Append(nbsp);
+                }
+
+                parts.AddRange(numberParts);
+                sb.Append(bare);
+            }
+            else
+            {
+                // Number before symbol (patterns 1, 3)
+                parts.AddRange(numberParts);
+                sb.Append(bare);
+                if (positivePattern is 3)
+                {
+                    parts.Add(new NumberFormatPart("literal", nbsp));
+                    sb.Append(nbsp);
+                }
+
+                parts.Add(new NumberFormatPart("currency", symbol));
+                sb.Append(symbol);
+            }
+        }
+
+        return IntlNumberFormatResult.FromParts(sb.ToString(), parts);
+    }
+
+    private static string GetCurrencySymbol(string currencyCode, string display, CultureInfo culture)
+    {
+        if (string.Equals(display, "code", StringComparison.Ordinal))
+        {
+            return currencyCode;
+        }
+
+        if (string.Equals(display, "name", StringComparison.Ordinal))
+        {
+            // Simplified: return lowercase currency code as name placeholder
+            return currencyCode.ToLowerInvariant();
+        }
+
+        // "symbol" or "narrowSymbol" - resolve the appropriate symbol
+        // Check if this locale's region uses this currency natively
+        try
+        {
+            var region = new RegionInfo(culture.Name);
+            if (string.Equals(region.ISOCurrencySymbol, currencyCode, StringComparison.OrdinalIgnoreCase))
+            {
+                return region.CurrencySymbol;
+            }
+        }
+        catch
+        {
+            // Region not available, fall through to lookup
+        }
+
+        // Foreign currency: use disambiguated symbol per CLDR conventions
+        var lang = culture.TwoLetterISOLanguageName;
+
+        return currencyCode switch
+        {
+            "USD" => UsesLongDollarSymbol(lang) ? "US$" : "$",
+            "EUR" => "€",
+            "GBP" => "£",
+            "JPY" or "CNY" => "¥",
+            "KRW" => "₩",
+            "TWD" => UsesLongDollarSymbol(lang) ? "NT$" : "$",
+            "CAD" => UsesLongDollarSymbol(lang) ? "CA$" : "$",
+            "AUD" => UsesLongDollarSymbol(lang) ? "A$" : "$",
+            _ => currencyCode
         };
     }
 
-    private static string FormatCurrency(string formatted, IntlNumberFormatInternalSlots slots)
+    private static bool UsesLongDollarSymbol(string lang)
     {
-        var display = slots.CurrencyDisplay switch
-        {
-            "code" => slots.Currency ?? string.Empty,
-            "name" => slots.Currency ?? string.Empty,
-            _ => slots.Currency ?? string.Empty
-        };
-
-        if (string.IsNullOrEmpty(display))
-        {
-            return formatted;
-        }
-
-        return $"{display} {formatted}";
+        // CLDR convention: ko and zh locales use "US$" for USD (and similar for other dollars)
+        return lang is "ko" or "zh";
     }
 
-    private static bool ShouldRoundUp(BigInteger remainder, BigInteger divisor)
+    private static bool UseParenthesesForAccounting(CultureInfo culture)
     {
-        if (remainder.IsZero)
-        {
-            return false;
-        }
-
-        return remainder * 2 >= divisor;
+        var lang = culture.TwoLetterISOLanguageName;
+        // Germanic languages (except English) typically don't use parentheses for accounting
+        // This matches CLDR accounting currency patterns
+        return lang is not ("de" or "nl" or "da" or "sv" or "nb" or "nn" or "fi" or "is");
     }
 
     private static bool ShouldRoundUp(

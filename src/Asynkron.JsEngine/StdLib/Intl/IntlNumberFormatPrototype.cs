@@ -27,7 +27,7 @@ public sealed partial class IntlNumberFormatPrototype
         return (JsValue)CreateBoundFormatFunction(value => new JsValue(FormatNumberValue(nf, value)));
     }
 
-    [JsHostMethod("formatToParts", Length = 0d)]
+    [JsHostMethod("formatToParts", Length = 1d)]
     public JsValue FormatToParts(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var nf = ValidateNumberFormatReceiver(thisValue);
@@ -70,8 +70,14 @@ public sealed partial class IntlNumberFormatPrototype
         var xResult = IntlNumberFormatter.FormatDouble(xNum, slots);
         var yResult = IntlNumberFormatter.FormatDouble(yNum, slots);
 
-        // Simple range format: "x – y"
-        return (JsValue)$"{xResult.Formatted}\u2009\u2013\u2009{yResult.Formatted}";
+        // When both endpoints format to the same string, use approximately equal pattern
+        if (string.Equals(xResult.Formatted, yResult.Formatted, StringComparison.Ordinal))
+        {
+            return (JsValue)$"~{xResult.Formatted}";
+        }
+
+        // Simple range format: "x – y" (space + en-dash + space)
+        return (JsValue)$"{xResult.Formatted} \u2013 {yResult.Formatted}";
     }
 
     [JsHostMethod("formatRangeToParts", Length = 2d)]
@@ -102,7 +108,7 @@ public sealed partial class IntlNumberFormatPrototype
 
         // Start value parts
         AddRangePart(partsArray, "integer", xResult.Formatted, "startRange");
-        AddRangePart(partsArray, "literal", "\u2009\u2013\u2009", "shared");
+        AddRangePart(partsArray, "literal", " \u2013 ", "shared");
         AddRangePart(partsArray, "integer", yResult.Formatted, "endRange");
 
         return JsValue.FromJsArray(partsArray);

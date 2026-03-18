@@ -467,8 +467,7 @@ public static class TemporalHelper
         AddPrototypeMethod(prototype, realm, "toZonedDateTimeISO", 1, (thisValue, args) =>
         {
             var instant = GetInstant(thisValue);
-            var tzArg = args.GetArgument(0);
-            var timeZoneId = JsOps.ToJsString(tzArg);
+            var timeZoneId = ToTemporalTimeZoneSlot(args.GetArgument(0), realm);
             var zdt = new JsTemporalZonedDateTime(instant, timeZoneId);
             return WrapZonedDateTime(zdt, realm, prototypes.ZonedDateTimePrototype);
         });
@@ -485,7 +484,17 @@ public static class TemporalHelper
 
             var epochNanoseconds = args.GetArgument(0);
 
-            if (!epochNanoseconds.TryGetBigInt(out var bigInt))
+            // Per spec: ToBigInt(epochNanoseconds) - converts BigInt, string, boolean
+            JsBigInt bigInt;
+            try
+            {
+                bigInt = StandardLibrary.ToBigInt(epochNanoseconds, realmState: realm);
+            }
+            catch (ThrowSignal)
+            {
+                throw;
+            }
+            catch
             {
                 throw StandardLibrary.ThrowTypeError("Temporal.Instant requires a BigInt argument", realm: realm);
             }
@@ -496,8 +505,12 @@ public static class TemporalHelper
             }
 
             var instant = new JsTemporalInstant(bigInt.Value);
-            return WrapInstant(instant, realm, prototype);
+            return ApplyNewTargetPrototype(WrapInstant(instant, realm, prototype), newTarget, ctor, prototype);
         });
+        ctor.DefineProperty("length",
+            new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
+        ctor.DefineProperty("name",
+            new PropertyDescriptor { Value = "Instant", Writable = false, Enumerable = false, Configurable = true });
 
         ctor.DefineProperty("prototype",
             new PropertyDescriptor { Value = prototype, Writable = false, Enumerable = false, Configurable = false });
@@ -659,21 +672,39 @@ public static class TemporalHelper
         {
             var duration = GetDuration(thisValue);
             var overrides = args.GetArgument(0);
+
+            // Per spec: argument must be an object
             if (!overrides.TryGetObject<IJsPropertyAccessor>(out var accessor))
             {
-                return WrapDuration(duration, realm, prototype);
+                throw StandardLibrary.ThrowTypeError("with() argument must be an object", realm: realm);
             }
 
-            var years = accessor.TryGetProperty("years", out var v) && !v.IsUndefined ? JsOps.ToNumber(v) : duration.Years;
-            var months = accessor.TryGetProperty("months", out v) && !v.IsUndefined ? JsOps.ToNumber(v) : duration.Months;
-            var weeks = accessor.TryGetProperty("weeks", out v) && !v.IsUndefined ? JsOps.ToNumber(v) : duration.Weeks;
-            var days = accessor.TryGetProperty("days", out v) && !v.IsUndefined ? JsOps.ToNumber(v) : duration.Days;
-            var hours = accessor.TryGetProperty("hours", out v) && !v.IsUndefined ? JsOps.ToNumber(v) : duration.Hours;
-            var minutes = accessor.TryGetProperty("minutes", out v) && !v.IsUndefined ? JsOps.ToNumber(v) : duration.Minutes;
-            var seconds = accessor.TryGetProperty("seconds", out v) && !v.IsUndefined ? JsOps.ToNumber(v) : duration.Seconds;
-            var milliseconds = accessor.TryGetProperty("milliseconds", out v) && !v.IsUndefined ? JsOps.ToNumber(v) : duration.Milliseconds;
-            var microseconds = accessor.TryGetProperty("microseconds", out v) && !v.IsUndefined ? JsOps.ToNumber(v) : duration.Microseconds;
-            var nanoseconds = accessor.TryGetProperty("nanoseconds", out v) && !v.IsUndefined ? JsOps.ToNumber(v) : duration.Nanoseconds;
+            // Per spec: ToTemporalPartialDurationRecord — read properties in alphabetical order
+            // and apply ToIntegerIfIntegral to each; at least one must be present
+            var any = false;
+
+            var days = ReadDurationField(accessor, "days", duration.Days, ref any, realm);
+            var hours = ReadDurationField(accessor, "hours", duration.Hours, ref any, realm);
+            var microseconds = ReadDurationField(accessor, "microseconds", duration.Microseconds, ref any, realm);
+            var milliseconds = ReadDurationField(accessor, "milliseconds", duration.Milliseconds, ref any, realm);
+            var minutes = ReadDurationField(accessor, "minutes", duration.Minutes, ref any, realm);
+            var months = ReadDurationField(accessor, "months", duration.Months, ref any, realm);
+            var nanoseconds = ReadDurationField(accessor, "nanoseconds", duration.Nanoseconds, ref any, realm);
+            var seconds = ReadDurationField(accessor, "seconds", duration.Seconds, ref any, realm);
+            var weeks = ReadDurationField(accessor, "weeks", duration.Weeks, ref any, realm);
+            var years = ReadDurationField(accessor, "years", duration.Years, ref any, realm);
+
+            if (!any)
+            {
+                throw StandardLibrary.ThrowTypeError("with() argument must have at least one duration property", realm: realm);
+            }
+
+            // CreateTemporalDuration validates sign consistency and range
+            RejectDurationSign(years, months, weeks, days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds, realm);
+            if (!IsValidDuration(years, months, weeks, days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds))
+            {
+                throw StandardLibrary.ThrowRangeError("Duration value is out of range", realm: realm);
+            }
 
             return WrapDuration(new JsTemporalDuration(years, months, weeks, days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds), realm, prototype);
         });
@@ -726,20 +757,35 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowTypeError("Temporal.Duration cannot be called without 'new'", realm: realm);
             }
 
-            var duration = new JsTemporalDuration(
-                GetDurationArg(args, 0),  // years
-                GetDurationArg(args, 1),  // months
-                GetDurationArg(args, 2),  // weeks
-                GetDurationArg(args, 3),  // days
-                GetDurationArg(args, 4),  // hours
-                GetDurationArg(args, 5),  // minutes
-                GetDurationArg(args, 6),  // seconds
-                GetDurationArg(args, 7),  // milliseconds
-                GetDurationArg(args, 8),  // microseconds
-                GetDurationArg(args, 9)); // nanoseconds
+            var years = GetDurationArg(args, 0);
+            var months = GetDurationArg(args, 1);
+            var weeks = GetDurationArg(args, 2);
+            var days = GetDurationArg(args, 3);
+            var hours = GetDurationArg(args, 4);
+            var minutes = GetDurationArg(args, 5);
+            var seconds = GetDurationArg(args, 6);
+            var milliseconds = GetDurationArg(args, 7);
+            var microseconds = GetDurationArg(args, 8);
+            var nanoseconds = GetDurationArg(args, 9);
 
-            return WrapDuration(duration, realm, prototype);
+            // Per spec: reject mixed signs
+            RejectDurationSign(years, months, weeks, days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds, realm);
+
+            // Per spec: IsValidDuration check - reject if balanced values exceed limits
+            if (!IsValidDuration(years, months, weeks, days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds))
+            {
+                throw StandardLibrary.ThrowRangeError("Duration value is out of range", realm: realm);
+            }
+
+            var duration = new JsTemporalDuration(years, months, weeks, days, hours, minutes, seconds,
+                milliseconds, microseconds, nanoseconds);
+
+            return ApplyNewTargetPrototype(WrapDuration(duration, realm, prototype), newTarget, ctor, prototype);
         });
+        ctor.DefineProperty("length",
+            new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
+        ctor.DefineProperty("name",
+            new PropertyDescriptor { Value = "Duration", Writable = false, Enumerable = false, Configurable = true });
 
         ctor.DefineProperty("prototype",
             new PropertyDescriptor { Value = prototype, Writable = false, Enumerable = false, Configurable = false });
@@ -938,15 +984,20 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowTypeError("Temporal.PlainDate cannot be called without 'new'", realm: realm);
             }
 
-            var year = (int)JsOps.ToNumber(args.GetArgument(0));
-            var month = (int)JsOps.ToNumber(args.GetArgument(1));
-            var day = (int)JsOps.ToNumber(args.GetArgument(2));
+            var year = ToIntegerWithRangeCheck(args.GetArgument(0), "year", realm);
+            var month = ToIntegerWithRangeCheck(args.GetArgument(1), "month", realm);
+            var day = ToIntegerWithRangeCheck(args.GetArgument(2), "day", realm);
             var calendarArg = args.Count > 3 ? args[3] : JsValue.Undefined;
             var calendar = ToTemporalCalendarIdentifier(calendarArg);
 
+            RejectISODate(year, month, day, realm);
             var date = new JsTemporalPlainDate(year, month, day, calendar);
-            return WrapPlainDate(date, realm, prototype);
+            return ApplyNewTargetPrototype(WrapPlainDate(date, realm, prototype), newTarget, ctor, prototype);
         });
+        ctor.DefineProperty("length",
+            new PropertyDescriptor { Value = 3d, Writable = false, Enumerable = false, Configurable = true });
+        ctor.DefineProperty("name",
+            new PropertyDescriptor { Value = "PlainDate", Writable = false, Enumerable = false, Configurable = true });
 
         ctor.DefineProperty("prototype",
             new PropertyDescriptor { Value = prototype, Writable = false, Enumerable = false, Configurable = false });
@@ -1090,16 +1141,21 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowTypeError("Temporal.PlainTime cannot be called without 'new'", realm: realm);
             }
 
-            var hour = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
-            var minute = args.Count > 1 ? (int)JsOps.ToNumber(args[1]) : 0;
-            var second = args.Count > 2 ? (int)JsOps.ToNumber(args[2]) : 0;
-            var millisecond = args.Count > 3 ? (int)JsOps.ToNumber(args[3]) : 0;
-            var microsecond = args.Count > 4 ? (int)JsOps.ToNumber(args[4]) : 0;
-            var nanosecond = args.Count > 5 ? (int)JsOps.ToNumber(args[5]) : 0;
+            var hour = ToIntegerOrDefault(args, 0, "hour", realm);
+            var minute = ToIntegerOrDefault(args, 1, "minute", realm);
+            var second = ToIntegerOrDefault(args, 2, "second", realm);
+            var millisecond = ToIntegerOrDefault(args, 3, "millisecond", realm);
+            var microsecond = ToIntegerOrDefault(args, 4, "microsecond", realm);
+            var nanosecond = ToIntegerOrDefault(args, 5, "nanosecond", realm);
 
+            RejectTemporalTimeRange(hour, minute, second, millisecond, microsecond, nanosecond, realm);
             var time = new JsTemporalPlainTime(hour, minute, second, millisecond, microsecond, nanosecond);
-            return WrapPlainTime(time, realm, prototype);
+            return ApplyNewTargetPrototype(WrapPlainTime(time, realm, prototype), newTarget, ctor, prototype);
         });
+        ctor.DefineProperty("length",
+            new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
+        ctor.DefineProperty("name",
+            new PropertyDescriptor { Value = "PlainTime", Writable = false, Enumerable = false, Configurable = true });
 
         ctor.DefineProperty("prototype",
             new PropertyDescriptor { Value = prototype, Writable = false, Enumerable = false, Configurable = false });
@@ -1353,22 +1409,28 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowTypeError("Temporal.PlainDateTime cannot be called without 'new'", realm: realm);
             }
 
-            var year = (int)JsOps.ToNumber(args.GetArgument(0));
-            var month = (int)JsOps.ToNumber(args.GetArgument(1));
-            var day = (int)JsOps.ToNumber(args.GetArgument(2));
-            var hour = args.Count > 3 ? (int)JsOps.ToNumber(args[3]) : 0;
-            var minute = args.Count > 4 ? (int)JsOps.ToNumber(args[4]) : 0;
-            var second = args.Count > 5 ? (int)JsOps.ToNumber(args[5]) : 0;
-            var millisecond = args.Count > 6 ? (int)JsOps.ToNumber(args[6]) : 0;
-            var microsecond = args.Count > 7 ? (int)JsOps.ToNumber(args[7]) : 0;
-            var nanosecond = args.Count > 8 ? (int)JsOps.ToNumber(args[8]) : 0;
+            var year = ToIntegerWithRangeCheck(args.GetArgument(0), "year", realm);
+            var month = ToIntegerWithRangeCheck(args.GetArgument(1), "month", realm);
+            var day = ToIntegerWithRangeCheck(args.GetArgument(2), "day", realm);
+            var hour = ToIntegerOrDefault(args, 3, "hour", realm);
+            var minute = ToIntegerOrDefault(args, 4, "minute", realm);
+            var second = ToIntegerOrDefault(args, 5, "second", realm);
+            var millisecond = ToIntegerOrDefault(args, 6, "millisecond", realm);
+            var microsecond = ToIntegerOrDefault(args, 7, "microsecond", realm);
+            var nanosecond = ToIntegerOrDefault(args, 8, "nanosecond", realm);
             var calendarArg = args.Count > 9 ? args[9] : JsValue.Undefined;
             var calendar = ToTemporalCalendarIdentifier(calendarArg);
 
+            RejectISODate(year, month, day, realm);
+            RejectTemporalTimeRange(hour, minute, second, millisecond, microsecond, nanosecond, realm);
             var dt = new JsTemporalPlainDateTime(year, month, day, hour, minute, second,
                 millisecond, microsecond, nanosecond, calendar);
-            return WrapPlainDateTime(dt, realm, prototype);
+            return ApplyNewTargetPrototype(WrapPlainDateTime(dt, realm, prototype), newTarget, ctor, prototype);
         });
+        ctor.DefineProperty("length",
+            new PropertyDescriptor { Value = 3d, Writable = false, Enumerable = false, Configurable = true });
+        ctor.DefineProperty("name",
+            new PropertyDescriptor { Value = "PlainDateTime", Writable = false, Enumerable = false, Configurable = true });
 
         ctor.DefineProperty("prototype",
             new PropertyDescriptor { Value = prototype, Writable = false, Enumerable = false, Configurable = false });
@@ -1580,7 +1642,7 @@ public static class TemporalHelper
         AddPrototypeMethod(prototype, realm, "withTimeZone", 1, (thisValue, args) =>
         {
             var zdt = GetZonedDateTime(thisValue);
-            var timeZoneId = JsOps.ToJsString(args.GetArgument(0));
+            var timeZoneId = ToTemporalTimeZoneSlot(args.GetArgument(0), realm);
             var newZdt = zdt.WithTimeZone(timeZoneId);
             return WrapZonedDateTime(newZdt, realm, prototype);
         });
@@ -1626,7 +1688,7 @@ public static class TemporalHelper
             var timeZoneArg = args.GetArgument(1);
             var calendarArg = args.Count > 2 ? args[2] : JsValue.Undefined;
 
-            var timeZoneId = JsOps.ToJsString(timeZoneArg);
+            var timeZoneId = ToTemporalTimeZoneSlot(timeZoneArg, realm);
             var calendar = ToTemporalCalendarIdentifier(calendarArg);
 
             JsTemporalInstant instant;
@@ -1641,8 +1703,12 @@ public static class TemporalHelper
             }
 
             var zdt = new JsTemporalZonedDateTime(instant, timeZoneId, calendar);
-            return WrapZonedDateTime(zdt, realm, prototype);
+            return ApplyNewTargetPrototype(WrapZonedDateTime(zdt, realm, prototype), newTarget, ctor, prototype);
         });
+        ctor.DefineProperty("length",
+            new PropertyDescriptor { Value = 2d, Writable = false, Enumerable = false, Configurable = true });
+        ctor.DefineProperty("name",
+            new PropertyDescriptor { Value = "ZonedDateTime", Writable = false, Enumerable = false, Configurable = true });
 
         ctor.DefineProperty("prototype",
             new PropertyDescriptor { Value = prototype, Writable = false, Enumerable = false, Configurable = false });
@@ -1793,8 +1859,12 @@ public static class TemporalHelper
             var calendar = ToTemporalCalendarIdentifier(calendarArg);
 
             var ym = new JsTemporalPlainYearMonth(year, month, calendar);
-            return WrapPlainYearMonth(ym, realm, prototype);
+            return ApplyNewTargetPrototype(WrapPlainYearMonth(ym, realm, prototype), newTarget, ctor, prototype);
         });
+        ctor.DefineProperty("length",
+            new PropertyDescriptor { Value = 2d, Writable = false, Enumerable = false, Configurable = true });
+        ctor.DefineProperty("name",
+            new PropertyDescriptor { Value = "PlainYearMonth", Writable = false, Enumerable = false, Configurable = true });
 
         ctor.DefineProperty("prototype",
             new PropertyDescriptor { Value = prototype, Writable = false, Enumerable = false, Configurable = false });
@@ -1903,8 +1973,12 @@ public static class TemporalHelper
             var calendar = ToTemporalCalendarIdentifier(calendarArg);
 
             var md = new JsTemporalPlainMonthDay(month, day, calendar);
-            return WrapPlainMonthDay(md, realm, prototype);
+            return ApplyNewTargetPrototype(WrapPlainMonthDay(md, realm, prototype), newTarget, ctor, prototype);
         });
+        ctor.DefineProperty("length",
+            new PropertyDescriptor { Value = 2d, Writable = false, Enumerable = false, Configurable = true });
+        ctor.DefineProperty("name",
+            new PropertyDescriptor { Value = "PlainMonthDay", Writable = false, Enumerable = false, Configurable = true });
 
         ctor.DefineProperty("prototype",
             new PropertyDescriptor { Value = prototype, Writable = false, Enumerable = false, Configurable = false });
@@ -1941,8 +2015,7 @@ public static class TemporalHelper
             return tzId;
         }
 
-        var tzStr = JsOps.ToJsString(args[0]);
-        ValidateTimeZoneIdentifier(tzStr, realm);
+        var tzStr = ToTemporalTimeZoneSlot(args[0], realm);
 
         // Convert Windows timezone ID to IANA if needed
         if (OperatingSystem.IsWindows() && TimeZoneInfo.TryConvertWindowsIdToIanaId(tzStr, out var iana))
@@ -1953,8 +2026,177 @@ public static class TemporalHelper
     }
 
     /// <summary>
+    ///     Validates a JsValue as a timezone argument, type-checks it, parses ISO datetime strings,
+    ///     and returns a canonicalized timezone identifier.
+    /// </summary>
+    private static string ToTemporalTimeZoneSlot(JsValue value, RealmState realm)
+    {
+        // Per spec: argument must be a string — non-string types throw TypeError
+        if (!value.IsString)
+        {
+            throw StandardLibrary.ThrowTypeError("Expected a string for time zone argument", realm: realm);
+        }
+
+        var input = value.AsString();
+        var tzStr = ToTemporalTimeZoneIdentifier(input, realm);
+
+        // Canonicalize: use the timezone info's ID (handles case normalization like 'UtC' → 'UTC')
+        var tzInfo = FindTimeZone(tzStr);
+        return tzInfo.Id;
+    }
+
+    /// <summary>
+    ///     Parses a string as a Temporal time zone identifier.
+    ///     Handles ISO datetime strings by extracting the timezone portion,
+    ///     and validates the result as a valid IANA name or UTC offset.
+    /// </summary>
+    private static string ToTemporalTimeZoneIdentifier(string input, RealmState realm)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            throw StandardLibrary.ThrowRangeError("Invalid time zone identifier", realm: realm);
+        }
+
+        // Check if this looks like an ISO datetime string (digits before 'T')
+        var tIdx = input.IndexOf('T');
+        if (tIdx >= 4 && char.IsDigit(input[0]))
+        {
+            return ExtractTimeZoneFromISO(input, tIdx, realm);
+        }
+
+        // Not an ISO datetime string - validate directly as timezone identifier
+        ValidateTimeZoneIdentifier(input, realm);
+        return input;
+    }
+
+    /// <summary>
+    ///     Extracts the timezone identifier from an ISO datetime string.
+    ///     Priority: annotation [name] > inline offset (Z, +HH:MM) > bare datetime (error).
+    /// </summary>
+    private static string ExtractTimeZoneFromISO(string input, int tIdx, RealmState realm)
+    {
+        // Check for annotation [timezone]
+        var bracketIdx = input.IndexOf('[');
+        if (bracketIdx >= 0)
+        {
+            var closeBracket = input.IndexOf(']', bracketIdx);
+            if (closeBracket > bracketIdx)
+            {
+                var annotation = input.Substring(bracketIdx + 1, closeBracket - bracketIdx - 1);
+
+                // Skip calendar annotations like u-ca=iso8601
+                if (!annotation.StartsWith("u-ca=", StringComparison.Ordinal))
+                {
+                    // This is a timezone annotation — validate it
+                    if (annotation.Length > 0 && (annotation[0] == '+' || annotation[0] == '-'))
+                    {
+                        // It's an offset annotation — reject sub-minute precision
+                        RejectSubMinuteOffset(annotation, realm);
+                    }
+                    ValidateTimeZoneIdentifier(annotation, realm);
+                    return annotation;
+                }
+            }
+        }
+
+        // No annotation — extract offset from the time portion
+        var afterT = input.Substring(tIdx + 1);
+
+        // Remove any bracket annotations from the time portion
+        var aBracket = afterT.IndexOf('[');
+        if (aBracket >= 0)
+        {
+            afterT = afterT.Substring(0, aBracket);
+        }
+
+        // Check for Z at end
+        if (afterT.EndsWith('Z') || afterT.EndsWith('z'))
+        {
+            return "UTC";
+        }
+
+        // Look for offset: scan from right for + or - followed by digits
+        for (var i = afterT.Length - 1; i >= 2; i--)
+        {
+            if ((afterT[i] == '+' || afterT[i] == '-') && i + 1 < afterT.Length && char.IsDigit(afterT[i + 1]))
+            {
+                var offset = afterT.Substring(i);
+                // Reject sub-minute precision
+                RejectSubMinuteOffset(offset, realm);
+                // Normalize to +HH:MM format
+                offset = NormalizeUtcOffset(offset);
+                return offset;
+            }
+        }
+
+        // No offset found — bare datetime string
+        throw StandardLibrary.ThrowRangeError("bare date-time string is not a time zone", realm: realm);
+    }
+
+    /// <summary>
+    ///     Rejects UTC offset strings with sub-minute precision (seconds or fractional seconds).
+    ///     Valid: +HH:MM, +HHMM. Invalid: +HH:MM:SS, +HH:MM:SS.sss.
+    /// </summary>
+    private static void RejectSubMinuteOffset(string offset, RealmState realm)
+    {
+        // Strip the sign
+        var body = offset.TrimStart('+', '-');
+
+        // Check colon-separated format: HH:MM[:SS[.fff]]
+        if (body.Contains(':'))
+        {
+            var parts = body.Split(':');
+            if (parts.Length >= 3)
+            {
+                // Has seconds component — sub-minute precision
+                throw StandardLibrary.ThrowRangeError(
+                    $"UTC offset with sub-minute precision is not a valid time zone: {offset}", realm: realm);
+            }
+            return;
+        }
+
+        // Check compact format: HHMM[SS[fff]]
+        // Valid: 4 digits (HHMM). Invalid: 6+ digits (HHMMSS)
+        if (body.Length > 4)
+        {
+            throw StandardLibrary.ThrowRangeError(
+                $"UTC offset with sub-minute precision is not a valid time zone: {offset}", realm: realm);
+        }
+    }
+
+    /// <summary>
+    ///     Normalizes a UTC offset string to ±HH:MM format.
+    ///     Handles both +HH:MM and +HHMM input formats.
+    /// </summary>
+    private static string NormalizeUtcOffset(string offset)
+    {
+        var sign = offset[0]; // + or -
+        var body = offset.Substring(1);
+
+        // Already in HH:MM format
+        if (body.Contains(':'))
+        {
+            return offset;
+        }
+
+        // Compact HHMM format — insert colon
+        if (body.Length == 4)
+        {
+            return $"{sign}{body[..2]}:{body[2..]}";
+        }
+
+        // Just HH — append :00
+        if (body.Length == 2)
+        {
+            return $"{sign}{body}:00";
+        }
+
+        return offset;
+    }
+
+    /// <summary>
     ///     Validates that a string is a valid IANA time zone identifier or UTC offset.
-    ///     Throws RangeError for bare datetime strings, leap seconds, and other invalid formats.
+    ///     This method validates already-extracted timezone identifiers (not raw ISO datetime strings).
     /// </summary>
     private static void ValidateTimeZoneIdentifier(string id, RealmState realm)
     {
@@ -1963,28 +2205,7 @@ public static class TemporalHelper
             throw StandardLibrary.ThrowRangeError("Invalid time zone identifier", realm: realm);
         }
 
-        // Reject bare date-time strings (e.g., "2020-01-01T00:00:00")
-        // A time zone should be either an IANA name or a UTC offset
-        if (id.Contains('T') && !id.Contains('['))
-        {
-            // If it looks like a datetime string (has digits-digits pattern before T)
-            if (id.Length >= 10 && char.IsDigit(id[0]))
-            {
-                throw StandardLibrary.ThrowRangeError("bare date-time string is not a time zone", realm: realm);
-            }
-        }
-
-        // Reject leap seconds in time zone offset strings (e.g., "+00:00:60")
-        if ((id.StartsWith('+') || id.StartsWith('-')) && id.Contains(':'))
-        {
-            var parts = id.TrimStart('+', '-').Split(':');
-            if (parts.Length >= 3 && int.TryParse(parts[2], System.Globalization.CultureInfo.InvariantCulture, out var seconds) && seconds >= 60)
-            {
-                throw StandardLibrary.ThrowRangeError("leap second in time zone name not valid", realm: realm);
-            }
-        }
-
-        // Try to find the timezone - will throw if invalid
+        // Try to find the timezone — will throw if invalid
         try
         {
             FindTimeZone(id);
@@ -1996,13 +2217,29 @@ public static class TemporalHelper
     }
 
     /// <summary>
-    ///     Finds a TimeZoneInfo by IANA or system ID.
+    ///     Finds a TimeZoneInfo by IANA name, system ID, or UTC offset string.
     /// </summary>
     private static TimeZoneInfo FindTimeZone(string id)
     {
         if (string.Equals(id, "UTC", StringComparison.OrdinalIgnoreCase))
         {
             return TimeZoneInfo.Utc;
+        }
+
+        // Handle UTC offset strings like "+01:00", "-07:00"
+        if (id.Length >= 3 && (id[0] == '+' || id[0] == '-') && char.IsDigit(id[1]))
+        {
+            var normalized = NormalizeUtcOffset(id);
+            var body = normalized.Substring(1);
+            var parts = body.Split(':');
+            if (parts.Length == 2 &&
+                int.TryParse(parts[0], System.Globalization.CultureInfo.InvariantCulture, out var hours) &&
+                int.TryParse(parts[1], System.Globalization.CultureInfo.InvariantCulture, out var minutes))
+            {
+                var sign = normalized[0] == '-' ? -1 : 1;
+                var offset = new TimeSpan(sign * hours, sign * minutes, 0);
+                return TimeZoneInfo.CreateCustomTimeZone(id, offset, id, id);
+            }
         }
 
         try
@@ -2107,8 +2344,207 @@ public static class TemporalHelper
             throw StandardLibrary.ThrowRangeError("Duration field value is not an integer");
         }
 
-        return value;
+        // Per spec: ToIntegerIfIntegral converts -0 to +0
+        return value == 0 ? 0 : value;
     }
+
+    /// <summary>
+    ///     Applies the correct prototype from newTarget for subclassing support.
+    ///     Per spec: OrdinaryCreateFromConstructor uses newTarget.prototype when newTarget differs from the constructor.
+    /// </summary>
+    private static JsValue ApplyNewTargetPrototype(JsValue result, JsValue newTarget, HostFunction ctor, JsObject defaultPrototype)
+    {
+        // If newTarget is the constructor itself, prototype is already correct
+        if (newTarget.TryGetObject<IJsCallable>(out var newTargetCallable) && !ReferenceEquals(newTargetCallable, ctor))
+        {
+            // Get newTarget.prototype
+            if (newTargetCallable is IJsPropertyAccessor accessor &&
+                accessor.TryGetProperty("prototype", out var protoVal) &&
+                protoVal.TryGetObject<JsObject>(out var subclassPrototype))
+            {
+                // Set the prototype on the wrapped object to the subclass prototype
+                if (result.TryGetObject<JsObject>(out var obj))
+                {
+                    obj.SetPrototype(subclassPrototype);
+                }
+            }
+        }
+        return result;
+    }
+
+    /// <summary>
+    ///     Validates that all duration fields have the same sign (all positive, all negative, or all zero).
+    ///     Per Temporal spec: mixed signs cause a RangeError.
+    /// </summary>
+    private static void RejectDurationSign(double years, double months, double weeks, double days,
+        double hours, double minutes, double seconds, double milliseconds, double microseconds,
+        double nanoseconds, RealmState? realm = null)
+    {
+        var hasPositive = false;
+        var hasNegative = false;
+        ReadOnlySpan<double> fields = [years, months, weeks, days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds];
+        foreach (var field in fields)
+        {
+            if (field > 0) hasPositive = true;
+            else if (field < 0) hasNegative = true;
+        }
+        if (hasPositive && hasNegative)
+        {
+            throw StandardLibrary.ThrowRangeError("Duration fields must not have mixed signs", realm: realm);
+        }
+    }
+
+    /// <summary>
+    ///     Per Temporal spec: IsValidDuration checks that the duration fields are within limits.
+    ///     Normalizes to total nanoseconds, then checks totalSeconds against 2^53.
+    /// </summary>
+    private static bool IsValidDuration(double years, double months, double weeks, double days,
+        double hours, double minutes, double seconds, double milliseconds, double microseconds, double nanoseconds)
+    {
+        const double maxYMW = 4294967296; // 2^32
+
+        // 1. Years, months, weeks must be in range (-2^32, 2^32)
+        if (Math.Abs(years) >= maxYMW || Math.Abs(months) >= maxYMW || Math.Abs(weeks) >= maxYMW)
+        {
+            return false;
+        }
+
+        // 2. NormalizeTimeDuration: compute total nanoseconds from all time fields
+        // Use BigInteger to handle arbitrarily large values
+        var totalNanoseconds =
+            new BigInteger(days) * 86_400_000_000_000 +
+            new BigInteger(hours) * 3_600_000_000_000 +
+            new BigInteger(minutes) * 60_000_000_000 +
+            new BigInteger(seconds) * 1_000_000_000 +
+            new BigInteger(milliseconds) * 1_000_000 +
+            new BigInteger(microseconds) * 1_000 +
+            new BigInteger(nanoseconds);
+
+        // Per spec: abs(normalizedSeconds) >= 2^53 → invalid
+        // In nanoseconds: abs(totalNanoseconds) >= 2^53 * 10^9
+        var maxTimeDuration = new BigInteger(9007199254740992) * 1_000_000_000;
+        if (BigInteger.Abs(totalNanoseconds) >= maxTimeDuration)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    ///     Reads a duration field from a property bag for Duration.prototype.with().
+    ///     Per spec: applies ToIntegerIfIntegral if property is present and not undefined.
+    ///     Returns the existing duration value if not present or undefined.
+    /// </summary>
+    private static double ReadDurationField(IJsPropertyAccessor accessor, string name, double existingValue, ref bool any, RealmState? realm = null)
+    {
+        if (!accessor.TryGetProperty(name, out var v) || v.IsUndefined)
+        {
+            return existingValue;
+        }
+
+        any = true;
+        var value = JsOps.ToNumber(v);
+
+        if (double.IsNaN(value) || double.IsInfinity(value))
+        {
+            throw StandardLibrary.ThrowRangeError($"Duration field '{name}' is not finite", realm: realm);
+        }
+
+        if (value != Math.Truncate(value))
+        {
+            throw StandardLibrary.ThrowRangeError($"Duration field '{name}' is not an integer", realm: realm);
+        }
+
+        // Per spec: ToIntegerIfIntegral converts -0 to +0
+        return value == 0 ? 0 : value;
+    }
+
+    /// <summary>
+    ///     Gets an argument from the args list, returning defaultValue (0) if the argument is
+    ///     not present or is undefined. Per Temporal spec, undefined arguments default to 0.
+    /// </summary>
+    private static int ToIntegerOrDefault(IReadOnlyList<JsValue> args, int index, string fieldName, RealmState? realm = null, int defaultValue = 0)
+    {
+        if (index >= args.Count || args[index].IsUndefined)
+        {
+            return defaultValue;
+        }
+
+        return ToIntegerWithRangeCheck(args[index], fieldName, realm);
+    }
+
+    /// <summary>
+    ///     Converts a JS value to an integer, throwing RangeError for Infinity/NaN and non-integer values.
+    ///     Per Temporal spec: ToIntegerWithTruncation then range check.
+    /// </summary>
+    private static int ToIntegerWithRangeCheck(JsValue value, string fieldName, RealmState? realm = null)
+    {
+        var num = JsOps.ToNumber(value);
+        if (double.IsNaN(num) || double.IsInfinity(num))
+        {
+            throw StandardLibrary.ThrowRangeError($"Invalid {fieldName}: Infinity or NaN", realm: realm);
+        }
+
+        return (int)Math.Truncate(num);
+    }
+
+    /// <summary>
+    ///     Validates that time component values are within valid ranges.
+    ///     Throws RangeError if any component is out of range.
+    /// </summary>
+    private static void RejectTemporalTimeRange(int hour, int minute, int second,
+        int millisecond, int microsecond, int nanosecond, RealmState? realm = null)
+    {
+        if (hour is < 0 or > 23 ||
+            minute is < 0 or > 59 ||
+            second is < 0 or > 59 ||
+            millisecond is < 0 or > 999 ||
+            microsecond is < 0 or > 999 ||
+            nanosecond is < 0 or > 999)
+        {
+            throw StandardLibrary.ThrowRangeError("Time value is out of range", realm: realm);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that date component values form a valid ISO date.
+    ///     Throws RangeError if any component is out of range.
+    /// </summary>
+    private static void RejectISODate(int year, int month, int day, RealmState? realm = null)
+    {
+        if (month is < 1 or > 12)
+        {
+            throw StandardLibrary.ThrowRangeError("Month value is out of range (1-12)", realm: realm);
+        }
+
+        var daysInMonth = DateTime.DaysInMonth(year is >= 1 and <= 9999 ? year : 2000, month);
+        if (day < 1 || day > daysInMonth)
+        {
+            throw StandardLibrary.ThrowRangeError("Day value is out of range", realm: realm);
+        }
+
+        // Check ISO date range limits per Temporal spec
+        // Min: -271821-04-19, Max: +275760-09-13
+        if (year < IsoDateMin.year || year > IsoDateMax.year)
+        {
+            throw StandardLibrary.ThrowRangeError("Date value is out of representable range", realm: realm);
+        }
+
+        if (year == IsoDateMin.year && (month < IsoDateMin.month || (month == IsoDateMin.month && day < IsoDateMin.day)))
+        {
+            throw StandardLibrary.ThrowRangeError("Date value is out of representable range", realm: realm);
+        }
+
+        if (year == IsoDateMax.year && (month > IsoDateMax.month || (month == IsoDateMax.month && day > IsoDateMax.day)))
+        {
+            throw StandardLibrary.ThrowRangeError("Date value is out of representable range", realm: realm);
+        }
+    }
+
+    // Temporal spec ISO date range limits
+    private static readonly (int year, int month, int day) IsoDateMin = (-271821, 4, 19);
+    private static readonly (int year, int month, int day) IsoDateMax = (275760, 9, 13);
 
     private static long ParseOffsetToSeconds(string offset)
     {

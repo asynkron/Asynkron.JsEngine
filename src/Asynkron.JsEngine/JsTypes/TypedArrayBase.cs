@@ -911,6 +911,12 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
     /// </summary>
     public abstract TypedArrayBase Subarray(int begin, int end);
 
+    /// <summary>
+    ///     Creates a new typed array of the same type viewing the given buffer at the specified byte offset and element length.
+    ///     Used by subarray's species create path.
+    /// </summary>
+    public abstract TypedArrayBase CreateSubarrayView(JsArrayBuffer buffer, int byteOffset, int length);
+
     protected abstract TypedArrayBase CreateNewSameType(int length);
 
     internal TypedArrayBase CreateSpeciesDefault(int length)
@@ -955,14 +961,46 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         ArgumentNullException.ThrowIfNull(source);
 
         var targetLength = Length;
-        if (offset < 0 || offset + source.Length > targetLength)
+        if (offset < 0 || (long)offset + source.Length > targetLength)
         {
             throw CreateOutOfBoundsTypeError();
         }
 
-        for (var i = 0; i < source.Length; i++)
+        // Per spec: if SameValue(srcBuffer, targetBuffer), clone srcBuffer first
+        // to avoid overlapping writes.
+        if (ReferenceEquals(source.Buffer, _buffer))
         {
-            SetValue(offset + i, source.GetValueForIndex(i));
+            // Clone source bytes to avoid overlapping copy issues
+            var srcByteOffset = source.ByteOffset;
+            var srcByteLength = source.Length * source.BytesPerElement;
+            var clonedBytes = new byte[srcByteLength];
+            Array.Copy(source.Buffer.Buffer, srcByteOffset, clonedBytes, 0, srcByteLength);
+
+            var targetByteOffset = _byteOffset + offset * _bytesPerElement;
+            // Same type: byte-level copy
+            if (source.BytesPerElement == _bytesPerElement &&
+                source.GetType() == GetType())
+            {
+                Array.Copy(clonedBytes, 0, _buffer.Buffer, targetByteOffset, srcByteLength);
+            }
+            else
+            {
+                // Different types: element-by-element with temporary buffer
+                var tempBuffer = new JsArrayBuffer(srcByteLength);
+                Array.Copy(clonedBytes, 0, tempBuffer.Buffer, 0, srcByteLength);
+                var tempSource = source.CreateSubarrayView(tempBuffer, 0, source.Length);
+                for (var i = 0; i < source.Length; i++)
+                {
+                    SetValue(offset + i, tempSource.GetValueForIndex(i));
+                }
+            }
+        }
+        else
+        {
+            for (var i = 0; i < source.Length; i++)
+            {
+                SetValue(offset + i, source.GetValueForIndex(i));
+            }
         }
     }
 

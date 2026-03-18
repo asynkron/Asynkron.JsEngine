@@ -241,6 +241,9 @@ public sealed class JsEngine : IAsyncDisposable
         // Register Iterator constructor
         SetGlobal("Iterator", IteratorConstructor.CreateConstructor(RealmState));
 
+        // Register ShadowRealm constructor
+        SetGlobal("ShadowRealm", ShadowRealmConstructor.CreateConstructor(RealmState));
+
         // Minimal browser-like storage object used by debug/babel-standalone.
         SetGlobal("localStorage", BrowserHelper.CreateLocalStorageObject());
 

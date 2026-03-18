@@ -1109,50 +1109,212 @@ public sealed partial class TypedArrayPrototype
     private JsValue Set(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.set");
-        if (typedArray.IsDetachedOrOutOfBounds())
-        {
-            throw typedArray.CreateOutOfBoundsTypeError();
-        }
 
         if (args.Count == 0)
         {
             return JsValue.Undefined;
         }
 
-        var offsetNumber = args.Count > 1 && !args[1].IsUndefined
-            ? ToIntegerOrInfinity(args[1], Realm.CreateContext())
-            : 0d;
-        if (double.IsPositiveInfinity(offsetNumber) || double.IsNegativeInfinity(offsetNumber))
+        var source = args[0];
+
+        // Branch: TypedArray source (22.2.3.23.2)
+        if (source.TryGetObject<TypedArrayBase>(out var sourceTypedArray))
         {
-            throw typedArray.CreateOutOfBoundsTypeError();
+            return SetFromTypedArray(typedArray, sourceTypedArray, args);
+        }
+
+        // Branch: Array-arg source (22.2.3.23.1)
+        return SetFromArrayLike(typedArray, source, args);
+    }
+
+    private JsValue SetFromTypedArray(TypedArrayBase target, TypedArrayBase source, IReadOnlyList<JsValue> args)
+    {
+        // 1. Let targetOffset be ? ToIntegerOrInfinity(offset).
+        var ctx = Realm.CreateContext();
+        var offsetNumber = args.Count > 1 && !args[1].IsUndefined
+            ? ToIntegerOrInfinity(args[1], ctx)
+            : 0d;
+
+        // 2. If targetOffset < 0, throw a RangeError.
+        if (offsetNumber < 0 || double.IsPositiveInfinity(offsetNumber))
+        {
+            throw ThrowRangeError("offset is out of bounds", realm: Realm);
+        }
+
+        // 3. If source.[[IsDetachedBuffer]] is true, throw a TypeError.
+        if (source.IsDetachedOrOutOfBounds())
+        {
+            throw source.CreateOutOfBoundsTypeError();
+        }
+
+        // 4. If target.[[IsDetachedBuffer]] is true, throw a TypeError.
+        if (target.IsDetachedOrOutOfBounds())
+        {
+            throw target.CreateOutOfBoundsTypeError();
         }
 
         var offset = (int)offsetNumber;
-        if (offset < 0)
+
+        // 5-9. Validate range: srcLength + targetOffset > targetLength
+        if ((long)offset + source.Length > target.Length)
         {
-            throw typedArray.CreateOutOfBoundsTypeError();
+            throw ThrowRangeError("offset is out of bounds", realm: Realm);
         }
 
-        var source = args[0];
-        if (source.TryGetObject<TypedArrayBase>(out var sourceTypedArray))
+        target.Set(source, offset);
+        return JsValue.Undefined;
+    }
+
+    private JsValue SetFromArrayLike(TypedArrayBase target, JsValue source, IReadOnlyList<JsValue> args)
+    {
+        // 1. Let targetOffset be ? ToIntegerOrInfinity(offset).
+        var ctx = Realm.CreateContext();
+        var offsetNumber = args.Count > 1 && !args[1].IsUndefined
+            ? ToIntegerOrInfinity(args[1], ctx)
+            : 0d;
+
+        // 2. If targetOffset < 0, throw a RangeError.
+        if (offsetNumber < 0 || double.IsPositiveInfinity(offsetNumber))
         {
-            if (sourceTypedArray.IsDetachedOrOutOfBounds())
+            throw ThrowRangeError("offset is out of bounds", realm: Realm);
+        }
+
+        // 3. If target.[[IsDetachedBuffer]] is true, throw a TypeError.
+        if (target.IsDetachedOrOutOfBounds())
+        {
+            throw target.CreateOutOfBoundsTypeError();
+        }
+
+        // Per spec step 15: Let src be ? ToObject(array).
+        // ToObject(undefined) and ToObject(null) throw TypeError.
+        if (source.IsUndefined || source.IsNull)
+        {
+            throw ThrowTypeError("Cannot convert undefined or null to object", realm: Realm);
+        }
+
+        var offset = (int)offsetNumber;
+
+        // 4. Let src be ? ToObject(source).
+        // For JsArray, use directly; for primitives, convert to wrapper object.
+        if (source.TryGetObject<JsArray>(out var sourceArray))
+        {
+            // Fast path for JsArray
+            var srcLen = (int)sourceArray.Length;
+            if (offset + srcLen > target.Length)
             {
-                throw sourceTypedArray.CreateOutOfBoundsTypeError();
+                throw ThrowRangeError("offset is out of bounds", realm: Realm);
             }
 
-            typedArray.Set(sourceTypedArray, offset);
+            for (var i = 0; i < srcLen; i++)
+            {
+                var value = sourceArray.GetElement(i);
+                if (target.IsDetachedOrOutOfBounds())
+                {
+                    throw target.CreateOutOfBoundsTypeError();
+                }
+
+                target.SetValue(offset + i, value);
+            }
+
             return JsValue.Undefined;
         }
 
-        if (!source.TryGetObject<JsArray>(out var sourceArray))
+        // Handle array-like objects via IJsPropertyAccessor (ToObject path)
+        if (source.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
+            return SetFromAccessor(target, accessor, source, offset);
+        }
+
+        // Primitive values: convert to object wrapper (ToObject)
+        // string => String object with indexed chars and length
+        if (source.IsString)
+        {
+            var str = source.AsString() ?? string.Empty;
+            var srcLen = str.Length;
+            if (offset + srcLen > target.Length)
+            {
+                throw ThrowRangeError("offset is out of bounds", realm: Realm);
+            }
+
+            for (var i = 0; i < srcLen; i++)
+            {
+                var ch = new string(str[i], 1);
+                var numValue = JsOps.ToNumber((JsValue)ch, ctx);
+                if (ctx.IsThrow)
+                {
+                    throw new ThrowSignal(ctx.FlowValue);
+                }
+
+                if (target.IsDetachedOrOutOfBounds())
+                {
+                    throw target.CreateOutOfBoundsTypeError();
+                }
+
+                target.SetValue(offset + i, JsValue.FromDouble(numValue));
+            }
+
             return JsValue.Undefined;
         }
 
-        typedArray.Set(sourceArray, offset);
+        // For number, boolean, symbol, bigint primitives: ToObject produces wrapper with length 0
+        // (no indexed properties), so nothing to set.
         return JsValue.Undefined;
+    }
 
+    private JsValue SetFromAccessor(TypedArrayBase target, IJsPropertyAccessor accessor, JsValue source, int offset)
+    {
+        // 5. Let srcLength be ? LengthOfArrayLike(src).
+        if (!accessor.TryGetProperty("length", source, out var lengthVal))
+        {
+            lengthVal = JsValue.FromDouble(0);
+        }
+
+        var ctx = Realm.CreateContext();
+        var srcLenNumber = JsOps.ToNumber(lengthVal, ctx);
+        if (ctx.IsThrow)
+        {
+            throw new ThrowSignal(ctx.FlowValue);
+        }
+
+        var srcLen = double.IsNaN(srcLenNumber) || srcLenNumber < 0
+            ? 0
+            : (int)Math.Min(srcLenNumber, int.MaxValue);
+
+        // 8. If srcLength + targetOffset > targetLength, throw a RangeError.
+        if (srcLen + offset > target.Length)
+        {
+            throw ThrowRangeError("offset is out of bounds", realm: Realm);
+        }
+
+        // 9. Set each element
+        for (var i = 0; i < srcLen; i++)
+        {
+            var key = i.ToString(CultureInfo.InvariantCulture);
+            if (!accessor.TryGetProperty(key, source, out var value))
+            {
+                value = JsValue.Undefined;
+            }
+
+            // ToNumber / ToBigInt conversion
+            var numValue = JsOps.ToNumber(value, ctx);
+            if (ctx.IsThrow)
+            {
+                throw new ThrowSignal(ctx.FlowValue);
+            }
+
+            if (target.IsDetachedOrOutOfBounds())
+            {
+                // Per spec: detached during iteration is not an error for array-arg
+                return JsValue.Undefined;
+            }
+
+            if (offset + i < target.Length)
+            {
+                target.SetValue(offset + i, JsValue.FromDouble(numValue));
+            }
+        }
+
+        return JsValue.Undefined;
     }
 
     [JsHostMethod("slice", Length = 2d)]
@@ -1201,20 +1363,146 @@ public sealed partial class TypedArrayPrototype
     {
         var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.subarray");
 
-        var begin = 0;
-        var end = typedArray.Length;
+        // 3. Let buffer be O.[[ViewedArrayBuffer]].
+        var buffer = typedArray.Buffer;
 
-        if (args.Count > 0 && !args[0].IsUndefined)
+        // 4. Let srcLength be O.[[ArrayLength]] (use 0 if out of bounds per spec).
+        var srcLength = typedArray.IsDetachedOrOutOfBounds() ? 0 : typedArray.Length;
+
+        // 5. Let relativeBegin be ? ToIntegerOrInfinity(begin).
+        var ctx = Realm.CreateContext();
+        var relativeBegin = args.Count > 0 && !args[0].IsUndefined
+            ? ToIntegerOrInfinity(args[0], ctx)
+            : 0d;
+
+        // 6. Let relativeEnd be ? ToIntegerOrInfinity(end).
+        var relativeEnd = args.Count > 1 && !args[1].IsUndefined
+            ? ToIntegerOrInfinity(args[1], ctx)
+            : (double)srcLength;
+
+        // 7. If relativeBegin is -Infinity, beginIndex = 0.
+        //    If relativeBegin < 0, beginIndex = max(srcLength + relativeBegin, 0).
+        //    Else, beginIndex = min(relativeBegin, srcLength).
+        int beginIndex;
+        if (double.IsNegativeInfinity(relativeBegin))
         {
-            begin = (int)args[0].ToNumber();
+            beginIndex = 0;
+        }
+        else if (relativeBegin < 0)
+        {
+            beginIndex = (int)Math.Max(srcLength + relativeBegin, 0);
+        }
+        else
+        {
+            beginIndex = (int)Math.Min(relativeBegin, srcLength);
         }
 
-        if (args.Count > 1 && !args[1].IsUndefined)
+        // 8. If relativeEnd is -Infinity, endIndex = 0.
+        //    If relativeEnd < 0, endIndex = max(srcLength + relativeEnd, 0).
+        //    Else, endIndex = min(relativeEnd, srcLength).
+        int endIndex;
+        if (double.IsNegativeInfinity(relativeEnd))
         {
-            end = (int)args[1].ToNumber();
+            endIndex = 0;
+        }
+        else if (relativeEnd < 0)
+        {
+            endIndex = (int)Math.Max(srcLength + relativeEnd, 0);
+        }
+        else
+        {
+            endIndex = (int)Math.Min(relativeEnd, srcLength);
         }
 
-        return (JsValue)typedArray.Subarray(begin, end);
+        var newLength = Math.Max(endIndex - beginIndex, 0);
+
+        // 9. Let constructorName be the String value of O.[[TypedArrayName]].
+        // 10. Let elementSize be the Element Size value specified in Table for constructorName.
+        var elementSize = typedArray.BytesPerElement;
+
+        // 11. Let srcByteOffset be O.[[ByteOffset]].
+        var srcByteOffset = typedArray.ByteOffset;
+
+        // 12. Let beginByteOffset be srcByteOffset + beginIndex * elementSize.
+        var beginByteOffset = srcByteOffset + beginIndex * elementSize;
+
+        // 13-17. Use TypedArraySpeciesCreate or Subarray with proper prototype.
+        // Use SpeciesCreate to properly handle constructors and prototypes.
+        var result = SubarraySpeciesCreate(typedArray, buffer, beginByteOffset, newLength);
+
+        return JsValue.FromObjectUnsafe(result);
+    }
+
+    /// <summary>
+    /// Creates a subarray via the species constructor pattern, properly preserving prototype chains.
+    /// Per spec: TypedArraySpeciesCreate for subarray passes (buffer, byteOffset, length).
+    /// </summary>
+    private TypedArrayBase SubarraySpeciesCreate(TypedArrayBase exemplar, JsArrayBuffer buffer, int byteOffset, int length)
+    {
+        var constructorValue = JsValue.Undefined;
+
+        if (exemplar.TryGetProperty("constructor", (JsValue)exemplar, out var ctorValue))
+        {
+            constructorValue = ctorValue;
+        }
+
+        if (constructorValue.IsUndefined)
+        {
+            return CreateSubarrayDefault(exemplar, buffer, byteOffset, length);
+        }
+
+        if (!constructorValue.IsObject)
+        {
+            throw ThrowTypeError("TypedArray species constructor must be a constructor", realm: Realm);
+        }
+
+        if (constructorValue.TryGetObject<IJsPropertyAccessor>(out var ctorAccessor))
+        {
+            if (!ctorAccessor.TryGetProperty(SymbolSpeciesKey, out var speciesValue))
+            {
+                speciesValue = JsValue.Undefined;
+            }
+
+            if (speciesValue.IsNullOrUndefined)
+            {
+                return CreateSubarrayDefault(exemplar, buffer, byteOffset, length);
+            }
+
+            constructorValue = speciesValue;
+        }
+
+        if (!JsOps.IsConstructor(constructorValue) || !constructorValue.TryGetObject<IJsCallable>(out var callable))
+        {
+            throw ThrowTypeError("TypedArray species constructor must be a constructor", realm: Realm);
+        }
+
+        if (Realm is null)
+        {
+            throw new InvalidOperationException("Realm is required for TypedArray species construction.");
+        }
+
+        // Call species constructor with (buffer, byteOffset, length)
+        var constructed = ReflectHelper.Construct(callable,
+            [JsValue.FromObjectUnsafe(buffer), JsValue.FromDouble(byteOffset), JsValue.FromDouble(length)],
+            callable, Realm);
+
+        if (!constructed.TryGetObject<TypedArrayBase>(out var typedResult))
+        {
+            throw ThrowTypeError("TypedArray species constructor did not return a TypedArray instance", realm: Realm);
+        }
+
+        return typedResult;
+    }
+
+    private static TypedArrayBase CreateSubarrayDefault(TypedArrayBase exemplar, JsArrayBuffer buffer, int byteOffset, int length)
+    {
+        var result = exemplar.CreateSubarrayView(buffer, byteOffset, length);
+        if (exemplar.Prototype is not null)
+        {
+            result.SetPrototype(exemplar.Prototype);
+        }
+
+        return result;
     }
 
     private JsValue SortImpl(JsValue thisValue, IReadOnlyList<JsValue> args)

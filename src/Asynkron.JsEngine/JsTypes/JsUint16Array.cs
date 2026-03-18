@@ -59,4 +59,9 @@ public sealed class JsUint16Array(JsArrayBuffer buffer, int byteOffset, int leng
         var newByteOffset = _byteOffset + start * BYTES_PER_ELEMENT;
         return new JsUint16Array(_buffer, newByteOffset, newLength);
     }
+
+    public override TypedArrayBase CreateSubarrayView(JsArrayBuffer buffer, int byteOffset, int length)
+    {
+        return new JsUint16Array(buffer, byteOffset, length);
+    }
 }

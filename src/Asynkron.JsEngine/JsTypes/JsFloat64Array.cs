@@ -57,4 +57,9 @@ public sealed class JsFloat64Array(JsArrayBuffer buffer, int byteOffset, int len
         var newByteOffset = _byteOffset + start * BYTES_PER_ELEMENT;
         return new JsFloat64Array(_buffer, newByteOffset, newLength);
     }
+
+    public override TypedArrayBase CreateSubarrayView(JsArrayBuffer buffer, int byteOffset, int length)
+    {
+        return new JsFloat64Array(buffer, byteOffset, length);
+    }
 }

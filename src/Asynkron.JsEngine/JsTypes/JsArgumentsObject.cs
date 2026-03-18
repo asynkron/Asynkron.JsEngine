@@ -232,9 +232,9 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
                 return new PropertyDescriptor
                 {
                     JsValue = calleeValue.IsNullOrUndefined ? _calleeDescriptor.JsValue : calleeValue,
-                    Writable = true,
-                    Enumerable = false,
-                    Configurable = true
+                    Writable = backingDescriptor.HasWritable ? backingDescriptor.Writable : true,
+                    Enumerable = backingDescriptor.HasEnumerable ? backingDescriptor.Enumerable : false,
+                    Configurable = backingDescriptor.HasConfigurable ? backingDescriptor.Configurable : true
                 };
             }
 
@@ -541,9 +541,13 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             normalized.JsValue = JsValue.Undefined;
         }
 
+        // When converting from accessor to data, the existing descriptor has no Writable attribute
+        // (accessor descriptors don't have Writable), so we must default to false per ES spec.
+        // Only inherit Writable from existing when the existing is a data descriptor.
+        var existingIsData = existing is { IsDataDescriptor: true };
         normalized.Writable = descriptor.HasWritable
             ? descriptor.Writable
-            : existing?.Writable ?? false;
+            : existingIsData && existing!.HasWritable ? existing.Writable : false;
         normalized.Enumerable = descriptor.HasEnumerable
             ? descriptor.Enumerable
             : existing?.Enumerable ?? false;

@@ -277,11 +277,14 @@ public static partial class TypedAstEvaluator
                     keys.Add(JsValue.FromString(key));
                 }
 
-                // Move to prototype
+                // Move to prototype - check both Prototype (JsObject) and PrototypeAccessor
                 current = current switch
                 {
-                    IJsObjectLike objectLike => objectLike.Prototype,
-                    IPrototypeAccessorProvider provider => provider.PrototypeAccessor,
+                    IJsObjectLike objectLike when objectLike.Prototype is not null => objectLike.Prototype,
+                    IPrototypeAccessorProvider provider when provider.PrototypeAccessor is not null =>
+                        provider.PrototypeAccessor,
+                    IJsObjectLike objectLike2 when objectLike2 is IPrototypeAccessorProvider prov2 =>
+                        prov2.PrototypeAccessor,
                     _ => null
                 };
             }
@@ -351,11 +354,16 @@ public static partial class TypedAstEvaluator
                     keys.Add(JsValue.FromString(key));
                 }
 
-                // Move to prototype
+                // Move to prototype - check both Prototype (JsObject) and PrototypeAccessor
+                // (IJsPropertyAccessor) to handle cases where the prototype is a HostFunction
+                // (e.g., Function.prototype) rather than a JsObject.
                 current = current switch
                 {
-                    IJsObjectLike objectLike => objectLike.Prototype,
-                    IPrototypeAccessorProvider provider => provider.PrototypeAccessor,
+                    IJsObjectLike objectLike when objectLike.Prototype is not null => objectLike.Prototype,
+                    IPrototypeAccessorProvider provider when provider.PrototypeAccessor is not null =>
+                        provider.PrototypeAccessor,
+                    IJsObjectLike objectLike2 when objectLike2 is IPrototypeAccessorProvider prov2 =>
+                        prov2.PrototypeAccessor,
                     _ => null
                 };
             }

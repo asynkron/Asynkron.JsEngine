@@ -4412,7 +4412,7 @@ public static class TemporalHelper
         var endEpoch = IsoToDayNumber(y2, m2, d2);
         var leftoverDays = (int)(endEpoch - midEpoch);
 
-        // If leftover days has wrong sign relative to totalMonths, adjust
+        // If leftover days has wrong sign relative to totalMonths, adjust (overshoot)
         if (totalMonths > 0 && leftoverDays < 0)
         {
             totalMonths--;
@@ -4432,6 +4432,22 @@ public static class TemporalHelper
             leftoverDays = (int)(endEpoch - midEpoch);
         }
 
+        // If mid landed exactly on end but only because the day was clamped,
+        // this shouldn't count as a full month — back off by one.
+        // e.g., Jan 29 → Feb 28 is 30 days, not 1 month (since 29 > 28 = clamped)
+        if (leftoverDays == 0 && midDay < d1 && totalMonths != 0)
+        {
+            if (totalMonths > 0)
+                totalMonths--;
+            else
+                totalMonths++;
+            (midYear, midMonth) = AddYearMonth(y1, m1, totalMonths);
+            midDaysInMonth = DaysInISOMonth(midYear, midMonth);
+            midDay = Math.Min(d1, midDaysInMonth);
+            midEpoch = IsoToDayNumber(midYear, midMonth, midDay);
+            leftoverDays = (int)(endEpoch - midEpoch);
+        }
+
         if (string.Equals(largestUnit, "month", StringComparison.Ordinal))
             return (0, totalMonths, 0, leftoverDays);
 
@@ -4439,6 +4455,120 @@ public static class TemporalHelper
         var years = totalMonths / 12;
         var months = totalMonths - years * 12;
         return (years, months, 0, leftoverDays);
+    }
+
+    /// <summary>
+    ///     Rounds a date-unit duration relative to a reference date.
+    ///     Used by since/until when smallestUnit is a date unit (year, month, week, day).
+    /// </summary>
+    private static (int years, int months, int weeks, int days) RoundDateDuration(
+        int years, int months, int weeks, int days,
+        int relY, int relM, int relD, // relativeTo (the "start" date)
+        int destY, int destM, int destD, // the "end" date
+        string smallestUnit, long roundingIncrement, string roundingMode,
+        string largestUnit = "year")
+    {
+        // Determine overall sign of the duration
+        int sign;
+        if (years != 0) sign = Math.Sign(years);
+        else if (months != 0) sign = Math.Sign(months);
+        else if (weeks != 0) sign = Math.Sign(weeks);
+        else if (days != 0) sign = Math.Sign(days);
+        else return (0, 0, 0, 0); // zero duration
+
+        var destEpoch = IsoToDayNumber(destY, destM, destD);
+
+        switch (smallestUnit)
+        {
+            case "year":
+            {
+                // threshold = relativeTo + years
+                var thMonths = years * 12;
+                var (thY, thM) = AddYearMonth(relY, relM, thMonths);
+                var thD = Math.Min(relD, DaysInISOMonth(thY, thM));
+                var thresholdEpoch = IsoToDayNumber(thY, thM, thD);
+
+                // next boundary = relativeTo + (years + sign) years
+                var nxMonths = (years + sign) * 12;
+                var (nxY, nxM) = AddYearMonth(relY, relM, nxMonths);
+                var nxD = Math.Min(relD, DaysInISOMonth(nxY, nxM));
+                var nextEpoch = IsoToDayNumber(nxY, nxM, nxD);
+
+                var numerator = destEpoch - thresholdEpoch;
+                var denominator = nextEpoch - thresholdEpoch;
+
+                var rounded = RoundFractionalUnit(years, numerator, denominator, roundingIncrement, roundingMode);
+                return ((int)rounded, 0, 0, 0);
+            }
+            case "month":
+            {
+                var totalMonths = years * 12 + months;
+
+                // threshold = relativeTo + totalMonths months
+                var (thY, thM) = AddYearMonth(relY, relM, totalMonths);
+                var thD = Math.Min(relD, DaysInISOMonth(thY, thM));
+                var thresholdEpoch = IsoToDayNumber(thY, thM, thD);
+
+                // next boundary = relativeTo + (totalMonths + sign) months
+                var (nxY, nxM) = AddYearMonth(relY, relM, totalMonths + sign);
+                var nxD = Math.Min(relD, DaysInISOMonth(nxY, nxM));
+                var nextEpoch = IsoToDayNumber(nxY, nxM, nxD);
+
+                var numerator = destEpoch - thresholdEpoch;
+                var denominator = nextEpoch - thresholdEpoch;
+
+                var rounded = (int)RoundFractionalUnit(totalMonths, numerator, denominator, roundingIncrement, roundingMode);
+                // Re-balance months into years if largestUnit allows
+                if (string.Equals(largestUnit, "year", StringComparison.Ordinal))
+                    return (rounded / 12, rounded % 12, 0, 0);
+                return (0, rounded, 0, 0);
+            }
+            case "week":
+            {
+                var totalDays = (int)(destEpoch - IsoToDayNumber(relY, relM, relD));
+                var totalWeeks = totalDays / 7;
+                var remainderDays = totalDays - totalWeeks * 7;
+
+                var rounded = RoundFractionalUnit(totalWeeks, remainderDays, 7, roundingIncrement, roundingMode);
+                return (0, 0, (int)rounded, 0);
+            }
+            case "day":
+            {
+                var totalDays = destEpoch - IsoToDayNumber(relY, relM, relD);
+
+                // For days, use integer rounding with RoundToIncrement
+                var rounded = RoundToIncrement(new BigInteger(totalDays),
+                    new BigInteger(roundingIncrement), roundingMode);
+                return (0, 0, 0, (int)rounded);
+            }
+            default:
+                return (years, months, weeks, days);
+        }
+    }
+
+    /// <summary>
+    ///     Rounds (wholeUnits + numerator/denominator) to a multiple of roundingIncrement.
+    ///     Uses exact integer arithmetic by scaling to avoid floating point.
+    /// </summary>
+    private static long RoundFractionalUnit(
+        long wholeUnits, long numerator, long denominator, long roundingIncrement, string roundingMode)
+    {
+        if (denominator == 0)
+            return wholeUnits; // degenerate case
+
+        // The fraction numerator/denominator represents how far past wholeUnits
+        // we've gone in the SIGN direction. Both numerator and denominator have the
+        // same sign (both positive for forward, both negative for backward).
+        // We need: total = wholeUnits + sign * |numerator|/|denominator|
+        // In scaled integer arithmetic: scaledValue = wholeUnits * |denom| + sign * |numer|
+        var sign = wholeUnits != 0 ? Math.Sign(wholeUnits) : Math.Sign(numerator);
+        var absNumer = Math.Abs(numerator);
+        var absDenom = Math.Abs(denominator);
+        var scaledValue = new BigInteger(wholeUnits) * absDenom + new BigInteger(sign) * absNumer;
+        var scaledIncrement = new BigInteger(roundingIncrement) * absDenom;
+
+        var rounded = RoundToIncrement(scaledValue, scaledIncrement, roundingMode);
+        return (long)(rounded / absDenom);
     }
 
     private static int CompareISODate(int y1, int m1, int d1, int y2, int m2, int d2)
@@ -4479,6 +4609,18 @@ public static class TemporalHelper
             other.Year, other.Month, other.Day,
             settings.LargestUnit);
 
+        // Apply rounding for date units
+        if (!string.Equals(settings.SmallestUnit, "day", StringComparison.Ordinal) ||
+            settings.RoundingIncrement != 1)
+        {
+            (years, months, weeks, days) = RoundDateDuration(
+                years, months, weeks, days,
+                date.Year, date.Month, date.Day,
+                other.Year, other.Month, other.Day,
+                settings.SmallestUnit, settings.RoundingIncrement, settings.RoundingMode,
+                settings.LargestUnit);
+        }
+
         var result = new JsTemporalDuration(years, months, weeks, days, 0, 0, 0, 0, 0, 0);
 
         if (string.Equals(operation, "since", StringComparison.Ordinal))
@@ -4497,6 +4639,10 @@ public static class TemporalHelper
             $"Temporal.PlainDateTime.prototype.{operation}",
             DateTimeUnits, "nanosecond", "day");
 
+        var isSince = string.Equals(operation, "since", StringComparison.Ordinal);
+
+        // Always compute this→other, negate at end for "since"
+
         // If largestUnit is time-only, do epoch nanosecond difference
         if (UnitRank(settings.LargestUnit) <= TemporalUnit.Hour)
         {
@@ -4508,7 +4654,7 @@ public static class TemporalHelper
                 diffNanos = RoundToIncrement(diffNanos, incNs, settings.RoundingMode);
             }
             var balanced = BalanceTimeDurationToJsDuration(diffNanos, UnitRank(settings.LargestUnit), realm);
-            if (string.Equals(operation, "since", StringComparison.Ordinal))
+            if (isSince)
                 balanced = balanced.Negated();
             return balanced;
         }
@@ -4519,44 +4665,73 @@ public static class TemporalHelper
 
         var dateSign = CompareISODate(dt.Date.Year, dt.Date.Month, dt.Date.Day,
             other.Date.Year, other.Date.Month, other.Date.Day);
+        // dateSign < 0 means dt < other (forward), dateSign > 0 means backward
         long timeExtraDays = 0;
-        if (timeDiffNanos < 0 && dateSign > 0)
+        if (timeDiffNanos < 0 && dateSign < 0)
         {
+            // Forward in dates, backward in time → borrow a day
             timeExtraDays = -1;
             timeDiffNanos += NanosecondsPerDay;
         }
-        else if (timeDiffNanos > 0 && dateSign < 0)
+        else if (timeDiffNanos > 0 && dateSign > 0)
         {
-            timeExtraDays = 1;
+            // Backward in dates, forward in time → borrow a day
+            timeExtraDays = +1;
             timeDiffNanos -= NanosecondsPerDay;
         }
 
-        var adjDate2Year = other.Date.Year;
-        var adjDate2Month = other.Date.Month;
-        var adjDate2Day = other.Date.Day;
+        var adjEndY = other.Date.Year;
+        var adjEndM = other.Date.Month;
+        var adjEndD = other.Date.Day;
         if (timeExtraDays != 0)
         {
             var epochDay = IsoToDayNumber(other.Date.Year, other.Date.Month, other.Date.Day) + timeExtraDays;
-            (adjDate2Year, adjDate2Month, adjDate2Day) = DayNumberToIsoDate(epochDay);
+            (adjEndY, adjEndM, adjEndD) = DayNumberToIsoDate(epochDay);
         }
 
         var (years, months, weeks, days) = DifferenceISODate(
             dt.Date.Year, dt.Date.Month, dt.Date.Day,
-            adjDate2Year, adjDate2Month, adjDate2Day,
+            adjEndY, adjEndM, adjEndD,
             settings.LargestUnit);
+
+        // Apply rounding
+        var smallestUnitRank = UnitRank(settings.SmallestUnit);
+        if (smallestUnitRank >= TemporalUnit.Day)
+        {
+            // Rounding to a date unit — round the date part, zero time
+            (years, months, weeks, days) = RoundDateDuration(
+                years, months, weeks, days,
+                dt.Date.Year, dt.Date.Month, dt.Date.Day,
+                adjEndY, adjEndM, adjEndD,
+                settings.SmallestUnit, settings.RoundingIncrement, settings.RoundingMode,
+                settings.LargestUnit);
+
+            var result = new JsTemporalDuration(years, months, weeks, days, 0, 0, 0, 0, 0, 0);
+            if (isSince)
+                result = result.Negated();
+            return result;
+        }
+
+        // Rounding to a time unit
+        if (!string.Equals(settings.SmallestUnit, "nanosecond", StringComparison.Ordinal) ||
+            settings.RoundingIncrement != 1)
+        {
+            var incNs = new BigInteger(GetUnitNanoseconds(settings.SmallestUnit)) * settings.RoundingIncrement;
+            timeDiffNanos = RoundToIncrement(timeDiffNanos, incNs, settings.RoundingMode);
+        }
 
         // Balance time to hours
         var timeResult = BalanceTimeDurationToJsDuration(timeDiffNanos, TemporalUnit.Hour, realm);
 
-        var result = new JsTemporalDuration(
+        var resultDt = new JsTemporalDuration(
             years, months, weeks, days,
             timeResult.Hours, timeResult.Minutes, timeResult.Seconds,
             timeResult.Milliseconds, timeResult.Microseconds, timeResult.Nanoseconds);
 
-        if (string.Equals(operation, "since", StringComparison.Ordinal))
-            result = result.Negated();
+        if (isSince)
+            resultDt = resultDt.Negated();
 
-        return result;
+        return resultDt;
     }
 
     // --- DifferenceTemporalZonedDateTime ---
@@ -4569,6 +4744,10 @@ public static class TemporalHelper
             $"Temporal.ZonedDateTime.prototype.{operation}",
             DateTimeUnits, "nanosecond", "hour");
 
+        var isSince = string.Equals(operation, "since", StringComparison.Ordinal);
+
+        // Always compute this→other, negate at end for "since"
+
         // If largestUnit is time-only (hour or smaller), use epoch nanosecond difference
         if (UnitRank(settings.LargestUnit) <= TemporalUnit.Hour)
         {
@@ -4580,56 +4759,85 @@ public static class TemporalHelper
                 diffNanos = RoundToIncrement(diffNanos, incNs, settings.RoundingMode);
             }
             var balanced = BalanceTimeDurationToJsDuration(diffNanos, UnitRank(settings.LargestUnit), realm);
-            if (string.Equals(operation, "since", StringComparison.Ordinal))
+            if (isSince)
                 balanced = balanced.Negated();
             return balanced;
         }
 
         // Date-containing: convert to local PlainDateTime and diff
-        var localDt1 = GetLocalPlainDateTime(zdt, realm);
-        var localDt2 = GetLocalPlainDateTime(other, realm);
+        var localDt = GetLocalPlainDateTime(zdt, realm);
+        var localOther = GetLocalPlainDateTime(other, realm);
 
-        var timeDiffNanos = new BigInteger(localDt2.Time.TotalNanoseconds) -
-                            new BigInteger(localDt1.Time.TotalNanoseconds);
+        var timeDiffNanos = new BigInteger(localOther.Time.TotalNanoseconds) -
+                            new BigInteger(localDt.Time.TotalNanoseconds);
         var dateSign = CompareISODate(
-            localDt1.Date.Year, localDt1.Date.Month, localDt1.Date.Day,
-            localDt2.Date.Year, localDt2.Date.Month, localDt2.Date.Day);
+            localDt.Date.Year, localDt.Date.Month, localDt.Date.Day,
+            localOther.Date.Year, localOther.Date.Month, localOther.Date.Day);
+        // dateSign < 0 means dt < other (forward), dateSign > 0 means backward
         long timeExtraDays = 0;
-        if (timeDiffNanos < 0 && dateSign > 0)
+        if (timeDiffNanos < 0 && dateSign < 0)
         {
+            // Forward in dates, backward in time → borrow a day from date
             timeExtraDays = -1;
             timeDiffNanos += NanosecondsPerDay;
         }
-        else if (timeDiffNanos > 0 && dateSign < 0)
+        else if (timeDiffNanos > 0 && dateSign > 0)
         {
+            // Backward in dates, forward in time → borrow a day
             timeExtraDays = 1;
             timeDiffNanos -= NanosecondsPerDay;
         }
 
-        var ad2y = localDt2.Date.Year;
-        var ad2m = localDt2.Date.Month;
-        var ad2d = localDt2.Date.Day;
+        var adjEndY = localOther.Date.Year;
+        var adjEndM = localOther.Date.Month;
+        var adjEndD = localOther.Date.Day;
         if (timeExtraDays != 0)
         {
-            var epochDay = IsoToDayNumber(ad2y, ad2m, ad2d) + timeExtraDays;
-            (ad2y, ad2m, ad2d) = DayNumberToIsoDate(epochDay);
+            var epochDay = IsoToDayNumber(adjEndY, adjEndM, adjEndD) + timeExtraDays;
+            (adjEndY, adjEndM, adjEndD) = DayNumberToIsoDate(epochDay);
         }
 
         var (years, months, weeks, days) = DifferenceISODate(
-            localDt1.Date.Year, localDt1.Date.Month, localDt1.Date.Day,
-            ad2y, ad2m, ad2d, settings.LargestUnit);
+            localDt.Date.Year, localDt.Date.Month, localDt.Date.Day,
+            adjEndY, adjEndM, adjEndD, settings.LargestUnit);
+
+        // Apply rounding
+        var zdtSmallestRank = UnitRank(settings.SmallestUnit);
+        if (zdtSmallestRank >= TemporalUnit.Day)
+        {
+            // Rounding to a date unit — round date part, zero time
+            (years, months, weeks, days) = RoundDateDuration(
+                years, months, weeks, days,
+                localDt.Date.Year, localDt.Date.Month, localDt.Date.Day,
+                adjEndY, adjEndM, adjEndD,
+                settings.SmallestUnit, settings.RoundingIncrement, settings.RoundingMode,
+                settings.LargestUnit);
+
+            var zdtResult = new JsTemporalDuration(years, months, weeks, days, 0, 0, 0, 0, 0, 0);
+            if (isSince)
+                zdtResult = zdtResult.Negated();
+            return zdtResult;
+        }
+
+        // Rounding to a time unit
+        if (!string.Equals(settings.SmallestUnit, "nanosecond", StringComparison.Ordinal) ||
+            settings.RoundingIncrement != 1)
+        {
+            var incNs = new BigInteger(GetUnitNanoseconds(settings.SmallestUnit)) * settings.RoundingIncrement;
+            timeDiffNanos = RoundToIncrement(timeDiffNanos, incNs, settings.RoundingMode);
+        }
 
         var timeResult = BalanceTimeDurationToJsDuration(timeDiffNanos, TemporalUnit.Hour, realm);
 
-        var result = new JsTemporalDuration(
+        var resultZdt = new JsTemporalDuration(
             years, months, weeks, days,
             timeResult.Hours, timeResult.Minutes, timeResult.Seconds,
             timeResult.Milliseconds, timeResult.Microseconds, timeResult.Nanoseconds);
 
-        if (string.Equals(operation, "since", StringComparison.Ordinal))
-            result = result.Negated();
+        if (isSince)
+            resultZdt = resultZdt.Negated();
 
-        return result;
+        return resultZdt;
     }
 
     // --- DifferenceTemporalPlainYearMonth ---

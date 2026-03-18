@@ -28,12 +28,8 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
     public JsTemporalZonedDateTime(
         int year, int month, int day,
         int hour, int minute, int second,
-
         int millisecond, int microsecond,
-#pragma warning disable RCS1163
-        // ReSharper disable once UnusedParameter.Local
         int nanosecond,
-#pragma warning restore RCS1163
         string timeZoneId,
         string calendar = "iso8601")
     {
@@ -42,11 +38,23 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
         TimeZone = ResolveTimeZone(timeZoneId, out var fixedOffset);
         FixedOffset = fixedOffset;
 
-        // Create a DateTime in the specified timezone and convert to Instant
+        // Determine timezone offset using DateTime (microsecond precision is sufficient for offset lookup)
         var localDateTime = new DateTime(year, month, day, hour, minute, second, millisecond, microsecond);
         var offset = FixedOffset ?? TimeZone.GetUtcOffset(localDateTime);
-        var utcDateTime = localDateTime - offset;
-        Instant = new JsTemporalInstant(new DateTimeOffset(utcDateTime, TimeSpan.Zero));
+
+        // Compute epoch nanoseconds with full nanosecond precision
+        var epochDays = IsoCalendarHelpers.DateToEpochDays(year, month, day);
+        var localEpochNanos = new BigInteger(epochDays) * 86_400_000_000_000L
+            + (long)hour * 3_600_000_000_000L
+            + (long)minute * 60_000_000_000L
+            + (long)second * 1_000_000_000L
+            + (long)millisecond * 1_000_000L
+            + (long)microsecond * 1_000L
+            + nanosecond;
+
+        // Subtract timezone offset (ticks are 100ns units) to get UTC epoch nanoseconds
+        var offsetNanos = offset.Ticks * 100L;
+        Instant = new JsTemporalInstant(localEpochNanos - offsetNanos);
     }
 
     private static TimeZoneInfo ResolveTimeZone(string timeZoneId, out TimeSpan? fixedOffset)

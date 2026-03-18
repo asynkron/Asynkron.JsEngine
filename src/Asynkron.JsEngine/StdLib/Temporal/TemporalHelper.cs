@@ -166,6 +166,20 @@ public static class TemporalHelper
     }
 
     /// <summary>
+    /// Strict version of ToTemporalCalendarIdentifier — does not default to iso8601 for undefined.
+    /// Used by withCalendar() methods where the argument is required.
+    /// </summary>
+    private static string ToTemporalCalendarIdentifierStrict(JsValue calendarArg, RealmState realm)
+    {
+        if (calendarArg.IsUndefined)
+        {
+            throw StandardLibrary.ThrowTypeError("withCalendar requires a calendar argument", realm: realm);
+        }
+
+        return ToTemporalCalendarIdentifier(calendarArg);
+    }
+
+    /// <summary>
     /// ASCII-only lowercase. Does not perform Unicode case folding.
     /// Per Temporal spec, only A-Z are lowercased.
     /// </summary>
@@ -1525,7 +1539,7 @@ public static class TemporalHelper
         {
             var dt = GetPlainDateTime(thisValue);
             var calendarArg = args.GetArgument(0);
-            var calendar = ToTemporalCalendarIdentifier(calendarArg);
+            var calendar = ToTemporalCalendarIdentifierStrict(calendarArg, realm);
             return WrapPlainDateTime(new JsTemporalPlainDateTime(
                 dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second,
                 dt.Millisecond, dt.Microsecond, dt.Nanosecond, calendar), realm, prototype);
@@ -1789,7 +1803,7 @@ public static class TemporalHelper
         {
             var zdt = GetZonedDateTime(thisValue);
             var calendarArg = args.GetArgument(0);
-            var calendar = ToTemporalCalendarIdentifier(calendarArg);
+            var calendar = ToTemporalCalendarIdentifierStrict(calendarArg, realm);
             var newZdt = new JsTemporalZonedDateTime(
                 zdt.Year, zdt.Month, zdt.Day,
                 zdt.Hour, zdt.Minute, zdt.Second,

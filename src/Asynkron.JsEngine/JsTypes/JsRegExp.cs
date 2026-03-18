@@ -21,8 +21,10 @@ public sealed class JsRegExp
     private const string AnyCodePointPattern =
         @"(?<![\uD800-\uDBFF])(?:[\uD800-\uDBFF][\uDC00-\uDFFF]|[\u0000-\uD7FF\uE000-\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|[\uDC00-\uDFFF])";
 
+    // Unicode dot: matches a full code point (surrogate pair first, then BMP non-line-terminator).
+    // Surrogate pair must be tried first to avoid matching only the high surrogate.
     private const string UnicodeDotPattern =
-        @"(?<![\uD800-\uDBFF])(?:[^\n\r\u2028\u2029]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|[\uDC00-\uDFFF])";
+        @"(?:[\uD800-\uDBFF][\uDC00-\uDFFF]|[^\n\r\u2028\u2029\uD800-\uDFFF])";
 
     /// <summary>
     /// JavaScript's dot (.) without dotAll flag: matches any single UTF-16 code unit
@@ -37,7 +39,7 @@ public sealed class JsRegExp
     private const string LegacyDotAllPattern = @"[\s\S]";
 
     private const string UnicodeNonWhitespacePattern =
-        @"(?<![\uD800-\uDBFF])(?:[^\s]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|[\uDC00-\uDFFF])";
+        @"(?:[\uD800-\uDBFF][\uDC00-\uDFFF]|[^\s\uD800-\uDFFF])";
 
     private readonly string _normalizedPattern;
     private readonly RegexOptions _regexOptions;
@@ -128,45 +130,70 @@ public sealed class JsRegExp
 
     /// <summary>
     ///     Tests if the pattern matches the input string.
+    ///     Follows ES2024 21.2.5.2.2 RegExpBuiltinExec semantics.
     /// </summary>
     public bool Test(string input)
     {
-        var startIndex = Global || Sticky ? GetLastIndex() : 0;
-        if (startIndex > input.Length)
-        {
-            startIndex = 0;
-        }
+        // Step 4: Always read lastIndex (even for non-global/non-sticky).
+        var lastIndex = GetLastIndex();
 
-        var match = EnsureRegex().Match(input, startIndex);
+        // Step 8: If neither global nor sticky, override lastIndex to 0.
+        var startIndex = Global || Sticky ? lastIndex : 0;
 
-        if (match.Success && Global)
-        {
-            SetLastIndex(match.Index + match.Length);
-        }
-        else if (!match.Success && (Global || Sticky))
-        {
-            SetLastIndex(0);
-        }
-
-        if (match.Success)
-        {
-            RealmState.UpdateRegExpStatics(input, match);
-        }
-
-        return match.Success;
-    }
-
-    /// <summary>
-    ///     Executes a search for a match and returns an array with match details.
-    /// </summary>
-    public JsArray? Exec(string input)
-    {
-        var startIndex = Global || Sticky ? GetLastIndex() : 0;
         if (startIndex > input.Length)
         {
             if (Global || Sticky)
             {
-                SetLastIndex(0);
+                SetLastIndexStrict(0);
+            }
+
+            return false;
+        }
+
+        var match = EnsureRegex().Match(input, startIndex);
+
+        // Sticky: match must start exactly at startIndex.
+        if (Sticky && match.Success && match.Index != startIndex)
+        {
+            match = System.Text.RegularExpressions.Match.Empty;
+        }
+
+        if (!match.Success)
+        {
+            if (Global || Sticky)
+            {
+                SetLastIndexStrict(0);
+            }
+
+            return false;
+        }
+
+        if (Global || Sticky)
+        {
+            SetLastIndexStrict(match.Index + match.Length);
+        }
+
+        RealmState.UpdateRegExpStatics(input, match);
+        return true;
+    }
+
+    /// <summary>
+    ///     Executes a search for a match and returns an array with match details.
+    ///     Follows ES2024 21.2.5.2.2 RegExpBuiltinExec semantics.
+    /// </summary>
+    public JsArray? Exec(string input)
+    {
+        // Step 4: Always read lastIndex (even for non-global/non-sticky).
+        var lastIndex = GetLastIndex();
+
+        // Step 8: If neither global nor sticky, override lastIndex to 0.
+        var startIndex = Global || Sticky ? lastIndex : 0;
+
+        if (startIndex > input.Length)
+        {
+            if (Global || Sticky)
+            {
+                SetLastIndexStrict(0);
             }
 
             return null;
@@ -174,11 +201,17 @@ public sealed class JsRegExp
 
         var match = EnsureRegex().Match(input, startIndex);
 
+        // Sticky: match must start exactly at startIndex.
+        if (Sticky && match.Success && match.Index != startIndex)
+        {
+            match = System.Text.RegularExpressions.Match.Empty;
+        }
+
         if (!match.Success)
         {
             if (Global || Sticky)
             {
-                SetLastIndex(0);
+                SetLastIndexStrict(0);
             }
 
             return null;
@@ -186,7 +219,7 @@ public sealed class JsRegExp
 
         if (Global || Sticky)
         {
-            SetLastIndex(match.Index + match.Length);
+            SetLastIndexStrict(match.Index + match.Length);
         }
 
         // Build the result array with captures, groups, and indices when needed.
@@ -292,9 +325,18 @@ public sealed class JsRegExp
             result.Push(captureValues[i]);
         }
 
-        // Add properties for exec-style results.
-        result.SetProperty("index", (double)match.Index);
-        result.SetProperty("input", input);
+        // Add properties for exec-style results using CreateDataProperty (DefineProperty).
+        // Per spec, these must use CreateDataProperty, not Set, to avoid triggering prototype setters.
+        result.DefineProperty("index",
+            new PropertyDescriptor
+            {
+                Value = (double)match.Index, Writable = true, Enumerable = true, Configurable = true
+            });
+        result.DefineProperty("input",
+            new PropertyDescriptor
+            {
+                Value = new JsValue(input), Writable = true, Enumerable = true, Configurable = true
+            });
 
         var groups = BuildGroupsObject(match, captureValues);
         // Per spec step 26, groups is created with CreateDataProperty (DefinePropertyOrThrow),
@@ -556,7 +598,28 @@ public sealed class JsRegExp
 
                     if (codeUnit is >= 0xD800 and <= 0xDFFF)
                     {
-                        builder.Append(EscapeCodeUnit(codeUnit));
+                        // In unicode mode, lone surrogates should only match lone surrogates
+                        // (not surrogates that are part of a pair).
+                        if (hasUnicodeFlag)
+                        {
+                            if (codeUnit is >= 0xD800 and <= 0xDBFF)
+                            {
+                                // High surrogate: only match if NOT followed by low surrogate.
+                                builder.Append(EscapeCodeUnit(codeUnit));
+                                builder.Append(@"(?![\uDC00-\uDFFF])");
+                            }
+                            else
+                            {
+                                // Low surrogate: only match if NOT preceded by high surrogate.
+                                builder.Append(@"(?<![\uD800-\uDBFF])");
+                                builder.Append(EscapeCodeUnit(codeUnit));
+                            }
+                        }
+                        else
+                        {
+                            builder.Append(EscapeCodeUnit(codeUnit));
+                        }
+
                         i += 5;
                         continue;
                     }

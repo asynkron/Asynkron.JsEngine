@@ -21,12 +21,8 @@ public sealed partial class RegExpPrototype
     {
         var resolved = RequireRegExp(thisValue);
 
-        if (args.Count == 0)
-        {
-            return new JsValue(false);
-        }
-
-        var input = JsOps.ToJsString(args[0]) ?? string.Empty;
+        // Per spec: ToString(string) where string defaults to undefined => "undefined"
+        var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : "undefined";
         return new JsValue(resolved.Test(input));
     }
 
@@ -35,12 +31,8 @@ public sealed partial class RegExpPrototype
     {
         var resolved = RequireRegExp(thisValue);
 
-        if (args.Count == 0)
-        {
-            return JsValue.Null;
-        }
-
-        var input = JsOps.ToJsString(args[0]) ?? string.Empty;
+        // Per spec: ToString(string) where string defaults to undefined => "undefined"
+        var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : "undefined";
         var result = resolved.Exec(input);
         return result is null ? JsValue.Null : JsValue.FromObjectUnsafe(result);
     }
@@ -371,14 +363,154 @@ public sealed partial class RegExpPrototype
     [JsSymbolMethod("matchAll", Length = 1d)]
     private JsValue MatchAllSymbol(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var resolved = RequireRegExp(thisValue);
-        if (!resolved.Global)
+        // ES2024 22.2.5.8 RegExp.prototype[@@matchAll](string)
+
+        // Step 2: If Type(R) is not Object, throw TypeError.
+        if (!thisValue.IsObject)
         {
-            throw ThrowTypeError("RegExp.prototype.matchAll requires a global RegExp", realm: Realm);
+            throw ThrowTypeError("RegExp method called on incompatible receiver", realm: Realm);
         }
 
-        var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : string.Empty;
-        return JsValue.FromJsArray(resolved.MatchAll(input));
+        // Step 3: Let S be ToString(string).
+        var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : "undefined";
+
+        // Step 4: Let C be SpeciesConstructor(R, %RegExp%).
+        var constructor = GetSpeciesConstructor(thisValue);
+
+        // Step 5: Let flags be ToString(Get(R, "flags")).
+        var context = Realm?.CreateContext();
+        JsOps.TryGetPropertyValue(thisValue, "flags", out var flagsRaw, context);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        var flags = JsOps.ToJsString(flagsRaw) ?? string.Empty;
+
+        // Step 6: Let matcher be Construct(C, [R, flags]).
+        JsValue matcher;
+        if (constructor.TryGetCallable(out var ctor) && JsOps.IsConstructor(constructor))
+        {
+            matcher = ReflectHelper.Construct(ctor, [thisValue, new JsValue(flags)], ctor, Realm);
+        }
+        else
+        {
+            throw ThrowTypeError("Species constructor is not a constructor", realm: Realm);
+        }
+
+        // Step 7: Let lastIndex be ToLength(Get(R, "lastIndex")).
+        JsOps.TryGetPropertyValue(thisValue, "lastIndex", out var lastIndexRaw, context);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        var lastIndex = StandardLibrary.ToLengthOrZero(lastIndexRaw);
+
+        // Step 8: Perform Set(matcher, "lastIndex", lastIndex, true).
+        SetPropertyStrict(matcher, "lastIndex", new JsValue((double)lastIndex));
+
+        // Step 9-10: Check flags for global and unicode.
+        var global = flags.Contains('g', StringComparison.Ordinal);
+        var fullUnicode = flags.Contains('u', StringComparison.Ordinal) ||
+                          flags.Contains('v', StringComparison.Ordinal);
+
+        // Step 11: Return CreateRegExpStringIterator(matcher, S, global, fullUnicode).
+        return CreateRegExpStringIterator(matcher, input, global, fullUnicode);
+    }
+
+    /// <summary>
+    /// Abstract operation SpeciesConstructor(O, defaultConstructor).
+    /// Returns the species constructor or falls back to %RegExp%.
+    /// </summary>
+    private JsValue GetSpeciesConstructor(JsValue obj)
+    {
+        var defaultConstructor = Realm.RegExpConstructor is not null
+            ? JsValue.FromObjectUnsafe(Realm.RegExpConstructor)
+            : throw new InvalidOperationException("RegExp constructor not initialized.");
+
+        var context = Realm?.CreateContext();
+        if (!JsOps.TryGetPropertyValue(obj, "constructor", out var constructorValue, context))
+        {
+            if (context?.IsThrow == true)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+
+            return defaultConstructor;
+        }
+
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        if (constructorValue == JsValue.Undefined)
+        {
+            return defaultConstructor;
+        }
+
+        if (!constructorValue.IsObject)
+        {
+            throw ThrowTypeError("Constructor must be an object", realm: Realm);
+        }
+
+        if (!JsOps.TryGetPropertyValue(constructorValue, SymbolKeys.Species, out var speciesValue, context))
+        {
+            if (context?.IsThrow == true)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+
+            return defaultConstructor;
+        }
+
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        if (speciesValue.IsNullOrUndefined)
+        {
+            return defaultConstructor;
+        }
+
+        if (!JsOps.IsConstructor(speciesValue))
+        {
+            throw ThrowTypeError("Species constructor must be a constructor", realm: Realm);
+        }
+
+        return speciesValue;
+    }
+
+    /// <summary>
+    /// Creates a RegExpStringIterator per the ES spec.
+    /// </summary>
+    private JsValue CreateRegExpStringIterator(JsValue matcher, string input, bool global, bool fullUnicode)
+    {
+        var iterator = new JsRegExpStringIterator(matcher, input, global, fullUnicode, Realm,
+            Realm?.IteratorPrototype);
+
+        // Set up the "next" method.
+        var nextFn = new HostFunction((_, _) => iterator.Next(), isConstructor: false);
+        nextFn.DefineProperty("name", new PropertyDescriptor
+        {
+            Value = "next", Writable = false, Enumerable = false, Configurable = true
+        });
+        nextFn.DefineProperty("length", new PropertyDescriptor
+        {
+            Value = 0d, Writable = false, Enumerable = false, Configurable = true
+        });
+        iterator.SetProperty("next", JsValue.FromObjectUnsafe(nextFn));
+
+        // Set Symbol.toStringTag.
+        iterator.DefineProperty(SymbolKeys.ToStringTag,
+            new PropertyDescriptor
+            {
+                Value = "RegExp String Iterator", Writable = false, Enumerable = false, Configurable = true
+            });
+
+        return iterator.AsJsValue;
     }
 
     [JsSymbolMethod("replace", Length = 2d)]
@@ -572,18 +704,138 @@ public sealed partial class RegExpPrototype
     [JsSymbolMethod("search", Length = 1d)]
     private JsValue SearchSymbol(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var resolved = RequireRegExp(thisValue);
-        var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : string.Empty;
-
-        resolved.SetLastIndex(0);
-        var result = resolved.Exec(input);
-        if (result is not null && result.TryGetProperty("index", out var indexValue) &&
-            indexValue.TryGetDouble(out var indexNumber))
+        // ES2024 22.2.5.11 RegExp.prototype[@@search](string)
+        // Step 1-2: Require this to be an object.
+        if (!thisValue.IsObject)
         {
-            return new JsValue(indexNumber);
+            throw ThrowTypeError("RegExp method called on incompatible receiver", realm: Realm);
+        }
+
+        // Step 3: Let S be ToString(string).
+        var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : "undefined";
+
+        var context = Realm?.CreateContext();
+
+        // Step 4: Let previousLastIndex be Get(rx, "lastIndex").
+        if (!JsOps.TryGetPropertyValue(thisValue, "lastIndex", out var previousLastIndex, context))
+        {
+            if (context?.IsThrow == true)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+
+            previousLastIndex = JsValue.Undefined;
+        }
+
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        // Step 5: If SameValue(previousLastIndex, 0) is false, then
+        //   a. Perform Set(rx, "lastIndex", 0, true).
+        if (!JsOps.SameValue(previousLastIndex, new JsValue(0d)))
+        {
+            SetPropertyStrict(thisValue, "lastIndex", new JsValue(0d));
+        }
+
+        // Step 6: Let result be RegExpExec(rx, S).
+        var result = RegExpExecAbstract(thisValue, input);
+
+        // Step 7: Let currentLastIndex be Get(rx, "lastIndex").
+        JsOps.TryGetPropertyValue(thisValue, "lastIndex", out var currentLastIndex, context);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        // Step 8: If SameValue(currentLastIndex, previousLastIndex) is false, then
+        //   a. Perform Set(rx, "lastIndex", previousLastIndex, true).
+        if (!JsOps.SameValue(currentLastIndex, previousLastIndex))
+        {
+            SetPropertyStrict(thisValue, "lastIndex", previousLastIndex);
+        }
+
+        // Step 9: If result is null, return -1.
+        if (result == JsValue.Null)
+        {
+            return new JsValue(-1d);
+        }
+
+        // Step 10: Return Get(result, "index").
+        if (JsOps.TryGetPropertyValue(result, "index", out var indexValue))
+        {
+            return indexValue;
         }
 
         return new JsValue(-1d);
+    }
+
+    /// <summary>
+    /// Abstract operation RegExpExec(R, S).
+    /// Calls the 'exec' method on the object (which may be overridden), per spec.
+    /// </summary>
+    private JsValue RegExpExecAbstract(JsValue rx, string input)
+    {
+        var context = Realm?.CreateContext();
+        if (JsOps.TryGetPropertyValue(rx, "exec", out var execProp, context) &&
+            execProp.TryGetObject<IJsCallable>(out var execCallable))
+        {
+            var result = execCallable.Invoke(new SingleValueArgs(new JsValue(input)), rx);
+            if (result == JsValue.Null || result.IsObject)
+            {
+                return result;
+            }
+
+            throw ThrowTypeError("exec must return null or an object", realm: Realm);
+        }
+
+        // Fallback to built-in exec.
+        var resolved = ResolveRegExpInstance(rx);
+        if (resolved is null)
+        {
+            throw ThrowTypeError("RegExp method called on incompatible receiver", realm: Realm);
+        }
+
+        var execResult = resolved.Exec(input);
+        return execResult is null ? JsValue.Null : JsValue.FromObjectUnsafe(execResult);
+    }
+
+    /// <summary>
+    /// Performs Set(O, P, V, true) - the strict property set that throws on non-writable.
+    /// </summary>
+    private void SetPropertyStrict(JsValue target, string name, JsValue value)
+    {
+        if (!target.TryGetObject<JsObject>(out var obj))
+        {
+            throw ThrowTypeError("Cannot set property on non-object", realm: Realm);
+        }
+
+        var descriptor = obj.GetOwnPropertyDescriptor(name);
+        if (descriptor is not null)
+        {
+            if (descriptor.IsAccessorDescriptor)
+            {
+                if (descriptor.Set is not null)
+                {
+                    descriptor.Set.Invoke(new SingleValueArgs(value), target);
+                    return;
+                }
+
+                throw ThrowTypeError($"Cannot set property '{name}' which has only a getter", realm: Realm);
+            }
+
+            if (!descriptor.Writable)
+            {
+                throw ThrowTypeError($"Cannot assign to read only property '{name}'", realm: Realm);
+            }
+
+            obj[name] = value;
+            descriptor.JsValue = value;
+            return;
+        }
+
+        obj.SetProperty(name, value);
     }
 
     private static int AdvanceStringIndex(string input, int index, bool unicode)

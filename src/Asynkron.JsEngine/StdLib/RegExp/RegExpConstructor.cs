@@ -102,11 +102,19 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
             return CreateRegExpLiteral("(?:)", "", Realm, target);
         }
 
-        if (args is [{ IsObject: true } _] && args[0].AsObject() is { } existingObj &&
+        var patternArg = args[0];
+        var flagsArg = args.Count > 1 ? args[1] : JsValue.Undefined;
+
+        // Check if the first argument is a RegExp object (has __regex__ internal slot).
+        if (patternArg.IsObject && patternArg.AsObject() is { } existingObj &&
             existingObj.TryGetProperty("__regex__", out var internalRegex) &&
             internalRegex.TryGetObject<JsRegExp>(out var existing))
         {
-            return CreateRegExpLiteral(existing.Pattern, existing.Flags, Realm, target);
+            // Per spec: if flags argument is provided, use it; otherwise use the RegExp's original flags.
+            var flags = flagsArg != JsValue.Undefined
+                ? JsOps.ToJsString(flagsArg) ?? string.Empty
+                : existing.Flags;
+            return CreateRegExpLiteral(existing.Pattern, flags, Realm, target);
         }
 
         // Per spec 22.2.3.1 step 8: If pattern is undefined, let P be the empty String.

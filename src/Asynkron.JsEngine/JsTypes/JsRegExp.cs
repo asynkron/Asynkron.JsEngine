@@ -2075,7 +2075,9 @@ public sealed class JsRegExp
             }
 
             var sb = new StringBuilder();
-            sb.Append("(?:");
+            // Use atomic group (?>...) to prevent catastrophic backtracking
+            // when the property escape is quantified (e.g. \p{Alphabetic}+)
+            sb.Append("(?>");
             var needsPipe = false;
             if (bmpContent.Length > 0)
             {
@@ -2116,7 +2118,7 @@ public sealed class JsRegExp
         }
 
         disallowed.Append(')');
-        return $"(?:(?!{disallowed}){AnyCodePointPattern})";
+        return $"(?>(?!{disallowed}){AnyCodePointPattern})";
     }
 
     /// <summary>
@@ -2265,7 +2267,7 @@ public sealed class JsRegExp
         }
 
         disallowed.Append(')');
-        return $"(?:(?!{disallowed}){AnyCodePointPattern})";
+        return $"(?>(?!{disallowed}){AnyCodePointPattern})";
     }
 
     private static string BuildBmpClassContent(List<(int Start, int End)> ranges)

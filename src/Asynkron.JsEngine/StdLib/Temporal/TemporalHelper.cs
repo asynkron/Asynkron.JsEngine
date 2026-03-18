@@ -917,12 +917,26 @@ public static class TemporalHelper
             var overrides = args.GetArgument(0);
             if (!overrides.TryGetObject<IJsPropertyAccessor>(out var accessor))
             {
-                return WrapPlainDate(date, realm, prototype);
+                throw StandardLibrary.ThrowTypeError("Temporal.PlainDate.prototype.with requires an object argument", realm: realm);
             }
+
+            // Validate options (second argument)
+            var options = args.Count > 1 ? args[1] : JsValue.Undefined;
+            var optionsObj = ValidateOptionsObject(options, realm, "Temporal.PlainDate.prototype.with");
+            var overflow = GetTemporalOverflowOption(optionsObj, realm);
 
             var year = accessor.TryGetProperty("year", out var v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : date.Year;
             var month = accessor.TryGetProperty("month", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : date.Month;
             var day = accessor.TryGetProperty("day", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : date.Day;
+
+            if (string.Equals(overflow, "constrain", StringComparison.Ordinal))
+            {
+                (year, month, day) = ConstrainISODate(year, month, day);
+            }
+            else
+            {
+                RejectISODate(year, month, day, realm);
+            }
 
             return WrapPlainDate(new JsTemporalPlainDate(year, month, day, date.Calendar), realm, prototype);
         });
@@ -1115,8 +1129,13 @@ public static class TemporalHelper
             var overrides = args.GetArgument(0);
             if (!overrides.TryGetObject<IJsPropertyAccessor>(out var accessor))
             {
-                return WrapPlainTime(time, realm, prototype);
+                throw StandardLibrary.ThrowTypeError("Temporal.PlainTime.prototype.with requires an object argument", realm: realm);
             }
+
+            // Validate options (second argument)
+            var options = args.Count > 1 ? args[1] : JsValue.Undefined;
+            var optionsObj = ValidateOptionsObject(options, realm, "Temporal.PlainTime.prototype.with");
+            var overflow = GetTemporalOverflowOption(optionsObj, realm);
 
             var hour = accessor.TryGetProperty("hour", out var v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : time.Hour;
             var minute = accessor.TryGetProperty("minute", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : time.Minute;
@@ -1124,6 +1143,21 @@ public static class TemporalHelper
             var millisecond = accessor.TryGetProperty("millisecond", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : time.Millisecond;
             var microsecond = accessor.TryGetProperty("microsecond", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : time.Microsecond;
             var nanosecond = accessor.TryGetProperty("nanosecond", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : time.Nanosecond;
+
+            if (string.Equals(overflow, "constrain", StringComparison.Ordinal))
+            {
+                hour = ConstrainTimeComponent(hour, 0, 23);
+                minute = ConstrainTimeComponent(minute, 0, 59);
+                second = ConstrainTimeComponent(second, 0, 59);
+                millisecond = ConstrainTimeComponent(millisecond, 0, 999);
+                microsecond = ConstrainTimeComponent(microsecond, 0, 999);
+                nanosecond = ConstrainTimeComponent(nanosecond, 0, 999);
+            }
+            else
+            {
+                // reject
+                RejectISOTime(hour, minute, second, millisecond, microsecond, nanosecond, realm);
+            }
 
             return WrapPlainTime(new JsTemporalPlainTime(hour, minute, second, millisecond, microsecond, nanosecond), realm, prototype);
         });
@@ -1388,8 +1422,13 @@ public static class TemporalHelper
             var overrides = args.GetArgument(0);
             if (!overrides.TryGetObject<IJsPropertyAccessor>(out var accessor))
             {
-                return WrapPlainDateTime(dt, realm, prototype);
+                throw StandardLibrary.ThrowTypeError("Temporal.PlainDateTime.prototype.with requires an object argument", realm: realm);
             }
+
+            // Validate options (second argument)
+            var options = args.Count > 1 ? args[1] : JsValue.Undefined;
+            var optionsObj = ValidateOptionsObject(options, realm, "Temporal.PlainDateTime.prototype.with");
+            var overflow = GetTemporalOverflowOption(optionsObj, realm);
 
             var year = accessor.TryGetProperty("year", out var v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : dt.Year;
             var month = accessor.TryGetProperty("month", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : dt.Month;
@@ -1400,6 +1439,22 @@ public static class TemporalHelper
             var millisecond = accessor.TryGetProperty("millisecond", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : dt.Millisecond;
             var microsecond = accessor.TryGetProperty("microsecond", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : dt.Microsecond;
             var nanosecond = accessor.TryGetProperty("nanosecond", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : dt.Nanosecond;
+
+            if (string.Equals(overflow, "constrain", StringComparison.Ordinal))
+            {
+                (year, month, day) = ConstrainISODate(year, month, day);
+                hour = ConstrainTimeComponent(hour, 0, 23);
+                minute = ConstrainTimeComponent(minute, 0, 59);
+                second = ConstrainTimeComponent(second, 0, 59);
+                millisecond = ConstrainTimeComponent(millisecond, 0, 999);
+                microsecond = ConstrainTimeComponent(microsecond, 0, 999);
+                nanosecond = ConstrainTimeComponent(nanosecond, 0, 999);
+            }
+            else
+            {
+                RejectISODate(year, month, day, realm);
+                RejectISOTime(hour, minute, second, millisecond, microsecond, nanosecond, realm);
+            }
 
             return WrapPlainDateTime(new JsTemporalPlainDateTime(year, month, day, hour, minute, second, millisecond, microsecond, nanosecond, dt.Calendar), realm, prototype);
         });
@@ -1881,11 +1936,28 @@ public static class TemporalHelper
             var overrides = args.GetArgument(0);
             if (!overrides.TryGetObject<IJsPropertyAccessor>(out var accessor))
             {
-                return WrapPlainYearMonth(ym, realm, prototype);
+                throw StandardLibrary.ThrowTypeError("Temporal.PlainYearMonth.prototype.with requires an object argument", realm: realm);
             }
+
+            // Validate options (second argument)
+            var options = args.Count > 1 ? args[1] : JsValue.Undefined;
+            var optionsObj = ValidateOptionsObject(options, realm, "Temporal.PlainYearMonth.prototype.with");
+            var overflow = GetTemporalOverflowOption(optionsObj, realm);
 
             var year = accessor.TryGetProperty("year", out var v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : ym.Year;
             var month = accessor.TryGetProperty("month", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : ym.Month;
+
+            if (string.Equals(overflow, "constrain", StringComparison.Ordinal))
+            {
+                month = Math.Clamp(month, 1, 12);
+            }
+            else
+            {
+                if (month is < 1 or > 12)
+                {
+                    throw StandardLibrary.ThrowRangeError("Month value is out of range (1-12)", realm: realm);
+                }
+            }
 
             return WrapPlainYearMonth(new JsTemporalPlainYearMonth(year, month, ym.Calendar), realm, prototype);
         });
@@ -2030,11 +2102,36 @@ public static class TemporalHelper
             var overrides = args.GetArgument(0);
             if (!overrides.TryGetObject<IJsPropertyAccessor>(out var accessor))
             {
-                return WrapPlainMonthDay(md, realm, prototype);
+                throw StandardLibrary.ThrowTypeError("Temporal.PlainMonthDay.prototype.with requires an object argument", realm: realm);
             }
+
+            // Validate options (second argument)
+            var options = args.Count > 1 ? args[1] : JsValue.Undefined;
+            var optionsObj = ValidateOptionsObject(options, realm, "Temporal.PlainMonthDay.prototype.with");
+            var overflow = GetTemporalOverflowOption(optionsObj, realm);
 
             var month = accessor.TryGetProperty("month", out var v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : md.Month;
             var day = accessor.TryGetProperty("day", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : md.Day;
+
+            if (string.Equals(overflow, "constrain", StringComparison.Ordinal))
+            {
+                month = Math.Clamp(month, 1, 12);
+                var maxDay = DateTime.DaysInMonth(md.ReferenceYear, month);
+                day = Math.Clamp(day, 1, maxDay);
+            }
+            else
+            {
+                if (month is < 1 or > 12)
+                {
+                    throw StandardLibrary.ThrowRangeError("Month value is out of range (1-12)", realm: realm);
+                }
+
+                var maxDay = DateTime.DaysInMonth(md.ReferenceYear, month);
+                if (day < 1 || day > maxDay)
+                {
+                    throw StandardLibrary.ThrowRangeError("Day value is out of range", realm: realm);
+                }
+            }
 
             return WrapPlainMonthDay(new JsTemporalPlainMonthDay(month, day, md.Calendar), realm, prototype);
         });
@@ -2456,6 +2553,53 @@ public static class TemporalHelper
         return calendarName;
     }
 
+    /// <summary>
+    /// Gets the overflow option from a validated options object.
+    /// Returns "constrain" (default) or "reject".
+    /// Throws RangeError for invalid values.
+    /// </summary>
+    private static string GetTemporalOverflowOption(IJsPropertyAccessor? optionsObj, RealmState realm)
+    {
+        if (optionsObj is null)
+        {
+            return "constrain";
+        }
+
+        if (!optionsObj.TryGetProperty("overflow", out var overflowVal) || overflowVal.IsUndefined)
+        {
+            return "constrain";
+        }
+
+        var overflow = JsOps.ToJsString(overflowVal);
+        if (!string.Equals(overflow, "constrain", StringComparison.Ordinal) &&
+            !string.Equals(overflow, "reject", StringComparison.Ordinal))
+        {
+            throw StandardLibrary.ThrowRangeError($"{overflow} is an invalid value for overflow option", realm: realm);
+        }
+
+        return overflow;
+    }
+
+    /// <summary>
+    /// Constrains a time component value to its valid range.
+    /// </summary>
+    private static int ConstrainTimeComponent(int value, int min, int max)
+    {
+        return Math.Clamp(value, min, max);
+    }
+
+    /// <summary>
+    /// Constrains a date component value to its valid range.
+    /// For day, it clamps to 1..DaysInMonth(year, month).
+    /// </summary>
+    private static (int year, int month, int day) ConstrainISODate(int year, int month, int day)
+    {
+        month = Math.Clamp(month, 1, 12);
+        var maxDay = DateTime.DaysInMonth(year, month);
+        day = Math.Clamp(day, 1, maxDay);
+        return (year, month, day);
+    }
+
     private static double GetNumberArg(IReadOnlyList<JsValue> args, int index)
     {
         if (index >= args.Count || args[index].IsUndefined)
@@ -2684,6 +2828,39 @@ public static class TemporalHelper
         if (year == IsoDateMax.year && (month > IsoDateMax.month || (month == IsoDateMax.month && day > IsoDateMax.day)))
         {
             throw StandardLibrary.ThrowRangeError("Date value is out of representable range", realm: realm);
+        }
+    }
+
+    private static void RejectISOTime(int hour, int minute, int second, int millisecond, int microsecond, int nanosecond, RealmState? realm = null)
+    {
+        if (hour is < 0 or > 23)
+        {
+            throw StandardLibrary.ThrowRangeError("Hour value is out of range (0-23)", realm: realm);
+        }
+
+        if (minute is < 0 or > 59)
+        {
+            throw StandardLibrary.ThrowRangeError("Minute value is out of range (0-59)", realm: realm);
+        }
+
+        if (second is < 0 or > 59)
+        {
+            throw StandardLibrary.ThrowRangeError("Second value is out of range (0-59)", realm: realm);
+        }
+
+        if (millisecond is < 0 or > 999)
+        {
+            throw StandardLibrary.ThrowRangeError("Millisecond value is out of range (0-999)", realm: realm);
+        }
+
+        if (microsecond is < 0 or > 999)
+        {
+            throw StandardLibrary.ThrowRangeError("Microsecond value is out of range (0-999)", realm: realm);
+        }
+
+        if (nanosecond is < 0 or > 999)
+        {
+            throw StandardLibrary.ThrowRangeError("Nanosecond value is out of range (0-999)", realm: realm);
         }
     }
 

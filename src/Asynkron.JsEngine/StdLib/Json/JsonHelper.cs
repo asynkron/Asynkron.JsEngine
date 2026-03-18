@@ -12,15 +12,50 @@ namespace Asynkron.JsEngine.StdLib;
 public static class JsonHelper
 {
     /// <summary>
+    /// Tracks source text for the json-parse-with-source feature.
+    /// Maps (holder identity, property key) -> source text.
+    /// </summary>
+    private sealed class SourceTracker
+    {
+        // Track (holder reference, key) -> (source text, original parsed value)
+        // The original value is used to verify the value wasn't replaced by the reviver.
+        internal readonly Dictionary<(int holderHash, string key), (string Source, JsValue OriginalValue)> Sources = new();
+
+        internal void Track(object holder, string key, string source, JsValue originalValue)
+        {
+            Sources[(System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(holder), key)] = (source, originalValue);
+        }
+
+        internal string? GetSource(object holder, string key, JsValue currentValue)
+        {
+            if (!Sources.TryGetValue(
+                    (System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(holder), key), out var entry))
+            {
+                return null;
+            }
+
+            // Only return source if the current value matches the original parsed value
+            // This handles the case where the reviver modifies the value
+            if (!JsOps.SameValue(currentValue, entry.OriginalValue))
+            {
+                return null;
+            }
+
+            return entry.Source;
+        }
+    }
+
+    /// <summary>
     /// JsValue-returning overload for ParseJsonWithReviver that avoids boxing.
+    /// Implements ECMA-262 25.5.1 JSON.parse ( text [ , reviver ] ).
     /// </summary>
     internal static JsValue ParseJsonWithReviverJsValue(string jsonStr, RealmState realm, EvaluationContext? context,
         JsValue reviverValue)
     {
-        JsValue parsed;
+        JsonDocument jsonDoc;
         try
         {
-            parsed = ParseJsonValue(JsonDocument.Parse(jsonStr).RootElement, realm);
+            jsonDoc = JsonDocument.Parse(jsonStr);
         }
         catch
         {
@@ -29,149 +64,326 @@ public static class JsonHelper
 
         if (!reviverValue.TryGetObject<IJsCallable>(out var reviver))
         {
-            return parsed;
+            return ParseJsonValue(jsonDoc.RootElement, realm, null, null, null);
         }
 
-        var holder = new JsObject();
-        holder.SetProperty("", parsed);
+        // When there's a reviver, we need to track source text for the json-parse-with-source feature
+        var sourceTracker = new SourceTracker();
 
-        return ApplyJsonReviverJsValue(reviver, holder, "");
+        // Step 7a: Let root be OrdinaryObjectCreate(%Object.prototype%).
+        var root = new JsObject(realm.ObjectPrototype) { RealmState = realm };
+
+        var parsed = ParseJsonValue(jsonDoc.RootElement, realm, root, "", sourceTracker);
+
+        // Step 7c: Perform ! CreateDataPropertyOrThrow(root, rootName, unfiltered).
+        root.DefineProperty("", new PropertyDescriptor
+        {
+            Value = parsed,
+            Writable = true,
+            Enumerable = true,
+            Configurable = true
+        });
+
+        // Step 7e: Return ? InternalizeJSONProperty(root, rootName, reviver).
+        return InternalizeJsonProperty(root, "", reviver, realm, sourceTracker);
     }
 
-    private static JsValue ParseJsonValue(JsonElement element, RealmState realm)
+    private static JsValue ParseJsonValue(JsonElement element, RealmState realm,
+        object? parentHolder, string? parentKey, SourceTracker? tracker)
     {
         switch (element.ValueKind)
         {
             case JsonValueKind.Object:
-                var obj = new JsObject(realm.ObjectPrototype);
+                var obj = new JsObject(realm.ObjectPrototype) { RealmState = realm };
                 foreach (var prop in element.EnumerateObject())
                 {
-                    obj.SetProperty(prop.Name, ParseJsonValue(prop.Value, realm));
+                    // Use DefineProperty to avoid __proto__ setter behavior
+                    var propValue = ParseJsonValue(prop.Value, realm, obj, prop.Name, tracker);
+                    obj.DefineProperty(prop.Name, new PropertyDescriptor
+                    {
+                        Value = propValue,
+                        Writable = true,
+                        Enumerable = true,
+                        Configurable = true
+                    });
                 }
 
                 return new JsValue(obj);
 
             case JsonValueKind.Array:
                 var arr = new JsArray(realm);
+                var index = 0;
                 foreach (var item in element.EnumerateArray())
                 {
-                    arr.Push(ParseJsonValue(item, realm));
+                    var itemValue = ParseJsonValue(item, realm, arr, index.ToString(CultureInfo.InvariantCulture),
+                        tracker);
+                    arr.Push(itemValue);
+                    index++;
                 }
 
                 return JsValue.FromJsArray(arr);
 
             case JsonValueKind.String:
-                return new JsValue(element.GetString() ?? string.Empty);
+            {
+                var result = new JsValue(element.GetString() ?? string.Empty);
+                if (tracker is not null && parentHolder is not null && parentKey is not null)
+                {
+                    tracker.Track(parentHolder, parentKey, element.GetRawText(), result);
+                }
+
+                return result;
+            }
 
             case JsonValueKind.Number:
-                return new JsValue(element.GetDouble());
+            {
+                var result = new JsValue(element.GetDouble());
+                if (tracker is not null && parentHolder is not null && parentKey is not null)
+                {
+                    tracker.Track(parentHolder, parentKey, element.GetRawText(), result);
+                }
+
+                return result;
+            }
 
             case JsonValueKind.True:
+                if (tracker is not null && parentHolder is not null && parentKey is not null)
+                {
+                    tracker.Track(parentHolder, parentKey, "true", JsValue.True);
+                }
+
                 return JsValue.True;
 
             case JsonValueKind.False:
+                if (tracker is not null && parentHolder is not null && parentKey is not null)
+                {
+                    tracker.Track(parentHolder, parentKey, "false", JsValue.False);
+                }
+
                 return JsValue.False;
 
             case JsonValueKind.Null:
             default:
+                if (tracker is not null && parentHolder is not null && parentKey is not null)
+                {
+                    tracker.Track(parentHolder, parentKey, "null", JsValue.Null);
+                }
+
                 return JsValue.Null;
         }
     }
 
-    private static JsValue ApplyJsonReviverJsValue(IJsCallable reviver, IJsObjectLike holder, string name)
+    /// <summary>
+    /// Implements InternalizeJSONProperty (ECMA-262 25.5.1.1) with json-parse-with-source support.
+    /// </summary>
+    private static JsValue InternalizeJsonProperty(IJsPropertyAccessor holder, string name, IJsCallable reviver,
+        RealmState realm, SourceTracker? sourceTracker)
     {
-        if (!holder.TryGetProperty(name, out var value))
-        {
-            value = JsValue.Null;
-        }
+        // Step 1: Let val be ? Get(holder, name).
+        holder.TryGetProperty(name, out var val);
 
-        if (value.TryGetObject<JsObject>(out var jsObj))
+        // Step 2: If val is an Object, then
+        if (val.IsObject)
         {
-            foreach (var key in jsObj.Keys.ToArray())
+            // Step 2a: Let isArray be ? IsArray(val).
+            var isArray = StandardLibrary.ArrayIsArray(val, realm);
+
+            if (isArray)
             {
-                var revived = ApplyJsonReviverJsValue(reviver, jsObj, key);
-                if (revived.IsUndefined)
+                // Step 2b: If isArray is true, then
+                if (!val.TryGetObject<IJsPropertyAccessor>(out var arrAccessor))
                 {
-                    jsObj.Delete(key);
+                    arrAccessor = (IJsPropertyAccessor)val.ObjectValue!;
                 }
-                else
+
+                var len = StandardLibrary.LengthOfArrayLike(arrAccessor, realm);
+
+                for (long i = 0; i < len; i++)
                 {
-                    jsObj.SetProperty(key, revived);
+                    var prop = i.ToString(CultureInfo.InvariantCulture);
+                    var newElement = InternalizeJsonProperty(arrAccessor, prop, reviver, realm, sourceTracker);
+
+                    if (newElement.IsUndefined)
+                    {
+                        if (arrAccessor is IJsObjectLike objLike)
+                        {
+                            objLike.Delete(prop);
+                        }
+                    }
+                    else
+                    {
+                        CreateDataProperty(arrAccessor, prop, newElement);
+                    }
+                }
+            }
+            else
+            {
+                // Step 2c: Else (val is an Object but not an array)
+                var keys = GetEnumerableOwnPropertyNames(val);
+
+                foreach (var p in keys)
+                {
+                    if (!val.TryGetObject<IJsPropertyAccessor>(out var objAccessor))
+                    {
+                        break;
+                    }
+
+                    var newElement = InternalizeJsonProperty(objAccessor, p, reviver, realm, sourceTracker);
+
+                    if (newElement.IsUndefined)
+                    {
+                        if (objAccessor is IJsObjectLike objLike)
+                        {
+                            objLike.Delete(p);
+                        }
+                    }
+                    else
+                    {
+                        CreateDataProperty(objAccessor, p, newElement);
+                    }
                 }
             }
         }
-        else if (value.TryGetObject<JsArray>(out var arr))
+
+        // Re-read val after potential modifications by recursive InternalizeJSONProperty calls
+        holder.TryGetProperty(name, out val);
+
+        // Build the context argument for json-parse-with-source
+        var context = new JsObject(realm.ObjectPrototype) { RealmState = realm };
+
+        // Look up source text: only for values that are still the original parsed primitive
+        string? sourceText = null;
+        if (sourceTracker is not null)
         {
-            var length = (int)arr.Length;
-            for (var i = 0; i < length; i++)
+            sourceText = sourceTracker.GetSource(holder, name, val);
+        }
+
+        if (sourceText is not null)
+        {
+            // Primitive value: context has a "source" property
+            context.DefineProperty("source", new PropertyDescriptor
             {
-                var revived = ApplyJsonReviverJsValue(reviver, arr,
-                    i.ToString(CultureInfo.InvariantCulture));
-                if (revived.IsUndefined)
-                {
-                    arr.DeleteElement(i);
-                }
-                else
-                {
-                    arr.SetElement(i, revived);
-                }
+                Value = new JsValue(sourceText),
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
+            });
+        }
+        // For objects/arrays: context has no properties (empty object)
+
+        // Step 3: Return ? Call(reviver, holder, << name, val, context >>).
+        return reviver.Invoke([new JsValue(name), val, new JsValue(context)], JsValue.FromObjectUnsafe(holder));
+    }
+
+    /// <summary>
+    /// Performs CreateDataProperty on a target.
+    /// </summary>
+    private static void CreateDataProperty(IJsPropertyAccessor target, string key, JsValue value)
+    {
+        var desc = new PropertyDescriptor
+        {
+            Value = value,
+            Writable = true,
+            Enumerable = true,
+            Configurable = true
+        };
+
+        if (target is IPropertyDefinitionHost host)
+        {
+            host.TryDefineProperty(key, desc);
+        }
+        else if (target is IJsObjectLike objLike)
+        {
+            try
+            {
+                objLike.DefineProperty(key, desc);
+            }
+            catch (ThrowSignal)
+            {
+                // DefineProperty may throw for non-configurable properties;
+                // InternalizeJSONProperty ignores such failures
+            }
+        }
+        else
+        {
+            target.SetProperty(key, value);
+        }
+    }
+
+    /// <summary>
+    /// Gets enumerable own property names of a value, handling Proxy and regular objects.
+    /// </summary>
+    private static List<string> GetEnumerableOwnPropertyNames(JsValue val)
+    {
+        var keys = new List<string>();
+
+        if (val.TryGetObject<JsProxy>(out var proxy))
+        {
+            foreach (var key in proxy.GetOwnPropertyKeysInOrder(includeSymbols: false, includeNonEnumerable: false))
+            {
+                keys.Add(key);
+            }
+        }
+        else if (val.TryGetObject<JsObject>(out var jsObj))
+        {
+            foreach (var key in jsObj.GetOwnEnumerablePropertyKeysInOrder(false))
+            {
+                keys.Add(key);
+            }
+        }
+        else if (val.TryGetObject<IJsObjectLike>(out var objLike))
+        {
+            foreach (var key in objLike.Keys)
+            {
+                keys.Add(key);
             }
         }
 
-        return reviver.Invoke([new JsValue(name), value], JsValue.FromObjectUnsafe(holder));
+        return keys;
     }
 
     #region JSON.stringify (ECMA-262 25.5.2)
 
-    /// <summary>
-    /// Context object for the JSON.stringify algorithm, carrying the replacer, gap, and visited stack.
-    /// Corresponds to the abstract closure state in ECMA-262 25.5.2.
-    /// </summary>
     private sealed class StringifyState
     {
-        /// <summary>Replacer function, if the second argument was callable.</summary>
         internal IJsCallable? ReplacerFunction;
-
-        /// <summary>Property filter list, if the second argument was an array.</summary>
         internal List<string>? PropertyList;
-
-        /// <summary>Indentation gap string (up to 10 chars).</summary>
         internal string Gap = string.Empty;
-
-        /// <summary>Current indentation level string.</summary>
         internal string Indent = string.Empty;
-
-        /// <summary>Visited object stack for circular reference detection.</summary>
         internal readonly HashSet<object> Stack = new(ReferenceEqualityComparer.Instance);
+        internal RealmState? Realm;
     }
 
-    /// <summary>
-    /// Entry point for JSON.stringify. Implements ECMA-262 25.5.2 JSON.stringify(value, replacer, space).
-    /// Returns JsValue.Undefined when the top-level value would produce undefined per spec.
-    /// </summary>
-    internal static JsValue Stringify(JsValue value, JsValue replacerArg, JsValue spaceArg)
+    internal static JsValue Stringify(JsValue value, JsValue replacerArg, JsValue spaceArg, RealmState? realm = null)
     {
-        var state = new StringifyState();
+        var state = new StringifyState { Realm = realm };
 
         // Step 4: Process replacer
-        if (replacerArg.TryGetObject<IJsCallable>(out var replacerFn))
+        // Per spec: If IsCallable(replacer) is true, set ReplacerFunction.
+        // Note: JsProxy always implements IJsCallable, but is only callable if target is callable.
+        if (replacerArg.TryGetObject<IJsCallable>(out var replacerFn) &&
+            (replacerFn is not JsProxy replacerProxy || replacerProxy.IsCallableTarget()))
         {
             state.ReplacerFunction = replacerFn;
         }
-        else if (replacerArg.TryGetObject<JsArray>(out var replacerArr))
+        else if (IsArrayForReplacer(replacerArg, realm))
         {
-            state.PropertyList = BuildPropertyList(replacerArr);
+            state.PropertyList = BuildPropertyList(replacerArg, realm);
         }
 
         // Step 5-8: Process space
+        // Per spec: If space has [[NumberData]], set space to ToNumber(space).
+        // If space has [[StringData]], set space to ToString(space).
         var space = spaceArg;
-
-        // Unwrap Number/String wrapper objects
-        if (space.IsObject && space.TryGetObject<JsObject>(out var spaceObj))
+        if (space.IsObject && space.TryGetObject<JsObject>(out var spaceObj) &&
+            spaceObj.TryGetProperty("__value__", out var spaceInner))
         {
-            if (spaceObj.TryGetProperty("__value__", out var innerVal))
+            if (spaceInner.IsNumber)
             {
-                space = innerVal;
+                space = new JsValue(JsOps.ToNumber(space));
+            }
+            else if (spaceInner.IsString)
+            {
+                space = new JsValue(JsOps.ToJsString(space));
             }
         }
 
@@ -186,29 +398,55 @@ public static class JsonHelper
             state.Gap = spaceStr.Length <= 10 ? spaceStr : spaceStr.Substring(0, 10);
         }
 
-        // Step 9: Create wrapper object
-        var wrapper = new JsObject();
-        wrapper.SetProperty("", value);
+        // Step 9: Let wrapper be OrdinaryObjectCreate(%Object.prototype%).
+        // Step 10: Perform ! CreateDataPropertyOrThrow(wrapper, "", value).
+        var wrapper = realm is not null
+            ? new JsObject(realm.ObjectPrototype) { RealmState = realm }
+            : new JsObject();
+        wrapper.DefineProperty("", new PropertyDescriptor
+        {
+            Value = value,
+            Writable = true,
+            Enumerable = true,
+            Configurable = true
+        });
 
         // Step 10: Call SerializeJSONProperty with the wrapper
         var result = SerializeJsonProperty(state, "", wrapper);
 
-        // If result is null, the spec says return undefined
         return result is null ? JsValue.Undefined : new JsValue(result);
     }
 
-    /// <summary>
-    /// Builds the PropertyList from a replacer array (ECMA-262 25.5.2 step 4.b).
-    /// </summary>
-    private static List<string> BuildPropertyList(JsArray arr)
+    private static bool IsArrayForReplacer(JsValue replacerArg, RealmState? realm)
+    {
+        if (replacerArg.TryGetObject<JsArray>(out _))
+        {
+            return true;
+        }
+
+        return StandardLibrary.ArrayIsArray(replacerArg, realm);
+    }
+
+    private static List<string> BuildPropertyList(JsValue replacerArg, RealmState? realm)
     {
         var list = new List<string>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
 
-        var length = (int)arr.Length;
-        for (var i = 0; i < length; i++)
+        if (!replacerArg.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
-            var item = arr.GetElement(i);
+            return list;
+        }
+
+        var length = StandardLibrary.LengthOfArrayLike(accessor, realm);
+
+        for (long i = 0; i < length; i++)
+        {
+            var indexStr = i.ToString(CultureInfo.InvariantCulture);
+            if (!accessor.TryGetProperty(indexStr, out var item))
+            {
+                continue;
+            }
+
             string? itemStr = null;
 
             if (item.IsString)
@@ -217,19 +455,16 @@ public static class JsonHelper
             }
             else if (item.IsNumber)
             {
-                itemStr = item.NumberValue.ToString(CultureInfo.InvariantCulture);
+                itemStr = JsOps.ToCanonicalNumberString(item.NumberValue);
             }
             else if (item.IsObject && item.TryGetObject<JsObject>(out var obj) &&
                      obj.TryGetProperty("__value__", out var inner))
             {
-                // Unwrap String/Number wrapper objects
-                if (inner.IsString)
+                // Per spec step 4.d.iii: If v has [[StringData]] or [[NumberData]],
+                // set item to ? ToString(v).
+                if (inner.IsString || inner.IsNumber)
                 {
-                    itemStr = inner.AsString();
-                }
-                else if (inner.IsNumber)
-                {
-                    itemStr = inner.NumberValue.ToString(CultureInfo.InvariantCulture);
+                    itemStr = JsOps.ToJsString(item);
                 }
             }
 
@@ -242,27 +477,11 @@ public static class JsonHelper
         return list;
     }
 
-    /// <summary>
-    /// Implements SerializeJSONProperty (ECMA-262 25.5.2.5).
-    /// Returns null when the value should be omitted (undefined, function, symbol at top level or in object).
-    /// </summary>
     private static string? SerializeJsonProperty(StringifyState state, string key, IJsPropertyAccessor holder)
     {
-        // Step 1: Let value be ? Get(holder, key)
         holder.TryGetProperty(key, out var value);
 
-        // Step 1b: Check for rawJSON marker (JSON.rawJSON objects)
-        if (value.IsObject && value.TryGetObject<JsObject>(out var rawJsonCheck))
-        {
-            if (rawJsonCheck.TryGetProperty("[[IsRawJSON]]", out var rawMarker) &&
-                rawMarker.IsBoolean && rawMarker.NumberValue != 0 &&
-                rawJsonCheck.TryGetProperty("rawJSON", out var rawText) && rawText.IsString)
-            {
-                return rawText.AsString()!;
-            }
-        }
-
-        // Step 2: If value is an Object or BigInt, check for toJSON
+        // Step 2: If Type(value) is Object or BigInt, check toJSON
         if (value.IsObject && value.TryGetObject<IJsPropertyAccessor>(out var toJsonHolder))
         {
             if (toJsonHolder.TryGetProperty("toJSON", out var toJson) &&
@@ -271,8 +490,19 @@ public static class JsonHelper
                 value = toJsonFn.Invoke([new JsValue(key)], value);
             }
         }
+        else if (value.IsBigInt)
+        {
+            // Per spec: GetV(value, "toJSON") - look up toJSON on BigInt.prototype
+            // with the BigInt value as receiver so getters see the correct `this`
+            if (state.Realm?.BigIntPrototype is { } bigIntProto &&
+                bigIntProto.TryGetProperty("toJSON", value, out var bigIntToJson) &&
+                bigIntToJson.TryGetObject<IJsCallable>(out var bigIntToJsonFn))
+            {
+                value = bigIntToJsonFn.Invoke([new JsValue(key)], value);
+            }
+        }
 
-        // Step 3: If ReplacerFunction exists, call it
+        // Step 3: Replacer function
         if (state.ReplacerFunction is not null)
         {
             value = state.ReplacerFunction.Invoke(
@@ -280,18 +510,32 @@ public static class JsonHelper
                 JsValue.FromObjectUnsafe((object)holder));
         }
 
-        // Step 4: Unwrap wrapper objects (Number, String, Boolean, BigInt)
+        // Check for rawJSON marker (JSON.rawJSON objects) - AFTER toJSON and replacer
+        if (value.IsObject && value.TryGetObject<JsObject>(out var rawJsonCheck))
+        {
+            if (string.Equals(rawJsonCheck.Origin, "[[IsRawJSON]]", StringComparison.Ordinal) &&
+                rawJsonCheck.TryGetProperty("rawJSON", out var rawText) && rawText.IsString)
+            {
+                return rawText.AsString()!;
+            }
+        }
+
+        // Step 4: Unwrap wrapper objects per spec:
+        // If value has [[NumberData]], set value to ToNumber(value).
+        // If value has [[StringData]], set value to ToString(value).
+        // If value has [[BooleanData]], set value to value.[[BooleanData]].
+        // If value has [[BigIntData]], set value to value.[[BigIntData]].
         if (value.IsObject && value.TryGetObject<JsObject>(out var wrapperObj))
         {
             if (wrapperObj.TryGetProperty("__value__", out var innerVal))
             {
                 if (innerVal.IsNumber)
                 {
-                    value = innerVal;
+                    value = new JsValue(JsOps.ToNumber(value));
                 }
                 else if (innerVal.IsString)
                 {
-                    value = innerVal;
+                    value = new JsValue(JsOps.ToJsString(value));
                 }
                 else if (innerVal.IsBoolean)
                 {
@@ -304,7 +548,6 @@ public static class JsonHelper
             }
         }
 
-        // Step 5-9: Handle special values
         if (value.IsNull)
         {
             return "null";
@@ -331,28 +574,30 @@ public static class JsonHelper
             return "null";
         }
 
-        // Step 10: BigInt - throw TypeError
         if (value.IsBigInt)
         {
             throw ThrowTypeError("Do not know how to serialize a BigInt");
         }
 
-        // Step 11: If value is undefined, a function, or a symbol, return null (omit)
         if (value.IsUndefined || value.IsSymbol)
         {
             return null;
         }
 
-        if (value.IsObject && value.TryGetObject<IJsCallable>(out _))
+        if (value.IsObject && value.TryGetObject<IJsCallable>(out var callableCheck))
         {
-            // Functions are omitted (return null means "undefined" in the spec)
-            return null;
+            // JsProxy always implements IJsCallable but is only actually callable if target is callable.
+            // Skip the callable check for non-callable proxies.
+            if (callableCheck is not JsProxy proxyCheck || proxyCheck.IsCallableTarget())
+            {
+                return null;
+            }
         }
 
-        // Step 12-13: Arrays and Objects
-        if (value.TryGetObject<JsArray>(out var arr))
+        // Arrays and Objects - use IsArray for Proxy support
+        if (StandardLibrary.ArrayIsArray(value, state.Realm))
         {
-            return SerializeJsonArray(state, arr);
+            return SerializeJsonArray(state, value);
         }
 
         if (value.TryGetObject<IJsPropertyAccessor>(out var objAccessor))
@@ -360,16 +605,11 @@ public static class JsonHelper
             return SerializeJsonObject(state, objAccessor);
         }
 
-        // Fallback for other object types - should not normally be reached
         return null;
     }
 
-    /// <summary>
-    /// Implements SerializeJSONObject (ECMA-262 25.5.2.6).
-    /// </summary>
     private static string SerializeJsonObject(StringifyState state, IJsPropertyAccessor obj)
     {
-        // Circular reference check
         if (!state.Stack.Add(obj))
         {
             throw ThrowTypeError("Converting circular structure to JSON");
@@ -385,9 +625,17 @@ public static class JsonHelper
         }
         else
         {
-            // Get own enumerable property keys in order
+            // Per spec: Let K be ? EnumerableOwnPropertyNames(value, key).
             keys = [];
-            if (obj is JsObject jsObj)
+            if (obj is JsProxy proxy)
+            {
+                foreach (var k in proxy.GetOwnPropertyKeysInOrder(includeSymbols: false,
+                             includeNonEnumerable: false))
+                {
+                    keys.Add(k);
+                }
+            }
+            else if (obj is JsObject jsObj)
             {
                 foreach (var k in jsObj.GetOwnEnumerablePropertyKeysInOrder(false))
                 {
@@ -441,12 +689,13 @@ public static class JsonHelper
         return result;
     }
 
-    /// <summary>
-    /// Implements SerializeJSONArray (ECMA-262 25.5.2.7).
-    /// </summary>
-    private static string SerializeJsonArray(StringifyState state, JsArray arr)
+    private static string SerializeJsonArray(StringifyState state, JsValue arrayValue)
     {
-        // Circular reference check
+        if (!arrayValue.TryGetObject<IJsPropertyAccessor>(out var arr))
+        {
+            return "[]";
+        }
+
         if (!state.Stack.Add(arr))
         {
             throw ThrowTypeError("Converting circular structure to JSON");
@@ -456,12 +705,11 @@ public static class JsonHelper
         state.Indent = stepback + state.Gap;
 
         var partial = new List<string>();
-        var length = (int)arr.Length;
+        var length = StandardLibrary.LengthOfArrayLike(arr, state.Realm);
 
-        for (var index = 0; index < length; index++)
+        for (long index = 0; index < length; index++)
         {
             var strP = SerializeJsonProperty(state, index.ToString(CultureInfo.InvariantCulture), arr);
-            // In arrays, undefined/function/symbol serialize as "null" (not omitted)
             partial.Add(strP ?? "null");
         }
 
@@ -487,20 +735,80 @@ public static class JsonHelper
     }
 
     /// <summary>
-    /// Implements QuoteJSONString (ECMA-262 25.5.2.3).
-    /// Uses System.Text.Json.JsonSerializer for proper JSON string escaping.
+    /// Implements QuoteJSONString per ECMA-262 25.5.2.3.
+    /// Uses lowercase hex for unicode escapes per spec requirement.
     /// </summary>
     private static string QuoteString(string value)
     {
-        return JsonSerializer.Serialize(value);
+        var sb = new System.Text.StringBuilder(value.Length + 2);
+        sb.Append('"');
+        for (var i = 0; i < value.Length; i++)
+        {
+            var c = value[i];
+            switch (c)
+            {
+                case '"':
+                    sb.Append("\\\"");
+                    break;
+                case '\\':
+                    sb.Append("\\\\");
+                    break;
+                case '\b':
+                    sb.Append("\\b");
+                    break;
+                case '\f':
+                    sb.Append("\\f");
+                    break;
+                case '\n':
+                    sb.Append("\\n");
+                    break;
+                case '\r':
+                    sb.Append("\\r");
+                    break;
+                case '\t':
+                    sb.Append("\\t");
+                    break;
+                default:
+                    if (c < 0x20)
+                    {
+                        sb.Append("\\u");
+                        sb.Append(((int)c).ToString("x4", CultureInfo.InvariantCulture));
+                    }
+                    else if (char.IsHighSurrogate(c))
+                    {
+                        // Check if next char is a valid low surrogate (valid pair)
+                        if (i + 1 < value.Length && char.IsLowSurrogate(value[i + 1]))
+                        {
+                            // Valid surrogate pair - emit both chars as-is
+                            sb.Append(c);
+                            sb.Append(value[++i]);
+                        }
+                        else
+                        {
+                            // Lone high surrogate - must escape
+                            sb.Append("\\u");
+                            sb.Append(((int)c).ToString("x4", CultureInfo.InvariantCulture));
+                        }
+                    }
+                    else if (char.IsLowSurrogate(c))
+                    {
+                        // Lone low surrogate - must escape
+                        sb.Append("\\u");
+                        sb.Append(((int)c).ToString("x4", CultureInfo.InvariantCulture));
+                    }
+                    else
+                    {
+                        sb.Append(c);
+                    }
+                    break;
+            }
+        }
+        sb.Append('"');
+        return sb.ToString();
     }
 
-    /// <summary>
-    /// Formats a number for JSON output per spec. Handles -0 as "0".
-    /// </summary>
     private static string FormatNumber(double d)
     {
-        // Per spec, -0 serializes as "0"
         if (d == 0.0 && double.IsNegative(d))
         {
             return "0";
@@ -519,7 +827,7 @@ public static class JsonHelper
         {
             if (depth > 100)
             {
-                return "null"; // Prevent stack overflow
+                return "null";
             }
 
             switch (value)
@@ -528,7 +836,6 @@ public static class JsonHelper
                     return "null";
 
                 case JsValue jsValue:
-                    // Unwrap JsValue based on kind to avoid boxing
                     if (jsValue.IsNullOrUndefined)
                     {
                         return "null";
@@ -551,7 +858,6 @@ public static class JsonHelper
                         case JsValueKind.String when jsValue.ObjectValue is string str:
                             return JsonSerializer.Serialize(str);
                         default:
-                            // For objects and other types, continue with the underlying object
                             value = jsValue.ObjectValue;
                             continue;
                     }
@@ -583,7 +889,6 @@ public static class JsonHelper
                     var objProps = new List<string>();
                     foreach (var kvp in obj)
                     {
-                        // Skip functions and internal properties
                         if (kvp.Value is IJsCallable || kvp.Key.StartsWith('_'))
                         {
                             continue;

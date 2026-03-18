@@ -1,6 +1,7 @@
 #region
 
 using System.Globalization;
+using System.Numerics;
 
 #endregion
 
@@ -286,28 +287,215 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
     public static JsTemporalZonedDateTime From(string isoString)
     {
         // Parse format: 2024-12-25T10:30:00+01:00[Europe/Paris]
-        var bracketIndex = isoString.IndexOf('[');
+        var remaining = isoString;
+        var bracketIndex = remaining.IndexOf('[');
         string? timeZoneId = null;
+        var calendar = "iso8601";
 
         if (bracketIndex >= 0)
         {
-            var closeBracket = isoString.IndexOf(']', bracketIndex);
-            if (closeBracket > bracketIndex)
+            // Extract all bracket annotations
+            var annotations = remaining[bracketIndex..];
+            remaining = remaining[..bracketIndex];
+
+            // Parse timezone and calendar from bracket annotations
+            var pos = 0;
+            while (pos < annotations.Length)
             {
-                timeZoneId = isoString.Substring(bracketIndex + 1, closeBracket - bracketIndex - 1);
+                var open = annotations.IndexOf('[', pos);
+                if (open < 0) break;
+                var close = annotations.IndexOf(']', open);
+                if (close < 0) break;
+                var content = annotations[(open + 1)..close];
+                if (content.StartsWith("u-ca=", StringComparison.Ordinal))
+                {
+                    calendar = content[5..];
+                }
+                else
+                {
+                    timeZoneId = content;
+                }
+                pos = close + 1;
             }
-            isoString = isoString[..bracketIndex];
         }
 
-        // Parse the datetime with offset
-        if (DateTimeOffset.TryParse(isoString, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dto))
+        // Check if this needs custom parsing (year 0000, extended year, or nanosecond precision)
+        var needsCustomParsing = remaining.Length > 0 &&
+            (remaining[0] == '+' || remaining[0] == '-' || remaining[0] == '\u2212' ||
+             remaining.StartsWith("0000", StringComparison.Ordinal));
+
+        if (!needsCustomParsing)
+        {
+            // Try standard parsing for normal years
+            if (DateTimeOffset.TryParse(remaining, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dto))
+            {
+                timeZoneId ??= TimeZoneInfo.Local.Id;
+                var instant = new JsTemporalInstant(dto);
+                return new JsTemporalZonedDateTime(instant, timeZoneId, calendar);
+            }
+        }
+
+        // Custom parsing for extended years, year 0, and nanosecond precision
+        var parsed = ParseIsoDateTimeWithOffset(remaining);
+        if (parsed is not null)
         {
             timeZoneId ??= TimeZoneInfo.Local.Id;
-            var instant = new JsTemporalInstant(dto);
-            return new JsTemporalZonedDateTime(instant, timeZoneId);
+            return new JsTemporalZonedDateTime(parsed, timeZoneId, calendar);
         }
 
         throw new FormatException($"Invalid ZonedDateTime string: {isoString}");
+    }
+
+    /// <summary>
+    ///     Parses an ISO datetime string with offset into a JsTemporalInstant.
+    ///     Handles extended year format, year 0, and nanosecond precision.
+    /// </summary>
+    private static JsTemporalInstant? ParseIsoDateTimeWithOffset(string str)
+    {
+        int year, sign = 1;
+        ReadOnlySpan<char> afterDate;
+
+        if (str.Length > 0 && (str[0] == '+' || str[0] == '-' || str[0] == '\u2212'))
+        {
+            // Extended year format: +YYYYYY-MM-DD or -YYYYYY-MM-DD
+            sign = str[0] == '-' || str[0] == '\u2212' ? -1 : 1;
+            var rest = str[1..];
+
+            var tIdx = rest.IndexOf('T');
+            if (tIdx < 0) return null;
+
+            var datePart = rest[..tIdx];
+            afterDate = rest.AsSpan()[(tIdx + 1)..];
+
+            var lastDash = datePart.LastIndexOf('-');
+            if (lastDash <= 0) return null;
+            var secondLastDash = datePart.LastIndexOf('-', lastDash - 1);
+            if (secondLastDash <= 0) return null;
+
+            if (!int.TryParse(datePart[..secondLastDash], CultureInfo.InvariantCulture, out var yearAbs) ||
+                !int.TryParse(datePart[(secondLastDash + 1)..lastDash], CultureInfo.InvariantCulture, out var month) ||
+                !int.TryParse(datePart[(lastDash + 1)..], CultureInfo.InvariantCulture, out var day))
+                return null;
+
+            year = sign * yearAbs;
+            return ComputeInstant(year, month, day, afterDate);
+        }
+
+        // Standard format with year 0000: YYYY-MM-DDTHH:mm:ss...
+        {
+            var tIdx = str.IndexOf('T');
+            if (tIdx < 0) return null;
+
+            var datePart = str[..tIdx];
+            afterDate = str.AsSpan()[(tIdx + 1)..];
+
+            var dashParts = datePart.Split('-');
+            if (dashParts.Length < 3) return null;
+
+            if (!int.TryParse(dashParts[0], CultureInfo.InvariantCulture, out year) ||
+                !int.TryParse(dashParts[1], CultureInfo.InvariantCulture, out var month) ||
+                !int.TryParse(dashParts[2], CultureInfo.InvariantCulture, out var day))
+                return null;
+
+            return ComputeInstant(year, month, day, afterDate);
+        }
+    }
+
+    /// <summary>
+    ///     Computes epoch nanoseconds from parsed date components and a time+offset span.
+    /// </summary>
+    private static JsTemporalInstant ComputeInstant(int year, int month, int day, ReadOnlySpan<char> timeAndOffset)
+    {
+        // Parse time portion and offset from: HH:mm:ss[.fffffffff][Z|+HH:MM|-HH:MM]
+        var timePart = timeAndOffset.ToString();
+        var offsetNanos = 0L;
+
+        if (timePart.EndsWith('Z') || timePart.EndsWith('z'))
+        {
+            timePart = timePart[..^1];
+        }
+        else
+        {
+            // Find offset: last + or - that's preceded by digit/colon and followed by digit
+            for (var i = timePart.Length - 1; i >= 2; i--)
+            {
+                if ((timePart[i] == '+' || timePart[i] == '-') && i + 1 < timePart.Length && char.IsDigit(timePart[i + 1]))
+                {
+                    offsetNanos = ParseOffsetNanos(timePart[i..]);
+                    timePart = timePart[..i];
+                    break;
+                }
+            }
+        }
+
+        // Parse HH:mm:ss[.fffffffff]
+        var timeParts = timePart.Split(':');
+        var hour = timeParts.Length > 0 ? int.Parse(timeParts[0], CultureInfo.InvariantCulture) : 0;
+        var minute = timeParts.Length > 1 ? int.Parse(timeParts[1], CultureInfo.InvariantCulture) : 0;
+
+        var second = 0;
+        long subSecondNanos = 0;
+        if (timeParts.Length > 2)
+        {
+            var secStr = timeParts[2];
+            var dotIdx = secStr.IndexOf('.');
+            if (dotIdx >= 0)
+            {
+                second = int.Parse(secStr[..dotIdx], CultureInfo.InvariantCulture);
+                var frac = secStr[(dotIdx + 1)..];
+                // Pad to 9 digits for nanosecond precision
+                frac = frac.PadRight(9, '0');
+                if (frac.Length > 9) frac = frac[..9];
+                subSecondNanos = long.Parse(frac, CultureInfo.InvariantCulture);
+            }
+            else
+            {
+                second = int.Parse(secStr, CultureInfo.InvariantCulture);
+            }
+        }
+
+        // Compute epoch nanoseconds
+        var epochDays = IsoCalendarHelpers.DateToEpochDays(year, month, day);
+        var epochNanos = new BigInteger(epochDays) * 86400L * 1_000_000_000L;
+        epochNanos += (long)hour * 3_600_000_000_000L;
+        epochNanos += (long)minute * 60_000_000_000L;
+        epochNanos += (long)second * 1_000_000_000L;
+        epochNanos += subSecondNanos;
+        epochNanos -= offsetNanos;
+
+        return new JsTemporalInstant(epochNanos);
+    }
+
+    /// <summary>
+    ///     Parses an offset string like "+01:00", "-05:30", "+0100" to nanoseconds.
+    /// </summary>
+    private static long ParseOffsetNanos(string offsetStr)
+    {
+        var sign = offsetStr[0] == '-' ? -1L : 1L;
+        var body = offsetStr[1..];
+        var parts = body.Split(':');
+        int hours, minutes = 0;
+
+        if (parts.Length == 1)
+        {
+            // Compact format: HHMM or HH
+            if (body.Length == 4)
+            {
+                hours = int.Parse(body[..2], CultureInfo.InvariantCulture);
+                minutes = int.Parse(body[2..], CultureInfo.InvariantCulture);
+            }
+            else
+            {
+                hours = int.Parse(body, CultureInfo.InvariantCulture);
+            }
+        }
+        else
+        {
+            hours = int.Parse(parts[0], CultureInfo.InvariantCulture);
+            minutes = int.Parse(parts[1], CultureInfo.InvariantCulture);
+        }
+
+        return sign * ((long)hours * 3_600_000_000_000L + (long)minutes * 60_000_000_000L);
     }
 
     /// <summary>

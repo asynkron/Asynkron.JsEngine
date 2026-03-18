@@ -39,12 +39,12 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
     /// <summary>
     ///     The number of days in this month.
     /// </summary>
-    public int DaysInMonth => DateTime.DaysInMonth(Year, Month);
+    public int DaysInMonth => IsoCalendarHelpers.DaysInMonth(Year, Month);
 
     /// <summary>
     ///     The number of days in this year.
     /// </summary>
-    public int DaysInYear => DateTime.IsLeapYear(Year) ? 366 : 365;
+    public int DaysInYear => IsoCalendarHelpers.IsLeapYear(Year) ? 366 : 365;
 
     /// <summary>
     ///     The number of months in this year (always 12 for ISO calendar).
@@ -54,24 +54,82 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
     /// <summary>
     ///     Whether this year is a leap year.
     /// </summary>
-    public bool InLeapYear => DateTime.IsLeapYear(Year);
+    public bool InLeapYear => IsoCalendarHelpers.IsLeapYear(Year);
 
     /// <summary>
     ///     Creates a PlainYearMonth from an ISO 8601 string (YYYY-MM).
+    ///     Supports extended year format: +YYYYYY-MM or -YYYYYY-MM.
     /// </summary>
     public static JsTemporalPlainYearMonth From(string isoString)
     {
-        // Handle format: YYYY-MM or YYYY-MM-DD (ignore day)
-        var parts = isoString.Split('-');
+        var s = isoString;
+
+        // Strip calendar annotation if present
+        var bracketIdx = s.IndexOf('[');
+        var calendar = "iso8601";
+        if (bracketIdx >= 0)
+        {
+            var annotation = s[(bracketIdx + 1)..].TrimEnd(']');
+            if (annotation.StartsWith("u-ca=", StringComparison.Ordinal))
+            {
+                calendar = annotation[5..];
+            }
+            s = s[..bracketIdx];
+        }
+
+        // Strip time portion if present
+        var tIdx = s.IndexOf('T');
+        if (tIdx >= 0)
+        {
+            s = s[..tIdx];
+        }
+
+        // Handle extended year format: +YYYYYY-MM[-DD] or -YYYYYY-MM[-DD]
+        if (s.Length > 0 && (s[0] == '+' || s[0] == '-' || s[0] == '\u2212'))
+        {
+            var sign = s[0] == '-' || s[0] == '\u2212' ? -1 : 1;
+            var rest = s[1..];
+            // Find month separator: last '-' that separates month (or second-to-last if DD present)
+            var lastDash = rest.LastIndexOf('-');
+            if (lastDash > 0)
+            {
+                var secondLastDash = rest.LastIndexOf('-', lastDash - 1);
+                if (secondLastDash > 0)
+                {
+                    // Format: YYYYYY-MM-DD — use year and month
+                    var yearStr = rest[..secondLastDash];
+                    var monthStr = rest[(secondLastDash + 1)..lastDash];
+                    if (int.TryParse(yearStr, CultureInfo.InvariantCulture, out var year) &&
+                        int.TryParse(monthStr, CultureInfo.InvariantCulture, out var month))
+                    {
+                        return new JsTemporalPlainYearMonth(sign * year, month, calendar);
+                    }
+                }
+                else
+                {
+                    // Format: YYYYYY-MM
+                    var yearStr = rest[..lastDash];
+                    var monthStr = rest[(lastDash + 1)..];
+                    if (int.TryParse(yearStr, CultureInfo.InvariantCulture, out var year) &&
+                        int.TryParse(monthStr, CultureInfo.InvariantCulture, out var month))
+                    {
+                        return new JsTemporalPlainYearMonth(sign * year, month, calendar);
+                    }
+                }
+            }
+        }
+
+        // Standard format: YYYY-MM or YYYY-MM-DD
+        var parts = s.Split('-');
         if (parts.Length < 2)
         {
             throw new FormatException($"Invalid PlainYearMonth string: {isoString}");
         }
 
-        var year = int.Parse(parts[0], CultureInfo.InvariantCulture);
-        var month = int.Parse(parts[1], CultureInfo.InvariantCulture);
+        var stdYear = int.Parse(parts[0], CultureInfo.InvariantCulture);
+        var stdMonth = int.Parse(parts[1], CultureInfo.InvariantCulture);
 
-        return new JsTemporalPlainYearMonth(year, month);
+        return new JsTemporalPlainYearMonth(stdYear, stdMonth, calendar);
     }
 
     /// <summary>
@@ -180,16 +238,43 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
     }
 
     /// <summary>
-    ///     Returns ISO 8601 year-month string (YYYY-MM).
+    ///     Returns basic year-month string (YYYY-MM) without calendar annotation.
+    /// </summary>
+    public string ToStringBasic()
+    {
+        return FormatYear() + $"-{Month:D2}";
+    }
+
+    /// <summary>
+    ///     Returns ISO 8601 year-month string (YYYY-MM), with calendar annotation for non-ISO calendars.
     /// </summary>
     public override string ToString()
     {
-        var result = $"{Year:D4}-{Month:D2}";
+        var result = FormatYear() + $"-{Month:D2}";
         if (!string.Equals(Calendar, "iso8601", StringComparison.Ordinal))
         {
-            result += $"[u-ca={Calendar}]";
+            result += $"-{ReferenceDay:D2}[u-ca={Calendar}]";
         }
         return result;
+    }
+
+    /// <summary>
+    ///     Returns year-month string with reference day and calendar annotation (YYYY-MM-DD[u-ca=calendar]).
+    /// </summary>
+    public string ToStringWithCalendar()
+    {
+        return FormatYear() + $"-{Month:D2}-{ReferenceDay:D2}[u-ca={Calendar}]";
+    }
+
+    private string FormatYear()
+    {
+        if (Year is >= 0 and <= 9999)
+        {
+            return Year.ToString("D4", CultureInfo.InvariantCulture);
+        }
+        // Extended year format with sign prefix and 6 digits
+        var absYear = Math.Abs(Year);
+        return (Year < 0 ? "-" : "+") + absYear.ToString("D6", CultureInfo.InvariantCulture);
     }
 
     public static bool operator ==(JsTemporalPlainYearMonth? left, JsTemporalPlainYearMonth? right)

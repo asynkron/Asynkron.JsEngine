@@ -125,7 +125,7 @@ public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay
     }
 
     /// <summary>
-    ///     Returns ISO 8601 month-day string (--MM-DD).
+    ///     Returns Temporal month-day string (MM-DD).
     /// </summary>
     public override string ToString()
     {

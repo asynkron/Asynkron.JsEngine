@@ -1756,8 +1756,28 @@ public static class TemporalHelper
         AddPrototypeGetter(prototype, realm, "eraYear", _ => JsValue.Undefined); // ISO 8601 calendar has no era
 
         // Prototype methods
-        AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, _) =>
-            new JsValue(GetPlainYearMonth(thisValue).ToString()));
+        AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, args) =>
+        {
+            var ym = GetPlainYearMonth(thisValue);
+            var showCalendar = "auto";
+            if (args.Count > 0 && args[0].TryGetObject<IJsPropertyAccessor>(out var opts) &&
+                opts.TryGetProperty("calendarName", out var calVal) && calVal.IsString)
+            {
+                showCalendar = calVal.AsString();
+            }
+            // Per spec: when calendarName is "always" or calendar is not iso8601, include reference day and calendar
+            if (string.Equals(showCalendar, "always", StringComparison.Ordinal) ||
+                (string.Equals(showCalendar, "auto", StringComparison.Ordinal) &&
+                 !string.Equals(ym.Calendar, "iso8601", StringComparison.Ordinal)))
+            {
+                return new JsValue(ym.ToStringWithCalendar());
+            }
+            if (string.Equals(showCalendar, "never", StringComparison.Ordinal))
+            {
+                return new JsValue(ym.ToStringBasic());
+            }
+            return new JsValue(ym.ToString());
+        });
 
         AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
             new JsValue(GetPlainYearMonth(thisValue).ToString()));
@@ -1830,17 +1850,33 @@ public static class TemporalHelper
         {
             var ym = GetPlainYearMonth(thisValue);
             var dayArg = args.GetArgument(0);
-            int day;
-            if (dayArg.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
-                accessor.TryGetProperty("day", out var dayValue))
+
+            // Per spec: argument must be an object
+            if (!dayArg.TryGetObject<IJsPropertyAccessor>(out var accessor))
             {
-                day = (int)JsOps.ToNumber(dayValue);
+                throw StandardLibrary.ThrowTypeError("toPlainDate requires an object argument with a 'day' property", realm: realm);
             }
-            else
+
+            // Must have 'day' property
+            if (!accessor.TryGetProperty("day", out var dayValue) || dayValue.IsUndefined)
             {
-                day = (int)JsOps.ToNumber(dayArg);
+                throw StandardLibrary.ThrowTypeError("toPlainDate requires a 'day' property", realm: realm);
             }
-            return WrapPlainDate(ym.ToPlainDate(day), realm, prototypes.PlainDatePrototype);
+
+            var dayNum = JsOps.ToNumber(dayValue);
+            if (double.IsInfinity(dayNum) || double.IsNaN(dayNum))
+            {
+                throw StandardLibrary.ThrowRangeError("day value must be finite", realm: realm);
+            }
+
+            // Constrain day to valid range for the month
+            var day = (int)dayNum;
+            var maxDay = IsoCalendarHelpers.DaysInMonth(ym.Year, ym.Month);
+            day = Math.Min(Math.Max(day, 1), maxDay);
+
+            var date = new JsTemporalPlainDate(ym.Year, ym.Month, day, ym.Calendar);
+            ValidatePlainDateRange(date, realm);
+            return WrapPlainDate(date, realm, prototypes.PlainDatePrototype);
         });
 
         // Constructor
@@ -1944,17 +1980,34 @@ public static class TemporalHelper
         {
             var md = GetPlainMonthDay(thisValue);
             var yearArg = args.GetArgument(0);
-            int year;
-            if (yearArg.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
-                accessor.TryGetProperty("year", out var yearValue))
+
+            // Per spec: argument must be an object
+            if (!yearArg.TryGetObject<IJsPropertyAccessor>(out var accessor))
             {
-                year = (int)JsOps.ToNumber(yearValue);
+                throw StandardLibrary.ThrowTypeError("toPlainDate requires an object argument with a 'year' property", realm: realm);
             }
-            else
+
+            // Must have 'year' property
+            if (!accessor.TryGetProperty("year", out var yearValue) || yearValue.IsUndefined)
             {
-                year = (int)JsOps.ToNumber(yearArg);
+                throw StandardLibrary.ThrowTypeError("toPlainDate requires a 'year' property", realm: realm);
             }
-            return WrapPlainDate(md.ToPlainDate(year), realm, prototypes.PlainDatePrototype);
+
+            var yearNum = JsOps.ToNumber(yearValue);
+            if (double.IsInfinity(yearNum) || double.IsNaN(yearNum))
+            {
+                throw StandardLibrary.ThrowRangeError("year value must be finite", realm: realm);
+            }
+
+            var year = (int)yearNum;
+
+            // Constrain day to valid range for the target year/month
+            var maxDay = IsoCalendarHelpers.DaysInMonth(year, md.Month);
+            var day = Math.Min(md.Day, maxDay);
+
+            var date = new JsTemporalPlainDate(year, md.Month, day, md.Calendar);
+            ValidatePlainDateRange(date, realm);
+            return WrapPlainDate(date, realm, prototypes.PlainDatePrototype);
         });
 
         // Constructor
@@ -2540,6 +2593,14 @@ public static class TemporalHelper
         {
             throw StandardLibrary.ThrowRangeError("Date value is out of representable range", realm: realm);
         }
+    }
+
+    /// <summary>
+    ///     Validates that a PlainDate is within the representable ISO date range.
+    /// </summary>
+    private static void ValidatePlainDateRange(JsTemporalPlainDate date, RealmState realm)
+    {
+        RejectISODate(date.Year, date.Month, date.Day, realm);
     }
 
     // Temporal spec ISO date range limits
@@ -3250,14 +3311,110 @@ public static class TemporalHelper
         if (value.IsString)
         {
             var str = value.AsString() ?? "";
-            // Simple ISO 8601 parsing
-            if (DateTimeOffset.TryParse(str, out var dto))
+
+            // Try standard ISO 8601 parsing first
+            if (DateTimeOffset.TryParse(str, System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out var dto))
             {
                 return new JsTemporalInstant(dto);
+            }
+
+            // Try extended year format: +YYYYYY-MM-DDTHH:mm:ssZ or -YYYYYY-MM-DDTHH:mm:ssZ
+            if (str.Length > 0 && (str[0] == '+' || str[0] == '-' || str[0] == '\u2212'))
+            {
+                var parsed = ParseExtendedYearInstant(str);
+                if (parsed is not null)
+                {
+                    return parsed;
+                }
             }
         }
 
         throw StandardLibrary.ThrowTypeError("Cannot convert to Temporal.Instant", realm: realm);
+    }
+
+    /// <summary>
+    ///     Parses an extended year ISO 8601 instant string (e.g., "-271821-04-20T00:00:00Z").
+    ///     Returns null if the string cannot be parsed.
+    /// </summary>
+    private static JsTemporalInstant? ParseExtendedYearInstant(string str)
+    {
+        var sign = str[0] == '-' || str[0] == '\u2212' ? -1 : 1;
+        var rest = str[1..];
+
+        // Find the T separator
+        var tIdx = rest.IndexOf('T');
+        if (tIdx < 0)
+        {
+            return null;
+        }
+
+        var datePart = rest[..tIdx];
+        var timePart = rest[(tIdx + 1)..];
+
+        // Parse date: YYYYYY-MM-DD
+        var lastDash = datePart.LastIndexOf('-');
+        if (lastDash <= 0)
+        {
+            return null;
+        }
+        var secondLastDash = datePart.LastIndexOf('-', lastDash - 1);
+        if (secondLastDash <= 0)
+        {
+            return null;
+        }
+
+        if (!int.TryParse(datePart[..secondLastDash], System.Globalization.CultureInfo.InvariantCulture, out var yearAbs) ||
+            !int.TryParse(datePart[(secondLastDash + 1)..lastDash], System.Globalization.CultureInfo.InvariantCulture, out var month) ||
+            !int.TryParse(datePart[(lastDash + 1)..], System.Globalization.CultureInfo.InvariantCulture, out var day))
+        {
+            return null;
+        }
+
+        var year = sign * yearAbs;
+
+        // Parse time: HH:mm:ss[.fff]Z or HH:mm:ss[.fff]+/-HH:mm
+        // Remove timezone offset to get pure time
+        var offsetSeconds = 0L;
+        if (timePart.EndsWith('Z') || timePart.EndsWith('z'))
+        {
+            timePart = timePart[..^1];
+        }
+        else
+        {
+            // Look for offset
+            for (var i = timePart.Length - 1; i >= 2; i--)
+            {
+                if ((timePart[i] == '+' || timePart[i] == '-') && char.IsDigit(timePart[i + 1]))
+                {
+                    offsetSeconds = ParseOffsetToSeconds(timePart[i..]);
+                    timePart = timePart[..i];
+                    break;
+                }
+            }
+        }
+
+        // Parse HH:mm:ss[.fff]
+        var timeParts = timePart.Split(':');
+        var hour = timeParts.Length > 0 ? int.Parse(timeParts[0], System.Globalization.CultureInfo.InvariantCulture) : 0;
+        var minute = timeParts.Length > 1 ? int.Parse(timeParts[1], System.Globalization.CultureInfo.InvariantCulture) : 0;
+        var secondFraction = timeParts.Length > 2 ? timeParts[2] : "0";
+        var dotIdx = secondFraction.IndexOf('.');
+        var second = dotIdx >= 0
+            ? int.Parse(secondFraction[..dotIdx], System.Globalization.CultureInfo.InvariantCulture)
+            : int.Parse(secondFraction, System.Globalization.CultureInfo.InvariantCulture);
+
+        // Compute epoch days using shared helper (proleptic Gregorian)
+        var epochDays = IsoCalendarHelpers.DateToEpochDays(year, month, day);
+
+        // Compute epoch nanoseconds
+        var epochNanos = new System.Numerics.BigInteger(epochDays) * 86400L * 1_000_000_000L;
+        epochNanos += (long)hour * 3_600_000_000_000L;
+        epochNanos += (long)minute * 60_000_000_000L;
+        epochNanos += (long)second * 1_000_000_000L;
+        epochNanos -= offsetSeconds * 1_000_000_000L;
+
+        return new JsTemporalInstant(epochNanos);
     }
 
     private static JsTemporalDuration ToTemporalDuration(JsValue value, RealmState realm)

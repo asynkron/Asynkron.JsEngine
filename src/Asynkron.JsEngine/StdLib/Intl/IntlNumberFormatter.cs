@@ -24,27 +24,19 @@ internal static class IntlNumberFormatter
         if (double.IsNaN(value))
         {
             var symbol = slots.Culture.NumberFormat.NaNSymbol;
+            // NaN never gets a sign per spec
             return IntlNumberFormatResult.FromParts(symbol,
                 [new NumberFormatPart("nan", symbol)]);
         }
 
-        if (double.IsPositiveInfinity(value))
+        if (double.IsInfinity(value))
         {
-            var symbol = slots.Culture.NumberFormat.PositiveInfinitySymbol;
-            return IntlNumberFormatResult.FromParts(symbol,
-                [new NumberFormatPart("infinity", symbol)]);
-        }
-
-        if (double.IsNegativeInfinity(value))
-        {
-            var minus = slots.Culture.NumberFormat.NegativeSign;
+            var wasNeg = double.IsNegativeInfinity(value);
             var infinity = slots.Culture.NumberFormat.PositiveInfinitySymbol;
-            var formatted = slots.Culture.NumberFormat.NegativeInfinitySymbol;
-            return IntlNumberFormatResult.FromParts(formatted,
-            [
-                new NumberFormatPart("minusSign", minus),
-                new NumberFormatPart("infinity", infinity)
-            ]);
+            var result = IntlNumberFormatResult.FromParts(infinity,
+                [new NumberFormatPart("infinity", infinity)]);
+            ApplySignDisplay(result, wasNeg, false, slots);
+            return result;
         }
 
         var quantity = TryCreateDecimalQuantity(value) ?? DecimalQuantity.FromDouble(value);
@@ -62,35 +54,39 @@ internal static class IntlNumberFormatter
             MultiplyByPowerOfTen(quantity, 2);
         }
 
-        if (quantity.Coefficient.IsZero)
-        {
-            quantity.IsNegative = false;
-        }
+        // Note: do NOT clear IsNegative here for zero coefficients.
+        // Negative zero (-0) must retain its sign per the spec.
 
         if (slots.UseSignificantDigits)
         {
-            ApplyMaximumSignificantDigits(quantity, slots.MaximumSignificantDigits!.Value);
+            ApplyMaximumSignificantDigits(quantity, slots.MaximumSignificantDigits!.Value,
+                wasNegative, slots.RoundingMode);
             EnsureMinimumSignificantDigits(quantity, slots.MinimumSignificantDigits!.Value);
         }
-        else
+        else if (slots.Notation is not "scientific" and not "engineering")
         {
-            ApplyMaximumFractionDigits(quantity, slots.MaximumFractionDigits);
+            if (slots.RoundingIncrement > 1)
+            {
+                ApplyRoundingIncrement(quantity, slots.MaximumFractionDigits,
+                    slots.RoundingIncrement, wasNegative, slots.RoundingMode);
+            }
+            else
+            {
+                // For scientific/engineering notation, fraction digits are applied to the mantissa
+                // in FormatScientificNotation, not to the raw quantity
+                ApplyMaximumFractionDigits(quantity, slots.MaximumFractionDigits,
+                    wasNegative, slots.RoundingMode);
+            }
         }
 
         var result = slots.Notation switch
         {
             "scientific" => FormatScientificNotation(quantity, slots, true),
             "engineering" => FormatScientificNotation(quantity, slots, false),
-            _ => IntlNumberFormatResult.FromLiteral(
-                FormatDecimal(quantity, slots, slots.UseGrouping, false).Formatted)
+            _ => FormatDecimalWithParts(quantity, slots)
         };
 
-        if (wasNegative)
-        {
-            var minus = slots.Culture.NumberFormat.NegativeSign;
-            result.Formatted = $"{minus}{result.Formatted}";
-            result.Parts?.Insert(0, new NumberFormatPart("minusSign", minus));
-        }
+        ApplySignDisplay(result, wasNegative, quantity.Coefficient.IsZero, slots);
 
         return slots.Style switch
         {
@@ -104,10 +100,99 @@ internal static class IntlNumberFormatter
         };
     }
 
+    private static void ApplySignDisplay(
+        IntlNumberFormatResult result,
+        bool wasNegative,
+        bool isZero,
+        IntlNumberFormatInternalSlots slots)
+    {
+        var signDisplay = slots.SignDisplay;
+        var nf = slots.Culture.NumberFormat;
+
+        if (string.Equals(signDisplay, "never", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (wasNegative)
+        {
+            // Determine if we should show minus sign for this negative value
+            var showMinus = signDisplay switch
+            {
+                "auto" or "always" => true, // auto/always: show minus for all negative including -0
+                "exceptZero" => !isZero, // exceptZero: no sign for -0
+                "negative" => !isZero, // negative: minus only for negative non-zero
+                _ => true
+            };
+
+            if (showMinus)
+            {
+                var minus = nf.NegativeSign;
+                result.Formatted = $"{minus}{result.Formatted}";
+                result.Parts?.Insert(0, new NumberFormatPart("minusSign", minus));
+            }
+
+            return;
+        }
+
+        // Positive value: determine if we should show plus sign
+        var showPlus = signDisplay switch
+        {
+            "always" => true,
+            "exceptZero" => !isZero,
+            _ => false // "auto", "negative"
+        };
+
+        if (showPlus)
+        {
+            var plus = nf.PositiveSign;
+            result.Formatted = $"{plus}{result.Formatted}";
+            result.Parts?.Insert(0, new NumberFormatPart("plusSign", plus));
+        }
+    }
+
+    private static IntlNumberFormatResult FormatDecimalWithParts(
+        DecimalQuantity quantity,
+        IntlNumberFormatInternalSlots slots)
+    {
+        var decimal_ = FormatDecimal(quantity, slots, slots.UseGrouping, false);
+        var parts = new List<NumberFormatPart>();
+
+        if (slots.ShouldUseGrouping && decimal_.IntegerDigits.Contains(
+                slots.Culture.NumberFormat.NumberGroupSeparator, StringComparison.Ordinal))
+        {
+            // Split grouped integer into group parts
+            var groupSep = slots.Culture.NumberFormat.NumberGroupSeparator;
+            var segments = decimal_.IntegerDigits.Split(groupSep);
+            for (var i = 0; i < segments.Length; i++)
+            {
+                if (i > 0)
+                {
+                    parts.Add(new NumberFormatPart("group", groupSep));
+                }
+
+                parts.Add(new NumberFormatPart("integer", segments[i]));
+            }
+        }
+        else
+        {
+            parts.Add(new NumberFormatPart("integer",
+                decimal_.IntegerDigits.Length > 0 ? decimal_.IntegerDigits : "0"));
+        }
+
+        if (!string.IsNullOrEmpty(decimal_.FractionDigits))
+        {
+            parts.Add(new NumberFormatPart("decimal", decimal_.DecimalSeparator));
+            parts.Add(new NumberFormatPart("fraction", decimal_.FractionDigits));
+        }
+
+        return IntlNumberFormatResult.FromParts(decimal_.Formatted, parts);
+    }
+
     private static DecimalFormatResult FormatDecimal(
         DecimalQuantity quantity,
         IntlNumberFormatInternalSlots slots,
-        bool useGrouping,
+        string useGrouping,
         bool trimTrailingZeros,
         int? minimumIntegerOverride = null)
     {
@@ -143,7 +228,7 @@ internal static class IntlNumberFormatter
             fractionDigits = new string('0', slots.MinimumFractionDigits);
         }
 
-        var integerPortion = useGrouping
+        var integerPortion = ShouldApplyGrouping(useGrouping, integerDigits, slots.Culture.NumberFormat)
             ? ApplyGrouping(integerDigits, slots.Culture.NumberFormat)
             : integerDigits;
 
@@ -235,7 +320,7 @@ internal static class IntlNumberFormatter
 
         ApplyMaximumFractionDigits(mantissaQuantity, slots.MaximumFractionDigits);
 
-        var mantissa = FormatDecimal(mantissaQuantity, slots, false, true,
+        var mantissa = FormatDecimal(mantissaQuantity, slots, "false", true,
             Math.Max(1, intDigits));
 
         var parts = new List<NumberFormatPart>();
@@ -316,7 +401,65 @@ internal static class IntlNumberFormatter
         return quotient;
     }
 
-    private static void ApplyMaximumFractionDigits(DecimalQuantity quantity, int maxFractionDigits)
+    private static void ApplyRoundingIncrement(
+        DecimalQuantity quantity,
+        int maxFractionDigits,
+        int roundingIncrement,
+        bool isNegative,
+        string roundingMode)
+    {
+        // Scale the coefficient to maxFractionDigits precision without rounding
+        if (quantity.Scale < maxFractionDigits)
+        {
+            var diff = maxFractionDigits - quantity.Scale;
+            quantity.Coefficient *= Pow10(diff);
+            quantity.Scale = maxFractionDigits;
+        }
+
+        // For scales > maxFractionDigits, we need to combine the extra digits with
+        // the increment rounding. Scale to maxFractionDigits + extra precision for accurate rounding.
+        BigInteger scaledCoefficient;
+        int extraScale;
+        if (quantity.Scale > maxFractionDigits)
+        {
+            extraScale = quantity.Scale - maxFractionDigits;
+            scaledCoefficient = quantity.Coefficient;
+        }
+        else
+        {
+            extraScale = 0;
+            scaledCoefficient = quantity.Coefficient;
+        }
+
+        // The rounding increment applies at the maxFractionDigits level.
+        // We need to round scaledCoefficient / 10^extraScale to nearest multiple of roundingIncrement.
+        var increment = new BigInteger(roundingIncrement);
+        var scaleFactor = Pow10(extraScale);
+        var atTargetScale = BigInteger.DivRem(scaledCoefficient, scaleFactor, out var subRemainder);
+        var remainder = atTargetScale % increment;
+
+        // Combine the sub-scale remainder with the increment remainder for accurate rounding
+        var totalRemainder = remainder * scaleFactor + subRemainder;
+        var totalDivisor = increment * scaleFactor;
+
+        var truncated = atTargetScale - remainder;
+        if (ShouldRoundUp(totalRemainder, totalDivisor, truncated / increment, isNegative, roundingMode))
+        {
+            quantity.Coefficient = truncated + increment;
+        }
+        else
+        {
+            quantity.Coefficient = truncated;
+        }
+
+        quantity.Scale = maxFractionDigits;
+    }
+
+    private static void ApplyMaximumFractionDigits(
+        DecimalQuantity quantity,
+        int maxFractionDigits,
+        bool isNegative = false,
+        string roundingMode = "halfExpand")
     {
         if (quantity.Scale <= maxFractionDigits)
         {
@@ -324,11 +467,15 @@ internal static class IntlNumberFormatter
         }
 
         var digitsToTrim = quantity.Scale - maxFractionDigits;
-        TrimCoefficient(quantity, digitsToTrim);
+        TrimCoefficient(quantity, digitsToTrim, isNegative, roundingMode);
         quantity.Scale = maxFractionDigits;
     }
 
-    private static void ApplyMaximumSignificantDigits(DecimalQuantity quantity, int maxDigits)
+    private static void ApplyMaximumSignificantDigits(
+        DecimalQuantity quantity,
+        int maxDigits,
+        bool isNegative = false,
+        string roundingMode = "halfExpand")
     {
         if (quantity.Coefficient.IsZero)
         {
@@ -345,12 +492,24 @@ internal static class IntlNumberFormatter
         var diff = totalDigits - maxDigits;
         var divisor = Pow10(diff);
         var rounded = BigInteger.DivRem(quantity.Coefficient, divisor, out var remainder);
-        if (ShouldRoundUp(remainder, divisor))
+        if (ShouldRoundUp(remainder, divisor, rounded, isNegative, roundingMode))
         {
             rounded += BigInteger.One;
         }
 
-        quantity.Coefficient = rounded * divisor;
+        if (quantity.Scale >= diff)
+        {
+            // All trimmed digits are in the fractional part - reduce scale
+            quantity.Coefficient = rounded;
+            quantity.Scale -= diff;
+        }
+        else
+        {
+            // Some trimmed digits are in the integer part - keep trailing zeros
+            var integerZeros = diff - quantity.Scale;
+            quantity.Coefficient = rounded * Pow10(integerZeros);
+            quantity.Scale = 0;
+        }
     }
 
     private static void EnsureMinimumSignificantDigits(DecimalQuantity quantity, int minDigits)
@@ -394,7 +553,11 @@ internal static class IntlNumberFormatter
         quantity.Scale = 0;
     }
 
-    private static void TrimCoefficient(DecimalQuantity quantity, int digitsToTrim)
+    private static void TrimCoefficient(
+        DecimalQuantity quantity,
+        int digitsToTrim,
+        bool isNegative = false,
+        string roundingMode = "halfExpand")
     {
         if (digitsToTrim <= 0 || quantity.Coefficient.IsZero)
         {
@@ -403,7 +566,7 @@ internal static class IntlNumberFormatter
 
         var divisor = Pow10(digitsToTrim);
         var truncated = BigInteger.DivRem(quantity.Coefficient, divisor, out var remainder);
-        if (ShouldRoundUp(remainder, divisor))
+        if (ShouldRoundUp(remainder, divisor, truncated, isNegative, roundingMode))
         {
             truncated += BigInteger.One;
         }
@@ -438,6 +601,27 @@ internal static class IntlNumberFormatter
         }
 
         return new string('0', minimum - digits.Length) + digits;
+    }
+
+    private static bool ShouldApplyGrouping(string useGrouping, string integerDigits, NumberFormatInfo format)
+    {
+        if (string.Equals(useGrouping, "false", StringComparison.Ordinal) ||
+            string.Equals(useGrouping, "never", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (string.Equals(useGrouping, "min2", StringComparison.Ordinal))
+        {
+            // "min2" means minimum 2 digits in the most significant group
+            // For groupSize=3: 1,000 (1 digit before separator → no grouping)
+            //                  10,000 (2 digits before separator → apply grouping)
+            var groupSize = format.NumberGroupSizes.Length > 0 ? format.NumberGroupSizes[0] : 3;
+            return groupSize > 0 && integerDigits.Length >= groupSize + 2;
+        }
+
+        // "auto", "always", or "true" - all apply grouping
+        return true;
     }
 
     private static string ApplyGrouping(string digits, NumberFormatInfo format)
@@ -539,6 +723,66 @@ internal static class IntlNumberFormatter
         }
 
         return remainder * 2 >= divisor;
+    }
+
+    private static bool ShouldRoundUp(
+        BigInteger remainder,
+        BigInteger divisor,
+        BigInteger truncated,
+        bool isNegative,
+        string roundingMode)
+    {
+        if (remainder.IsZero)
+        {
+            return false;
+        }
+
+        return roundingMode switch
+        {
+            "ceil" => !isNegative,
+            "floor" => isNegative,
+            "expand" => true, // always away from zero
+            "trunc" => false, // always toward zero
+            "halfCeil" => HalfRound(remainder, divisor, !isNegative),
+            "halfFloor" => HalfRound(remainder, divisor, isNegative),
+            "halfExpand" => remainder * 2 >= divisor, // away from zero on tie
+            "halfTrunc" => remainder * 2 > divisor, // toward zero on tie
+            "halfEven" => HalfEven(remainder, divisor, truncated),
+            _ => remainder * 2 >= divisor // default: halfExpand
+        };
+    }
+
+    private static bool HalfRound(BigInteger remainder, BigInteger divisor, bool roundUpOnTie)
+    {
+        var doubled = remainder * 2;
+        if (doubled > divisor)
+        {
+            return true;
+        }
+
+        if (doubled < divisor)
+        {
+            return false;
+        }
+
+        return roundUpOnTie;
+    }
+
+    private static bool HalfEven(BigInteger remainder, BigInteger divisor, BigInteger truncated)
+    {
+        var doubled = remainder * 2;
+        if (doubled > divisor)
+        {
+            return true;
+        }
+
+        if (doubled < divisor)
+        {
+            return false;
+        }
+
+        // On tie, round to even
+        return !truncated.IsEven;
     }
 
     private static BigInteger Pow10(int exponent)

@@ -47,6 +47,7 @@ public sealed class JsTemporalPlainDateTime : IEquatable<JsTemporalPlainDateTime
     public int DayOfWeek => Date.DayOfWeek;
     public int DayOfYear => Date.DayOfYear;
     public int WeekOfYear => Date.WeekOfYear;
+    public int YearOfWeek => Date.YearOfWeek;
     public int DaysInMonth => Date.DaysInMonth;
     public int DaysInYear => Date.DaysInYear;
     public int MonthsInYear => Date.MonthsInYear;

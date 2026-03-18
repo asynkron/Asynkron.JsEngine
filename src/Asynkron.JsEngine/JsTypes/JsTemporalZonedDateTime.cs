@@ -207,17 +207,26 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
     public int DayOfYear => LocalDateTimeOffset.DayOfYear;
 
     /// <summary>
-    ///     The ISO week number.
+    ///     The ISO 8601 week number.
     /// </summary>
     public int WeekOfYear
     {
         get
         {
-            var culture = CultureInfo.InvariantCulture;
-            return culture.Calendar.GetWeekOfYear(
-                LocalDateTimeOffset.DateTime,
-                CalendarWeekRule.FirstFourDayWeek,
-                System.DayOfWeek.Monday);
+            var dt = LocalDateTimeOffset.DateTime;
+            return ISOWeek.GetWeekOfYear(dt);
+        }
+    }
+
+    /// <summary>
+    ///     The year that the ISO week belongs to.
+    /// </summary>
+    public int YearOfWeek
+    {
+        get
+        {
+            var dt = LocalDateTimeOffset.DateTime;
+            return ISOWeek.GetYear(dt);
         }
     }
 

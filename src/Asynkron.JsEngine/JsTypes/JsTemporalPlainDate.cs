@@ -39,18 +39,27 @@ public sealed class JsTemporalPlainDate(int year, int month, int day, string cal
     public int DayOfYear => ToDateOnly().DayOfYear;
 
     /// <summary>
-    ///     The ISO week number.
+    ///     The ISO 8601 week number.
     /// </summary>
     public int WeekOfYear
     {
         get
         {
-            var date = ToDateOnly();
-            var culture = CultureInfo.InvariantCulture;
-            return culture.Calendar.GetWeekOfYear(
-                date.ToDateTime(TimeOnly.MinValue),
-                CalendarWeekRule.FirstFourDayWeek,
-                System.DayOfWeek.Monday);
+            var dt = new DateTime(Year, Month, Day);
+            return ISOWeek.GetWeekOfYear(dt);
+        }
+    }
+
+    /// <summary>
+    ///     The year that the ISO week belongs to.
+    ///     Near year boundaries, this may differ from the calendar year.
+    /// </summary>
+    public int YearOfWeek
+    {
+        get
+        {
+            var dt = new DateTime(Year, Month, Day);
+            return ISOWeek.GetYear(dt);
         }
     }
 
@@ -85,15 +94,64 @@ public sealed class JsTemporalPlainDate(int year, int month, int day, string cal
     }
 
     /// <summary>
-    ///     Creates a PlainDate from an ISO 8601 string (YYYY-MM-DD).
+    ///     Creates a PlainDate from an ISO 8601 string.
+    ///     Supports YYYY-MM-DD and extended year format (+/-YYYYYY-MM-DD).
     /// </summary>
     public static JsTemporalPlainDate From(string isoString)
     {
-        // Simple parsing - full implementation would handle more formats
-        if (DateOnly.TryParseExact(isoString, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+        var s = isoString;
+
+        // Strip calendar annotation if present (e.g., [u-ca=iso8601])
+        var bracketIdx = s.IndexOf('[');
+        var calendar = "iso8601";
+        if (bracketIdx >= 0)
+        {
+            var annotation = s[(bracketIdx + 1)..].TrimEnd(']');
+            if (annotation.StartsWith("u-ca=", StringComparison.Ordinal))
+            {
+                calendar = annotation[5..];
+            }
+            s = s[..bracketIdx];
+        }
+
+        // Strip time portion if present (e.g., 2020-01-01T00:00:00)
+        var tIdx = s.IndexOf('T');
+        if (tIdx >= 0)
+        {
+            s = s[..tIdx];
+        }
+
+        // Try standard YYYY-MM-DD format first
+        if (DateOnly.TryParseExact(s, "yyyy-MM-dd", CultureInfo.InvariantCulture,
                 DateTimeStyles.None, out var date))
         {
-            return new JsTemporalPlainDate(date);
+            return new JsTemporalPlainDate(date, calendar);
+        }
+
+        // Handle extended year format: +YYYYYY-MM-DD or -YYYYYY-MM-DD
+        if (s.Length > 0 && (s[0] == '+' || s[0] == '-' || s[0] == '\u2212'))
+        {
+            var sign = s[0] == '-' || s[0] == '\u2212' ? -1 : 1;
+            var rest = s[1..];
+            // Find the month-day portion (last 6 chars: -MM-DD)
+            var lastDash = rest.LastIndexOf('-');
+            if (lastDash > 0)
+            {
+                var secondLastDash = rest.LastIndexOf('-', lastDash - 1);
+                if (secondLastDash > 0)
+                {
+                    var yearStr = rest[..secondLastDash];
+                    var monthStr = rest[(secondLastDash + 1)..lastDash];
+                    var dayStr = rest[(lastDash + 1)..];
+
+                    if (int.TryParse(yearStr, CultureInfo.InvariantCulture, out var year) &&
+                        int.TryParse(monthStr, CultureInfo.InvariantCulture, out var month) &&
+                        int.TryParse(dayStr, CultureInfo.InvariantCulture, out var day))
+                    {
+                        return new JsTemporalPlainDate(sign * year, month, day, calendar);
+                    }
+                }
+            }
         }
 
         throw new FormatException($"Invalid PlainDate string: {isoString}");
@@ -225,7 +283,14 @@ public sealed class JsTemporalPlainDate(int year, int month, int day, string cal
             return 1;
         }
 
-        return ToDateOnly().CompareTo(other.ToDateOnly());
+        var c = Year.CompareTo(other.Year);
+        if (c != 0)
+        {
+            return c;
+        }
+
+        c = Month.CompareTo(other.Month);
+        return c != 0 ? c : Day.CompareTo(other.Day);
     }
 
     public bool Equals(JsTemporalPlainDate? other)
@@ -250,11 +315,24 @@ public sealed class JsTemporalPlainDate(int year, int month, int day, string cal
     }
 
     /// <summary>
-    ///     Returns ISO 8601 date string (YYYY-MM-DD).
+    ///     Returns ISO 8601 date string.
+    ///     Standard years: YYYY-MM-DD. Extended years: +YYYYYY-MM-DD or -YYYYYY-MM-DD.
     /// </summary>
     public override string ToString()
     {
-        var result = $"{Year:D4}-{Month:D2}-{Day:D2}";
+        string yearStr;
+        if (Year is >= 0 and <= 9999)
+        {
+            yearStr = Year.ToString("D4", CultureInfo.InvariantCulture);
+        }
+        else
+        {
+            // Extended year format with sign prefix and 6 digits
+            var absYear = Math.Abs(Year);
+            yearStr = (Year < 0 ? "-" : "+") + absYear.ToString("D6", CultureInfo.InvariantCulture);
+        }
+
+        var result = $"{yearStr}-{Month.ToString("D2", CultureInfo.InvariantCulture)}-{Day.ToString("D2", CultureInfo.InvariantCulture)}";
         if (!string.Equals(Calendar, "iso8601", StringComparison.Ordinal))
         {
             result += $"[u-ca={Calendar}]";

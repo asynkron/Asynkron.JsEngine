@@ -290,7 +290,8 @@ internal static partial class IntlUtilities
         for (var i = 0; i < 3; i++)
         {
             var ch = code[i];
-            if (!char.IsLetter(ch))
+            // Must be ASCII letter only (not Unicode letters like ı)
+            if (!((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z')))
             {
                 return false;
             }
@@ -315,11 +316,34 @@ internal static partial class IntlUtilities
             return false;
         }
 
-        var normalized = candidate.Trim().ToLowerInvariant();
-        if (UnitSet.Contains(normalized))
+        // Per spec, unit identifiers must be well-formed (lowercase ASCII and hyphens only)
+        foreach (var ch in candidate)
         {
-            canonical = normalized;
+            if (!((ch >= 'a' && ch <= 'z') || ch == '-'))
+            {
+                return false;
+            }
+        }
+
+        // Simple unit
+        if (UnitSet.Contains(candidate))
+        {
+            canonical = candidate;
             return true;
+        }
+
+        // Compound unit: simpleUnit "-per-" simpleUnit
+        const string perSeparator = "-per-";
+        var perIndex = candidate.IndexOf(perSeparator, StringComparison.Ordinal);
+        if (perIndex > 0)
+        {
+            var numerator = candidate[..perIndex];
+            var denominator = candidate[(perIndex + perSeparator.Length)..];
+            if (UnitSet.Contains(numerator) && UnitSet.Contains(denominator))
+            {
+                canonical = candidate;
+                return true;
+            }
         }
 
         return false;

@@ -145,7 +145,18 @@ public static partial class IntlHelper
     internal static JsArray ResolveSupportedLocales(JsValue localesArg, JsValue optionsArg, RealmState realm)
     {
         var requestedLocales = IntlUtilities.CanonicalizeLocaleList(localesArg, realm);
-        var options = IntlOptionHelpers.GetOptionsObject(optionsArg, realm, "supportedLocalesOf");
+        // Per spec: SupportedLocales uses ToObject(options) for non-undefined values,
+        // which wraps primitives into their boxed object forms.
+        IJsPropertyAccessor? options;
+        if (optionsArg.Kind == JsValueKind.Undefined)
+        {
+            options = null;
+        }
+        else
+        {
+            options = StandardLibrary.ToObjectPropertyAccessor(optionsArg, "supportedLocalesOf", realm);
+        }
+
         var _ = IntlOptionHelpers.GetStringOption(
             options,
             "localeMatcher",

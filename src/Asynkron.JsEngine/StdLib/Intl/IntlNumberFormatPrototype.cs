@@ -46,11 +46,94 @@ public sealed partial class IntlNumberFormatPrototype
         return JsValue.FromJsArray(partsArray);
     }
 
+    [JsHostMethod("formatRange", Length = 2d)]
+    public JsValue FormatRange(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var nf = ValidateNumberFormatReceiver(thisValue);
+        var x = args.GetArgument(0);
+        var y = args.GetArgument(1);
+
+        if (x.IsUndefined || y.IsUndefined)
+        {
+            throw ThrowTypeError("start and end values are required", realm: Realm);
+        }
+
+        var xNum = ConvertToNumericForRange(x);
+        var yNum = ConvertToNumericForRange(y);
+
+        if (double.IsNaN(xNum) || double.IsNaN(yNum))
+        {
+            throw ThrowRangeError("start and end values must not be NaN", realm: Realm);
+        }
+
+        var slots = GetSlots(nf);
+        var xResult = IntlNumberFormatter.FormatDouble(xNum, slots);
+        var yResult = IntlNumberFormatter.FormatDouble(yNum, slots);
+
+        // Simple range format: "x – y"
+        return (JsValue)$"{xResult.Formatted}\u2009\u2013\u2009{yResult.Formatted}";
+    }
+
+    [JsHostMethod("formatRangeToParts", Length = 2d)]
+    public JsValue FormatRangeToParts(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var nf = ValidateNumberFormatReceiver(thisValue);
+        var x = args.GetArgument(0);
+        var y = args.GetArgument(1);
+
+        if (x.IsUndefined || y.IsUndefined)
+        {
+            throw ThrowTypeError("start and end values are required", realm: Realm);
+        }
+
+        var xNum = ConvertToNumericForRange(x);
+        var yNum = ConvertToNumericForRange(y);
+
+        if (double.IsNaN(xNum) || double.IsNaN(yNum))
+        {
+            throw ThrowRangeError("start and end values must not be NaN", realm: Realm);
+        }
+
+        var slots = GetSlots(nf);
+        var xResult = IntlNumberFormatter.FormatDouble(xNum, slots);
+        var yResult = IntlNumberFormatter.FormatDouble(yNum, slots);
+
+        var partsArray = new JsArray(Realm);
+
+        // Start value parts
+        AddRangePart(partsArray, "integer", xResult.Formatted, "startRange");
+        AddRangePart(partsArray, "literal", "\u2009\u2013\u2009", "shared");
+        AddRangePart(partsArray, "integer", yResult.Formatted, "endRange");
+
+        return JsValue.FromJsArray(partsArray);
+    }
+
     [JsHostMethod("resolvedOptions", Length = 0d)]
     public JsValue ResolvedOptions(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var nf = ValidateNumberFormatReceiver(thisValue);
         return new JsValue(CreateNumberFormatResolvedOptions(nf));
+    }
+
+    private double ConvertToNumericForRange(JsValue value)
+    {
+        var context = Realm.CreateContext();
+        var numericValue = JsOps.ToNumericAsJsValue(in value, context);
+        if (context.IsThrow)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        return numericValue.IsBigInt ? (double)numericValue.AsBigInt().Value : numericValue.NumberValue;
+    }
+
+    private void AddRangePart(JsArray array, string type, string value, string source)
+    {
+        var entry = new JsObject(Realm.ObjectPrototype);
+        entry.SetProperty("type", (JsValue)type);
+        entry.SetProperty("value", (JsValue)value);
+        entry.SetProperty("source", (JsValue)source);
+        array.Push(entry);
     }
 
     private JsObject ValidateNumberFormatReceiver(JsValue thisValue)
@@ -100,50 +183,78 @@ public sealed partial class IntlNumberFormatPrototype
         var slots = GetSlots(nf);
         var obj = new JsObject(Realm.ObjectPrototype);
         const string operation = "Intl.NumberFormat.prototype.resolvedOptions";
+
+        // Properties in spec-defined order, only included when relevant
         CreateDataPropertyOrThrowJsValue(obj, "locale", slots.Locale, Realm, operation);
         CreateDataPropertyOrThrowJsValue(obj, "numberingSystem", slots.NumberingSystem, Realm, operation);
         CreateDataPropertyOrThrowJsValue(obj, "style", slots.Style, Realm, operation);
-        CreateDataPropertyOrThrowJsValue(obj, "currency",
-            slots.Currency is { Length: > 0 } currencyValue ? currencyValue : JsValue.Undefined,
-            Realm, operation);
-        CreateDataPropertyOrThrowJsValue(obj, "currencyDisplay",
-            string.Equals(slots.Style, "currency", StringComparison.Ordinal) ? slots.CurrencyDisplay : JsValue.Undefined,
-            Realm, operation);
-        CreateDataPropertyOrThrowJsValue(obj, "currencySign",
-            string.Equals(slots.Style, "currency", StringComparison.Ordinal) ? slots.CurrencySign : "standard",
-            Realm, operation);
-        CreateDataPropertyOrThrowJsValue(obj, "minimumIntegerDigits", (double)slots.MinimumIntegerDigits, Realm, operation);
-        if (slots.UseSignificantDigits)
+
+        // currency/currencyDisplay/currencySign only when style is "currency"
+        if (string.Equals(slots.Style, "currency", StringComparison.Ordinal))
         {
-            CreateDataPropertyOrThrowJsValue(obj, "minimumSignificantDigits", (double)(slots.MinimumSignificantDigits ?? 1),
-                Realm, operation);
-            CreateDataPropertyOrThrowJsValue(obj, "maximumSignificantDigits", (double)(slots.MaximumSignificantDigits ?? 21),
-                Realm, operation);
-            CreateDataPropertyOrThrowJsValue(obj, "minimumFractionDigits", JsValue.Undefined, Realm, operation);
-            CreateDataPropertyOrThrowJsValue(obj, "maximumFractionDigits", JsValue.Undefined, Realm, operation);
-        }
-        else
-        {
-            CreateDataPropertyOrThrowJsValue(obj, "minimumSignificantDigits", JsValue.Undefined, Realm, operation);
-            CreateDataPropertyOrThrowJsValue(obj, "maximumSignificantDigits", JsValue.Undefined, Realm, operation);
-            CreateDataPropertyOrThrowJsValue(obj, "minimumFractionDigits", (double)slots.MinimumFractionDigits, Realm, operation);
-            CreateDataPropertyOrThrowJsValue(obj, "maximumFractionDigits", (double)slots.MaximumFractionDigits, Realm, operation);
+            CreateDataPropertyOrThrowJsValue(obj, "currency",
+                slots.Currency ?? string.Empty, Realm, operation);
+            CreateDataPropertyOrThrowJsValue(obj, "currencyDisplay", slots.CurrencyDisplay, Realm, operation);
+            CreateDataPropertyOrThrowJsValue(obj, "currencySign", slots.CurrencySign, Realm, operation);
         }
 
-        CreateDataPropertyOrThrowJsValue(obj, "useGrouping", slots.UseGrouping ? "auto" : "never", Realm, operation);
-        CreateDataPropertyOrThrowJsValue(obj, "notation", slots.Notation, Realm, operation);
-        CreateDataPropertyOrThrowJsValue(obj, "signDisplay", slots.SignDisplay, Realm, operation);
+        // unit/unitDisplay only when style is "unit"
         if (string.Equals(slots.Style, "unit", StringComparison.Ordinal))
         {
-            CreateDataPropertyOrThrowJsValue(obj, "unit", slots.Unit is { Length: > 0 } unitValue ? unitValue : JsValue.Undefined,
-                Realm, operation);
+            CreateDataPropertyOrThrowJsValue(obj, "unit",
+                slots.Unit ?? string.Empty, Realm, operation);
             CreateDataPropertyOrThrowJsValue(obj, "unitDisplay", slots.UnitDisplay, Realm, operation);
+        }
+
+        CreateDataPropertyOrThrowJsValue(obj, "minimumIntegerDigits", (double)slots.MinimumIntegerDigits, Realm,
+            operation);
+
+        // Digit properties depend on rounding type
+        var roundingType = slots.RoundingType;
+        var showFractionDigits = roundingType is "fractionDigits" or "morePrecision" or "lessPrecision";
+        var showSignificantDigits = roundingType is "significantDigits" or "morePrecision" or "lessPrecision";
+
+        if (showFractionDigits || roundingType is "compactRounding")
+        {
+            CreateDataPropertyOrThrowJsValue(obj, "minimumFractionDigits", (double)slots.MinimumFractionDigits, Realm,
+                operation);
+            CreateDataPropertyOrThrowJsValue(obj, "maximumFractionDigits", (double)slots.MaximumFractionDigits, Realm,
+                operation);
+        }
+
+        if (showSignificantDigits)
+        {
+            CreateDataPropertyOrThrowJsValue(obj, "minimumSignificantDigits",
+                (double)(slots.MinimumSignificantDigits ?? 1), Realm, operation);
+            CreateDataPropertyOrThrowJsValue(obj, "maximumSignificantDigits",
+                (double)(slots.MaximumSignificantDigits ?? 21), Realm, operation);
+        }
+
+        // useGrouping
+        if (string.Equals(slots.UseGrouping, "false", StringComparison.Ordinal))
+        {
+            CreateDataPropertyOrThrowJsValue(obj, "useGrouping", false, Realm, operation);
         }
         else
         {
-            CreateDataPropertyOrThrowJsValue(obj, "unit", JsValue.Undefined, Realm, operation);
-            CreateDataPropertyOrThrowJsValue(obj, "unitDisplay", JsValue.Undefined, Realm, operation);
+            CreateDataPropertyOrThrowJsValue(obj, "useGrouping", slots.UseGrouping, Realm, operation);
         }
+
+        CreateDataPropertyOrThrowJsValue(obj, "notation", slots.Notation, Realm, operation);
+
+        // compactDisplay only when notation is "compact"
+        if (string.Equals(slots.Notation, "compact", StringComparison.Ordinal))
+        {
+            CreateDataPropertyOrThrowJsValue(obj, "compactDisplay", slots.CompactDisplay ?? "short", Realm, operation);
+        }
+
+        CreateDataPropertyOrThrowJsValue(obj, "signDisplay", slots.SignDisplay, Realm, operation);
+
+        // v3 properties
+        CreateDataPropertyOrThrowJsValue(obj, "roundingIncrement", (double)slots.RoundingIncrement, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "roundingMode", slots.RoundingMode, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "roundingPriority", slots.RoundingPriority, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "trailingZeroDisplay", slots.TrailingZeroDisplay, Realm, operation);
 
         return obj;
     }

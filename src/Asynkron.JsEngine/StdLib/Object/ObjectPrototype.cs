@@ -17,62 +17,55 @@ public sealed partial class ObjectPrototype
     /// The intrinsic %Object.prototype.toString% function. Use this method when the ES spec
     /// requires calling the intrinsic rather than the user-modifiable Object.prototype.toString.
     /// </summary>
-    internal static JsValue IntrinsicToString(JsValue thisValue) => ToString(thisValue);
+    internal static JsValue IntrinsicToString(JsValue thisValue) => ToStringCore(thisValue, null);
 
     [JsHostMethod("toString", Length = 0d)]
-    private static JsValue ToString(JsValue thisValue)
+    private JsValue ToString(JsValue thisValue)
+    {
+        return ToStringCore(thisValue, Realm);
+    }
+
+    private static JsValue ToStringCore(JsValue thisValue, RealmState? realm)
     {
         // ES spec: Object.prototype.toString
-        // 1-3. Let O be ToObject(this value)
-        // 4. Let isArray = IsArray(O)
-        // 5-14. Determine builtinTag based on internal slots
-        // 15. Let tag = Get(O, @@toStringTag)
-        // 16. If Type(tag) is not String, set tag to builtinTag
-        // 17. Return "[object " + tag + "]"
+        // 1. If the this value is undefined, return "[object Undefined]".
+        if (thisValue.IsUndefined)
+        {
+            return "[object Undefined]";
+        }
 
-        // First, determine the builtinTag based on internal slots and type
-        string builtinTag;
+        // 2. If the this value is null, return "[object Null]".
         if (thisValue.IsNull)
         {
-            builtinTag = "Null";
+            return "[object Null]";
         }
-        else if (thisValue.IsUndefined)
+
+        // 3. Let O be ! ToObject(this value).
+        // For primitives, we need to convert to wrapper objects to correctly
+        // determine builtinTag (based on internal slots) and look up @@toStringTag.
+        IJsPropertyAccessor? wrapper = null;
+        if (!thisValue.TryGetObject<IJsPropertyAccessor>(out var objAccessor))
         {
-            builtinTag = "Undefined";
+            // Primitive - convert to wrapper
+            if (realm is not null && TryGetObject(thisValue, realm, out var wrappedObj))
+            {
+                wrapper = wrappedObj;
+                objAccessor = wrappedObj;
+            }
         }
-        else if (thisValue.IsString)
-        {
-            builtinTag = "String";
-        }
-        else if (thisValue.IsNumber)
-        {
-            builtinTag = "Number";
-        }
-        else if (thisValue.IsBoolean)
-        {
-            builtinTag = "Boolean";
-        }
-        else if (thisValue.IsBigInt)
-        {
-            builtinTag = "BigInt";
-        }
-        else if (thisValue.IsSymbol)
-        {
-            builtinTag = "Symbol";
-        }
-        else if (thisValue.TryGetObject<JsArray>(out _))
+
+        // 4-14. Determine builtinTag based on internal slots
+        string builtinTag;
+        if (thisValue.TryGetObject<JsArray>(out _))
         {
             builtinTag = "Array";
         }
         else if (thisValue.TryGetObject<JsArgumentsObject>(out _))
         {
-            // ES spec: If O has [[ParameterMap]] internal slot, builtinTag is "Arguments"
             builtinTag = "Arguments";
         }
         else if (thisValue.TryGetObject<JsProxy>(out var proxy))
         {
-            // ES spec: Proxies don't expose internal slots of their targets
-            // A proxy is either callable (if target is callable) or not
             builtinTag = proxy.Target is IJsCallable ? "Function" : "Object";
         }
         else if (thisValue.TryGetObject<IJsCallable>(out _))
@@ -81,37 +74,30 @@ public sealed partial class ObjectPrototype
         }
         else if (thisValue.TryGetObject<JsObject>(out var obj))
         {
-            // Check for internal slots that indicate specific object types
-            // ES spec step 9: [[ErrorData]] -> "Error"
-            // ES spec step 10: [[BooleanData]] -> "Boolean"
-            // ES spec step 11: [[NumberData]] -> "Number"
-            // ES spec step 12: [[StringData]] -> "String"
-            // ES spec step 13: [[DateValue]] -> "Date"
-            // ES spec step 14: [[RegExpMatcher]] -> "RegExp"
             builtinTag = GetBuiltinTagFromInternalSlots(obj);
+        }
+        else if (wrapper is JsObject wrapperObj)
+        {
+            // Primitive was converted to wrapper - check internal slots on wrapper
+            builtinTag = GetBuiltinTagFromInternalSlots(wrapperObj);
         }
         else
         {
             builtinTag = "Object";
         }
 
-        // Now check for @@toStringTag - only use it if it's a string
+        // 15. Let tag = ? Get(O, @@toStringTag).
+        // 16. If Type(tag) is not String, set tag to builtinTag.
         var tagKey = SymbolKeys.ToStringTag;
-        if (thisValue.TryGetObject<JsObject>(out var objForTag))
+        if (objAccessor is not null)
         {
-            if (objForTag.TryGetProperty(tagKey, out var tagValue) && tagValue.IsString)
-            {
-                return $"[object {tagValue.AsString()}]";
-            }
-        }
-        else if (thisValue.TryGetObject<IJsPropertyAccessor>(out var accessor))
-        {
-            if (accessor.TryGetProperty(tagKey, out var tagValue) && tagValue.IsString)
+            if (objAccessor.TryGetProperty(tagKey, out var tagValue) && tagValue.IsString)
             {
                 return $"[object {tagValue.AsString()}]";
             }
         }
 
+        // 17. Return "[object " + tag + "]".
         return $"[object {builtinTag}]";
     }
 
@@ -137,12 +123,6 @@ public sealed partial class ObjectPrototype
             regExpDescriptor.JsValue.TryGetObject<JsRegExp>(out _))
         {
             return "RegExp";
-        }
-
-        // Check for [[GeneratorState]] - set by generator object creation
-        if (obj.GetOwnPropertyDescriptor("__generator_brand__") is not null)
-        {
-            return "Generator";
         }
 
         // Check for [[BooleanData]], [[NumberData]], [[StringData]] via __value__ property.

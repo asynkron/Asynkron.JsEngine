@@ -11,12 +11,14 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 public sealed partial class IntlDurationFormatPrototype
 {
     private const string BrandKey = "__durationFormat__";
-    private const string SlotsKey = "__durationFormatSlots__";
+    private const string LocaleSlot = "__locale__";
 
-    internal static void InitializeInternalSlots(JsObject instance, IntlDurationFormatInternalSlots slots)
+    internal static void InitializeInternalSlots(JsObject instance, string locale, string numberingSystem, string style)
     {
         instance.SetProperty(BrandKey, true);
-        instance.SetProperty(SlotsKey, JsValue.FromObjectUnsafe(slots));
+        instance.SetProperty(LocaleSlot, locale);
+        instance.SetProperty("__numberingSystem__", numberingSystem);
+        instance.SetProperty("__style__", style);
     }
 
     [JsHostMethod("format", Length = 0d)]
@@ -37,44 +39,45 @@ public sealed partial class IntlDurationFormatPrototype
     private JsValue ResolvedOptions(JsValue thisValue)
     {
         var instance = ValidateReceiver(thisValue);
-        if (!instance.TryGetProperty(SlotsKey, out var slotsValue) ||
-            !slotsValue.TryGetObject<IntlDurationFormatInternalSlots>(out var slots))
-        {
-            throw ThrowTypeError("Intl.DurationFormat internal slots not found", realm: Realm);
-        }
         var obj = new JsObject(Realm.ObjectPrototype);
-        const string op = "Intl.DurationFormat.prototype.resolvedOptions";
+        const string operation = "Intl.DurationFormat.prototype.resolvedOptions";
 
-        CreateDataPropertyOrThrow(obj, "locale", slots.Locale, Realm, op);
-        CreateDataPropertyOrThrow(obj, "numberingSystem", slots.NumberingSystem, Realm, op);
-        CreateDataPropertyOrThrow(obj, "style", slots.Style, Realm, op);
-        CreateDataPropertyOrThrow(obj, "years", slots.YearsStyle, Realm, op);
-        CreateDataPropertyOrThrow(obj, "yearsDisplay", slots.YearsDisplay, Realm, op);
-        CreateDataPropertyOrThrow(obj, "months", slots.MonthsStyle, Realm, op);
-        CreateDataPropertyOrThrow(obj, "monthsDisplay", slots.MonthsDisplay, Realm, op);
-        CreateDataPropertyOrThrow(obj, "weeks", slots.WeeksStyle, Realm, op);
-        CreateDataPropertyOrThrow(obj, "weeksDisplay", slots.WeeksDisplay, Realm, op);
-        CreateDataPropertyOrThrow(obj, "days", slots.DaysStyle, Realm, op);
-        CreateDataPropertyOrThrow(obj, "daysDisplay", slots.DaysDisplay, Realm, op);
-        CreateDataPropertyOrThrow(obj, "hours", slots.HoursStyle, Realm, op);
-        CreateDataPropertyOrThrow(obj, "hoursDisplay", slots.HoursDisplay, Realm, op);
-        CreateDataPropertyOrThrow(obj, "minutes", slots.MinutesStyle, Realm, op);
-        CreateDataPropertyOrThrow(obj, "minutesDisplay", slots.MinutesDisplay, Realm, op);
-        CreateDataPropertyOrThrow(obj, "seconds", slots.SecondsStyle, Realm, op);
-        CreateDataPropertyOrThrow(obj, "secondsDisplay", slots.SecondsDisplay, Realm, op);
-        CreateDataPropertyOrThrow(obj, "milliseconds", slots.MillisecondsStyle, Realm, op);
-        CreateDataPropertyOrThrow(obj, "millisecondsDisplay", slots.MillisecondsDisplay, Realm, op);
-        CreateDataPropertyOrThrow(obj, "microseconds", slots.MicrosecondsStyle, Realm, op);
-        CreateDataPropertyOrThrow(obj, "microsecondsDisplay", slots.MicrosecondsDisplay, Realm, op);
-        CreateDataPropertyOrThrow(obj, "nanoseconds", slots.NanosecondsStyle, Realm, op);
-        CreateDataPropertyOrThrow(obj, "nanosecondsDisplay", slots.NanosecondsDisplay, Realm, op);
+        var localeValue = instance.TryGetProperty(LocaleSlot, out var locale) && locale.TryGetString(out var localeStr)
+            ? localeStr
+            : "en";
+        CreateDataPropertyOrThrow(obj, "locale", localeValue, Realm, operation);
 
-        // fractionalDigits: only include if set (undefined maps to not present).
-        if (slots.FractionalDigits.HasValue)
-        {
-            CreateDataPropertyOrThrow(obj, "fractionalDigits", slots.FractionalDigits.Value, Realm, op);
-        }
+        var numberingSystemValue = instance.TryGetProperty("__numberingSystem__", out var numSys) &&
+                                   numSys.TryGetString(out var numSysStr)
+            ? numSysStr
+            : "latn";
+        CreateDataPropertyOrThrow(obj, "numberingSystem", numberingSystemValue, Realm, operation);
 
+        var styleValue = instance.TryGetProperty("__style__", out var styleSlot) &&
+                         styleSlot.TryGetString(out var styleStr)
+            ? styleStr
+            : "short";
+        CreateDataPropertyOrThrow(obj, "style", styleValue, Realm, operation);
+        CreateDataPropertyOrThrow(obj, "years", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "yearsDisplay", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "months", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "monthsDisplay", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "weeks", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "weeksDisplay", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "days", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "daysDisplay", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "hours", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "hoursDisplay", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "minutes", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "minutesDisplay", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "seconds", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "secondsDisplay", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "milliseconds", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "millisecondsDisplay", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "microseconds", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "microsecondsDisplay", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "nanoseconds", "auto", Realm, operation);
+        CreateDataPropertyOrThrow(obj, "nanosecondsDisplay", "auto", Realm, operation);
         return new JsValue(obj);
     }
 

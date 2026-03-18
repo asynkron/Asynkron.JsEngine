@@ -192,13 +192,22 @@ public sealed class JsTemporalDuration : IEquatable<JsTemporalDuration>
 
     /// <summary>
     ///     Returns the negated duration.
+    ///     Per ECMAScript spec, negating 0 must produce +0 (not -0).
     /// </summary>
     public JsTemporalDuration Negated()
     {
         return new JsTemporalDuration(
-            -Years, -Months, -Weeks, -Days,
-            -Hours, -Minutes, -Seconds,
-            -Milliseconds, -Microseconds, -Nanoseconds);
+            NegateZeroSafe(Years), NegateZeroSafe(Months), NegateZeroSafe(Weeks), NegateZeroSafe(Days),
+            NegateZeroSafe(Hours), NegateZeroSafe(Minutes), NegateZeroSafe(Seconds),
+            NegateZeroSafe(Milliseconds), NegateZeroSafe(Microseconds), NegateZeroSafe(Nanoseconds));
+    }
+
+    /// <summary>
+    ///     Negates a value, but returns +0 for 0 to avoid -0.
+    /// </summary>
+    private static double NegateZeroSafe(double value)
+    {
+        return value == 0 ? 0 : -value;
     }
 
     /// <summary>

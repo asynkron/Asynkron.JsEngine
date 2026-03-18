@@ -14,6 +14,9 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype, RealmState realm)
     : JsConstructor(prototype, realm)
 {
+    private static readonly int[] ValidRoundingIncrements =
+        [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 2500, 5000];
+
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var (_, resolvedLocale) = ResolveIntlLocales(args.GetArgument(0), Realm);
@@ -31,45 +34,103 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
 
     private IntlNumberFormatInternalSlots CreateInternalSlots(string locale, IJsPropertyAccessor? options)
     {
+        // Step 1-2: localeMatcher, numberingSystem
         _ = IntlOptionHelpers.GetStringOption(options, "localeMatcher", Realm, "NumberFormat",
             ["lookup", "best fit"], "best fit");
-        var style = ResolveStyle(options);
         var numberingSystem = ResolveNumberingSystem(options);
         var culture = IntlUtilities.ResolveCulture(locale);
+
+        // Step 3-8: SetNumberFormatUnitOptions (always reads all, regardless of style)
+        var style = ResolveStyle(options);
+
+        // Always read currency/currencyDisplay/currencySign for observable side-effects
         string? currency = null;
         var currencyDisplay = "symbol";
         var currencySign = "standard";
-        if (string.Equals(style, "currency", StringComparison.Ordinal))
+
+        if (options is not null && options.TryGetProperty("currency", out var currencyValue) &&
+            !currencyValue.IsUndefined)
         {
-            currency = ResolveCurrency(options);
-            currencyDisplay = ResolveCurrencyDisplay(options);
-            currencySign = ResolveCurrencySign(options);
+            var currencyStr = JsValueToString(currencyValue, Realm);
+            if (!IntlUtilities.TryGetCanonicalCurrency(currencyStr, out var canonical))
+            {
+                throw ThrowRangeError($"Invalid currency code '{currencyStr}'", realm: Realm);
+            }
+
+            currency = canonical;
+        }
+        else if (string.Equals(style, "currency", StringComparison.Ordinal))
+        {
+            throw ThrowTypeError(
+                "Intl.NumberFormat currency option is required when style is 'currency'", realm: Realm);
         }
 
+        currencyDisplay = IntlOptionHelpers.GetStringOption(options, "currencyDisplay", Realm, "NumberFormat",
+            ["code", "symbol", "narrowSymbol", "name"], "symbol");
+        currencySign = IntlOptionHelpers.GetStringOption(options, "currencySign", Realm, "NumberFormat",
+            ["standard", "accounting"], "standard");
+
+        // Always read unit/unitDisplay for observable side-effects
         string? unit = null;
         var unitDisplay = "short";
-        if (string.Equals(style, "unit", StringComparison.Ordinal))
+
+        if (options is not null && options.TryGetProperty("unit", out var unitValue) &&
+            !unitValue.IsUndefined)
         {
-            unit = ResolveUnit(options);
-            unitDisplay = ResolveUnitDisplay(options);
+            var unitStr = JsValueToString(unitValue, Realm);
+            if (!IntlUtilities.TryGetCanonicalUnit(unitStr, out var canonical))
+            {
+                throw ThrowRangeError($"Invalid unit '{unitStr}'", realm: Realm);
+            }
+
+            unit = canonical;
+        }
+        else if (string.Equals(style, "unit", StringComparison.Ordinal))
+        {
+            throw ThrowTypeError(
+                "Intl.NumberFormat unit option is required when style is 'unit'", realm: Realm);
         }
 
+        unitDisplay = IntlOptionHelpers.GetStringOption(options, "unitDisplay", Realm, "NumberFormat",
+            ["short", "narrow", "long"], "short");
+
+        // Step 9: notation
         var notation = IntlOptionHelpers.GetStringOption(options, "notation", Realm, "NumberFormat",
             ["standard", "scientific", "engineering", "compact"], "standard");
+
+        // Step 10: SetNumberFormatDigitOptions
         var digits = ResolveDigitOptions(options, style, currency, notation);
-        var useGrouping = ResolveUseGrouping(options);
+
+        // Step 11: compactDisplay (after digit options, per spec read order)
+        string? compactDisplay = null;
+        if (string.Equals(notation, "compact", StringComparison.Ordinal))
+        {
+            compactDisplay = IntlOptionHelpers.GetStringOption(options, "compactDisplay", Realm, "NumberFormat",
+                ["short", "long"], "short");
+        }
+        else
+        {
+            // Still read the option for observable side-effects
+            _ = IntlOptionHelpers.GetStringOption(options, "compactDisplay", Realm, "NumberFormat",
+                ["short", "long"], "short");
+        }
+
+        // Step 12: useGrouping
+        var useGrouping = ResolveUseGrouping(options, notation);
+
+        // Step 13: signDisplay
         var signDisplay = IntlOptionHelpers.GetStringOption(options, "signDisplay", Realm, "NumberFormat",
-            ["auto", "never", "always", "exceptZero"], "auto");
+            ["auto", "never", "always", "exceptZero", "negative"], "auto");
 
         return new IntlNumberFormatInternalSlots
         {
             Locale = locale,
             NumberingSystem = numberingSystem,
             Style = style,
-            Currency = currency,
+            Currency = string.Equals(style, "currency", StringComparison.Ordinal) ? currency : null,
             CurrencyDisplay = currencyDisplay,
             CurrencySign = currencySign,
-            Unit = unit,
+            Unit = string.Equals(style, "unit", StringComparison.Ordinal) ? unit : null,
             UnitDisplay = unitDisplay,
             MinimumIntegerDigits = digits.MinimumIntegerDigits,
             MinimumFractionDigits = digits.MinimumFractionDigits,
@@ -78,7 +139,13 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
             MaximumSignificantDigits = digits.MaximumSignificantDigits,
             UseGrouping = useGrouping,
             Notation = notation,
+            CompactDisplay = compactDisplay,
             SignDisplay = signDisplay,
+            RoundingIncrement = digits.RoundingIncrement,
+            RoundingMode = digits.RoundingMode,
+            RoundingPriority = digits.RoundingPriority,
+            TrailingZeroDisplay = digits.TrailingZeroDisplay,
+            RoundingType = digits.RoundingType,
             Culture = culture
         };
     }
@@ -98,112 +165,51 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
             return "latn";
         }
 
-        if (!rawValue.TryGetString(out var numberingSystem))
+        var numberingSystem = JsValueToString(rawValue, Realm);
+
+        // Validate against Unicode Locale Identifier type nonterminal: 3*8alphanum *("-" 3*8alphanum)
+        if (!IntlUtilities.IsValidUnicodeTypeNonterminal(numberingSystem))
         {
-            throw ThrowTypeError(
-                "Intl.NumberFormat numberingSystem option must be a string", realm: Realm);
+            throw ThrowRangeError(
+                $"Invalid numbering system '{numberingSystem}'", realm: Realm);
         }
 
         return IntlUtilities.TryNormalizeNumberingSystem(numberingSystem, out var canonical)
             ? canonical
-            : "latn";
+            : throw ThrowRangeError($"Invalid numbering system '{numberingSystem}'", realm: Realm);
     }
 
-    private string ResolveCurrency(IJsPropertyAccessor? options)
-    {
-        if (options is null || !options.TryGetProperty("currency", out var value) ||
-            value.IsUndefined)
-        {
-            throw ThrowTypeError(
-                "Intl.NumberFormat currency option is required when style is 'currency'", realm: Realm);
-        }
-
-        if (!value.TryGetString(out var currency))
-        {
-            throw ThrowTypeError(
-                "Intl.NumberFormat currency option must be a string", realm: Realm);
-        }
-
-        if (!IntlUtilities.TryGetCanonicalCurrency(currency, out var canonical))
-        {
-            throw ThrowRangeError($"Invalid currency code '{currency}'", realm: Realm);
-        }
-
-        return canonical;
-    }
-
-    private string ResolveCurrencyDisplay(IJsPropertyAccessor? options)
-    {
-        return IntlOptionHelpers.GetStringOption(options, "currencyDisplay", Realm, "NumberFormat",
-            ["code", "symbol", "narrowSymbol", "name"], "symbol");
-    }
-
-    private string ResolveCurrencySign(IJsPropertyAccessor? options)
-    {
-        return IntlOptionHelpers.GetStringOption(options, "currencySign", Realm, "NumberFormat",
-            ["standard", "accounting"], "standard");
-    }
-
-    private string ResolveUnit(IJsPropertyAccessor? options)
-    {
-        if (options is null || !options.TryGetProperty("unit", out var value) ||
-            value.IsUndefined)
-        {
-            throw ThrowTypeError(
-                "Intl.NumberFormat unit option is required when style is 'unit'", realm: Realm);
-        }
-
-        if (!value.TryGetString(out var unit))
-        {
-            throw ThrowTypeError(
-                "Intl.NumberFormat unit option must be a string", realm: Realm);
-        }
-
-        if (!IntlUtilities.TryGetCanonicalUnit(unit, out var canonical))
-        {
-            throw ThrowRangeError($"Invalid unit '{unit}'", realm: Realm);
-        }
-
-        return canonical;
-    }
-
-    private string ResolveUnitDisplay(IJsPropertyAccessor? options)
-    {
-        return IntlOptionHelpers.GetStringOption(options, "unitDisplay", Realm, "NumberFormat",
-            ["short", "narrow", "long"], "short");
-    }
-
-    private bool ResolveUseGrouping(IJsPropertyAccessor? options)
+    private string ResolveUseGrouping(IJsPropertyAccessor? options, string notation)
     {
         if (options is null ||
             !options.TryGetProperty("useGrouping", out var value) ||
             value.IsUndefined)
         {
-            return true;
+            // Default depends on notation
+            return string.Equals(notation, "compact", StringComparison.Ordinal) ? "min2" : "auto";
         }
 
+        // If value is boolean true, return "always"
         if (value.TryGetBoolean(out var boolValue))
         {
-            return boolValue;
+            return boolValue ? "always" : "false";
         }
 
-        if (value.TryGetString(out var stringValue))
+        // If ToBoolean(value) is false, return false (stored as "false")
+        if (!JsOps.ToBoolean(value))
         {
-            return stringValue switch
-            {
-                "always" => true,
-                "auto" => true,
-                "min2" => true,
-                "false" => false,
-                "never" => false,
-                "true" => true,
-                _ => throw ThrowRangeError(
-                    $"Invalid value '{stringValue}' for Intl.NumberFormat useGrouping option", realm: Realm)
-            };
+            return "false";
         }
 
-        throw ThrowTypeError(
-            "Intl.NumberFormat useGrouping option must be a boolean or string", realm: Realm);
+        // Convert to string and validate
+        var stringValue = JsValueToString(value, Realm);
+        return stringValue switch
+        {
+            "auto" or "always" or "min2" => stringValue,
+            "true" or "false" => "auto", // per spec: "true"/"false" strings map to fallback
+            _ => throw ThrowRangeError(
+                $"Invalid value '{stringValue}' for Intl.NumberFormat useGrouping option", realm: Realm)
+        };
     }
 
     private DigitOptions ResolveDigitOptions(
@@ -213,23 +219,57 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
         string notation)
     {
         var minimumIntegerDigits = GetDigitOption(options, "minimumIntegerDigits", 1, 21, 1);
+
+        // Currency digit defaults only apply for "standard" notation
+        var useCurrencyDefaults = string.Equals(style, "currency", StringComparison.Ordinal)
+                                  && string.Equals(notation, "standard", StringComparison.Ordinal);
+        var currencyDigits = useCurrencyDefaults ? GetCurrencyDigits(currency) : 0;
+        var mnfdDefault = useCurrencyDefaults ? currencyDigits : 0;
+        var mxfdDefault = style switch
+        {
+            _ when useCurrencyDefaults => currencyDigits,
+            "percent" => 0,
+            _ => string.Equals(notation, "compact", StringComparison.Ordinal) ? 0 : 3
+        };
+
+        var hasMinFrac = TryGetDigitOption(options, "minimumFractionDigits", 0, 100, out var rawMinFrac);
+        var hasMaxFrac = TryGetDigitOption(options, "maximumFractionDigits", 0, 100, out var rawMaxFrac);
         var hasMinSig = TryGetDigitOption(options, "minimumSignificantDigits", 1, 21, out var minimumSignificantDigits);
         var hasMaxSig = TryGetDigitOption(options, "maximumSignificantDigits", 1, 21, out var maximumSignificantDigits);
 
-        var currencyDigits = string.Equals(style, "currency", StringComparison.Ordinal) ? GetCurrencyDigits(currency) : 0;
-        var minimumFractionDefault = string.Equals(style, "currency", StringComparison.Ordinal) ? currencyDigits : 0;
-        var maximumFractionDefault = style switch
+        // v3 options
+        var roundingIncrement = GetRoundingIncrement(options);
+        var roundingMode = IntlOptionHelpers.GetStringOption(options, "roundingMode", Realm, "NumberFormat",
+            ["ceil", "floor", "expand", "trunc", "halfCeil", "halfFloor", "halfExpand", "halfTrunc", "halfEven"],
+            "halfExpand");
+        var roundingPriority = IntlOptionHelpers.GetStringOption(options, "roundingPriority", Realm, "NumberFormat",
+            ["auto", "morePrecision", "lessPrecision"], "auto");
+        var trailingZeroDisplay = IntlOptionHelpers.GetStringOption(options, "trailingZeroDisplay", Realm, "NumberFormat",
+            ["auto", "stripIfInteger"], "auto");
+
+        var hasFD = hasMinFrac || hasMaxFrac;
+        var hasSD = hasMinSig || hasMaxSig;
+
+        // Determine needFD, needSD per spec
+        bool needFD, needSD;
+        if (!string.Equals(roundingPriority, "auto", StringComparison.Ordinal))
         {
-            "currency" => currencyDigits,
-            "percent" => 0,
-            _ => 3
-        };
+            needSD = true;
+            needFD = true;
+        }
+        else if (hasSD)
+        {
+            needSD = true;
+            needFD = false;
+        }
+        else
+        {
+            needSD = false;
+            needFD = true;
+        }
 
-        var minimumFractionDigits = GetDigitOption(options, "minimumFractionDigits", 0, 20, minimumFractionDefault);
-        var maximumFractionDigits = GetDigitOption(options, "maximumFractionDigits", minimumFractionDigits, 20,
-            Math.Max(minimumFractionDigits, maximumFractionDefault));
-
-        if (hasMinSig || hasMaxSig || notation is "scientific" or "engineering")
+        // Resolve significant digits if needed
+        if (needSD)
         {
             minimumSignificantDigits ??= 1;
             maximumSignificantDigits ??= 21;
@@ -238,29 +278,137 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
                 throw ThrowRangeError(
                     "minimumSignificantDigits must be less than or equal to maximumSignificantDigits", realm: Realm);
             }
-
-            return new DigitOptions
-            {
-                MinimumIntegerDigits = minimumIntegerDigits,
-                MinimumFractionDigits = minimumFractionDigits,
-                MaximumFractionDigits = maximumFractionDigits,
-                MinimumSignificantDigits = minimumSignificantDigits,
-                MaximumSignificantDigits = maximumSignificantDigits
-            };
         }
 
-        if (minimumFractionDigits > maximumFractionDigits)
+        // Resolve fraction digits
+        int minimumFractionDigits;
+        int maximumFractionDigits;
+        string roundingType;
+
+        if (needFD)
         {
-            throw ThrowRangeError(
-                "minimumFractionDigits must be less than or equal to maximumFractionDigits", realm: Realm);
+            if (hasFD)
+            {
+                // Keep provided values, may be null
+            }
+            else
+            {
+                rawMinFrac = mnfdDefault;
+                rawMaxFrac = mxfdDefault;
+            }
+
+            // Resolve undefined values per spec
+            if (!hasMinFrac && hasFD)
+            {
+                // mnfd is undefined but mxfd was provided
+                minimumFractionDigits = Math.Min(mnfdDefault, rawMaxFrac ?? mxfdDefault);
+            }
+            else
+            {
+                minimumFractionDigits = rawMinFrac ?? mnfdDefault;
+            }
+
+            if (!hasMaxFrac && hasFD)
+            {
+                // mxfd is undefined but mnfd was provided
+                maximumFractionDigits = Math.Max(mxfdDefault, minimumFractionDigits);
+            }
+            else
+            {
+                maximumFractionDigits = rawMaxFrac ?? Math.Max(minimumFractionDigits, mxfdDefault);
+            }
+
+            if (minimumFractionDigits > maximumFractionDigits)
+            {
+                throw ThrowRangeError(
+                    "minimumFractionDigits must be less than or equal to maximumFractionDigits", realm: Realm);
+            }
+        }
+        else
+        {
+            minimumFractionDigits = mnfdDefault;
+            maximumFractionDigits = Math.Max(mnfdDefault, mxfdDefault);
+        }
+
+        // Determine rounding type
+        if (needSD && needFD)
+        {
+            roundingType = roundingPriority switch
+            {
+                "morePrecision" => "morePrecision",
+                "lessPrecision" => "lessPrecision",
+                _ => "morePrecision"
+            };
+        }
+        else if (needSD)
+        {
+            roundingType = "significantDigits";
+        }
+        else if (!hasFD && !hasSD && string.Equals(notation, "compact", StringComparison.Ordinal))
+        {
+            roundingType = "compactRounding";
+        }
+        else
+        {
+            roundingType = "fractionDigits";
+        }
+
+        // Validate roundingIncrement constraints
+        if (roundingIncrement != 1)
+        {
+            if (!string.Equals(roundingType, "fractionDigits", StringComparison.Ordinal))
+            {
+                throw ThrowTypeError(
+                    "roundingIncrement requires rounding type to be fractionDigits", realm: Realm);
+            }
+
+            if (maximumFractionDigits != minimumFractionDigits)
+            {
+                throw ThrowRangeError(
+                    "When roundingIncrement is set, maximumFractionDigits must equal minimumFractionDigits",
+                    realm: Realm);
+            }
         }
 
         return new DigitOptions
         {
             MinimumIntegerDigits = minimumIntegerDigits,
             MinimumFractionDigits = minimumFractionDigits,
-            MaximumFractionDigits = maximumFractionDigits
+            MaximumFractionDigits = maximumFractionDigits,
+            MinimumSignificantDigits = minimumSignificantDigits,
+            MaximumSignificantDigits = maximumSignificantDigits,
+            RoundingIncrement = roundingIncrement,
+            RoundingMode = roundingMode,
+            RoundingPriority = roundingPriority,
+            TrailingZeroDisplay = trailingZeroDisplay,
+            RoundingType = roundingType
         };
+    }
+
+    private int GetRoundingIncrement(IJsPropertyAccessor? options)
+    {
+        if (options is null ||
+            !options.TryGetProperty("roundingIncrement", out var value) ||
+            value.IsUndefined)
+        {
+            return 1;
+        }
+
+        var number = JsOps.ToNumber(value);
+        if (double.IsNaN(number) || double.IsInfinity(number))
+        {
+            throw ThrowRangeError(
+                "Intl.NumberFormat roundingIncrement option must be a finite number", realm: Realm);
+        }
+
+        var intValue = (int)Math.Floor(number);
+        if (!Array.Exists(ValidRoundingIncrements, v => v == intValue))
+        {
+            throw ThrowRangeError(
+                $"Invalid roundingIncrement value '{intValue}'", realm: Realm);
+        }
+
+        return intValue;
     }
 
     private int GetDigitOption(IJsPropertyAccessor? options, string property, int minimum, int maximum, int fallback)
@@ -312,11 +460,19 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
     {
         if (string.IsNullOrEmpty(currency))
         {
-            // ReSharper disable once DuplicatedStatements
             return 2;
         }
 
-        return 2;
+        // ISO 4217 currency digit overrides
+        return currency.ToUpperInvariant() switch
+        {
+            "BHD" or "IQD" or "JOD" or "KWD" or "LYD" or "OMR" or "TND" => 3,
+            "CLF" or "UYW" => 4,
+            "BIF" or "CLP" or "DJF" or "GNF" or "ISK" or "JPY" or "KMF" or "KRW"
+                or "PYG" or "RWF" or "UGX" or "UYI" or "VND" or "VUV" or "XAF"
+                or "XOF" or "XPF" => 0,
+            _ => 2
+        };
     }
 
     private sealed class DigitOptions
@@ -326,5 +482,10 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
         public int MaximumFractionDigits { get; init; }
         public int? MinimumSignificantDigits { get; init; }
         public int? MaximumSignificantDigits { get; init; }
+        public int RoundingIncrement { get; init; } = 1;
+        public string RoundingMode { get; init; } = "halfExpand";
+        public string RoundingPriority { get; init; } = "auto";
+        public string TrailingZeroDisplay { get; init; } = "auto";
+        public string RoundingType { get; init; } = "fractionDigits";
     }
 }

@@ -1,5 +1,6 @@
 #region
 
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 
 #endregion
@@ -9,8 +10,7 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 internal static class IntlOptionHelpers
 {
     /// <summary>
-    /// Per spec, uses ToObject on non-undefined values.
-    /// Undefined returns null; null throws TypeError; primitives are wrapped via ToObject.
+    /// JsValue overload that avoids boxing. Per spec, uses ToObject on non-undefined values.
     /// </summary>
     public static IJsPropertyAccessor? GetOptionsObject(JsValue optionsArg, RealmState realm, string typeName)
     {

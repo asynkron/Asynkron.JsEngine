@@ -84,7 +84,7 @@ public abstract class ErrorConstructorBase(IJsObjectLike prototype, RealmState r
         return instance;
     }
 
-    private void InitializeError(JsObject instance, IReadOnlyList<JsValue> args)
+    protected virtual void InitializeError(JsObject instance, IReadOnlyList<JsValue> args)
     {
         instance.RealmState ??= Realm;
 

@@ -340,7 +340,11 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             return;
         }
 
-        // Update all existing descriptors to be non-configurable
+        // Update all existing descriptors to be non-configurable.
+        // We must iterate both Storage keys (for data properties without explicit descriptors)
+        // and Descriptor keys (for accessor properties whose names are NOT in Storage).
+        var processedKeys = new HashSet<string>(StringComparer.Ordinal);
+
         foreach (var key in state.Storage.Keys.ToArray())
         {
             if (key.StartsWith(GetterPrefix, StringComparison.Ordinal) ||
@@ -348,6 +352,8 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             {
                 continue;
             }
+
+            processedKeys.Add(key);
 
             if (state.Descriptors.TryGetValue(key, out var desc))
             {
@@ -363,6 +369,17 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                     Configurable = false
                 };
             }
+        }
+
+        // Process accessor property descriptors whose property names are not in Storage
+        foreach (var key in state.Descriptors.Keys.ToArray())
+        {
+            if (processedKeys.Contains(key))
+            {
+                continue;
+            }
+
+            state.Descriptors[key].Configurable = false;
         }
     }
 
@@ -1769,7 +1786,11 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             return;
         }
 
-        // Update all existing descriptors to be non-writable and non-configurable
+        // Update all existing descriptors to be non-writable and non-configurable.
+        // We must iterate both Storage keys (for data properties without explicit descriptors)
+        // and Descriptor keys (for accessor properties whose names are NOT in Storage).
+        var processedKeys = new HashSet<string>(StringComparer.Ordinal);
+
         foreach (var key in state.Storage.Keys.ToArray())
         {
             if (key.StartsWith(GetterPrefix, StringComparison.Ordinal) ||
@@ -1778,9 +1799,15 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                 continue;
             }
 
+            processedKeys.Add(key);
+
             if (state.Descriptors.TryGetValue(key, out var desc))
             {
-                desc.Writable = false;
+                if (desc.IsDataDescriptor)
+                {
+                    desc.Writable = false;
+                }
+
                 desc.Configurable = false;
             }
             else
@@ -1793,6 +1820,18 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                     Configurable = false
                 };
             }
+        }
+
+        // Process accessor property descriptors whose property names are not in Storage.
+        // Per spec, accessor properties only get configurable=false (no writable change).
+        foreach (var key in state.Descriptors.Keys.ToArray())
+        {
+            if (processedKeys.Contains(key))
+            {
+                continue;
+            }
+
+            state.Descriptors[key].Configurable = false;
         }
     }
 
@@ -2353,7 +2392,10 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                string.Equals(name, "__value__", StringComparison.Ordinal) ||
                string.Equals(name, "__regex__", StringComparison.Ordinal) ||
                string.Equals(name, "__arguments__", StringComparison.Ordinal) ||
-               string.Equals(name, "__promise__", StringComparison.Ordinal);
+               string.Equals(name, "__promise__", StringComparison.Ordinal) ||
+               string.Equals(name, "_internalDate", StringComparison.Ordinal) ||
+               string.Equals(name, "_errorData", StringComparison.Ordinal) ||
+               string.Equals(name, "__generator_brand__", StringComparison.Ordinal);
     }
 
     private static bool IsSymbolKey(string key)

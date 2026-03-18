@@ -502,7 +502,11 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         }
 
         var descriptorForResult = desc;
-        if (string.Equals(propName, "name", StringComparison.Ordinal) && args[0].ObjectValue is IJsCallable)
+        // Per spec, most built-in function objects have name.configurable = true, but
+        // %ThrowTypeError% explicitly has name.configurable = false. Only override
+        // configurable when the descriptor doesn't explicitly mark it as non-configurable.
+        if (string.Equals(propName, "name", StringComparison.Ordinal) && args[0].ObjectValue is IJsCallable
+            && !(desc is { HasConfigurable: true, Configurable: false }))
         {
             descriptorForResult = desc.Clone();
             descriptorForResult.Configurable = true;

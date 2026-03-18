@@ -5,8 +5,6 @@ FQN:
 
 Full test name:
 
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Object_defineProperty("built-ins/Object/defineProperty/15.2.3.6-4-163.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Object_defineProperty("built-ins/Object/defineProperty/15.2.3.6-4-163.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Object_defineProperty("built-ins/Object/defineProperty/15.2.3.6-4-188.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Object_defineProperty("built-ins/Object/defineProperty/15.2.3.6-4-188.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Object_defineProperty("built-ins/Object/defineProperty/15.2.3.6-4-189.js",False)
@@ -19,5 +17,3 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Object_defineProperty("built-ins/Object/defineProperty/15.2.3.6-4-538-6.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Object_defineProperty("built-ins/Object/defineProperty/15.2.3.6-4-595.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Object_defineProperty("built-ins/Object/defineProperty/15.2.3.6-4-595.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Object_defineProperty("built-ins/Object/defineProperty/15.2.3.6-4-596.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Object_defineProperty("built-ins/Object/defineProperty/15.2.3.6-4-596.js",True)

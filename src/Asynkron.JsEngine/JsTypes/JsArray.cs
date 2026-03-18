@@ -1398,6 +1398,13 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         if (!lengthDescriptor.Writable)
         {
+            // Per ES spec 15.4.5.1 step 3.f.i: If newLen == oldLen, the operation
+            // succeeds even when the length property is non-writable.
+            if (hasValue && newLength == oldLength)
+            {
+                return true;
+            }
+
             if (hasValue || (hasWritable && writableValue))
             {
                 return FailTypeError(context, throwOnWritableFailure);

@@ -111,6 +111,12 @@ public sealed class JsEngine : IAsyncDisposable
             GlobalObject.SetPrototype(RealmState.ObjectPrototype);
         }
 
+        // Create the %ThrowTypeError% intrinsic per realm (ES spec 10.2.4) BEFORE
+        // the Function constructor, because FunctionPrototype.ConfigurePrototype() needs it
+        // for the shared callee/caller poison pill accessors.
+        // We finalize (freeze) it later after FunctionPrototype is available.
+        CreateThrowTypeErrorIntrinsic();
+
         SetGlobal("Function", FunctionConstructor.CreateConstructor(RealmState));
         SetGlobal("Number", NumberConstructor.CreateConstructor(RealmState));
         var bigIntFunction = BigIntConstructor.CreateConstructor(RealmState);
@@ -186,6 +192,10 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("EvalError", EvalErrorConstructor.CreateConstructor(RealmState));
         SetGlobal("URIError", UriErrorConstructor.CreateConstructor(RealmState));
         SetGlobal("AggregateError", AggregateErrorConstructor.CreateConstructor(RealmState));
+
+        // Finalize the %ThrowTypeError% intrinsic - set its prototype to Function.prototype
+        // and freeze it now that all dependencies are available.
+        FinalizeThrowTypeErrorIntrinsic();
 
         // Register Promise constructor
         IJsCallable? promiseConstructor = PromiseConstructor.CreateConstructor(RealmState);
@@ -1831,6 +1841,53 @@ public sealed class JsEngine : IAsyncDisposable
                 Enumerable = false,
                 Configurable = !isGlobalConstant
             });
+    }
+
+    /// <summary>
+    /// Creates the %ThrowTypeError% intrinsic function per realm (ES spec 10.2.4).
+    /// This is a single shared frozen function that throws TypeError when called.
+    /// It is used for strict mode arguments callee/caller accessors.
+    /// Called early (before Function constructor) so it can be shared. Finalized later.
+    /// </summary>
+    private void CreateThrowTypeErrorIntrinsic()
+    {
+        var thrower = new HostFunction((_, _) =>
+                throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                    "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them",
+                    null, RealmState)),
+            isConstructor: false)
+        {
+            RealmState = RealmState
+        };
+
+        // Per spec: %ThrowTypeError% has length 0 and name ""
+        StandardLibrary.DefineConstantProperty(thrower.Properties, "length", 0d, configurable: false);
+        StandardLibrary.DefineConstantProperty(thrower.Properties, "name", string.Empty, configurable: false);
+
+        RealmState.ThrowTypeErrorIntrinsic = thrower;
+    }
+
+    /// <summary>
+    /// Finalizes the %ThrowTypeError% intrinsic: sets the prototype to Function.prototype
+    /// and freezes it. Called after all dependencies (Function prototype, error constructors) are available.
+    /// </summary>
+    private void FinalizeThrowTypeErrorIntrinsic()
+    {
+        var thrower = RealmState.ThrowTypeErrorIntrinsic;
+        if (thrower is null)
+        {
+            return;
+        }
+
+        // Set prototype to Function.prototype (now available)
+        if (RealmState.FunctionPrototype is not null && thrower.Properties.Prototype is null)
+        {
+            thrower.Properties.SetPrototype(RealmState.FunctionPrototype);
+        }
+
+        // Per spec: %ThrowTypeError% is frozen and non-extensible
+        thrower.Properties.PreventExtensions();
+        thrower.Properties.Freeze();
     }
 
     /// <summary>

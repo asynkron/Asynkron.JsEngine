@@ -96,7 +96,9 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             }
             else
             {
-                var thrower = new HostFunction((_, _) =>
+                // Use the shared %ThrowTypeError% intrinsic per realm (ES spec 10.2.4).
+                // All strict mode arguments objects share the same thrower function.
+                var thrower = realm.ThrowTypeErrorIntrinsic ?? new HostFunction((_, _) =>
                         throw new ThrowSignal(StandardLibrary.CreateTypeError(
                             "Access to callee is not allowed in strict mode.", realm.CreateContext(), realm)),
                     isConstructor: false);

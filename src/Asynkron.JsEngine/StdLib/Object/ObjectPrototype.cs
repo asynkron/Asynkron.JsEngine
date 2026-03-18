@@ -139,6 +139,12 @@ public sealed partial class ObjectPrototype
             return "RegExp";
         }
 
+        // Check for [[GeneratorState]] - set by generator object creation
+        if (obj.GetOwnPropertyDescriptor("__generator_brand__") is not null)
+        {
+            return "Generator";
+        }
+
         // Check for [[BooleanData]], [[NumberData]], [[StringData]] via __value__ property
         // and prototype chain
         if (obj.GetOwnPropertyDescriptor("__value__") is { } valueDesc)

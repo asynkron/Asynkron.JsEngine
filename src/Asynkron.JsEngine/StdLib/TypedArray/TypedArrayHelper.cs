@@ -39,26 +39,46 @@ public static class TypedArrayHelper
         var prototype = new JsObject();
 
         HostFunction constructor = null!;
-        constructor = new HostFunction((thisValue, args) =>
-            JsValue.FromObjectUnsafe(ConstructTypedArray(args, thisValue.IsNullish ? (JsValue)constructor : thisValue)))
+        constructor = new HostFunction((_, _) =>
+            throw ThrowTypeError($"{constructorName} is not a constructor", realm: realm))
         {
-            RealmState = realm
+            RealmState = realm,
+            HandlesConstructInternally = true
         };
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>
-            JsValue.FromObjectUnsafe(ConstructTypedArray(args,
-                newTarget.IsNullish ? (JsValue)constructor : newTarget)));
+        {
+            if (newTarget.IsUndefined || newTarget.IsNull)
+            {
+                throw ThrowTypeError($"{constructorName} is not a constructor", realm: realm);
+            }
 
-        constructor.SetProperty("BYTES_PER_ELEMENT", JsValue.FromNumber((double)bytesPerElement));
-        prototype.SetPrototype(realm.ObjectPrototype);
-        prototype.SetProperty("constructor", (JsValue)constructor);
-        var toStringTagKey = SymbolKeys.ToStringTag;
-        prototype.DefineProperty(toStringTagKey,
+            return JsValue.FromObjectUnsafe(ConstructTypedArray(args, newTarget));
+        });
+
+        constructor.DefineProperty("BYTES_PER_ELEMENT",
             new PropertyDescriptor
             {
-                Value = constructorName,
+                Value = JsValue.FromNumber((double)bytesPerElement),
                 Writable = false,
                 Enumerable = false,
+                Configurable = false
+            });
+        prototype.SetPrototype(realm.ObjectPrototype);
+        prototype.DefineProperty("constructor",
+            new PropertyDescriptor
+            {
+                Value = (JsValue)constructor,
+                Writable = true,
+                Enumerable = false,
                 Configurable = true
+            });
+        prototype.DefineProperty("BYTES_PER_ELEMENT",
+            new PropertyDescriptor
+            {
+                Value = JsValue.FromNumber((double)bytesPerElement),
+                Writable = false,
+                Enumerable = false,
+                Configurable = false
             });
         constructor.DefineProperty("name",
             new PropertyDescriptor
@@ -74,13 +94,22 @@ public static class TypedArrayHelper
             prototype.SetPrototype(sharedPrototype);
         }
 
-        // Ensure per-constructor prototypes do not own shared methods that should
-        // live on %TypedArray%.prototype.
+        // Ensure per-constructor prototypes do not own shared methods or properties
+        // that should live on %TypedArray%.prototype and be inherited.
         prototype.DeleteOwnProperty("indexOf");
         prototype.DeleteOwnProperty("lastIndexOf");
         prototype.DeleteOwnProperty("includes");
+        // Per spec, @@toStringTag is a getter on %TypedArray%.prototype, not owned by per-type prototypes.
+        prototype.DeleteOwnProperty(SymbolKeys.ToStringTag);
 
-        constructor.SetProperty("prototype", (JsValue)prototype);
+        constructor.DefineProperty("prototype",
+            new PropertyDescriptor
+            {
+                Value = (JsValue)prototype,
+                Writable = false,
+                Enumerable = false,
+                Configurable = false
+            });
         // Set the [[Prototype]] of each concrete TypedArray constructor to %TypedArray%
         // so that Object.getPrototypeOf(Int8Array) === %TypedArray%.
         constructor.SetPrototype(sharedTypedArrayCtor);
@@ -96,8 +125,10 @@ public static class TypedArrayHelper
                 return protoObj;
             }
 
-            if (!newTarget.IsNullish &&
-                TryGetRealmInfo(newTarget, out var newTargetRealmState, out var newTargetRealmObject))
+            // Unwrap the JsValue to get the actual object for realm resolution.
+            var newTargetObj = newTarget.IsObject ? newTarget.ObjectValue : null;
+            if (newTargetObj is not null &&
+                TryGetRealmInfo(newTargetObj, out var newTargetRealmState, out var newTargetRealmObject))
             {
                 var realmGlobal = newTargetRealmObject ?? newTargetRealmState?.Engine?.GlobalObject;
                 if (realmGlobal is not null &&
@@ -139,10 +170,26 @@ public static class TypedArrayHelper
                 firstArg.GetType().Name,
                 newTarget.GetType().Name);
 
-            // TypedArray(length)
-            if (firstArg.TryGetDouble(out var d))
+            // Per spec 23.2.5.1: if firstArgument is not an Object, treat as length.
+            // This must happen BEFORE prototype resolution so that type errors from
+            // ToIndex (e.g. Symbol/BigInt to number) are thrown first.
+            if (!firstArg.IsObject)
             {
-                return CreateTargetFromLength((int)d, newTarget);
+                // TypedArray(length) - firstArg is a primitive
+                var context = realm.CreateContext();
+                var numeric = JsOps.ToNumber(firstArg, context);
+                if (context.IsThrow)
+                {
+                    throw new ThrowSignal(context.FlowValue);
+                }
+
+                var elementLength = (int)numeric;
+                if (elementLength < 0 || numeric != elementLength)
+                {
+                    throw ThrowRangeError($"Invalid typed array length: {numeric}", realm: realm);
+                }
+
+                return CreateTargetFromLength(elementLength, newTarget);
             }
 
             // TypedArray(array)

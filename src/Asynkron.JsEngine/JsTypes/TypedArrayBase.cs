@@ -393,6 +393,13 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
             return;
         }
 
+        // Canonical numeric index strings that are not valid integer indices
+        // (e.g. "-0", "-1") are silently ignored per the spec.
+        if (IsCanonicalNumericIndexString(name))
+        {
+            return;
+        }
+
         _properties.SetProperty(name, value, receiver.IsUndefined ? _cachedJsValue : receiver);
     }
 
@@ -427,23 +434,30 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
     {
-        if (!TryParseIndex(name, out var index) || index < 0)
+        if (TryParseIndex(name, out var index) && index >= 0)
         {
-            return _properties.GetOwnPropertyDescriptor(name);
+            if (IsDetachedOrOutOfBounds() || index >= Length)
+            {
+                return null;
+            }
+
+            return new PropertyDescriptor
+            {
+                Value = GetValueForIndex(index),
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
+            };
         }
 
-        if (IsDetachedOrOutOfBounds() || index >= Length)
+        // If the key is a canonical numeric index string (e.g. "-0", "-1"),
+        // it is handled by the integer-indexed path and returns undefined.
+        if (IsCanonicalNumericIndexString(name))
         {
             return null;
         }
 
-        return new PropertyDescriptor
-        {
-            Value = GetValueForIndex(index),
-            Writable = true,
-            Enumerable = true,
-            Configurable = false
-        };
+        return _properties.GetOwnPropertyDescriptor(name);
     }
 
     public IEnumerable<string> GetOwnPropertyNames()
@@ -510,12 +524,12 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
             }
 
             // Integer-indexed exotic objects reject accessor descriptors and
-            // attribute changes that would make the property non-writable,
-            // non-enumerable, or configurable.
+            // attribute changes that conflict with the fixed attributes
+            // {writable: true, enumerable: true, configurable: true}.
             if (descriptor.IsAccessorDescriptor ||
                 descriptor is { HasWritable: true, Writable: false } ||
                 descriptor is { HasEnumerable: true, Enumerable: false } ||
-                descriptor is { HasConfigurable: true, Configurable: true })
+                descriptor is { HasConfigurable: true, Configurable: false })
             {
                 return false;
             }
@@ -528,6 +542,13 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
             var value = descriptor.HasValue ? descriptor.JsValue : JsValue.Undefined;
             SetValue(index, value);
             return true;
+        }
+
+        // Canonical numeric index strings that are not valid integer indices
+        // (e.g. "-0", "-1") always return false (define fails silently).
+        if (IsCanonicalNumericIndexString(name))
+        {
+            return false;
         }
 
         return _properties.TryDefineProperty(name, descriptor);
@@ -998,9 +1019,58 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         return _properties.Remove(name);
     }
 
+    /// <summary>
+    ///     Implements CanonicalNumericIndexString to determine if a string is the
+    ///     canonical representation of a numeric value. Returns true for strings like
+    ///     "0", "1", "-0", "-1", "NaN", "Infinity", etc. when ToString(ToNumber(s)) === s.
+    ///     This is used to distinguish integer-indexed access from ordinary property access
+    ///     on typed arrays.
+    /// </summary>
+    private static bool IsCanonicalNumericIndexString(string candidate)
+    {
+        // Fast path for "-0"
+        if (candidate == "-0")
+        {
+            return true;
+        }
+
+        // Try to parse as a number. If it fails, it's not a canonical numeric index.
+        if (!double.TryParse(candidate, NumberStyles.Float | NumberStyles.AllowLeadingSign,
+                CultureInfo.InvariantCulture, out var number))
+        {
+            return false;
+        }
+
+        // ToString(number) must equal the original candidate.
+        return NumberHelper.NumberToString(number, 10) == candidate;
+    }
+
+    /// <summary>
+    ///     Tries to parse a string as a valid non-negative integer index for
+    ///     integer-indexed exotic objects. Returns true only when the candidate
+    ///     is a canonical string representation of a non-negative integer
+    ///     (e.g. "0", "1", "42"), not "-0", "+1", "1.0", etc.
+    /// </summary>
     private static bool TryParseIndex(string candidate, out int index)
     {
-        return int.TryParse(candidate, NumberStyles.Integer, CultureInfo.InvariantCulture, out index);
+        index = 0;
+
+        // "-0" is a canonical numeric index string but maps to -0, which
+        // is never a valid integer index.
+        if (candidate == "-0")
+        {
+            return false;
+        }
+
+        // Use NumberStyles.None to reject leading signs (+/-), whitespace, etc.
+        if (!int.TryParse(candidate, NumberStyles.None, CultureInfo.InvariantCulture, out index))
+        {
+            return false;
+        }
+
+        // Verify canonical form: ToString(parsed) must equal the original string.
+        // This rejects non-canonical representations like "+1", "01", etc.
+        return index.ToString(CultureInfo.InvariantCulture) == candidate;
     }
 
     private static TypedArrayBase ResolveThis(JsValue thisValue, TypedArrayBase fallback)

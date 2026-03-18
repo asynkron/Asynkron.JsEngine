@@ -4518,12 +4518,14 @@ public static class TemporalHelper
         string smallestUnit, long roundingIncrement, string roundingMode,
         string largestUnit = "year", BigInteger timeDiffNanos = default)
     {
-        // Determine overall sign of the duration
+        // Determine overall sign of the duration (include time for week/day cases)
         int sign;
         if (years != 0) sign = Math.Sign(years);
         else if (months != 0) sign = Math.Sign(months);
         else if (weeks != 0) sign = Math.Sign(weeks);
         else if (days != 0) sign = Math.Sign(days);
+        else if (timeDiffNanos > 0) sign = 1;
+        else if (timeDiffNanos < 0) sign = -1;
         else return (0, 0, 0, 0); // zero duration
 
         var destEpoch = IsoToDayNumber(destY, destM, destD);

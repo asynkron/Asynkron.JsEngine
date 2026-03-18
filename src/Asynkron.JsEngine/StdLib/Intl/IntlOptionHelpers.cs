@@ -1,6 +1,5 @@
 #region
 
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 
 #endregion
@@ -10,7 +9,8 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 internal static class IntlOptionHelpers
 {
     /// <summary>
-    /// JsValue overload that avoids boxing.
+    /// Per spec, uses ToObject on non-undefined values.
+    /// Undefined returns null; null throws TypeError; primitives are wrapped via ToObject.
     /// </summary>
     public static IJsPropertyAccessor? GetOptionsObject(JsValue optionsArg, RealmState realm, string typeName)
     {
@@ -24,12 +24,15 @@ internal static class IntlOptionHelpers
             throw StandardLibrary.ThrowTypeError($"Intl.{typeName} options must be an object", realm: realm);
         }
 
+        // Per spec: Let options be ? ToObject(options).
+        // ToObject wraps primitives (boolean, number, string, symbol) in their wrapper objects.
         if (optionsArg.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
             return accessor;
         }
 
-        throw StandardLibrary.ThrowTypeError($"Intl.{typeName} options must be an object", realm: realm);
+        // For primitive types (boolean, number, string, symbol), ToObject wraps them.
+        return StandardLibrary.ToObjectPropertyAccessor(optionsArg, $"Intl.{typeName}", realm);
     }
 
     public static string GetStringOption(
@@ -42,7 +45,7 @@ internal static class IntlOptionHelpers
         bool required = false)
     {
         if (options is null || !options.TryGetProperty(property, out var value) ||
-            ReferenceEquals(value, Symbol.Undefined))
+            value.IsUndefined)
         {
             if (required)
             {
@@ -69,7 +72,7 @@ internal static class IntlOptionHelpers
         bool? defaultValue = null)
     {
         if (options is null || !options.TryGetProperty(property, out var value) ||
-            ReferenceEquals(value, Symbol.Undefined))
+            value.IsUndefined)
         {
             return defaultValue;
         }

@@ -58,26 +58,27 @@ public sealed partial class IntlRelativeTimeFormatPrototype
         var instance = ValidateReceiver(thisValue);
         var obj = new JsObject(Realm.ObjectPrototype);
         const string operation = "Intl.RelativeTimeFormat.prototype.resolvedOptions";
+        // Per spec, resolvedOptions property order: locale, style, numeric, numberingSystem
         var localeValue = instance.TryGetProperty("__locale__", out var locale) && locale.TryGetString(out var localeStr)
             ? localeStr
             : "en";
         CreateDataPropertyOrThrow(obj, "locale", localeValue, Realm, operation);
 
-        var numberingSystemValue = instance.TryGetProperty("__numberingSystem__", out var numberingSystem) &&
-                                   numberingSystem.TryGetString(out var numSysStr)
-            ? numSysStr
-            : "latn";
-        CreateDataPropertyOrThrow(obj, "numberingSystem", numberingSystemValue, Realm, operation);
+        var styleValue = instance.TryGetProperty("__style__", out var style) && style.TryGetString(out var styleStr)
+            ? styleStr
+            : "long";
+        CreateDataPropertyOrThrow(obj, "style", styleValue, Realm, operation);
 
         var numericValue = instance.TryGetProperty("__numeric__", out var numeric) && numeric.TryGetString(out var numericStr)
             ? numericStr
             : "always";
         CreateDataPropertyOrThrow(obj, "numeric", numericValue, Realm, operation);
 
-        var styleValue = instance.TryGetProperty("__style__", out var style) && style.TryGetString(out var styleStr)
-            ? styleStr
-            : "long";
-        CreateDataPropertyOrThrow(obj, "style", styleValue, Realm, operation);
+        var numberingSystemValue = instance.TryGetProperty("__numberingSystem__", out var numberingSystem) &&
+                                   numberingSystem.TryGetString(out var numSysStr)
+            ? numSysStr
+            : "latn";
+        CreateDataPropertyOrThrow(obj, "numberingSystem", numberingSystemValue, Realm, operation);
         return new JsValue(obj);
     }
 

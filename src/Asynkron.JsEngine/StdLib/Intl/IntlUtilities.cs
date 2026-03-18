@@ -240,6 +240,38 @@ internal static partial class IntlUtilities
         return CalendarSet.Contains(canonical);
     }
 
+    /// <summary>
+    /// Validates that a string matches the Unicode Locale Identifier type nonterminal:
+    /// type = alphanum{3,8} ("-" alphanum{3,8})*
+    /// alphanum = [a-zA-Z0-9]
+    /// </summary>
+    public static bool IsValidUnicodeTypeNonterminal(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return false;
+        }
+
+        var parts = value.Split('-');
+        foreach (var part in parts)
+        {
+            if (part.Length < 3 || part.Length > 8)
+            {
+                return false;
+            }
+
+            foreach (var ch in part)
+            {
+                if (!((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
     public static bool TryNormalizeNumberingSystem(string? numberingSystem, out string canonical)
     {
         canonical = numberingSystem?.Trim().ToLowerInvariant() ?? string.Empty;

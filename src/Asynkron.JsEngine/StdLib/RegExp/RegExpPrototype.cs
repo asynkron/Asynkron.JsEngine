@@ -389,14 +389,42 @@ public sealed partial class RegExpPrototype
     [JsSymbolMethod("matchAll", Length = 1d)]
     private JsValue MatchAllSymbol(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
+        // ES2024 22.2.5.8 RegExp.prototype[@@matchAll](string)
+        // Note: NO global check here - that belongs in String.prototype.matchAll.
         var resolved = RequireRegExp(thisValue);
-        if (!resolved.Global)
+
+        // Step 3: Let S be ToString(string).
+        var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : string.Empty;
+
+        // Step 5: Let flags be ToString(Get(R, "flags")).
+        var flags = resolved.Flags;
+
+        // Step 6: Create a copy of the regex via CreateRegExpLiteral (sets prototype + __regex__).
+        var matcherObj = RegExpHelper.CreateRegExpLiteral(resolved.Pattern, flags, Realm);
+
+        // Step 7-8: Copy lastIndex from original to matcher.
+        if (matcherObj.TryGetProperty("__regex__", out var regexVal) &&
+            regexVal.TryGetObject<JsRegExp>(out var matcherRegExp))
         {
-            throw ThrowTypeError("RegExp.prototype.matchAll requires a global RegExp", realm: Realm);
+            matcherRegExp.SetLastIndex(resolved.GetLastIndex());
         }
 
-        var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : string.Empty;
-        return JsValue.FromJsArray(resolved.MatchAll(input));
+        // Step 9-10: Determine global and fullUnicode from flags.
+        var isGlobal = flags.Contains('g', StringComparison.Ordinal);
+        var fullUnicode = flags.Contains('u', StringComparison.Ordinal) ||
+                          flags.Contains('v', StringComparison.Ordinal);
+
+        // Step 11: Return CreateRegExpStringIterator(matcher, S, global, fullUnicode).
+        var prototype = GetOrCreateRegExpStringIteratorPrototype();
+        var iterator = new JsRegExpStringIterator(
+            matcherObj.AsJsValue, input, isGlobal, fullUnicode, Realm, prototype);
+        return iterator.AsJsValue;
+    }
+
+    private JsObject? GetOrCreateRegExpStringIteratorPrototype()
+    {
+        return Realm.RegExpStringIteratorPrototype ??=
+            (JsObject)RegExpStringIteratorPrototype.CreatePrototype(Realm);
     }
 
     // =====================================================================

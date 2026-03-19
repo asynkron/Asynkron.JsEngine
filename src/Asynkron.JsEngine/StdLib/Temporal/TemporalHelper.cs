@@ -5664,6 +5664,13 @@ public static class TemporalHelper
         // Handle smallestUnit = "year" (truncate months)
         if (string.Equals(settings.SmallestUnit, "year", StringComparison.Ordinal))
         {
+            // Validate NudgeToCalendarUnit end boundary (spec step 8)
+            var ymSign = totalMonths != 0 ? Math.Sign(totalMonths) : 1;
+            var yearIncMonths = 12 * settings.RoundingIncrement;
+            var r1Ym = (long)Math.Abs(totalMonths) / yearIncMonths * yearIncMonths;
+            var r2Ym = r1Ym + yearIncMonths;
+            ValidateRoundedDateResult(ym.Year, ym.Month, ym.ReferenceDay, (int)(r2Ym * ymSign));
+
             // Round totalMonths to nearest year
             var roundedTotal = (int)(long)RoundToIncrement(
                 new BigInteger(totalMonths),
@@ -5674,6 +5681,12 @@ public static class TemporalHelper
         }
         else if (settings.RoundingIncrement != 1)
         {
+            // Validate NudgeToCalendarUnit end boundary (spec step 8)
+            var ymSign = totalMonths != 0 ? Math.Sign(totalMonths) : 1;
+            var r1Ym = (long)Math.Abs(totalMonths) / settings.RoundingIncrement * settings.RoundingIncrement;
+            var r2Ym = r1Ym + settings.RoundingIncrement;
+            ValidateRoundedDateResult(ym.Year, ym.Month, ym.ReferenceDay, (int)(r2Ym * ymSign));
+
             // Round months
             var roundedMonths = (int)(long)RoundToIncrement(
                 new BigInteger(totalMonths),

@@ -144,7 +144,10 @@ public static class TypedArrayHelper
                 Enumerable = false,
                 Configurable = false
             });
-        constructor.Properties.SetPrototype(sharedTypedArrayCtor.PropertiesObject);
+        // Per spec, [[Prototype]] of each TypedArray constructor is %TypedArray%.
+        // Use the HostFunction itself (not its PropertiesObject) so that
+        // Object.getPrototypeOf(Int8Array) === %TypedArray%.
+        constructor.Properties.SetPrototype(sharedTypedArrayCtor);
 
         return constructor;
 

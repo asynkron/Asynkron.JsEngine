@@ -7,6 +7,22 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class IntlScratchTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
+    public async Task ListFormatExists()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            (function() {
+                var lf = new Intl.ListFormat("es-ES", { style: "short" });
+                var opts = lf.resolvedOptions();
+                var r2 = lf.format(["foo", "bar"]);
+                var r3 = lf.format(["foo", "bar", "baz"]);
+                return JSON.stringify({ locale: opts.locale, type: opts.type, style: opts.style, two: r2, three: r3 });
+            })()
+            """);
+        Output.WriteLine($"Result: {result}");
+    }
+
+    [Fact]
     public async Task InspectSupportedValuesCoercion()
     {
         await using var engine = CreateEngine();

@@ -2915,14 +2915,16 @@ public static class TemporalHelper
         {
             var ym = GetPlainYearMonth(thisValue);
             var duration = ToTemporalDuration(args.GetArgument(0), realm);
-            return WrapPlainYearMonth(ym.Add(duration), realm, prototype);
+            var options = args.Count > 1 ? args[1] : JsValue.Undefined;
+            return AddDurationToYearMonth(1, ym, duration, options, realm, prototype);
         });
 
         AddPrototypeMethod(prototype, realm, "subtract", 1, (thisValue, args) =>
         {
             var ym = GetPlainYearMonth(thisValue);
             var duration = ToTemporalDuration(args.GetArgument(0), realm);
-            return WrapPlainYearMonth(ym.Subtract(duration), realm, prototype);
+            var options = args.Count > 1 ? args[1] : JsValue.Undefined;
+            return AddDurationToYearMonth(-1, ym, duration, options, realm, prototype);
         });
 
         AddPrototypeMethod(prototype, realm, "until", 1, (thisValue, args) =>
@@ -6440,11 +6442,36 @@ public static class TemporalHelper
     {
         // Step 1: Add the date part of the duration to get the intermediate date
         var dateDuration = new JsTemporalDuration(duration.Years, duration.Months, duration.Weeks, duration.Days, 0, 0, 0, 0, 0, 0);
-        var endDate = relativeTo.Add(dateDuration);
+        JsTemporalPlainDate endDate;
+        try
+        {
+            endDate = relativeTo.Add(dateDuration);
+            RejectISODate(endDate.Year, endDate.Month, endDate.Day, realm);
+        }
+        catch (ArgumentException)
+        {
+            throw StandardLibrary.ThrowRangeError("Resulting date is out of valid range", realm: realm);
+        }
 
         // Step 2: Compute time nanoseconds
         var timeNs = DurationToTotalNanoseconds(0, duration.Hours, duration.Minutes, duration.Seconds,
             duration.Milliseconds, duration.Microseconds, duration.Nanoseconds);
+
+        // Step 3: Validate that the target PlainDateTime is within representable range
+        // Per spec: DifferencePlainDateTimeWithTotal checks ISODateTimeWithinLimits
+        var endTimeNs = timeNs;
+        if (endTimeNs < 0)
+        {
+            endTimeNs += NanosecondsPerDay;
+        }
+        var endHour = (int)((long)(endTimeNs / 3_600_000_000_000L) % 24);
+        var endMinute = (int)((long)(endTimeNs / 60_000_000_000L) % 60);
+        var endSecond = (int)((long)(endTimeNs / 1_000_000_000L) % 60);
+        var endMs = (int)((long)(endTimeNs / 1_000_000L) % 1000);
+        var endUs = (int)((long)(endTimeNs / 1_000L) % 1000);
+        var endNs = (int)((long)endTimeNs % 1000);
+        RejectISODateTimeRange(endDate.Year, endDate.Month, endDate.Day,
+            endHour, endMinute, endSecond, endMs, endUs, endNs, realm);
 
         var unitRank = UnitRank(unit);
 
@@ -6547,7 +6574,20 @@ public static class TemporalHelper
         if (unitRank <= TemporalUnit.Hour)
         {
             // For time units, use exact epoch nanosecond arithmetic
-            var endZdt = relativeTo.Add(duration);
+            JsTemporalZonedDateTime endZdt;
+            try
+            {
+                endZdt = relativeTo.Add(duration);
+            }
+            catch
+            {
+                throw StandardLibrary.ThrowRangeError("Resulting ZonedDateTime is out of valid range", realm: realm);
+            }
+            // Validate epoch nanoseconds are within valid instant range
+            var nsMaxInstant = BigInteger.Parse("8640000000000000000000");
+            var nsMinInstant = BigInteger.Parse("-8640000000000000000000");
+            if (endZdt.Instant.EpochNanoseconds > nsMaxInstant || endZdt.Instant.EpochNanoseconds < nsMinInstant)
+                throw StandardLibrary.ThrowRangeError("Resulting instant is out of valid range", realm: realm);
             var diffNs = endZdt.Instant.EpochNanoseconds - relativeTo.Instant.EpochNanoseconds;
             var unitNs = new BigInteger(GetUnitNanoseconds(unit));
             var q = diffNs / unitNs;
@@ -6846,6 +6886,86 @@ public static class TemporalHelper
     private static TemporalUnit LargerOfTwoTemporalUnits(TemporalUnit a, TemporalUnit b)
     {
         return a >= b ? a : b;
+    }
+
+    /// <summary>
+    ///     Temporal spec: AddDurationToYearMonth — adds/subtracts a duration to a PlainYearMonth.
+    ///     Handles lower units (days, hours, etc.) by converting to PlainDate first.
+    ///     For negative sign durations, uses end-of-month as the intermediate date.
+    /// </summary>
+    private static JsValue AddDurationToYearMonth(int sign, JsTemporalPlainYearMonth ym,
+        JsTemporalDuration duration, JsValue options, RealmState realm, JsObject prototype)
+    {
+        // Step 1: Apply sign to get effective duration
+        var effectiveDuration = sign < 0 ? duration.Negated() : duration;
+
+        // Step 2: Validate options
+        var optionsObj = ValidateOptionsObject(options, realm, "Temporal.PlainYearMonth.prototype." + (sign > 0 ? "add" : "subtract"));
+        var overflow = GetTemporalOverflowOption(optionsObj, realm);
+
+        // Step 3: Determine the sign from the ORIGINAL duration (including all time components)
+        // This is important: {seconds: -1} has sign -1 even though balanced days would be 0
+        var durationSign = effectiveDuration.Sign;
+
+        // Step 4: Balance time units into days
+        var extraDays = BalanceTimeToDays(effectiveDuration);
+        var totalDays = effectiveDuration.Days + extraDays;
+        var durationWithBalancedDays = new JsTemporalDuration(
+            effectiveDuration.Years, effectiveDuration.Months, effectiveDuration.Weeks,
+            totalDays, 0, 0, 0, 0, 0, 0);
+
+        // Step 5: Create intermediate PlainDate from year-month
+        // Start with day 1
+        JsTemporalPlainDate intermediateDate;
+        try
+        {
+            intermediateDate = new JsTemporalPlainDate(ym.Year, ym.Month, 1, ym.Calendar);
+            // Validate the intermediate date is in range
+            RejectISODate(intermediateDate.Year, intermediateDate.Month, intermediateDate.Day, realm);
+        }
+        catch
+        {
+            throw StandardLibrary.ThrowRangeError("PlainYearMonth value is out of representable range", realm: realm);
+        }
+
+        // Step 6: For negative durations, use end-of-month as intermediate date
+        if (durationSign < 0)
+        {
+            // Add 1 month to get the next month, then subtract 1 day → end of current month
+            try
+            {
+                var nextMonth = intermediateDate.Add(
+                    JsTemporalDuration.From(months: 1), "constrain");
+                var endOfMonth = nextMonth.Add(
+                    JsTemporalDuration.From(days: -1), "constrain");
+                intermediateDate = endOfMonth;
+                RejectISODate(intermediateDate.Year, intermediateDate.Month, intermediateDate.Day, realm);
+            }
+            catch
+            {
+                throw StandardLibrary.ThrowRangeError("Resulting date is out of valid range", realm: realm);
+            }
+        }
+
+        // Step 7: Add the duration to the intermediate date
+        JsTemporalPlainDate addedDate;
+        try
+        {
+            addedDate = intermediateDate.Add(durationWithBalancedDays, overflow);
+            RejectISODate(addedDate.Year, addedDate.Month, addedDate.Day, realm);
+        }
+        catch (ArgumentException)
+        {
+            throw StandardLibrary.ThrowRangeError("Resulting date is out of valid range", realm: realm);
+        }
+
+        // Step 8: Extract year-month from result, set day to 1 per spec, and validate range
+        // Per spec step 12: "Set addedDateFields.[[Day]] to 1"
+        RejectISOYearMonthRange(addedDate.Year, addedDate.Month, realm);
+
+        return WrapPlainYearMonth(
+            new JsTemporalPlainYearMonth(addedDate.Year, addedDate.Month, ym.Calendar, 1),
+            realm, prototype);
     }
 
     /// <summary>

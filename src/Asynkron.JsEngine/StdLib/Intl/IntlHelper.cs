@@ -116,6 +116,16 @@ public static partial class IntlHelper
                 Configurable = true
             });
 
+        var listFormatCtor = IntlListFormatConstructor.CreateConstructor(realm);
+        intl.DefineProperty("ListFormat",
+            new PropertyDescriptor
+            {
+                Value = listFormatCtor,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
+            });
+
         // Register getCanonicalLocales and supportedValuesOf via source-generated registration
         RegisterHostFunctions(intl, realm);
 

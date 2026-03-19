@@ -2928,7 +2928,12 @@ public static class TemporalHelper
             if (accessor.TryGetProperty("nanosecond", out v) && !v.IsUndefined) { partialNanosecond = ToIntegerWithTruncation(v, realm); any = true; }
             if (accessor.TryGetProperty("offset", out v) && !v.IsUndefined)
             {
-                partialOffset = JsOps.ToJsString(v);
+                if (v.IsString)
+                    partialOffset = v.AsString();
+                else if (v.IsObject)
+                    partialOffset = JsOps.ToJsString(v);
+                else
+                    throw StandardLibrary.ThrowTypeError("offset must be a string", realm: realm);
                 any = true;
             }
             if (accessor.TryGetProperty("second", out v) && !v.IsUndefined) { partialSecond = ToIntegerWithTruncation(v, realm); any = true; }
@@ -2939,16 +2944,19 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowTypeError("with() argument must have at least one datetime property", realm: realm);
             }
 
+            // Get local date-time using BigInteger arithmetic to handle extreme years
+            var localDt = GetLocalDateTime(zdt);
+
             // Merge fields with defaults and pre-validate before options processing
-            var year = partialYear ?? zdt.Year;
-            var month = ResolveISOMonth(partialMonth, partialMonthCode, zdt.Month, realm);
-            var day = partialDay ?? zdt.Day;
-            var hour = partialHour ?? zdt.Hour;
-            var minute = partialMinute ?? zdt.Minute;
-            var second = partialSecond ?? zdt.Second;
-            var millisecond = partialMillisecond ?? zdt.Millisecond;
-            var microsecond = partialMicrosecond ?? zdt.Microsecond;
-            var nanosecond = partialNanosecond ?? zdt.Nanosecond;
+            var year = partialYear ?? localDt.Year;
+            var month = ResolveISOMonth(partialMonth, partialMonthCode, localDt.Month, realm);
+            var day = partialDay ?? localDt.Day;
+            var hour = partialHour ?? localDt.Hour;
+            var minute = partialMinute ?? localDt.Minute;
+            var second = partialSecond ?? localDt.Second;
+            var millisecond = partialMillisecond ?? localDt.Millisecond;
+            var microsecond = partialMicrosecond ?? localDt.Microsecond;
+            var nanosecond = partialNanosecond ?? localDt.Nanosecond;
 
             // Pre-validate: reject fundamentally invalid values before options processing
             if (month < 1 || day < 1)
@@ -3010,6 +3018,11 @@ public static class TemporalHelper
             }
 
             var newZdt = new JsTemporalZonedDateTime(year, month, day, hour, minute, second, millisecond, microsecond, nanosecond, zdt.TimeZoneId, zdt.Calendar);
+            var newEpochNs = newZdt.Instant.EpochNanoseconds;
+            if (newEpochNs < InstantMinEpochNanoseconds || newEpochNs > InstantMaxEpochNanoseconds)
+            {
+                throw StandardLibrary.ThrowRangeError("ZonedDateTime is out of representable range", realm: realm);
+            }
             return WrapZonedDateTime(newZdt, realm, prototype);
         });
 
@@ -3023,9 +3036,11 @@ public static class TemporalHelper
         AddPrototypeMethod(prototype, realm, "startOfDay", 0, (thisValue, _) =>
         {
             var zdt = GetZonedDateTime(thisValue);
-            var startOfDayZdt = new JsTemporalZonedDateTime(
-                zdt.Year, zdt.Month, zdt.Day, 0, 0, 0, 0, 0, 0,
-                zdt.TimeZoneId, zdt.Calendar);
+            var (year, month, day) = GetLocalDate(zdt);
+            var epochNs = GetStartOfDayInstant(year, month, day,
+                zdt.TimeZone, zdt.FixedOffset, realm);
+            var instant = JsTemporalInstant.FromEpochNanoseconds(epochNs);
+            var startOfDayZdt = new JsTemporalZonedDateTime(instant, zdt.TimeZoneId, zdt.Calendar);
             return WrapZonedDateTime(startOfDayZdt, realm, prototype);
         });
 
@@ -3190,22 +3205,27 @@ public static class TemporalHelper
         AddPrototypeMethod(prototype, realm, "withPlainTime", 0, (thisValue, args) =>
         {
             var zdt = GetZonedDateTime(thisValue);
-            JsTemporalPlainTime time;
-            if (args.Count > 0 && !args[0].IsUndefined)
+            var (year, month, day) = GetLocalDate(zdt);
+
+            if (args.Count == 0 || args[0].IsUndefined)
             {
-                time = ToTemporalPlainTime(args[0], realm);
+                // Per spec step 6: use GetStartOfDay
+                var epochNs = GetStartOfDayInstant(year, month, day,
+                    zdt.TimeZone, zdt.FixedOffset, realm);
+                var instant = JsTemporalInstant.FromEpochNanoseconds(epochNs);
+                return WrapZonedDateTime(
+                    new JsTemporalZonedDateTime(instant, zdt.TimeZoneId, zdt.Calendar),
+                    realm, prototype);
             }
-            else
-            {
-                time = new JsTemporalPlainTime(0, 0, 0, 0, 0, 0);
-            }
+
+            var time = ToTemporalPlainTime(args[0], realm);
             var newZdt = new JsTemporalZonedDateTime(
-                zdt.Year, zdt.Month, zdt.Day,
+                year, month, day,
                 time.Hour, time.Minute, time.Second,
                 time.Millisecond, time.Microsecond, time.Nanosecond,
                 zdt.TimeZoneId, zdt.Calendar);
-            var epochNs = newZdt.Instant.EpochNanoseconds;
-            if (epochNs < InstantMinEpochNanoseconds || epochNs > InstantMaxEpochNanoseconds)
+            var newEpochNs = newZdt.Instant.EpochNanoseconds;
+            if (newEpochNs < InstantMinEpochNanoseconds || newEpochNs > InstantMaxEpochNanoseconds)
             {
                 throw StandardLibrary.ThrowRangeError("ZonedDateTime is out of representable range", realm: realm);
             }
@@ -3778,7 +3798,7 @@ public static class TemporalHelper
             if (string.Equals(overflow, "constrain", StringComparison.Ordinal))
             {
                 month = Math.Clamp(month, 1, 12);
-                var maxDay = DateTime.DaysInMonth(md.ReferenceYear, month);
+                var maxDay = IsoCalendarHelpers.DaysInMonth(md.ReferenceYear, month);
                 day = Math.Clamp(day, 1, maxDay);
             }
             else
@@ -3788,7 +3808,7 @@ public static class TemporalHelper
                     throw StandardLibrary.ThrowRangeError("Month value is out of range (1-12)", realm: realm);
                 }
 
-                var maxDay = DateTime.DaysInMonth(md.ReferenceYear, month);
+                var maxDay = IsoCalendarHelpers.DaysInMonth(md.ReferenceYear, month);
                 if (day < 1 || day > maxDay)
                 {
                     throw StandardLibrary.ThrowRangeError("Day value is out of range", realm: realm);
@@ -4565,7 +4585,7 @@ public static class TemporalHelper
     private static (int year, int month, int day) ConstrainISODate(int year, int month, int day)
     {
         month = Math.Clamp(month, 1, 12);
-        var maxDay = DateTime.DaysInMonth(year, month);
+        var maxDay = IsoCalendarHelpers.DaysInMonth(year, month);
         day = Math.Clamp(day, 1, maxDay);
         return (year, month, day);
     }
@@ -6262,6 +6282,30 @@ public static class TemporalHelper
         }
 
         return IsoCalendarHelpers.EpochDaysToDate((long)epochDaysBig);
+    }
+
+    /// <summary>
+    ///     Gets the full local date-time components of a ZonedDateTime using BigInteger arithmetic.
+    ///     Safe for extreme years outside the .NET DateTimeOffset range (1-9999).
+    /// </summary>
+    private static (int Year, int Month, int Day, int Hour, int Minute, int Second,
+        int Millisecond, int Microsecond, int Nanosecond) GetLocalDateTime(JsTemporalZonedDateTime zdt)
+    {
+        BigInteger localNanos;
+        if (zdt.FixedOffset.HasValue)
+        {
+            localNanos = zdt.Instant.EpochNanoseconds + zdt.FixedOffset.Value.Ticks * 100L;
+        }
+        else
+        {
+            localNanos = zdt.Instant.EpochNanoseconds + zdt.TimeZone.BaseUtcOffset.Ticks * 100L;
+        }
+
+        var dayNumber = DivRemFloor(localNanos, new BigInteger(NanosecondsPerDay), out var remainder);
+        var (year, month, day) = IsoCalendarHelpers.EpochDaysToDate((long)dayNumber);
+        var time = CreatePlainTimeFromNanoseconds((long)remainder);
+        return (year, month, day, time.Hour, time.Minute, time.Second,
+            time.Millisecond, time.Microsecond, time.Nanosecond);
     }
 
     private static BigInteger GetStartOfDayInstant(

@@ -567,7 +567,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
                 Value = GetValueForIndex((int)numericIndex),
                 Writable = true,
                 Enumerable = true,
-                Configurable = false
+                Configurable = true
             };
         }
 

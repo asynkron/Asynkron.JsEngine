@@ -1,13 +1,12 @@
 # Temporal_PlainDateTime_prototype_with
 
-Status: 52/56 passing (4 remaining = 2 intl402 + 2 ISO range edge cases)
+Status: 152/154 passing (2 remaining BuiltIns + intl402)
 
 FQNs:
 
 - `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_PlainDateTime_prototype_with`
 - `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_PlainDateTime_prototype_with`
 
-Remaining failures:
+Remaining BuiltIns failures (2):
 
 - throws-if-combined-date-time-outside-valid-iso-range.js × 2 (architectural: DateTimeOffset overflow for extreme years)
-- intl402/non-iso-calendar-fields.js × 2 (non-ISO calendar support not implemented)

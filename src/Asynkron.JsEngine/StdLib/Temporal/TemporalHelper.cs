@@ -274,6 +274,219 @@ public static class TemporalHelper
     }
 
     /// <summary>
+    /// Returns true if the string has a bracket annotation that is NOT a calendar annotation.
+    /// E.g., "[UTC]", "[-07:00]" but not "[u-ca=iso8601]".
+    /// </summary>
+    private static bool HasTimeZoneBracket(string str)
+    {
+        var idx = 0;
+        while ((idx = str.IndexOf('[', idx)) >= 0)
+        {
+            if (!str.AsSpan(idx).StartsWith("[u-ca="))
+                return true;
+            idx++;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Validates that an explicit offset in a relativeTo ZonedDateTime string matches
+    /// the time zone annotation. Throws RangeError on mismatch.
+    /// Per spec: Z designator is not validated, but numeric offsets must match.
+    /// </summary>
+    private static void ValidateRelativeToOffset(string str, RealmState realm)
+    {
+        // Extract the part before the first bracket (date-time + offset)
+        var bracketIdx = str.IndexOf('[');
+        if (bracketIdx < 0) return;
+        var beforeBrackets = str[..bracketIdx];
+
+        // Check for explicit offset in the date-time part
+        if (!JsTemporalZonedDateTime.HasExplicitOffset(beforeBrackets))
+            return;
+
+        // Z designator means "use instant as-is" — no validation needed
+        if (beforeBrackets.Length > 0 && (beforeBrackets[^1] == 'Z' || beforeBrackets[^1] == 'z'))
+            return;
+
+        // Extract the time zone annotation (first non-calendar bracket)
+        string? tzId = null;
+        var searchIdx = 0;
+        while ((searchIdx = str.IndexOf('[', searchIdx)) >= 0)
+        {
+            var closeIdx = str.IndexOf(']', searchIdx);
+            if (closeIdx < 0) break;
+            var content = str[(searchIdx + 1)..closeIdx];
+            if (!content.StartsWith("u-ca=", StringComparison.Ordinal))
+            {
+                tzId = content;
+                break;
+            }
+            searchIdx = closeIdx + 1;
+        }
+        if (tzId == null) return;
+
+        // Resolve the time zone to get its expected offset
+        TimeZoneInfo tz;
+        TimeSpan? fixedOffset;
+        try
+        {
+            tz = JsTemporalZonedDateTime.ResolveTimeZone(tzId, out fixedOffset);
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            throw StandardLibrary.ThrowRangeError($"Invalid time zone: {tzId}", realm: realm);
+        }
+
+        // Extract the explicit offset from the string
+        var explicitOffset = ExtractNumericOffset(beforeBrackets);
+        if (explicitOffset == null) return;
+
+        // Compute expected offset from the time zone at the approximate wall clock time
+        TimeSpan expectedOffset;
+        if (fixedOffset.HasValue)
+        {
+            expectedOffset = fixedOffset.Value;
+        }
+        else
+        {
+            // Parse the wall clock date-time to determine TZ offset
+            var wallClock = ParseApproximateWallClock(beforeBrackets);
+            expectedOffset = tz.GetUtcOffset(wallClock);
+        }
+
+        // Compare: explicit offset must match expected (to the minute)
+        if (explicitOffset.Value != expectedOffset)
+        {
+            throw StandardLibrary.ThrowRangeError(
+                $"UTC offset mismatch: string has {FormatOffset(explicitOffset.Value)} but time zone {tzId} has offset {FormatOffset(expectedOffset)}",
+                realm: realm);
+        }
+    }
+
+    /// <summary>
+    /// Extracts the numeric UTC offset from an ISO date-time string (without brackets).
+    /// Returns null if no numeric offset is found.
+    /// </summary>
+    private static TimeSpan? ExtractNumericOffset(string str)
+    {
+        // Find T separator
+        var tIdx = str.IndexOf('T');
+        if (tIdx < 0) tIdx = str.IndexOf('t');
+        if (tIdx < 0) return null;
+
+        var timePart = str.AsSpan()[(tIdx + 1)..];
+
+        // Scan backwards for +/- offset indicator
+        for (var i = timePart.Length - 1; i >= 2; i--)
+        {
+            if ((timePart[i] == '+' || timePart[i] == '-') &&
+                i + 1 < timePart.Length && char.IsDigit(timePart[i + 1]))
+            {
+                var sign = timePart[i] == '-' ? -1 : 1;
+                var offsetStr = timePart[(i + 1)..].ToString();
+
+                // Remove any trailing sub-second precision (e.g., ".123456789")
+                var parts = offsetStr.Split(':');
+                if (parts.Length < 1) return null;
+
+                if (!int.TryParse(parts[0], System.Globalization.NumberStyles.Integer,
+                    System.Globalization.CultureInfo.InvariantCulture, out var hours))
+                    return null;
+
+                var minutes = 0;
+                if (parts.Length > 1 && !int.TryParse(parts[1], System.Globalization.NumberStyles.Integer,
+                    System.Globalization.CultureInfo.InvariantCulture, out minutes))
+                    return null;
+
+                var seconds = 0;
+                if (parts.Length > 2)
+                {
+                    // Handle seconds with possible fractional part (e.g., "30.123456789")
+                    var secStr = parts[2];
+                    var dotIdx = secStr.IndexOf('.');
+                    if (dotIdx >= 0) secStr = secStr[..dotIdx];
+                    if (!int.TryParse(secStr, System.Globalization.NumberStyles.Integer,
+                        System.Globalization.CultureInfo.InvariantCulture, out seconds))
+                        return null;
+                }
+
+                return new TimeSpan(sign * hours, sign * minutes, sign * seconds);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Parses approximate wall clock DateTime from an ISO string for TZ offset lookup.
+    /// </summary>
+    private static DateTime ParseApproximateWallClock(string str)
+    {
+        // Try simple parsing — we just need an approximate DateTime for TZ offset lookup
+        var tIdx = str.IndexOf('T');
+        if (tIdx < 0) tIdx = str.IndexOf('t');
+
+        try
+        {
+            var datePart = tIdx >= 0 ? str[..tIdx] : str;
+            // Handle extended year format
+            if (datePart.Length > 0 && (datePart[0] == '+' || datePart[0] == '-'))
+            {
+                // Can't represent in DateTime; use year 2000 as approximation
+                return new DateTime(2000, 1, 1);
+            }
+
+            var dateComponents = datePart.Split('-');
+            if (dateComponents.Length < 3) return new DateTime(2000, 1, 1);
+
+            var year = int.Parse(dateComponents[0], System.Globalization.CultureInfo.InvariantCulture);
+            var month = int.Parse(dateComponents[1], System.Globalization.CultureInfo.InvariantCulture);
+            var day = int.Parse(dateComponents[2], System.Globalization.CultureInfo.InvariantCulture);
+            year = Math.Clamp(year, 1, 9999);
+
+            if (tIdx < 0) return new DateTime(year, month, day);
+
+            var timeStr = str[(tIdx + 1)..];
+            // Strip offset from time string
+            for (var i = timeStr.Length - 1; i >= 2; i--)
+            {
+                if (timeStr[i] == '+' || timeStr[i] == '-')
+                {
+                    timeStr = timeStr[..i];
+                    break;
+                }
+            }
+
+            var timeComponents = timeStr.Split(':');
+            var hour = int.Parse(timeComponents[0], System.Globalization.CultureInfo.InvariantCulture);
+            var minute = timeComponents.Length > 1
+                ? int.Parse(timeComponents[1], System.Globalization.CultureInfo.InvariantCulture) : 0;
+            var second = 0;
+            if (timeComponents.Length > 2)
+            {
+                var secStr = timeComponents[2];
+                var dotIdx = secStr.IndexOf('.');
+                if (dotIdx >= 0) secStr = secStr[..dotIdx];
+                second = int.Parse(secStr, System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            return new DateTime(year, month, day, Math.Min(hour, 23), Math.Min(minute, 59), Math.Min(second, 59));
+        }
+        catch
+        {
+            return new DateTime(2000, 1, 1);
+        }
+    }
+
+    private static string FormatOffset(TimeSpan offset)
+    {
+        var sign = offset < TimeSpan.Zero ? "-" : "+";
+        var abs = offset.Duration();
+        return $"{sign}{abs.Hours:D2}:{abs.Minutes:D2}";
+    }
+
+    /// <summary>
     /// Basic validation that a string could be an ISO 8601 date/time string
     /// for the purpose of calendar string extraction.
     /// </summary>
@@ -1048,7 +1261,7 @@ public static class TemporalHelper
             }
             else
             {
-                if (roundingIncrement > maxIncrement.Value || maxIncrement.Value % roundingIncrement != 0)
+                if (roundingIncrement >= maxIncrement.Value || maxIncrement.Value % roundingIncrement != 0)
                     throw StandardLibrary.ThrowRangeError("Invalid roundingIncrement", realm: realm);
             }
 
@@ -6802,9 +7015,12 @@ public static class TemporalHelper
             if (str.Contains('\u2212'))
                 throw StandardLibrary.ThrowRangeError("Non-ASCII minus sign is not allowed", realm: realm);
 
-            // If the string contains a time zone annotation [...], parse as ZonedDateTime
-            if (str.Contains('[') && !str.Contains("[u-ca="))
+            // If the string contains a time zone annotation [...] (not [u-ca=...]), parse as ZonedDateTime
+            if (HasTimeZoneBracket(str))
             {
+                // Validate explicit offset against time zone (spec: reject offset mismatch)
+                ValidateRelativeToOffset(str, realm);
+
                 // String with time zone brackets → ZonedDateTime
                 try
                 {
@@ -6819,7 +7035,17 @@ public static class TemporalHelper
                 {
                     throw StandardLibrary.ThrowRangeError(ex.Message, realm: realm);
                 }
+                catch (TimeZoneNotFoundException ex)
+                {
+                    throw StandardLibrary.ThrowRangeError(ex.Message, realm: realm);
+                }
             }
+
+            // No time zone annotation — check for Z designator (UTC without IANA is ambiguous → throw)
+            var tPos = str.IndexOf('T');
+            if (tPos >= 0 && str.IndexOf('Z', tPos) >= 0)
+                throw StandardLibrary.ThrowRangeError(
+                    "relativeTo with UTC designator 'Z' requires a time zone annotation", realm: realm);
 
             // Otherwise, parse as PlainDate (ignore time components if present)
             try

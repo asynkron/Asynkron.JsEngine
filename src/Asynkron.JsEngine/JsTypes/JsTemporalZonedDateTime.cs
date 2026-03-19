@@ -133,19 +133,14 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
         }
         else
         {
-            if (parts.Length < 2 || parts.Length > 3)
+            // Per Temporal spec, offset time zone identifiers only support ±HH:MM (no seconds)
+            if (parts.Length != 2)
             {
                 return false;
             }
 
             if (!int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out hours) ||
                 !int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out minutes))
-            {
-                return false;
-            }
-
-            if (parts.Length == 3 &&
-                !int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out seconds))
             {
                 return false;
             }

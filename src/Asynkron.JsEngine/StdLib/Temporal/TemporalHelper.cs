@@ -9443,7 +9443,7 @@ public static class TemporalHelper
             s = s[1..];
         }
 
-        if (!s.StartsWith('P'))
+        if (s.Length == 0 || (s[0] != 'P' && s[0] != 'p'))
         {
             throw StandardLibrary.ThrowRangeError($"Invalid duration string: {str}", realm: realm);
         }
@@ -9454,6 +9454,8 @@ public static class TemporalHelper
 
         var isTimePart = false;
         var currentNumber = "";
+        var hadFractionalTimePart = false; // Per spec: no sub-parts allowed after a fractional time unit
+        var hadAnyComponent = false; // Track if at least one component was parsed
 
         for (var i = 1; i < s.Length; i++)
         {
@@ -9462,58 +9464,95 @@ public static class TemporalHelper
             {
                 currentNumber += c;
             }
-            else if (c == 'T')
+            else if (c == ',')
             {
+                // Comma is allowed as decimal separator in time parts only
+                if (!isTimePart)
+                    throw StandardLibrary.ThrowRangeError($"Invalid duration string: {str}", realm: realm);
+                currentNumber += '.'; // Normalize comma to period
+            }
+            else if (c is 'T' or 't')
+            {
+                if (currentNumber.Length > 0)
+                    throw StandardLibrary.ThrowRangeError($"Invalid duration string: {str}", realm: realm);
                 isTimePart = true;
+            }
+            else if (c == '-' || c == '+' || c == '\u2212')
+            {
+                // Negative/positive signs within components are not allowed
+                throw StandardLibrary.ThrowRangeError($"Invalid duration string: {str}", realm: realm);
             }
             else if (currentNumber.Length > 0)
             {
                 // Split integer/fractional parts to avoid double precision loss near 2^53
-                var dotIdx = currentNumber.IndexOf('.');
+                var numberStr = currentNumber;
+                var dotIdx = numberStr.IndexOf('.');
                 double intPart;
                 double fracPart = 0;
                 if (dotIdx >= 0)
                 {
                     intPart = dotIdx > 0
-                        ? double.Parse(currentNumber[..dotIdx], System.Globalization.CultureInfo.InvariantCulture)
+                        ? double.Parse(numberStr[..dotIdx], System.Globalization.CultureInfo.InvariantCulture)
                         : 0;
-                    fracPart = double.Parse("0" + currentNumber[dotIdx..], System.Globalization.CultureInfo.InvariantCulture);
+                    fracPart = double.Parse("0" + numberStr[dotIdx..], System.Globalization.CultureInfo.InvariantCulture);
                 }
                 else
                 {
-                    intPart = double.Parse(currentNumber, System.Globalization.CultureInfo.InvariantCulture);
+                    intPart = double.Parse(numberStr, System.Globalization.CultureInfo.InvariantCulture);
                 }
                 currentNumber = "";
 
+                hadAnyComponent = true;
+                var cu = char.ToUpperInvariant(c); // Case-insensitive designators
+
                 if (isTimePart)
                 {
-                    switch (c)
+                    // Per spec: after a fractional time unit, no further time units are allowed
+                    if (hadFractionalTimePart)
+                        throw StandardLibrary.ThrowRangeError($"Invalid duration string: no sub-parts allowed after fractional time unit: {str}", realm: realm);
+
+                    switch (cu)
                     {
                         case 'H':
                             hours = intPart;
-                            if (fracPart > 0)
+                            if (fracPart > 0 || dotIdx >= 0)
                             {
-                                // Decompose fractional hours into minutes, then seconds, ms, us, ns
-                                var totalMinutes = fracPart * 60;
-                                minutes += Math.Truncate(totalMinutes);
-                                var remainingMinFrac = totalMinutes - Math.Truncate(totalMinutes);
-                                if (remainingMinFrac > 0)
+                                hadFractionalTimePart = true;
+                                if (fracPart > 0)
                                 {
-                                    DecomposeFractionalSeconds(remainingMinFrac * 60,
-                                        ref seconds, ref milliseconds, ref microseconds, ref nanoseconds);
+                                    // Decompose fractional hours into minutes, then seconds, ms, us, ns
+                                    var totalMinutes = fracPart * 60;
+                                    minutes += Math.Truncate(totalMinutes);
+                                    var remainingMinFrac = totalMinutes - Math.Truncate(totalMinutes);
+                                    if (remainingMinFrac > 0)
+                                    {
+                                        DecomposeFractionalSeconds(remainingMinFrac * 60,
+                                            ref seconds, ref milliseconds, ref microseconds, ref nanoseconds);
+                                    }
                                 }
                             }
                             break;
                         case 'M':
                             minutes += intPart;
-                            if (fracPart > 0)
+                            if (fracPart > 0 || dotIdx >= 0)
                             {
-                                // Decompose fractional minutes into seconds, ms, us, ns
-                                DecomposeFractionalSeconds(fracPart * 60,
-                                    ref seconds, ref milliseconds, ref microseconds, ref nanoseconds);
+                                hadFractionalTimePart = true;
+                                if (fracPart > 0)
+                                {
+                                    // Decompose fractional minutes into seconds, ms, us, ns
+                                    DecomposeFractionalSeconds(fracPart * 60,
+                                        ref seconds, ref milliseconds, ref microseconds, ref nanoseconds);
+                                }
                             }
                             break;
                         case 'S':
+                            // Validate max 9 fractional digits for seconds
+                            if (dotIdx >= 0)
+                            {
+                                var fracDigits = numberStr.Length - dotIdx - 1;
+                                if (fracDigits > 9)
+                                    throw StandardLibrary.ThrowRangeError($"Invalid duration string: more than 9 fractional digits: {str}", realm: realm);
+                            }
                             seconds += intPart;
                             if (fracPart > 0)
                             {
@@ -9521,34 +9560,57 @@ public static class TemporalHelper
                                     ref seconds, ref milliseconds, ref microseconds, ref nanoseconds);
                             }
                             break;
+                        default:
+                            throw StandardLibrary.ThrowRangeError($"Invalid duration string: {str}", realm: realm);
                     }
                 }
                 else
                 {
-                    var value = intPart + fracPart;
-                    switch (c)
+                    // Date components must be integers (no fractional parts)
+                    if (dotIdx >= 0)
+                        throw StandardLibrary.ThrowRangeError($"Invalid duration string: fractional date components not allowed: {str}", realm: realm);
+
+                    switch (cu)
                     {
-                        case 'Y': years = value; break;
-                        case 'M': months = value; break;
-                        case 'W': weeks = value; break;
-                        case 'D': days = value; break;
+                        case 'Y': years = intPart; break;
+                        case 'M': months = intPart; break;
+                        case 'W': weeks = intPart; break;
+                        case 'D': days = intPart; break;
+                        default:
+                            throw StandardLibrary.ThrowRangeError($"Invalid duration string: {str}", realm: realm);
                     }
                 }
             }
+            else
+            {
+                // Unknown character (trailing junk)
+                throw StandardLibrary.ThrowRangeError($"Invalid duration string: {str}", realm: realm);
+            }
         }
 
+        // Must have at least one component
+        if (!hadAnyComponent)
+            throw StandardLibrary.ThrowRangeError($"Invalid duration string: {str}", realm: realm);
+
+        // No trailing unconsumed number
+        if (currentNumber.Length > 0)
+            throw StandardLibrary.ThrowRangeError($"Invalid duration string: {str}", realm: realm);
+
         // Validate the parsed duration
-        if (!IsValidDuration(sign * years, sign * months, sign * weeks, sign * days,
-                sign * hours, sign * minutes, sign * seconds,
-                sign * milliseconds, sign * microseconds, sign * nanoseconds))
+        if (!IsValidDuration(ApplySign(sign, years), ApplySign(sign, months), ApplySign(sign, weeks), ApplySign(sign, days),
+                ApplySign(sign, hours), ApplySign(sign, minutes), ApplySign(sign, seconds),
+                ApplySign(sign, milliseconds), ApplySign(sign, microseconds), ApplySign(sign, nanoseconds)))
         {
             throw StandardLibrary.ThrowRangeError($"Duration string results in out-of-range values: {str}", realm: realm);
         }
 
         return new JsTemporalDuration(
-            sign * years, sign * months, sign * weeks, sign * days,
-            sign * hours, sign * minutes, sign * seconds,
-            sign * milliseconds, sign * microseconds, sign * nanoseconds);
+            ApplySign(sign, years), ApplySign(sign, months), ApplySign(sign, weeks), ApplySign(sign, days),
+            ApplySign(sign, hours), ApplySign(sign, minutes), ApplySign(sign, seconds),
+            ApplySign(sign, milliseconds), ApplySign(sign, microseconds), ApplySign(sign, nanoseconds));
+
+        // Multiply by sign, but ensure 0 stays +0 (not -0)
+        static double ApplySign(int sign, double value) => value == 0 ? 0 : sign * value;
     }
 
     /// <summary>

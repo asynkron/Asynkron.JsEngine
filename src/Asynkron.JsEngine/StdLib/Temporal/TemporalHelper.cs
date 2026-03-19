@@ -1854,12 +1854,13 @@ public static class TemporalHelper
                 }
             }
 
-            // Property bag: validate options and apply overflow
+            // Property bag: read fields first (ToTemporalTimeRecord), THEN options
             if (item.TryGetObject<IJsPropertyAccessor>(out var accessor))
             {
+                var fields = ReadTemporalPlainTimeFields(accessor, realm);
                 var resolvedOpts = ValidateOptionsObject(options, realm, "Temporal.PlainTime.from");
                 var overflow = GetTemporalOverflowOption(resolvedOpts, realm);
-                return WrapPlainTime(ToTemporalPlainTimeFromPropertyBagWithOverflow(accessor, overflow, realm), realm, prototype);
+                return WrapPlainTime(ApplyPlainTimeOverflow(fields, overflow, realm), realm, prototype);
             }
 
             // Object without property accessor (e.g., HostFunction)
@@ -7958,6 +7959,59 @@ public static class TemporalHelper
         else
         {
             // Constrain: handle leap second then clamp
+            if (second == 60) second = 59;
+            hour = Math.Clamp(hour, 0, 23);
+            minute = Math.Clamp(minute, 0, 59);
+            second = Math.Clamp(second, 0, 59);
+            millisecond = Math.Clamp(millisecond, 0, 999);
+            microsecond = Math.Clamp(microsecond, 0, 999);
+            nanosecond = Math.Clamp(nanosecond, 0, 999);
+        }
+
+        return new JsTemporalPlainTime(hour, minute, second, millisecond, microsecond, nanosecond);
+    }
+
+    /// <summary>
+    ///     Reads time fields from a property bag in alphabetical order (spec: ToTemporalTimeRecord).
+    ///     Returns the raw field values before overflow processing.
+    /// </summary>
+    private static (int hour, int microsecond, int millisecond, int minute, int nanosecond, int second)
+        ReadTemporalPlainTimeFields(IJsPropertyAccessor accessor, RealmState realm)
+    {
+        var any = false;
+        var hour = GetTimePropertyAsInteger(accessor, "hour", realm, ref any);
+        var microsecond = GetTimePropertyAsInteger(accessor, "microsecond", realm, ref any);
+        var millisecond = GetTimePropertyAsInteger(accessor, "millisecond", realm, ref any);
+        var minute = GetTimePropertyAsInteger(accessor, "minute", realm, ref any);
+        var nanosecond = GetTimePropertyAsInteger(accessor, "nanosecond", realm, ref any);
+        var second = GetTimePropertyAsInteger(accessor, "second", realm, ref any);
+
+        if (!any)
+            throw StandardLibrary.ThrowTypeError("Object must have at least one time property", realm: realm);
+
+        return (hour, microsecond, millisecond, minute, nanosecond, second);
+    }
+
+    /// <summary>
+    ///     Applies overflow processing to pre-read time fields and creates a PlainTime.
+    /// </summary>
+    private static JsTemporalPlainTime ApplyPlainTimeOverflow(
+        (int hour, int microsecond, int millisecond, int minute, int nanosecond, int second) fields,
+        string overflow, RealmState realm)
+    {
+        var (hour, microsecond, millisecond, minute, nanosecond, second) = fields;
+
+        if (string.Equals(overflow, "reject", StringComparison.Ordinal))
+        {
+            if (hour < 0 || hour > 23 || minute < 0 || minute > 59 ||
+                second < 0 || second > 59 ||
+                millisecond < 0 || millisecond > 999 ||
+                microsecond < 0 || microsecond > 999 ||
+                nanosecond < 0 || nanosecond > 999)
+                throw StandardLibrary.ThrowRangeError("PlainTime field out of range with overflow: reject", realm: realm);
+        }
+        else
+        {
             if (second == 60) second = 59;
             hour = Math.Clamp(hour, 0, 23);
             minute = Math.Clamp(minute, 0, 59);

@@ -4524,55 +4524,15 @@ public static class TemporalHelper
         if (optionsObj == null)
             return new DifferenceSettings(fallbackLargestUnit, fallbackSmallestUnit, 1, "trunc");
 
-        // Read smallestUnit (use ToString for type coercion - Symbol throws TypeError)
-        var smallestUnit = fallbackSmallestUnit;
-        if (optionsObj.TryGetProperty("smallestUnit", out var smallestUnitVal) && !smallestUnitVal.IsUndefined)
-        {
-            var rawSmallest = JsOps.ToJsString(smallestUnitVal);
-            smallestUnit = NormalizeTemporalUnit(rawSmallest);
-            if (!validUnits.Contains(smallestUnit))
-                throw StandardLibrary.ThrowRangeError($"{methodName}: Invalid unit: {rawSmallest}", realm: realm);
-        }
+        // Per spec (GetDifferenceSettings), read options in alphabetical order:
+        // largestUnit, roundingIncrement, roundingMode, smallestUnit
 
-        // Default largestUnit = max(fallback, smallestUnit)
-        var defaultLargestUnit = UnitRank(smallestUnit) > UnitRank(fallbackLargestUnit)
-            ? smallestUnit : fallbackLargestUnit;
-
-        // Read largestUnit (use ToString for type coercion - Symbol throws TypeError)
-        var largestUnit = defaultLargestUnit;
+        // 1. Read largestUnit
+        string? rawLargestUnit = null;
         if (optionsObj.TryGetProperty("largestUnit", out var largestUnitVal) && !largestUnitVal.IsUndefined)
-        {
-            var rawLargest = JsOps.ToJsString(largestUnitVal);
-            if (string.Equals(rawLargest, "auto", StringComparison.Ordinal))
-                largestUnit = defaultLargestUnit;
-            else
-            {
-                largestUnit = NormalizeTemporalUnit(rawLargest);
-                if (!validUnits.Contains(largestUnit))
-                    throw StandardLibrary.ThrowRangeError($"{methodName}: Invalid unit: {rawLargest}", realm: realm);
-            }
-        }
+            rawLargestUnit = JsOps.ToJsString(largestUnitVal);
 
-        // Validate largestUnit >= smallestUnit
-        if (UnitRank(largestUnit) < UnitRank(smallestUnit))
-            throw StandardLibrary.ThrowRangeError(
-                $"{methodName}: largestUnit {largestUnit} cannot be smaller than smallestUnit {smallestUnit}",
-                realm: realm);
-
-        // Read roundingMode (default "trunc" for since/until)
-        var roundingMode = "trunc";
-        if (optionsObj.TryGetProperty("roundingMode", out var roundingModeVal) && !roundingModeVal.IsUndefined)
-        {
-            roundingMode = JsOps.ToJsString(roundingModeVal);
-            if (!ValidRoundingModes.Contains(roundingMode))
-                throw StandardLibrary.ThrowRangeError($"Invalid roundingMode: {roundingMode}", realm: realm);
-        }
-
-        // Negate rounding mode for "since"
-        if (string.Equals(operation, "since", StringComparison.Ordinal))
-            roundingMode = NegateRoundingMode(roundingMode);
-
-        // Read roundingIncrement (per spec: truncate to integer, validate range)
+        // 2. Read roundingIncrement
         long roundingIncrement = 1;
         if (optionsObj.TryGetProperty("roundingIncrement", out var incrementVal) && !incrementVal.IsUndefined)
         {
@@ -4584,8 +4544,53 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowRangeError("roundingIncrement must be between 1 and 1000000000", realm: realm);
         }
 
+        // 3. Read roundingMode
+        var roundingMode = "trunc";
+        if (optionsObj.TryGetProperty("roundingMode", out var roundingModeVal) && !roundingModeVal.IsUndefined)
+        {
+            roundingMode = JsOps.ToJsString(roundingModeVal);
+            if (!ValidRoundingModes.Contains(roundingMode))
+                throw StandardLibrary.ThrowRangeError($"Invalid roundingMode: {roundingMode}", realm: realm);
+        }
+
+        // 4. Read smallestUnit
+        var smallestUnit = fallbackSmallestUnit;
+        if (optionsObj.TryGetProperty("smallestUnit", out var smallestUnitVal) && !smallestUnitVal.IsUndefined)
+        {
+            var rawSmallest = JsOps.ToJsString(smallestUnitVal);
+            smallestUnit = NormalizeTemporalUnit(rawSmallest);
+            if (!validUnits.Contains(smallestUnit))
+                throw StandardLibrary.ThrowRangeError($"{methodName}: Invalid unit: {rawSmallest}", realm: realm);
+        }
+
+        // Now resolve largestUnit with smallestUnit available for default computation
+        var defaultLargestUnit = UnitRank(smallestUnit) > UnitRank(fallbackLargestUnit)
+            ? smallestUnit : fallbackLargestUnit;
+
+        var largestUnit = defaultLargestUnit;
+        if (rawLargestUnit != null)
+        {
+            if (string.Equals(rawLargestUnit, "auto", StringComparison.Ordinal))
+                largestUnit = defaultLargestUnit;
+            else
+            {
+                largestUnit = NormalizeTemporalUnit(rawLargestUnit);
+                if (!validUnits.Contains(largestUnit))
+                    throw StandardLibrary.ThrowRangeError($"{methodName}: Invalid unit: {rawLargestUnit}", realm: realm);
+            }
+        }
+
+        // Validate largestUnit >= smallestUnit
+        if (UnitRank(largestUnit) < UnitRank(smallestUnit))
+            throw StandardLibrary.ThrowRangeError(
+                $"{methodName}: largestUnit {largestUnit} cannot be smaller than smallestUnit {smallestUnit}",
+                realm: realm);
+
+        // Negate rounding mode for "since"
+        if (string.Equals(operation, "since", StringComparison.Ordinal))
+            roundingMode = NegateRoundingMode(roundingMode);
+
         // Validate roundingIncrement against maximum for the smallestUnit
-        // For since/until, maximum is exclusive (increment must be strictly less)
         var maxIncrement = MaximumTemporalDurationRoundingIncrement(smallestUnit);
         if (maxIncrement.HasValue)
         {

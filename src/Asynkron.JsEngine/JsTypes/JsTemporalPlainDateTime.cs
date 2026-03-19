@@ -192,8 +192,19 @@ public sealed class JsTemporalPlainDateTime : IEquatable<JsTemporalPlainDateTime
             newDate = newDate.Add(JsTemporalDuration.From(days: dayOverflow));
         }
 
-        var newTime = JsTemporalPlainTime.From(
-            new TimeSpan(totalNanos / 100).ToString(@"hh\:mm\:ss\.fffffff", CultureInfo.InvariantCulture));
+        // Decompose totalNanos into time components directly (avoids TimeSpan tick-level precision loss)
+        var hour = (int)(totalNanos / 3_600_000_000_000L);
+        totalNanos %= 3_600_000_000_000L;
+        var minute = (int)(totalNanos / 60_000_000_000L);
+        totalNanos %= 60_000_000_000L;
+        var second = (int)(totalNanos / 1_000_000_000L);
+        totalNanos %= 1_000_000_000L;
+        var millisecond = (int)(totalNanos / 1_000_000L);
+        totalNanos %= 1_000_000L;
+        var microsecond = (int)(totalNanos / 1_000L);
+        var nanosecond = (int)(totalNanos % 1_000L);
+
+        var newTime = new JsTemporalPlainTime(hour, minute, second, millisecond, microsecond, nanosecond);
 
         return new JsTemporalPlainDateTime(newDate, newTime);
     }

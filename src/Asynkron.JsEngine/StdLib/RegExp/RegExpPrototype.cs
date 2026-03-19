@@ -967,24 +967,34 @@ public sealed partial class RegExpPrototype
     private JsValue SpeciesConstructor(JsValue thisValue)
     {
         JsOps.TryGetPropertyValue(thisValue, "constructor", out var ctor);
-        if (ctor == JsValue.Undefined || ctor.IsNullOrUndefined)
+        // Per spec step 4: If C is undefined, return defaultConstructor.
+        if (ctor.IsUndefined)
         {
             return Realm.RegExpConstructor is not null
                 ? JsValue.FromObjectUnsafe(Realm.RegExpConstructor)
                 : JsValue.Undefined;
         }
 
+        // Per spec step 5: If Type(C) is not Object, throw a TypeError exception.
         if (!ctor.IsObject)
         {
             throw ThrowTypeError("Species constructor is not an object", realm: Realm);
         }
 
+        // Per spec step 6-8: Get species, check if undefined/null → return default.
         JsOps.TryGetPropertyValue(ctor, SymbolKeys.Species, out var species);
-        if (species == JsValue.Undefined || species.IsNullOrUndefined)
+        if (species.IsUndefined || species.IsNull)
         {
             return Realm.RegExpConstructor is not null
                 ? JsValue.FromObjectUnsafe(Realm.RegExpConstructor)
                 : JsValue.Undefined;
+        }
+
+        // Per spec step 7: If IsConstructor(S) is true, return S.
+        // Step 8: Throw a TypeError exception.
+        if (!JsOps.IsConstructor(species))
+        {
+            throw ThrowTypeError("Species constructor is not a constructor", realm: Realm);
         }
 
         return species;

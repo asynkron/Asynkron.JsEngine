@@ -426,6 +426,52 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
     }
 
     [Fact]
+    public async Task Debug_ZonedDateTime_Add_Duration()
+    {
+        await using var engine = CreateEngine();
+        // From test262 add-duration.js
+        var resultNs = await engine.Evaluate(@"
+            const zdt = new Temporal.ZonedDateTime(-560174321098766n, 'UTC');
+            const d = new Temporal.Duration(0, 0, 0, 0, 240, 0, 0, 0, 0, 800);
+            const result = zdt.add(d);
+            '' + result.epochNanoseconds
+        ");
+        output.WriteLine($"Result epochNs: {resultNs}");
+        Assert.Equal("303825678902034", resultNs);
+    }
+
+    [Fact]
+    public async Task Debug_ZonedDateTime_Add_OverflowInvalid()
+    {
+        await using var engine = CreateEngine();
+        // Test that the options argument is being received
+        var threw = await engine.Evaluate(@"
+            const dt = new Temporal.ZonedDateTime(1_000_000_000_987_654_321n, 'UTC');
+            // Test with PlainDateTime first (known working)
+            const pdt = new Temporal.PlainDateTime(2020, 1, 1);
+            try {
+                pdt.add(new Temporal.Duration(0, 0, 0, 1), { overflow: '' });
+                'PlainDateTime: no error';
+            } catch (e) {
+                'PlainDateTime: ' + e.constructor.name;
+            }
+        ");
+        output.WriteLine($"PlainDateTime result: {threw}");
+
+        var threw2 = await engine.Evaluate(@"
+            const dt2 = new Temporal.ZonedDateTime(1_000_000_000_987_654_321n, 'UTC');
+            try {
+                dt2.add(new Temporal.Duration(0, 0, 0, 1), { overflow: '' });
+                'ZonedDateTime: no error';
+            } catch (e) {
+                'ZonedDateTime: ' + e.constructor.name;
+            }
+        ");
+        output.WriteLine($"ZonedDateTime result: {threw2}");
+        Assert.Contains("RangeError", threw2 as string ?? "");
+    }
+
+    [Fact]
     public async Task Temporal_ZonedDateTime_StartOfDay()
     {
         await using var engine = CreateEngine();

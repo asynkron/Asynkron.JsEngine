@@ -779,21 +779,82 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
 
     /// <summary>
     ///     Returns ISO 8601 string with timezone (e.g., "2024-12-25T10:30:00+01:00[Europe/Paris]").
+    ///     Computes date/time components directly from BigInteger epoch nanoseconds to support
+    ///     years outside the .NET DateTimeOffset range (1-9999).
     /// </summary>
     public override string ToString()
     {
-        var dt = LocalDateTimeOffset;
-        var baseStr = $"{dt.Year:D4}-{dt.Month:D2}-{dt.Day:D2}T{dt.Hour:D2}:{dt.Minute:D2}:{dt.Second:D2}";
+        const long nsPerDay = 86_400_000_000_000L;
+        const long nsPerSecond = 1_000_000_000L;
+
+        // Get the timezone offset
+        var offset = GetOffsetTimeSpan();
+        var offsetNanos = (BigInteger)offset.Ticks * 100;
+
+        // Convert UTC epoch nanoseconds to local epoch nanoseconds
+        var localEpochNs = Instant.EpochNanoseconds + offsetNanos;
+
+        // Split into day number and time-of-day nanoseconds
+        var dayNs = localEpochNs >= 0
+            ? localEpochNs % nsPerDay
+            : nsPerDay - 1 - ((-localEpochNs - 1) % nsPerDay);
+        var dayNumber = (long)((localEpochNs - dayNs) / nsPerDay);
+
+        // Convert day number to ISO date (civil calendar algorithm)
+        var z = dayNumber + 719468L;
+        var era = (z >= 0 ? z : z - 146096) / 146097;
+        var doe = z - era * 146097;
+        var yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+        var y = yoe + era * 400;
+        var doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+        var mp = (5 * doy + 2) / 153;
+        var d = doy - (153 * mp + 2) / 5 + 1;
+        var m = mp + (mp < 10 ? 3 : -9);
+        y += m <= 2 ? 1 : 0;
+
+        var year = (int)y;
+        var month = (int)m;
+        var day = (int)d;
+
+        // Convert time-of-day nanoseconds to components
+        var timeNs = (long)dayNs;
+        var hour = (int)(timeNs / 3_600_000_000_000L);
+        timeNs %= 3_600_000_000_000L;
+        var minute = (int)(timeNs / 60_000_000_000L);
+        timeNs %= 60_000_000_000L;
+        var second = (int)(timeNs / nsPerSecond);
+        var nanosPart = (int)(timeNs % nsPerSecond);
+
+        // Format year: 4 digits for 0000-9999, 6 digits with sign otherwise
+        string yearStr;
+        if (year >= 0 && year <= 9999)
+        {
+            yearStr = year.ToString("D4", CultureInfo.InvariantCulture);
+        }
+        else if (year >= 0)
+        {
+            yearStr = "+" + year.ToString("D6", CultureInfo.InvariantCulture);
+        }
+        else
+        {
+            yearStr = "-" + (-year).ToString("D6", CultureInfo.InvariantCulture);
+        }
+
+        var baseStr = string.Create(CultureInfo.InvariantCulture,
+            $"{yearStr}-{month:D2}-{day:D2}T{hour:D2}:{minute:D2}:{second:D2}");
 
         // Add fractional seconds if needed
-        var totalSubSecondNanos = Millisecond * 1_000_000L + Microsecond * 1_000L + Nanosecond;
-        if (totalSubSecondNanos > 0)
+        if (nanosPart > 0)
         {
-            var fractionStr = totalSubSecondNanos.ToString("D9", CultureInfo.InvariantCulture).TrimEnd('0');
+            var fractionStr = nanosPart.ToString("D9", CultureInfo.InvariantCulture).TrimEnd('0');
             baseStr += $".{fractionStr}";
         }
 
-        baseStr += Offset;
+        // Format offset string
+        var sign = offset >= TimeSpan.Zero ? "+" : "-";
+        var absOffset = offset.Duration();
+        baseStr += $"{sign}{absOffset.Hours:D2}:{absOffset.Minutes:D2}";
+
         baseStr += $"[{TimeZoneId}]";
 
         if (!string.Equals(Calendar, "iso8601", StringComparison.Ordinal))
@@ -802,6 +863,27 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
         }
 
         return baseStr;
+    }
+
+    /// <summary>
+    ///     Gets the timezone offset as a TimeSpan, handling extreme years gracefully.
+    /// </summary>
+    private TimeSpan GetOffsetTimeSpan()
+    {
+        if (FixedOffset.HasValue)
+        {
+            return FixedOffset.Value;
+        }
+
+        try
+        {
+            return TimeZone.GetUtcOffset(LocalDateTimeOffset.DateTime);
+        }
+        catch (OverflowException)
+        {
+            // For extreme years outside .NET's range, fall back to UTC offset
+            return TimeSpan.Zero;
+        }
     }
 
     public static bool operator ==(JsTemporalZonedDateTime? left, JsTemporalZonedDateTime? right)

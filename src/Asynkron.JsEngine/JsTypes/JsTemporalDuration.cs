@@ -402,11 +402,14 @@ public sealed class JsTemporalDuration : IEquatable<JsTemporalDuration>
 
             if (absSeconds != 0 || absMilliseconds != 0 || absMicroseconds != 0 || absNanoseconds != 0)
             {
-                // Use integer arithmetic to avoid double precision loss for large second values
-                var wholeSeconds = (long)absSeconds;
-                var fracNanos = (long)absNanoseconds +
-                                (long)absMicroseconds * 1_000L +
-                                (long)absMilliseconds * 1_000_000L;
+                // Use integer arithmetic to avoid double precision loss for large second values.
+                // Sub-second components may exceed their unit (e.g. 876543 ms = 876s + 543ms),
+                // so balance the total nanoseconds into whole seconds + fractional nanoseconds.
+                var totalSubNanos = (long)absNanoseconds +
+                                    (long)absMicroseconds * 1_000L +
+                                    (long)absMilliseconds * 1_000_000L;
+                var wholeSeconds = (long)absSeconds + totalSubNanos / 1_000_000_000L;
+                var fracNanos = totalSubNanos % 1_000_000_000L;
 
                 if (fracNanos == 0)
                 {

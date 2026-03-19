@@ -1439,8 +1439,31 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         {
             if (newLength < oldLength)
             {
-                if (!TryShrinkLength(newLength, context, throwOnWritableFailure))
+                bool shrinkFailed;
+                try
                 {
+                    shrinkFailed = !TryShrinkLength(newLength, context, throwOnWritableFailure);
+                }
+                catch (ThrowSignal)
+                {
+                    // Per spec 10.4.2.4 step 3.l.iii.2: If newWritable is false,
+                    // set the length descriptor's [[Writable]] to false before propagating.
+                    if (!newWritable)
+                    {
+                        lengthDescriptor.Writable = false;
+                    }
+
+                    throw;
+                }
+
+                if (shrinkFailed)
+                {
+                    // Per spec 10.4.2.4 step 3.l.iii.2
+                    if (!newWritable)
+                    {
+                        lengthDescriptor.Writable = false;
+                    }
+
                     return false;
                 }
             }

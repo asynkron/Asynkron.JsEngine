@@ -1117,7 +1117,7 @@ public sealed class JsRegExp
 
                 var name = pattern.Substring(i + 3, end - (i + 3));
                 var normalizedName = NormalizeGroupNameToken(name);
-                if (ContainsSurrogateCodeUnit(normalizedName))
+                if (ContainsLoneSurrogate(normalizedName))
                 {
                     throw new ParseException("Invalid regular expression: invalid group name.");
                 }
@@ -1126,7 +1126,11 @@ public sealed class JsRegExp
                 captureCount++;
                 definedSoFar.Add(normalizedName);
                 openGroupNames.Push(normalizedName);
-                builder.Append(pattern, i, end - i + 1);
+                // Emit (?<normalizedName> — use decoded name since .NET doesn't
+                // understand \u escapes in group names
+                builder.Append("(?<");
+                builder.Append(normalizedName);
+                builder.Append('>');
                 i = end;
                 continue;
             }
@@ -1755,15 +1759,44 @@ public sealed class JsRegExp
                     if (int.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var cp) &&
                         cp is >= 0xD800 and <= 0xDFFF)
                     {
+                        // Allow high surrogate if followed by \uHHHH low surrogate (surrogate pair)
+                        if (cp is >= 0xD800 and <= 0xDBFF &&
+                            i + 11 < rawName.Length &&
+                            rawName[i + 6] == '\\' && rawName[i + 7] == 'u' &&
+                            IsHexDigit(rawName[i + 8]) && IsHexDigit(rawName[i + 9]) &&
+                            IsHexDigit(rawName[i + 10]) && IsHexDigit(rawName[i + 11]))
+                        {
+                            var lowHex = rawName.Substring(i + 8, 4);
+                            if (int.TryParse(lowHex, NumberStyles.HexNumber, CultureInfo.InvariantCulture,
+                                    out var low) && low is >= 0xDC00 and <= 0xDFFF)
+                            {
+                                i += 11; // Skip to end of second \uHHHH (loop will increment)
+                                continue;
+                            }
+                        }
+
                         throw new ParseException("Invalid regular expression: invalid group name.");
                     }
                 }
             }
         }
 
-        foreach (var ch in rawName)
+        // Reject lone surrogates in raw name. Valid surrogate pairs (supplementary plane chars) are OK.
+        for (var si = 0; si < rawName.Length; si++)
         {
-            if (char.IsSurrogate(ch))
+            var ch = rawName[si];
+            if (char.IsHighSurrogate(ch))
+            {
+                if (si + 1 < rawName.Length && char.IsLowSurrogate(rawName[si + 1]))
+                {
+                    si++; // Valid pair — skip both
+                    continue;
+                }
+
+                throw new ParseException("Invalid regular expression: invalid group name.");
+            }
+
+            if (char.IsLowSurrogate(ch))
             {
                 throw new ParseException("Invalid regular expression: invalid group name.");
             }
@@ -1812,8 +1845,18 @@ public sealed class JsRegExp
     {
         mapping = null;
 
-        // Quick check: if no '$' in the pattern, no sanitization needed
-        if (!pattern.Contains('$'))
+        // Quick check: if no problematic characters in the pattern, no sanitization needed
+        var needsScan = false;
+        foreach (var ch in pattern)
+        {
+            if (ch == '$' || char.IsSurrogate(ch))
+            {
+                needsScan = true;
+                break;
+            }
+        }
+
+        if (!needsScan)
         {
             return pattern;
         }
@@ -1937,12 +1980,13 @@ public sealed class JsRegExp
 
     /// <summary>
     /// Returns true if a group name contains characters not supported by .NET regex.
+    /// .NET regex doesn't support '$' or supplementary plane characters (surrogates) in group names.
     /// </summary>
     private static bool NeedsGroupNameSanitization(string name)
     {
         foreach (var ch in name)
         {
-            if (ch == '$')
+            if (ch == '$' || char.IsSurrogate(ch))
             {
                 return true;
             }
@@ -1954,8 +1998,20 @@ public sealed class JsRegExp
     /// <summary>
     /// Replaces characters in a group name that .NET regex doesn't support.
     /// </summary>
+    [ThreadStatic] private static int s_sanitizeCounter;
+
     private static string SanitizeGroupName(string name)
     {
+        // If name contains surrogates (supplementary plane chars), replace entirely
+        // since .NET regex doesn't support them in group names
+        foreach (var ch in name)
+        {
+            if (char.IsSurrogate(ch))
+            {
+                return $"_u{s_sanitizeCounter++}";
+            }
+        }
+
         return name.Replace("$", "_dollar_", StringComparison.Ordinal);
     }
 
@@ -1973,13 +2029,25 @@ public sealed class JsRegExp
         return dotNetName;
     }
 
-    private static bool ContainsSurrogateCodeUnit(string value)
+    private static bool ContainsLoneSurrogate(string value)
     {
-        foreach (var ch in value)
+        for (var i = 0; i < value.Length; i++)
         {
-            if (char.IsSurrogate(ch))
+            var ch = value[i];
+            if (char.IsHighSurrogate(ch))
             {
-                return true;
+                if (i + 1 < value.Length && char.IsLowSurrogate(value[i + 1]))
+                {
+                    i++; // Valid surrogate pair — skip both
+                    continue;
+                }
+
+                return true; // Lone high surrogate
+            }
+
+            if (char.IsLowSurrogate(ch))
+            {
+                return true; // Lone low surrogate
             }
         }
 
@@ -2035,7 +2103,31 @@ public sealed class JsRegExp
                     throw new ParseException("Invalid regular expression: invalid group name.");
                 }
 
-                if (code is >= 0xD800 and <= 0xDFFF)
+                // Handle surrogate pair: \uHHHH\uHHHH where first is high and second is low
+                if (code is >= 0xD800 and <= 0xDBFF)
+                {
+                    // High surrogate — look for following \uHHHH low surrogate
+                    if (i + 6 < name.Length && name[i + 6] == '\\' &&
+                        i + 7 < name.Length && name[i + 7] == 'u' &&
+                        i + 11 < name.Length &&
+                        IsHexDigit(name[i + 8]) && IsHexDigit(name[i + 9]) &&
+                        IsHexDigit(name[i + 10]) && IsHexDigit(name[i + 11]))
+                    {
+                        var lowHex = name.Substring(i + 8, 4);
+                        if (int.TryParse(lowHex, NumberStyles.HexNumber, CultureInfo.InvariantCulture,
+                                out var lowCode) && lowCode is >= 0xDC00 and <= 0xDFFF)
+                        {
+                            var codePoint = 0x10000 + ((code - 0xD800) << 10) + (lowCode - 0xDC00);
+                            runes.Add(new Rune(codePoint));
+                            i += 12; // Skip both \uHHHH sequences
+                            continue;
+                        }
+                    }
+
+                    throw new ParseException("Invalid regular expression: invalid group name.");
+                }
+
+                if (code is >= 0xDC00 and <= 0xDFFF)
                 {
                     throw new ParseException("Invalid regular expression: invalid group name.");
                 }

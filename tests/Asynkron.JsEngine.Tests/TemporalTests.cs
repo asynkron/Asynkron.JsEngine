@@ -459,27 +459,7 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
         Assert.Equal(false, neq);
     }
 
-    [Fact]
-    public async Task Debug_RoundedDate_OutsideValidRange_Throws()
-    {
-        await using var engine = CreateEngine();
-        // roundingIncrement: 100_000_000 months should cause NudgeToCalendarUnit
-        // to call CalendarDateAdd with a date far outside valid ISO range → RangeError
-        // Test with exact same assert.throws pattern used by Test262
-        var result = await engine.Evaluate(@"
-            var from = new Temporal.PlainDateTime(1970, 1, 1);
-            var to = new Temporal.PlainDateTime(1971, 1, 1);
-            var options = {roundingIncrement: 100_000_000, smallestUnit: 'months'};
-            var result = 'no-throw';
-            try { from.since(to, options); } catch(e) { result = e.constructor.name + ': ' + e.message; }
-            result
-        ");
-        // Should be "RangeError: ..." - if it's "no-throw" then validation isn't working
-        output.WriteLine($""Result: {result}"");
-        Assert.StartsWith("RangeError", (string)result);
-    }
-
-    [Fact]
+[Fact]
     public async Task Temporal_Now_ZonedDateTimeISO()
     {
         await using var engine = CreateEngine();

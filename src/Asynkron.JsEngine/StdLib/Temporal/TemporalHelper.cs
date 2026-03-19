@@ -5184,67 +5184,84 @@ public static class TemporalHelper
         {
             case "year":
             {
-                // Validate NudgeToCalendarUnit end boundary (spec step 8)
-                var r1Y = (long)Math.Abs(years) / roundingIncrement * roundingIncrement;
-                var r2Y = r1Y + roundingIncrement;
-                ValidateRoundedDateResult(relY, relM, relD, (int)(r2Y * sign) * 12);
+                // NudgeToCalendarUnit spec: round years field, months zeroed in boundaries
+                var r1Y = RoundNumberToIncrementTrunc(years, roundingIncrement);
+                var r2Y = r1Y + (int)roundingIncrement * sign;
 
-                // threshold = relativeTo + years
-                var thMonths = years * 12;
-                var (thY, thM) = AddYearMonth(relY, relM, thMonths);
-                var thD = Math.Min(relD, DaysInISOMonth(thY, thM));
-                var thresholdEpoch = IsoToDayNumber(thY, thM, thD);
+                // Validate end boundary (spec step 8): ref + r2 years
+                ValidateRoundedDateResult(relY, relM, relD, r2Y * 12);
 
-                // next boundary = relativeTo + (years + sign) years
-                var nxMonths = (years + sign) * 12;
-                var (nxY, nxM) = AddYearMonth(relY, relM, nxMonths);
-                var nxD = Math.Min(relD, DaysInISOMonth(nxY, nxM));
-                var nextEpoch = IsoToDayNumber(nxY, nxM, nxD);
+                // start = ref + r1 years (months=0)
+                var startMonths = r1Y * 12;
+                var (stY, stM) = AddYearMonth(relY, relM, startMonths);
+                var stD = Math.Min(relD, DaysInISOMonth(stY, stM));
+                var startEpoch = IsoToDayNumber(stY, stM, stD);
 
-                // Include time nanoseconds in the fractional calculation
-                var nsNumer = new BigInteger(destEpoch - thresholdEpoch) * NanosecondsPerDay + timeDiffNanos;
-                var nsDenom = new BigInteger(nextEpoch - thresholdEpoch) * NanosecondsPerDay;
-                var ySign = years != 0 ? Math.Sign(years) : (nsNumer > 0 ? 1 : nsNumer < 0 ? -1 : 0);
-                var absNsNumer = BigInteger.Abs(nsNumer);
-                var absNsDenom = BigInteger.Abs(nsDenom);
-                var scaledValue = new BigInteger(years) * absNsDenom + new BigInteger(ySign) * absNsNumer;
-                var scaledIncrement = new BigInteger(roundingIncrement) * absNsDenom;
+                // end = ref + r2 years (months=0)
+                var endMonths = r2Y * 12;
+                var (enY, enM) = AddYearMonth(relY, relM, endMonths);
+                var enD = Math.Min(relD, DaysInISOMonth(enY, enM));
+                var endEpoch = IsoToDayNumber(enY, enM, enD);
+
+                // total = r1 + (D / S) * increment * sign, where D = dest-start, S = end-start
+                // Since sign*sgn(S) = 1, scaling by |S| gives: scaledTotal = r1*|S| + D*increment
+                var destNs = new BigInteger(destEpoch) * NanosecondsPerDay + timeDiffNanos;
+                var startNs = new BigInteger(startEpoch) * NanosecondsPerDay;
+                var endNs = new BigInteger(endEpoch) * NanosecondsPerDay;
+                var dNs = destNs - startNs; // signed
+                var absDenom = BigInteger.Abs(endNs - startNs);
+                var scaledValue = new BigInteger(r1Y) * absDenom + dNs * roundingIncrement;
+                var scaledIncrement = new BigInteger(roundingIncrement) * absDenom;
                 var rounded = RoundToIncrement(scaledValue, scaledIncrement, roundingMode);
-                return ((int)(rounded / absNsDenom), 0, 0, 0);
+                return ((int)(rounded / absDenom), 0, 0, 0);
             }
             case "month":
             {
-                var totalMonths = years * 12 + months;
+                // NudgeToCalendarUnit spec: round months field (not totalMonths), keep years
+                var r1M = RoundNumberToIncrementTrunc(months, roundingIncrement);
+                var r2M = r1M + (int)roundingIncrement * sign;
 
-                // Validate NudgeToCalendarUnit end boundary (spec step 8)
-                var r1M = (long)Math.Abs(totalMonths) / roundingIncrement * roundingIncrement;
-                var r2M = r1M + roundingIncrement;
-                ValidateRoundedDateResult(relY, relM, relD, (int)(r2M * sign));
+                // Validate end boundary (spec step 8): ref + (years, r2M)
+                ValidateRoundedDateResult(relY, relM, relD, years * 12 + r2M);
 
-                // threshold = relativeTo + totalMonths months
-                var (thY, thM) = AddYearMonth(relY, relM, totalMonths);
-                var thD = Math.Min(relD, DaysInISOMonth(thY, thM));
-                var thresholdEpoch = IsoToDayNumber(thY, thM, thD);
+                // start = ref + (years years, r1M months)
+                var startTotalM = years * 12 + r1M;
+                var (stY, stM) = AddYearMonth(relY, relM, startTotalM);
+                var stD = Math.Min(relD, DaysInISOMonth(stY, stM));
+                var startEpoch = IsoToDayNumber(stY, stM, stD);
 
-                // next boundary = relativeTo + (totalMonths + sign) months
-                var (nxY, nxM) = AddYearMonth(relY, relM, totalMonths + sign);
-                var nxD = Math.Min(relD, DaysInISOMonth(nxY, nxM));
-                var nextEpoch = IsoToDayNumber(nxY, nxM, nxD);
+                // end = ref + (years years, r2M months)
+                var endTotalM = years * 12 + r2M;
+                var (enY, enM) = AddYearMonth(relY, relM, endTotalM);
+                var enD = Math.Min(relD, DaysInISOMonth(enY, enM));
+                var endEpoch = IsoToDayNumber(enY, enM, enD);
 
-                // Include time nanoseconds in the fractional calculation
-                var nsNumer = new BigInteger(destEpoch - thresholdEpoch) * NanosecondsPerDay + timeDiffNanos;
-                var nsDenom = new BigInteger(nextEpoch - thresholdEpoch) * NanosecondsPerDay;
-                var mSign = totalMonths != 0 ? Math.Sign(totalMonths) : (nsNumer > 0 ? 1 : nsNumer < 0 ? -1 : 0);
-                var absNsNumer = BigInteger.Abs(nsNumer);
-                var absNsDenom = BigInteger.Abs(nsDenom);
-                var mScaledValue = new BigInteger(totalMonths) * absNsDenom + new BigInteger(mSign) * absNsNumer;
-                var mScaledIncrement = new BigInteger(roundingIncrement) * absNsDenom;
-                var mRounded = RoundToIncrement(mScaledValue, mScaledIncrement, roundingMode);
-                var rounded = (int)(mRounded / absNsDenom);
-                // Re-balance months into years if largestUnit allows
+                // total = r1 + (D / S) * increment * sign, where D = dest-start, S = end-start
+                // Since sign*sgn(S) = 1, scaling by |S| gives: scaledTotal = r1*|S| + D*increment
+                var destNs = new BigInteger(destEpoch) * NanosecondsPerDay + timeDiffNanos;
+                var startNs = new BigInteger(startEpoch) * NanosecondsPerDay;
+                var endNs = new BigInteger(endEpoch) * NanosecondsPerDay;
+                var dNs = destNs - startNs; // signed
+                var absDenom = BigInteger.Abs(endNs - startNs);
+                var scaledValue = new BigInteger(r1M) * absDenom + dNs * roundingIncrement;
+                var scaledIncrement = new BigInteger(roundingIncrement) * absDenom;
+                var mRounded = RoundToIncrement(scaledValue, scaledIncrement, roundingMode);
+                var roundedMonths = (int)(mRounded / absDenom);
+
+                // BubbleRelativeDuration: if largestUnit is year, bubble months into years
                 if (string.Equals(largestUnit, "year", StringComparison.Ordinal))
-                    return (rounded / 12, rounded % 12, 0, 0);
-                return (0, rounded, 0, 0);
+                {
+                    var resultYears = years;
+                    var resultMonths = roundedMonths;
+                    // Bubble: try incrementing years while months allow
+                    while (Math.Abs(resultMonths) >= 12)
+                    {
+                        resultYears += sign;
+                        resultMonths -= sign * 12;
+                    }
+                    return (resultYears, resultMonths, 0, 0);
+                }
+                return (0, years * 12 + roundedMonths, 0, 0);
             }
             case "week":
             {
@@ -5647,61 +5664,30 @@ public static class TemporalHelper
             $"Temporal.PlainYearMonth.prototype.{operation}",
             YearMonthUnits, "month", "year");
 
-        var totalMonths = (other.Year - ym.Year) * 12 + (other.Month - ym.Month);
+        // Per spec step 6: short-circuit for equal year-months (before ISO range validation)
+        if (ym.Year == other.Year && ym.Month == other.Month && ym.ReferenceDay == other.ReferenceDay)
+            return new JsTemporalDuration(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
-        int years, months;
-        if (string.Equals(settings.LargestUnit, "month", StringComparison.Ordinal))
-        {
-            years = 0;
-            months = totalMonths;
-        }
-        else
-        {
-            years = totalMonths / 12;
-            months = totalMonths - years * 12;
-        }
+        // Per spec steps 8-12: create PlainDates with day=1 and validate ISO range
+        RejectISODateTimeRange(ym.Year, ym.Month, 1, 0, 0, 0, 0, 0, 0, realm);
+        RejectISODateTimeRange(other.Year, other.Month, 1, 0, 0, 0, 0, 0, 0, realm);
 
-        // Handle smallestUnit = "year" (truncate months)
-        if (string.Equals(settings.SmallestUnit, "year", StringComparison.Ordinal))
-        {
-            // Validate NudgeToCalendarUnit end boundary (spec step 8)
-            var ymSign = totalMonths != 0 ? Math.Sign(totalMonths) : 1;
-            var yearIncMonths = 12 * settings.RoundingIncrement;
-            var r1Ym = (long)Math.Abs(totalMonths) / yearIncMonths * yearIncMonths;
-            var r2Ym = r1Ym + yearIncMonths;
-            ValidateRoundedDateResult(ym.Year, ym.Month, ym.ReferenceDay, (int)(r2Ym * ymSign));
+        // Compute date difference using day=1 as reference day
+        var (years, months, _, days) = DifferenceISODate(
+            ym.Year, ym.Month, 1,
+            other.Year, other.Month, 1,
+            settings.LargestUnit);
 
-            // Round totalMonths to nearest year
-            var roundedTotal = (int)(long)RoundToIncrement(
-                new BigInteger(totalMonths),
-                new BigInteger(12) * settings.RoundingIncrement,
-                settings.RoundingMode);
-            years = roundedTotal / 12;
-            months = 0;
-        }
-        else if (settings.RoundingIncrement != 1)
+        // Apply rounding via RoundDateDuration (same algorithm as PlainDate)
+        if (!string.Equals(settings.SmallestUnit, "month", StringComparison.Ordinal) ||
+            settings.RoundingIncrement != 1)
         {
-            // Validate NudgeToCalendarUnit end boundary (spec step 8)
-            var ymSign = totalMonths != 0 ? Math.Sign(totalMonths) : 1;
-            var r1Ym = (long)Math.Abs(totalMonths) / settings.RoundingIncrement * settings.RoundingIncrement;
-            var r2Ym = r1Ym + settings.RoundingIncrement;
-            ValidateRoundedDateResult(ym.Year, ym.Month, ym.ReferenceDay, (int)(r2Ym * ymSign));
-
-            // Round months
-            var roundedMonths = (int)(long)RoundToIncrement(
-                new BigInteger(totalMonths),
-                new BigInteger(settings.RoundingIncrement),
-                settings.RoundingMode);
-            if (string.Equals(settings.LargestUnit, "year", StringComparison.Ordinal))
-            {
-                years = roundedMonths / 12;
-                months = roundedMonths - years * 12;
-            }
-            else
-            {
-                years = 0;
-                months = roundedMonths;
-            }
+            (years, months, _, days) = RoundDateDuration(
+                years, months, 0, days,
+                ym.Year, ym.Month, 1,
+                other.Year, other.Month, 1,
+                settings.SmallestUnit, settings.RoundingIncrement, settings.RoundingMode,
+                settings.LargestUnit);
         }
 
         var result = new JsTemporalDuration(years, months, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -5833,6 +5819,17 @@ public static class TemporalHelper
             "nanosecond" => 1L,
             _ => 1L
         };
+    }
+
+    /// <summary>
+    ///     Spec: RoundNumberToIncrement(x, increment, trunc) for integer values.
+    ///     Returns truncate(x / increment) * increment.
+    /// </summary>
+    private static int RoundNumberToIncrementTrunc(int value, long increment)
+    {
+        if (increment == 1) return value;
+        // Truncate toward zero: C# integer division already truncates toward zero
+        return (int)(value / increment * increment);
     }
 
     private static BigInteger RoundToIncrement(

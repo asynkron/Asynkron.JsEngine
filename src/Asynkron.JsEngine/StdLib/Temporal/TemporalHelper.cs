@@ -3698,6 +3698,18 @@ public static class TemporalHelper
     }
 
     /// <summary>
+    /// Read a time property (hour, minute, second, etc.) from a property bag and validate it.
+    /// Throws RangeError if the value is Infinity or -Infinity.
+    /// </summary>
+    private static void ReadAndValidateTimeProperty(IJsPropertyAccessor accessor, string propertyName, RealmState realm)
+    {
+        if (accessor.TryGetProperty(propertyName, out var val) && !val.IsUndefined)
+        {
+            ToIntegerWithTruncation(val, realm);
+        }
+    }
+
+    /// <summary>
     /// RejectObjectWithCalendarOrTimeZone per ECMAScript Temporal spec.
     /// Throws TypeError if the argument is a Temporal object or has calendar/timeZone properties.
     /// </summary>
@@ -6378,9 +6390,35 @@ public static class TemporalHelper
         // Property bag: check if it has timeZone (→ ZonedDateTime) or not (→ PlainDate)
         if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
-            // Validate calendar if present
+            // Per spec: read properties in alphabetical order
+            // calendar, day, hour, microsecond, millisecond, minute, month, monthCode,
+            // nanosecond, offset, second, timeZone, year
             if (accessor.TryGetProperty("calendar", out var calVal) && !calVal.IsUndefined)
                 ValidateTemporalCalendarValue(calVal, realm);
+
+            // Read day (will be needed later for either path)
+            accessor.TryGetProperty("day", out var dayVal);
+            if (!dayVal.IsUndefined)
+                ToIntegerWithTruncation(dayVal, realm);
+
+            // Read time properties and validate (reject Infinity)
+            ReadAndValidateTimeProperty(accessor, "hour", realm);
+            ReadAndValidateTimeProperty(accessor, "microsecond", realm);
+            ReadAndValidateTimeProperty(accessor, "millisecond", realm);
+            ReadAndValidateTimeProperty(accessor, "minute", realm);
+
+            // Read month/monthCode (will be validated in the specific path)
+            accessor.TryGetProperty("month", out var monthVal);
+            if (!monthVal.IsUndefined)
+                ToIntegerWithTruncation(monthVal, realm);
+            accessor.TryGetProperty("monthCode", out _);
+
+            ReadAndValidateTimeProperty(accessor, "nanosecond", realm);
+
+            // Read offset (for ZonedDateTime validation)
+            accessor.TryGetProperty("offset", out _);
+
+            ReadAndValidateTimeProperty(accessor, "second", realm);
 
             if (accessor.TryGetProperty("timeZone", out var tzVal) && !tzVal.IsUndefined)
             {
@@ -6388,6 +6426,11 @@ public static class TemporalHelper
                 var zdt = ToTemporalZonedDateTime(value, realm);
                 return (null, zdt);
             }
+
+            // Read year
+            accessor.TryGetProperty("year", out var yearVal);
+            if (!yearVal.IsUndefined)
+                ToIntegerWithTruncation(yearVal, realm);
 
             // No timeZone → PlainDate property bag
             var plainDate = ToTemporalPlainDateFromPropertyBag(accessor, realm);
@@ -6407,7 +6450,29 @@ public static class TemporalHelper
     {
         var unitRank = UnitRank(unit);
 
-        // For time-only durations with time-only unit and no calendar units
+        // Per spec: if zonedRelativeTo is not undefined, always validate via AddZonedDateTime
+        if (zonedDateTimeRelativeTo != null)
+        {
+            // For durations with no calendar units (years/months/weeks = 0) and day-or-smaller unit,
+            // validate via AddZonedDateTime but compute using the simple precise path.
+            // This avoids precision issues in the epoch ns division path.
+            if (duration.Years == 0 && duration.Months == 0 && duration.Weeks == 0 &&
+                unitRank <= TemporalUnit.Day)
+            {
+                // Validate: compute target epoch ns
+                ValidateZonedDateTimeAdd(zonedDateTimeRelativeTo, duration, realm);
+                // Use precise simple calculation
+                var totalNs = DurationToTotalNanoseconds(duration.Days, duration.Hours, duration.Minutes,
+                    duration.Seconds, duration.Milliseconds, duration.Microseconds, duration.Nanoseconds);
+                var unitNs = new BigInteger(GetUnitNanoseconds(unit));
+                var quotient = totalNs / unitNs;
+                var remainder = totalNs % unitNs;
+                return (double)quotient + (double)remainder / (double)unitNs;
+            }
+            return TotalDurationRelativeToZonedDateTime(duration, unit, zonedDateTimeRelativeTo, realm);
+        }
+
+        // For time-only durations with time-only unit and no calendar units (no ZDT relativeTo)
         if (duration.Years == 0 && duration.Months == 0 && duration.Weeks == 0 && unitRank <= TemporalUnit.Day)
         {
             // Simple case: convert everything to nanoseconds
@@ -6426,11 +6491,6 @@ public static class TemporalHelper
         if (plainDateRelativeTo != null)
         {
             return TotalDurationRelativeToPlainDate(duration, unit, plainDateRelativeTo, realm);
-        }
-
-        if (zonedDateTimeRelativeTo != null)
-        {
-            return TotalDurationRelativeToZonedDateTime(duration, unit, zonedDateTimeRelativeTo, realm);
         }
 
         // Should not reach here due to validation above, but fallback
@@ -6533,6 +6593,7 @@ public static class TemporalHelper
             var totalMonths = years * 12 + months;
             // Compute the fractional part: leftover days / days-in-next-month
             var (midY, midM) = AddYearMonth(relativeTo.Year, relativeTo.Month, totalMonths);
+            RejectISOYearMonthRange(midY, midM, realm);
             var midD = Math.Min(relativeTo.Day, DaysInISOMonth(midY, midM));
             var midEpoch = IsoToDayNumber(midY, midM, midD);
             var endEpoch = IsoToDayNumber(endDate.Year, endDate.Month, endDate.Day);
@@ -6540,6 +6601,7 @@ public static class TemporalHelper
 
             // Next month boundary
             var (nxY, nxM) = AddYearMonth(relativeTo.Year, relativeTo.Month, totalMonths + (totalMonths >= 0 ? 1 : -1));
+            RejectISOYearMonthRange(nxY, nxM, realm);
             var nxD = Math.Min(relativeTo.Day, DaysInISOMonth(nxY, nxM));
             var nextEpoch = IsoToDayNumber(nxY, nxM, nxD);
             var denomDays = nextEpoch - midEpoch;
@@ -6554,6 +6616,7 @@ public static class TemporalHelper
             // Compute total as years + fractional year
             var thMonths = years * 12;
             var (thY, thM) = AddYearMonth(relativeTo.Year, relativeTo.Month, thMonths);
+            RejectISOYearMonthRange(thY, thM, realm);
             var thD = Math.Min(relativeTo.Day, DaysInISOMonth(thY, thM));
             var thresholdEpoch = IsoToDayNumber(thY, thM, thD);
             var endEpochDn = IsoToDayNumber(endDate.Year, endDate.Month, endDate.Day);
@@ -6565,6 +6628,7 @@ public static class TemporalHelper
             if (sign == 0) return 0;
             var nxMonths = (years + sign) * 12;
             var (nxY, nxM) = AddYearMonth(relativeTo.Year, relativeTo.Month, nxMonths);
+            RejectISOYearMonthRange(nxY, nxM, realm);
             var nxD = Math.Min(relativeTo.Day, DaysInISOMonth(nxY, nxM));
             var nextEpoch = IsoToDayNumber(nxY, nxM, nxD);
 
@@ -6578,28 +6642,57 @@ public static class TemporalHelper
         return 0;
     }
 
+    /// <summary>
+    /// Validates that adding a duration to a ZonedDateTime produces a valid result.
+    /// Throws RangeError if the result would be out of range.
+    /// </summary>
+    private static void ValidateZonedDateTimeAdd(JsTemporalZonedDateTime relativeTo,
+        JsTemporalDuration duration, RealmState realm)
+    {
+        var nsMaxInstant = BigInteger.Parse("8640000000000000000000");
+        var nsMinInstant = BigInteger.Parse("-8640000000000000000000");
+        JsTemporalZonedDateTime endZdt;
+        try
+        {
+            endZdt = relativeTo.Add(duration);
+        }
+        catch (Exception ex) when (ex is OverflowException or ArgumentException)
+        {
+            throw StandardLibrary.ThrowRangeError("Resulting ZonedDateTime is out of valid range", realm: realm);
+        }
+        if (endZdt.Instant.EpochNanoseconds > nsMaxInstant || endZdt.Instant.EpochNanoseconds < nsMinInstant)
+            throw StandardLibrary.ThrowRangeError("Resulting instant is out of valid range", realm: realm);
+    }
+
     private static double TotalDurationRelativeToZonedDateTime(JsTemporalDuration duration, string unit,
         JsTemporalZonedDateTime relativeTo, RealmState realm)
     {
+        var nsMaxInstant = BigInteger.Parse("8640000000000000000000");
+        var nsMinInstant = BigInteger.Parse("-8640000000000000000000");
         var unitRank = UnitRank(unit);
 
-        if (unitRank <= TemporalUnit.Hour)
+        // Compute target epoch nanoseconds for all paths that need it
+        JsTemporalZonedDateTime AddAndValidate()
         {
-            // For time units, use exact epoch nanosecond arithmetic
             JsTemporalZonedDateTime endZdt;
             try
             {
                 endZdt = relativeTo.Add(duration);
             }
-            catch
+            catch (Exception ex) when (ex is OverflowException or ArgumentException)
             {
                 throw StandardLibrary.ThrowRangeError("Resulting ZonedDateTime is out of valid range", realm: realm);
             }
             // Validate epoch nanoseconds are within valid instant range
-            var nsMaxInstant = BigInteger.Parse("8640000000000000000000");
-            var nsMinInstant = BigInteger.Parse("-8640000000000000000000");
             if (endZdt.Instant.EpochNanoseconds > nsMaxInstant || endZdt.Instant.EpochNanoseconds < nsMinInstant)
                 throw StandardLibrary.ThrowRangeError("Resulting instant is out of valid range", realm: realm);
+            return endZdt;
+        }
+
+        if (unitRank <= TemporalUnit.Hour)
+        {
+            // For time units, use exact epoch nanosecond arithmetic
+            var endZdt = AddAndValidate();
             var diffNs = endZdt.Instant.EpochNanoseconds - relativeTo.Instant.EpochNanoseconds;
             var unitNs = new BigInteger(GetUnitNanoseconds(unit));
             var q = diffNs / unitNs;
@@ -6610,13 +6703,29 @@ public static class TemporalHelper
         if (string.Equals(unit, "day", StringComparison.Ordinal))
         {
             // For day unit with ZDT, use epoch nanoseconds / nsPerDay for DST-aware day length
-            var endZdt = relativeTo.Add(duration);
+            var endZdt = AddAndValidate();
             var diffNs = endZdt.Instant.EpochNanoseconds - relativeTo.Instant.EpochNanoseconds;
             return BigIntegerToDouble(diffNs) / (double)NanosecondsPerDay;
         }
 
-        // For calendar units (week/month/year), fall back to PlainDate-based logic
-        return TotalDurationRelativeToPlainDate(duration, unit, relativeTo.ToPlainDate(), realm);
+        // For calendar units (week/month/year), validate the target epoch ns, then use PlainDate logic
+        try
+        {
+            AddAndValidate();
+        }
+        catch
+        {
+            // If AddAndValidate throws, re-throw as RangeError
+            throw StandardLibrary.ThrowRangeError("Resulting ZonedDateTime is out of valid range", realm: realm);
+        }
+        try
+        {
+            return TotalDurationRelativeToPlainDate(duration, unit, relativeTo.ToPlainDate(), realm);
+        }
+        catch (OverflowException)
+        {
+            throw StandardLibrary.ThrowRangeError("Resulting date-time is out of valid range", realm: realm);
+        }
     }
 
     /// <summary>

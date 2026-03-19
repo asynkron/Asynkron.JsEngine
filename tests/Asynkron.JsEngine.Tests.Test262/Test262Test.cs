@@ -209,10 +209,9 @@ try {
                 AllowScriptSlotAnalysis = false,
                 DebugMode = debugMode,
             })
-            : new JsEngine(new JsEngineOptions { Logger = logger, AllowScriptSlotAnalysis = false, DebugMode = debugMode })
-            {
-                ExecutionTimeout = TimeSpan.FromSeconds(10)
-            };
+            : new JsEngine(new JsEngineOptions { Logger = logger, AllowScriptSlotAnalysis = false, DebugMode = debugMode });
+
+        engine.ExecutionTimeout = TimeSpan.FromSeconds(10);
 
         // Host-defined AgentCanSuspend() used by Atomics.wait sync mode.
         // Test262 uses the `CanBlockIsFalse` flag to indicate blocking must throw.

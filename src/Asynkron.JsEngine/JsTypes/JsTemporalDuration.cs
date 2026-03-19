@@ -402,18 +402,23 @@ public sealed class JsTemporalDuration : IEquatable<JsTemporalDuration>
 
             if (absSeconds != 0 || absMilliseconds != 0 || absMicroseconds != 0 || absNanoseconds != 0)
             {
-                var totalSeconds = absSeconds +
-                                   absMilliseconds / 1000.0 +
-                                   absMicroseconds / 1_000_000.0 +
-                                   absNanoseconds / 1_000_000_000.0;
+                // Use integer arithmetic to avoid double precision loss for large second values
+                var wholeSeconds = (long)absSeconds;
+                var fracNanos = (long)absNanoseconds +
+                                (long)absMicroseconds * 1_000L +
+                                (long)absMilliseconds * 1_000_000L;
 
-                if (totalSeconds == Math.Floor(totalSeconds))
+                if (fracNanos == 0)
                 {
-                    sb.Append(CultureInfo.InvariantCulture, $"{(long)totalSeconds}S");
+                    sb.Append(wholeSeconds.ToString(CultureInfo.InvariantCulture));
+                    sb.Append('S');
                 }
                 else
                 {
-                    sb.Append(totalSeconds.ToString("0.#########", CultureInfo.InvariantCulture));
+                    var fracStr = fracNanos.ToString("D9", CultureInfo.InvariantCulture).TrimEnd('0');
+                    sb.Append(wholeSeconds.ToString(CultureInfo.InvariantCulture));
+                    sb.Append('.');
+                    sb.Append(fracStr);
                     sb.Append('S');
                 }
             }

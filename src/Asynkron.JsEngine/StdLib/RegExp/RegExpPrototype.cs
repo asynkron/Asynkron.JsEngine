@@ -1041,18 +1041,20 @@ public sealed partial class RegExpPrototype
 
     private static int AdvanceStringIndex(string input, int index, bool unicode)
     {
+        // Spec 22.2.7.2: AdvanceStringIndex always returns index + 1 (or +2 for surrogate pairs).
+        // No clamping to string length — the caller handles out-of-bounds.
         if (!unicode || index + 1 >= input.Length)
         {
-            return Math.Min(index + 1, input.Length);
+            return index + 1;
         }
 
         var first = input[index];
         if (char.IsHighSurrogate(first) && index + 1 < input.Length && char.IsLowSurrogate(input[index + 1]))
         {
-            return Math.Min(index + 2, input.Length);
+            return index + 2;
         }
 
-        return Math.Min(index + 1, input.Length);
+        return index + 1;
     }
 
     private void SetProperty(JsValue target, string name, JsValue value)

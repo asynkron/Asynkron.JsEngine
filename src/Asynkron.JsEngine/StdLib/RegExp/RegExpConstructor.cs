@@ -42,13 +42,34 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
         {
             var targetCtor = _constructor ?? constructor;
             IJsCallable effectiveNewTarget;
-            if (newTarget.TryGetObject<IJsCallable>(out var callable))
+            var isNewTarget = newTarget.TryGetObject<IJsCallable>(out var callable);
+            if (isNewTarget)
             {
                 effectiveNewTarget = callable;
             }
             else
             {
+                // Called as function (not new): newTarget = active function object
                 effectiveNewTarget = targetCtor;
+
+                // Per spec 22.2.3.1 step 3b: If patternIsRegExp and flags is undefined,
+                // check if pattern.constructor === newTarget, and if so return pattern directly.
+                if (args.Count > 0)
+                {
+                    var patternArg = args[0];
+                    var flagsArg = args.Count > 1 ? args[1] : JsValue.Undefined;
+
+                    if (flagsArg.IsUndefined && IsRegExpAbrupt(patternArg))
+                    {
+                        // Get pattern.constructor
+                        if (JsOps.TryGetPropertyValue(patternArg, "constructor", out var patternCtor) &&
+                            patternCtor.TryGetObject<IJsCallable>(out var ctorCallable) &&
+                            ReferenceEquals(ctorCallable, targetCtor))
+                        {
+                            return patternArg;
+                        }
+                    }
+                }
             }
 
             JsObject? thisObj = null;

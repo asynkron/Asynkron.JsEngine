@@ -924,6 +924,31 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         // and BaseClass.__proto__ === Function.prototype (which has the restricted setter).
         if (PrototypeAccessor is not null)
         {
+            // ES2024 10.4.5.5: TypedArray exotic [[Set]] when O !== Receiver.
+            // When a TypedArray is in the prototype chain and the key is a canonical numeric
+            // index, the TypedArray's exotic [[Set]] must be applied:
+            //   - Invalid index: return true (do nothing, don't coerce value)
+            //   - Valid index: OrdinarySet creates data property on receiver, not on the TypedArray
+            var exoticResult = TypedArrayBase.CheckExoticSetInPrototypeChain(PrototypeAccessor, name);
+            if (exoticResult == true)
+            {
+                return; // Invalid index → silently succeed, don't create property
+            }
+
+            if (exoticResult == false)
+            {
+                // Valid index, O !== Receiver → create data property on receiver
+                if (!IsExtensible)
+                {
+                    return; // Non-extensible → silently fail
+                }
+
+                MarkMutated();
+                this[name] = value;
+                TrackPropertyInsertion(name);
+                return;
+            }
+
             var foundSetter = FindSetterInPrototypeChain(PrototypeAccessor, name);
             if (foundSetter != null)
             {

@@ -86,6 +86,13 @@ public sealed class JsRegExp
     private readonly Dictionary<string, string>? _groupNameMapping;
 
     /// <summary>
+    /// Maps original JS group name → list of deduplicated .NET group names.
+    /// Only set when ES2025 duplicate named groups exist in the pattern.
+    /// E.g., for /(?&lt;x&gt;a)|(?&lt;x&gt;b)/, maps "x" → ["x__dup0", "x__dup1"].
+    /// </summary>
+    private readonly Dictionary<string, List<string>>? _duplicateGroupNames;
+
+    /// <summary>
     /// Maps JS (left-to-right) group index → .NET group index.
     /// Null if no reordering is needed.
     /// </summary>
@@ -106,8 +113,19 @@ public sealed class JsRegExp
         var normalized = NormalizePattern(pattern, hasUnicodeFlag, IgnoreCase, DotAll);
         _normalizedPattern = SanitizeGroupNamesForDotNet(normalized, out _groupNameMapping);
 
+        // ES2025: Handle duplicate named groups in alternatives.
+        // .NET merges duplicate named groups into one, but JS treats them as separate capturing groups.
+        // Rename duplicates (e.g., (?<x>a)|(?<x>b) → (?<x__dup0>a)|(?<x__dup1>b)) and convert
+        // backreferences to conditional patterns.
+        _normalizedPattern = DeduplicateGroupNames(_normalizedPattern, ref _groupNameMapping,
+            out _duplicateGroupNames);
+
         // Convert JavaScript regex flags to .NET RegexOptions
-        var options = RegexOptions.CultureInvariant;
+        // ECMAScript mode is critical for correct JS semantics:
+        //   - Groups are reset on each quantifier iteration (JS behavior)
+        //   - Backreferences to uncaptured groups match empty string (JS behavior)
+        //   - \w, \d, \s use ASCII-only ranges (matches JS; patterns already normalized anyway)
+        var options = RegexOptions.CultureInvariant | RegexOptions.ECMAScript;
         if (IgnoreCase)
         {
             options |= RegexOptions.IgnoreCase;
@@ -457,6 +475,11 @@ public sealed class JsRegExp
         var regex = EnsureRegex();
         JsObject? groups = null;
 
+        // Track which original names we've already added (for deduped groups)
+        HashSet<string>? addedOriginals = _duplicateGroupNames is not null
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : null;
+
         foreach (var name in match.Groups.Keys)
         {
             if (int.TryParse(name, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
@@ -470,15 +493,44 @@ public sealed class JsRegExp
                 continue;
             }
 
-            if (groups is null)
+            // Map back from .NET-sanitized/deduped name to the original ECMAScript group name
+            var originalName = GetOriginalGroupName(name);
+
+            // For deduplicated groups, we need to find the value from whichever variant captured
+            if (_duplicateGroupNames is not null &&
+                _duplicateGroupNames.TryGetValue(originalName, out var variants))
             {
-                // Per spec step 24: groups = ObjectCreate(null)
-                groups = new JsObject();
-                groups.SetPrototype(null);
+                if (addedOriginals!.Contains(originalName))
+                {
+                    continue; // Already added this original name
+                }
+
+                addedOriginals.Add(originalName);
+
+                // Find the first variant that actually captured (Success = true)
+                var value = JsValue.Undefined;
+                foreach (var variant in variants)
+                {
+                    var variantGroup = match.Groups[variant];
+                    if (variantGroup.Success)
+                    {
+                        value = new JsValue(variantGroup.Value);
+                        break;
+                    }
+                }
+
+                groups ??= CreateNullPrototypeObject();
+                groups.DefineProperty(originalName, new PropertyDescriptor
+                {
+                    Value = value,
+                    Writable = true,
+                    Enumerable = true,
+                    Configurable = true
+                });
+                continue;
             }
 
-            // Map back from .NET-sanitized name to the original ECMAScript group name
-            var originalName = GetOriginalGroupName(name);
+            groups ??= CreateNullPrototypeObject();
 
             // Per spec, properties are created with CreateDataProperty
             groups.DefineProperty(originalName, new PropertyDescriptor
@@ -491,6 +543,13 @@ public sealed class JsRegExp
         }
 
         return groups;
+    }
+
+    private static JsObject CreateNullPrototypeObject()
+    {
+        var obj = new JsObject();
+        obj.SetPrototype(null);
+        return obj;
     }
 
     private JsArray BuildIndicesArray(Match match)
@@ -550,6 +609,10 @@ public sealed class JsRegExp
     {
         JsObject? groups = null;
 
+        HashSet<string>? addedOriginals = _duplicateGroupNames is not null
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : null;
+
         foreach (var name in match.Groups.Keys)
         {
             if (int.TryParse(name, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
@@ -563,15 +626,43 @@ public sealed class JsRegExp
                 continue;
             }
 
-            if (groups is null)
+            var originalName = GetOriginalGroupName(name);
+
+            // For deduplicated groups, find the value from whichever variant captured
+            if (_duplicateGroupNames is not null &&
+                _duplicateGroupNames.TryGetValue(originalName, out var variants))
             {
-                // Per spec (MakeIndicesArray step 10): groups = ObjectCreate(null)
-                groups = new JsObject();
-                groups.SetPrototype(null);
+                if (addedOriginals!.Contains(originalName))
+                {
+                    continue;
+                }
+
+                addedOriginals.Add(originalName);
+
+                var value = JsValue.Undefined;
+                foreach (var variant in variants)
+                {
+                    var variantNumber = regex.GroupNumberFromName(variant);
+                    if (variantNumber >= 0 && variantNumber < indexValues.Length &&
+                        !indexValues[variantNumber].IsUndefined)
+                    {
+                        value = indexValues[variantNumber];
+                        break;
+                    }
+                }
+
+                groups ??= CreateNullPrototypeObject();
+                groups.DefineProperty(originalName, new PropertyDescriptor
+                {
+                    Value = value,
+                    Writable = true,
+                    Enumerable = true,
+                    Configurable = true
+                });
+                continue;
             }
 
-            // Map back from .NET-sanitized name to the original ECMAScript group name
-            var originalName = GetOriginalGroupName(name);
+            groups ??= CreateNullPrototypeObject();
 
             groups.DefineProperty(originalName, new PropertyDescriptor
             {
@@ -2141,6 +2232,260 @@ public sealed class JsRegExp
         }
 
         return name.Replace("$", "_dollar_", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// ES2025: Deduplicates named groups in alternatives so that .NET treats each as a separate
+    /// capturing group. E.g., (?&lt;x&gt;a)|(?&lt;x&gt;b) → (?&lt;x__dup0&gt;a)|(?&lt;x__dup1&gt;b).
+    /// Backreferences \k&lt;x&gt; are converted to conditional patterns that try each variant.
+    /// </summary>
+    private static string DeduplicateGroupNames(
+        string pattern,
+        ref Dictionary<string, string>? mapping,
+        out Dictionary<string, List<string>>? duplicateNames)
+    {
+        duplicateNames = null;
+
+        // First pass: collect all named groups and their occurrence counts
+        var nameCount = new Dictionary<string, int>(StringComparer.Ordinal);
+        ScanNamedGroups(pattern, nameCount);
+
+        // Check if any names are duplicated
+        var hasDuplicates = false;
+        foreach (var count in nameCount.Values)
+        {
+            if (count > 1)
+            {
+                hasDuplicates = true;
+                break;
+            }
+        }
+
+        if (!hasDuplicates)
+        {
+            return pattern;
+        }
+
+        // Pre-compute all deduplicated names
+        duplicateNames = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        foreach (var kvp in nameCount)
+        {
+            if (kvp.Value > 1)
+            {
+                var names = new List<string>(kvp.Value);
+                for (var j = 0; j < kvp.Value; j++)
+                {
+                    names.Add($"{kvp.Key}__dup{j.ToString(CultureInfo.InvariantCulture)}");
+                }
+
+                duplicateNames[kvp.Key] = names;
+            }
+        }
+
+        // Second pass: rename groups and convert backreferences
+        var result = new StringBuilder(pattern.Length + 64);
+        var dupCounters = new Dictionary<string, int>(StringComparer.Ordinal);
+        var i = 0;
+        var escaped = false;
+        var inCharClass = false;
+
+        while (i < pattern.Length)
+        {
+            var c = pattern[i];
+
+            if (escaped)
+            {
+                result.Append(c);
+                escaped = false;
+                i++;
+                continue;
+            }
+
+            if (c == '\\')
+            {
+                // Check for backreference \k<name>
+                if (!inCharClass && i + 2 < pattern.Length && pattern[i + 1] == 'k' && pattern[i + 2] == '<')
+                {
+                    var end = pattern.IndexOf('>', i + 3);
+                    if (end != -1)
+                    {
+                        var name = pattern.Substring(i + 3, end - (i + 3));
+                        if (duplicateNames.TryGetValue(name, out var variants))
+                        {
+                            // Convert \k<x> to conditional: (?(x__dup0)\k<x__dup0>|(?(x__dup1)\k<x__dup1>|))
+                            result.Append(BuildConditionalBackreference(variants));
+                            i = end + 1;
+                            continue;
+                        }
+                    }
+                }
+
+                result.Append(c);
+                escaped = true;
+                i++;
+                continue;
+            }
+
+            if (c == '[' && !inCharClass)
+            {
+                inCharClass = true;
+                result.Append(c);
+                i++;
+                continue;
+            }
+
+            if (c == ']' && inCharClass)
+            {
+                inCharClass = false;
+                result.Append(c);
+                i++;
+                continue;
+            }
+
+            if (inCharClass)
+            {
+                result.Append(c);
+                i++;
+                continue;
+            }
+
+            // Check for named group (?<name>...) but not lookbehind (?<= or (?<!
+            if (c == '(' && i + 2 < pattern.Length && pattern[i + 1] == '?' && pattern[i + 2] == '<'
+                && i + 3 < pattern.Length && pattern[i + 3] != '=' && pattern[i + 3] != '!')
+            {
+                var end = pattern.IndexOf('>', i + 3);
+                if (end != -1)
+                {
+                    var name = pattern.Substring(i + 3, end - (i + 3));
+                    if (duplicateNames.ContainsKey(name))
+                    {
+                        if (!dupCounters.TryGetValue(name, out var idx))
+                        {
+                            idx = 0;
+                        }
+
+                        dupCounters[name] = idx + 1;
+                        var dedupedName = duplicateNames[name][idx];
+
+                        // Add deduped name → original name mapping
+                        mapping ??= new Dictionary<string, string>(StringComparer.Ordinal);
+                        mapping[dedupedName] = mapping.TryGetValue(name, out var origName) ? origName : name;
+
+                        result.Append("(?<");
+                        result.Append(dedupedName);
+                        result.Append('>');
+                        i = end + 1;
+                        continue;
+                    }
+                }
+            }
+
+            result.Append(c);
+            i++;
+        }
+
+        return result.ToString();
+    }
+
+    /// <summary>
+    /// Scans a pattern to count occurrences of each named group.
+    /// </summary>
+    private static void ScanNamedGroups(string pattern, Dictionary<string, int> nameCount)
+    {
+        var i = 0;
+        var escaped = false;
+        var inCharClass = false;
+
+        while (i < pattern.Length)
+        {
+            var c = pattern[i];
+
+            if (escaped)
+            {
+                escaped = false;
+                i++;
+                continue;
+            }
+
+            if (c == '\\')
+            {
+                escaped = true;
+                i++;
+                continue;
+            }
+
+            if (c == '[' && !inCharClass)
+            {
+                inCharClass = true;
+                i++;
+                continue;
+            }
+
+            if (c == ']' && inCharClass)
+            {
+                inCharClass = false;
+                i++;
+                continue;
+            }
+
+            if (inCharClass)
+            {
+                i++;
+                continue;
+            }
+
+            if (c == '(' && i + 2 < pattern.Length && pattern[i + 1] == '?' && pattern[i + 2] == '<'
+                && i + 3 < pattern.Length && pattern[i + 3] != '=' && pattern[i + 3] != '!')
+            {
+                var end = pattern.IndexOf('>', i + 3);
+                if (end != -1)
+                {
+                    var name = pattern.Substring(i + 3, end - (i + 3));
+                    if (nameCount.ContainsKey(name))
+                    {
+                        nameCount[name]++;
+                    }
+                    else
+                    {
+                        nameCount[name] = 1;
+                    }
+
+                    i = end + 1;
+                    continue;
+                }
+            }
+
+            i++;
+        }
+    }
+
+    /// <summary>
+    /// Builds a .NET conditional backreference expression that tries each variant in order,
+    /// falling back to empty match if none captured.
+    /// E.g., for ["x__dup0", "x__dup1"]: (?(x__dup0)\k&lt;x__dup0&gt;|(?(x__dup1)\k&lt;x__dup1&gt;|))
+    /// </summary>
+    private static string BuildConditionalBackreference(List<string> variants)
+    {
+        // Build nested conditional: (?(v0)\k<v0>|(?(v1)\k<v1>|))
+        var sb = new StringBuilder();
+        for (var i = 0; i < variants.Count; i++)
+        {
+            sb.Append("(?(");
+            sb.Append(variants[i]);
+            sb.Append(")\\k<");
+            sb.Append(variants[i]);
+            sb.Append(">|");
+        }
+
+        // Empty alternative at innermost level (matches empty string when none captured)
+        sb.Append(')');
+        // Close all the conditionals
+        for (var i = 0; i < variants.Count - 1; i++)
+        {
+            sb.Append(')');
+        }
+
+        return sb.ToString();
     }
 
     /// <summary>

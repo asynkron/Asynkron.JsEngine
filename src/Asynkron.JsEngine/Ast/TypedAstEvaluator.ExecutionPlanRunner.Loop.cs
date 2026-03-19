@@ -232,7 +232,15 @@ public static partial class TypedAstEvaluator
                         // Jump is the simplest - just update program counter
                         if (instructionKind == InstructionKind.Jump)
                         {
-                            _programCounter = ProfileHandleJump(Unsafe.As<JumpInstruction>(instruction));
+                            var target = ProfileHandleJump(Unsafe.As<JumpInstruction>(instruction));
+                            // Check cancellation on backward jumps (loop iterations).
+                            // This enforces ExecutionTimeout for IR execution — without this,
+                            // long-running loops ignore the timeout and can crash the host.
+                            if (target <= _programCounter)
+                            {
+                                context.ThrowIfCancellationRequested();
+                            }
+                            _programCounter = target;
                             ResetAwaitKeysAfterInstruction(environment);
                             continue;
                         }

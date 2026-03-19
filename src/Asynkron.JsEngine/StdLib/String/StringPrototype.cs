@@ -1878,7 +1878,7 @@ public sealed partial class StringPrototype
         var culture = ResolveCulture(args);
         return new JsValue(Equals(culture, CultureInfo.InvariantCulture)
             ? ToEcmaLowerCase(value)
-            : value.ToLower(culture));
+            : ToEcmaLocaleLowerCase(value, culture));
     }
 
     [JsHostMethod("toLocaleUpperCase", Length = 0d)]

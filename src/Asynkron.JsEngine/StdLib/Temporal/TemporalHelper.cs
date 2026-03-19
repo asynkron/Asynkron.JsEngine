@@ -1290,8 +1290,11 @@ public static class TemporalHelper
             if (needsRelativeTo && plainDateRelativeTo == null && zonedDateTimeRelativeTo == null)
                 throw StandardLibrary.ThrowRangeError("relativeTo is required for rounding with calendar units", realm: realm);
 
-            // Per spec: blank duration early return — no rounding needed, skip range validation
-            if (IsZeroDuration(duration))
+            // Per spec: blank duration early return — no rounding needed, skip range validation.
+            // Exception: when ZDT relativeTo + largestUnit >= "day", the next-day boundary
+            // computation may throw RangeError (e.g., ZDT at max instant + day balancing).
+            if (IsZeroDuration(duration) &&
+                !(zonedDateTimeRelativeTo != null && UnitRank(largestUnit) >= TemporalUnit.Day))
                 return WrapDuration(duration, realm, prototype);
 
             // Per spec: validate PlainDate relativeTo is within ISODateWithinLimits range
@@ -7541,51 +7544,23 @@ public static class TemporalHelper
     private static void ValidateZonedDateTimeAdd(JsTemporalZonedDateTime relativeTo,
         JsTemporalDuration duration, RealmState realm)
     {
-        var nsMaxInstant = BigInteger.Parse("8640000000000000000000");
-        var nsMinInstant = BigInteger.Parse("-8640000000000000000000");
-        JsTemporalZonedDateTime endZdt;
-        try
-        {
-            endZdt = relativeTo.Add(duration);
-        }
-        catch (Exception ex) when (ex is OverflowException or ArgumentException)
-        {
-            throw StandardLibrary.ThrowRangeError("Resulting ZonedDateTime is out of valid range", realm: realm);
-        }
-        if (endZdt.Instant.EpochNanoseconds > nsMaxInstant || endZdt.Instant.EpochNanoseconds < nsMinInstant)
-            throw StandardLibrary.ThrowRangeError("Resulting instant is out of valid range", realm: realm);
+        // Delegate to AddZonedDateTimeEpochNs which uses GetLocalPlainDateTime
+        // (handles extreme years via epoch nanosecond arithmetic instead of DateTimeOffset)
+        AddZonedDateTimeEpochNs(relativeTo, duration, realm);
     }
 
     private static double TotalDurationRelativeToZonedDateTime(JsTemporalDuration duration, string unit,
         JsTemporalZonedDateTime relativeTo, RealmState realm)
     {
-        var nsMaxInstant = BigInteger.Parse("8640000000000000000000");
-        var nsMinInstant = BigInteger.Parse("-8640000000000000000000");
         var unitRank = UnitRank(unit);
 
-        // Compute target epoch nanoseconds for all paths that need it
-        JsTemporalZonedDateTime AddAndValidate()
-        {
-            JsTemporalZonedDateTime endZdt;
-            try
-            {
-                endZdt = relativeTo.Add(duration);
-            }
-            catch (Exception ex) when (ex is OverflowException or ArgumentException)
-            {
-                throw StandardLibrary.ThrowRangeError("Resulting ZonedDateTime is out of valid range", realm: realm);
-            }
-            // Validate epoch nanoseconds are within valid instant range
-            if (endZdt.Instant.EpochNanoseconds > nsMaxInstant || endZdt.Instant.EpochNanoseconds < nsMinInstant)
-                throw StandardLibrary.ThrowRangeError("Resulting instant is out of valid range", realm: realm);
-            return endZdt;
-        }
-
+        // Use AddZonedDateTimeEpochNs which handles extreme years via epoch nanosecond arithmetic
+        // (avoids DateTimeOffset which is limited to years 1-9999)
         if (unitRank <= TemporalUnit.Hour)
         {
             // For time units, use exact epoch nanosecond arithmetic
-            var endZdt = AddAndValidate();
-            var diffNs = endZdt.Instant.EpochNanoseconds - relativeTo.Instant.EpochNanoseconds;
+            var endEpochNs = AddZonedDateTimeEpochNs(relativeTo, duration, realm);
+            var diffNs = endEpochNs - relativeTo.Instant.EpochNanoseconds;
             var unitNs = new BigInteger(GetUnitNanoseconds(unit));
             var q = diffNs / unitNs;
             var r = diffNs % unitNs;
@@ -7595,24 +7570,18 @@ public static class TemporalHelper
         if (string.Equals(unit, "day", StringComparison.Ordinal))
         {
             // For day unit with ZDT, use epoch nanoseconds / nsPerDay for DST-aware day length
-            var endZdt = AddAndValidate();
-            var diffNs = endZdt.Instant.EpochNanoseconds - relativeTo.Instant.EpochNanoseconds;
+            var endEpochNs = AddZonedDateTimeEpochNs(relativeTo, duration, realm);
+            var diffNs = endEpochNs - relativeTo.Instant.EpochNanoseconds;
             return BigIntegerToDouble(diffNs) / (double)NanosecondsPerDay;
         }
 
         // For calendar units (week/month/year), validate the target epoch ns, then use PlainDate logic
+        AddZonedDateTimeEpochNs(relativeTo, duration, realm);
         try
         {
-            AddAndValidate();
-        }
-        catch
-        {
-            // If AddAndValidate throws, re-throw as RangeError
-            throw StandardLibrary.ThrowRangeError("Resulting ZonedDateTime is out of valid range", realm: realm);
-        }
-        try
-        {
-            return TotalDurationRelativeToPlainDate(duration, unit, relativeTo.ToPlainDate(), realm);
+            var localPdt = GetLocalPlainDateTime(relativeTo, realm);
+            var plainDate = new JsTemporalPlainDate(localPdt.Year, localPdt.Month, localPdt.Day, relativeTo.Calendar);
+            return TotalDurationRelativeToPlainDate(duration, unit, plainDate, realm);
         }
         catch (OverflowException)
         {
@@ -8116,7 +8085,10 @@ public static class TemporalHelper
         var offset = zdt.FixedOffset ?? ResolveTimeZoneOffset(
             CreateTimeZoneLocalDateTime(end), zdt.TimeZone, zdt.FixedOffset);
         var offsetNanos = new BigInteger(offset.Ticks) * 100;
-        return ToEpochNanoseconds(end) - offsetNanos;
+        var epochNs = ToEpochNanoseconds(end) - offsetNanos;
+        if (epochNs < InstantMinEpochNanoseconds || epochNs > InstantMaxEpochNanoseconds)
+            throw StandardLibrary.ThrowRangeError("Resulting instant is out of valid range", realm: realm);
+        return epochNs;
     }
 
     /// <summary>

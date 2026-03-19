@@ -532,6 +532,128 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
     }
 
     [Fact]
+    public async Task Debug_Compare_RelativeTo_StringLimits()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            var results = [];
+
+            // Should NOT throw
+            try {
+                Temporal.Duration.compare(
+                    new Temporal.Duration(0,0,0,0,0,5),
+                    new Temporal.Duration(),
+                    { relativeTo: '-271821-04-20T00:00Z[UTC]' }
+                );
+                results.push('valid-ok');
+            } catch(e) { results.push('valid-FAIL:' + e.message); }
+
+            // Should throw
+            try {
+                Temporal.Duration.compare(
+                    new Temporal.Duration(0,0,0,0,0,5),
+                    new Temporal.Duration(),
+                    { relativeTo: '-271821-04-19T23:00-01:00[-01:00]' }
+                );
+                results.push('invalid-FAIL:no-throw');
+            } catch(e) { results.push('invalid-ok:' + e.constructor.name); }
+
+            // Should throw (1 day at max instant)
+            try {
+                var zdt = new Temporal.ZonedDateTime(864n * 10n**19n, 'UTC');
+                Temporal.Duration.compare(
+                    new Temporal.Duration(0,0,0,1),
+                    new Temporal.Duration(),
+                    { relativeTo: zdt }
+                );
+                results.push('oneday-FAIL:no-throw');
+            } catch(e) { results.push('oneday-ok:' + e.constructor.name); }
+
+            results.join(' | ');
+        ");
+        output.WriteLine($"Result: {result}");
+        var s = result?.ToString() ?? "";
+        Assert.DoesNotContain("FAIL", s);
+    }
+
+    [Fact]
+    public async Task Debug_Total_ValidZdt_5min()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            var results = [];
+            // ZDT at minimum instant
+            var zdt = new Temporal.ZonedDateTime(-8640000000000000000000n, 'UTC');
+            results.push('zdt=' + zdt.toString());
+            results.push('epochNs=' + zdt.epochNanoseconds);
+
+            // Adding 5 minutes should work
+            var dur = new Temporal.Duration(0,0,0,0,0,5);
+            try {
+                var added = zdt.add(dur);
+                results.push('add-ok=' + added.epochNanoseconds);
+            } catch(e) { results.push('add-FAIL=' + e.message); }
+
+            // total should work
+            try {
+                var t = dur.total({ unit: 'minutes', relativeTo: zdt });
+                results.push('total-ok=' + t);
+            } catch(e) { results.push('total-FAIL=' + e.message); }
+
+            results.join(' | ');
+        ");
+        output.WriteLine($"Result: {result}");
+    }
+
+    [Fact]
+    public async Task Debug_Total_RelativeTo_StringLimits()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            var instance = new Temporal.Duration(0, 0, 0, 0, 0, 5);
+            var blank = new Temporal.Duration();
+            var results = [];
+
+            // validStrings - both should succeed
+            var validStrings = [
+                '-271821-04-20T00:00Z[UTC]',
+                '+275760-09-13',
+                '+275760-09-13T23:00',
+            ];
+            for (var s of validStrings) {
+                try {
+                    instance.total({ unit: 'minutes', relativeTo: s });
+                    results.push('inst-ok:' + s.slice(0,20));
+                } catch(e) { results.push('inst-FAIL:' + s.slice(0,20) + ':' + e.message); }
+                try {
+                    blank.total({ unit: 'minutes', relativeTo: s });
+                    results.push('blank-ok:' + s.slice(0,20));
+                } catch(e) { results.push('blank-FAIL:' + s.slice(0,20) + ':' + e.message); }
+            }
+
+            // validStringsThatFailAfterEarlyReturn - blank succeeds, instance throws
+            var earlyReturn = [
+                '+275760-09-13T00:00Z[UTC]',
+                '-271821-04-19',
+            ];
+            for (var s of earlyReturn) {
+                try {
+                    blank.total({ unit: 'minutes', relativeTo: s });
+                    results.push('er-blank-ok:' + s.slice(0,20));
+                } catch(e) { results.push('er-blank-FAIL:' + s.slice(0,20) + ':' + e.message); }
+                try {
+                    instance.total({ unit: 'minutes', relativeTo: s });
+                    results.push('er-inst-FAIL-noThrow:' + s.slice(0,20));
+                } catch(e) { results.push('er-inst-ok:' + e.constructor.name); }
+            }
+            results.join(' | ');
+        ");
+        output.WriteLine($"Result: {result}");
+        var s2 = result?.ToString() ?? "";
+        Assert.DoesNotContain("FAIL", s2);
+    }
+
+    [Fact]
     public async Task PlainMonthDay_From_ShortFormat()
     {
         await using var engine = CreateEngine();

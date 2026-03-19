@@ -36,6 +36,16 @@ public static partial class TypedAstEvaluator
         {
             result = block.EvaluateBlockJsValue(environment, context);
         }
+        else if (branch is FunctionDeclaration funcDecl)
+        {
+            // Per Annex B.3.3, function declarations in if/else branches need their own
+            // block scope so the block-scoped binding for the function name is independent
+            // of the var-scoped binding. Without this, `f = 123` inside the function body
+            // would update the var-scoped binding instead of the block-scoped one.
+            var blockEnv = JsEnvironment.CreateInstance(environment, false, false,
+                description: "if-body annex-b block");
+            result = EvaluateFunctionDeclarationJsValue(funcDecl, blockEnv, context);
+        }
         else
         {
             // For simple statements that don't introduce new bindings (return, throw, expression, etc.),

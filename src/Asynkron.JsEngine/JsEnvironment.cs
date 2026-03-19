@@ -2297,10 +2297,15 @@ public sealed class JsEnvironment : IRentable
     /// <summary>
     /// Returns true if the given name is blocked from Annex B function-scope hoisting.
     /// Walks up to the function scope to find the blocked names set.
+    /// Per B.3.3.3, eval code has its own hoisting rules where parameter names from the
+    /// enclosing function do NOT block hoisting, so the walk stops at eval boundaries.
     /// </summary>
     internal bool IsAnnexBBlocked(Symbol name)
     {
-        // Check the current environment and walk up to the function scope
+        // Check the current environment and walk up to the function scope.
+        // Stop at eval declaration environments because eval code follows B.3.3.3,
+        // not B.3.3.1 — parameter names in the enclosing function should not block
+        // Annex B hoisting within eval.
         var current = this;
         while (current is not null)
         {
@@ -2309,7 +2314,7 @@ public sealed class JsEnvironment : IRentable
                 return true;
             }
 
-            if (current.IsFunctionScope)
+            if (current.IsFunctionScope || current._isEvalDeclarationEnvironment)
             {
                 break;
             }

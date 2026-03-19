@@ -1169,6 +1169,14 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         var current = environment;
         while (current is not null)
         {
+            // Per Annex B.3.3.3, simple catch parameters are not considered lexical
+            // bindings for the purposes of blocking eval var/function declarations.
+            if (current.IsSimpleCatchParameter(name))
+            {
+                current = current.Enclosing;
+                continue;
+            }
+
             if (current.HasOwnLexicalBinding(name) || current.HasBodyLexicalName(name))
             {
                 return true;

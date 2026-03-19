@@ -1,5 +1,6 @@
 #region
 
+using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution.Instructions;
@@ -48,7 +49,11 @@ internal static class ControlFlowEmitter
             }
             else
             {
-                var built = ctx.TryBuildStatement(statement.Else, nextIndex, out var elseBodyEntry, activeLabel);
+                // Per Annex B.3.3, function declarations in if/else branches need their own
+                // block scope so the block-scoped binding is independent of the var-scoped one.
+                var built = statement.Else is FunctionDeclaration elseFuncDecl
+                    ? TryWrapFunctionDeclInBlockScope(ctx, elseFuncDecl, nextIndex, out var elseBodyEntry)
+                    : ctx.TryBuildStatement(statement.Else, nextIndex, out elseBodyEntry, activeLabel);
                 if (!built)
                 {
                     ctx.Rollback(instructionStart);
@@ -86,7 +91,11 @@ internal static class ControlFlowEmitter
         }
         else
         {
-            var built = ctx.TryBuildStatement(statement.Then, nextIndex, out var thenBodyEntry, activeLabel);
+            // Per Annex B.3.3, function declarations in if/else branches need their own
+            // block scope so the block-scoped binding is independent of the var-scoped one.
+            var built = statement.Then is FunctionDeclaration thenFuncDecl
+                ? TryWrapFunctionDeclInBlockScope(ctx, thenFuncDecl, nextIndex, out var thenBodyEntry)
+                : ctx.TryBuildStatement(statement.Then, nextIndex, out thenBodyEntry, activeLabel);
             if (!built)
             {
                 ctx.Rollback(instructionStart);
@@ -114,6 +123,47 @@ internal static class ControlFlowEmitter
     private static bool IsEmptyBlock(StatementNode statement)
     {
         return statement is BlockStatement { Statements.Length: 0 };
+    }
+
+    /// <summary>
+    /// Wraps a function declaration (from an if/else body) in a synthetic block environment.
+    /// Per Annex B.3.3, function declarations in if/else branches need their own block scope
+    /// so that the block-scoped binding for the function name is independent of the var-scoped
+    /// binding. At runtime, HandleFunctionDeclaration will:
+    /// 1. Create a block-scoped binding in this environment
+    /// 2. Update the var-scoped binding in the enclosing scope (Annex B semantics)
+    /// </summary>
+    private static bool TryWrapFunctionDeclInBlockScope(
+        EmitContext ctx,
+        FunctionDeclaration funcDecl,
+        int nextIndex,
+        out int entryIndex)
+    {
+        var scopeId = ctx.AllocateScopeId();
+        var slotMap = ImmutableDictionary.CreateBuilder<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
+        slotMap[funcDecl.Name] = 0;
+
+        // Build bottom-up:
+        // 1. PopEnvironment → nextIndex
+        var popEnvIndex = ctx.Append(new PopEnvironmentInstruction(scopeId, false, nextIndex));
+
+        // 2. FunctionDeclaration → popEnv
+        ctx.PushScope(scopeId);
+        var funcDeclIndex = ctx.Append(new FunctionDeclarationInstruction(popEnvIndex, funcDecl));
+        ctx.PopScope(scopeId);
+
+        // 3. PushEnvironment → funcDecl
+        // Don't pool: the function may close over this block scope
+        entryIndex = ctx.Append(new PushEnvironmentInstruction(
+            funcDeclIndex,
+            ImmutableArray<Symbol>.Empty,
+            scopeId,
+            1,
+            slotMap.ToImmutable(),
+            AllowPooling: false,
+            SourceBlock: null));
+
+        return true;
     }
 
     /// <summary>

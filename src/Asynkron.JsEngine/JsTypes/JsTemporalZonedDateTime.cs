@@ -604,6 +604,65 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
     }
 
     /// <summary>
+    ///     Extracts the wall clock epoch days from an ISO date-time base string (before annotations).
+    ///     Used for ISODateTimeWithinLimits validation.
+    /// </summary>
+    internal static long? ParseWallClockEpochDays(string baseStr)
+    {
+        int year, sign = 1;
+
+        // Find T separator
+        var tIdx = -1;
+        for (var i = 0; i < baseStr.Length; i++)
+        {
+            if (baseStr[i] is 'T' or 't' or ' ')
+            {
+                tIdx = i;
+                break;
+            }
+        }
+
+        var datePart = tIdx >= 0 ? baseStr[..tIdx] : baseStr;
+
+        if (datePart.Length > 0 && (datePart[0] == '+' || datePart[0] == '-'))
+        {
+            sign = datePart[0] == '-' ? -1 : 1;
+            datePart = datePart[1..];
+        }
+
+        if (datePart.Contains('-'))
+        {
+            var lastDash = datePart.LastIndexOf('-');
+            if (lastDash <= 0) return null;
+            var secondLastDash = datePart.LastIndexOf('-', lastDash - 1);
+            if (secondLastDash <= 0) return null;
+
+            if (!int.TryParse(datePart[..secondLastDash], CultureInfo.InvariantCulture, out var yearAbs) ||
+                !int.TryParse(datePart[(secondLastDash + 1)..lastDash], CultureInfo.InvariantCulture, out var month) ||
+                !int.TryParse(datePart[(lastDash + 1)..], CultureInfo.InvariantCulture, out var day))
+                return null;
+
+            year = sign * yearAbs;
+            return IsoCalendarHelpers.DateToEpochDays(year, month, day);
+        }
+
+        // Basic format without dashes
+        if (datePart.Length >= 8)
+        {
+            var yearLen = datePart.Length - 4;
+            if (!int.TryParse(datePart[..yearLen], CultureInfo.InvariantCulture, out var yearAbs) ||
+                !int.TryParse(datePart[yearLen..(yearLen + 2)], CultureInfo.InvariantCulture, out var month) ||
+                !int.TryParse(datePart[(yearLen + 2)..], CultureInfo.InvariantCulture, out var day))
+                return null;
+
+            year = sign * yearAbs;
+            return IsoCalendarHelpers.DateToEpochDays(year, month, day);
+        }
+
+        return null;
+    }
+
+    /// <summary>
     ///     Parses an offset string like "+01:00", "-05:30", "+0100" to nanoseconds.
     /// </summary>
     private static long ParseOffsetNanos(string offsetStr)

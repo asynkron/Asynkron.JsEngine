@@ -1,6 +1,6 @@
 # Temporal_Duration_compare
 
-Status: 80/88 passing (8 remaining BuiltIns)
+Status: 80/94 passing (8 BuiltIns + 6 intl402 remaining)
 
 FQNs:
 
@@ -9,9 +9,9 @@ FQNs:
 
 Remaining BuiltIns failures (8):
 
-- duration-out-of-range-added-to-relativeto.js x 2
-- order-of-operations.js x 2
-- relativeto-plaindate-add24hourdaystonormalizedtimeduration-out-of-range.js x 2
-- relativeto-string-limits.js x 2
+- duration-out-of-range-added-to-relativeto.js × 2
+- order-of-operations.js × 2
+- relativeto-plaindate-add24hourdaystonormalizedtimeduration-out-of-range.js × 2
+- relativeto-string-limits.js × 2
 
-Remaining intl402 failures (6): all 3 test files failing
+Remaining intl402 failures (6): relativeto-hour, twenty-five-hour-day, relativeto-sub-minute-offset

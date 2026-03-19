@@ -1,6 +1,6 @@
 # Temporal_Duration_prototype_total
 
-Status: 124/134 passing (10 remaining BuiltIns)
+Status: 124/146 passing (10 BuiltIns + 12 intl402 remaining)
 
 FQNs:
 
@@ -9,10 +9,10 @@ FQNs:
 
 Remaining BuiltIns failures (10):
 
-- order-of-operations.js x 2
-- precision-exact-mathematical-values-5.js x 2
-- precision-exact-mathematical-values-6.js x 2
-- precision-exact-mathematical-values-7.js x 2
-- relativeto-string-limits.js x 2
+- order-of-operations.js × 2
+- precision-exact-mathematical-values-5.js × 2
+- precision-exact-mathematical-values-6.js × 2
+- precision-exact-mathematical-values-7.js × 2
+- relativeto-string-limits.js × 2
 
 Remaining intl402 failures (12): DST balancing/rounding, sub-minute offsets, infinity range errors

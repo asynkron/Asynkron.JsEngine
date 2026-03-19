@@ -1,6 +1,6 @@
 # Temporal_Duration_prototype_round
 
-Status: 212/222 passing (10 remaining BuiltIns)
+Status: 214/236 passing (10 BuiltIns + 12 intl402 remaining)
 
 FQNs:
 
@@ -9,10 +9,10 @@ FQNs:
 
 Remaining BuiltIns failures (10):
 
-- duration-out-of-range-added-to-relativeto.js x 2
-- next-day-out-of-range.js x 2
-- order-of-operations.js x 2
-- relativeto-string-limits.js x 2
-- total-duration-nanoseconds-too-large-with-zoned-datetime.js x 2
+- duration-out-of-range-added-to-relativeto.js × 2
+- next-day-out-of-range.js × 2
+- order-of-operations.js × 2
+- relativeto-string-limits.js × 2
+- total-duration-nanoseconds-too-large-with-zoned-datetime.js × 2
 
 Remaining intl402 failures (12): DST balancing/rounding, sub-minute offsets, infinity range errors

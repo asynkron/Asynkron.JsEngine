@@ -5542,12 +5542,26 @@ public static class TemporalHelper
 
                 var totalDays = destEpoch - weekBoundaryEpoch;
 
+                // Compute overall sign for the day case
+                int daySign;
+                if (totalDays != 0)
+                    daySign = Math.Sign(totalDays);
+                else if (timeDiffNanos > 0)
+                    daySign = 1;
+                else if (timeDiffNanos < 0)
+                    daySign = -1;
+                else
+                    return (years, months, weeks, 0);
+
+                // Validate end boundary (spec NudgeToCalendarUnit step 6):
+                // r2 = r1 + increment * sign; base + r2 days must be in valid ISO range
+                var r1Days = totalDays / (long)roundingIncrement * roundingIncrement;
+                var r2Days = r1Days + roundingIncrement * daySign;
+                ValidateRoundedDayResult((long)weekBoundaryEpoch + r2Days);
+
                 // Include time remainder for fractional day
                 if (timeDiffNanos != 0)
                 {
-                    var daySign = totalDays != 0 ? Math.Sign((int)totalDays) :
-                        (timeDiffNanos > 0 ? 1 : timeDiffNanos < 0 ? -1 : 0);
-                    if (daySign == 0) return (years, months, weeks, 0);
                     var absTimeNanos = BigInteger.Abs(timeDiffNanos);
                     var absNsPerDay = new BigInteger(NanosecondsPerDay);
                     var scaledValue = new BigInteger(totalDays) * absNsPerDay + daySign * absTimeNanos;
@@ -7983,6 +7997,14 @@ public static class TemporalHelper
         var (y, m) = AddYearMonth(refYear, refMonth, totalMonths);
         var d = Math.Min(refDay, DaysInISOMonth(y, m));
         RejectISODateTimeRange(y, m, d, 0, 0, 0, 0, 0, 0);
+    }
+
+    private static void ValidateRoundedDayResult(long endEpochDay)
+    {
+        var endEpochNs = new BigInteger(endEpochDay) * NanosecondsPerDay;
+        if (endEpochNs <= -InstantMaxEpochNanoseconds - NanosecondsPerDay ||
+            endEpochNs >= InstantMaxEpochNanoseconds + NanosecondsPerDay)
+            throw StandardLibrary.ThrowRangeError("Resulting PlainDateTime is out of representable range");
     }
 
     private static bool IsLeapYear(int year)

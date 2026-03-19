@@ -1,41 +1,14 @@
 # Temporal_Duration_from
 
+Status: 54/56 passing (2 remaining = precision-exact-numerical-values near 2^53 boundary)
+
 FQN:
 `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from`
 
-Full test name:
+Remaining failures:
 
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/argument-duration-max.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/argument-duration-max.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/argument-duration-out-of-range.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/argument-duration-out-of-range.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/argument-duration-precision-exact-numerical-values.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/argument-duration-precision-exact-numerical-values.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/argument-object-invalid.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/argument-object-invalid.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/argument-string-fractional-precision.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/argument-string-fractional-precision.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/argument-string-fractional-units-rounding-mode.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/argument-string-fractional-units-rounding-mode.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/argument-string-fractional-with-zero-subparts.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/argument-string-fractional-with-zero-subparts.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/argument-string-invalid.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/argument-string-invalid.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/argument-string-is-infinity.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/argument-string-is-infinity.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/argument-string-negative-fractional-units.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/argument-string-negative-fractional-units.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/argument-string.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/argument-string.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/infinity-throws-rangeerror.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/infinity-throws-rangeerror.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/negative-inifinity-throws-rangeerror.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/negative-inifinity-throws-rangeerror.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/non-integer-throws-rangeerror.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/non-integer-throws-rangeerror.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/order-of-operations.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/order-of-operations.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/string-with-skipped-units.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/string-with-skipped-units.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/subclassing-ignored.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_from("built-ins/Temporal/Duration/from/subclassing-ignored.js",True)
+
+Root cause: Duration.ToString() uses long arithmetic which overflows for milliseconds values near 4.5e18.
+Requires BigInteger arithmetic in the ToString balancing logic.

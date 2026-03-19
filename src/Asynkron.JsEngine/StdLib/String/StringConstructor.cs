@@ -41,7 +41,9 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
             }
 
             var codePoint = (int)num;
-            if (codePoint is < 0 or > 0x10FFFF or (>= 0xD800 and <= 0xDFFF))
+            // Per spec 22.1.2.1: only reject < 0 or > 0x10FFFF.
+            // Surrogate code points (0xD800-0xDFFF) are allowed — JS strings are UTF-16.
+            if (codePoint is < 0 or > 0x10FFFF)
             {
                 throw StandardLibrary.ThrowRangeError($"Invalid code point {codePoint}");
             }

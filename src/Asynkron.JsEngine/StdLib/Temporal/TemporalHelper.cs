@@ -7689,6 +7689,13 @@ public static class TemporalHelper
         };
     }
 
+    private static void ValidateRoundedDateResult(int refYear, int refMonth, int refDay, int totalMonths)
+    {
+        var (y, m) = AddYearMonth(refYear, refMonth, totalMonths);
+        var d = Math.Min(refDay, DaysInISOMonth(y, m));
+        RejectISODateTimeRange(y, m, d, 0, 0, 0, 0, 0, 0);
+    }
+
     private static bool IsLeapYear(int year)
     {
         return (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;

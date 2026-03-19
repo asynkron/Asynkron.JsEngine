@@ -131,22 +131,67 @@ public sealed class JsTemporalInstant(BigInteger epochNanoseconds)
     /// </summary>
     public override string ToString()
     {
-        var dto = ToDateTimeOffset();
-        var nanosPart = (int)(EpochNanoseconds % NanosecondsPerSecond);
-        if (nanosPart < 0)
+        // Compute ISO date/time components directly from epoch nanoseconds
+        // to support years outside the .NET DateTimeOffset range.
+        const long nsPerDay = 86_400_000_000_000L;
+
+        // Split into day number and time-of-day nanoseconds
+        var epochNs = EpochNanoseconds;
+        var dayNs = epochNs >= 0
+            ? epochNs % nsPerDay
+            : nsPerDay - 1 - ((-epochNs - 1) % nsPerDay);
+        var dayNumber = (long)((epochNs - dayNs) / nsPerDay);
+
+        // Convert day number to ISO date
+        var z = dayNumber + 719468L;
+        var era = (z >= 0 ? z : z - 146096) / 146097;
+        var doe = z - era * 146097;
+        var yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+        var y = yoe + era * 400;
+        var doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+        var mp = (5 * doy + 2) / 153;
+        var d = doy - (153 * mp + 2) / 5 + 1;
+        var m = mp + (mp < 10 ? 3 : -9);
+        y += m <= 2 ? 1 : 0;
+
+        var year = (int)y;
+        var month = (int)m;
+        var day = (int)d;
+
+        // Convert time-of-day nanoseconds to components
+        var timeNs = (long)dayNs;
+        var hour = (int)(timeNs / 3_600_000_000_000L);
+        timeNs %= 3_600_000_000_000L;
+        var minute = (int)(timeNs / 60_000_000_000L);
+        timeNs %= 60_000_000_000L;
+        var second = (int)(timeNs / NanosecondsPerSecond);
+        var nanosPart = (int)(timeNs % NanosecondsPerSecond);
+
+        // Format year: 4 digits for 0000-9999, 6 digits with sign otherwise
+        string yearStr;
+        if (year >= 0 && year <= 9999)
         {
-            nanosPart += (int)NanosecondsPerSecond;
+            yearStr = year.ToString("D4", CultureInfo.InvariantCulture);
+        }
+        else if (year >= 0)
+        {
+            yearStr = "+" + year.ToString("D6", CultureInfo.InvariantCulture);
+        }
+        else
+        {
+            yearStr = "-" + (-year).ToString("D6", CultureInfo.InvariantCulture);
         }
 
-        // Format: YYYY-MM-DDTHH:mm:ss.nnnnnnnnnZ
+        var datePart = string.Create(CultureInfo.InvariantCulture,
+            $"{yearStr}-{month:D2}-{day:D2}T{hour:D2}:{minute:D2}:{second:D2}");
+
         if (nanosPart == 0)
         {
-            return dto.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
+            return $"{datePart}Z";
         }
 
-        var secondsPart = dto.ToString("yyyy-MM-dd'T'HH:mm:ss", CultureInfo.InvariantCulture);
         var nanosStr = nanosPart.ToString("D9", CultureInfo.InvariantCulture).TrimEnd('0');
-        return $"{secondsPart}.{nanosStr}Z";
+        return $"{datePart}.{nanosStr}Z";
     }
 
     public static bool operator ==(JsTemporalInstant? left, JsTemporalInstant? right)

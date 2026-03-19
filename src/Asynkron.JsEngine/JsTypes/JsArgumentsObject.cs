@@ -78,10 +78,6 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         _backing.DefinePropertyDirect("__arguments__",
             new PropertyDescriptor { Value = true, Writable = false, Enumerable = false, Configurable = false });
 
-        var tagKey = SymbolKeys.ToStringTag;
-        _backing.DefinePropertyDirect(tagKey,
-            new PropertyDescriptor { Value = "Arguments", Writable = false, Enumerable = false, Configurable = true });
-
         if (callee is not null)
         {
             if (mappedEnabled)

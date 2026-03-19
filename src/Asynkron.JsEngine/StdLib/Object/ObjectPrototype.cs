@@ -54,9 +54,10 @@ public sealed partial class ObjectPrototype
             }
         }
 
-        // 4-14. Determine builtinTag based on internal slots
+        // 4. Let isArray be ? IsArray(O).
+        // 5-14. Determine builtinTag based on internal slots
         string builtinTag;
-        if (thisValue.TryGetObject<JsArray>(out _))
+        if (IsArray(thisValue))
         {
             builtinTag = "Array";
         }
@@ -66,7 +67,9 @@ public sealed partial class ObjectPrototype
         }
         else if (thisValue.TryGetObject<JsProxy>(out var proxy))
         {
-            builtinTag = proxy.Target is IJsCallable ? "Function" : "Object";
+            // Not an array proxy (already checked above), check if callable.
+            // Must unwrap nested proxies to find the ultimate target.
+            builtinTag = IsCallableThroughProxy(proxy) ? "Function" : "Object";
         }
         else if (thisValue.TryGetObject<IJsCallable>(out _))
         {
@@ -99,6 +102,59 @@ public sealed partial class ObjectPrototype
 
         // 17. Return "[object " + tag + "]".
         return $"[object {builtinTag}]";
+    }
+
+    /// <summary>
+    /// Checks if a proxy's ultimate target (unwinding all proxy layers) is callable.
+    /// </summary>
+    private static bool IsCallableThroughProxy(JsProxy proxy)
+    {
+        IJsObjectLike target = proxy.Target;
+        while (target is JsProxy inner)
+        {
+            target = inner.Target;
+        }
+
+        return target is IJsCallable;
+    }
+
+    /// <summary>
+    /// ES spec 7.2.2 IsArray(argument).
+    /// Returns true if the argument is an Array exotic object or a Proxy whose
+    /// ultimate target is an Array exotic object.
+    /// </summary>
+    private static bool IsArray(JsValue value)
+    {
+        // Direct array check
+        if (value.TryGetObject<JsArray>(out _))
+        {
+            return true;
+        }
+
+        // Proxy: recurse through [[ProxyTarget]]
+        if (value.TryGetObject<JsProxy>(out var proxy))
+        {
+            // Walk proxy chain iteratively to avoid stack overflow
+            var current = proxy;
+            while (current is not null)
+            {
+                if (current.Handler is null)
+                {
+                    // Revoked proxy — per spec throw TypeError, but in toString
+                    // context we return false so it produces [object Object].
+                    return false;
+                }
+
+                if (current.Target is JsArray)
+                {
+                    return true;
+                }
+
+                current = current.Target as JsProxy;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

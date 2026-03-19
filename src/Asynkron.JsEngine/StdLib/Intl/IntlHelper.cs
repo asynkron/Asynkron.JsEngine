@@ -126,6 +126,16 @@ public static partial class IntlHelper
                 Configurable = true
             });
 
+        var segmenterCtor = IntlSegmenterConstructor.CreateConstructor(realm);
+        intl.DefineProperty("Segmenter",
+            new PropertyDescriptor
+            {
+                Value = segmenterCtor,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
+            });
+
         // Register getCanonicalLocales and supportedValuesOf via source-generated registration
         RegisterHostFunctions(intl, realm);
 

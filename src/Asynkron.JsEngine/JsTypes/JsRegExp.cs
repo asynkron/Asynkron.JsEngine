@@ -557,6 +557,108 @@ public sealed class JsRegExp
     /// all capturing groups sequentially left-to-right.
     /// Returns null if no reordering is needed.
     /// </summary>
+    /// <summary>
+    /// Pre-scan the ORIGINAL (pre-normalization) pattern to build a JS group index → .NET group index
+    /// mapping for numeric backreferences. Required because .NET numbers unnamed groups first (1,2,...),
+    /// then named groups, while JS numbers ALL groups left-to-right.
+    /// Returns null if no remapping is needed (all named, all unnamed, or ordering already matches).
+    /// </summary>
+    private static int[]? BuildJsToNetBackrefMap(string pattern)
+    {
+        // Collect all capturing groups in left-to-right order: true = named, false = unnamed
+        var groups = new List<bool>();
+        var hasNamed = false;
+        var hasUnnamed = false;
+
+        for (var i = 0; i < pattern.Length; i++)
+        {
+            var c = pattern[i];
+            if (c == '\\')
+            {
+                i++; // skip escaped char
+                continue;
+            }
+
+            if (c == '[')
+            {
+                // Skip to closing ']'
+                while (++i < pattern.Length && pattern[i] != ']')
+                {
+                    if (pattern[i] == '\\')
+                    {
+                        i++;
+                    }
+                }
+
+                continue;
+            }
+
+            if (c == '(' && i + 1 < pattern.Length)
+            {
+                if (pattern[i + 1] == '?')
+                {
+                    if (i + 2 < pattern.Length && pattern[i + 2] == '<'
+                        && i + 3 < pattern.Length && pattern[i + 3] != '=' && pattern[i + 3] != '!')
+                    {
+                        // Named capturing group (?<name>...)
+                        groups.Add(true);
+                        hasNamed = true;
+                    }
+                    // else: non-capturing (?:...) or lookaround — not a capturing group
+                }
+                else
+                {
+                    // Unnamed capturing group (...)
+                    groups.Add(false);
+                    hasUnnamed = true;
+                }
+            }
+        }
+
+        if (!hasNamed || !hasUnnamed)
+        {
+            return null; // No mixed groups — .NET and JS numbering agree
+        }
+
+        var totalUnnamed = 0;
+        foreach (var g in groups)
+        {
+            if (!g)
+            {
+                totalUnnamed++;
+            }
+        }
+
+        // Build the map: map[jsGroupIndex] = netGroupIndex
+        var map = new int[groups.Count + 1]; // 1-indexed
+        map[0] = 0;
+
+        var unnamedSoFar = 0;
+        var namedSoFar = 0;
+        var needsMap = false;
+
+        for (var j = 0; j < groups.Count; j++)
+        {
+            if (!groups[j])
+            {
+                unnamedSoFar++;
+                map[j + 1] = unnamedSoFar;
+            }
+            else
+            {
+                namedSoFar++;
+                map[j + 1] = totalUnnamed + namedSoFar;
+            }
+
+            if (map[j + 1] != j + 1)
+            {
+                needsMap = true;
+            }
+        }
+
+        return needsMap ? map : null;
+    }
+
     private static int[]? BuildGroupReorderMap(Regex regex, string normalizedPattern)
     {
         var groupNumbers = regex.GetGroupNumbers();
@@ -711,6 +813,11 @@ public sealed class JsRegExp
         var inCharClass = false;
         var escaped = false;
         var captureCount = 0;
+        // Build JS→.NET backreference number map for patterns with mixed named/unnamed groups.
+        var backrefMap = BuildJsToNetBackrefMap(pattern);
+        // Track named groups that are currently open (not yet closed) for self-reference detection.
+        var openGroupNames = new Stack<string?>();
+        var groupDepth = 0;
 
         for (var i = 0; i < pattern.Length; i++)
         {
@@ -894,14 +1001,15 @@ public sealed class JsRegExp
                         throw new ParseException($"Invalid regular expression: unknown group '{name}'.");
                     }
 
-                    if (definedSoFar.Contains(normalizedName))
+                    if (definedSoFar.Contains(normalizedName) && !openGroupNames.Contains(normalizedName))
                     {
-                        // Backward reference: group already defined
+                        // Backward reference: group already defined and closed
                         builder.Append(pattern, i, end - i + 1);
                     }
                     else
                     {
-                        // Forward reference: use conditional to match empty string if group not yet captured
+                        // Forward reference or self-reference to an open group:
+                        // use conditional to match empty string if group not yet captured.
                         // (?(name)\k<name>|) - if group captured use backreference, else match empty
                         builder.Append("(?(");
                         builder.Append(normalizedName);
@@ -930,10 +1038,20 @@ public sealed class JsRegExp
                         {
                             throw new ParseException("Invalid regular expression: invalid backreference.");
                         }
+
+                        // Map JS group number → .NET group number for mixed named/unnamed patterns.
+                        var netNum = (backrefMap is not null && backref < backrefMap.Length)
+                            ? backrefMap[backref]
+                            : backref;
+                        builder.Append('\\');
+                        builder.Append(netNum.ToString(CultureInfo.InvariantCulture));
+                    }
+                    else
+                    {
+                        builder.Append('\\');
+                        builder.Append(numText);
                     }
 
-                    builder.Append('\\');
-                    builder.Append(numText);
                     i = end - 1;
                     continue;
                 }
@@ -1004,7 +1122,10 @@ public sealed class JsRegExp
                     throw new ParseException("Invalid regular expression: invalid group name.");
                 }
 
+                groupDepth++;
+                captureCount++;
                 definedSoFar.Add(normalizedName);
+                openGroupNames.Push(normalizedName);
                 builder.Append(pattern, i, end - i + 1);
                 i = end;
                 continue;
@@ -1012,10 +1133,22 @@ public sealed class JsRegExp
 
             if (!inCharClass && c == '(')
             {
+                groupDepth++;
                 // Increment capture count for plain capturing groups
                 if (!(i + 1 < pattern.Length && pattern[i + 1] == '?'))
                 {
                     captureCount++;
+                }
+
+                openGroupNames.Push(null);
+            }
+
+            if (!inCharClass && c == ')' && groupDepth > 0)
+            {
+                groupDepth--;
+                if (openGroupNames.Count > 0)
+                {
+                    openGroupNames.Pop();
                 }
             }
 
@@ -1048,9 +1181,14 @@ public sealed class JsRegExp
         var captureCount = 0;
         var totalCaptures = CountLegacyCaptures(pattern);
         var lastClassAtomWasSingle = false;
+        // Build JS→.NET backreference number map for patterns with mixed named/unnamed groups.
+        var backrefMap = BuildJsToNetBackrefMap(pattern);
         // Track currently open (not yet closed) capture group numbers for self-backreference detection.
         // In JavaScript, a back-reference to a group that hasn't finished capturing matches empty string.
         var openGroupStack = new Stack<int>();
+        // Track named groups that are currently open (not yet closed).
+        // \k<name> referencing an open group is a self-reference → matches empty string.
+        var openGroupNames = new Stack<string?>();
         var groupDepth = 0;
 
         for (var i = 0; i < pattern.Length; i++)
@@ -1160,9 +1298,9 @@ public sealed class JsRegExp
 
                                 if (normalizedName is not null && allGroupNames.Contains(normalizedName))
                                 {
-                                    if (definedSoFar.Contains(normalizedName))
+                                    if (definedSoFar.Contains(normalizedName) && !openGroupNames.Contains(normalizedName))
                                     {
-                                        // Backward reference: group already defined
+                                        // Backward reference: group already defined and closed
                                         builder.Append('\\');
                                         builder.Append('k');
                                         builder.Append('<');
@@ -1171,7 +1309,8 @@ public sealed class JsRegExp
                                     }
                                     else
                                     {
-                                        // Forward reference: use conditional to match empty string if group not yet captured
+                                        // Forward reference or self-reference to an open group:
+                                        // use conditional to match empty string if group not yet captured.
                                         // (?(name)\k<name>|) - if group captured use backreference, else match empty
                                         builder.Append("(?(");
                                         builder.Append(normalizedName);
@@ -1232,8 +1371,12 @@ public sealed class JsRegExp
                         {
                             if (value <= captureCount && !openGroupStack.Contains(value))
                             {
+                                // Map JS group number → .NET group number for mixed named/unnamed patterns.
+                                var netNum = (backrefMap is not null && value < backrefMap.Length)
+                                    ? backrefMap[value]
+                                    : value;
                                 builder.Append('\\');
-                                builder.Append(numText);
+                                builder.Append(netNum.ToString(CultureInfo.InvariantCulture));
                             }
                             else
                             {
@@ -1317,7 +1460,16 @@ public sealed class JsRegExp
                         var name = pattern.Substring(i + 3, end - (i + 3));
                         var normalizedName = NormalizeGroupNameToken(name);
                         definedSoFar.Add(normalizedName);
+                        openGroupNames.Push(normalizedName);
                     }
+                    else
+                    {
+                        openGroupNames.Push(null);
+                    }
+                }
+                else
+                {
+                    openGroupNames.Push(null);
                 }
             }
 
@@ -1327,6 +1479,11 @@ public sealed class JsRegExp
                 if (openGroupStack.Count > 0)
                 {
                     openGroupStack.Pop();
+                }
+
+                if (openGroupNames.Count > 0)
+                {
+                    openGroupNames.Pop();
                 }
             }
 

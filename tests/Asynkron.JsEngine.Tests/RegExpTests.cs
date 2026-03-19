@@ -672,5 +672,199 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
         """);
         Assert.True((bool)result!);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task RegExp_NamedGroups_SimpleMatch()
+    {
+        // "bab".match(/(?<a>a)/) should return ["a", "a"]
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var m = "bab".match(/(?<a>a)/);
+            m !== null ? m[0] + "," + m[1] : "null";
+        """);
+        Assert.Equal("a,a", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task RegExp_NamedGroups_MixedOrdering()
+    {
+        // .(?<a>a)(.) — JS expects: ["bab", "a", "b"]
+        // .NET would give: ["bab", "b", "a"] without reorder map
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var m = "bab".match(/.(?<a>a)(.)/);
+            m !== null ? m[0] + "," + m[1] + "," + m[2] : "null";
+        """);
+        Assert.Equal("bab,a,b", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task RegExp_NamedGroups_AllNamed()
+    {
+        // .(?<a>a)(?<b>.) — all named, JS expects: ["bab", "a", "b"]
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var m = "bab".match(/.(?<a>a)(?<b>.)/);
+            m !== null ? m[0] + "," + m[1] + "," + m[2] : "null";
+        """);
+        Assert.Equal("bab,a,b", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task RegExp_NamedGroups_BackreferenceWithMixed()
+    {
+        // (.)(?<a>a)\1\2 on "baba" — JS expects: ["baba", "b", "a"]
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var m = "baba".match(/(.)(?<a>a)\1\2/);
+            m !== null ? m[0] + "," + m[1] + "," + m[2] : "null";
+        """);
+        Assert.Equal("baba,b,a", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task RegExp_NamedGroups_SelfReference()
+    {
+        // \k<a> inside (?<a>...) should match empty (group not yet captured)
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var m = /(?<a>\k<a>\w)../.exec("bab");
+            m !== null ? m[0] + ":" + m[1] + ":" + m.groups.a : "null";
+        """);
+        Assert.Equal("bab:b:b", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task RegExp_NamedGroups_References()
+    {
+        // From non-unicode-references.js
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var errors = [];
+            function check(name, expected, actual) {
+                if (expected === null) {
+                    if (actual !== null) errors.push(name + ": expected null got " + JSON.stringify(actual));
+                    return;
+                }
+                if (actual === null || actual === undefined) {
+                    errors.push(name + ": got null");
+                    return;
+                }
+                if (Array.isArray(expected)) {
+                    if (actual.length !== expected.length) {
+                        errors.push(name + ": len " + actual.length + " vs " + expected.length);
+                        return;
+                    }
+                    for (var i = 0; i < expected.length; i++) {
+                        if (actual[i] !== expected[i]) {
+                            errors.push(name + ": [" + i + "] " + JSON.stringify(actual[i]) + " vs " + JSON.stringify(expected[i]));
+                            return;
+                        }
+                    }
+                } else {
+                    if (actual !== expected) errors.push(name + ": " + JSON.stringify(actual) + " vs " + JSON.stringify(expected));
+                }
+            }
+
+            // Named references
+            check("R1", ["bab", "b"], "bab".match(/(?<b>.).\k<b>/));
+            check("R2", null, "baa".match(/(?<b>.).\k<b>/));
+
+            // Reference inside group
+            check("R3", ["bab", "b"], "bab".match(/(?<a>\k<a>\w)../));
+            check("R4", "b", "bab".match(/(?<a>\k<a>\w)../) && "bab".match(/(?<a>\k<a>\w)../).groups.a);
+
+            // Reference before group
+            check("R5", ["bab", "b"], "bab".match(/\k<a>(?<a>b)\w\k<a>/));
+            check("R6", "b", "bab".match(/\k<a>(?<a>b)\w\k<a>/) && "bab".match(/\k<a>(?<a>b)\w\k<a>/).groups.a);
+            check("R7", ["bab", "b", "a"], "bab".match(/(?<b>b)\k<a>(?<a>a)\k<b>/));
+
+            // Reference properties
+            check("R8", "a", /(?<a>a)(?<b>b)\k<a>/.exec("aba") && /(?<a>a)(?<b>b)\k<a>/.exec("aba").groups.a);
+            check("R9", "b", /(?<a>a)(?<b>b)\k<a>/.exec("aba") && /(?<a>a)(?<b>b)\k<a>/.exec("aba").groups.b);
+
+            errors.length > 0 ? errors.join("; ") : "OK";
+        """);
+        Assert.Equal("OK", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task RegExp_NamedGroups_FullTest262Repro()
+    {
+        // Reproduces ALL lines from Test262 non-unicode-match.js
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var errors = [];
+            function check(name, actual) {
+                if (actual === null || actual === undefined) {
+                    errors.push(name + ": null");
+                    return;
+                }
+            }
+            function compareArr(name, expected, actual) {
+                if (actual === null || actual === undefined) {
+                    errors.push(name + ": actual null");
+                    return;
+                }
+                if (expected === null || expected === undefined) {
+                    errors.push(name + ": expected null");
+                    return;
+                }
+                if (actual.length !== expected.length) {
+                    errors.push(name + ": length " + actual.length + " vs " + expected.length);
+                    return;
+                }
+                for (var i = 0; i < expected.length; i++) {
+                    if (actual[i] !== expected[i]) {
+                        errors.push(name + ": [" + i + "] " + JSON.stringify(actual[i]) + " vs " + JSON.stringify(expected[i]));
+                        return;
+                    }
+                }
+            }
+            // Part 1: compareArray with literal expected
+            compareArr("L11", ["a", "a"], "bab".match(/(?<a>a)/));
+            compareArr("L12", ["a", "a"], "bab".match(/(?<a42>a)/));
+            compareArr("L13", ["a", "a"], "bab".match(/(?<_>a)/));
+            compareArr("L14", ["a", "a"], "bab".match(/(?<$>a)/));
+            compareArr("L15", ["bab", "a"], "bab".match(/.(?<$>a)./));
+            compareArr("L16", ["bab", "a", "b"], "bab".match(/.(?<a>a)(.)/));
+            compareArr("L17", ["bab", "a", "b"], "bab".match(/.(?<a>a)(?<b>.)/));
+            compareArr("L18", ["bab", "ab"], "bab".match(/.(?<a>\w\w)/));
+            compareArr("L19", ["bab", "bab"], "bab".match(/(?<a>\w\w\w)/));
+            compareArr("L20", ["bab", "ba", "b"], "bab".match(/(?<a>\w\w)(?<b>\w)/));
+
+            // Part 2: exec + groups
+            var r = /(?<a>.)(?<b>.)(?<c>.)\k<c>\k<b>\k<a>/.exec("abccba");
+            check("L21-exec", r);
+            if (r) {
+                var g = r.groups;
+                if (g.a !== "a") errors.push("L21: a=" + g.a);
+                if (g.b !== "b") errors.push("L21: b=" + g.b);
+                if (g.c !== "c") errors.push("L21: c=" + g.c);
+            }
+
+            // Part 3: compareArray with match result as both args
+            compareArr("L31", "bab".match(/(a)/), "bab".match(/(?<a>a)/));
+            compareArr("L32", "bab".match(/(a)/), "bab".match(/(?<a42>a)/));
+            compareArr("L33", "bab".match(/(a)/), "bab".match(/(?<_>a)/));
+            compareArr("L34", "bab".match(/(a)/), "bab".match(/(?<$>a)/));
+            compareArr("L35", "bab".match(/.(a)./), "bab".match(/.(?<$>a)./));
+            compareArr("L36", "bab".match(/.(a)(.)/), "bab".match(/.(?<a>a)(.)/));
+            compareArr("L37", "bab".match(/.(a)(.)/), "bab".match(/.(?<a>a)(?<b>.)/));
+            compareArr("L38", "bab".match(/.(\w\w)/), "bab".match(/.(?<a>\w\w)/));
+            compareArr("L39", "bab".match(/(\w\w\w)/), "bab".match(/(?<a>\w\w\w)/));
+            compareArr("L40", "bab".match(/(\w\w)(\w)/), "bab".match(/(?<a>\w\w)(?<b>\w)/));
+
+            // Part 4: backreferences
+            compareArr("L41", ["bab", "b"], "bab".match(/(?<b>b).\1/));
+            compareArr("L42", ["baba", "b", "a"], "baba".match(/(.)(?<a>a)\1\2/));
+            compareArr("L43", ["baba", "b", "a", "b", "a"], "baba".match(/(.)(?<a>a)(?<b>\1)(\2)/));
+            compareArr("L44", ["<a", "<"], "<a".match(/(?<lt><)a/));
+            compareArr("L45", [">a", ">"], ">a".match(/(?<gt>>)a/));
+
+            errors.length > 0 ? errors.join("; ") : "OK";
+        """);
+        Assert.Equal("OK", result);
+    }
 }
 

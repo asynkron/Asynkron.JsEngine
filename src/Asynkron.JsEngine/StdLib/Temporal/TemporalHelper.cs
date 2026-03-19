@@ -9459,6 +9459,36 @@ public static class TemporalHelper
     }
 
     /// <summary>
+    ///     Canonicalizes a timezone ID: normalizes case for IANA names, normalizes offset format,
+    ///     and returns "UTC" for case-insensitive UTC matches.
+    /// </summary>
+    private static string CanonicalizeTimeZoneId(string timeZoneId)
+    {
+        if (string.IsNullOrEmpty(timeZoneId))
+            return timeZoneId;
+
+        // UTC (case-insensitive)
+        if (string.Equals(timeZoneId, "UTC", StringComparison.OrdinalIgnoreCase))
+            return "UTC";
+
+        // For offset timezones, normalize format (+0000 → +00:00, +00 → +00:00)
+        if (timeZoneId.Length >= 2 && (timeZoneId[0] == '+' || timeZoneId[0] == '-') && char.IsDigit(timeZoneId[1]))
+            return NormalizeUtcOffset(timeZoneId);
+
+        // For IANA names, use case-insensitive lookup via FindTimeZone
+        // then return the system's canonical ID.
+        try
+        {
+            var tz = FindTimeZone(timeZoneId);
+            return tz.HasIanaId ? tz.Id : timeZoneId;
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return timeZoneId;
+        }
+    }
+
+    /// <summary>
     ///     Validates and converts a timezone value from a property bag to a timezone identifier string.
     /// </summary>
     private static string ToTemporalTimeZoneIdentifier(JsValue value, RealmState realm)
@@ -9556,6 +9586,9 @@ public static class TemporalHelper
             // ZonedDateTime REQUIRES a timezone annotation
             if (timeZoneId == null)
                 throw StandardLibrary.ThrowRangeError("ZonedDateTime requires a time zone annotation in brackets", realm: realm);
+
+            // Canonicalize the timezone ID (case-insensitive, offset normalization)
+            timeZoneId = CanonicalizeTimeZoneId(timeZoneId);
 
             // Get the base string (before annotations)
             var bracketIdx = str.IndexOf('[');

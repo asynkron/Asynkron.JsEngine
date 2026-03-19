@@ -38,8 +38,42 @@ public sealed class JsRegExp
     /// </summary>
     private const string LegacyDotAllPattern = @"[\s\S]";
 
-    private const string UnicodeNonWhitespacePattern =
-        @"(?:[\uD800-\uDBFF][\uDC00-\uDFFF]|[^\s\uD800-\uDFFF])";
+    // ECMAScript \s: WhiteSpace + LineTerminator code points.
+    // .NET \s differs: includes \x85 (NEXT LINE) and excludes \uFEFF (BOM).
+    // We use explicit character classes to match the ECMAScript spec exactly.
+    private const string EcmaWhitespaceClass =
+        "[\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]";
+
+    private const string EcmaNonWhitespaceClass =
+        "[^\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]";
+
+    // ECMAScript \w = [A-Za-z0-9_] (ASCII only).
+    // .NET \w without ECMAScript flag matches Unicode letters/digits which is too broad.
+    private const string EcmaWordClass = "[A-Za-z0-9_]";
+    private const string EcmaNonWordClass = "[^A-Za-z0-9_]";
+
+    // ECMAScript \d = [0-9] (ASCII only).
+    // .NET \d without ECMAScript flag matches Unicode digits which is too broad.
+    private const string EcmaDigitClass = "[0-9]";
+    private const string EcmaNonDigitClass = "[^0-9]";
+
+    // Raw ranges for embedding inside character classes (no brackets).
+    private const string EcmaWhitespaceRanges =
+        "\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff";
+
+    private const string EcmaWordCharRanges = "A-Za-z0-9_";
+    private const string EcmaDigitRanges = "0-9";
+
+    // Unicode-mode negated patterns: match any full code point NOT in the set.
+    // Must handle surrogate pairs AND lone surrogates (valid in JS strings).
+    private const string UnicodeEcmaNonWhitespacePattern =
+        "(?:[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]|[^\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff\uD800-\uDFFF])";
+
+    private const string UnicodeEcmaNonWordPattern =
+        "(?:[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]|[^A-Za-z0-9_\uD800-\uDFFF])";
+
+    private const string UnicodeEcmaNonDigitPattern =
+        "(?:[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]|[^0-9\uD800-\uDFFF])";
 
     private readonly string _normalizedPattern;
     private readonly RegexOptions _regexOptions;
@@ -1062,11 +1096,36 @@ public sealed class JsRegExp
                 }
 
                 var next = pattern[i + 1];
-                if (hasUnicodeFlag && !inCharClass && next is 'S')
+                // Replace \s, \S, \w, \W, \d, \D with ECMAScript-accurate definitions.
+                if (!inCharClass)
                 {
-                    builder.Append(UnicodeNonWhitespacePattern);
-                    i++;
-                    continue;
+                    switch (next)
+                    {
+                        case 's':
+                            builder.Append(EcmaWhitespaceClass);
+                            i++;
+                            continue;
+                        case 'S':
+                            builder.Append(UnicodeEcmaNonWhitespacePattern);
+                            i++;
+                            continue;
+                        case 'w':
+                            builder.Append(EcmaWordClass);
+                            i++;
+                            continue;
+                        case 'W':
+                            builder.Append(UnicodeEcmaNonWordPattern);
+                            i++;
+                            continue;
+                        case 'd':
+                            builder.Append(EcmaDigitClass);
+                            i++;
+                            continue;
+                        case 'D':
+                            builder.Append(UnicodeEcmaNonDigitPattern);
+                            i++;
+                            continue;
+                    }
                 }
 
                 builder.Append('\\');
@@ -1219,6 +1278,28 @@ public sealed class JsRegExp
                         }
 
                         lastClassAtomWasSingle = true;
+                        continue;
+                    }
+
+                    // Replace \s, \w, \d with ECMAScript-accurate raw ranges inside char class.
+                    if (c == 's')
+                    {
+                        builder.Append(EcmaWhitespaceRanges);
+                        lastClassAtomWasSingle = false;
+                        continue;
+                    }
+
+                    if (c == 'w')
+                    {
+                        builder.Append(EcmaWordCharRanges);
+                        lastClassAtomWasSingle = false;
+                        continue;
+                    }
+
+                    if (c == 'd')
+                    {
+                        builder.Append(EcmaDigitRanges);
+                        lastClassAtomWasSingle = false;
                         continue;
                     }
 
@@ -1416,6 +1497,26 @@ public sealed class JsRegExp
                         i = end - 1;
                         continue;
 
+                    // Replace \s, \S, \w, \W with ECMAScript-accurate definitions.
+                    case 's':
+                        builder.Append(EcmaWhitespaceClass);
+                        continue;
+                    case 'S':
+                        builder.Append(EcmaNonWhitespaceClass);
+                        continue;
+                    case 'w':
+                        builder.Append(EcmaWordClass);
+                        continue;
+                    case 'W':
+                        builder.Append(EcmaNonWordClass);
+                        continue;
+                    case 'd':
+                        builder.Append(EcmaDigitClass);
+                        continue;
+                    case 'D':
+                        builder.Append(EcmaNonDigitClass);
+                        continue;
+
                     default:
                         if (IsSyntaxCharacter(c) || IsLegacyEscape(c))
                         {
@@ -1455,7 +1556,9 @@ public sealed class JsRegExp
                     openGroupStack.Push(0);
                 }
 
-                // Track named groups as they are defined
+                // Named capture group: normalize and emit the decoded name
+                // This must happen here to prevent \u{...} escapes in group names
+                // from being incorrectly processed as Annex B identity escapes.
                 if (isNamedCapture)
                 {
                     var end = pattern.IndexOf('>', i + 3);
@@ -1463,13 +1566,22 @@ public sealed class JsRegExp
                     {
                         var name = pattern.Substring(i + 3, end - (i + 3));
                         var normalizedName = NormalizeGroupNameToken(name);
+                        if (ContainsLoneSurrogate(normalizedName))
+                        {
+                            throw new ParseException("Invalid regular expression: invalid group name.");
+                        }
+
                         definedSoFar.Add(normalizedName);
                         openGroupNames.Push(normalizedName);
+                        // Emit (?<normalizedName> and skip past >
+                        builder.Append("(?<");
+                        builder.Append(normalizedName);
+                        builder.Append('>');
+                        i = end;
+                        continue;
                     }
-                    else
-                    {
-                        openGroupNames.Push(null);
-                    }
+
+                    openGroupNames.Push(null);
                 }
                 else
                 {
@@ -1865,6 +1977,8 @@ public sealed class JsRegExp
         var i = 0;
         var escaped = false;
         var inCharClass = false;
+        // Cache: original name → sanitized name (ensures group def and backrefs use same name)
+        var nameCache = new Dictionary<string, string>(StringComparer.Ordinal);
 
         while (i < pattern.Length)
         {
@@ -1880,6 +1994,30 @@ public sealed class JsRegExp
 
             if (c == '\\')
             {
+                // Check for backreference \k<name> before general escape handling
+                if (!inCharClass && i + 2 < pattern.Length && pattern[i + 1] == 'k' && pattern[i + 2] == '<')
+                {
+                    var end = pattern.IndexOf('>', i + 3);
+                    if (end != -1)
+                    {
+                        var name = pattern.Substring(i + 3, end - (i + 3));
+                        if (NeedsGroupNameSanitization(name))
+                        {
+                            if (!nameCache.TryGetValue(name, out var sanitized))
+                            {
+                                sanitized = SanitizeGroupName(name);
+                                nameCache[name] = sanitized;
+                            }
+
+                            result.Append("\\k<");
+                            result.Append(sanitized);
+                            result.Append('>');
+                            i = end + 1;
+                            continue;
+                        }
+                    }
+                }
+
                 result.Append(c);
                 escaped = true;
                 i++;
@@ -1919,30 +2057,15 @@ public sealed class JsRegExp
                     var name = pattern.Substring(i + 3, end - (i + 3));
                     if (NeedsGroupNameSanitization(name))
                     {
-                        var sanitized = SanitizeGroupName(name);
+                        if (!nameCache.TryGetValue(name, out var sanitized))
+                        {
+                            sanitized = SanitizeGroupName(name);
+                            nameCache[name] = sanitized;
+                        }
+
                         mapping ??= new Dictionary<string, string>();
                         mapping[sanitized] = name;
                         result.Append("(?<");
-                        result.Append(sanitized);
-                        result.Append('>');
-                        i = end + 1;
-                        continue;
-                    }
-                }
-            }
-
-            // Check for backreference: \k<name>
-            if (c == '\\' && i + 1 < pattern.Length && pattern[i + 1] == 'k'
-                && i + 2 < pattern.Length && pattern[i + 2] == '<')
-            {
-                var end = pattern.IndexOf('>', i + 3);
-                if (end != -1)
-                {
-                    var name = pattern.Substring(i + 3, end - (i + 3));
-                    if (NeedsGroupNameSanitization(name))
-                    {
-                        var sanitized = SanitizeGroupName(name);
-                        result.Append("\\k<");
                         result.Append(sanitized);
                         result.Append('>');
                         i = end + 1;
@@ -1961,7 +2084,12 @@ public sealed class JsRegExp
                     var name = pattern.Substring(i + 3, end - (i + 3));
                     if (NeedsGroupNameSanitization(name))
                     {
-                        var sanitized = SanitizeGroupName(name);
+                        if (!nameCache.TryGetValue(name, out var sanitized))
+                        {
+                            sanitized = SanitizeGroupName(name);
+                            nameCache[name] = sanitized;
+                        }
+
                         result.Append("(?(");
                         result.Append(sanitized);
                         result.Append(')');

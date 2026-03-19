@@ -19,10 +19,6 @@ Remaining failures (all .NET regex engine limitations or regexpModifiers feature
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp("built-ins/RegExp/quantifier-integer-limit.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp("built-ins/RegExp/quantifier-integer-limit.js",True)
 
-## .NET whitespace class difference
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp("built-ins/RegExp/character-class-escape-non-whitespace.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp("built-ins/RegExp/character-class-escape-non-whitespace.js",True)
-
 ## regexpModifiers early errors (not implemented)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp("built-ins/RegExp/early-err-modifiers-code-point-repeat-i-1.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp("built-ins/RegExp/early-err-modifiers-code-point-repeat-i-1.js",True)

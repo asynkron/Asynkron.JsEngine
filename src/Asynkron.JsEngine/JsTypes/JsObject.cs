@@ -2349,7 +2349,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         numericKeys.Sort();
         foreach (var index in numericKeys)
         {
-            yield return JsValueCache.GetIndexString((int)index);
+            yield return JsValueCache.GetIndexString((long)index);
         }
 
         foreach (var key in stringKeys)

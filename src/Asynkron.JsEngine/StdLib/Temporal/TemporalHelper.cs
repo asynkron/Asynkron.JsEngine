@@ -2255,6 +2255,34 @@ public static class TemporalHelper
             return WrapPlainDateTime(rounded, realm, prototype);
         });
 
+        AddPrototypeMethod(prototype, realm, "withPlainTime", 0, (thisValue, args) =>
+        {
+            var dt = GetPlainDateTime(thisValue);
+            JsTemporalPlainTime time;
+            if (args.Count > 0 && !args[0].IsUndefined)
+            {
+                time = ToTemporalPlainTime(args[0], realm);
+            }
+            else
+            {
+                time = new JsTemporalPlainTime(0, 0, 0, 0, 0, 0);
+            }
+
+            var result = new JsTemporalPlainDateTime(
+                dt.Year, dt.Month, dt.Day,
+                time.Hour, time.Minute, time.Second,
+                time.Millisecond, time.Microsecond, time.Nanosecond,
+                dt.Calendar);
+
+            var epochNanos = ToEpochNanoseconds(result);
+            if (epochNanos < PlainDateTimeMinEpochNanoseconds || epochNanos > PlainDateTimeMaxEpochNanoseconds)
+            {
+                throw StandardLibrary.ThrowRangeError("PlainDateTime is out of representable range", realm: realm);
+            }
+
+            return WrapPlainDateTime(result, realm, prototype);
+        });
+
         // Constructor
         var ctor = new HostFunction((_, _) => JsValue.Undefined, realm)
         { IsConstructor = true };

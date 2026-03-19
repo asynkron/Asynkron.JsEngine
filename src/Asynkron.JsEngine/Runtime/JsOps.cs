@@ -2051,6 +2051,42 @@ internal static class JsOps
                 }
             }
 
+            // ES2024 10.4.5.5: Check if TypedArray is in prototype chain with exotic [[Set]].
+            // Must be checked BEFORE walking the prototype chain for inherited setters.
+            var exoticResult = TypedArrayBase.CheckExoticSetInPrototypeChain(
+                jsArray.PrototypeAccessor ?? jsArray.Prototype, propertyName);
+            if (exoticResult == true)
+            {
+                return true; // Invalid index on TypedArray → silently succeed, don't create property
+            }
+
+            if (exoticResult == false)
+            {
+                // Valid index, O !== Receiver → create data property on receiver (the array)
+                if (!jsArray.IsExtensible)
+                {
+                    if (context?.CurrentScope.IsStrict == true)
+                    {
+                        throw StandardLibrary.ThrowTypeError(
+                            $"Cannot add property '{propertyName}', object is not extensible.",
+                            context,
+                            context.RealmState);
+                    }
+
+                    return true;
+                }
+
+                jsArray.DefineProperty(propertyName,
+                    new PropertyDescriptor
+                    {
+                        Value = value,
+                        Writable = true,
+                        Enumerable = true,
+                        Configurable = true
+                    });
+                return true;
+            }
+
             // Check prototype chain for inherited setters
             var current = jsArray.PrototypeAccessor ?? jsArray.Prototype;
             while (current is not null)

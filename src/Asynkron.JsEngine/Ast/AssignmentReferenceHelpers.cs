@@ -137,6 +137,58 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
+            // ES2024 10.4.5.5: Check for TypedArray exotic [[Set]] in prototype chain.
+            // This handles non-JsObject types (JsArray, etc.) that have a TypedArray in their chain.
+            {
+                var protoForCheck = accessor is IPrototypeAccessorProvider protoProvider
+                    ? (IJsPropertyAccessor?)protoProvider.PrototypeAccessor
+                    : accessor is IJsObjectLike objLike
+                        ? objLike.Prototype
+                        : null;
+                var exoticResult = protoForCheck is not null
+                    ? TypedArrayBase.CheckExoticSetInPrototypeChain(protoForCheck, propertyName)
+                    : null;
+                if (exoticResult == true)
+                {
+                    return; // Invalid index → silently succeed
+                }
+
+                if (exoticResult == false)
+                {
+                    // Valid index, O !== Receiver → create data property on receiver
+                    if (accessor is IExtensibilityControl { IsExtensible: false })
+                    {
+                        if (isStrict)
+                        {
+                            throw StandardLibrary.ThrowTypeError(
+                                $"Cannot add property '{propertyName}', object is not extensible.",
+                                context,
+                                context.RealmState);
+                        }
+
+                        return;
+                    }
+
+                    if (accessor is IPropertyDefinitionHost defHost)
+                    {
+                        defHost.TryDefineProperty(propertyName,
+                            new PropertyDescriptor
+                            {
+                                JsValue = value,
+                                Writable = true,
+                                Enumerable = true,
+                                Configurable = true
+                            });
+                    }
+                    else
+                    {
+                        accessor.SetProperty(propertyName, value, target);
+                    }
+
+                    return;
+                }
+            }
+
             var descriptor = accessor.GetOwnPropertyDescriptor(propertyName);
             if (descriptor is not null)
             {

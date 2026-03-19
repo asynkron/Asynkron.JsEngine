@@ -1258,6 +1258,44 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
     }
 
 
+    /// <summary>
+    /// Walks the prototype chain starting from <paramref name="prototype"/> looking for a TypedArray.
+    /// If found and <paramref name="name"/> is a canonical numeric index string:
+    ///   - Returns true if the index is INVALID (caller should silently succeed without creating property)
+    ///   - Returns false if the index is valid (caller should proceed with OrdinarySet / create property on receiver)
+    /// Returns null if no TypedArray exotic [[Set]] applies (not a numeric index or no TypedArray in chain).
+    /// </summary>
+    internal static bool? CheckExoticSetInPrototypeChain(IJsPropertyAccessor? prototype, string name)
+    {
+        var current = prototype;
+        var depth = 0;
+        while (current is not null && depth++ < JsEngineConstants.MaxPrototypeChainDepth)
+        {
+            if (current is TypedArrayBase typedArray)
+            {
+                if (!TryCanonicalNumericIndex(name, out var numericIndex))
+                {
+                    return null; // Not a numeric index → no exotic behavior
+                }
+
+                // TypedArray [[Set]]: O !== Receiver (since we're called from a different object)
+                // If IsValidIntegerIndex is false → return true (silently succeed, don't create property)
+                // If valid → return false (proceed with OrdinarySet, create property on receiver)
+                return !typedArray.IsValidIntegerIndex(numericIndex);
+            }
+
+            current = current switch
+            {
+                JsObject obj => (IJsPropertyAccessor?)obj.PrototypeAccessor ?? obj.Prototype,
+                IPrototypeAccessorProvider { PrototypeAccessor: { } proto } => proto,
+                IJsObjectLike objLike => objLike.Prototype,
+                _ => null
+            };
+        }
+
+        return null; // No TypedArray found
+    }
+
     private static TypedArrayBase ResolveThis(JsValue thisValue, TypedArrayBase fallback)
     {
         if (thisValue.IsObject && thisValue.AsObject<IJsObjectLike>() is TypedArrayBase typedArray)

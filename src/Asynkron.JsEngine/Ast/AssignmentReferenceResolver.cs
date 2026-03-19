@@ -1,5 +1,6 @@
 #region
 
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 
@@ -419,6 +420,44 @@ internal static class AssignmentReferenceResolver
 
             target.SetProperty(propertyName, value, receiverValue);
             return;
+        }
+
+        // ES2024 10.4.5.5: TypedArray exotic [[Set]] when O !== Receiver.
+        // Check BEFORE GetSetter because the TypedArray exotic [[Set]] takes precedence
+        // over any setters defined further up the prototype chain (e.g., on TA.prototype).
+        {
+            var exoticResult = TypedArrayBase.CheckExoticSetInPrototypeChain(
+                (IJsPropertyAccessor?)target.PrototypeAccessor ?? target.Prototype, propertyName);
+            if (exoticResult == true)
+            {
+                return; // Invalid index → silently succeed, don't coerce value or create property
+            }
+
+            if (exoticResult == false)
+            {
+                // Valid index, O !== Receiver → OrdinarySet creates data property on receiver.
+                // Must use DefineProperty to bypass prototype chain setter lookup.
+                if (!target.IsExtensible)
+                {
+                    if (isStrict)
+                    {
+                        throw StandardLibrary.ThrowTypeError(
+                            $"Cannot add property '{propertyName}', object is not extensible.", context, realmState);
+                    }
+
+                    return;
+                }
+
+                target.DefineProperty(propertyName,
+                    new PropertyDescriptor
+                    {
+                        JsValue = value,
+                        Writable = true,
+                        Enumerable = true,
+                        Configurable = true
+                    });
+                return;
+            }
         }
 
         var inheritedSetter = target.GetSetter(propertyName);

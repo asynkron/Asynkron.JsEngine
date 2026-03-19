@@ -147,7 +147,7 @@ public sealed class JsRegExp
         try
         {
             var regex = EnsureRegex();
-            _groupReorderMap = BuildGroupReorderMap(regex, _normalizedPattern);
+            _groupReorderMap = BuildGroupReorderMap(regex, _normalizedPattern, _duplicateGroupNames);
         }
         catch (ArgumentException ex)
         {
@@ -413,6 +413,50 @@ public sealed class JsRegExp
             captureValues[i] = group.Success ? new JsValue(group.Value) : JsValue.Undefined;
         }
 
+        // For duplicate-named groups in quantified contexts, .NET doesn't reset groups between
+        // quantifier iterations. Apply position-based heuristic: only the wrapper group that
+        // captured in the LAST iteration (highest position) keeps its value; others → undefined.
+        if (_duplicateGroupNames is not null)
+        {
+            var regex = EnsureRegex();
+            foreach (var kvp in _duplicateGroupNames)
+            {
+                var variants = kvp.Value;
+                var maxIndex = -1;
+                var maxVariantIdx = -1;
+
+                for (var v = 0; v < variants.Count; v++)
+                {
+                    var groupNumber = regex.GroupNumberFromName(variants[v]);
+                    if (groupNumber >= 0 && groupNumber < match.Groups.Count)
+                    {
+                        var group = match.Groups[groupNumber];
+                        if (group.Success && group.Index > maxIndex)
+                        {
+                            maxIndex = group.Index;
+                            maxVariantIdx = v;
+                        }
+                    }
+                }
+
+                // Set non-latest wrapper groups to undefined
+                if (maxVariantIdx >= 0)
+                {
+                    for (var v = 0; v < variants.Count; v++)
+                    {
+                        if (v != maxVariantIdx)
+                        {
+                            var groupNumber = regex.GroupNumberFromName(variants[v]);
+                            if (groupNumber >= 0 && groupNumber < captureValues.Length)
+                            {
+                                captureValues[groupNumber] = JsValue.Undefined;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Push to result array in JS (left-to-right) order.
         if (reorderMap is not null && reorderMap.Length <= match.Groups.Count)
         {
@@ -496,9 +540,11 @@ public sealed class JsRegExp
             // Map back from .NET-sanitized/deduped name to the original ECMAScript group name
             var originalName = GetOriginalGroupName(name);
 
-            // For deduplicated groups, we need to find the value from whichever variant captured
+            // For deduplicated groups, use the merged group's value.
+            // The merged inner group (e.g., "x") always has the most recent captured value,
+            // which is what JS groups.x should contain.
             if (_duplicateGroupNames is not null &&
-                _duplicateGroupNames.TryGetValue(originalName, out var variants))
+                _duplicateGroupNames.TryGetValue(originalName, out _))
             {
                 if (addedOriginals!.Contains(originalName))
                 {
@@ -507,17 +553,9 @@ public sealed class JsRegExp
 
                 addedOriginals.Add(originalName);
 
-                // Find the first variant that actually captured (Success = true)
-                var value = JsValue.Undefined;
-                foreach (var variant in variants)
-                {
-                    var variantGroup = match.Groups[variant];
-                    if (variantGroup.Success)
-                    {
-                        value = new JsValue(variantGroup.Value);
-                        break;
-                    }
-                }
+                // Use the merged group value — it has the correct "most recent capture" semantics
+                var mergedGroup = match.Groups[originalName];
+                var value = mergedGroup.Success ? new JsValue(mergedGroup.Value) : JsValue.Undefined;
 
                 groups ??= CreateNullPrototypeObject();
                 groups.DefineProperty(originalName, new PropertyDescriptor
@@ -628,9 +666,9 @@ public sealed class JsRegExp
 
             var originalName = GetOriginalGroupName(name);
 
-            // For deduplicated groups, find the value from whichever variant captured
+            // For deduplicated groups, use the merged group's index value
             if (_duplicateGroupNames is not null &&
-                _duplicateGroupNames.TryGetValue(originalName, out var variants))
+                _duplicateGroupNames.TryGetValue(originalName, out _))
             {
                 if (addedOriginals!.Contains(originalName))
                 {
@@ -639,17 +677,11 @@ public sealed class JsRegExp
 
                 addedOriginals.Add(originalName);
 
-                var value = JsValue.Undefined;
-                foreach (var variant in variants)
-                {
-                    var variantNumber = regex.GroupNumberFromName(variant);
-                    if (variantNumber >= 0 && variantNumber < indexValues.Length &&
-                        !indexValues[variantNumber].IsUndefined)
-                    {
-                        value = indexValues[variantNumber];
-                        break;
-                    }
-                }
+                // Use the merged group's index — it has the correct "most recent capture" indices
+                var mergedGroupNumber = regex.GroupNumberFromName(originalName);
+                var value = mergedGroupNumber >= 0 && mergedGroupNumber < indexValues.Length
+                    ? indexValues[mergedGroupNumber]
+                    : JsValue.Undefined;
 
                 groups ??= CreateNullPrototypeObject();
                 groups.DefineProperty(originalName, new PropertyDescriptor
@@ -784,7 +816,10 @@ public sealed class JsRegExp
         return needsMap ? map : null;
     }
 
-    private static int[]? BuildGroupReorderMap(Regex regex, string normalizedPattern)
+    private static int[]? BuildGroupReorderMap(
+        Regex regex,
+        string normalizedPattern,
+        Dictionary<string, List<string>>? duplicateGroupNames)
     {
         var groupNumbers = regex.GetGroupNumbers();
         if (groupNumbers.Length <= 1)
@@ -792,8 +827,17 @@ public sealed class JsRegExp
             return null; // Only group 0 (full match), no capturing groups
         }
 
+        // Build set of merged group names to skip in the JS result array.
+        // These are the original names (e.g., "x") that have wrapper groups (e.g., "x__dup0").
+        HashSet<string>? mergedGroupNames = null;
+        if (duplicateGroupNames is not null)
+        {
+            mergedGroupNames = new HashSet<string>(duplicateGroupNames.Keys, StringComparer.Ordinal);
+        }
+
         // Walk the normalized pattern to find all capturing groups in left-to-right order.
         // Each entry is: null for unnamed group, or the group name for named groups.
+        // Merged groups (inner groups for duplicate names) are skipped.
         var groupsInOrder = new List<string?>();
         var i = 0;
         var escaped = false;
@@ -850,6 +894,15 @@ public sealed class JsRegExp
                         if (end != -1)
                         {
                             var name = normalizedPattern.Substring(i + 3, end - (i + 3));
+
+                            // Skip merged groups — they're internal for backreference support,
+                            // not JS-visible capturing groups.
+                            if (mergedGroupNames?.Contains(name) == true)
+                            {
+                                i = end + 1;
+                                continue;
+                            }
+
                             groupsInOrder.Add(name);
                             i = end + 1;
                             continue;
@@ -2266,7 +2319,7 @@ public sealed class JsRegExp
             return pattern;
         }
 
-        // Pre-compute all deduplicated names
+        // Pre-compute all deduplicated wrapper names
         duplicateNames = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         foreach (var kvp in nameCount)
         {
@@ -2282,7 +2335,11 @@ public sealed class JsRegExp
             }
         }
 
-        // Second pass: rename groups and convert backreferences
+        // Second pass: wrap duplicate groups with outer wrapper groups.
+        // (?<x>a)|(?<x>b) → (?<x__dup0>(?<x>a))|(?<x__dup1>(?<x>b))
+        // The inner (?<x>...) stays merged (for \k<x> backreferences).
+        // The outer (?<x__dup0>...) provides individual capture values.
+        // Backreferences \k<x> are NOT transformed — they reference the merged group.
         var result = new StringBuilder(pattern.Length + 64);
         var dupCounters = new Dictionary<string, int>(StringComparer.Ordinal);
         var i = 0;
@@ -2303,23 +2360,6 @@ public sealed class JsRegExp
 
             if (c == '\\')
             {
-                // Check for backreference \k<name>
-                if (!inCharClass && i + 2 < pattern.Length && pattern[i + 1] == 'k' && pattern[i + 2] == '<')
-                {
-                    var end = pattern.IndexOf('>', i + 3);
-                    if (end != -1)
-                    {
-                        var name = pattern.Substring(i + 3, end - (i + 3));
-                        if (duplicateNames.TryGetValue(name, out var variants))
-                        {
-                            // Convert \k<x> to conditional: (?(x__dup0)\k<x__dup0>|(?(x__dup1)\k<x__dup1>|))
-                            result.Append(BuildConditionalBackreference(variants));
-                            i = end + 1;
-                            continue;
-                        }
-                    }
-                }
-
                 result.Append(c);
                 escaped = true;
                 i++;
@@ -2365,16 +2405,82 @@ public sealed class JsRegExp
                         }
 
                         dupCounters[name] = idx + 1;
-                        var dedupedName = duplicateNames[name][idx];
+                        var wrapperName = duplicateNames[name][idx];
 
-                        // Add deduped name → original name mapping
+                        // Add wrapper name → original name mapping
                         mapping ??= new Dictionary<string, string>(StringComparer.Ordinal);
-                        mapping[dedupedName] = mapping.TryGetValue(name, out var origName) ? origName : name;
+                        mapping[wrapperName] = mapping.TryGetValue(name, out var origName) ? origName : name;
 
+                        // Wrap: (?<x>...) → (?<x__dup0>(?<x>...))
+                        // We insert the wrapper open before the original group.
+                        // We need to find the matching close paren to insert wrapper close after it.
                         result.Append("(?<");
-                        result.Append(dedupedName);
+                        result.Append(wrapperName);
+                        result.Append(">(?<");
+                        result.Append(name);
                         result.Append('>');
-                        i = end + 1;
+
+                        // Now scan forward to find the matching closing paren of the original group
+                        var depth = 1;
+                        var j = end + 1;
+                        var innerEscaped = false;
+                        var innerCharClass = false;
+
+                        while (j < pattern.Length && depth > 0)
+                        {
+                            var ch = pattern[j];
+
+                            if (innerEscaped)
+                            {
+                                result.Append(ch);
+                                innerEscaped = false;
+                                j++;
+                                continue;
+                            }
+
+                            if (ch == '\\')
+                            {
+                                result.Append(ch);
+                                innerEscaped = true;
+                                j++;
+                                continue;
+                            }
+
+                            if (ch == '[' && !innerCharClass)
+                            {
+                                innerCharClass = true;
+                            }
+                            else if (ch == ']' && innerCharClass)
+                            {
+                                innerCharClass = false;
+                            }
+
+                            if (!innerCharClass)
+                            {
+                                if (ch == '(')
+                                {
+                                    depth++;
+                                }
+                                else if (ch == ')')
+                                {
+                                    depth--;
+                                    if (depth == 0)
+                                    {
+                                        // This is the close paren of the original group.
+                                        // Append it and then the wrapper close paren.
+                                        result.Append(')'); // original group close
+                                        result.Append(')'); // wrapper group close
+                                        j++;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            result.Append(ch);
+                            j++;
+                        }
+
+                        i = j;
                         continue;
                     }
                 }
@@ -2457,35 +2563,6 @@ public sealed class JsRegExp
 
             i++;
         }
-    }
-
-    /// <summary>
-    /// Builds a .NET conditional backreference expression that tries each variant in order,
-    /// falling back to empty match if none captured.
-    /// E.g., for ["x__dup0", "x__dup1"]: (?(x__dup0)\k&lt;x__dup0&gt;|(?(x__dup1)\k&lt;x__dup1&gt;|))
-    /// </summary>
-    private static string BuildConditionalBackreference(List<string> variants)
-    {
-        // Build nested conditional: (?(v0)\k<v0>|(?(v1)\k<v1>|))
-        var sb = new StringBuilder();
-        for (var i = 0; i < variants.Count; i++)
-        {
-            sb.Append("(?(");
-            sb.Append(variants[i]);
-            sb.Append(")\\k<");
-            sb.Append(variants[i]);
-            sb.Append(">|");
-        }
-
-        // Empty alternative at innermost level (matches empty string when none captured)
-        sb.Append(')');
-        // Close all the conditionals
-        for (var i = 0; i < variants.Count - 1; i++)
-        {
-            sb.Append(')');
-        }
-
-        return sb.ToString();
     }
 
     /// <summary>

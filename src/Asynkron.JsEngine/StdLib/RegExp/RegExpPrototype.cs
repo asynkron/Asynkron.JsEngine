@@ -21,12 +21,9 @@ public sealed partial class RegExpPrototype
     {
         var resolved = RequireRegExp(thisValue);
 
-        if (args.Count == 0)
-        {
-            return new JsValue(false);
-        }
-
-        var input = JsOps.ToJsString(args[0]) ?? string.Empty;
+        // Per spec 22.2.5.13 step 3: Let S be ? ToString(string).
+        // When called with no arguments, ToString(undefined) = "undefined".
+        var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : "undefined";
         return new JsValue(resolved.Test(input));
     }
 
@@ -35,12 +32,9 @@ public sealed partial class RegExpPrototype
     {
         var resolved = RequireRegExp(thisValue);
 
-        if (args.Count == 0)
-        {
-            return JsValue.Null;
-        }
-
-        var input = JsOps.ToJsString(args[0]) ?? string.Empty;
+        // Per spec 22.2.5.2 step 3: Let S be ? ToString(string).
+        // When called with no arguments, ToString(undefined) = "undefined".
+        var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : "undefined";
         var result = resolved.Exec(input);
         return result is null ? JsValue.Null : JsValue.FromObjectUnsafe(result);
     }

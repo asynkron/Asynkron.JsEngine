@@ -49,13 +49,14 @@ internal static class IntlNumberFormatter
 
         var quantity = TryCreateDecimalQuantity(value) ?? DecimalQuantity.FromDouble(value);
         var wasNegative = IsNegative(value);
-        return FormatQuantity(quantity, slots, wasNegative);
+        return FormatQuantity(quantity, slots, wasNegative, value);
     }
 
     private static IntlNumberFormatResult FormatQuantity(
         DecimalQuantity quantity,
         IntlNumberFormatInternalSlots slots,
-        bool wasNegative)
+        bool wasNegative,
+        double numericValue = 0)
     {
         if (string.Equals(slots.Style, "percent", StringComparison.Ordinal))
         {
@@ -116,7 +117,7 @@ internal static class IntlNumberFormatter
         {
             "percent" => FormatPercentComplete(result, slots),
             "unit" when slots.Unit is { Length: > 0 } =>
-                FormatUnitComplete(result, slots),
+                FormatUnitComplete(result, slots, numericValue),
             _ => result
         };
     }
@@ -600,7 +601,8 @@ internal static class IntlNumberFormatter
 
     private static IntlNumberFormatResult FormatUnitComplete(
         IntlNumberFormatResult numberResult,
-        IntlNumberFormatInternalSlots slots)
+        IntlNumberFormatInternalSlots slots,
+        double numericValue)
     {
         var lang = slots.Culture.TwoLetterISOLanguageName;
         var display = slots.UnitDisplay;
@@ -621,7 +623,7 @@ internal static class IntlNumberFormatter
             }
         }
 
-        var unitName = GetUnitDisplayName(unit, display, lang);
+        var unitName = GetUnitDisplayName(unit, display, lang, numericValue);
         var separator = GetUnitSeparator(lang, display);
 
         // Symbol-like units (%, °, °C, °F) never use a space
@@ -713,7 +715,7 @@ internal static class IntlNumberFormatter
         return " ";
     }
 
-    private static string GetUnitDisplayName(string unit, string display, string lang)
+    private static string GetUnitDisplayName(string unit, string display, string lang, double numericValue = 1)
     {
         // Handle compound units (e.g. "kilometer-per-hour")
         var perIndex = unit.IndexOf("-per-", StringComparison.Ordinal);
@@ -721,15 +723,15 @@ internal static class IntlNumberFormatter
         {
             var numerator = unit[..perIndex];
             var denominator = unit[(perIndex + 5)..];
-            var numName = GetSimpleUnitName(numerator, display, lang);
-            var denName = GetSimpleUnitName(denominator, display, lang);
+            var numName = GetSimpleUnitName(numerator, display, lang, numericValue);
+            var denName = GetSimpleUnitName(denominator, display, lang, 1);
 
             if (string.Equals(display, "long", StringComparison.Ordinal))
             {
                 return lang switch
                 {
-                    "en" => $"{GetLongUnitName(numerator, lang)} per {GetLongUnitName(denominator, lang)}",
-                    "de" => $"{GetLongUnitName(numerator, lang)} pro {GetLongUnitName(denominator, lang)}",
+                    "en" => $"{GetLongUnitName(numerator, lang, numericValue)} per {GetLongUnitName(denominator, lang, 1)}",
+                    "de" => $"{GetLongUnitName(numerator, lang, numericValue)} pro {GetLongUnitName(denominator, lang, 1)}",
                     _ => $"{numName}/{denName}"
                 };
             }
@@ -739,17 +741,17 @@ internal static class IntlNumberFormatter
 
         if (string.Equals(display, "long", StringComparison.Ordinal))
         {
-            return GetLongUnitName(unit, lang);
+            return GetLongUnitName(unit, lang, numericValue);
         }
 
-        return GetSimpleUnitName(unit, display, lang);
+        return GetSimpleUnitName(unit, display, lang, numericValue);
     }
 
-    private static string GetSimpleUnitName(string unit, string display, string lang)
+    private static string GetSimpleUnitName(string unit, string display, string lang, double numericValue = 2)
     {
         if (string.Equals(display, "long", StringComparison.Ordinal))
         {
-            return GetLongUnitName(unit, lang);
+            return GetLongUnitName(unit, lang, numericValue);
         }
 
         // Chinese short/narrow uses localized characters
@@ -759,6 +761,8 @@ internal static class IntlNumberFormatter
         }
 
         // Short and narrow use abbreviations
+        // Most abbreviations are invariant; some units need plural forms in "en"
+        var isPlural = lang is "en" && !IsSingular(numericValue);
         return unit switch
         {
             "kilometer" => "km",
@@ -773,6 +777,8 @@ internal static class IntlNumberFormatter
             "minute" => "min",
             "second" => "s",
             "millisecond" => "ms",
+            "microsecond" => "μs",
+            "nanosecond" => "ns",
             "kilogram" => "kg",
             "gram" => "g",
             "pound" => "lb",
@@ -786,12 +792,26 @@ internal static class IntlNumberFormatter
             "degree" => "°",
             "acre" => "ac",
             "hectare" => "ha",
-            "byte" => lang is "en" ? "byte" : "B",
+            "byte" => lang is "en" ? (isPlural ? "bytes" : "byte") : "B",
             "kilobyte" => "kB",
             "megabyte" => "MB",
             "gigabyte" => "GB",
+            // Units that need plural forms in short display (CLDR en)
+            "day" => isPlural ? "days" : "day",
+            "week" => isPlural ? "wks" : "wk",
+            "month" => isPlural ? "mos" : "mo",
+            "year" => isPlural ? "yrs" : "yr",
             _ => unit
         };
+    }
+
+    /// <summary>
+    /// English CLDR "one" plural category: absolute integer value is exactly 1
+    /// with no visible fraction digits.
+    /// </summary>
+    private static bool IsSingular(double value)
+    {
+        return Math.Abs(value) == 1 && value == Math.Truncate(value);
     }
 
     private static string GetChineseShortUnitName(string unit)
@@ -817,35 +837,42 @@ internal static class IntlNumberFormatter
         };
     }
 
-    private static string GetLongUnitName(string unit, string lang)
+    private static string GetLongUnitName(string unit, string lang, double numericValue = 2)
     {
         if (lang is "en")
         {
+            var isPlural = !IsSingular(numericValue);
             return unit switch
             {
-                "kilometer" => "kilometers",
-                "meter" => "meters",
-                "centimeter" => "centimeters",
-                "millimeter" => "millimeters",
-                "mile" => "miles",
-                "foot" => "feet",
-                "inch" => "inches",
-                "yard" => "yards",
-                "hour" => "hour",
-                "minute" => "minutes",
-                "second" => "seconds",
-                "millisecond" => "milliseconds",
-                "kilogram" => "kilograms",
-                "gram" => "grams",
-                "pound" => "pounds",
-                "ounce" => "ounces",
-                "liter" => "liters",
-                "milliliter" => "milliliters",
-                "gallon" => "gallons",
-                "celsius" => "degrees Celsius",
-                "fahrenheit" => "degrees Fahrenheit",
+                "kilometer" => isPlural ? "kilometers" : "kilometer",
+                "meter" => isPlural ? "meters" : "meter",
+                "centimeter" => isPlural ? "centimeters" : "centimeter",
+                "millimeter" => isPlural ? "millimeters" : "millimeter",
+                "mile" => isPlural ? "miles" : "mile",
+                "foot" => isPlural ? "feet" : "foot",
+                "inch" => isPlural ? "inches" : "inch",
+                "yard" => isPlural ? "yards" : "yard",
+                "hour" => isPlural ? "hours" : "hour",
+                "minute" => isPlural ? "minutes" : "minute",
+                "second" => isPlural ? "seconds" : "second",
+                "millisecond" => isPlural ? "milliseconds" : "millisecond",
+                "microsecond" => isPlural ? "microseconds" : "microsecond",
+                "nanosecond" => isPlural ? "nanoseconds" : "nanosecond",
+                "day" => isPlural ? "days" : "day",
+                "week" => isPlural ? "weeks" : "week",
+                "month" => isPlural ? "months" : "month",
+                "year" => isPlural ? "years" : "year",
+                "kilogram" => isPlural ? "kilograms" : "kilogram",
+                "gram" => isPlural ? "grams" : "gram",
+                "pound" => isPlural ? "pounds" : "pound",
+                "ounce" => isPlural ? "ounces" : "ounce",
+                "liter" => isPlural ? "liters" : "liter",
+                "milliliter" => isPlural ? "milliliters" : "milliliter",
+                "gallon" => isPlural ? "gallons" : "gallon",
+                "celsius" => isPlural ? "degrees Celsius" : "degree Celsius",
+                "fahrenheit" => isPlural ? "degrees Fahrenheit" : "degree Fahrenheit",
                 "percent" => "percent",
-                "degree" => "degrees",
+                "degree" => isPlural ? "degrees" : "degree",
                 _ => unit
             };
         }

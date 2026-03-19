@@ -314,15 +314,17 @@ public sealed partial class IntlDurationFormatPrototype
         // Per spec step 16-17: compute normalizedSeconds using exact mathematical values
         // normalizedSeconds = days × 86400 + hours × 3600 + minutes × 60 + seconds
         //                   + milliseconds × 10^-3 + microseconds × 10^-6 + nanoseconds × 10^-9
-        // Use decimal arithmetic for precision at the 2^53 boundary
+        // Use decimal arithmetic for precision at the 2^53 boundary.
+        // NOTE: (decimal)double can lose precision for large integer doubles (e.g. 2^53),
+        // so we use ToExactDecimal which converts via long when possible.
         var normalizedSeconds =
-            (decimal)record.Days * 86400m +
-            (decimal)record.Hours * 3600m +
-            (decimal)record.Minutes * 60m +
-            (decimal)record.Seconds +
-            (decimal)record.Milliseconds / 1000m +
-            (decimal)record.Microseconds / 1_000_000m +
-            (decimal)record.Nanoseconds / 1_000_000_000m;
+            ToExactDecimal(record.Days) * 86400m +
+            ToExactDecimal(record.Hours) * 3600m +
+            ToExactDecimal(record.Minutes) * 60m +
+            ToExactDecimal(record.Seconds) +
+            ToExactDecimal(record.Milliseconds) / 1000m +
+            ToExactDecimal(record.Microseconds) / 1_000_000m +
+            ToExactDecimal(record.Nanoseconds) / 1_000_000_000m;
 
         // abs(normalizedSeconds) must be < 2^53
         const decimal secondsLimit = 9007199254740992m; // 2^53
@@ -717,21 +719,21 @@ public sealed partial class IntlDurationFormatPrototype
         {
             case "seconds":
                 exponent = 9;
-                ns = (decimal)record.Nanoseconds +
-                     (decimal)record.Microseconds * 1_000m +
-                     (decimal)record.Milliseconds * 1_000_000m +
-                     (decimal)record.Seconds * 1_000_000_000m;
+                ns = ToExactDecimal(record.Nanoseconds) +
+                     ToExactDecimal(record.Microseconds) * 1_000m +
+                     ToExactDecimal(record.Milliseconds) * 1_000_000m +
+                     ToExactDecimal(record.Seconds) * 1_000_000_000m;
                 break;
             case "milliseconds":
                 exponent = 6;
-                ns = (decimal)record.Nanoseconds +
-                     (decimal)record.Microseconds * 1_000m +
-                     (decimal)record.Milliseconds * 1_000_000m;
+                ns = ToExactDecimal(record.Nanoseconds) +
+                     ToExactDecimal(record.Microseconds) * 1_000m +
+                     ToExactDecimal(record.Milliseconds) * 1_000_000m;
                 break;
             case "microseconds":
                 exponent = 3;
-                ns = (decimal)record.Nanoseconds +
-                     (decimal)record.Microseconds * 1_000m;
+                ns = ToExactDecimal(record.Nanoseconds) +
+                     ToExactDecimal(record.Microseconds) * 1_000m;
                 break;
             default:
                 return 0;
@@ -741,6 +743,30 @@ public sealed partial class IntlDurationFormatPrototype
 
         // Return as double — the NumberFormat will handle fraction digits and rounding
         return (double)(ns / divisor);
+    }
+
+    /// <summary>
+    /// Convert a double to decimal without the precision loss of direct (decimal)double cast.
+    /// Duration fields are always integers (validated in GetDurationField), so we convert via
+    /// long when the value fits, falling back to string round-trip for very large values.
+    /// </summary>
+    private static decimal ToExactDecimal(double value)
+    {
+        if (value == 0)
+        {
+            return 0m;
+        }
+
+        // All duration fields are integers. For integer doubles within long range,
+        // converting via long is exact and avoids (decimal)double precision loss.
+        if (Math.Abs(value) <= 9.2e18 && value == Math.Truncate(value))
+        {
+            return (decimal)(long)value;
+        }
+
+        // For very large values (e.g. microseconds/nanoseconds at scale), use string round-trip
+        return decimal.Parse(value.ToString("R", CultureInfo.InvariantCulture),
+            NumberStyles.Float, CultureInfo.InvariantCulture);
     }
 
     private static decimal PowerOfTen(int exponent)

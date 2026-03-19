@@ -3108,31 +3108,67 @@ public static class TemporalHelper
             var item = args.GetArgument(0);
             var options = args.GetArgument(1);
 
-            // Per spec: if item is not an Object, parse string first, then validate options
-            if (item.Kind != JsValueKind.Object)
-            {
-                var ym = ToTemporalPlainYearMonth(item, realm);
-                var resolvedOpts2 = ValidateOptionsObject(options, realm, "Temporal.PlainYearMonth.from");
-                GetTemporalOverflowOption(resolvedOpts2, realm); // validate but don't use for strings
-                return WrapPlainYearMonth(ym, realm, prototype);
-            }
-
-            // Object path: validate options first
-            var resolvedOpts = ValidateOptionsObject(options, realm, "Temporal.PlainYearMonth.from");
-            var overflow = GetTemporalOverflowOption(resolvedOpts, realm);
-
-            // If item is already a PlainYearMonth, create a copy preserving referenceDay
+            // Per spec step 1: If item is already a PlainYearMonth, validate options and return copy
             if (item.TryGetObject<JsObject>(out var fromObj) &&
                 fromObj.TryGetProperty(TemporalPlainYearMonthSlot, out var fromSlot) &&
                 fromSlot.TryGetObject<JsTemporalPlainYearMonth>(out var existingYm))
             {
+                var resolvedOpts = ValidateOptionsObject(options, realm, "Temporal.PlainYearMonth.from");
+                GetTemporalOverflowOption(resolvedOpts, realm);
                 var copy = new JsTemporalPlainYearMonth(existingYm.Year, existingYm.Month,
                     existingYm.Calendar, existingYm.ReferenceDay);
                 return WrapPlainYearMonth(copy, realm, prototype);
             }
 
-            var ym2 = ToTemporalPlainYearMonth(item, realm);
-            return WrapPlainYearMonth(ym2, realm, prototype);
+            // String path: parse first, then validate options
+            if (item.IsString)
+            {
+                var ym = ToTemporalPlainYearMonth(item, realm);
+                var resolvedOpts = ValidateOptionsObject(options, realm, "Temporal.PlainYearMonth.from");
+                GetTemporalOverflowOption(resolvedOpts, realm);
+                return WrapPlainYearMonth(ym, realm, prototype);
+            }
+
+            // Non-string primitives → TypeError
+            if (item.IsUndefined || item.IsNull || item.IsBoolean || item.IsNumber || item.IsSymbol || item.IsBigInt)
+                throw StandardLibrary.ThrowTypeError("Cannot convert to Temporal.PlainYearMonth", realm: realm);
+
+            // Check for other Temporal types (PlainDate, PlainDateTime, ZonedDateTime)
+            if (item.TryGetObject<JsObject>(out var fromObj2))
+            {
+                if (fromObj2.TryGetProperty(TemporalPlainDateSlot, out var pdSlot) && pdSlot.TryGetObject<JsTemporalPlainDate>(out var pd))
+                {
+                    var resolvedOpts = ValidateOptionsObject(options, realm, "Temporal.PlainYearMonth.from");
+                    GetTemporalOverflowOption(resolvedOpts, realm);
+                    return WrapPlainYearMonth(new JsTemporalPlainYearMonth(pd.Year, pd.Month, pd.Calendar), realm, prototype);
+                }
+                if (fromObj2.TryGetProperty(TemporalPlainDateTimeSlot, out var pdtSlot) && pdtSlot.TryGetObject<JsTemporalPlainDateTime>(out var pdt))
+                {
+                    var resolvedOpts = ValidateOptionsObject(options, realm, "Temporal.PlainYearMonth.from");
+                    GetTemporalOverflowOption(resolvedOpts, realm);
+                    return WrapPlainYearMonth(new JsTemporalPlainYearMonth(pdt.Year, pdt.Month, pdt.Calendar), realm, prototype);
+                }
+                if (fromObj2.TryGetProperty(TemporalZonedDateTimeSlot, out var zdtSlot) && zdtSlot.TryGetObject<JsTemporalZonedDateTime>(out var zdt))
+                {
+                    var resolvedOpts = ValidateOptionsObject(options, realm, "Temporal.PlainYearMonth.from");
+                    GetTemporalOverflowOption(resolvedOpts, realm);
+                    var plainDate = zdt.ToPlainDate();
+                    return WrapPlainYearMonth(new JsTemporalPlainYearMonth(plainDate.Year, plainDate.Month, zdt.Calendar), realm, prototype);
+                }
+            }
+
+            // Property bag: per spec, read fields first, then options
+            if (item.TryGetObject<IJsPropertyAccessor>(out var accessor))
+            {
+                var ym2 = ToTemporalPlainYearMonthFromPropertyBagWithOverflow(accessor, options, realm, "Temporal.PlainYearMonth.from");
+                return WrapPlainYearMonth(ym2, realm, prototype);
+            }
+
+            // Object without property accessor
+            if (item.Kind == JsValueKind.Object)
+                throw StandardLibrary.ThrowTypeError("Cannot convert to Temporal.PlainYearMonth: object has no date properties", realm: realm);
+
+            throw StandardLibrary.ThrowTypeError("Cannot convert to Temporal.PlainYearMonth", realm: realm);
         });
         ctor.DefineProperty("from",
             new PropertyDescriptor { Value = from, Writable = true, Enumerable = false, Configurable = true });
@@ -3360,31 +3396,60 @@ public static class TemporalHelper
             var item = args.GetArgument(0);
             var options = args.GetArgument(1);
 
-            // Per spec: if item is not an Object, parse string first, then validate options
-            if (item.Kind != JsValueKind.Object)
-            {
-                var md = ToTemporalPlainMonthDay(item, realm);
-                var resolvedOpts2 = ValidateOptionsObject(options, realm, "Temporal.PlainMonthDay.from");
-                GetTemporalOverflowOption(resolvedOpts2, realm); // validate but don't use for strings
-                return WrapPlainMonthDay(md, realm, prototype);
-            }
-
-            // Object path: validate options first
-            var resolvedOpts = ValidateOptionsObject(options, realm, "Temporal.PlainMonthDay.from");
-            var overflowOpt = GetTemporalOverflowOption(resolvedOpts, realm);
-
-            // If item is already a PlainMonthDay, create a copy preserving referenceYear
+            // Per spec step 1: If item is already a PlainMonthDay, validate options and return copy
             if (item.TryGetObject<JsObject>(out var fromObj) &&
                 fromObj.TryGetProperty(TemporalPlainMonthDaySlot, out var fromSlot) &&
                 fromSlot.TryGetObject<JsTemporalPlainMonthDay>(out var existingMd))
             {
+                var resolvedOpts = ValidateOptionsObject(options, realm, "Temporal.PlainMonthDay.from");
+                GetTemporalOverflowOption(resolvedOpts, realm);
                 var copy = new JsTemporalPlainMonthDay(existingMd.Month, existingMd.Day,
                     existingMd.Calendar, existingMd.ReferenceYear);
                 return WrapPlainMonthDay(copy, realm, prototype);
             }
 
-            var md2 = ToTemporalPlainMonthDay(item, realm, overflowOpt);
-            return WrapPlainMonthDay(md2, realm, prototype);
+            // String path: parse first, then validate options
+            if (item.IsString)
+            {
+                var md = ToTemporalPlainMonthDay(item, realm);
+                var resolvedOpts = ValidateOptionsObject(options, realm, "Temporal.PlainMonthDay.from");
+                GetTemporalOverflowOption(resolvedOpts, realm);
+                return WrapPlainMonthDay(md, realm, prototype);
+            }
+
+            // Non-string primitives → TypeError
+            if (item.IsUndefined || item.IsNull || item.IsBoolean || item.IsNumber || item.IsSymbol || item.IsBigInt)
+                throw StandardLibrary.ThrowTypeError("Cannot convert to Temporal.PlainMonthDay", realm: realm);
+
+            // Check for other Temporal types (PlainDate, PlainDateTime)
+            if (item.TryGetObject<JsObject>(out var fromObj2))
+            {
+                if (fromObj2.TryGetProperty(TemporalPlainDateSlot, out var pdSlot) && pdSlot.TryGetObject<JsTemporalPlainDate>(out var pd))
+                {
+                    var resolvedOpts = ValidateOptionsObject(options, realm, "Temporal.PlainMonthDay.from");
+                    GetTemporalOverflowOption(resolvedOpts, realm);
+                    return WrapPlainMonthDay(new JsTemporalPlainMonthDay(pd.Month, pd.Day, pd.Calendar), realm, prototype);
+                }
+                if (fromObj2.TryGetProperty(TemporalPlainDateTimeSlot, out var pdtSlot) && pdtSlot.TryGetObject<JsTemporalPlainDateTime>(out var pdt))
+                {
+                    var resolvedOpts = ValidateOptionsObject(options, realm, "Temporal.PlainMonthDay.from");
+                    GetTemporalOverflowOption(resolvedOpts, realm);
+                    return WrapPlainMonthDay(new JsTemporalPlainMonthDay(pdt.Month, pdt.Day, pdt.Calendar), realm, prototype);
+                }
+            }
+
+            // Property bag: per spec, read fields first, then options
+            if (item.TryGetObject<IJsPropertyAccessor>(out var accessor))
+            {
+                var md2 = ToTemporalPlainMonthDayFromPropertyBagWithOverflow(accessor, options, realm, "Temporal.PlainMonthDay.from");
+                return WrapPlainMonthDay(md2, realm, prototype);
+            }
+
+            // Object without property accessor
+            if (item.Kind == JsValueKind.Object)
+                throw StandardLibrary.ThrowTypeError("Cannot convert to Temporal.PlainMonthDay: object has no date properties", realm: realm);
+
+            throw StandardLibrary.ThrowTypeError("Cannot convert to Temporal.PlainMonthDay", realm: realm);
         });
         ctor.DefineProperty("from",
             new PropertyDescriptor { Value = from, Writable = true, Enumerable = false, Configurable = true });
@@ -7534,6 +7599,205 @@ public static class TemporalHelper
         return new JsTemporalPlainDate(year, month, day);
     }
 
+    /// <summary>
+    /// Overload for from() where options must be read AFTER fields per spec order.
+    /// </summary>
+    private static JsTemporalPlainYearMonth ToTemporalPlainYearMonthFromPropertyBagWithOverflow(
+        IJsPropertyAccessor accessor, JsValue options, RealmState realm, string methodName)
+    {
+        // Read fields first (per spec order), then resolve overflow from options
+        var (year, month) = ReadPlainYearMonthFields(accessor, realm);
+
+        // Now read options
+        var resolvedOpts = ValidateOptionsObject(options, realm, methodName);
+        var overflow = GetTemporalOverflowOption(resolvedOpts, realm);
+
+        return ApplyOverflowToYearMonth(year, month, overflow, realm);
+    }
+
+    /// <summary>
+    /// Reads PlainYearMonth fields in spec-required alphabetical order: calendar, month, monthCode, year.
+    /// Eagerly calls valueOf/toString for observable behavior.
+    /// </summary>
+    private static (int year, int month) ReadPlainYearMonthFields(IJsPropertyAccessor accessor, RealmState realm)
+    {
+        // Per spec, read properties in alphabetical order for observable behavior:
+        // calendar, month, monthCode, year
+
+        // 1. calendar
+        if (accessor.TryGetProperty("calendar", out var calVal) && !calVal.IsUndefined)
+            ValidateTemporalCalendarValue(calVal, realm);
+
+        // 2. month — eagerly convert to trigger valueOf for observable order
+        accessor.TryGetProperty("month", out var monthVal);
+        var hasMonth = !monthVal.IsUndefined;
+        int monthInt = 0;
+        if (hasMonth)
+            monthInt = ToIntegerWithTruncation(monthVal, realm);
+
+        // 3. monthCode
+        accessor.TryGetProperty("monthCode", out var monthCodeVal);
+        var hasMonthCode = !monthCodeVal.IsUndefined;
+        string? monthCodeStr = null;
+        if (hasMonthCode)
+        {
+            monthCodeStr = JsOps.ToJsString(monthCodeVal);
+            ValidateMonthCodeSyntax(monthCodeStr, realm);
+        }
+
+        // 4. year (required)
+        if (!accessor.TryGetProperty("year", out var yearVal) || yearVal.IsUndefined)
+            throw StandardLibrary.ThrowTypeError("Property bag for PlainYearMonth must have 'year'", realm: realm);
+        var year = ToIntegerWithTruncation(yearVal, realm);
+
+        // Resolve month from month/monthCode
+        if (!hasMonth && !hasMonthCode)
+            throw StandardLibrary.ThrowTypeError("Property bag for PlainYearMonth must have 'month' or 'monthCode'", realm: realm);
+
+        int month;
+        if (hasMonthCode)
+        {
+            month = ResolveISOMonthCode(monthCodeStr!, realm);
+            if (hasMonth)
+            {
+                if (monthInt != month)
+                    throw StandardLibrary.ThrowRangeError("month and monthCode must agree", realm: realm);
+            }
+        }
+        else
+        {
+            month = monthInt;
+        }
+
+        return (year, month);
+    }
+
+    private static JsTemporalPlainYearMonth ApplyOverflowToYearMonth(int year, int month, string overflow, RealmState realm)
+    {
+        if (month < 1)
+            throw StandardLibrary.ThrowRangeError($"Month {month} is out of range", realm: realm);
+
+        if (string.Equals(overflow, "reject", StringComparison.Ordinal))
+        {
+            if (month > 12)
+                throw StandardLibrary.ThrowRangeError($"Month {month} is out of range", realm: realm);
+        }
+        else
+        {
+            // constrain
+            month = Math.Min(month, 12);
+        }
+
+        RejectISOYearMonthRange(year, month, realm);
+        return new JsTemporalPlainYearMonth(year, month);
+    }
+
+    /// <summary>
+    /// Overload for from() where options must be read AFTER fields per spec order.
+    /// </summary>
+    private static JsTemporalPlainMonthDay ToTemporalPlainMonthDayFromPropertyBagWithOverflow(
+        IJsPropertyAccessor accessor, JsValue options, RealmState realm, string methodName)
+    {
+        // Read fields first (per spec order), then resolve overflow from options
+        var (month, day, yearForValidation) = ReadPlainMonthDayFields(accessor, realm);
+
+        // Now read options
+        var resolvedOpts = ValidateOptionsObject(options, realm, methodName);
+        var overflow = GetTemporalOverflowOption(resolvedOpts, realm);
+
+        return ApplyOverflowToMonthDay(month, day, yearForValidation, overflow, realm);
+    }
+
+    /// <summary>
+    /// Reads PlainMonthDay fields in spec-required alphabetical order: calendar, day, month, monthCode, year.
+    /// Eagerly calls valueOf/toString for observable behavior.
+    /// </summary>
+    private static (int month, int day, int yearForValidation) ReadPlainMonthDayFields(IJsPropertyAccessor accessor, RealmState realm)
+    {
+        // Per spec, read properties in alphabetical order for observable behavior:
+        // calendar, day, month, monthCode, year
+
+        // 1. calendar
+        if (accessor.TryGetProperty("calendar", out var calVal) && !calVal.IsUndefined)
+            ValidateTemporalCalendarValue(calVal, realm);
+
+        // 2. day (required)
+        if (!accessor.TryGetProperty("day", out var dayVal) || dayVal.IsUndefined)
+            throw StandardLibrary.ThrowTypeError("Property bag for PlainMonthDay must have 'day'", realm: realm);
+        var day = ToIntegerWithTruncation(dayVal, realm);
+
+        // 3. month — eagerly convert to trigger valueOf for observable order
+        accessor.TryGetProperty("month", out var monthVal);
+        var hasMonth = !monthVal.IsUndefined;
+        int monthInt = 0;
+        if (hasMonth)
+            monthInt = ToIntegerWithTruncation(monthVal, realm);
+
+        // 4. monthCode
+        accessor.TryGetProperty("monthCode", out var monthCodeVal);
+        var hasMonthCode = !monthCodeVal.IsUndefined;
+        string? monthCodeStr = null;
+        if (hasMonthCode)
+        {
+            monthCodeStr = JsOps.ToJsString(monthCodeVal);
+            ValidateMonthCodeSyntax(monthCodeStr, realm);
+        }
+
+        // 5. year (optional for PlainMonthDay)
+        accessor.TryGetProperty("year", out var yearVal);
+        var hasYear = !yearVal.IsUndefined;
+        var yearForValidation = hasYear ? ToIntegerWithTruncation(yearVal, realm) : 1972;
+
+        // Resolve month from month/monthCode
+        if (!hasMonth && !hasMonthCode)
+            throw StandardLibrary.ThrowTypeError("Property bag for PlainMonthDay must have 'month' or 'monthCode'", realm: realm);
+
+        int month;
+        if (hasMonthCode)
+        {
+            month = ResolveISOMonthCode(monthCodeStr!, realm);
+            if (hasMonth)
+            {
+                if (monthInt != month)
+                    throw StandardLibrary.ThrowRangeError("month and monthCode must agree", realm: realm);
+            }
+        }
+        else
+        {
+            month = monthInt;
+        }
+
+        return (month, day, yearForValidation);
+    }
+
+    private static JsTemporalPlainMonthDay ApplyOverflowToMonthDay(int month, int day, int yearForValidation, string overflow, RealmState realm)
+    {
+        if (month < 1)
+            throw StandardLibrary.ThrowRangeError($"Month {month} is out of range", realm: realm);
+        if (day < 1)
+            throw StandardLibrary.ThrowRangeError($"Day {day} is out of range", realm: realm);
+
+        if (string.Equals(overflow, "reject", StringComparison.Ordinal))
+        {
+            if (month > 12)
+                throw StandardLibrary.ThrowRangeError($"Month {month} is out of range", realm: realm);
+            var maxDayReject = IsoCalendarHelpers.DaysInMonth(
+                yearForValidation is >= 1 and <= 9999 ? yearForValidation : 2000, month);
+            if (day > maxDayReject)
+                throw StandardLibrary.ThrowRangeError($"Day {day} is out of range for month {month}", realm: realm);
+        }
+        else
+        {
+            // constrain
+            month = Math.Min(month, 12);
+            var maxDay = IsoCalendarHelpers.DaysInMonth(
+                yearForValidation is >= 1 and <= 9999 ? yearForValidation : 2000, month);
+            day = Math.Min(day, maxDay);
+        }
+
+        return new JsTemporalPlainMonthDay(month, day);
+    }
+
     private static JsTemporalPlainDate ParseTemporalPlainDateString(string str, RealmState realm)
     {
         if (string.IsNullOrEmpty(str))
@@ -9350,58 +9614,11 @@ public static class TemporalHelper
                 return new JsTemporalPlainYearMonth(zdt.ToPlainDate().Year, zdt.ToPlainDate().Month, zdt.Calendar);
         }
 
-        // 4. Property bag
+        // 4. Property bag — uses ReadPlainYearMonthFields for correct alphabetical order
         if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
-            if (accessor.TryGetProperty("calendar", out var calVal) && !calVal.IsUndefined)
-                ValidateTemporalCalendarValue(calVal, realm);
-
-            // PrepareTemporalFields reads in alphabetical order: month, monthCode, year
-            accessor.TryGetProperty("month", out var monthVal);
-            var hasMonth = !monthVal.IsUndefined;
-
-            accessor.TryGetProperty("monthCode", out var monthCodeVal);
-            var hasMonthCode = !monthCodeVal.IsUndefined;
-
-            // Phase 1: Validate monthCode SYNTAX early (before year type validation)
-            string? monthCodeStr = null;
-            if (hasMonthCode)
-            {
-                monthCodeStr = JsOps.ToJsString(monthCodeVal);
-                ValidateMonthCodeSyntax(monthCodeStr, realm);
-            }
-
-            // Read year (required) — may throw TypeError for Symbol values
-            if (!accessor.TryGetProperty("year", out var yearVal) || yearVal.IsUndefined)
-                throw StandardLibrary.ThrowTypeError("Property bag for PlainYearMonth must have 'year'", realm: realm);
-            var year = ToIntegerWithTruncation(yearVal, realm);
-
-            // Phase 2: Resolve month from monthCode or month property
-            if (!hasMonth && !hasMonthCode)
-                throw StandardLibrary.ThrowTypeError("Property bag for PlainYearMonth must have 'month' or 'monthCode'", realm: realm);
-
-            int month;
-            if (hasMonthCode)
-            {
-                month = ResolveISOMonthCode(monthCodeStr!, realm);
-                if (hasMonth)
-                {
-                    var explicitMonth = ToIntegerWithTruncation(monthVal, realm);
-                    if (explicitMonth != month)
-                        throw StandardLibrary.ThrowRangeError("month and monthCode must agree", realm: realm);
-                }
-            }
-            else
-            {
-                month = ToIntegerWithTruncation(monthVal, realm);
-            }
-
-            if (month < 1)
-                throw StandardLibrary.ThrowRangeError($"Month {month} is out of range", realm: realm);
-            month = Math.Min(month, 12);
-
-            RejectISOYearMonthRange(year, month, realm);
-            return new JsTemporalPlainYearMonth(year, month);
+            var (year, month) = ReadPlainYearMonthFields(accessor, realm);
+            return ApplyOverflowToYearMonth(year, month, "constrain", realm);
         }
 
         if (value.Kind == JsValueKind.Object)
@@ -9507,84 +9724,11 @@ public static class TemporalHelper
                 return new JsTemporalPlainMonthDay(pdt.Month, pdt.Day, pdt.Calendar);
         }
 
-        // 4. Property bag
+        // 4. Property bag — uses ReadPlainMonthDayFields for correct alphabetical order
         if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
-            if (accessor.TryGetProperty("calendar", out var calVal) && !calVal.IsUndefined)
-                ValidateTemporalCalendarValue(calVal, realm);
-
-            int month;
-            accessor.TryGetProperty("month", out var monthVal);
-            accessor.TryGetProperty("monthCode", out var monthCodeVal);
-            var hasMonth = !monthVal.IsUndefined;
-            var hasMonthCode = !monthCodeVal.IsUndefined;
-
-            if (!hasMonth && !hasMonthCode)
-                throw StandardLibrary.ThrowTypeError("Property bag for PlainMonthDay must have 'month' or 'monthCode'", realm: realm);
-
-            // Phase 1: Validate monthCode SYNTAX early (throws RangeError for malformed codes
-            // like "L99M", "m1" before other fields are read)
-            string? monthCodeStr = null;
-            if (hasMonthCode)
-            {
-                monthCodeStr = JsOps.ToJsString(monthCodeVal);
-                ValidateMonthCodeSyntax(monthCodeStr, realm);
-            }
-
-            // Read day
-            if (!accessor.TryGetProperty("day", out var dayVal) || dayVal.IsUndefined)
-                throw StandardLibrary.ThrowTypeError("Property bag for PlainMonthDay must have 'day'", realm: realm);
-            var day = ToIntegerWithTruncation(dayVal, realm);
-
-            // Read month (if provided alongside monthCode, convert for later conflict check)
-            int? explicitMonth = null;
-            if (hasMonth && hasMonthCode)
-                explicitMonth = ToIntegerWithTruncation(monthVal, realm);
-
-            // Read optional year — this may throw TypeError for Symbol values,
-            // which must happen BEFORE monthCode suitability validation (per spec)
-            accessor.TryGetProperty("year", out var yearVal);
-            var hasYear = !yearVal.IsUndefined;
-            var yearForValidation = hasYear ? ToIntegerWithTruncation(yearVal, realm) : 1972;
-
-            // Phase 2: Resolve monthCode VALUE (throws RangeError for codes not valid
-            // in ISO calendar like "M99L", "M13", "M00")
-            if (hasMonthCode)
-            {
-                month = ResolveISOMonthCode(monthCodeStr!, realm);
-                if (explicitMonth.HasValue && explicitMonth.Value != month)
-                    throw StandardLibrary.ThrowRangeError("month and monthCode must agree", realm: realm);
-            }
-            else
-            {
-                month = ToIntegerWithTruncation(monthVal, realm);
-            }
-
-            // Validate month and day ranges
-            if (month < 1)
-                throw StandardLibrary.ThrowRangeError($"Month {month} is out of range", realm: realm);
-            if (day < 1)
-                throw StandardLibrary.ThrowRangeError($"Day {day} is out of range", realm: realm);
-
-            if (string.Equals(overflow, "reject", StringComparison.Ordinal))
-            {
-                if (month > 12)
-                    throw StandardLibrary.ThrowRangeError($"Month {month} is out of range", realm: realm);
-                var maxDayReject = IsoCalendarHelpers.DaysInMonth(
-                    yearForValidation is >= 1 and <= 9999 ? yearForValidation : 2000, month);
-                if (day > maxDayReject)
-                    throw StandardLibrary.ThrowRangeError($"Day {day} is out of range for month {month}", realm: realm);
-            }
-            else
-            {
-                // Constrain
-                month = Math.Min(month, 12);
-                var maxDay = IsoCalendarHelpers.DaysInMonth(
-                    yearForValidation is >= 1 and <= 9999 ? yearForValidation : 2000, month);
-                day = Math.Min(day, maxDay);
-            }
-
-            return new JsTemporalPlainMonthDay(month, day);
+            var (mdMonth, mdDay, mdYear) = ReadPlainMonthDayFields(accessor, realm);
+            return ApplyOverflowToMonthDay(mdMonth, mdDay, mdYear, overflow, realm);
         }
 
         if (value.Kind == JsValueKind.Object)

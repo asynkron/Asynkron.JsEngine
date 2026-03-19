@@ -1223,22 +1223,35 @@ internal static class JsOps
         var exponent = (int)Math.Floor(Math.Log10(abs));
         var useExponential = exponent is < -6 or >= 21;
 
+        // Use "R" (round-trip) format to get the shortest representation that uniquely
+        // identifies this double value, matching ECMAScript's Number::toString algorithm.
+        var repr = abs.ToString("R", CultureInfo.InvariantCulture);
+
         if (!useExponential)
         {
-            // Fixed-point form for the mid-range magnitude.
-            // Use "0.###################" format for non-integers - it works correctly for these.
-            // Only large integers near MAX_SAFE_INTEGER need the special handling above.
-            var fixedText = abs.ToString("0.###################", CultureInfo.InvariantCulture);
-            return sign + fixedText;
+            // For mid-range numbers, "R" format may still produce E-notation in rare cases.
+            var eIdx = repr.IndexOf('E', StringComparison.Ordinal);
+            if (eIdx < 0)
+            {
+                return sign + repr;
+            }
+
+            // Convert E-notation to fixed-point form
+            return sign + NumberHelper.FormatRoundTripAsJsString(repr);
         }
 
-        var expText = abs.ToString("0.###################e+0", CultureInfo.InvariantCulture);
-        var parts = expText.Split('e');
-        var mantissa = parts[0].TrimEnd('0').TrimEnd('.');
-        var expVal = int.Parse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture);
-        var expStr = expVal >= 0 ? $"+{expVal.ToString(CultureInfo.InvariantCulture)}" : expVal.ToString(CultureInfo.InvariantCulture);
+        // For exponential form, ensure we use "R" digits but in JS exponential notation.
+        var eIndex = repr.IndexOf('E', StringComparison.Ordinal);
+        if (eIndex >= 0)
+        {
+            var mantissa = repr[..eIndex].TrimEnd('0').TrimEnd('.');
+            var expVal = int.Parse(repr[(eIndex + 1)..], NumberStyles.Integer, CultureInfo.InvariantCulture);
+            var expStr = expVal >= 0 ? $"+{expVal.ToString(CultureInfo.InvariantCulture)}" : expVal.ToString(CultureInfo.InvariantCulture);
+            return $"{sign}{mantissa}e{expStr}";
+        }
 
-        return $"{sign}{mantissa}e{expStr}";
+        // "R" gave fixed form but we need exponential - reformat
+        return sign + NumberHelper.FormatRoundTripAsJsString(repr);
     }
 
     [MethodImpl(JsEngineConstants.Inlining)]

@@ -1,53 +1,12 @@
 # Temporal_ZonedDateTime_prototype_add
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add`
+Status: 66/70 passing (4 remaining = 2 extreme range + 2 max duration)
 
-Full test name:
+FQNs:
 
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/add-duration.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/add-duration.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/argument-duration-max.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/argument-duration-max.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/argument-duration-out-of-range.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/argument-duration-out-of-range.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/argument-invalid-property.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/argument-invalid-property.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/argument-mixed-sign.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/argument-mixed-sign.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/argument-not-object.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/argument-not-object.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/argument-singular-properties.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/argument-singular-properties.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/argument-string-fractional-units-rounding-mode.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/argument-string-fractional-units-rounding-mode.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/argument-string-negative-fractional-units.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/argument-string-negative-fractional-units.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/casts-argument.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/casts-argument.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/cross-epoch.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/cross-epoch.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/math-order-of-operations-add-reject.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/math-order-of-operations-add-reject.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/negative-epochnanoseconds.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/negative-epochnanoseconds.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/non-integer-throws-rangeerror.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/non-integer-throws-rangeerror.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/options-wrong-type.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/options-wrong-type.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/order-of-operations.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/order-of-operations.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/overflow-invalid-string.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/overflow-invalid-string.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/overflow-undefined.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/overflow-undefined.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/overflow-wrong-type.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/overflow-wrong-type.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/overflow.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/overflow.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/subclassing-ignored.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/subclassing-ignored.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/throw-when-ambiguous-result-with-reject.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/throw-when-ambiguous-result-with-reject.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/throw-when-intermediate-datetime-outside-valid-limits.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add("built-ins/Temporal/ZonedDateTime/prototype/add/throw-when-intermediate-datetime-outside-valid-limits.js",True)
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_add`
+
+Remaining failures:
+
+- argument-duration-max.js × 2 (extreme BigInt duration values)
+- throw-when-intermediate-datetime-outside-valid-limits.js × 2 (intermediate range check)

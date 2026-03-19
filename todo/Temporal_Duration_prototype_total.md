@@ -1,55 +1,21 @@
 # Temporal_Duration_prototype_total
 
+Status: 118/146 passing (28 remaining = 16 BuiltIns + 12 intl402)
+
 FQNs:
 
 - `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total`
 - `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Duration_prototype_total`
 
-Full test name:
+Remaining BuiltIns failures (16):
 
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/duration-out-of-range-added-to-relativeto.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/duration-out-of-range-added-to-relativeto.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/order-of-operations.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/order-of-operations.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/precision-exact-mathematical-values-5.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/precision-exact-mathematical-values-5.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/precision-exact-mathematical-values-6.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/precision-exact-mathematical-values-6.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/precision-exact-mathematical-values-7.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/precision-exact-mathematical-values-7.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/relativeto-infinity-throws-rangeerror.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/relativeto-infinity-throws-rangeerror.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/relativeto-plaindate-add24hourdaystonormalizedtimeduration-out-of-range.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/relativeto-plaindate-add24hourdaystonormalizedtimeduration-out-of-range.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/relativeto-propertybag-invalid-offset-string.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/relativeto-propertybag-invalid-offset-string.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/relativeto-string-datetime.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/relativeto-string-datetime.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/relativeto-string-limits.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/relativeto-string-limits.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/relativeto-string-zoneddatetime-wrong-offset.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/relativeto-string-zoneddatetime-wrong-offset.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/relativeto-sub-minute-offset.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/relativeto-sub-minute-offset.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/throws-if-date-time-invalid-with-plaindate-relative.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/throws-if-date-time-invalid-with-plaindate-relative.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/throws-if-date-time-invalid-with-zoneddatetime-relative.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/throws-if-date-time-invalid-with-zoneddatetime-relative.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/throws-if-target-nanoseconds-outside-valid-limits.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/throws-if-target-nanoseconds-outside-valid-limits.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/throws-on-wrong-offset-for-zoneddatetime-relativeto.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/throws-on-wrong-offset-for-zoneddatetime-relativeto.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/total-of-each-unit-relativeto.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_prototype_total("built-ins/Temporal/Duration/prototype/total/total-of-each-unit-relativeto.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Duration_prototype_total("intl402/Temporal/Duration/prototype/total/dst-balancing-result.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Duration_prototype_total("intl402/Temporal/Duration/prototype/total/dst-balancing-result.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Duration_prototype_total("intl402/Temporal/Duration/prototype/total/dst-day-length.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Duration_prototype_total("intl402/Temporal/Duration/prototype/total/dst-day-length.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Duration_prototype_total("intl402/Temporal/Duration/prototype/total/dst-rounding-result.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Duration_prototype_total("intl402/Temporal/Duration/prototype/total/dst-rounding-result.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Duration_prototype_total("intl402/Temporal/Duration/prototype/total/relativeto-infinity-throws-rangeerror.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Duration_prototype_total("intl402/Temporal/Duration/prototype/total/relativeto-infinity-throws-rangeerror.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Duration_prototype_total("intl402/Temporal/Duration/prototype/total/relativeto-string-datetime.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Duration_prototype_total("intl402/Temporal/Duration/prototype/total/relativeto-string-datetime.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Duration_prototype_total("intl402/Temporal/Duration/prototype/total/relativeto-sub-minute-offset.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Duration_prototype_total("intl402/Temporal/Duration/prototype/total/relativeto-sub-minute-offset.js",True)
+- order-of-operations.js x 2
+- precision-exact-mathematical-values-5.js x 2
+- precision-exact-mathematical-values-6.js x 2
+- precision-exact-mathematical-values-7.js x 2
+- relativeto-string-datetime.js x 2
+- relativeto-string-limits.js x 2
+- relativeto-string-zoneddatetime-wrong-offset.js x 2
+- relativeto-sub-minute-offset.js x 2
+
+Remaining intl402 failures (12): DST balancing/rounding, sub-minute offsets, infinity range errors

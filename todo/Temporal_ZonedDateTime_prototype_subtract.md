@@ -1,51 +1,12 @@
 # Temporal_ZonedDateTime_prototype_subtract
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract`
+Status: 64/68 passing (4 remaining = 2 extreme range + 2 max duration)
 
-Full test name:
+FQNs:
 
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/argument-duration-max.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/argument-duration-max.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/argument-duration-out-of-range.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/argument-duration-out-of-range.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/argument-invalid-property.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/argument-invalid-property.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/argument-mixed-sign.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/argument-mixed-sign.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/argument-not-object.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/argument-not-object.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/argument-singular-properties.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/argument-singular-properties.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/argument-string-fractional-units-rounding-mode.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/argument-string-fractional-units-rounding-mode.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/argument-string-negative-fractional-units.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/argument-string-negative-fractional-units.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/casts-argument.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/casts-argument.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/math-order-of-operations-subtract-reject.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/math-order-of-operations-subtract-reject.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/negative-epochnanoseconds.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/negative-epochnanoseconds.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/non-integer-throws-rangeerror.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/non-integer-throws-rangeerror.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/options-wrong-type.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/options-wrong-type.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/order-of-operations.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/order-of-operations.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/overflow-invalid-string.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/overflow-invalid-string.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/overflow-undefined.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/overflow-undefined.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/overflow-wrong-type.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/overflow-wrong-type.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/overflow.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/overflow.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/subclassing-ignored.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/subclassing-ignored.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/subtract-duration-object.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/subtract-duration-object.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/throw-when-ambiguous-result-with-reject.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/throw-when-ambiguous-result-with-reject.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/throw-when-intermediate-datetime-outside-valid-limits.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract("built-ins/Temporal/ZonedDateTime/prototype/subtract/throw-when-intermediate-datetime-outside-valid-limits.js",True)
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_subtract`
+
+Remaining failures:
+
+- argument-duration-max.js × 2 (extreme BigInt duration values)
+- throw-when-intermediate-datetime-outside-valid-limits.js × 2 (intermediate range check)

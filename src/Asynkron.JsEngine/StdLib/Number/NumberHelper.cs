@@ -760,7 +760,7 @@ public static partial class NumberHelper
     ///     Convert a round-trip "R" format string (which may use 'E' notation)
     ///     to the JavaScript-style string representation.
     /// </summary>
-    private static string FormatRoundTripAsJsString(string repr)
+    internal static string FormatRoundTripAsJsString(string repr)
     {
         var eIdx = repr.IndexOf('E', StringComparison.Ordinal);
         if (eIdx < 0)

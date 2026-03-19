@@ -1,81 +1,19 @@
 # Temporal_Duration_compare
 
+Status: 76/94 passing (18 remaining = 12 BuiltIns + 6 intl402)
+
 FQNs:
 
 - `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare`
 - `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Duration_compare`
 
-Full test name:
+Remaining BuiltIns failures (12):
 
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/argument-cast.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/argument-cast.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/argument-duration-max.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/argument-duration-max.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/argument-duration-out-of-range.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/argument-duration-out-of-range.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/argument-string-fractional-units-rounding-mode.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/argument-string-fractional-units-rounding-mode.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/argument-string-negative-fractional-units.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/argument-string-negative-fractional-units.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/basic.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/basic.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/calendar-possibly-required.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/calendar-possibly-required.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/compare-no-precision-loss.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/compare-no-precision-loss.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/duration-out-of-range-added-to-relativeto.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/duration-out-of-range-added-to-relativeto.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/exhaustive.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/exhaustive.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/instances-identical.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/instances-identical.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/options-undefined.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/options-undefined.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/options-wrong-type.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/options-wrong-type.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/order-of-operations.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/order-of-operations.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-month.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-month.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-plaindate-add24hourdaystonormalizedtimeduration-out-of-range.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-plaindate-add24hourdaystonormalizedtimeduration-out-of-range.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-propertybag-infinity-throws-rangeerror.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-propertybag-infinity-throws-rangeerror.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-propertybag-invalid-offset-string.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-propertybag-invalid-offset-string.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-propertybag-invalid.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-propertybag-invalid.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-propertybag-timezone-string-datetime.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-propertybag-timezone-string-datetime.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-propertybag-timezone-string-leap-second.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-propertybag-timezone-string-leap-second.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-propertybag-timezone-string-year-zero.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-propertybag-timezone-string-year-zero.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-propertybag-timezone-wrong-type.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-propertybag-timezone-wrong-type.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-string-invalid.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-string-invalid.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-string-limits.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-string-limits.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-string-plaindatetime.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-string-plaindatetime.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-string-zoneddatetime-wrong-offset.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-string-zoneddatetime-wrong-offset.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-string-zoneddatetime.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-string-zoneddatetime.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-sub-minute-offset.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-sub-minute-offset.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-undefined-throw-on-calendar-units.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-undefined-throw-on-calendar-units.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-year.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/relativeto-year.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/throws-when-target-zoned-date-time-outside-valid-limits.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/throws-when-target-zoned-date-time-outside-valid-limits.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/year-zero.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_Duration_compare("built-ins/Temporal/Duration/compare/year-zero.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Duration_compare("intl402/Temporal/Duration/compare/relativeto-hour.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Duration_compare("intl402/Temporal/Duration/compare/relativeto-hour.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Duration_compare("intl402/Temporal/Duration/compare/relativeto-sub-minute-offset.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Duration_compare("intl402/Temporal/Duration/compare/relativeto-sub-minute-offset.js",True)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Duration_compare("intl402/Temporal/Duration/compare/twenty-five-hour-day.js",False)
-- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_Duration_compare("intl402/Temporal/Duration/compare/twenty-five-hour-day.js",True)
+- duration-out-of-range-added-to-relativeto.js x 2
+- order-of-operations.js x 2
+- relativeto-plaindate-add24hourdaystonormalizedtimeduration-out-of-range.js x 2
+- relativeto-string-limits.js x 2
+- relativeto-string-zoneddatetime-wrong-offset.js x 2
+- relativeto-sub-minute-offset.js x 2
+
+Remaining intl402 failures (6): all 3 test files failing (relativeto-hour, relativeto-sub-minute-offset, twenty-five-hour-day)

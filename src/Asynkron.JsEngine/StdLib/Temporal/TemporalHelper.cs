@@ -1114,105 +1114,79 @@ public static class TemporalHelper
 
         var compare = CreateFunction(realm, "compare", 2, (_, args) =>
         {
-            // Step 1-2: ToTemporalDuration
             var d1 = ToTemporalDuration(args.GetArgument(0), realm);
             var d2 = ToTemporalDuration(args.GetArgument(1), realm);
 
-            // Step 3: GetOptionsObject (validates 3rd argument)
-            var optionsArg = args.Count > 2 ? args[2] : JsValue.Undefined;
-            var optionsObj = ValidateOptionsObject(optionsArg, realm, "Temporal.Duration.compare");
+            // Step 3: Read and validate options (3rd argument)
+            var options = args.Count > 2 ? args[2] : JsValue.Undefined;
+            var optionsObj = ValidateOptionsObject(options, realm, "Temporal.Duration.compare");
 
-            // Step 4: If all fields match, return 0 (short circuit)
+            // Step 4: Extract relativeTo from options
+            JsValue relativeToValue = JsValue.Undefined;
+            if (optionsObj != null && optionsObj.TryGetProperty("relativeTo", out var rtv) && !rtv.IsUndefined)
+                relativeToValue = rtv;
+
+            var (plainDateRelativeTo, zonedDateTimeRelativeTo) = ToRelativeTemporalObject(relativeToValue, realm);
+
+            // Step 5: Check if calendar units are present
+            var calendarUnitsPresent = d1.Years != 0 || d1.Months != 0 || d1.Weeks != 0
+                                       || d2.Years != 0 || d2.Months != 0 || d2.Weeks != 0;
+
+            // Per spec: if both durations are identical (all 10 fields match), return 0
+            // This is checked before the relativeTo requirement
             if (d1.Years == d2.Years && d1.Months == d2.Months && d1.Weeks == d2.Weeks &&
                 d1.Days == d2.Days && d1.Hours == d2.Hours && d1.Minutes == d2.Minutes &&
                 d1.Seconds == d2.Seconds && d1.Milliseconds == d2.Milliseconds &&
                 d1.Microseconds == d2.Microseconds && d1.Nanoseconds == d2.Nanoseconds)
+            {
                 return JsValue.Zero;
+            }
 
-            // Step 5-7: Parse relativeTo from options
-            JsValue relativeToValue = JsValue.Undefined;
-            if (optionsObj != null && optionsObj.TryGetProperty("relativeTo", out var relVal))
-                relativeToValue = relVal;
-            var (plainDateRelativeTo, zonedDateTimeRelativeTo) = ToRelativeTemporalObject(relativeToValue, realm);
+            if (calendarUnitsPresent && plainDateRelativeTo == null && zonedDateTimeRelativeTo == null)
+                throw StandardLibrary.ThrowRangeError("relativeTo is required when comparing durations with calendar units (years, months, or weeks)", realm: realm);
 
-            // Step 8-9: Get largest units
-            var largestUnit1 = DefaultTemporalLargestUnit(d1);
-            var largestUnit2 = DefaultTemporalLargestUnit(d2);
-
-            // Step 12: ZonedDateTime relativeTo path
+            // Step 6: Compare using relativeTo if provided
             if (zonedDateTimeRelativeTo != null)
             {
-                var after1 = AddZonedDateTime(zonedDateTimeRelativeTo, d1, 1, "constrain", realm);
-                var after2 = AddZonedDateTime(zonedDateTimeRelativeTo, d2, 1, "constrain", realm);
-                return new JsValue(after1.Instant.EpochNanoseconds.CompareTo(after2.Instant.EpochNanoseconds));
+                // Add each duration to the ZonedDateTime using precise arithmetic and compare epoch nanoseconds
+                var pdt = GetLocalPlainDateTime(zonedDateTimeRelativeTo, realm);
+                var end1 = AddDurationToPlainDateTime(pdt, d1, 1, "constrain", realm);
+                var end2 = AddDurationToPlainDateTime(pdt, d2, 1, "constrain", realm);
+
+                // Convert resulting PlainDateTimes back to epoch nanoseconds using the timezone
+                var offset = zonedDateTimeRelativeTo.FixedOffset ?? ResolveTimeZoneOffset(
+                    CreateTimeZoneLocalDateTime(end1), zonedDateTimeRelativeTo.TimeZone, zonedDateTimeRelativeTo.FixedOffset);
+                var offsetNanos1 = new BigInteger(offset.Ticks) * 100;
+                var epochNs1 = ToEpochNanoseconds(end1) - offsetNanos1;
+
+                var offset2 = zonedDateTimeRelativeTo.FixedOffset ?? ResolveTimeZoneOffset(
+                    CreateTimeZoneLocalDateTime(end2), zonedDateTimeRelativeTo.TimeZone, zonedDateTimeRelativeTo.FixedOffset);
+                var offsetNanos2 = new BigInteger(offset2.Ticks) * 100;
+                var epochNs2 = ToEpochNanoseconds(end2) - offsetNanos2;
+
+                return new JsValue(epochNs1.CompareTo(epochNs2));
             }
 
-            // Step 13: PlainDate relativeTo path
-            if (plainDateRelativeTo != null)
+            if (plainDateRelativeTo != null && calendarUnitsPresent)
             {
-                // Add date part of each duration to the relativeTo date
-                var dateDur1 = new JsTemporalDuration(d1.Years, d1.Months, d1.Weeks, d1.Days, 0, 0, 0, 0, 0, 0);
-                var dateDur2 = new JsTemporalDuration(d2.Years, d2.Months, d2.Weeks, d2.Days, 0, 0, 0, 0, 0, 0);
-                JsTemporalPlainDate after1, after2;
-                try
-                {
-                    after1 = plainDateRelativeTo.Add(dateDur1);
-                    RejectISODate(after1.Year, after1.Month, after1.Day, realm);
-                }
-                catch (Exception ex) when (ex is ArgumentException or OverflowException)
-                {
-                    throw StandardLibrary.ThrowRangeError("Resulting date is out of valid range", realm: realm);
-                }
-                try
-                {
-                    after2 = plainDateRelativeTo.Add(dateDur2);
-                    RejectISODate(after2.Year, after2.Month, after2.Day, realm);
-                }
-                catch (Exception ex) when (ex is ArgumentException or OverflowException)
-                {
-                    throw StandardLibrary.ThrowRangeError("Resulting date is out of valid range", realm: realm);
-                }
+                // Add each duration to the PlainDate and compare resulting epoch days + time
+                var end1 = plainDateRelativeTo.Add(new JsTemporalDuration(
+                    d1.Years, d1.Months, d1.Weeks, d1.Days, 0, 0, 0, 0, 0, 0));
+                var end2 = plainDateRelativeTo.Add(new JsTemporalDuration(
+                    d2.Years, d2.Months, d2.Weeks, d2.Days, 0, 0, 0, 0, 0, 0));
 
-                // Convert to total days + time nanoseconds
-                var days1 = IsoToDayNumber(after1.Year, after1.Month, after1.Day) -
-                            IsoToDayNumber(plainDateRelativeTo.Year, plainDateRelativeTo.Month, plainDateRelativeTo.Day);
-                var days2 = IsoToDayNumber(after2.Year, after2.Month, after2.Day) -
-                            IsoToDayNumber(plainDateRelativeTo.Year, plainDateRelativeTo.Month, plainDateRelativeTo.Day);
-
-                var timeNs1 = DurationToTotalNanoseconds(0, d1.Hours, d1.Minutes, d1.Seconds,
-                    d1.Milliseconds, d1.Microseconds, d1.Nanoseconds);
-                var timeNs2 = DurationToTotalNanoseconds(0, d2.Hours, d2.Minutes, d2.Seconds,
-                    d2.Milliseconds, d2.Microseconds, d2.Nanoseconds);
-
-                var total1 = new BigInteger(days1) * NanosecondsPerDay + timeNs1;
-                var total2 = new BigInteger(days2) * NanosecondsPerDay + timeNs2;
-
-                // Validate Add24HourDaysToNormalizedTimeDuration range
-                if (BigInteger.Abs(total1) > MaxTimeDuration)
-                    throw StandardLibrary.ThrowRangeError("Duration out of range when added to relativeTo", realm: realm);
-                if (BigInteger.Abs(total2) > MaxTimeDuration)
-                    throw StandardLibrary.ThrowRangeError("Duration out of range when added to relativeTo", realm: realm);
-
-                return new JsValue(total1.CompareTo(total2));
+                // Convert to epoch day number + time nanoseconds for precise comparison
+                var days1 = IsoToDayNumber(end1.Year, end1.Month, end1.Day);
+                var days2 = IsoToDayNumber(end2.Year, end2.Month, end2.Day);
+                var ns1 = (BigInteger)days1 * 86_400_000_000_000L + DurationTimeNanoseconds(d1);
+                var ns2 = (BigInteger)days2 * 86_400_000_000_000L + DurationTimeNanoseconds(d2);
+                return new JsValue(ns1.CompareTo(ns2));
             }
 
-            // Step 14: No relativeTo — reject calendar units
-            if (largestUnit1 >= TemporalUnit.Week || largestUnit2 >= TemporalUnit.Week)
-                throw StandardLibrary.ThrowRangeError(
-                    "relativeTo is required for comparing durations with years, months, or weeks", realm: realm);
-
-            // Step 15-17: Time-only comparison using total nanoseconds (including days as 24h)
-            var ns1 = DurationToTotalNanoseconds(d1.Days, d1.Hours, d1.Minutes, d1.Seconds,
-                d1.Milliseconds, d1.Microseconds, d1.Nanoseconds);
-            var ns2 = DurationToTotalNanoseconds(d2.Days, d2.Hours, d2.Minutes, d2.Seconds,
-                d2.Milliseconds, d2.Microseconds, d2.Nanoseconds);
-
-            if (BigInteger.Abs(ns1) > MaxTimeDuration)
-                throw StandardLibrary.ThrowRangeError("Duration out of range", realm: realm);
-            if (BigInteger.Abs(ns2) > MaxTimeDuration)
-                throw StandardLibrary.ThrowRangeError("Duration out of range", realm: realm);
-
-            return new JsValue(ns1.CompareTo(ns2));
+            // No calendar units: convert days + time to total nanoseconds and compare
+            var total1 = (BigInteger)d1.Days * 86_400_000_000_000L + DurationTimeNanoseconds(d1);
+            var total2 = (BigInteger)d2.Days * 86_400_000_000_000L + DurationTimeNanoseconds(d2);
+            return new JsValue(total1.CompareTo(total2));
         });
         ctor.DefineProperty("compare",
             new PropertyDescriptor { Value = compare, Writable = true, Enumerable = false, Configurable = true });
@@ -2413,7 +2387,6 @@ public static class TemporalHelper
 
             RejectISODate(year, month, day, realm);
             RejectTemporalTimeRange(hour, minute, second, millisecond, microsecond, nanosecond, realm);
-            RejectISODateTimeRange(year, month, day, hour, minute, second, millisecond, microsecond, nanosecond, realm);
             var dt = new JsTemporalPlainDateTime(year, month, day, hour, minute, second,
                 millisecond, microsecond, nanosecond, calendar);
             return ApplyNewTargetPrototype(WrapPlainDateTime(dt, realm, prototype), newTarget, ctor, prototype);
@@ -2630,10 +2603,13 @@ public static class TemporalHelper
         {
             var zdt = GetZonedDateTime(thisValue);
             var duration = ToTemporalDuration(args.GetArgument(0), realm);
+
+            // Validate and read options (2nd argument)
             var options = args.Count > 1 ? args[1] : JsValue.Undefined;
             var optionsObj = ValidateOptionsObject(options, realm, "Temporal.ZonedDateTime.prototype.add");
             var overflow = GetTemporalOverflowOption(optionsObj, realm);
-            var result = AddZonedDateTime(zdt, duration, 1, overflow, realm);
+
+            var result = AddDurationToZonedDateTime(zdt, duration, 1, overflow, realm);
             return WrapZonedDateTime(result, realm, prototype);
         });
 
@@ -2641,10 +2617,13 @@ public static class TemporalHelper
         {
             var zdt = GetZonedDateTime(thisValue);
             var duration = ToTemporalDuration(args.GetArgument(0), realm);
+
+            // Validate and read options (2nd argument)
             var options = args.Count > 1 ? args[1] : JsValue.Undefined;
             var optionsObj = ValidateOptionsObject(options, realm, "Temporal.ZonedDateTime.prototype.subtract");
             var overflow = GetTemporalOverflowOption(optionsObj, realm);
-            var result = AddZonedDateTime(zdt, duration, -1, overflow, realm);
+
+            var result = AddDurationToZonedDateTime(zdt, duration, -1, overflow, realm);
             return WrapZonedDateTime(result, realm, prototype);
         });
 
@@ -2727,11 +2706,7 @@ public static class TemporalHelper
             if (accessor.TryGetProperty("nanosecond", out v) && !v.IsUndefined) { partialNanosecond = ToIntegerWithTruncation(v, realm); any = true; }
             if (accessor.TryGetProperty("offset", out v) && !v.IsUndefined)
             {
-                if (v.IsSymbol || v.IsBigInt)
-                    throw StandardLibrary.ThrowTypeError("offset must be a string", realm: realm);
-                if (v.IsNull || v.IsBoolean || v.IsNumber)
-                    throw StandardLibrary.ThrowTypeError("offset must be a string", realm: realm);
-                partialOffset = v.IsString ? v.AsString() : JsOps.ToJsString(v);
+                partialOffset = JsOps.ToJsString(v);
                 any = true;
             }
             if (accessor.TryGetProperty("second", out v) && !v.IsUndefined) { partialSecond = ToIntegerWithTruncation(v, realm); any = true; }
@@ -3069,25 +3044,17 @@ public static class TemporalHelper
             var timeZoneId = ToTemporalTimeZoneSlotStrict(timeZoneArg, realm);
             var calendar = calendarArg.IsUndefined ? "iso8601" : ToTemporalCalendarIdentifier(calendarArg);
 
-            System.Numerics.BigInteger epochNs;
+            JsTemporalInstant instant;
             if (epochNanoseconds.TryGetBigInt(out var bigInt))
             {
-                epochNs = bigInt.Value;
+                instant = new JsTemporalInstant(bigInt.Value);
             }
             else
             {
                 var ns = JsOps.ToNumber(epochNanoseconds);
-                epochNs = new System.Numerics.BigInteger(ns);
+                instant = JsTemporalInstant.FromEpochNanoseconds(new System.Numerics.BigInteger(ns));
             }
 
-            // Per spec step 3: If IsValidEpochNanoseconds(epochNanoseconds) is false, throw a RangeError
-            var nsMaxInstant = System.Numerics.BigInteger.Parse("8640000000000000000000");
-            if (epochNs < -nsMaxInstant || epochNs > nsMaxInstant)
-            {
-                throw StandardLibrary.ThrowRangeError("Epoch nanoseconds out of valid range", realm: realm);
-            }
-
-            var instant = new JsTemporalInstant(epochNs);
             var zdt = new JsTemporalZonedDateTime(instant, timeZoneId, calendar);
             return ApplyNewTargetPrototype(WrapZonedDateTime(zdt, realm, prototype), newTarget, ctor, prototype);
         });
@@ -5217,6 +5184,11 @@ public static class TemporalHelper
         {
             case "year":
             {
+                // Validate NudgeToCalendarUnit end boundary (spec step 8)
+                var r1Y = (long)Math.Abs(years) / roundingIncrement * roundingIncrement;
+                var r2Y = r1Y + roundingIncrement;
+                ValidateRoundedDateResult(relY, relM, relD, (int)(r2Y * sign) * 12);
+
                 // threshold = relativeTo + years
                 var thMonths = years * 12;
                 var (thY, thM) = AddYearMonth(relY, relM, thMonths);
@@ -5238,14 +5210,16 @@ public static class TemporalHelper
                 var scaledValue = new BigInteger(years) * absNsDenom + new BigInteger(ySign) * absNsNumer;
                 var scaledIncrement = new BigInteger(roundingIncrement) * absNsDenom;
                 var rounded = RoundToIncrement(scaledValue, scaledIncrement, roundingMode);
-                var roundedYears = (int)(rounded / absNsDenom);
-                // Validate rounded result produces a valid ISO date
-                ValidateRoundedDateResult(relY, relM, relD, roundedYears * 12);
-                return (roundedYears, 0, 0, 0);
+                return ((int)(rounded / absNsDenom), 0, 0, 0);
             }
             case "month":
             {
                 var totalMonths = years * 12 + months;
+
+                // Validate NudgeToCalendarUnit end boundary (spec step 8)
+                var r1M = (long)Math.Abs(totalMonths) / roundingIncrement * roundingIncrement;
+                var r2M = r1M + roundingIncrement;
+                ValidateRoundedDateResult(relY, relM, relD, (int)(r2M * sign));
 
                 // threshold = relativeTo + totalMonths months
                 var (thY, thM) = AddYearMonth(relY, relM, totalMonths);
@@ -6680,6 +6654,20 @@ public static class TemporalHelper
     }
 
     /// <summary>
+    ///     Computes the total nanoseconds from the time components of a duration (hours through nanoseconds).
+    ///     Uses BigInteger to avoid precision loss with large values.
+    /// </summary>
+    private static BigInteger DurationTimeNanoseconds(JsTemporalDuration d)
+    {
+        return (BigInteger)d.Hours * 3_600_000_000_000L
+               + (BigInteger)d.Minutes * 60_000_000_000L
+               + (BigInteger)d.Seconds * 1_000_000_000L
+               + (BigInteger)d.Milliseconds * 1_000_000L
+               + (BigInteger)d.Microseconds * 1_000L
+               + (BigInteger)d.Nanoseconds;
+    }
+
+    /// <summary>
     ///     Gets the epoch nanoseconds for the start of a given day in a timezone.
     /// </summary>
     private static BigInteger GetStartOfDayEpochNanos(int year, int month, int day, string timeZoneId, RealmState realm)
@@ -7632,78 +7620,37 @@ public static class TemporalHelper
     }
 
     /// <summary>
-    ///     Per Temporal spec: AddZonedDateTime — adds a signed duration to a ZonedDateTime.
-    ///     Handles the time-only fast path and date+time path with DST disambiguation.
+    ///     Temporal spec: AddZonedDateTime — adds a duration to a ZonedDateTime.
+    ///     Converts to local PlainDateTime, adds using AddDurationToPlainDateTime,
+    ///     then converts back to ZonedDateTime in the same timezone.
     /// </summary>
-    private static JsTemporalZonedDateTime AddZonedDateTime(
+    private static JsTemporalZonedDateTime AddDurationToZonedDateTime(
         JsTemporalZonedDateTime zdt, JsTemporalDuration duration, int sign,
         string overflow, RealmState realm)
     {
-        // Step 1: If only time components, use the fast nanosecond path
-        if (duration.Years == 0 && duration.Months == 0 && duration.Weeks == 0 && duration.Days == 0)
+        // Step 1: Get the local PlainDateTime
+        var local = GetLocalPlainDateTime(zdt, realm);
+
+        // Step 2: Add the duration using the PlainDateTime arithmetic (handles overflow)
+        var resultLocal = AddDurationToPlainDateTime(local, duration, sign, overflow, realm);
+
+        // Step 3: Convert back to ZonedDateTime by resolving the timezone offset
+        var offset = zdt.FixedOffset ?? ResolveTimeZoneOffset(
+            CreateTimeZoneLocalDateTime(resultLocal), zdt.TimeZone, zdt.FixedOffset);
+        var offsetNanoseconds = new BigInteger(offset.Ticks) * 100;
+        var localEpochNanoseconds = ToEpochNanoseconds(resultLocal);
+        var resultInstantNanoseconds = localEpochNanoseconds - offsetNanoseconds;
+
+        if (resultInstantNanoseconds < InstantMinEpochNanoseconds ||
+            resultInstantNanoseconds > InstantMaxEpochNanoseconds)
         {
-            var timeNanos = (BigInteger)(sign * duration.Hours) * 3_600_000_000_000L
-                            + (BigInteger)(sign * duration.Minutes) * 60_000_000_000L
-                            + (BigInteger)(sign * duration.Seconds) * 1_000_000_000L
-                            + (BigInteger)(sign * duration.Milliseconds) * 1_000_000L
-                            + (BigInteger)(sign * duration.Microseconds) * 1_000L
-                            + (BigInteger)(sign * duration.Nanoseconds);
-
-            var resultEpochNs = zdt.Instant.EpochNanoseconds + timeNanos;
-            if (resultEpochNs < InstantMinEpochNanoseconds || resultEpochNs > InstantMaxEpochNanoseconds)
-                throw StandardLibrary.ThrowRangeError("Resulting ZonedDateTime is outside of supported range", realm: realm);
-
-            return new JsTemporalZonedDateTime(
-                JsTemporalInstant.FromEpochNanoseconds(resultEpochNs),
-                zdt.TimeZoneId, zdt.Calendar);
+            throw StandardLibrary.ThrowRangeError("Resulting ZonedDateTime is out of range", realm: realm);
         }
-
-        // Step 2: Get local PlainDateTime
-        var localDt = GetLocalPlainDateTime(zdt, realm);
-
-        // Step 3: Add date components to the date part
-        var dateDuration = new JsTemporalDuration(
-            sign * duration.Years, sign * duration.Months,
-            sign * duration.Weeks, sign * duration.Days, 0, 0, 0, 0, 0, 0);
-        var startDate = new JsTemporalPlainDate(localDt.Year, localDt.Month, localDt.Day, zdt.Calendar);
-        JsTemporalPlainDate resultDate;
-        try
-        {
-            resultDate = startDate.Add(dateDuration, overflow);
-        }
-        catch (ArgumentException)
-        {
-            throw StandardLibrary.ThrowRangeError("Resulting date is out of valid range", realm: realm);
-        }
-
-        // Step 4: Create intermediate PlainDateTime with the new date and original time
-        var intermediateDt = new JsTemporalPlainDateTime(
-            resultDate.Year, resultDate.Month, resultDate.Day,
-            localDt.Hour, localDt.Minute, localDt.Second,
-            localDt.Millisecond, localDt.Microsecond, localDt.Nanosecond,
-            zdt.Calendar);
-
-        // Step 5: Convert intermediate to instant (using the timezone)
-        var intermediateLocalDateTime = CreateTimeZoneLocalDateTime(intermediateDt);
-        var intermediateOffset = zdt.FixedOffset ?? ResolveTimeZoneOffset(intermediateLocalDateTime, zdt.TimeZone, zdt.FixedOffset);
-        var intermediateOffsetNanos = new BigInteger(intermediateOffset.Ticks) * 100;
-        var intermediateEpochNs = ToEpochNanoseconds(intermediateDt) - intermediateOffsetNanos;
-
-        // Step 6: Add time components as nanoseconds
-        var addedTimeNanos = (BigInteger)(sign * duration.Hours) * 3_600_000_000_000L
-                             + (BigInteger)(sign * duration.Minutes) * 60_000_000_000L
-                             + (BigInteger)(sign * duration.Seconds) * 1_000_000_000L
-                             + (BigInteger)(sign * duration.Milliseconds) * 1_000_000L
-                             + (BigInteger)(sign * duration.Microseconds) * 1_000L
-                             + (BigInteger)(sign * duration.Nanoseconds);
-
-        var resultEpochNanoseconds = intermediateEpochNs + addedTimeNanos;
-        if (resultEpochNanoseconds < InstantMinEpochNanoseconds || resultEpochNanoseconds > InstantMaxEpochNanoseconds)
-            throw StandardLibrary.ThrowRangeError("Resulting ZonedDateTime is outside of supported range", realm: realm);
 
         return new JsTemporalZonedDateTime(
-            JsTemporalInstant.FromEpochNanoseconds(resultEpochNanoseconds),
-            zdt.TimeZoneId, zdt.Calendar);
+            JsTemporalInstant.FromEpochNanoseconds(resultInstantNanoseconds),
+            zdt.TimeZoneId,
+            zdt.Calendar);
     }
 
     /// <summary>
@@ -11069,10 +11016,9 @@ public static class TemporalHelper
         var absHours = (long)Math.Abs(duration.Hours);
         var absMinutes = (long)Math.Abs(duration.Minutes);
         var absSeconds = (long)Math.Abs(duration.Seconds);
-        // Use BigInteger for sub-second fields to avoid overflow (values can exceed long range)
-        var absMillisecondsBig = BigInteger.Abs(new BigInteger(duration.Milliseconds));
-        var absMicrosecondsBig = BigInteger.Abs(new BigInteger(duration.Microseconds));
-        var absNanosecondsBig = BigInteger.Abs(new BigInteger(duration.Nanoseconds));
+        var absMilliseconds = (long)Math.Abs(duration.Milliseconds);
+        var absMicroseconds = (long)Math.Abs(duration.Microseconds);
+        var absNanoseconds = (long)Math.Abs(duration.Nanoseconds);
 
         long subSecondNanos;
         var needsRounding = precision.Increment > 1 ||
@@ -11089,9 +11035,9 @@ public static class TemporalHelper
             var totalTimeNanos = new BigInteger(absHours) * NanosecondsPerHour +
                                  new BigInteger(absMinutes) * NanosecondsPerMinute +
                                  new BigInteger(absSeconds) * NanosecondsPerSecond +
-                                 absMillisecondsBig * 1_000_000 +
-                                 absMicrosecondsBig * 1_000 +
-                                 absNanosecondsBig;
+                                 new BigInteger(absMilliseconds) * 1_000_000 +
+                                 new BigInteger(absMicroseconds) * 1_000 +
+                                 new BigInteger(absNanoseconds);
 
             // Include days when balance can reach day level
             if (largestUnit == "day")
@@ -11137,9 +11083,9 @@ public static class TemporalHelper
             // No rounding: combine s + ms + µs + ns using BigInteger (handles overflow),
             // then balance subsecond overflow into seconds. Keep h/m/days as-is.
             var totalSecondsNanos = new BigInteger(absSeconds) * NanosecondsPerSecond +
-                                    absMillisecondsBig * 1_000_000 +
-                                    absMicrosecondsBig * 1_000 +
-                                    absNanosecondsBig;
+                                    new BigInteger(absMilliseconds) * 1_000_000 +
+                                    new BigInteger(absMicroseconds) * 1_000 +
+                                    new BigInteger(absNanoseconds);
             absSeconds = (long)(totalSecondsNanos / NanosecondsPerSecond);
             subSecondNanos = (long)(totalSecondsNanos % NanosecondsPerSecond);
         }

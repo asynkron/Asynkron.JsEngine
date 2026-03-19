@@ -1,14 +1,15 @@
 # Temporal_ZonedDateTime_prototype_until
 
-FQN:
-`Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_until`
+Status: 178/196 passing (18 remaining = 4 BuiltIns + 14 intl402)
 
-Remaining failures (4 tests):
+FQNs:
 
-## argument-string-limits
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_until("built-ins/Temporal/ZonedDateTime/prototype/until/argument-string-limits.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_until("built-ins/Temporal/ZonedDateTime/prototype/until/argument-string-limits.js",True)
+- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_until`
+- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_until`
 
-## roundingincrement-addition-out-of-range
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_until("built-ins/Temporal/ZonedDateTime/prototype/until/roundingincrement-addition-out-of-range.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_until("built-ins/Temporal/ZonedDateTime/prototype/until/roundingincrement-addition-out-of-range.js",True)
+Remaining BuiltIns failures (4):
+
+- argument-string-limits.js × 2 (extreme date range)
+- round-cross-unit-boundary.js × 2 (rounding edge case)
+
+Remaining intl402 failures (14): DST balancing/rounding, sub-minute offsets, calendar

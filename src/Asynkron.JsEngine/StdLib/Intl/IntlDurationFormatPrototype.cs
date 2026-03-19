@@ -746,9 +746,11 @@ public sealed partial class IntlDurationFormatPrototype
     }
 
     /// <summary>
-    /// Convert a double to decimal without the precision loss of direct (decimal)double cast.
+    /// Convert a double to decimal preserving the exact IEEE 754 mathematical value.
     /// Duration fields are always integers (validated in GetDurationField), so we convert via
-    /// long when the value fits, falling back to string round-trip for very large values.
+    /// long when the value fits, or BigInteger for very large integer doubles.
+    /// ToString("R") is NOT sufficient — it produces minimum round-trip digits which can
+    /// differ from the exact value by up to half ULP when parsed as decimal.
     /// </summary>
     private static decimal ToExactDecimal(double value)
     {
@@ -764,9 +766,15 @@ public sealed partial class IntlDurationFormatPrototype
             return (decimal)(long)value;
         }
 
-        // For very large values (e.g. microseconds/nanoseconds at scale), use string round-trip
-        return decimal.Parse(value.ToString("R", CultureInfo.InvariantCulture),
-            NumberStyles.Float, CultureInfo.InvariantCulture);
+        // For very large integer doubles (e.g. microseconds at 9e21 scale),
+        // BigInteger gives the exact mathematical value of the IEEE 754 double.
+        if (value == Math.Truncate(value))
+        {
+            return (decimal)new System.Numerics.BigInteger(value);
+        }
+
+        // Non-integer fallback (shouldn't happen for duration fields, but just in case)
+        return (decimal)new System.Numerics.BigInteger(value);
     }
 
     private static decimal PowerOfTen(int exponent)

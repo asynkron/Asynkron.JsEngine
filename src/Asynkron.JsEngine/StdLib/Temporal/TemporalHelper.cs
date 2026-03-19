@@ -3695,9 +3695,9 @@ public static class TemporalHelper
         try
         {
             var tz = FindTimeZone(id);
-            // For offset timezones, return the input; for IANA, return canonical ID
+            // For offset timezones, normalize format (+0000 → +00:00)
             if (id.Length >= 2 && (id[0] == '+' || id[0] == '-') && char.IsDigit(id[1]))
-                return id;
+                return NormalizeUtcOffset(id);
             if (string.Equals(id, "UTC", StringComparison.OrdinalIgnoreCase))
                 return "UTC";
             // Return the system's canonical IANA ID
@@ -7868,11 +7868,21 @@ public static class TemporalHelper
         // 9. nanosecond
         var nanosecond = GetOptionalIntProperty(accessor, "nanosecond", realm);
 
-        // 10. offset (toString)
+        // 10. offset (must be a string, or object that can be coerced to string)
         accessor.TryGetProperty("offset", out var offsetPropertyVal);
         string? offsetStr = null;
+        long? offsetNanos = null;
         if (!offsetPropertyVal.IsUndefined)
-            offsetStr = JsOps.ToJsString(offsetPropertyVal);
+        {
+            // Per spec: non-string non-object values (number, boolean, bigint, symbol, null) → TypeError
+            if (offsetPropertyVal.IsSymbol || offsetPropertyVal.IsBigInt)
+                throw StandardLibrary.ThrowTypeError("offset must be a string", realm: realm);
+            if (offsetPropertyVal.IsNull || offsetPropertyVal.IsBoolean || offsetPropertyVal.IsNumber)
+                throw StandardLibrary.ThrowTypeError("offset must be a string", realm: realm);
+            offsetStr = offsetPropertyVal.IsString ? offsetPropertyVal.AsString() : JsOps.ToJsString(offsetPropertyVal);
+            // Validate offset format eagerly — per spec, bad offset throws before year/timeZone are read
+            offsetNanos = ParseOffsetString(offsetStr, realm);
+        }
 
         // 11. second
         var second = GetOptionalIntProperty(accessor, "second", realm);
@@ -7943,30 +7953,26 @@ public static class TemporalHelper
 
         RejectISODate(year, month, day, realm);
 
-        // Handle offset from property bag
-        if (offsetStr != null)
+        // Handle offset from property bag (format already validated at read time)
+        if (offsetStr != null && string.Equals(offsetOption, "reject", StringComparison.Ordinal))
         {
-            if (string.Equals(offsetOption, "reject", StringComparison.Ordinal))
+            // Validate offset matches timezone
+            var tz = JsTemporalZonedDateTime.ResolveTimeZone(timeZoneId, out var fixedOff);
+            TimeSpan tzOffset;
+            if (fixedOff.HasValue)
             {
-                // Validate offset matches timezone
-                var offsetNanos = ParseOffsetString(offsetStr, realm);
-                var tz = JsTemporalZonedDateTime.ResolveTimeZone(timeZoneId, out var fixedOff);
-                TimeSpan tzOffset;
-                if (fixedOff.HasValue)
-                {
-                    tzOffset = fixedOff.Value;
-                }
-                else
-                {
-                    var approxLocal = new DateTime(
-                        Math.Clamp(year, 1, 9999), month, day,
-                        hour, minute, second, millisecond, microsecond);
-                    tzOffset = tz.GetUtcOffset(approxLocal);
-                }
-                var tzOffsetNanos = tzOffset.Ticks * 100L;
-                if (offsetNanos != tzOffsetNanos)
-                    throw StandardLibrary.ThrowRangeError("Offset does not match the time zone", realm: realm);
+                tzOffset = fixedOff.Value;
             }
+            else
+            {
+                var approxLocal = new DateTime(
+                    Math.Clamp(year, 1, 9999), month, day,
+                    hour, minute, second, millisecond, microsecond);
+                tzOffset = tz.GetUtcOffset(approxLocal);
+            }
+            var tzOffsetNanos = tzOffset.Ticks * 100L;
+            if (offsetNanos!.Value != tzOffsetNanos)
+                throw StandardLibrary.ThrowRangeError("Offset does not match the time zone", realm: realm);
         }
 
         return new JsTemporalZonedDateTime(year, month, day, hour, minute, second,
@@ -9723,7 +9729,15 @@ public static class TemporalHelper
 
             accessor.TryGetProperty("offset", out var offsetVal);
             string? offsetStr = null;
-            if (!offsetVal.IsUndefined) offsetStr = JsOps.ToJsString(offsetVal);
+            if (!offsetVal.IsUndefined)
+            {
+                // Per spec: non-string non-object values (number, boolean, bigint, symbol, null) → TypeError
+                if (offsetVal.IsSymbol || offsetVal.IsBigInt)
+                    throw StandardLibrary.ThrowTypeError("offset must be a string", realm: realm);
+                if (offsetVal.IsNull || offsetVal.IsBoolean || offsetVal.IsNumber)
+                    throw StandardLibrary.ThrowTypeError("offset must be a string", realm: realm);
+                offsetStr = offsetVal.IsString ? offsetVal.AsString() : JsOps.ToJsString(offsetVal);
+            }
 
             var second = GetOptionalIntProperty(accessor, "second", realm);
 
@@ -9779,9 +9793,11 @@ public static class TemporalHelper
             // Handle offset from property bag
             if (offsetStr != null)
             {
+                // Always validate offset format — bad strings are RangeError regardless of offsetOption
+                var offsetNanos = ParseOffsetString(offsetStr, realm);
+
                 if (string.Equals(offsetOption, "reject", StringComparison.Ordinal))
                 {
-                    var offsetNanos = ParseOffsetString(offsetStr, realm);
                     var tz = JsTemporalZonedDateTime.ResolveTimeZone(timeZoneId, out var fixedOff);
                     TimeSpan tzOffset;
                     if (fixedOff.HasValue)

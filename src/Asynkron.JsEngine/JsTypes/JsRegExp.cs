@@ -2300,6 +2300,12 @@ public sealed class JsRegExp
 
     private static bool IsIdentifierPart(Rune rune)
     {
+        // ECMAScript IdentifierPart includes <ZWNJ> and <ZWJ>
+        if (rune.Value is 0x200C or 0x200D)
+        {
+            return true;
+        }
+
         if (IsIdentifierStart(rune))
         {
             return true;

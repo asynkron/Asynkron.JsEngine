@@ -270,15 +270,79 @@ public static class TypedArrayHelper
                      bufferAccessor.TryGetProperty("_internalArrayBuffer", out var internalBufferVal) &&
                      internalBufferVal.TryGetObject<JsArrayBuffer>(out buffer)))
                 {
-                    var byteOffset = args.Count > 1 && args[1].TryGetDouble(out var d1) ? (int)d1 : 0;
+                    // Per spec 23.2.5.1.5 InitializeTypedArrayFromArrayBuffer:
+                    // Step 2: Let offset be ? ToIndex(byteOffset).
+                    var byteOffsetArg = args.Count > 1 ? args[1] : JsValue.Undefined;
+                    var offset = ToIndex(byteOffsetArg, realm);
 
-                    var lengthProvided = args.Count > 2 && args[2].TryGetDouble(out _);
-                    var length = lengthProvided
-                        ? (int)args[2].ToNumber()
-                        : (buffer.ByteLength - byteOffset) / bytesPerElement;
+                    // Step 3: If offset modulo elementSize ≠ 0, throw a RangeError.
+                    if (offset % bytesPerElement != 0)
+                    {
+                        throw ThrowRangeError(
+                            $"Start offset of {constructorName} should be a multiple of {bytesPerElement}",
+                            realm: realm);
+                    }
+
+                    // Step 5: If length is not undefined, let newLength be ? ToIndex(length).
+                    var lengthArg = args.Count > 2 ? args[2] : JsValue.Undefined;
+                    var lengthProvided = !lengthArg.IsUndefined;
+                    int newLength = 0;
+                    if (lengthProvided)
+                    {
+                        newLength = ToIndex(lengthArg, realm);
+                    }
+
+                    // Step 6: If IsDetachedBuffer(buffer), throw a TypeError.
+                    if (buffer.IsDetached)
+                    {
+                        throw ThrowTypeError("Cannot construct typed array from detached ArrayBuffer",
+                            realm: realm);
+                    }
+
+                    var bufferByteLength = buffer.ByteLength;
                     var isLengthTracking = buffer.Resizable && !lengthProvided;
 
-                    var ta = fromBuffer(buffer, byteOffset, length, isLengthTracking, realm);
+                    int byteLength;
+                    if (!lengthProvided && !buffer.Resizable)
+                    {
+                        // Step 9a: length is undefined, fixed-length buffer
+                        if (bufferByteLength % bytesPerElement != 0)
+                        {
+                            throw ThrowRangeError(
+                                "Byte length of ArrayBuffer is not a multiple of element size",
+                                realm: realm);
+                        }
+
+                        byteLength = bufferByteLength - offset;
+                        if (byteLength < 0)
+                        {
+                            throw ThrowRangeError("Start offset is outside the bounds of the buffer",
+                                realm: realm);
+                        }
+                    }
+                    else if (lengthProvided)
+                    {
+                        // Step 9b: length is defined
+                        byteLength = newLength * bytesPerElement;
+                        if (offset + byteLength > bufferByteLength)
+                        {
+                            throw ThrowRangeError("Invalid typed array length", realm: realm);
+                        }
+                    }
+                    else
+                    {
+                        // Resizable, length tracking
+                        if (offset > bufferByteLength)
+                        {
+                            throw ThrowRangeError("Start offset is outside the bounds of the buffer",
+                                realm: realm);
+                        }
+
+                        byteLength = bufferByteLength - offset;
+                    }
+
+                    var length = byteLength / bytesPerElement;
+                    var ta = fromBuffer(buffer, offset, length, isLengthTracking, realm);
                     ta.SetPrototype(ResolvePrototype(newTarget));
                     return ta;
                 }

@@ -69,20 +69,18 @@ public class DurationFormatDebugTest
     {
         var engine = new JsEngine();
 
-        // Test each pattern from the test262 non-unicode-property-names.js
+        // Test supplementary plane chars in group names
         var result = await engine.Evaluate(@"
-            var results = [];
-            try { results.push('pi=' + /(?<π>a)/.exec('bab').groups.π); } catch(e) { results.push('pi:err=' + e.message); }
-            try { results.push('dollar=' + /(?<$>a)/.exec('bab').groups.$); } catch(e) { results.push('dollar:err=' + e.message); }
-            try { results.push('under=' + /(?<_>a)/.exec('bab').groups._); } catch(e) { results.push('under:err=' + e.message); }
-            try { results.push('zwnj=' + /(?<_\u200C>a)/.exec('bab').groups._\u200C); } catch(e) { results.push('zwnj:err=' + e.message); }
-            try { results.push('kannada=' + /(?<ಠ_ಠ>a)/.exec('bab').groups.ಠ_ಠ); } catch(e) { results.push('kannada:err=' + e.message); }
-            try { results.push('esc1=' + /(?<\u0041>.)/.test('a')); } catch(e) { results.push('esc1:err=' + e.message); }
-            try { results.push('esc2=' + RegExp('(?<\u{0041}>.)').test('a')); } catch(e) { results.push('esc2:err=' + e.message); }
-            try { results.push('esc3=' + RegExp('(?<\\u0041>.)').test('a')); } catch(e) { results.push('esc3:err=' + e.message); }
-            results.join('\n');
+            var m = 'fox'.match(/(?<\u{1d453}\u{1d45c}\u{1d465}>fox)/);
+            m !== null ? 'ok' : 'null';
         ");
-        Assert.Fail($"Results:\n{result?.ToString()}");
+        Assert.Equal("ok", result?.ToString());
+
+        // Test ZWNJ in group names
+        var result2 = await engine.Evaluate(@"
+            /(?<_\u200C>a)/.exec('bab').groups._\u200C;
+        ");
+        Assert.Equal("a", result2?.ToString());
     }
 
     [Fact]

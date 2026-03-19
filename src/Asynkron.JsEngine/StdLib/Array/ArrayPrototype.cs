@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.StdLib;
 
-[JsPrototype("Array", ToStringTag = "Array", ObjectKind = PrototypeObjectKind.Array)]
+[JsPrototype("Array", ObjectKind = PrototypeObjectKind.Array)]
 [JsSymbolAlias("iterator", "values")]
 public sealed partial class ArrayPrototype
 {

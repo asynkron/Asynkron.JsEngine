@@ -6448,7 +6448,7 @@ public static class TemporalHelper
             endDate = relativeTo.Add(dateDuration);
             RejectISODate(endDate.Year, endDate.Month, endDate.Day, realm);
         }
-        catch (ArgumentException)
+        catch (Exception ex) when (ex is ArgumentException or OverflowException)
         {
             throw StandardLibrary.ThrowRangeError("Resulting date is out of valid range", realm: realm);
         }
@@ -6459,17 +6459,29 @@ public static class TemporalHelper
 
         // Step 3: Validate that the target PlainDateTime is within representable range
         // Per spec: DifferencePlainDateTimeWithTotal checks ISODateTimeWithinLimits
+        // Add24HourDaysToNormalizedTimeDuration: if |timeNs| > MaxTimeDuration, throw RangeError
+        if (BigInteger.Abs(timeNs) > MaxTimeDuration)
+            throw StandardLibrary.ThrowRangeError("Normalized time duration is out of range", realm: realm);
+
         var endTimeNs = timeNs;
         if (endTimeNs < 0)
         {
             endTimeNs += NanosecondsPerDay;
         }
-        var endHour = (int)((long)(endTimeNs / 3_600_000_000_000L) % 24);
-        var endMinute = (int)((long)(endTimeNs / 60_000_000_000L) % 60);
-        var endSecond = (int)((long)(endTimeNs / 1_000_000_000L) % 60);
-        var endMs = (int)((long)(endTimeNs / 1_000_000L) % 1000);
-        var endUs = (int)((long)(endTimeNs / 1_000L) % 1000);
-        var endNs = (int)((long)endTimeNs % 1000);
+        int endHour, endMinute, endSecond, endMs, endUs, endNs;
+        try
+        {
+            endHour = (int)((long)(endTimeNs / 3_600_000_000_000L) % 24);
+            endMinute = (int)((long)(endTimeNs / 60_000_000_000L) % 60);
+            endSecond = (int)((long)(endTimeNs / 1_000_000_000L) % 60);
+            endMs = (int)((long)(endTimeNs / 1_000_000L) % 1000);
+            endUs = (int)((long)(endTimeNs / 1_000L) % 1000);
+            endNs = (int)((long)endTimeNs % 1000);
+        }
+        catch (OverflowException)
+        {
+            throw StandardLibrary.ThrowRangeError("Time duration is out of representable range", realm: realm);
+        }
         RejectISODateTimeRange(endDate.Year, endDate.Month, endDate.Day,
             endHour, endMinute, endSecond, endMs, endUs, endNs, realm);
 

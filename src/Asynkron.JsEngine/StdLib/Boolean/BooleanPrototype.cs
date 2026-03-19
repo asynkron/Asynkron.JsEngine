@@ -7,7 +7,7 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib;
 
-[JsPrototype("Boolean", ToStringTag = "Boolean")]
+[JsPrototype("Boolean")]
 public sealed partial class BooleanPrototype
 {
     [JsHostMethod("toString", Length = 0d)]

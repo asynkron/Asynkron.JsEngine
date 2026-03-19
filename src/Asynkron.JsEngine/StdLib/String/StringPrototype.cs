@@ -14,7 +14,7 @@ using static Asynkron.JsEngine.StdLib.StringHelper;
 
 namespace Asynkron.JsEngine.StdLib;
 
-[JsPrototype("String", ToStringTag = "String")]
+[JsPrototype("String")]
 [JsMethodAlias("trimLeft", "trimStart")]
 [JsMethodAlias("trimRight", "trimEnd")]
 public sealed partial class StringPrototype

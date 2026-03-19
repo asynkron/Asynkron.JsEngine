@@ -1238,19 +1238,17 @@ public sealed partial class TypedArrayPrototype
 
             for (var i = 0; i < srcLen; i++)
             {
-                var ch = new string(str[i], 1);
-                var numValue = JsOps.ToNumber((JsValue)ch, ctx);
-                if (ctx.IsThrow)
-                {
-                    throw new ThrowSignal(ctx.FlowValue);
-                }
+                // Per spec step 20: Get(src, Pk) returns the character as a string,
+                // then step 20c/20d coerces via ToBigInt or ToNumber based on content type.
+                // SetValue handles the correct coercion for both BigInt and Number typed arrays.
+                JsValue ch = new string(str[i], 1);
 
                 if (target.IsDetachedOrOutOfBounds())
                 {
                     throw target.CreateOutOfBoundsTypeError();
                 }
 
-                target.SetValue(offset + i, JsValue.FromDouble(numValue));
+                target.SetValue(offset + i, ch);
             }
 
             return JsValue.Undefined;
@@ -1347,7 +1345,9 @@ public sealed partial class TypedArrayPrototype
     [JsHostMethod("subarray", Length = 2d)]
     private JsValue Subarray(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.subarray");
+        // Per spec: subarray does NOT throw for detached buffers at this step.
+        // It uses srcLength=0 and defers the TypeError to the species constructor.
+        var typedArray = ValidateReceiverForGetter(thisValue, "%TypedArray%.prototype.subarray");
 
         // 3. Let buffer be O.[[ViewedArrayBuffer]].
         var buffer = typedArray.Buffer;
@@ -1482,6 +1482,15 @@ public sealed partial class TypedArrayPrototype
 
     private static TypedArrayBase CreateSubarrayDefault(TypedArrayBase exemplar, JsArrayBuffer buffer, int byteOffset, int length)
     {
+        // Per spec: TypedArray constructor step 11 — throw TypeError if buffer is detached.
+        // This path bypasses the actual constructor, so we must check explicitly.
+        if (buffer.IsDetached)
+        {
+            throw StandardLibrary.ThrowTypeError(
+                "Cannot create a TypedArray on a detached ArrayBuffer",
+                realm: buffer.RealmState);
+        }
+
         var result = exemplar.CreateSubarrayView(buffer, byteOffset, length);
         if (exemplar.Prototype is not null)
         {

@@ -524,13 +524,20 @@ public sealed partial class IntlDurationFormatPrototype
                 }
             }
 
-            // Display zero numeric minutes when seconds/subseconds will be displayed
-            // Per spec: prevStyle for minutes is always hours' style (from the table row order)
+            // Display zero numeric minutes when seconds/subseconds will be displayed.
+            // Per testIntl.js reference: only when a previous numeric unit was actually displayed (needSeparator).
+            // Exception: in digital mode, use the resolved hours style (spec prevStyle) even if hours wasn't displayed.
             var displayRequired = false;
-            if (unit == "minutes")
+            if (unit == "minutes" && (needSeparator || slots.Style == "digital"))
             {
-                var hoursStyle = slots.UnitStyles["hours"];
-                if (hoursStyle is "numeric" or "2-digit")
+                var checkDisplay = needSeparator;
+                if (!checkDisplay && slots.Style == "digital")
+                {
+                    var hoursStyle = slots.UnitStyles["hours"];
+                    checkDisplay = hoursStyle is "numeric" or "2-digit";
+                }
+
+                if (checkDisplay)
                 {
                     displayRequired = slots.UnitDisplays["seconds"] == "always" ||
                                       record.Seconds != 0 ||

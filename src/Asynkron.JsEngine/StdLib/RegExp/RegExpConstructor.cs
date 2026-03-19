@@ -157,26 +157,20 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
 
     /// <summary>
     /// 7.2.8 IsRegExp ( argument ) with abrupt completion propagation.
+    /// Reads @@match property which may throw — exceptions propagate naturally.
     /// </summary>
-    private bool IsRegExpAbrupt(JsValue argument)
+    private static bool IsRegExpAbrupt(JsValue argument)
     {
         if (!argument.IsObject)
             return false;
 
         // Step 2: Let matcher be ? Get(argument, @@match).
-        var context = Realm.CreateContext();
-        if (JsOps.TryGetPropertyValue(argument, SymbolKeys.Match, out var matchValue, context))
+        // TryGetPropertyValue may throw ThrowSignal if the getter throws — that propagates naturally.
+        if (JsOps.TryGetPropertyValue(argument, SymbolKeys.Match, out var matchValue))
         {
-            if (context.IsThrow)
-                throw new ThrowSignal(context.FlowValue);
-
             // Step 3: If matcher is not undefined, return ! ToBoolean(matcher).
             if (!matchValue.IsUndefined)
                 return matchValue.IsTruthy;
-        }
-        else if (context.IsThrow)
-        {
-            throw new ThrowSignal(context.FlowValue);
         }
 
         // Step 4: If argument has a [[RegExpMatcher]] internal slot, return true.

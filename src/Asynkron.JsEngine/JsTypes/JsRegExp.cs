@@ -51,6 +51,12 @@ public sealed class JsRegExp
     /// </summary>
     private readonly Dictionary<string, string>? _groupNameMapping;
 
+    /// <summary>
+    /// Maps JS (left-to-right) group index → .NET group index.
+    /// Null if no reordering is needed.
+    /// </summary>
+    private int[]? _groupReorderMap;
+
     private Regex? _compiledRegex;
 
     public JsRegExp(string pattern, string flags = "", RealmState? realmState = null, JsObject? existingObject = null)
@@ -88,7 +94,8 @@ public sealed class JsRegExp
 
         try
         {
-            EnsureRegex();
+            var regex = EnsureRegex();
+            _groupReorderMap = BuildGroupReorderMap(regex, _normalizedPattern);
         }
         catch (ArgumentException ex)
         {
@@ -344,14 +351,30 @@ public sealed class JsRegExp
     internal JsArray CreateMatchArray(Match match, string input)
     {
         var result = new JsArray(RealmState);
-        var captureValues = new JsValue[match.Groups.Count];
+        var reorderMap = _groupReorderMap;
 
-        // Full match + capture groups.
+        // Build captureValues in .NET group order (needed by BuildGroupsObject which uses .NET group numbers).
+        var captureValues = new JsValue[match.Groups.Count];
         for (var i = 0; i < match.Groups.Count; i++)
         {
             var group = match.Groups[i];
             captureValues[i] = group.Success ? new JsValue(group.Value) : JsValue.Undefined;
-            result.Push(captureValues[i]);
+        }
+
+        // Push to result array in JS (left-to-right) order.
+        if (reorderMap is not null && reorderMap.Length <= match.Groups.Count)
+        {
+            for (var jsIdx = 0; jsIdx < reorderMap.Length; jsIdx++)
+            {
+                result.Push(captureValues[reorderMap[jsIdx]]);
+            }
+        }
+        else
+        {
+            for (var i = 0; i < match.Groups.Count; i++)
+            {
+                result.Push(captureValues[i]);
+            }
         }
 
         // Add properties for exec-style results using CreateDataProperty (DefineProperty).
@@ -440,8 +463,10 @@ public sealed class JsRegExp
     {
         var regex = EnsureRegex();
         var indices = new JsArray(RealmState);
-        var indexValues = new JsValue[match.Groups.Count];
+        var reorderMap = _groupReorderMap;
 
+        // Build indexValues in .NET order (needed by BuildIndicesGroupsObject).
+        var indexValues = new JsValue[match.Groups.Count];
         for (var i = 0; i < match.Groups.Count; i++)
         {
             var group = match.Groups[i];
@@ -451,12 +476,26 @@ public sealed class JsRegExp
                 pair.Push((double)group.Index);
                 pair.Push((double)(group.Index + group.Length));
                 indexValues[i] = JsValue.FromJsArray(pair);
-                indices.Push(indexValues[i]);
             }
             else
             {
                 indexValues[i] = JsValue.Undefined;
-                indices.Push(JsValue.Undefined);
+            }
+        }
+
+        // Push to result in JS (left-to-right) order.
+        if (reorderMap is not null && reorderMap.Length <= match.Groups.Count)
+        {
+            for (var jsIdx = 0; jsIdx < reorderMap.Length; jsIdx++)
+            {
+                indices.Push(indexValues[reorderMap[jsIdx]]);
+            }
+        }
+        else
+        {
+            for (var i = 0; i < match.Groups.Count; i++)
+            {
+                indices.Push(indexValues[i]);
             }
         }
 
@@ -510,6 +549,148 @@ public sealed class JsRegExp
         }
 
         return groups;
+    }
+
+    /// <summary>
+    /// Builds a mapping from JS (left-to-right) group indices to .NET group indices.
+    /// .NET regex numbers unnamed capturing groups before named ones, but JS numbers
+    /// all capturing groups sequentially left-to-right.
+    /// Returns null if no reordering is needed.
+    /// </summary>
+    private static int[]? BuildGroupReorderMap(Regex regex, string normalizedPattern)
+    {
+        var groupNumbers = regex.GetGroupNumbers();
+        if (groupNumbers.Length <= 1)
+        {
+            return null; // Only group 0 (full match), no capturing groups
+        }
+
+        // Walk the normalized pattern to find all capturing groups in left-to-right order.
+        // Each entry is: null for unnamed group, or the group name for named groups.
+        var groupsInOrder = new List<string?>();
+        var i = 0;
+        var escaped = false;
+        var inCharClass = false;
+
+        while (i < normalizedPattern.Length)
+        {
+            var c = normalizedPattern[i];
+
+            if (escaped)
+            {
+                escaped = false;
+                i++;
+                continue;
+            }
+
+            if (c == '\\')
+            {
+                escaped = true;
+                i++;
+                continue;
+            }
+
+            if (c == '[' && !inCharClass)
+            {
+                inCharClass = true;
+                i++;
+                continue;
+            }
+
+            if (c == ']' && inCharClass)
+            {
+                inCharClass = false;
+                i++;
+                continue;
+            }
+
+            if (inCharClass)
+            {
+                i++;
+                continue;
+            }
+
+            if (c == '(' && i + 1 < normalizedPattern.Length)
+            {
+                if (normalizedPattern[i + 1] == '?')
+                {
+                    if (i + 2 < normalizedPattern.Length && normalizedPattern[i + 2] == '<'
+                        && i + 3 < normalizedPattern.Length
+                        && normalizedPattern[i + 3] != '=' && normalizedPattern[i + 3] != '!')
+                    {
+                        // Named group (?<name>...)
+                        var end = normalizedPattern.IndexOf('>', i + 3);
+                        if (end != -1)
+                        {
+                            var name = normalizedPattern.Substring(i + 3, end - (i + 3));
+                            groupsInOrder.Add(name);
+                            i = end + 1;
+                            continue;
+                        }
+                    }
+
+                    // Non-capturing (?:...) or lookahead/lookbehind — skip, not a capturing group
+                    i += 2;
+                    continue;
+                }
+
+                // Unnamed capturing group (...)
+                groupsInOrder.Add(null);
+                i++;
+                continue;
+            }
+
+            i++;
+        }
+
+        if (groupsInOrder.Count == 0)
+        {
+            return null;
+        }
+
+        // Compute .NET group numbers for each group in left-to-right order.
+        // In .NET: unnamed groups are numbered 1, 2, 3... in left-to-right order (among unnamed),
+        // then named groups get higher numbers.
+        var netNumbers = new int[groupsInOrder.Count];
+        var unnamedCounter = 0;
+        var needsReorder = false;
+
+        for (var j = 0; j < groupsInOrder.Count; j++)
+        {
+            if (groupsInOrder[j] is null)
+            {
+                // Unnamed group — .NET numbers these sequentially starting at 1
+                unnamedCounter++;
+                netNumbers[j] = unnamedCounter;
+            }
+            else
+            {
+                // Named group — use regex to get the .NET group number
+                netNumbers[j] = regex.GroupNumberFromName(groupsInOrder[j]!);
+            }
+
+            // Check if JS index (j+1) differs from .NET index
+            if (netNumbers[j] != j + 1)
+            {
+                needsReorder = true;
+            }
+        }
+
+        if (!needsReorder)
+        {
+            return null;
+        }
+
+        // Build the reorder map: map[jsIndex] = netIndex
+        // map[0] = 0 (full match always maps to itself)
+        var map = new int[groupsInOrder.Count + 1];
+        map[0] = 0;
+        for (var j = 0; j < groupsInOrder.Count; j++)
+        {
+            map[j + 1] = netNumbers[j];
+        }
+
+        return map;
     }
 
     private static string NormalizePattern(string pattern, bool hasUnicodeFlag, bool ignoreCase, bool dotAll)

@@ -1286,7 +1286,9 @@ public sealed partial class TypedArrayPrototype
             throw ThrowRangeError("offset is out of bounds", realm: Realm);
         }
 
-        // 9. Set each element
+        // 9. Set each element.
+        // Per spec, use target.SetValue which applies the correct coercion:
+        // ToBigInt for BigInt typed arrays, ToNumber for numeric typed arrays.
         for (var i = 0; i < srcLen; i++)
         {
             var key = i.ToString(CultureInfo.InvariantCulture);
@@ -1295,23 +1297,7 @@ public sealed partial class TypedArrayPrototype
                 value = JsValue.Undefined;
             }
 
-            // ToNumber / ToBigInt conversion
-            var numValue = JsOps.ToNumber(value, ctx);
-            if (ctx.IsThrow)
-            {
-                throw new ThrowSignal(ctx.FlowValue);
-            }
-
-            if (target.IsDetachedOrOutOfBounds())
-            {
-                // Per spec: detached during iteration is not an error for array-arg
-                return JsValue.Undefined;
-            }
-
-            if (offset + i < target.Length)
-            {
-                target.SetValue(offset + i, JsValue.FromDouble(numValue));
-            }
+            target.SetValue(offset + i, value);
         }
 
         return JsValue.Undefined;

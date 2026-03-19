@@ -762,9 +762,24 @@ public static class TemporalHelper
             return new JsValue(duration.ToString());
         });
 
-        AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, _) =>
+        AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, args) =>
         {
-            // Basic implementation - returns ISO 8601 duration string
+            // Per spec: Temporal.Duration.prototype.toLocaleString delegates to Intl.DurationFormat
+            var localeArg = args.GetArgument(0);
+            var optionsArg = args.GetArgument(1);
+
+            // Create a DurationFormat and use it to format this duration
+            // Must invoke as constructor (with newTarget) to avoid "requires 'new'" check
+            var dfCtor = Intl.IntlDurationFormatConstructor.CreateConstructor(realm);
+            var dfInstance = dfCtor.InvokeWithContext([localeArg, optionsArg], JsValue.Undefined, null, dfCtor.AsJsValue);
+            if (dfInstance.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
+                accessor.TryGetProperty("format", out var formatVal) &&
+                formatVal.TryGetObject<IJsCallable>(out var formatFn))
+            {
+                return formatFn.Invoke(new SingleValueArgs(thisValue), dfInstance);
+            }
+
+            // Fallback: ISO 8601 string
             var duration = GetDuration(thisValue);
             return new JsValue(duration.ToString());
         });
@@ -2849,20 +2864,22 @@ public static class TemporalHelper
                 return WrapZonedDateTime(zdt, realm, prototype);
             }
 
-            // Object / property bag path
-            if (item.Kind == JsValueKind.Object)
+            // Non-string primitives → TypeError
+            if (item.IsUndefined || item.IsNull || item.IsBoolean || item.IsNumber || item.IsSymbol || item.IsBigInt)
+                throw StandardLibrary.ThrowTypeError("Cannot convert to Temporal.ZonedDateTime", realm: realm);
+
+            // Property bag: per spec, read fields FIRST in alphabetical order, THEN options
+            if (item.TryGetObject<IJsPropertyAccessor>(out var accessor))
             {
-                var resolvedOpts = ValidateOptionsObject(options, realm, "Temporal.ZonedDateTime.from");
-                var disambiguation = GetTemporalStringOption(resolvedOpts, "disambiguation", DisambiguationValues, "compatible", realm);
-                var offsetOption = GetTemporalStringOption(resolvedOpts, "offset", OffsetOptionValues, "reject", realm);
-                var overflow = GetTemporalOverflowOption(resolvedOpts, realm);
-                var zdt = ToTemporalZonedDateTime(item, realm, offsetOption, disambiguation, overflow);
+                var zdt = ToTemporalZonedDateTimeFromPropertyBagWithOptions(accessor, options, realm, prototype);
                 return WrapZonedDateTime(zdt, realm, prototype);
             }
 
-            // Non-object, non-string
-            var zdt2 = ToTemporalZonedDateTime(item, realm);
-            return WrapZonedDateTime(zdt2, realm, prototype);
+            // Object without property accessor
+            if (item.Kind == JsValueKind.Object)
+                throw StandardLibrary.ThrowTypeError("Cannot convert to Temporal.ZonedDateTime: object has no date properties", realm: realm);
+
+            throw StandardLibrary.ThrowTypeError("Cannot convert to Temporal.ZonedDateTime", realm: realm);
         });
         ctor.DefineProperty("from",
             new PropertyDescriptor { Value = from, Writable = true, Enumerable = false, Configurable = true });
@@ -7798,6 +7815,164 @@ public static class TemporalHelper
         return new JsTemporalPlainMonthDay(month, day);
     }
 
+    /// <summary>
+    /// For ZonedDateTime.from() property bag path: reads ALL fields in spec-required alphabetical order,
+    /// THEN reads options, then builds the ZonedDateTime.
+    /// </summary>
+    private static JsTemporalZonedDateTime ToTemporalZonedDateTimeFromPropertyBagWithOptions(
+        IJsPropertyAccessor accessor, JsValue options, RealmState realm, JsObject prototype)
+    {
+        // Per spec, read ALL properties in alphabetical order for observable behavior:
+        // calendar, day, hour, microsecond, millisecond, minute, month, monthCode,
+        // nanosecond, offset, second, timeZone, year
+
+        // 1. calendar
+        var calendarId = "iso8601";
+        if (accessor.TryGetProperty("calendar", out var calVal) && !calVal.IsUndefined)
+            calendarId = CanonicalizeCalendarId(ResolveTemporalCalendarId(calVal, realm));
+
+        // 2. day (required)
+        if (!accessor.TryGetProperty("day", out var dayVal) || dayVal.IsUndefined)
+            throw StandardLibrary.ThrowTypeError("Property bag for ZonedDateTime must have 'day'", realm: realm);
+        var day = ToIntegerWithTruncation(dayVal, realm);
+
+        // 3. hour
+        var hour = GetOptionalIntProperty(accessor, "hour", realm);
+
+        // 4. microsecond
+        var microsecond = GetOptionalIntProperty(accessor, "microsecond", realm);
+
+        // 5. millisecond
+        var millisecond = GetOptionalIntProperty(accessor, "millisecond", realm);
+
+        // 6. minute
+        var minute = GetOptionalIntProperty(accessor, "minute", realm);
+
+        // 7. month — eagerly convert to trigger valueOf for observable order
+        accessor.TryGetProperty("month", out var monthVal);
+        var hasMonth = !monthVal.IsUndefined;
+        int monthInt = 0;
+        if (hasMonth)
+            monthInt = ToIntegerWithTruncation(monthVal, realm);
+
+        // 8. monthCode
+        accessor.TryGetProperty("monthCode", out var monthCodeVal);
+        var hasMonthCode = !monthCodeVal.IsUndefined;
+        string? monthCodeStr = null;
+        if (hasMonthCode)
+        {
+            monthCodeStr = JsOps.ToJsString(monthCodeVal);
+            ValidateMonthCodeSyntax(monthCodeStr, realm);
+        }
+
+        // 9. nanosecond
+        var nanosecond = GetOptionalIntProperty(accessor, "nanosecond", realm);
+
+        // 10. offset (toString)
+        accessor.TryGetProperty("offset", out var offsetPropertyVal);
+        string? offsetStr = null;
+        if (!offsetPropertyVal.IsUndefined)
+            offsetStr = JsOps.ToJsString(offsetPropertyVal);
+
+        // 11. second
+        var second = GetOptionalIntProperty(accessor, "second", realm);
+
+        // 12. timeZone (required)
+        if (!accessor.TryGetProperty("timeZone", out var tzVal) || tzVal.IsUndefined)
+            throw StandardLibrary.ThrowTypeError("Property bag for ZonedDateTime must have 'timeZone'", realm: realm);
+        var timeZoneId = ToTemporalTimeZoneIdentifier(tzVal, realm);
+
+        // 13. year (required)
+        if (!accessor.TryGetProperty("year", out var yearVal) || yearVal.IsUndefined)
+            throw StandardLibrary.ThrowTypeError("Property bag for ZonedDateTime must have 'year'", realm: realm);
+        var year = ToIntegerWithTruncation(yearVal, realm);
+
+        // Resolve month from month/monthCode
+        if (!hasMonth && !hasMonthCode)
+            throw StandardLibrary.ThrowTypeError("Property bag for ZonedDateTime must have 'month' or 'monthCode'", realm: realm);
+
+        int month;
+        if (hasMonthCode)
+        {
+            month = ResolveISOMonthCode(monthCodeStr!, realm);
+            if (hasMonth)
+            {
+                if (monthInt != month)
+                    throw StandardLibrary.ThrowRangeError("month and monthCode must agree", realm: realm);
+            }
+        }
+        else
+        {
+            month = monthInt;
+        }
+
+        // NOW read options (after all fields)
+        var resolvedOpts = ValidateOptionsObject(options, realm, "Temporal.ZonedDateTime.from");
+        var disambiguation = GetTemporalStringOption(resolvedOpts, "disambiguation", DisambiguationValues, "compatible", realm);
+        var offsetOption = GetTemporalStringOption(resolvedOpts, "offset", OffsetOptionValues, "reject", realm);
+        var overflow = GetTemporalOverflowOption(resolvedOpts, realm);
+
+        // Apply overflow to date
+        if (month < 1)
+            throw StandardLibrary.ThrowRangeError($"Month {month} is out of range", realm: realm);
+        if (day < 1)
+            throw StandardLibrary.ThrowRangeError($"Day {day} is out of range", realm: realm);
+
+        if (string.Equals(overflow, "reject", StringComparison.Ordinal))
+        {
+            if (month > 12)
+                throw StandardLibrary.ThrowRangeError($"Month {month} is out of range", realm: realm);
+            var maxDay = IsoCalendarHelpers.DaysInMonth(year is >= 1 and <= 9999 ? year : 2000, month);
+            if (day > maxDay)
+                throw StandardLibrary.ThrowRangeError($"Day {day} is out of range for month {month}", realm: realm);
+            RejectISOTime(hour, minute, second, millisecond, microsecond, nanosecond, realm);
+        }
+        else
+        {
+            // Constrain
+            month = Math.Min(month, 12);
+            var maxDay = IsoCalendarHelpers.DaysInMonth(year is >= 1 and <= 9999 ? year : 2000, month);
+            day = Math.Min(day, maxDay);
+            hour = Math.Clamp(hour, 0, 23);
+            minute = Math.Clamp(minute, 0, 59);
+            second = Math.Clamp(second, 0, 59);
+            millisecond = Math.Clamp(millisecond, 0, 999);
+            microsecond = Math.Clamp(microsecond, 0, 999);
+            nanosecond = Math.Clamp(nanosecond, 0, 999);
+        }
+
+        RejectISODate(year, month, day, realm);
+
+        // Handle offset from property bag
+        if (offsetStr != null)
+        {
+            if (string.Equals(offsetOption, "reject", StringComparison.Ordinal))
+            {
+                // Validate offset matches timezone
+                var offsetNanos = ParseOffsetString(offsetStr, realm);
+                var tz = JsTemporalZonedDateTime.ResolveTimeZone(timeZoneId, out var fixedOff);
+                TimeSpan tzOffset;
+                if (fixedOff.HasValue)
+                {
+                    tzOffset = fixedOff.Value;
+                }
+                else
+                {
+                    var approxLocal = new DateTime(
+                        Math.Clamp(year, 1, 9999), month, day,
+                        hour, minute, second, millisecond, microsecond);
+                    tzOffset = tz.GetUtcOffset(approxLocal);
+                }
+                var tzOffsetNanos = tzOffset.Ticks * 100L;
+                if (offsetNanos != tzOffsetNanos)
+                    throw StandardLibrary.ThrowRangeError("Offset does not match the time zone", realm: realm);
+            }
+        }
+
+        return new JsTemporalZonedDateTime(year, month, day, hour, minute, second,
+            millisecond, microsecond, nanosecond, timeZoneId, calendarId);
+    }
+
     private static JsTemporalPlainDate ParseTemporalPlainDateString(string str, RealmState realm)
     {
         if (string.IsNullOrEmpty(str))
@@ -9477,38 +9652,87 @@ public static class TemporalHelper
                 return zonedDateTime;
         }
 
-        // 4. Property bag
+        // 4. Property bag — read ALL fields in alphabetical order for observable behavior
         if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
-            // Validate calendar if present, resolve to canonical ID
+            // Read ALL properties in alphabetical order:
+            // calendar, day, hour, microsecond, millisecond, minute, month, monthCode,
+            // nanosecond, offset, second, timeZone, year
+
             var calendarId = "iso8601";
             if (accessor.TryGetProperty("calendar", out var calVal) && !calVal.IsUndefined)
-            {
                 calendarId = CanonicalizeCalendarId(ResolveTemporalCalendarId(calVal, realm));
+
+            if (!accessor.TryGetProperty("day", out var dayVal) || dayVal.IsUndefined)
+                throw StandardLibrary.ThrowTypeError("Property bag for ZonedDateTime must have 'day'", realm: realm);
+            var day = ToIntegerWithTruncation(dayVal, realm);
+
+            var hour = GetOptionalIntProperty(accessor, "hour", realm);
+            var microsecond = GetOptionalIntProperty(accessor, "microsecond", realm);
+            var millisecond = GetOptionalIntProperty(accessor, "millisecond", realm);
+            var minute = GetOptionalIntProperty(accessor, "minute", realm);
+
+            accessor.TryGetProperty("month", out var monthVal);
+            var hasMonth = !monthVal.IsUndefined;
+            int monthInt = 0;
+            if (hasMonth) monthInt = ToIntegerWithTruncation(monthVal, realm);
+
+            accessor.TryGetProperty("monthCode", out var monthCodeVal);
+            var hasMonthCode = !monthCodeVal.IsUndefined;
+            string? monthCodeStr = null;
+            if (hasMonthCode)
+            {
+                monthCodeStr = JsOps.ToJsString(monthCodeVal);
+                ValidateMonthCodeSyntax(monthCodeStr, realm);
             }
 
-            // TimeZone is required for ZonedDateTime property bags
+            var nanosecond = GetOptionalIntProperty(accessor, "nanosecond", realm);
+
+            accessor.TryGetProperty("offset", out var offsetVal);
+            string? offsetStr = null;
+            if (!offsetVal.IsUndefined) offsetStr = JsOps.ToJsString(offsetVal);
+
+            var second = GetOptionalIntProperty(accessor, "second", realm);
+
             if (!accessor.TryGetProperty("timeZone", out var tzVal) || tzVal.IsUndefined)
                 throw StandardLibrary.ThrowTypeError("Property bag for ZonedDateTime must have 'timeZone'", realm: realm);
             var timeZoneId = ToTemporalTimeZoneIdentifier(tzVal, realm);
 
-            // Read date fields (respects overflow option)
-            var date = ToTemporalPlainDateFromPropertyBagWithOverflow(accessor, overflowOption, realm);
+            if (!accessor.TryGetProperty("year", out var yearVal) || yearVal.IsUndefined)
+                throw StandardLibrary.ThrowTypeError("Property bag for ZonedDateTime must have 'year'", realm: realm);
+            var year = ToIntegerWithTruncation(yearVal, realm);
 
-            // Read time fields
-            var hour = GetOptionalIntProperty(accessor, "hour", realm);
-            var minute = GetOptionalIntProperty(accessor, "minute", realm);
-            var second = GetOptionalIntProperty(accessor, "second", realm);
-            var millisecond = GetOptionalIntProperty(accessor, "millisecond", realm);
-            var microsecond = GetOptionalIntProperty(accessor, "microsecond", realm);
-            var nanosecond = GetOptionalIntProperty(accessor, "nanosecond", realm);
+            // Resolve month
+            if (!hasMonth && !hasMonthCode)
+                throw StandardLibrary.ThrowTypeError("Property bag for ZonedDateTime must have 'month' or 'monthCode'", realm: realm);
+            int month;
+            if (hasMonthCode)
+            {
+                month = ResolveISOMonthCode(monthCodeStr!, realm);
+                if (hasMonth && monthInt != month)
+                    throw StandardLibrary.ThrowRangeError("month and monthCode must agree", realm: realm);
+            }
+            else
+            {
+                month = monthInt;
+            }
+
+            // Apply overflow
+            if (month < 1) throw StandardLibrary.ThrowRangeError($"Month {month} is out of range", realm: realm);
+            if (day < 1) throw StandardLibrary.ThrowRangeError($"Day {day} is out of range", realm: realm);
 
             if (string.Equals(overflowOption, "reject", StringComparison.Ordinal))
             {
+                if (month > 12) throw StandardLibrary.ThrowRangeError($"Month {month} is out of range", realm: realm);
+                var maxDay = IsoCalendarHelpers.DaysInMonth(year is >= 1 and <= 9999 ? year : 2000, month);
+                if (day > maxDay) throw StandardLibrary.ThrowRangeError($"Day {day} is out of range for month {month}", realm: realm);
                 RejectISOTime(hour, minute, second, millisecond, microsecond, nanosecond, realm);
             }
             else
             {
+                month = Math.Min(month, 12);
+                var maxDay = IsoCalendarHelpers.DaysInMonth(year is >= 1 and <= 9999 ? year : 2000, month);
+                day = Math.Min(day, maxDay);
                 hour = Math.Clamp(hour, 0, 23);
                 minute = Math.Clamp(minute, 0, 59);
                 second = Math.Clamp(second, 0, 59);
@@ -9517,13 +9741,13 @@ public static class TemporalHelper
                 nanosecond = Math.Clamp(nanosecond, 0, 999);
             }
 
+            RejectISODate(year, month, day, realm);
+
             // Handle offset from property bag
-            if (accessor.TryGetProperty("offset", out var offsetVal) && !offsetVal.IsUndefined)
+            if (offsetStr != null)
             {
-                var offsetStr = JsOps.ToJsString(offsetVal);
                 if (string.Equals(offsetOption, "reject", StringComparison.Ordinal))
                 {
-                    // Validate offset matches timezone
                     var offsetNanos = ParseOffsetString(offsetStr, realm);
                     var tz = JsTemporalZonedDateTime.ResolveTimeZone(timeZoneId, out var fixedOff);
                     TimeSpan tzOffset;
@@ -9534,7 +9758,7 @@ public static class TemporalHelper
                     else
                     {
                         var approxLocal = new DateTime(
-                            Math.Clamp(date.Year, 1, 9999), date.Month, date.Day,
+                            Math.Clamp(year, 1, 9999), month, day,
                             hour, minute, second, millisecond, microsecond);
                         tzOffset = tz.GetUtcOffset(approxLocal);
                     }
@@ -9544,7 +9768,7 @@ public static class TemporalHelper
                 }
             }
 
-            return new JsTemporalZonedDateTime(date.Year, date.Month, date.Day, hour, minute, second,
+            return new JsTemporalZonedDateTime(year, month, day, hour, minute, second,
                 millisecond, microsecond, nanosecond, timeZoneId, calendarId);
         }
 

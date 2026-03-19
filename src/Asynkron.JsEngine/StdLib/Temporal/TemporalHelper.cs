@@ -7096,6 +7096,59 @@ public static class TemporalHelper
         return negative ? -result : result;
     }
 
+    /// <summary>
+    ///     Computes 𝔽(numerator / divisor) — the correctly-rounded IEEE 754 float64
+    ///     of the exact mathematical ratio of two BigIntegers. Uses scaled integer
+    ///     division with guard and sticky bits for round-to-nearest-even.
+    /// </summary>
+    private static double DivideToDouble(BigInteger numerator, BigInteger divisor)
+    {
+        if (numerator.IsZero)
+            return 0.0;
+
+        // Fast path: when both fit in double exactly (abs < 2^53), use direct division.
+        // This is a single IEEE 754 operation — correctly rounded by definition.
+        // Values > 2^53 lose precision when cast to double, so they must use BigInteger.
+        const long doubleSafeLimit = 1L << 53;
+        if (numerator > -doubleSafeLimit && numerator < doubleSafeLimit &&
+            divisor > -doubleSafeLimit && divisor < doubleSafeLimit)
+        {
+            return (double)(long)numerator / (double)(long)divisor;
+        }
+
+        var negative = (numerator < 0) != (divisor < 0);
+        var absNum = BigInteger.Abs(numerator);
+        var absDen = BigInteger.Abs(divisor);
+
+        var q = BigInteger.DivRem(absNum, absDen, out var r);
+
+        // Exact division: use BigIntegerToDouble for correct rounding
+        if (r.IsZero)
+        {
+            var exact = BigIntegerToDouble(q);
+            return negative ? -exact : exact;
+        }
+
+        // Scale numerator by 2^64 to get enough precision bits in the quotient.
+        // Since the numerator exceeds long range (>= 2^63), the mathematical quotient
+        // is large enough (>= 2^63 / maxDivisor >> 1) that 64 extra bits in the scaled
+        // quotient provide sufficient guard/sticky bits for correct rounding.
+        // Division by 2^64 is exact in float64 (just adjusts the exponent).
+        const int scale = 64;
+        var scaledQ = BigInteger.DivRem(absNum << scale, absDen, out var scaledR);
+
+        // If scaled remainder is non-zero, the true value is strictly between
+        // scaledQ and scaledQ+1. Set LSB to ensure the sticky bit in
+        // BigIntegerToDouble is non-zero, preventing incorrect tie-breaking.
+        if (!scaledR.IsZero)
+            scaledQ |= 1;
+
+        var scaledResult = BigIntegerToDouble(scaledQ);
+        scaledResult /= Math.Pow(2.0, scale);
+
+        return negative ? -scaledResult : scaledResult;
+    }
+
     // ==========================================
     // Duration.prototype.total / round helpers
     // ==========================================
@@ -7356,13 +7409,11 @@ public static class TemporalHelper
             {
                 // Validate: compute target epoch ns
                 ValidateZonedDateTimeAdd(zonedDateTimeRelativeTo, duration, realm);
-                // Use precise simple calculation
+                // Use precise simple calculation with single-rounding
                 var totalNs = DurationToTotalNanoseconds(duration.Days, duration.Hours, duration.Minutes,
                     duration.Seconds, duration.Milliseconds, duration.Microseconds, duration.Nanoseconds);
                 var unitNs = new BigInteger(GetUnitNanoseconds(unit));
-                var quotient = totalNs / unitNs;
-                var remainder = totalNs % unitNs;
-                return (double)quotient + (double)remainder / (double)unitNs;
+                return DivideToDouble(totalNs, unitNs);
             }
             return TotalDurationRelativeToZonedDateTime(duration, unit, zonedDateTimeRelativeTo, realm);
         }
@@ -7375,11 +7426,7 @@ public static class TemporalHelper
                 duration.Seconds, duration.Milliseconds, duration.Microseconds, duration.Nanoseconds);
 
             var unitNs = new BigInteger(GetUnitNanoseconds(unit));
-            // Use quotient+remainder to preserve double precision:
-            // integer division truncates, so we split into whole + fraction
-            var quotient = totalNs / unitNs;
-            var remainder = totalNs % unitNs;
-            return (double)quotient + (double)remainder / (double)unitNs;
+            return DivideToDouble(totalNs, unitNs);
         }
 
         // Calendar-aware path: need relativeTo
@@ -7562,9 +7609,7 @@ public static class TemporalHelper
             var endEpochNs = AddZonedDateTimeEpochNs(relativeTo, duration, realm);
             var diffNs = endEpochNs - relativeTo.Instant.EpochNanoseconds;
             var unitNs = new BigInteger(GetUnitNanoseconds(unit));
-            var q = diffNs / unitNs;
-            var r = diffNs % unitNs;
-            return (double)q + (double)r / (double)unitNs;
+            return DivideToDouble(diffNs, unitNs);
         }
 
         if (string.Equals(unit, "day", StringComparison.Ordinal))
@@ -7572,7 +7617,7 @@ public static class TemporalHelper
             // For day unit with ZDT, use epoch nanoseconds / nsPerDay for DST-aware day length
             var endEpochNs = AddZonedDateTimeEpochNs(relativeTo, duration, realm);
             var diffNs = endEpochNs - relativeTo.Instant.EpochNanoseconds;
-            return BigIntegerToDouble(diffNs) / (double)NanosecondsPerDay;
+            return DivideToDouble(diffNs, NanosecondsPerDay);
         }
 
         // For calendar units (week/month/year), validate the target epoch ns, then use PlainDate logic

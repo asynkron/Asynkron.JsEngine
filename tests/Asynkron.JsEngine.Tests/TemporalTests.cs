@@ -668,4 +668,31 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
         var r3 = await engine.Evaluate("Temporal.PlainMonthDay.from('01-15').monthCode");
         Assert.Equal("M01", r3);
     }
+
+    [Fact]
+    public async Task Debug_Total_Precision()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            var results = [];
+
+            // precision-1: hours + nanoseconds
+            var d0 = Temporal.Duration.from({hours: 4000, nanoseconds: 1});
+            var actual0 = d0.total({unit: 'hours'});
+            results.push('p1:' + (actual0 === 4000.0000000000005));
+
+            // precision-5: seconds + microseconds
+            var d2 = new Temporal.Duration(0, 0, 0, 0, 0, 0, 8692288669465520, 0, 373761);
+            var actual2 = d2.total({unit: 'microseconds'});
+            var expected2 = Number(BigInt(8692288669465520) * 1_000_000n + BigInt(373761));
+            results.push('p5:' + (actual2 === expected2));
+
+            // precision-7: small values
+            var d3 = Temporal.Duration.from({seconds: 0, milliseconds: 10});
+            results.push('p7:' + (d3.total('seconds') === 0.01));
+
+            results.join(',');
+        ");
+        Assert.Equal("p1:true,p5:true,p7:true", result);
+    }
 }

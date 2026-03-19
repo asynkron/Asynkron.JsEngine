@@ -184,7 +184,23 @@ public static class TypedArrayHelper
 
         T CreateTargetFromLength(int length, JsValue newTarget)
         {
-            var target = fromLength(length, realm);
+            // Guard against excessive lengths that would overflow when multiplied by bytesPerElement
+            if (length > 0 && (long)length * bytesPerElement > int.MaxValue)
+            {
+                throw ThrowRangeError("Invalid typed array length", realm: realm);
+            }
+
+            T target;
+            try
+            {
+                target = fromLength(length, realm);
+            }
+            catch (OutOfMemoryException)
+            {
+                // Per spec: If it is not possible to create the Data Block, throw a RangeError.
+                throw ThrowRangeError("Invalid typed array length", realm: realm);
+            }
+
             target.SetPrototype(ResolvePrototype(newTarget));
             return target;
         }
@@ -206,14 +222,6 @@ public static class TypedArrayHelper
             // Per spec: if Type(firstArg) is Object, handle as typed array / array / buffer / object
             if (firstArg.Kind == JsValueKind.Object)
             {
-                // TypedArray(array)
-                if (firstArg.TryGetObject<JsArray>(out var array))
-                {
-                    var ta = fromArray(array, realm);
-                    ta.SetPrototype(ResolvePrototype(newTarget));
-                    return ta;
-                }
-
                 // TypedArray(typedArray)
                 if (firstArg.TryGetObject<TypedArrayBase>(out var srcTypedArray))
                 {
@@ -347,7 +355,98 @@ public static class TypedArrayHelper
                     return ta;
                 }
 
-                // TypedArray(object) - use array-like or iterable protocol
+                // TypedArray(object) — per spec 23.2.5.1.4 InitializeTypedArrayFromList / 23.2.5.1.3 InitializeTypedArrayFromArrayLike
+                // Step 1: Let usingIterator be ? GetMethod(object, @@iterator).
+                if (firstArg.TryGetObject<IJsPropertyAccessor>(out var objAccessor))
+                {
+                    var iteratorKey = Ast.SymbolKeys.Iterator;
+                    // GetMethod: Get the property. If it exists and is not null/undefined, it must be callable.
+                    if (objAccessor.TryGetProperty(iteratorKey, out var iterMethodVal) &&
+                        !iterMethodVal.IsUndefined && !iterMethodVal.IsNull)
+                    {
+                        // Step 1a: If usingIterator is not callable, throw TypeError.
+                        if (!iterMethodVal.TryGetObject<IJsCallable>(out var callableIterator))
+                        {
+                            throw ThrowTypeError("@@iterator method is not callable", realm: realm);
+                        }
+
+                        // Step 1b: Let values be ? IterableToList(object, usingIterator).
+                        var iteratorObj = callableIterator.Invoke([], firstArg);
+                        if (!iteratorObj.TryGetObject<IJsPropertyAccessor>(out var iteratorAccessor))
+                        {
+                            throw ThrowTypeError("Iterator method did not return an object", realm: realm);
+                        }
+
+                        if (!iteratorAccessor.TryGetProperty("next", out var nextVal) ||
+                            !nextVal.TryGetObject<IJsCallable>(out var nextCallable))
+                        {
+                            throw ThrowTypeError("Iterator result does not expose next", realm: realm);
+                        }
+
+                        var collected = new List<JsValue>();
+                        while (true)
+                        {
+                            var nextResult = nextCallable.Invoke([], iteratorObj);
+                            if (!nextResult.TryGetObject<IJsPropertyAccessor>(out var nextResultAccessor))
+                            {
+                                throw ThrowTypeError("Iterator result is not an object", realm: realm);
+                            }
+
+                            var done = nextResultAccessor.TryGetProperty("done", out var doneVal) &&
+                                       JsOps.ToBoolean(doneVal);
+                            if (done)
+                            {
+                                break;
+                            }
+
+                            var value = nextResultAccessor.TryGetProperty("value", out var valueVal)
+                                ? valueVal
+                                : JsValue.Undefined;
+                            collected.Add(value);
+                        }
+
+                        // InitializeTypedArrayFromList: create array of collected length, then set values
+                        var ta = CreateTargetFromLength(collected.Count, newTarget);
+                        for (var i = 0; i < collected.Count; i++)
+                        {
+                            ta.SetValue(i, collected[i]);
+                        }
+
+                        return ta;
+                    }
+
+                    // Step 2: No iterator (undefined/null) — use array-like path.
+                    // Let arrayLike be object. Let len be ? ToLength(? Get(arrayLike, "length")).
+                    if (!objAccessor.TryGetProperty("length", out var lengthVal))
+                    {
+                        lengthVal = JsValue.Undefined;
+                    }
+
+                    // ToLength: ToIntegerOrInfinity then clamp to [0, 2^53-1]
+                    var rawLen = JsOps.ToNumber(lengthVal);
+                    double lenNumber;
+                    if (double.IsNaN(rawLen) || rawLen <= 0)
+                    {
+                        lenNumber = 0;
+                    }
+                    else
+                    {
+                        lenNumber = Math.Min(Math.Floor(rawLen), 9007199254740991.0); // 2^53-1
+                    }
+
+                    var arrLen = (int)Math.Min(lenNumber, int.MaxValue);
+
+                    var taFromArrayLike = CreateTargetFromLength(arrLen, newTarget);
+                    for (var i = 0; i < arrLen; i++)
+                    {
+                        var key = i.ToString(CultureInfo.InvariantCulture);
+                        var hasElement = objAccessor.TryGetProperty(key, out var element);
+                        taFromArrayLike.SetValue(i, hasElement ? element : JsValue.Undefined);
+                    }
+
+                    return taFromArrayLike;
+                }
+
                 return CreateTargetFromLength(0, newTarget);
             }
 

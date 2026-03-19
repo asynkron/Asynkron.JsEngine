@@ -3,35 +3,10 @@
 FQN:
 `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set`
 
-Full test name:
+Remaining failures (TypedArray [[Set]] prototype chain behavior):
 
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/detached-buffer.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/detached-buffer.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/indexed-value.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/indexed-value.js",True)
+## prototype-chain-set (setting through prototype chain should throw TypeError in strict mode)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/key-is-canonical-invalid-index-prototype-chain-set.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/key-is-canonical-invalid-index-prototype-chain-set.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/key-is-canonical-invalid-index-reflect-set.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/key-is-canonical-invalid-index-reflect-set.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/key-is-minus-zero.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/key-is-minus-zero.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/key-is-not-canonical-index.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/key-is-not-canonical-index.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/key-is-not-integer.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/key-is-not-integer.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/key-is-out-of-bounds-receiver-is-not-object.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/key-is-out-of-bounds-receiver-is-not-object.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/key-is-out-of-bounds-receiver-is-proto.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/key-is-out-of-bounds-receiver-is-proto.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/key-is-out-of-bounds.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/key-is-out-of-bounds.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/key-is-valid-index-prototype-chain-set.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/key-is-valid-index-prototype-chain-set.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/key-is-valid-index-reflect-set.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/key-is-valid-index-reflect-set.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/resized-out-of-bounds-to-in-bounds-index.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/resized-out-of-bounds-to-in-bounds-index.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/tonumber-value-detached-buffer.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/tonumber-value-detached-buffer.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/tonumber-value-throws.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.TypedArrayConstructors_internals_Set("built-ins/TypedArrayConstructors/internals/Set/tonumber-value-throws.js",True)

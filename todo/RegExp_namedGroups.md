@@ -3,8 +3,10 @@
 FQN:
 `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_namedGroups`
 
-Full test name:
+Remaining failures: 14 (62/76 passing)
 
+## Duplicate named groups (ES2025 regexp-duplicate-named-groups feature) — 12 tests
+.NET Regex does not support duplicate named capturing groups in alternatives.
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_namedGroups("built-ins/RegExp/named-groups/duplicate-names-exec.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_namedGroups("built-ins/RegExp/named-groups/duplicate-names-exec.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_namedGroups("built-ins/RegExp/named-groups/duplicate-names-match.js",False)
@@ -17,13 +19,7 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_namedGroups("built-ins/RegExp/named-groups/duplicate-names-replaceall.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_namedGroups("built-ins/RegExp/named-groups/duplicate-names-split.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_namedGroups("built-ins/RegExp/named-groups/duplicate-names-split.js",True)
+
+## Lookbehind with named groups — 2 tests
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_namedGroups("built-ins/RegExp/named-groups/lookbehind.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_namedGroups("built-ins/RegExp/named-groups/lookbehind.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_namedGroups("built-ins/RegExp/named-groups/non-unicode-property-names-valid.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_namedGroups("built-ins/RegExp/named-groups/non-unicode-property-names-valid.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_namedGroups("built-ins/RegExp/named-groups/non-unicode-property-names.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_namedGroups("built-ins/RegExp/named-groups/non-unicode-property-names.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_namedGroups("built-ins/RegExp/named-groups/unicode-property-names-valid.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_namedGroups("built-ins/RegExp/named-groups/unicode-property-names-valid.js",True)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_namedGroups("built-ins/RegExp/named-groups/unicode-property-names.js",False)
-- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.RegExp_namedGroups("built-ins/RegExp/named-groups/unicode-property-names.js",True)

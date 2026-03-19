@@ -41,7 +41,7 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
             }
 
             var codePoint = (int)num;
-            if (codePoint is < 0 or > 0x10FFFF)
+            if (codePoint is < 0 or > 0x10FFFF or (>= 0xD800 and <= 0xDFFF))
             {
                 throw StandardLibrary.ThrowRangeError($"Invalid code point {codePoint}");
             }

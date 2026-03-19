@@ -2734,6 +2734,156 @@ public static class TemporalHelper
             return WrapZonedDateTime(newZdt, realm, prototype);
         });
 
+        AddPrototypeMethod(prototype, realm, "getTimeZoneTransition", 1, (thisValue, args) =>
+        {
+            var zdt = GetZonedDateTime(thisValue);
+
+            // Parse direction argument
+            var directionParam = args.GetArgument(0);
+            string directionStr;
+
+            if (directionParam.IsString)
+            {
+                // Shorthand form: string is treated as { direction: string }
+                directionStr = directionParam.AsString();
+            }
+            else if (directionParam.TryGetObject<IJsPropertyAccessor>(out var dirObj))
+            {
+                // Options bag form
+                dirObj.TryGetProperty("direction", out var dirVal);
+                if (dirVal.IsUndefined)
+                {
+                    throw StandardLibrary.ThrowRangeError("direction is required", realm: realm);
+                }
+                if (dirVal.IsSymbol)
+                {
+                    throw StandardLibrary.ThrowTypeError("Cannot convert Symbol to string", realm: realm);
+                }
+                directionStr = JsOps.ToJsString(dirVal);
+            }
+            else
+            {
+                throw StandardLibrary.ThrowTypeError("Expected a string or object for direction argument", realm: realm);
+            }
+
+            // Validate direction
+            if (!string.Equals(directionStr, "next", StringComparison.Ordinal) &&
+                !string.Equals(directionStr, "previous", StringComparison.Ordinal))
+            {
+                throw StandardLibrary.ThrowRangeError($"Invalid direction: {directionStr}", realm: realm);
+            }
+
+            var isNext = string.Equals(directionStr, "next", StringComparison.Ordinal);
+            var timeZoneId = zdt.TimeZoneId;
+
+            // Offset timezones and UTC have no transitions
+            if (timeZoneId.Length >= 2 && (timeZoneId[0] == '+' || timeZoneId[0] == '-') && char.IsDigit(timeZoneId[1]))
+            {
+                return JsValue.Null;
+            }
+
+            if (string.Equals(timeZoneId, "UTC", StringComparison.OrdinalIgnoreCase))
+            {
+                return JsValue.Null;
+            }
+
+            // Named timezone — find transitions using .NET TimeZoneInfo
+            try
+            {
+                var tz = FindTimeZone(timeZoneId);
+
+                // UTC timezone info has no adjustment rules
+                if (tz == TimeZoneInfo.Utc || tz.GetAdjustmentRules().Length == 0)
+                {
+                    return JsValue.Null;
+                }
+
+                var epochNs = zdt.Instant.EpochNanoseconds;
+                var epochMs = (long)(epochNs / 1_000_000);
+                var dto = DateTimeOffset.FromUnixTimeMilliseconds(epochMs);
+
+                if (isNext)
+                {
+                    // Find next transition by scanning forward
+                    var current = dto.UtcDateTime;
+                    var rules = tz.GetAdjustmentRules();
+                    DateTimeOffset? nextTransition = null;
+
+                    foreach (var rule in rules)
+                    {
+                        if (rule.DateEnd < current) continue;
+
+                        // Check transition start
+                        var transStart = GetTransitionPoint(rule.DaylightTransitionStart, rule.DateStart.Year > current.Year ? rule.DateStart.Year : current.Year, tz);
+                        if (transStart.HasValue && transStart.Value.UtcDateTime > current)
+                        {
+                            if (!nextTransition.HasValue || transStart.Value < nextTransition.Value)
+                                nextTransition = transStart;
+                        }
+
+                        // Check transition end
+                        var transEnd = GetTransitionPoint(rule.DaylightTransitionEnd, rule.DateStart.Year > current.Year ? rule.DateStart.Year : current.Year, tz);
+                        if (transEnd.HasValue && transEnd.Value.UtcDateTime > current)
+                        {
+                            if (!nextTransition.HasValue || transEnd.Value < nextTransition.Value)
+                                nextTransition = transEnd;
+                        }
+                    }
+
+                    if (nextTransition.HasValue)
+                    {
+                        var transNs = new System.Numerics.BigInteger(nextTransition.Value.ToUnixTimeMilliseconds()) * 1_000_000;
+                        var transInstant = new JsTemporalInstant(transNs);
+                        var transZdt = new JsTemporalZonedDateTime(transInstant, timeZoneId, zdt.Calendar);
+                        return WrapZonedDateTime(transZdt, realm, prototype);
+                    }
+                }
+                else
+                {
+                    // Find previous transition by scanning backward
+                    var current = dto.UtcDateTime;
+                    var rules = tz.GetAdjustmentRules();
+                    DateTimeOffset? prevTransition = null;
+
+                    foreach (var rule in rules)
+                    {
+                        if (rule.DateStart > current) continue;
+
+                        var year = current.Year;
+                        if (rule.DateEnd.Year < year) year = rule.DateEnd.Year;
+
+                        var transStart = GetTransitionPoint(rule.DaylightTransitionStart, year, tz);
+                        if (transStart.HasValue && transStart.Value.UtcDateTime < current)
+                        {
+                            if (!prevTransition.HasValue || transStart.Value > prevTransition.Value)
+                                prevTransition = transStart;
+                        }
+
+                        var transEnd = GetTransitionPoint(rule.DaylightTransitionEnd, year, tz);
+                        if (transEnd.HasValue && transEnd.Value.UtcDateTime < current)
+                        {
+                            if (!prevTransition.HasValue || transEnd.Value > prevTransition.Value)
+                                prevTransition = transEnd;
+                        }
+                    }
+
+                    if (prevTransition.HasValue)
+                    {
+                        var transNs = new System.Numerics.BigInteger(prevTransition.Value.ToUnixTimeMilliseconds()) * 1_000_000;
+                        var transInstant = new JsTemporalInstant(transNs);
+                        var transZdt = new JsTemporalZonedDateTime(transInstant, timeZoneId, zdt.Calendar);
+                        return WrapZonedDateTime(transZdt, realm, prototype);
+                    }
+                }
+
+                return JsValue.Null;
+            }
+            catch (TimeZoneNotFoundException)
+            {
+                return JsValue.Null;
+            }
+        });
+
         AddPrototypeMethod(prototype, realm, "withPlainTime", 0, (thisValue, args) =>
         {
             var zdt = GetZonedDateTime(thisValue);
@@ -2808,7 +2958,9 @@ public static class TemporalHelper
             var timeZoneArg = args.GetArgument(1);
             var calendarArg = args.Count > 2 ? args[2] : JsValue.Undefined;
 
-            var timeZoneId = ToTemporalTimeZoneSlot(timeZoneArg, realm);
+            // Per spec: constructor uses ParseTemporalTimeZoneString which only accepts
+            // TimeZoneIdentifier, NOT ISO datetime strings
+            var timeZoneId = ToTemporalTimeZoneSlotStrict(timeZoneArg, realm);
             var calendar = calendarArg.IsUndefined ? "iso8601" : ToTemporalCalendarIdentifier(calendarArg);
 
             JsTemporalInstant instant;
@@ -2853,13 +3005,18 @@ public static class TemporalHelper
                 return WrapZonedDateTime(existingZdt, realm, prototype);
             }
 
-            // String path: parse first, then validate options
+            // String path: per spec, parse string BEFORE validating options (GetOptionsObject)
+            // RangeError from invalid string takes priority over TypeError from bad options
             if (item.IsString)
             {
+                // Pre-validate string syntax (throws RangeError for bad strings)
+                // This must happen before GetOptionsObject per spec ordering
+                ValidateZonedDateTimeString(item.AsString() ?? "", realm);
+                // Now validate options (may throw TypeError for primitives)
                 var resolvedOpts = ValidateOptionsObject(options, realm, "Temporal.ZonedDateTime.from");
                 var disambiguation = GetTemporalStringOption(resolvedOpts, "disambiguation", DisambiguationValues, "compatible", realm);
                 var offsetOption = GetTemporalStringOption(resolvedOpts, "offset", OffsetOptionValues, "reject", realm);
-                GetTemporalOverflowOption(resolvedOpts, realm); // validated but not used for string path
+                GetTemporalOverflowOption(resolvedOpts, realm);
                 var zdt = ToTemporalZonedDateTime(item, realm, offsetOption, disambiguation);
                 return WrapZonedDateTime(zdt, realm, prototype);
             }
@@ -3534,6 +3691,28 @@ public static class TemporalHelper
     }
 
     /// <summary>
+    ///     Strict version of ToTemporalTimeZoneSlot that only accepts plain timezone identifiers
+    ///     (IANA names or UTC offsets), NOT ISO datetime strings. Used by the ZonedDateTime constructor
+    ///     per spec (ParseTemporalTimeZoneString only tries TimeZoneIdentifier production).
+    /// </summary>
+    private static string ToTemporalTimeZoneSlotStrict(JsValue value, RealmState realm)
+    {
+        if (!value.IsString)
+        {
+            throw StandardLibrary.ThrowTypeError("Expected a string for time zone argument", realm: realm);
+        }
+
+        var input = value.AsString();
+        if (string.IsNullOrEmpty(input))
+        {
+            throw StandardLibrary.ThrowRangeError("Invalid time zone identifier", realm: realm);
+        }
+
+        // Reject ISO datetime strings — only accept plain timezone identifiers
+        return ValidateTimeZoneIdentifier(input, realm);
+    }
+
+    /// <summary>
     ///     Parses a string as a Temporal time zone identifier.
     ///     Handles ISO datetime strings by extracting the timezone portion,
     ///     and validates the result as a valid IANA name or UTC offset.
@@ -3647,6 +3826,56 @@ public static class TemporalHelper
         {
             throw StandardLibrary.ThrowRangeError(
                 $"UTC offset with sub-minute precision is not a valid time zone: {offset}", realm: realm);
+        }
+    }
+
+    /// <summary>
+    ///     Gets the exact UTC DateTimeOffset of a DST transition point for a given year.
+    /// </summary>
+    private static DateTimeOffset? GetTransitionPoint(TimeZoneInfo.TransitionTime transition, int year, TimeZoneInfo tz)
+    {
+        try
+        {
+            DateTime transitionDate;
+            if (transition.IsFixedDateRule)
+            {
+                transitionDate = new DateTime(year, transition.Month, transition.Day,
+                    transition.TimeOfDay.Hour, transition.TimeOfDay.Minute, transition.TimeOfDay.Second);
+            }
+            else
+            {
+                // Floating rule: nth DayOfWeek in month
+                var first = new DateTime(year, transition.Month, 1);
+                var dayOfWeek = transition.DayOfWeek;
+                var daysUntilFirst = ((int)dayOfWeek - (int)first.DayOfWeek + 7) % 7;
+                var firstOccurrence = first.AddDays(daysUntilFirst);
+                var week = transition.Week;
+
+                if (week == 5)
+                {
+                    // Last occurrence
+                    transitionDate = firstOccurrence;
+                    while (transitionDate.AddDays(7).Month == transition.Month)
+                    {
+                        transitionDate = transitionDate.AddDays(7);
+                    }
+                }
+                else
+                {
+                    transitionDate = firstOccurrence.AddDays((week - 1) * 7);
+                }
+
+                transitionDate = transitionDate.Date.Add(transition.TimeOfDay.TimeOfDay);
+            }
+
+            // Convert from local wall-clock time to UTC
+            var utcOffset = tz.GetUtcOffset(transitionDate.AddSeconds(-1));
+            var utcTime = new DateTimeOffset(transitionDate, utcOffset);
+            return utcTime.ToUniversalTime();
+        }
+        catch
+        {
+            return null;
         }
     }
 
@@ -9464,10 +9693,6 @@ public static class TemporalHelper
         return calendarId.ToLowerInvariant();
     }
 
-    /// <summary>
-    ///     Canonicalizes a timezone ID: normalizes case for IANA names, normalizes offset format,
-    ///     and returns "UTC" for case-insensitive UTC matches.
-    /// </summary>
     private static string CanonicalizeTimeZoneId(string timeZoneId)
     {
         if (string.IsNullOrEmpty(timeZoneId))
@@ -9558,6 +9783,148 @@ public static class TemporalHelper
         }
 
         return 0;
+    }
+
+    /// <summary>
+    ///     Pre-validates a ZonedDateTime string for syntax errors (throws RangeError).
+    ///     Per spec, string syntax errors must throw before GetOptionsObject is called.
+    /// </summary>
+    private static void ValidateZonedDateTimeString(string str, RealmState realm)
+    {
+        if (string.IsNullOrEmpty(str))
+            throw StandardLibrary.ThrowRangeError("Invalid ZonedDateTime string: empty", realm: realm);
+        if (str.Contains('\u2212'))
+            throw StandardLibrary.ThrowRangeError("Non-ASCII minus sign is not allowed", realm: realm);
+        ParseAndValidateAnnotations(str, realm);
+        ValidateCalendarAnnotation(str, realm);
+        var (timeZoneId, _) = ExtractZonedDateTimeAnnotations(str);
+        if (timeZoneId == null)
+            throw StandardLibrary.ThrowRangeError("ZonedDateTime requires a time zone annotation in brackets", realm: realm);
+
+        // Also validate the date-time components of the base string
+        var bracketIdx = str.IndexOf('[');
+        var baseStr = bracketIdx >= 0 ? str[..bracketIdx] : str;
+        // Parse the datetime, extracting the date and time components
+        // Use ParseIsoDateTimeComponents to validate without computing instant
+        ValidateIsoDateTimeComponents(baseStr, str, realm);
+    }
+
+    /// <summary>
+    ///     Validates ISO date-time components in a string (month, day, hour, minute, second ranges).
+    ///     Used for pre-validation before options are read.
+    /// </summary>
+    private static void ValidateIsoDateTimeComponents(string baseStr, string originalStr, RealmState realm)
+    {
+        var s = baseStr;
+
+        // Strip Z designator
+        if (s.EndsWith('Z') || s.EndsWith('z'))
+            s = s[..^1];
+
+        // Find date-time separator FIRST (before stripping offset from date part)
+        var startIdx = 0;
+        if (s.Length > 0 && (s[0] == '+' || s[0] == '-'))
+            startIdx = 1;
+        var tIdx = FindDateTimeSeparator(s[startIdx..]);
+
+        string datePart;
+        string? timePart = null;
+        if (tIdx >= 0)
+        {
+            datePart = s[..(tIdx + startIdx)];
+            var rawTimePart = s[(tIdx + startIdx + 1)..];
+
+            // Strip trailing offset (+HH:MM or -HH:MM) from time portion only
+            for (var i = rawTimePart.Length - 1; i >= 2; i--)
+            {
+                if ((rawTimePart[i] == '+' || rawTimePart[i] == '-') && i + 1 < rawTimePart.Length && char.IsDigit(rawTimePart[i + 1]))
+                {
+                    rawTimePart = rawTimePart[..i];
+                    break;
+                }
+            }
+            timePart = rawTimePart;
+        }
+        else
+        {
+            datePart = s;
+        }
+
+        // Parse and validate date components
+        int month, day;
+        if (datePart.Contains('-'))
+        {
+            var parts = datePart.Split('-');
+            // Skip year validation (handled elsewhere), just get month and day
+            if (parts.Length >= 3)
+            {
+                if (int.TryParse(parts[^2], System.Globalization.CultureInfo.InvariantCulture, out month) &&
+                    int.TryParse(parts[^1], System.Globalization.CultureInfo.InvariantCulture, out day))
+                {
+                    if (month < 1 || month > 12)
+                        throw StandardLibrary.ThrowRangeError($"Invalid ZonedDateTime string: {originalStr}", realm: realm);
+                    if (day < 1 || day > 31)
+                        throw StandardLibrary.ThrowRangeError($"Invalid ZonedDateTime string: {originalStr}", realm: realm);
+                }
+            }
+        }
+
+        // Parse and validate time components
+        if (timePart != null)
+        {
+            // Normalize comma to period
+            timePart = timePart.Replace(',', '.');
+
+            int hour, minute;
+            if (timePart.Contains(':'))
+            {
+                var parts = timePart.Split(':');
+                if (int.TryParse(parts[0], System.Globalization.CultureInfo.InvariantCulture, out hour))
+                {
+                    if (hour > 23)
+                        throw StandardLibrary.ThrowRangeError($"Invalid ZonedDateTime string: {originalStr}", realm: realm);
+                }
+                if (parts.Length > 1 && int.TryParse(parts[1], System.Globalization.CultureInfo.InvariantCulture, out minute))
+                {
+                    if (minute > 59)
+                        throw StandardLibrary.ThrowRangeError($"Invalid ZonedDateTime string: {originalStr}", realm: realm);
+                }
+                if (parts.Length > 2)
+                {
+                    var secStr = parts[2];
+                    var dotIdx = secStr.IndexOf('.');
+                    var secPart = dotIdx >= 0 ? secStr[..dotIdx] : secStr;
+                    if (int.TryParse(secPart, System.Globalization.CultureInfo.InvariantCulture, out var second))
+                    {
+                        // Allow leap second (60) — it will be clamped to 59 during parsing
+                        if (second > 60)
+                            throw StandardLibrary.ThrowRangeError($"Invalid ZonedDateTime string: {originalStr}", realm: realm);
+                    }
+                }
+            }
+            else
+            {
+                // Compact: HHMM or HHMMSS
+                var dotIdx = timePart.IndexOf('.');
+                var digits = dotIdx >= 0 ? timePart[..dotIdx] : timePart;
+                if (digits.Length >= 2 && int.TryParse(digits[..2], System.Globalization.CultureInfo.InvariantCulture, out hour))
+                {
+                    if (hour > 23)
+                        throw StandardLibrary.ThrowRangeError($"Invalid ZonedDateTime string: {originalStr}", realm: realm);
+                }
+                if (digits.Length >= 4 && int.TryParse(digits[2..4], System.Globalization.CultureInfo.InvariantCulture, out minute))
+                {
+                    if (minute > 59)
+                        throw StandardLibrary.ThrowRangeError($"Invalid ZonedDateTime string: {originalStr}", realm: realm);
+                }
+                if (digits.Length >= 6 && int.TryParse(digits[4..6], System.Globalization.CultureInfo.InvariantCulture, out var second))
+                {
+                    // Allow leap second (60)
+                    if (second > 60)
+                        throw StandardLibrary.ThrowRangeError($"Invalid ZonedDateTime string: {originalStr}", realm: realm);
+                }
+            }
+        }
     }
 
     private static JsTemporalZonedDateTime ToTemporalZonedDateTime(JsValue value, RealmState realm,

@@ -72,6 +72,15 @@ public sealed partial class FunctionPrototype
             return target.Invoke(ArgumentSlice.Empty, thisArg);
         }
 
+        // Fast path: dense JsArray without custom indexed properties — read directly
+        // from the internal backing list, avoiding per-element string key allocation
+        // and property lookup overhead.
+        if (argArray.TryGetObject<JsArray>(out var jsArray) &&
+            !jsArray.HasCustomIndexedProperties)
+        {
+            return target.Invoke(jsArray.Items, thisArg);
+        }
+
         var realmStateForArray = realmState;
         if (!argArray.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {

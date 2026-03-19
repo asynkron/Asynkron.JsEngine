@@ -3008,11 +3008,17 @@ public sealed class JsRegExp
             return negate ? AnyCodePointPattern : "(?!)"; // (?!) = fail/never match
         }
 
+        // For negated patterns, compute complement ranges and build a direct character
+        // class instead of using a negative lookahead. The lookahead approach
+        // (?>(?!disallowed)anyCodePoint) is O(n*m) per character and causes catastrophic
+        // performance on large strings (1M+ code points in Test262 property escape tests).
+        var effectiveRanges = negate ? ComplementCodePointRanges(ranges) : ranges;
+
         // Split into BMP and astral ranges
         var bmpRanges = new List<(int Start, int End)>();
         var astralRanges = new List<(int Start, int End)>();
 
-        foreach (var (start, end) in ranges)
+        foreach (var (start, end) in effectiveRanges)
         {
             if (end <= 0xFFFF)
             {
@@ -3050,61 +3056,66 @@ public sealed class JsRegExp
             }
         }
 
+        // For negated patterns, check if the complement should include lone surrogates.
+        // Unicode properties never include surrogates (they're not valid scalar values),
+        // so \P{...} should match lone surrogates in the string.
+        var needsLoneSurrogates = negate && !RangesCoverSurrogates(ranges);
+
         var bmpContent = BuildBmpClassContent(bmpRanges);
         var astralContent = BuildSurrogatePairRanges(astralRanges);
 
-        if (!negate)
+        if (astralContent.Length == 0 && !needsLoneSurrogates)
         {
-            if (astralContent.Length == 0)
-            {
-                return bmpContent.Length > 0 ? $"[{bmpContent}]" : "(?!)";
-            }
-
-            var sb = new StringBuilder();
-            // Use atomic group (?>...) to prevent catastrophic backtracking
-            // when the property escape is quantified (e.g. \p{Alphabetic}+)
-            sb.Append("(?>");
-            var needsPipe = false;
-            if (bmpContent.Length > 0)
-            {
-                sb.Append('[');
-                sb.Append(bmpContent);
-                sb.Append(']');
-                needsPipe = true;
-            }
-
-            if (astralContent.Length > 0)
-            {
-                if (needsPipe)
-                    sb.Append('|');
-                sb.Append(astralContent);
-            }
-
-            sb.Append(')');
-            return sb.ToString();
+            return bmpContent.Length > 0 ? $"[{bmpContent}]" : "(?!)";
         }
 
-        // Negated: match any code point NOT in the set
-        var disallowed = new StringBuilder();
-        disallowed.Append("(?:");
-        var needsSeparator = false;
+        var sb = new StringBuilder();
+        // Use atomic group (?>...) to prevent catastrophic backtracking
+        // when the property escape is quantified (e.g. \p{Alphabetic}+)
+        sb.Append("(?>");
+        var needsPipe = false;
         if (bmpContent.Length > 0)
         {
-            disallowed.Append('[');
-            disallowed.Append(bmpContent);
-            disallowed.Append(']');
-            needsSeparator = true;
+            sb.Append('[');
+            sb.Append(bmpContent);
+            sb.Append(']');
+            needsPipe = true;
         }
 
         if (astralContent.Length > 0)
         {
-            if (needsSeparator)
-                disallowed.Append('|');
-            disallowed.Append(astralContent);
+            if (needsPipe)
+                sb.Append('|');
+            sb.Append(astralContent);
+            needsPipe = true;
         }
 
-        disallowed.Append(')');
-        return $"(?>(?!{disallowed}){AnyCodePointPattern})";
+        // Add lone surrogate matching for negated property escapes.
+        // Lone high surrogate: not followed by a low surrogate.
+        // Lone low surrogate: not preceded by a high surrogate.
+        if (needsLoneSurrogates)
+        {
+            if (needsPipe)
+                sb.Append('|');
+            sb.Append(@"[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]");
+        }
+
+        sb.Append(')');
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Returns true if the given ranges cover any surrogate code points (0xD800-0xDFFF).
+    /// </summary>
+    private static bool RangesCoverSurrogates((int Start, int End)[] ranges)
+    {
+        foreach (var (start, end) in ranges)
+        {
+            if (start <= 0xDFFF && end >= 0xD800)
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>

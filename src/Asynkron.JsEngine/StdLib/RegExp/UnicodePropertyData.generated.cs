@@ -164,6 +164,7 @@ internal static class UnicodePropertyData
             ["Common"] = "Common",
             ["Copt"] = "Coptic",
             ["Coptic"] = "Coptic",
+            ["Qaac"] = "Coptic",
             ["Cpmn"] = "Cypro_Minoan",
             ["Cprt"] = "Cypriot",
             ["Cuneiform"] = "Cuneiform",

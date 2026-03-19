@@ -1011,17 +1011,15 @@ public static class TemporalHelper
             var maxIncrement = MaximumTemporalDurationRoundingIncrement(smallestUnit);
             if (maxIncrement == null)
             {
-                // Calendar unit: year/month always require increment=1.
-                // week/day allow increment>1 only when largestUnit does not produce
-                // higher calendar components in the result.
+                // Calendar unit (year/month/week/day): increment>1 is disallowed only when
+                // also balancing to a larger unit (largestUnit > smallestUnit).
+                // When largestUnit == smallestUnit, increment>1 is fine (pure rounding, no balancing).
                 if (roundingIncrement != 1)
                 {
                     var smallestRk = UnitRank(smallestUnit);
                     var largestRk = UnitRank(largestUnit);
-                    // For year/month: always throw
-                    // For week/day: throw if largestUnit > smallestUnit (result has calendar units)
-                    if (smallestRk >= TemporalUnit.Month || largestRk > smallestRk)
-                        throw StandardLibrary.ThrowRangeError("roundingIncrement must be 1 for calendar units", realm: realm);
+                    if (largestRk > smallestRk)
+                        throw StandardLibrary.ThrowRangeError("roundingIncrement must be 1 when balancing calendar units", realm: realm);
                 }
             }
             else
@@ -6656,6 +6654,18 @@ public static class TemporalHelper
                 adjEndY, adjEndM, adjEndD,
                 smallestUnit, roundingIncrement, roundingMode,
                 largestUnit, adjustedTimeNs);
+
+            // Re-balance: only the "day" case can overflow into the next unit (week).
+            // Year/month/week cases already handle their own balancing internally.
+            if (string.Equals(smallestUnit, "day", StringComparison.Ordinal) && largestRank > smallestRank)
+            {
+                var roundedDuration = new JsTemporalDuration(years, months, weeks, days, 0, 0, 0, 0, 0, 0);
+                var newEnd = relDate.Add(roundedDuration);
+                (years, months, weeks, days) = DifferenceISODate(
+                    relDate.Year, relDate.Month, relDate.Day,
+                    newEnd.Year, newEnd.Month, newEnd.Day,
+                    largestUnit);
+            }
 
             // Time is consumed by date rounding
             return new JsTemporalDuration(years, months, weeks, days, 0, 0, 0, 0, 0, 0);

@@ -1,5 +1,6 @@
 #region
 
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
@@ -105,7 +106,11 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
         var patternArg = args[0];
         var flagsArg = args.Count > 1 ? args[1] : JsValue.Undefined;
 
-        // Check if the first argument is a RegExp object (has __regex__ internal slot).
+        // Step 2: Let patternIsRegExp be ? IsRegExp(pattern).
+        // This must happen before checking [[RegExpMatcher]] for observable behavior.
+        var patternIsRegExp = IsRegExpAbrupt(patternArg);
+
+        // Step 3: If pattern is an Object and has [[RegExpMatcher]] internal slot.
         if (patternArg.IsObject && patternArg.AsObject() is { } existingObj &&
             existingObj.TryGetProperty("__regex__", out var internalRegex) &&
             internalRegex.TryGetObject<JsRegExp>(out var existing))
@@ -117,11 +122,71 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
             return CreateRegExpLiteral(existing.Pattern, flags, Realm, target);
         }
 
-        // Per spec 22.2.3.1 step 8: If pattern is undefined, let P be the empty String.
-        var pattern = args[0].IsUndefined ? string.Empty : JsOps.ToJsString(args[0]) ?? string.Empty;
-        var flagsStr = args.Count > 1 && !args[1].IsUndefined
-            ? JsOps.ToJsString(args[1]) ?? string.Empty
-            : string.Empty;
+        // Step 4: Else if patternIsRegExp is true (object passes IsRegExp but has no internal slot).
+        if (patternIsRegExp)
+        {
+            string p;
+            if (JsOps.TryGetPropertyValue(patternArg, "source", out var sourceVal))
+                p = JsOps.ToJsString(sourceVal) ?? string.Empty;
+            else
+                p = string.Empty;
+
+            string f;
+            if (flagsArg.IsUndefined)
+            {
+                if (JsOps.TryGetPropertyValue(patternArg, "flags", out var flagsVal))
+                    f = JsOps.ToJsString(flagsVal) ?? string.Empty;
+                else
+                    f = string.Empty;
+            }
+            else
+            {
+                f = JsOps.ToJsString(flagsArg) ?? string.Empty;
+            }
+
+            return CreateRegExpLiteral(p, f, Realm, target);
+        }
+
+        // Step 5: Else — pattern is not a RegExp.
+        var pattern = patternArg.IsUndefined ? string.Empty : JsOps.ToJsString(patternArg) ?? string.Empty;
+        var flagsStr = flagsArg.IsUndefined
+            ? string.Empty
+            : JsOps.ToJsString(flagsArg) ?? string.Empty;
         return CreateRegExpLiteral(pattern, flagsStr, Realm, target);
+    }
+
+    /// <summary>
+    /// 7.2.8 IsRegExp ( argument ) with abrupt completion propagation.
+    /// </summary>
+    private bool IsRegExpAbrupt(JsValue argument)
+    {
+        if (!argument.IsObject)
+            return false;
+
+        // Step 2: Let matcher be ? Get(argument, @@match).
+        var context = Realm.CreateContext();
+        if (JsOps.TryGetPropertyValue(argument, SymbolKeys.Match, out var matchValue, context))
+        {
+            if (context.IsThrow)
+                throw new ThrowSignal(context.FlowValue);
+
+            // Step 3: If matcher is not undefined, return ! ToBoolean(matcher).
+            if (!matchValue.IsUndefined)
+                return matchValue.IsTruthy;
+        }
+        else if (context.IsThrow)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        // Step 4: If argument has a [[RegExpMatcher]] internal slot, return true.
+        if (argument.TryGetObject<JsObject>(out var obj) &&
+            obj.TryGetProperty("__regex__", out var regexVal) &&
+            regexVal.TryGetObject<JsRegExp>(out _))
+        {
+            return true;
+        }
+
+        return argument.TryGetObject<JsRegExp>(out _);
     }
 }

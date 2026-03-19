@@ -78,4 +78,29 @@ internal static class IntlOptionHelpers
 
         return JsOps.ToBoolean(value);
     }
+
+    public static int? GetNumberOption(
+        IJsPropertyAccessor? options,
+        string property,
+        int minimum,
+        int maximum,
+        int? defaultValue,
+        RealmState realm,
+        string typeName)
+    {
+        if (options is null || !options.TryGetProperty(property, out var value) ||
+            value.IsUndefined)
+        {
+            return defaultValue;
+        }
+
+        var numValue = JsOps.ToNumber(value);
+        if (double.IsNaN(numValue) || numValue < minimum || numValue > maximum)
+        {
+            throw StandardLibrary.ThrowRangeError(
+                $"Value {numValue} out of range for Intl.{typeName} option {property}", realm: realm);
+        }
+
+        return (int)Math.Floor(numValue);
+    }
 }

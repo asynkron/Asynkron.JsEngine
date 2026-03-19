@@ -390,23 +390,50 @@ public sealed partial class RegExpPrototype
     private JsValue MatchAllSymbol(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         // ES2024 22.2.5.8 RegExp.prototype[@@matchAll](string)
-        // Note: NO global check here - that belongs in String.prototype.matchAll.
-        var resolved = RequireRegExp(thisValue);
+        // Step 2: If Type(R) is not Object, throw TypeError.
+        if (!thisValue.IsObject)
+        {
+            throw ThrowTypeError("RegExp.prototype[@@matchAll] requires an object receiver", realm: Realm);
+        }
 
         // Step 3: Let S be ToString(string).
         var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : string.Empty;
 
+        // Step 4: Let C be SpeciesConstructor(R, %RegExp%).
+        var speciesCtor = GetSpeciesConstructorForMatchAll(thisValue);
+
         // Step 5: Let flags be ToString(Get(R, "flags")).
-        var flags = resolved.Flags;
+        JsOps.TryGetPropertyValue(thisValue, "flags", out var flagsValue);
+        var flags = JsOps.ToJsString(flagsValue) ?? string.Empty;
 
-        // Step 6: Create a copy of the regex via CreateRegExpLiteral (sets prototype + __regex__).
-        var matcherObj = RegExpHelper.CreateRegExpLiteral(resolved.Pattern, flags, Realm);
-
-        // Step 7-8: Copy lastIndex from original to matcher.
-        if (matcherObj.TryGetProperty("__regex__", out var regexVal) &&
-            regexVal.TryGetObject<JsRegExp>(out var matcherRegExp))
+        // Step 6: Let matcher be Construct(C, [R, flags]).
+        var flagsArg = new JsValue(flags);
+        JsValue matcherValue;
+        if (speciesCtor is not null)
         {
-            matcherRegExp.SetLastIndex(resolved.GetLastIndex());
+            matcherValue = ReflectHelper.Construct(speciesCtor, [thisValue, flagsArg], speciesCtor, Realm);
+        }
+        else if (Realm.RegExpConstructor is IJsCallable regExpCtor)
+        {
+            // Default: Construct(%RegExp%, [R, flags]) — invokes full constructor path
+            // which calls IsRegExp on the pattern and handles all observable operations
+            matcherValue = ReflectHelper.Construct(regExpCtor, [thisValue, flagsArg], regExpCtor, Realm);
+        }
+        else
+        {
+            // Fallback: create directly if RegExp constructor not available
+            var resolved = ResolveRegExpFromThisValue(thisValue);
+            var pattern = resolved?.Pattern ?? JsOps.ToJsString(thisValue) ?? string.Empty;
+            var matcherObj = RegExpHelper.CreateRegExpLiteral(pattern, flags, Realm);
+            matcherValue = matcherObj.AsJsValue;
+        }
+
+        // Step 7-8: Let lastIndex = ToLength(Get(R, "lastIndex")); Set(matcher, "lastIndex", lastIndex).
+        JsOps.TryGetPropertyValue(thisValue, "lastIndex", out var lastIndexValue);
+        var lastIndex = ToLengthOrZero(lastIndexValue);
+        if (matcherValue.TryGetObjectLike(out var matcherAccessor))
+        {
+            matcherAccessor.SetProperty("lastIndex", new JsValue((double)lastIndex));
         }
 
         // Step 9-10: Determine global and fullUnicode from flags.
@@ -417,8 +444,57 @@ public sealed partial class RegExpPrototype
         // Step 11: Return CreateRegExpStringIterator(matcher, S, global, fullUnicode).
         var prototype = GetOrCreateRegExpStringIteratorPrototype();
         var iterator = new JsRegExpStringIterator(
-            matcherObj.AsJsValue, input, isGlobal, fullUnicode, Realm, prototype);
+            matcherValue, input, isGlobal, fullUnicode, Realm, prototype);
         return iterator.AsJsValue;
+    }
+
+    private IJsCallable? GetSpeciesConstructorForMatchAll(JsValue thisValue)
+    {
+        // SpeciesConstructor(O, defaultConstructor)
+        // 1. Let C be Get(O, "constructor").
+        if (!JsOps.TryGetPropertyValue(thisValue, "constructor", out var ctorValue) ||
+            ctorValue.IsUndefined)
+        {
+            return null; // Step 3: If C is undefined, return defaultConstructor.
+        }
+
+        // Step 4: If Type(C) is not Object, throw a TypeError exception.
+        if (!ctorValue.IsObject)
+        {
+            throw ThrowTypeError("constructor is not an object", realm: Realm);
+        }
+
+        // Step 5: Let S be Get(C, @@species).
+        if (!JsOps.TryGetPropertyValue(ctorValue, SymbolKeys.Species, out var speciesValue) ||
+            speciesValue.IsNullOrUndefined)
+        {
+            return null; // Step 6: If S is undefined or null, return defaultConstructor.
+        }
+
+        // 4. If IsConstructor(S), return S.
+        if (speciesValue.TryGetObject<IJsCallable>(out var speciesCtor))
+        {
+            return speciesCtor;
+        }
+
+        throw ThrowTypeError("Species constructor is not a constructor", realm: Realm);
+    }
+
+    private static JsRegExp? ResolveRegExpFromThisValue(JsValue thisValue)
+    {
+        if (thisValue.TryGetObject<JsRegExp>(out var direct))
+        {
+            return direct;
+        }
+
+        if (thisValue.TryGetObject<JsObject>(out var obj) &&
+            obj.TryGetProperty("__regex__", out var regexVal) &&
+            regexVal.TryGetObject<JsRegExp>(out var stored))
+        {
+            return stored;
+        }
+
+        return null;
     }
 
     private JsObject? GetOrCreateRegExpStringIteratorPrototype()

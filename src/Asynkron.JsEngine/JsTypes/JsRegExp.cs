@@ -21,10 +21,11 @@ public sealed class JsRegExp
     private const string AnyCodePointPattern =
         @"(?<![\uD800-\uDBFF])(?:[\uD800-\uDBFF][\uDC00-\uDFFF]|[\u0000-\uD7FF\uE000-\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|[\uDC00-\uDFFF])";
 
-    // Unicode dot: matches a full code point (surrogate pair first, then BMP non-line-terminator).
+    // Unicode dot: matches a full code point (surrogate pair first, then lone surrogates, then BMP).
     // Surrogate pair must be tried first to avoid matching only the high surrogate.
+    // Lone surrogates are valid code units in JS strings and must be matchable.
     private const string UnicodeDotPattern =
-        @"(?:[\uD800-\uDBFF][\uDC00-\uDFFF]|[^\n\r\u2028\u2029\uD800-\uDFFF])";
+        @"(?:[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]|[^\n\r\u2028\u2029\uD800-\uDFFF])";
 
     /// <summary>
     /// JavaScript's dot (.) without dotAll flag: matches any single UTF-16 code unit
@@ -1309,8 +1310,9 @@ public sealed class JsRegExp
                 continue;
             }
 
-            // Named capturing group (?<name>...)
-            if (c == '(' && i + 2 < pattern.Length && pattern[i + 1] == '?' && pattern[i + 2] == '<')
+            // Named capturing group (?<name>...) — but not lookbehind (?<=...) or (?<!...)
+            if (c == '(' && i + 2 < pattern.Length && pattern[i + 1] == '?' && pattern[i + 2] == '<'
+                && (i + 3 >= pattern.Length || (pattern[i + 3] != '=' && pattern[i + 3] != '!')))
             {
                 var end = pattern.IndexOf('>', i + 3);
                 if (end == -1)
@@ -3577,6 +3579,8 @@ public sealed class JsRegExp
                 return "\\]";
             case '\\':
                 return @"\\";
+            case '^':
+                return "\\^";
         }
 
         if (codeUnit is < 0x20 or > 0x7E)

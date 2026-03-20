@@ -526,6 +526,16 @@ public static partial class TypedAstEvaluator
                 testValue.IsTruthy,
                 instruction.ConsequentIndex,
                 instruction.AlternateIndex);
+
+            // Check cancellation on backward jumps (loop iterations).
+            // This enforces ExecutionTimeout for IR execution — without this,
+            // do-while and while loops that use BranchInstruction for their
+            // back-edge ignore the timeout and can hang the host.
+            if (_programCounter <= _currentInstructionIndex)
+            {
+                context.ThrowIfCancellationRequested();
+            }
+
             returnValue = default;
             return InstructionResult.Continue;
         }

@@ -3242,29 +3242,43 @@ public sealed class JsRegExp
             return sb.ToString();
         }
 
-        var disallowed = new StringBuilder();
-        disallowed.Append("(?:");
-        var needsSeparator = false;
-        if (bmpContent.Length > 0)
+        // Compute complement ranges instead of using a negative lookahead.
+        // The lookahead approach (?>(?!disallowed)anyCodePoint) is O(n*m) per character
+        // and causes catastrophic performance on large strings.
+        var compBmp = ComplementBmpRanges(bmpRanges);
+        var compAstral = ComplementAstralRanges(astralRanges);
+
+        var compBmpContent = BuildBmpClassContent(compBmp);
+        var compAstralContent = BuildSurrogatePairRanges(compAstral);
+
+        var result = new StringBuilder();
+        // Use atomic group (?>...) to prevent catastrophic backtracking
+        result.Append("(?>");
+        var hasPrevAlt = false;
+        if (compBmpContent.Length > 0)
         {
-            disallowed.Append('[');
-            disallowed.Append(bmpContent);
-            disallowed.Append(']');
-            needsSeparator = true;
+            result.Append('[');
+            result.Append(compBmpContent);
+            result.Append(']');
+            hasPrevAlt = true;
         }
 
-        if (astralContent.Length > 0)
+        if (compAstralContent.Length > 0)
         {
-            if (needsSeparator)
-            {
-                disallowed.Append('|');
-            }
-
-            disallowed.Append(astralContent);
+            if (hasPrevAlt)
+                result.Append('|');
+            result.Append(compAstralContent);
+            hasPrevAlt = true;
         }
 
-        disallowed.Append(')');
-        return $"(?>(?!{disallowed}){AnyCodePointPattern})";
+        // Negated character classes should match lone surrogates
+        // (the original class doesn't include surrogates, so the complement does).
+        if (hasPrevAlt)
+            result.Append('|');
+        result.Append(@"[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]");
+
+        result.Append(')');
+        return result.ToString();
     }
 
     private static string BuildBmpClassContent(List<(int Start, int End)> ranges)
@@ -3471,6 +3485,76 @@ public sealed class JsRegExp
                 if (e > 0xDFFF) list.Add((0xE000, e));
             }
         }
+    }
+
+    /// <summary>
+    /// Computes the complement of BMP ranges within [0x0000-0xD7FF] union [0xE000-0xFFFF],
+    /// excluding surrogate code points.
+    /// </summary>
+    private static List<(int Start, int End)> ComplementBmpRanges(List<(int Start, int End)> ranges)
+    {
+        var result = new List<(int Start, int End)>();
+
+        // Build the two BMP sub-universes: [0x0000-0xD7FF] and [0xE000-0xFFFF]
+        // We invert the ranges within these sub-universes.
+        var prev = 0;
+        foreach (var (start, end) in ranges)
+        {
+            if (prev < start)
+            {
+                // Add gap, excluding surrogates
+                AddBmpGap(result, prev, start - 1);
+            }
+
+            prev = end + 1;
+        }
+
+        // Add remaining gap after last range up to 0xFFFF
+        if (prev <= 0xFFFF)
+        {
+            AddBmpGap(result, prev, 0xFFFF);
+        }
+
+        return result;
+
+        static void AddBmpGap(List<(int Start, int End)> list, int s, int e)
+        {
+            if (e < 0xD800 || s > 0xDFFF)
+            {
+                list.Add((s, e));
+            }
+            else
+            {
+                if (s < 0xD800) list.Add((s, 0xD7FF));
+                if (e > 0xDFFF) list.Add((0xE000, e));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Computes the complement of astral ranges within [0x10000-0x10FFFF].
+    /// </summary>
+    private static List<(int Start, int End)> ComplementAstralRanges(List<(int Start, int End)> astralRanges)
+    {
+        var result = new List<(int Start, int End)>();
+        var prev = 0x10000;
+
+        foreach (var (start, end) in astralRanges)
+        {
+            if (prev < start)
+            {
+                result.Add((prev, start - 1));
+            }
+
+            prev = end + 1;
+        }
+
+        if (prev <= 0x10FFFF)
+        {
+            result.Add((prev, 0x10FFFF));
+        }
+
+        return result;
     }
 
     private static bool IsHighSurrogate(int value)

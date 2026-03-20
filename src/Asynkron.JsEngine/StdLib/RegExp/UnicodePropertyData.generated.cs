@@ -7270,6 +7270,9 @@ internal static class UnicodePropertyData
                 // Resolve script alias
                 if (ScriptAliases.TryGetValue(value, out var canonical))
                     value = canonical;
+                // Unknown/Zzzz has no assigned code points — return empty ranges
+                if (value is "Unknown")
+                    return [];
                 return ScriptRanges.GetValueOrDefault(value);
             }
 
@@ -7278,6 +7281,9 @@ internal static class UnicodePropertyData
                 // Resolve script alias
                 if (ScriptAliases.TryGetValue(value, out var canonical))
                     value = canonical;
+                // Unknown/Zzzz has no assigned code points — return empty ranges
+                if (value is "Unknown")
+                    return [];
                 return ScriptExtensionRanges.GetValueOrDefault(value);
             }
 

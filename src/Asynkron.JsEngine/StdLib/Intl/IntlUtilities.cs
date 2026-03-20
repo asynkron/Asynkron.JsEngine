@@ -237,9 +237,17 @@ internal static partial class IntlUtilities
     public static bool TryNormalizeCalendar(string calendar, out string canonical)
     {
         canonical = calendar?.Trim().ToLowerInvariant() ?? string.Empty;
+        return CalendarSet.Contains(canonical);
+    }
 
-        // Accept any structurally valid BCP47 calendar subtag (type = alphanum{3,8} ("-" alphanum{3,8})*)
-        // not just the hardcoded set, per ECMA-402 spec.
+    /// <summary>
+    /// Validates a calendar value for Intl.Locale which accepts any structurally valid
+    /// BCP47 calendar subtag (type = alphanum{3,8} ("-" alphanum{3,8})*),
+    /// not just the known/supported set used by DateTimeFormat.
+    /// </summary>
+    public static bool TryNormalizeCalendarPermissive(string calendar, out string canonical)
+    {
+        canonical = calendar?.Trim().ToLowerInvariant() ?? string.Empty;
         return IsValidUnicodeTypeNonterminal(canonical);
     }
 

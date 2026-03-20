@@ -7444,6 +7444,14 @@ public static class TemporalHelper
                 // Use precise simple calculation with single-rounding
                 var totalNs = DurationToTotalNanoseconds(duration.Days, duration.Hours, duration.Minutes,
                     duration.Seconds, duration.Milliseconds, duration.Microseconds, duration.Nanoseconds);
+
+                // For day unit, compute actual day length (DST-aware) instead of fixed 24h
+                if (string.Equals(unit, "day", StringComparison.Ordinal))
+                {
+                    var dayLengthNs = ComputeActualDayLengthNs(zonedDateTimeRelativeTo, realm);
+                    return DivideToDouble(totalNs, dayLengthNs);
+                }
+
                 var unitNs = new BigInteger(GetUnitNanoseconds(unit));
                 return DivideToDouble(totalNs, unitNs);
             }
@@ -7646,10 +7654,12 @@ public static class TemporalHelper
 
         if (string.Equals(unit, "day", StringComparison.Ordinal))
         {
-            // For day unit with ZDT, use epoch nanoseconds / nsPerDay for DST-aware day length
+            // For day unit with ZDT, compute actual day length from timezone
+            // (DST transitions make days 23h or 25h)
             var endEpochNs = AddZonedDateTimeEpochNs(relativeTo, duration, realm);
             var diffNs = endEpochNs - relativeTo.Instant.EpochNanoseconds;
-            return DivideToDouble(diffNs, NanosecondsPerDay);
+            var dayLengthNs = ComputeActualDayLengthNs(relativeTo, realm);
+            return DivideToDouble(diffNs, dayLengthNs);
         }
 
         // For calendar units (week/month/year), validate the target epoch ns, then use PlainDate logic
@@ -7663,6 +7673,32 @@ public static class TemporalHelper
         catch (OverflowException)
         {
             throw StandardLibrary.ThrowRangeError("Resulting date-time is out of valid range", realm: realm);
+        }
+    }
+
+    /// <summary>
+    /// Computes the actual length of a day starting at the given ZonedDateTime in nanoseconds.
+    /// Accounts for DST transitions (23h, 25h days, etc.).
+    /// </summary>
+    private static BigInteger ComputeActualDayLengthNs(JsTemporalZonedDateTime zdt, RealmState realm)
+    {
+        try
+        {
+            // Add 1 calendar day to the ZDT and measure the epoch ns difference
+            var oneDayDuration = new JsTemporalDuration(0, 0, 0, 1, 0, 0, 0, 0, 0, 0);
+            var nextDayEpochNs = AddZonedDateTimeEpochNs(zdt, oneDayDuration, realm);
+            var dayLength = nextDayEpochNs - zdt.Instant.EpochNanoseconds;
+
+            // Guard: if the result is non-positive (extremely unusual), fallback to 24h
+            if (dayLength <= 0)
+                return NanosecondsPerDay;
+
+            return dayLength;
+        }
+        catch
+        {
+            // Fallback to standard 24h day if computation fails
+            return NanosecondsPerDay;
         }
     }
 

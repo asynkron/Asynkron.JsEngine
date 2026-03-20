@@ -134,7 +134,8 @@ public sealed partial class IntlLocaleConstructor(IJsObjectLike prototype, Realm
 
         if (TryGetStringOption(options, "calendar", out var calendarOption))
         {
-            if (!IntlUtilities.TryNormalizeCalendar(calendarOption, out var canonicalCalendar))
+            // Intl.Locale accepts any structurally valid BCP47 calendar subtag
+            if (!IntlUtilities.TryNormalizeCalendarPermissive(calendarOption, out var canonicalCalendar))
             {
                 throw StandardLibrary.ThrowRangeError("Invalid Intl.Locale calendar option", realm: Realm);
             }

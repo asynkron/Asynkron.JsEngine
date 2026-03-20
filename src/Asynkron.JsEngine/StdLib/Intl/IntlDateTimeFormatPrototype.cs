@@ -1672,11 +1672,10 @@ public sealed partial class IntlDateTimeFormatPrototype
                 return TimeClip(instant.EpochMilliseconds);
             }
 
-            if (jsObject.TryGetProperty("[[TemporalZonedDateTime]]", out var zdtSlot) &&
-                zdtSlot.TryGetObject<JsTemporalZonedDateTime>(out var zdt))
-            {
-                return TimeClip(zdt.EpochMilliseconds);
-            }
+            // NOTE: ZonedDateTime is intentionally NOT handled here.
+            // Per spec, DateTimeFormat.format(zonedDateTime) must throw TypeError.
+            // ZDT formatting is handled by Temporal.ZonedDateTime.prototype.toLocaleString()
+            // which converts to Instant before delegating to DateTimeFormat.
 
             if (jsObject.TryGetProperty("[[TemporalPlainDateTime]]", out var pdtSlot) &&
                 pdtSlot.TryGetObject<JsTemporalPlainDateTime>(out var pdt))

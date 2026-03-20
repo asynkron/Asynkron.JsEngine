@@ -2824,7 +2824,13 @@ public static class TemporalHelper
             new JsValue(GetZonedDateTime(thisValue).ToString()));
 
         AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, args) =>
-            TemporalToLocaleString(thisValue, args, realm, GetZonedDateTime(thisValue).ToString()));
+        {
+            // Per spec, DateTimeFormat.format() does NOT support ZonedDateTime directly (throws TypeError).
+            // toLocaleString must convert to Instant first, then delegate to DateTimeFormat.
+            var zdt = GetZonedDateTime(thisValue);
+            var instantValue = WrapInstant(zdt.ToInstant(), realm, prototypes.InstantPrototype);
+            return TemporalToLocaleString(instantValue, args, realm, zdt.ToString());
+        });
 
         AddPrototypeMethod(prototype, realm, "valueOf", 0, (_, _) =>
             throw StandardLibrary.ThrowTypeError("Temporal.ZonedDateTime.prototype.valueOf does not support implicit conversion", realm: realm));

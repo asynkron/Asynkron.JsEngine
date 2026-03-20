@@ -3340,7 +3340,10 @@ public sealed class JsRegExp
         List<(int Start, int End)> astralRanges)
     {
         var bmpContent = BuildBmpClassContent(bmpRanges);
-        var astralContent = BuildAstralAlternation(astralRanges);
+        // Use surrogate pair ranges (e.g. \uD800[\uDC00-\uDFFF]) instead of per-codepoint
+        // alternation ((?:\uD800\uDC00)|(?:\uD800\uDC01)|...) — the latter generates
+        // massive pattern strings for large Unicode properties like Alphabetic.
+        var astralContent = BuildSurrogatePairRanges(astralRanges);
 
         if (!negate)
         {

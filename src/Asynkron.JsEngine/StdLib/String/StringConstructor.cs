@@ -30,7 +30,8 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
             return new JsValue("");
         }
 
-        var result = new StringBuilder();
+        // Pre-allocate capacity: each code point produces 1-2 chars (surrogate pairs for > 0xFFFF)
+        var result = new StringBuilder(args.Count * 2);
         foreach (var arg in args)
         {
             var num = JsOps.ToNumber(arg);

@@ -5,6 +5,7 @@ using System.Numerics;
 using System.Text;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.StdLib.Intl;
 
 #endregion
 
@@ -764,12 +765,8 @@ public static class TemporalHelper
             return new JsValue(instant.ToString());
         });
 
-        AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, _) =>
-        {
-            // Basic implementation - returns ISO 8601 instant string
-            var instant = GetInstant(thisValue);
-            return new JsValue(instant.ToString());
-        });
+        AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, args) =>
+            TemporalToLocaleString(thisValue, args, realm, GetInstant(thisValue).ToString()));
 
         AddPrototypeMethod(prototype, realm, "valueOf", 0, (_, _) =>
             throw StandardLibrary.ThrowTypeError("Temporal.Instant.prototype.valueOf does not support implicit conversion", realm: realm));
@@ -1511,8 +1508,8 @@ public static class TemporalHelper
         AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
             new JsValue(GetPlainDate(thisValue).ToString()));
 
-        AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, _) =>
-            new JsValue(GetPlainDate(thisValue).ToString()));
+        AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, args) =>
+            TemporalToLocaleString(thisValue, args, realm, GetPlainDate(thisValue).ToString()));
 
         AddPrototypeMethod(prototype, realm, "valueOf", 0, (_, _) =>
             throw StandardLibrary.ThrowTypeError("Temporal.PlainDate.prototype.valueOf does not support implicit conversion", realm: realm));
@@ -1963,8 +1960,8 @@ public static class TemporalHelper
         AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
             new JsValue(GetPlainTime(thisValue).ToString()));
 
-        AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, _) =>
-            new JsValue(GetPlainTime(thisValue).ToString()));
+        AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, args) =>
+            TemporalToLocaleString(thisValue, args, realm, GetPlainTime(thisValue).ToString()));
 
         AddPrototypeMethod(prototype, realm, "valueOf", 0, (_, _) =>
             throw StandardLibrary.ThrowTypeError("Temporal.PlainTime.prototype.valueOf does not support implicit conversion", realm: realm));
@@ -2309,8 +2306,8 @@ public static class TemporalHelper
         AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
             new JsValue(GetPlainDateTime(thisValue).ToString()));
 
-        AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, _) =>
-            new JsValue(GetPlainDateTime(thisValue).ToString()));
+        AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, args) =>
+            TemporalToLocaleString(thisValue, args, realm, GetPlainDateTime(thisValue).ToString()));
 
         AddPrototypeMethod(prototype, realm, "valueOf", 0, (_, _) =>
             throw StandardLibrary.ThrowTypeError("Temporal.PlainDateTime.prototype.valueOf does not support implicit conversion", realm: realm));
@@ -2826,8 +2823,8 @@ public static class TemporalHelper
         AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
             new JsValue(GetZonedDateTime(thisValue).ToString()));
 
-        AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, _) =>
-            new JsValue(GetZonedDateTime(thisValue).ToString()));
+        AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, args) =>
+            TemporalToLocaleString(thisValue, args, realm, GetZonedDateTime(thisValue).ToString()));
 
         AddPrototypeMethod(prototype, realm, "valueOf", 0, (_, _) =>
             throw StandardLibrary.ThrowTypeError("Temporal.ZonedDateTime.prototype.valueOf does not support implicit conversion", realm: realm));
@@ -3465,8 +3462,8 @@ public static class TemporalHelper
         AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
             new JsValue(GetPlainYearMonth(thisValue).ToString()));
 
-        AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, _) =>
-            new JsValue(GetPlainYearMonth(thisValue).ToString()));
+        AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, args) =>
+            TemporalToLocaleString(thisValue, args, realm, GetPlainYearMonth(thisValue).ToString()));
 
         AddPrototypeMethod(prototype, realm, "valueOf", 0, (_, _) =>
             throw StandardLibrary.ThrowTypeError("Temporal.PlainYearMonth.prototype.valueOf does not support implicit conversion", realm: realm));
@@ -3778,14 +3775,13 @@ public static class TemporalHelper
             return new JsValue(md.ToStringWithCalendar());
         });
 
-        AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, _) =>
+        AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, args) =>
         {
             var md = GetPlainMonthDay(thisValue);
-            if (string.Equals(md.Calendar, "iso8601", StringComparison.Ordinal))
-            {
-                return new JsValue(md.ToStringBasic());
-            }
-            return new JsValue(md.ToStringWithCalendar());
+            var fallback = string.Equals(md.Calendar, "iso8601", StringComparison.Ordinal)
+                ? md.ToStringBasic()
+                : md.ToStringWithCalendar();
+            return TemporalToLocaleString(thisValue, args, realm, fallback);
         });
 
         AddPrototypeMethod(prototype, realm, "valueOf", 0, (_, _) =>
@@ -5001,6 +4997,36 @@ public static class TemporalHelper
         var instant = JsTemporalInstant.FromEpochMilliseconds((long)Math.Truncate(epochMilliseconds));
         var prototypes = GetPrototypes(realm);
         return WrapInstant(instant, realm, prototypes.InstantPrototype);
+    }
+
+    /// <summary>
+    /// Delegates toLocaleString to Intl.DateTimeFormat for Temporal types.
+    /// Creates a DateTimeFormat with the given locale/options and calls format(thisValue).
+    /// Falls back to the provided fallbackString if the DateTimeFormat cannot be created.
+    /// </summary>
+    private static JsValue TemporalToLocaleString(JsValue thisValue, IReadOnlyList<JsValue> args,
+        RealmState realm, string fallbackString)
+    {
+        var localeArg = args.GetArgument(0);
+        var optionsArg = args.GetArgument(1);
+
+        try
+        {
+            var dtfCtor = IntlDateTimeFormatConstructor.CreateConstructor(realm);
+            var dtfInstance = dtfCtor.InvokeWithContext([localeArg, optionsArg], JsValue.Undefined, null, dtfCtor.AsJsValue);
+            if (dtfInstance.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
+                accessor.TryGetProperty("format", out var formatVal) &&
+                formatVal.TryGetObject<IJsCallable>(out var formatFn))
+            {
+                return formatFn.Invoke(new SingleValueArgs(thisValue), dtfInstance);
+            }
+        }
+        catch
+        {
+            // Fallback on any error
+        }
+
+        return new JsValue(fallbackString);
     }
 
     private static JsValue WrapInstant(JsTemporalInstant instant, RealmState realm, JsObject? prototype = null)
@@ -10372,6 +10398,10 @@ public static class TemporalHelper
         // For offset timezones, normalize format (+0000 → +00:00, +00 → +00:00)
         if (timeZoneId.Length >= 2 && (timeZoneId[0] == '+' || timeZoneId[0] == '-') && char.IsDigit(timeZoneId[1]))
             return NormalizeUtcOffset(timeZoneId);
+
+        // Check IANA alias map for deprecated/alternative timezone names
+        if (IntlUtilities.TryCanonicalizeTimeZoneAlias(timeZoneId, out var aliasCanonical))
+            return aliasCanonical;
 
         // For IANA names, use case-insensitive lookup via FindTimeZone
         // then return the system's canonical ID.

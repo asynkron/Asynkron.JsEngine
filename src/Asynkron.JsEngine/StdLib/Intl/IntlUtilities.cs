@@ -237,7 +237,10 @@ internal static partial class IntlUtilities
     public static bool TryNormalizeCalendar(string calendar, out string canonical)
     {
         canonical = calendar?.Trim().ToLowerInvariant() ?? string.Empty;
-        return CalendarSet.Contains(canonical);
+
+        // Accept any structurally valid BCP47 calendar subtag (type = alphanum{3,8} ("-" alphanum{3,8})*)
+        // not just the hardcoded set, per ECMA-402 spec.
+        return IsValidUnicodeTypeNonterminal(canonical);
     }
 
     /// <summary>
@@ -509,6 +512,180 @@ internal static partial class IntlUtilities
         }
     }
 
+    /// <summary>
+    /// IANA timezone alias map: maps deprecated/alternative names to their canonical form.
+    /// See IANA Time Zone Database (backward file) and ECMA-402 CanonicalizeTimeZoneName.
+    /// </summary>
+    private static readonly Dictionary<string, string> TimeZoneAliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // Etc/GMT variants → UTC
+        { "Etc/GMT", "UTC" },
+        { "Etc/GMT+0", "UTC" },
+        { "Etc/GMT-0", "UTC" },
+        { "Etc/GMT0", "UTC" },
+        { "Etc/UCT", "UTC" },
+        { "Etc/Universal", "UTC" },
+        { "Etc/Zulu", "UTC" },
+        { "GMT", "UTC" },
+        { "GMT+0", "UTC" },
+        { "GMT-0", "UTC" },
+        { "GMT0", "UTC" },
+        { "UCT", "UTC" },
+        { "Universal", "UTC" },
+        { "Zulu", "UTC" },
+
+        // Australia aliases
+        { "Australia/ACT", "Australia/Sydney" },
+        { "Australia/Canberra", "Australia/Sydney" },
+        { "Australia/LHI", "Australia/Lord_Howe" },
+        { "Australia/NSW", "Australia/Sydney" },
+        { "Australia/North", "Australia/Darwin" },
+        { "Australia/Queensland", "Australia/Brisbane" },
+        { "Australia/South", "Australia/Adelaide" },
+        { "Australia/Tasmania", "Australia/Hobart" },
+        { "Australia/Victoria", "Australia/Melbourne" },
+        { "Australia/West", "Australia/Perth" },
+        { "Australia/Yancowinna", "Australia/Broken_Hill" },
+
+        // Americas aliases
+        { "Brazil/Acre", "America/Rio_Branco" },
+        { "Brazil/DeNoronha", "America/Noronha" },
+        { "Brazil/East", "America/Sao_Paulo" },
+        { "Brazil/West", "America/Manaus" },
+        { "Canada/Atlantic", "America/Halifax" },
+        { "Canada/Central", "America/Winnipeg" },
+        { "Canada/Eastern", "America/Toronto" },
+        { "Canada/Mountain", "America/Edmonton" },
+        { "Canada/Newfoundland", "America/St_Johns" },
+        { "Canada/Pacific", "America/Vancouver" },
+        { "Canada/Saskatchewan", "America/Regina" },
+        { "Canada/Yukon", "America/Whitehorse" },
+        { "Chile/Continental", "America/Santiago" },
+        { "Chile/EasterIsland", "Pacific/Easter" },
+        { "Cuba", "America/Havana" },
+        { "Jamaica", "America/Jamaica" },
+        { "Mexico/BajaNorte", "America/Tijuana" },
+        { "Mexico/BajaSur", "America/Mazatlan" },
+        { "Mexico/General", "America/Mexico_City" },
+        { "US/Alaska", "America/Anchorage" },
+        { "US/Aleutian", "America/Adak" },
+        { "US/Arizona", "America/Phoenix" },
+        { "US/Central", "America/Chicago" },
+        { "US/East-Indiana", "America/Indiana/Indianapolis" },
+        { "US/Eastern", "America/New_York" },
+        { "US/Hawaii", "Pacific/Honolulu" },
+        { "US/Indiana-Starke", "America/Indiana/Knox" },
+        { "US/Michigan", "America/Detroit" },
+        { "US/Mountain", "America/Denver" },
+        { "US/Pacific", "America/Los_Angeles" },
+        { "US/Samoa", "Pacific/Pago_Pago" },
+
+        // Europe aliases
+        { "Eire", "Europe/Dublin" },
+        { "Europe/Belfast", "Europe/London" },
+        { "Europe/Tiraspol", "Europe/Chisinau" },
+        { "GB", "Europe/London" },
+        { "GB-Eire", "Europe/London" },
+        { "Portugal", "Europe/Lisbon" },
+        { "Turkey", "Europe/Istanbul" },
+        { "W-SU", "Europe/Moscow" },
+        { "WET", "Europe/Lisbon" },
+        { "CET", "Europe/Paris" },
+        { "EET", "Europe/Bucharest" },
+        { "MET", "Europe/Paris" },
+
+        // Asia aliases
+        { "Hongkong", "Asia/Hong_Kong" },
+        { "Iran", "Asia/Tehran" },
+        { "Israel", "Asia/Jerusalem" },
+        { "Japan", "Asia/Tokyo" },
+        { "ROC", "Asia/Taipei" },
+        { "ROK", "Asia/Seoul" },
+        { "Singapore", "Asia/Singapore" },
+        { "Asia/Calcutta", "Asia/Kolkata" },
+        { "Asia/Saigon", "Asia/Ho_Chi_Minh" },
+        { "Asia/Katmandu", "Asia/Kathmandu" },
+        { "Asia/Thimbu", "Asia/Thimphu" },
+        { "Asia/Macao", "Asia/Macau" },
+        { "Asia/Dacca", "Asia/Dhaka" },
+        { "Asia/Rangoon", "Asia/Yangon" },
+        { "Asia/Ashkhabad", "Asia/Ashgabat" },
+        { "Asia/Chungking", "Asia/Chongqing" },
+        { "Asia/Istanbul", "Europe/Istanbul" },
+
+        // Africa aliases
+        { "Africa/Asmera", "Africa/Asmara" },
+        { "Africa/Timbuktu", "Africa/Bamako" },
+        { "Egypt", "Africa/Cairo" },
+        { "Libya", "Africa/Tripoli" },
+
+        // Pacific aliases
+        { "Kwajalein", "Pacific/Kwajalein" },
+        { "NZ", "Pacific/Auckland" },
+        { "NZ-CHAT", "Pacific/Chatham" },
+        { "Pacific/Johnston", "Pacific/Honolulu" },
+        { "Pacific/Ponape", "Pacific/Pohnpei" },
+        { "Pacific/Samoa", "Pacific/Pago_Pago" },
+        { "Pacific/Truk", "Pacific/Chuuk" },
+        { "Pacific/Yap", "Pacific/Chuuk" },
+
+        // Indian aliases
+        { "Indian/Antananarivo", "Africa/Nairobi" },
+        { "Indian/Comoro", "Africa/Nairobi" },
+        { "Indian/Mayotte", "Africa/Nairobi" },
+
+        // Atlantic aliases
+        { "Atlantic/Faeroe", "Atlantic/Faroe" },
+        { "Atlantic/Jan_Mayen", "Europe/Berlin" },
+        { "Iceland", "Atlantic/Reykjavik" },
+
+        // Arctic
+        { "Arctic/Longyearbyen", "Europe/Berlin" },
+
+        // Misc
+        { "EST", "America/Panama" },
+        { "MST", "America/Phoenix" },
+        { "HST", "Pacific/Honolulu" },
+        { "CST6CDT", "America/Chicago" },
+        { "EST5EDT", "America/New_York" },
+        { "MST7MDT", "America/Denver" },
+        { "PST8PDT", "America/Los_Angeles" },
+        { "PRC", "Asia/Shanghai" },
+        { "Poland", "Europe/Warsaw" },
+        { "Navajo", "America/Denver" },
+
+        // SystemV aliases (link to canonical)
+        { "America/Buenos_Aires", "America/Argentina/Buenos_Aires" },
+        { "America/Catamarca", "America/Argentina/Catamarca" },
+        { "America/Cordoba", "America/Argentina/Cordoba" },
+        { "America/Jujuy", "America/Argentina/Jujuy" },
+        { "America/Mendoza", "America/Argentina/Mendoza" },
+        { "America/Indianapolis", "America/Indiana/Indianapolis" },
+        { "America/Louisville", "America/Kentucky/Louisville" },
+        { "America/Knox_IN", "America/Indiana/Knox" },
+        { "America/Porto_Acre", "America/Rio_Branco" },
+        { "America/Rosario", "America/Argentina/Cordoba" },
+        { "America/Virgin", "America/Puerto_Rico" },
+        { "America/Atka", "America/Adak" },
+        { "America/Ensenada", "America/Tijuana" },
+        { "America/Fort_Wayne", "America/Indiana/Indianapolis" },
+        { "America/Shiprock", "America/Denver" },
+
+        // Europe renames
+        { "Europe/Kiev", "Europe/Kyiv" },
+        { "Europe/Uzhgorod", "Europe/Kyiv" },
+        { "Europe/Zaporozhye", "Europe/Kyiv" },
+        { "Europe/Nicosia", "Asia/Nicosia" },
+    };
+
+    /// <summary>
+    /// Looks up a timezone ID in the IANA alias map and returns the canonical form.
+    /// </summary>
+    internal static bool TryCanonicalizeTimeZoneAlias(string id, out string canonical)
+    {
+        return TimeZoneAliases.TryGetValue(id, out canonical!);
+    }
+
     private static string CanonicalizeTimeZoneId(string id)
     {
         if (string.Equals(id, "UTC", StringComparison.OrdinalIgnoreCase))
@@ -516,7 +693,15 @@ internal static partial class IntlUtilities
             return "UTC";
         }
 
-        return id.Replace(' ', '_');
+        var normalized = id.Replace(' ', '_');
+
+        // Check IANA alias map for deprecated/alternative timezone names
+        if (TimeZoneAliases.TryGetValue(normalized, out var canonical))
+        {
+            return canonical;
+        }
+
+        return normalized;
     }
 
     private static bool IsStructurallyValidLanguageTag(string locale)

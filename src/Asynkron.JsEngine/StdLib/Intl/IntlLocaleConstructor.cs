@@ -2,6 +2,7 @@
 
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 #endregion
 
@@ -44,6 +45,26 @@ public sealed partial class IntlLocaleConstructor(IJsObjectLike prototype, Realm
     }
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        return ConstructCore(thisValue, args);
+    }
+
+    protected override void ConfigureConstructor(HostFunction constructor)
+    {
+        // Override invoke handler to check NewTarget (for calls without new)
+        constructor.SetInvokeWithContext((args, thisValue, _, newTarget) =>
+        {
+            // Intl.Locale step 1: If NewTarget is undefined, throw a TypeError exception.
+            if (newTarget.IsUndefined)
+            {
+                throw ThrowTypeError("Intl.Locale constructor requires 'new'", realm: Realm);
+            }
+
+            return ConstructCore(thisValue, args);
+        });
+    }
+
+    private JsValue ConstructCore(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var instance = PrepareThisObject(thisValue);
         var tagValue = args.GetArgument(0);

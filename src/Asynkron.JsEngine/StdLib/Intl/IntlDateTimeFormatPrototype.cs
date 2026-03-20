@@ -2,6 +2,7 @@
 
 using System.Globalization;
 using System.Text;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
@@ -1655,10 +1656,70 @@ public sealed partial class IntlDateTimeFormatPrototype
             return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         }
 
-        if (value is { Kind: JsValueKind.Object, ObjectValue: JsObject jsObject } &&
-            jsObject.TryGetProperty("_internalDate", out var stored) && stored.TryGetDouble(out var storedMs))
+        if (value is { Kind: JsValueKind.Object, ObjectValue: JsObject jsObject })
         {
-            return TimeClip(storedMs);
+            // Check for Date internal slot
+            if (jsObject.TryGetProperty("_internalDate", out var stored) && stored.TryGetDouble(out var storedMs))
+            {
+                return TimeClip(storedMs);
+            }
+
+            // Detect Temporal types — valueOf() throws for these, so we must extract epoch ms directly.
+            // Per ECMA-402: HandleDateTimeTemporalDate / HandleDateTimeValue
+            if (jsObject.TryGetProperty("[[TemporalInstant]]", out var instantSlot) &&
+                instantSlot.TryGetObject<JsTemporalInstant>(out var instant))
+            {
+                return TimeClip(instant.EpochMilliseconds);
+            }
+
+            if (jsObject.TryGetProperty("[[TemporalZonedDateTime]]", out var zdtSlot) &&
+                zdtSlot.TryGetObject<JsTemporalZonedDateTime>(out var zdt))
+            {
+                return TimeClip(zdt.EpochMilliseconds);
+            }
+
+            if (jsObject.TryGetProperty("[[TemporalPlainDateTime]]", out var pdtSlot) &&
+                pdtSlot.TryGetObject<JsTemporalPlainDateTime>(out var pdt))
+            {
+                // Treat as UTC midnight
+                var dto = new DateTimeOffset(pdt.Year, pdt.Month, pdt.Day,
+                    pdt.Hour, pdt.Minute, pdt.Second, pdt.Millisecond, TimeSpan.Zero);
+                return TimeClip(dto.ToUnixTimeMilliseconds());
+            }
+
+            if (jsObject.TryGetProperty("[[TemporalPlainDate]]", out var pdSlot) &&
+                pdSlot.TryGetObject<JsTemporalPlainDate>(out var pd))
+            {
+                // Treat as midnight UTC on that date
+                var dto = new DateTimeOffset(pd.Year, pd.Month, pd.Day, 0, 0, 0, TimeSpan.Zero);
+                return TimeClip(dto.ToUnixTimeMilliseconds());
+            }
+
+            if (jsObject.TryGetProperty("[[TemporalPlainTime]]", out var ptSlot) &&
+                ptSlot.TryGetObject<JsTemporalPlainTime>(out var pt))
+            {
+                // Treat as today's date + time in UTC
+                var today = DateTimeOffset.UtcNow.Date;
+                var dto = new DateTimeOffset(today.Year, today.Month, today.Day,
+                    pt.Hour, pt.Minute, pt.Second, pt.Millisecond, TimeSpan.Zero);
+                return TimeClip(dto.ToUnixTimeMilliseconds());
+            }
+
+            if (jsObject.TryGetProperty("[[TemporalPlainYearMonth]]", out var ymSlot) &&
+                ymSlot.TryGetObject<JsTemporalPlainYearMonth>(out var ym))
+            {
+                // Treat as first of month midnight UTC
+                var dto = new DateTimeOffset(ym.Year, ym.Month, 1, 0, 0, 0, TimeSpan.Zero);
+                return TimeClip(dto.ToUnixTimeMilliseconds());
+            }
+
+            if (jsObject.TryGetProperty("[[TemporalPlainMonthDay]]", out var mdSlot) &&
+                mdSlot.TryGetObject<JsTemporalPlainMonthDay>(out var md))
+            {
+                // Use reference year from the month-day object (internal, but accessible within assembly)
+                var dto = new DateTimeOffset(md.ReferenceYear, md.Month, md.Day, 0, 0, 0, TimeSpan.Zero);
+                return TimeClip(dto.ToUnixTimeMilliseconds());
+            }
         }
 
         try

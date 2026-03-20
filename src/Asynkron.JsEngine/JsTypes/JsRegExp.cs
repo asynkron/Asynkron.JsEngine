@@ -997,6 +997,10 @@ public sealed class JsRegExp
         // Track named groups that are currently open (not yet closed) for self-reference detection.
         var openGroupNames = new Stack<string?>();
         var groupDepth = 0;
+        // Track modifier group state for (?s:...) and (?m:...) modifier groups.
+        // Each entry represents the effective dotAll state at that group depth.
+        var modifierDotAllStack = new Stack<bool>();
+        var effectiveDotAll = dotAll;
 
         for (var i = 0; i < pattern.Length; i++)
         {
@@ -1306,7 +1310,7 @@ public sealed class JsRegExp
 
             if (hasUnicodeFlag && c == '.')
             {
-                builder.Append(dotAll ? AnyCodePointPattern : UnicodeDotPattern);
+                builder.Append(effectiveDotAll ? AnyCodePointPattern : UnicodeDotPattern);
                 continue;
             }
 
@@ -1331,12 +1335,34 @@ public sealed class JsRegExp
                 captureCount++;
                 definedSoFar.Add(normalizedName);
                 openGroupNames.Push(normalizedName);
+                modifierDotAllStack.Push(effectiveDotAll); // preserve modifier state
                 // Emit (?<normalizedName> — use decoded name since .NET doesn't
                 // understand \u escapes in group names
                 builder.Append("(?<");
                 builder.Append(normalizedName);
                 builder.Append('>');
                 i = end;
+                continue;
+            }
+
+            // Modifier groups: (?s:...), (?m:...), (?-s:...), (?sm:...), (?s-m:...), etc.
+            if (!inCharClass && c == '(' && i + 1 < pattern.Length && pattern[i + 1] == '?' &&
+                TryParseModifierGroup(pattern, i, out var modEnd, out var enableS, out var disableS, out var hasM))
+            {
+                groupDepth++;
+                openGroupNames.Push(null);
+                modifierDotAllStack.Push(effectiveDotAll);
+
+                // Compute new effective dotAll for this group
+                if (enableS)
+                    effectiveDotAll = true;
+                else if (disableS)
+                    effectiveDotAll = false;
+
+                // Emit as .NET non-capturing group with modifier flags
+                // .NET supports (?s:...) and (?m:...) natively for ^/$ handling
+                builder.Append(pattern, i, modEnd - i + 1);
+                i = modEnd;
                 continue;
             }
 
@@ -1350,6 +1376,7 @@ public sealed class JsRegExp
                 }
 
                 openGroupNames.Push(null);
+                modifierDotAllStack.Push(effectiveDotAll);
             }
 
             if (!inCharClass && c == ')' && groupDepth > 0)
@@ -1358,6 +1385,12 @@ public sealed class JsRegExp
                 if (openGroupNames.Count > 0)
                 {
                     openGroupNames.Pop();
+                }
+
+                // Restore modifier state from parent group
+                if (modifierDotAllStack.Count > 0)
+                {
+                    effectiveDotAll = modifierDotAllStack.Pop();
                 }
             }
 
@@ -1399,6 +1432,9 @@ public sealed class JsRegExp
         // \k<name> referencing an open group is a self-reference → matches empty string.
         var openGroupNames = new Stack<string?>();
         var groupDepth = 0;
+        // Track modifier group state for (?s:...) and (?m:...) modifier groups.
+        var modifierDotAllStack = new Stack<bool>();
+        var effectiveDotAll = dotAll;
 
         for (var i = 0; i < pattern.Length; i++)
         {
@@ -1684,6 +1720,27 @@ public sealed class JsRegExp
                 continue;
             }
 
+            // Modifier groups: (?s:...), (?m:...), (?-s:...), (?sm:...), etc.
+            if (!inCharClass && c == '(' && i + 1 < pattern.Length && pattern[i + 1] == '?' &&
+                TryParseModifierGroup(pattern, i, out var modEnd, out var enableS, out var disableS, out var hasM))
+            {
+                groupDepth++;
+                openGroupStack.Push(0); // non-capturing
+                openGroupNames.Push(null);
+                modifierDotAllStack.Push(effectiveDotAll);
+
+                // Compute new effective dotAll for this group
+                if (enableS)
+                    effectiveDotAll = true;
+                else if (disableS)
+                    effectiveDotAll = false;
+
+                // Emit as .NET non-capturing group with modifier flags
+                builder.Append(pattern, i, modEnd - i + 1);
+                i = modEnd;
+                continue;
+            }
+
             if (!inCharClass && c == '(')
             {
                 groupDepth++;
@@ -1701,6 +1758,8 @@ public sealed class JsRegExp
                     // Non-capturing group: push 0 as sentinel
                     openGroupStack.Push(0);
                 }
+
+                modifierDotAllStack.Push(effectiveDotAll);
 
                 // Named capture group: normalize and emit the decoded name
                 // This must happen here to prevent \u{...} escapes in group names
@@ -1746,6 +1805,12 @@ public sealed class JsRegExp
                 if (openGroupNames.Count > 0)
                 {
                     openGroupNames.Pop();
+                }
+
+                // Restore modifier state from parent group
+                if (modifierDotAllStack.Count > 0)
+                {
+                    effectiveDotAll = modifierDotAllStack.Pop();
                 }
             }
 
@@ -1802,7 +1867,7 @@ public sealed class JsRegExp
             // With dotAll (s flag), dot matches any single code unit.
             if (!inCharClass && c == '.')
             {
-                builder.Append(dotAll ? LegacyDotAllPattern : LegacyDotPattern);
+                builder.Append(effectiveDotAll ? LegacyDotAllPattern : LegacyDotPattern);
                 continue;
             }
 
@@ -1819,6 +1884,71 @@ public sealed class JsRegExp
         }
 
         return builder.ToString();
+    }
+
+    /// <summary>
+    /// Tries to parse a modifier group at position i: (?s:, (?m:, (?-s:, (?sm:, (?s-m:, etc.
+    /// Returns true if a valid modifier group prefix was found.
+    /// </summary>
+    private static bool TryParseModifierGroup(string pattern, int i, out int endIndex,
+        out bool enableS, out bool disableS, out bool hasM)
+    {
+        enableS = false;
+        disableS = false;
+        hasM = false;
+        endIndex = i;
+
+        // Must start with (?
+        if (i + 2 >= pattern.Length || pattern[i] != '(' || pattern[i + 1] != '?')
+            return false;
+
+        var pos = i + 2;
+        var inDisable = false;
+        var foundModifier = false;
+
+        // Parse modifier flags: [ims] or -[ims], ending with :
+        while (pos < pattern.Length)
+        {
+            var ch = pattern[pos];
+            if (ch == ':')
+            {
+                // End of modifier prefix — must have found at least one modifier
+                if (!foundModifier)
+                    return false;
+                endIndex = pos; // position of ':'
+                return true;
+            }
+
+            if (ch == '-')
+            {
+                if (inDisable) return false; // double dash
+                inDisable = true;
+                pos++;
+                continue;
+            }
+
+            if (ch is 's' or 'm' or 'i')
+            {
+                foundModifier = true;
+                if (ch == 's')
+                {
+                    if (inDisable) disableS = true;
+                    else enableS = true;
+                }
+                else if (ch == 'm')
+                {
+                    hasM = true;
+                }
+                // 'i' modifier is recognized but not specially handled (deferred)
+                pos++;
+                continue;
+            }
+
+            // Not a modifier character — this isn't a modifier group
+            return false;
+        }
+
+        return false; // reached end of pattern without finding ':'
     }
 
     private static bool IsSingleCharClassAtom(string pattern, int index)

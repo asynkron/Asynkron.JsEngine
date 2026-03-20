@@ -9045,9 +9045,12 @@ public static class TemporalHelper
 
         var calStr = calVal.AsString() ?? "";
 
-        // Direct calendar ID
-        if (string.Equals(calStr, "iso8601", StringComparison.OrdinalIgnoreCase))
-            return "iso8601";
+        // Direct calendar ID — check known calendar names (iso8601, gregory, hebrew, etc.)
+        var lowered = AsciiLowercase(calStr);
+        if (CalendarAliases.TryGetValue(lowered, out var canonical))
+            lowered = canonical;
+        if (ValidCalendarIds.Contains(lowered))
+            return lowered;
 
         // Try to parse as ISO string and extract calendar
         // If the string contains [u-ca=...], extract the calendar
@@ -9060,9 +9063,12 @@ public static class TemporalHelper
             if (eqIdx >= 0 && closeIdx > eqIdx)
             {
                 var embeddedCal = calStr[(eqIdx + 1)..closeIdx];
-                if (!string.Equals(embeddedCal, "iso8601", StringComparison.OrdinalIgnoreCase))
-                    throw StandardLibrary.ThrowRangeError($"Unsupported calendar: {embeddedCal}", realm: realm);
-                return "iso8601";
+                var embeddedLowered = AsciiLowercase(embeddedCal);
+                if (CalendarAliases.TryGetValue(embeddedLowered, out var embeddedCanonical))
+                    embeddedLowered = embeddedCanonical;
+                if (ValidCalendarIds.Contains(embeddedLowered))
+                    return embeddedLowered;
+                throw StandardLibrary.ThrowRangeError($"Unsupported calendar: {embeddedCal}", realm: realm);
             }
         }
 

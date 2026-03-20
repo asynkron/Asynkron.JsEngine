@@ -263,6 +263,11 @@ def load_script_aliases(text):
         aliases[short_code] = long_name
         # Also map long name to itself
         aliases[long_name] = long_name
+        # Handle additional aliases (e.g., Qaac for Coptic, Qaai for Inherited)
+        for extra in parts[3:]:
+            extra = extra.split("#")[0].strip()
+            if extra:
+                aliases[extra] = long_name
     return aliases
 
 
@@ -538,7 +543,7 @@ def main():
     prop_aliases_text = download_file(f"{BASE_URL}/PropertyAliases.txt", "PropertyAliases.txt")
 
     # Build binary property aliases (short name → long name)
-    # e.g., AHex → ASCII_Hex_Digit, Alpha → Alphabetic
+    # e.g., AHex → ASCII_Hex_Digit, Alpha → Alphabetic, space → White_Space
     for line in prop_aliases_text.splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
@@ -546,11 +551,14 @@ def main():
         parts = [p.strip() for p in line.split(";")]
         if len(parts) < 2:
             continue
-        short_name = parts[0]
         long_name = parts[1]
-        # If the long name is a known binary property and the short name isn't already present
-        if long_name in binary_props and short_name not in binary_props:
-            binary_props[short_name] = binary_props[long_name]
+        if long_name not in binary_props:
+            continue
+        # Map all aliases (short name + any additional aliases) to the canonical property
+        for alias_part in [parts[0]] + parts[2:]:
+            alias = alias_part.split("#")[0].strip()
+            if alias and alias not in binary_props:
+                binary_props[alias] = binary_props[long_name]
 
     # Also add General_Category value aliases from PropertyValueAliases.txt
     # e.g., gc ; Lu ; Uppercase_Letter → ensure both Lu and Uppercase_Letter work
@@ -567,7 +575,8 @@ def main():
             # Add any additional aliases beyond what's already in our mapping
             # (some GC values have 3+ aliases)
             for alias in parts[1:]:
-                alias = alias.strip()
+                # Strip inline comments (e.g. "Combining_Mark  # Mc | Me | Mn")
+                alias = alias.split("#")[0].strip()
                 if alias and alias not in GC_LONG_TO_SHORT and alias not in GC_SHORT_ALIASES:
                     # Map to the canonical short name
                     if short_alias in GC_SHORT_ALIASES:

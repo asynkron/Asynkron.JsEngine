@@ -22,9 +22,8 @@ internal static class UnicodePropertyData
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["Cased_Letter"] = "LC",
-            ["Cased_Letter                     # Ll | Lt | Lu"] = "LC",
             ["Close_Punctuation"] = "Pe",
-            ["Combining_Mark                   # Mc | Me | Mn"] = "M",
+            ["Combining_Mark"] = "M",
             ["Connector_Punctuation"] = "Pc",
             ["Control"] = "Cc",
             ["Currency_Symbol"] = "Sc",
@@ -35,7 +34,6 @@ internal static class UnicodePropertyData
             ["Format"] = "Cf",
             ["Initial_Punctuation"] = "Pi",
             ["Letter"] = "L",
-            ["Letter                           # Ll | Lm | Lo | Lt | Lu"] = "L",
             ["Letter_Number"] = "Nl",
             ["Line_Separator"] = "Zl",
             ["Lowercase_Letter"] = "Ll",
@@ -45,10 +43,8 @@ internal static class UnicodePropertyData
             ["Modifier_Symbol"] = "Sk",
             ["Nonspacing_Mark"] = "Mn",
             ["Number"] = "N",
-            ["Number                           # Nd | Nl | No"] = "N",
             ["Open_Punctuation"] = "Ps",
             ["Other"] = "C",
-            ["Other                            # Cc | Cf | Cn | Co | Cs"] = "C",
             ["Other_Letter"] = "Lo",
             ["Other_Number"] = "No",
             ["Other_Punctuation"] = "Po",
@@ -57,18 +53,16 @@ internal static class UnicodePropertyData
             ["Private_Use"] = "Co",
             ["Punctuation"] = "P",
             ["Separator"] = "Z",
-            ["Separator                        # Zl | Zp | Zs"] = "Z",
             ["Space_Separator"] = "Zs",
             ["Spacing_Mark"] = "Mc",
             ["Surrogate"] = "Cs",
             ["Symbol"] = "S",
-            ["Symbol                           # Sc | Sk | Sm | So"] = "S",
             ["Titlecase_Letter"] = "Lt",
             ["Unassigned"] = "Cn",
             ["Uppercase_Letter"] = "Lu",
             ["cntrl"] = "Cc",
             ["digit"] = "Nd",
-            ["punct                            # Pc | Pd | Pe | Pf | Pi | Po | Ps"] = "P",
+            ["punct"] = "P",
             ["C"] = "C",
             ["Cc"] = "Cc",
             ["Cf"] = "Cf",
@@ -164,7 +158,6 @@ internal static class UnicodePropertyData
             ["Common"] = "Common",
             ["Copt"] = "Coptic",
             ["Coptic"] = "Coptic",
-            ["Qaac"] = "Coptic",
             ["Cpmn"] = "Cypro_Minoan",
             ["Cprt"] = "Cypriot",
             ["Cuneiform"] = "Cuneiform",
@@ -360,6 +353,8 @@ internal static class UnicodePropertyData
             ["Plrd"] = "Miao",
             ["Prti"] = "Inscriptional_Parthian",
             ["Psalter_Pahlavi"] = "Psalter_Pahlavi",
+            ["Qaac"] = "Coptic",
+            ["Qaai"] = "Inherited",
             ["Rejang"] = "Rejang",
             ["Rjng"] = "Rejang",
             ["Rohg"] = "Hanifi_Rohingya",
@@ -5629,6 +5624,11 @@ internal static class UnicodePropertyData
                 (0x1EEA1, 0x1EEA3), (0x1EEA5, 0x1EEA9), (0x1EEAB, 0x1EEBB), (0x20000, 0x2A6DF), (0x2A700, 0x2B739), (0x2B740, 0x2B81D),
                 (0x2B820, 0x2CEA1), (0x2CEB0, 0x2EBE0), (0x2EBF0, 0x2EE5D), (0x2F800, 0x2FA1D), (0x30000, 0x3134A), (0x31350, 0x323AF)
             ],
+            ["space"] = // 10 ranges, 25 code points
+            [
+                (0x0009, 0x000D), (0x0020, 0x0020), (0x0085, 0x0085), (0x00A0, 0x00A0), (0x1680, 0x1680), (0x2000, 0x200A),
+                (0x2028, 0x2029), (0x202F, 0x202F), (0x205F, 0x205F), (0x3000, 0x3000)
+            ],
         }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Script code point ranges.</summary>
@@ -7278,21 +7278,7 @@ internal static class UnicodePropertyData
                 // Resolve script alias
                 if (ScriptAliases.TryGetValue(value, out var canonical))
                     value = canonical;
-                var scriptExtensionRanges = ScriptExtensionRanges.GetValueOrDefault(value);
-                if (scriptExtensionRanges is not null)
-                {
-                    return scriptExtensionRanges;
-                }
-
-                // ECMAScript treats Unknown/Zzzz as a valid Script_Extensions value.
-                // Our generated Script_Extensions table omits it, but the engine
-                // must still accept the escape during regexp compilation.
-                if (string.Equals(value, "Unknown", StringComparison.OrdinalIgnoreCase))
-                {
-                    return Array.Empty<(int Start, int End)>();
-                }
-
-                return null;
+                return ScriptExtensionRanges.GetValueOrDefault(value);
             }
 
             return null; // Unknown property key

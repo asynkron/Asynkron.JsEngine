@@ -1,12 +1,17 @@
 # Temporal_ZonedDateTime_prototype_startOfDay
 
-Status: 20/22 passing (2 intl402 remaining, BuiltIns 100%)
+FQN:
+`Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_startOfDay`
 
-FQNs:
+Full test name:
 
-- `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_startOfDay`
-- `Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_startOfDay`
-
-Remaining intl402 failures (2):
-
-- same-date-starts-twice.js × 2
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_startOfDay("built-ins/Temporal/ZonedDateTime/prototype/startOfDay/branding.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_startOfDay("built-ins/Temporal/ZonedDateTime/prototype/startOfDay/branding.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_startOfDay("built-ins/Temporal/ZonedDateTime/prototype/startOfDay/subclassing-ignored.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_startOfDay("built-ins/Temporal/ZonedDateTime/prototype/startOfDay/subclassing-ignored.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_startOfDay("built-ins/Temporal/ZonedDateTime/prototype/startOfDay/throws-if-epoch-nanoseconds-outside-valid-limits.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Temporal_ZonedDateTime_prototype_startOfDay("built-ins/Temporal/ZonedDateTime/prototype/startOfDay/throws-if-epoch-nanoseconds-outside-valid-limits.js",True)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_startOfDay("intl402/Temporal/ZonedDateTime/prototype/startOfDay/dst-skipped-cross-midnight.js",False)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_startOfDay("intl402/Temporal/ZonedDateTime/prototype/startOfDay/dst-skipped-cross-midnight.js",True)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_startOfDay("intl402/Temporal/ZonedDateTime/prototype/startOfDay/same-date-starts-twice.js",False)
+- Asynkron.JsEngine.Tests.Test262.Intl402Tests.Temporal_ZonedDateTime_prototype_startOfDay("intl402/Temporal/ZonedDateTime/prototype/startOfDay/same-date-starts-twice.js",True)

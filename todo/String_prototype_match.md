@@ -3,14 +3,27 @@
 FQN:
 `Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_match`
 
-Remaining failures: 4 (blocked by .NET group reset limitation)
+Full test name:
 
-.NET does not reset capturing groups on quantifier re-entry. Lines 33-36 test
-`(?:(?:(?<x>a)|(?<x>b)|c)\k<x>){2}` where the last iteration is `c` (no capture),
-expecting `groups.x = undefined`. .NET keeps stale captures from previous iterations,
-causing the match to fail entirely.
-
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_match("built-ins/String/prototype/match/S15.5.4.10_A1_T11.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_match("built-ins/String/prototype/match/S15.5.4.10_A1_T11.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_match("built-ins/String/prototype/match/S15.5.4.10_A1_T12.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_match("built-ins/String/prototype/match/S15.5.4.10_A1_T12.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_match("built-ins/String/prototype/match/S15.5.4.10_A1_T4.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_match("built-ins/String/prototype/match/S15.5.4.10_A1_T4.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_match("built-ins/String/prototype/match/S15.5.4.10_A1_T6.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_match("built-ins/String/prototype/match/S15.5.4.10_A1_T6.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_match("built-ins/String/prototype/match/S15.5.4.10_A1_T7.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_match("built-ins/String/prototype/match/S15.5.4.10_A1_T7.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_match("built-ins/String/prototype/match/S15.5.4.10_A1_T8.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_match("built-ins/String/prototype/match/S15.5.4.10_A1_T8.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_match("built-ins/String/prototype/match/S15.5.4.10_A1_T9.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_match("built-ins/String/prototype/match/S15.5.4.10_A1_T9.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_match("built-ins/String/prototype/match/duplicate-named-groups-properties.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_match("built-ins/String/prototype/match/duplicate-named-groups-properties.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_match("built-ins/String/prototype/match/duplicate-named-indices-groups-properties.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_match("built-ins/String/prototype/match/duplicate-named-indices-groups-properties.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_match("built-ins/String/prototype/match/invoke-builtin-match.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_match("built-ins/String/prototype/match/invoke-builtin-match.js",True)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_match("built-ins/String/prototype/match/regexp-prototype-match-v-u-flag.js",False)
+- Asynkron.JsEngine.Tests.Test262.BuiltInsTests.String_prototype_match("built-ins/String/prototype/match/regexp-prototype-match-v-u-flag.js",True)

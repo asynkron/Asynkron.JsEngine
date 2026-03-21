@@ -866,5 +866,71 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
         """);
         Assert.Equal("OK", result);
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task RegExp_DuplicateNamedGroups_Exec()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var errors = [];
+            function check(label, expected, actual) {
+                if (actual === null && expected !== null) { errors.push(label + ": got null"); return; }
+                if (actual !== null && expected === null) { errors.push(label + ": expected null, got " + actual); return; }
+                if (expected === null) return;
+                if (actual.length !== expected.length) { errors.push(label + ": length " + actual.length + " != " + expected.length); return; }
+                for (var i = 0; i < expected.length; i++) {
+                    if (actual[i] !== expected[i]) { errors.push(label + ": [" + i + "] " + actual[i] + " != " + expected[i]); }
+                }
+            }
+
+            check("T1", ["b", undefined, "b"], /(?<x>a)|(?<x>b)/.exec("bab"));
+            check("T2", ["b", "b", undefined], /(?<x>b)|(?<x>a)/.exec("bab"));
+            check("T3", ["aa", "a", undefined], /(?:(?<x>a)|(?<x>b))\k<x>/.exec("aa"));
+            check("T4", ["bb", undefined, "b"], /(?:(?<x>a)|(?<x>b))\k<x>/.exec("bb"));
+            check("T5", null, /(?:(?<x>a)|(?<x>b))\k<x>/.exec("abab"));
+
+            var r6 = /(?:(?:(?<x>a)|(?<x>b))\k<x>){2}/.exec("aabb");
+            check("T6", ["aabb", undefined, "b"], r6);
+            if (r6 && r6.groups.x !== "b") errors.push("T6 groups.x=" + r6.groups.x);
+
+            check("T7", null, /(?:(?:(?<x>a)|(?<x>b))\k<x>){2}/.exec("abab"));
+            check("T8", null, /(?:(?<x>a)|(?<x>b))\k<x>/.exec("cdef"));
+
+            check("T9", ["xx", "x", undefined], /^(?:(?<a>x)|(?<a>y)|z)\k<a>$/.exec("xx"));
+            check("T10", ["z", undefined, undefined], /^(?:(?<a>x)|(?<a>y)|z)\k<a>$/.exec("z"));
+            check("T11", null, /^(?:(?<a>x)|(?<a>y)|z)\k<a>$/.exec("zz"));
+            check("T12", ["zy", undefined], /(?<a>x)|(?:zy\k<a>)/.exec("zy"));
+
+            check("T13", ["xz", undefined, undefined], /^(?:(?<a>x)|(?<a>y)|z){2}\k<a>$/.exec("xz"));
+            check("T14", ["yz", undefined, undefined], /^(?:(?<a>x)|(?<a>y)|z){2}\k<a>$/.exec("yz"));
+            check("T15", null, /^(?:(?<a>x)|(?<a>y)|z){2}\k<a>$/.exec("xzx"));
+            check("T16", null, /^(?:(?<a>x)|(?<a>y)|z){2}\k<a>$/.exec("yzy"));
+
+            errors.length > 0 ? errors.join("; ") : "OK";
+        """);
+        Assert.Equal("OK", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task RegExp_DuplicateNamedGroups_Replace()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var errors = [];
+            function eq(label, expected, actual) {
+                if (actual !== expected) errors.push(label + ": " + JSON.stringify(actual) + " != " + JSON.stringify(expected));
+            }
+
+            eq("R1", "[a]b", "ab".replace(/(?<x>a)|(?<x>b)/, "[$<x>]"));
+            eq("R2", "[b]a", "ba".replace(/(?<x>a)|(?<x>b)/, "[$<x>]"));
+            eq("R3", "[a][a][]b", "ab".replace(/(?<x>a)|(?<x>b)/, "[$<x>][$1][$2]"));
+            eq("R4", "[b][][b]a", "ba".replace(/(?<x>a)|(?<x>b)/, "[$<x>][$1][$2]"));
+            eq("R5", "[a][b]", "ab".replace(/(?<x>a)|(?<x>b)/g, "[$<x>]"));
+            eq("R6", "[b][a]", "ba".replace(/(?<x>a)|(?<x>b)/g, "[$<x>]"));
+
+            errors.length > 0 ? errors.join("; ") : "OK";
+        """);
+        Assert.Equal("OK", result);
+    }
 }
 

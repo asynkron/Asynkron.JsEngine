@@ -145,7 +145,9 @@ internal static class StatementEmitter
         var whileStrict = EmitContext.IsStrictBlock(whileStatement.Body);
         if (!LoopNormalizer.TryNormalize(whileStatement, whileStrict, out var whilePlan, out var whileFailure))
         {
-            ctx.SetFailureReason(whileFailure ?? "Failed to normalize while loop.");
+            ctx.SetFailureReason(
+                whileFailure ?? "Failed to normalize while loop.",
+                ExecutionPlanFailureCode.NormalizationFailed);
             entryIndex = -1;
             return false;
         }
@@ -170,7 +172,9 @@ internal static class StatementEmitter
         var doStrict = EmitContext.IsStrictBlock(doWhileStatement.Body);
         if (!LoopNormalizer.TryNormalize(doWhileStatement, doStrict, out var doWhilePlan, out var doFailure))
         {
-            ctx.SetFailureReason(doFailure ?? "Failed to normalize do/while loop.");
+            ctx.SetFailureReason(
+                doFailure ?? "Failed to normalize do/while loop.",
+                ExecutionPlanFailureCode.NormalizationFailed);
             entryIndex = -1;
             return false;
         }
@@ -202,7 +206,9 @@ internal static class StatementEmitter
         var forStrict = EmitContext.IsStrictBlock(forStatement.Body);
         if (!LoopNormalizer.TryNormalize(forStatement, forStrict, out var forPlan, out var forFailure))
         {
-            ctx.SetFailureReason(forFailure ?? "Failed to normalize for loop.");
+            ctx.SetFailureReason(
+                forFailure ?? "Failed to normalize for loop.",
+                ExecutionPlanFailureCode.NormalizationFailed);
             entryIndex = -1;
             return false;
         }

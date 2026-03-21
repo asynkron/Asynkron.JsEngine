@@ -189,9 +189,10 @@ internal sealed class EmitContext(
     /// <summary>
     /// Set the failure reason on the builder.
     /// </summary>
-    public void SetFailureReason(string reason)
+    public void SetFailureReason(string reason,
+        ExecutionPlanFailureCode code = ExecutionPlanFailureCode.UnsupportedConstruct)
     {
-        builder.SetFailureReason(reason);
+        builder.SetFailureReason(reason, code);
     }
 
     /// <summary>

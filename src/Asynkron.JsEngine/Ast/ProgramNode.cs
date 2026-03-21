@@ -34,6 +34,6 @@ public sealed partial record ProgramNode
     ScriptPlanCache IAstCacheable<ScriptPlanCache>.GetOrCreateCache()
     {
         return AstCache.GetOrCreate(ref _cachedScriptPlan, this,
-            static program => ScriptPlanCache.Build(program));
+            static program => ScriptPlanCache.Build(program), out _);
     }
 }

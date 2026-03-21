@@ -280,10 +280,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         // For eval, always disable identifier caching/slot analysis because eval runs in the caller's
         // lexical environment which may contain 'with' statements or allow deletable bindings.
         // The static analysis of the eval code alone doesn't tell us about the outer context.
-        var allowScriptSlotAnalysis = context.RealmState.Options.AllowScriptSlotAnalysis &&
-                                      executionKind != ExecutionKind.Eval;
-        context.AllowIdentifierCache = allowScriptSlotAnalysis &&
-                                       executionKind != ExecutionKind.Eval &&
+        var allowScriptSlotAnalysis = executionKind != ExecutionKind.Eval;
+        context.AllowIdentifierCache = executionKind != ExecutionKind.Eval &&
                                        AllowsIdentifierCaching(program);
         context.DrainAwaitMicrotasks = drainAwaitMicrotasks;
         if (inheritedPrivateNameScopes is { IsDefault: false, Length: > 0 } scopes)
@@ -445,10 +443,10 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         // If we plan to execute this program via the IR path, we must initialize the slot layout
         // BEFORE hoisting so that user bindings get created after internal IR slots. Otherwise,
         // internal 0-based IR slot writes can overwrite hoisted user bindings.
-        var hasDynamicScope = !AllowsIdentifierCaching(program);
+        var requiresDynamicScopeExecutor = executionKind == ExecutionKind.Eval || !AllowsIdentifierCaching(program);
         ScriptPlanCache? scriptPlanCache = null;
         ExecutionPlan? scriptPlan = null;
-        var enableScriptSlots = allowScriptSlotAnalysis && !hasDynamicScope;
+        var enableScriptSlots = allowScriptSlotAnalysis && !requiresDynamicScopeExecutor;
         if (enableScriptSlots)
         {
             scriptPlanCache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
@@ -535,10 +533,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             reverseFunctionHoist: reverseFunctionHoist,
             functionHoistDedupe: functionHoistDedupe);
 
-        // Dynamic scope constructs (with/eval) require dictionary-based lookups; skip IR/slot stamping.
-        if (hasDynamicScope)
+        // Direct eval and active with-scope stay on the explicit dynamic-scope executor.
+        if (requiresDynamicScopeExecutor)
         {
-            context.RealmState.Logger?.LogInformation("Skipping IR path due to dynamic scope (with/eval)");
+            context.RealmState.Logger?.LogInformation(
+                "Executing script via dynamic-scope executor (eval/with path)");
             var dynamicResult = programBlock.EvaluateStatementJsValue(executionEnvironment, context);
             if (context.IsThrow)
             {
@@ -548,77 +547,21 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             return dynamicResult;
         }
 
-        // Try IR execution path first (unified execution model)
-        // Fall back to AST walking if IR building fails or encounters unsupported constructs
-        if (enableScriptSlots && scriptPlanCache is { Succeeded: true } && scriptPlan is not null)
+        if (!enableScriptSlots || scriptPlanCache is not { Succeeded: true } || scriptPlan is null)
         {
-            context.RealmState.Logger?.LogInformation(
-                "Executing script via IR path ({InstructionCount} instructions)",
-                scriptPlan.Instructions.Length);
-
-            try
-            {
-                // Use unified ExecutionPlanRunner which handles all the complexity of loops,
-                // break/continue signals, try/catch, etc. consistently.
-                // Script-level var declarations are marked with IsScriptLevel=true in the IR
-                // so they correctly update the global object.
-                var irResult = ExecutionPlanRunner.RunScript(
-                    scriptPlan,
-                    executionEnvironment,
-                    context);
-                return irResult;
-            }
-            catch (NotSupportedException ex)
-            {
-                // Unsupported instruction encountered - fall back to AST walking
-                context.RealmState.Logger?.LogWarning(
-                    "Script IR execution fallback: {Reason}",
-                    ex.Message);
-                // Continue to AST walking path below
-            }
-        }
-        else
-        {
-            context.RealmState.Logger?.LogInformation(
-                "Script IR building failed: {Reason}. Using AST walking",
-                scriptPlanCache?.FailureReason ?? "unknown");
+            throw new NotSupportedException(
+                $"IR plan generation failed for script: {scriptPlanCache?.FailureReason ?? "unknown"}");
         }
 
-        // AST walking fallback path
-        var resultJs = JsValue.Unit;
-        foreach (var statement in program.Body)
-        {
-            context.ThrowIfCancellationRequested();
-            var completionJs = statement.EvaluateStatementJsValue(executionEnvironment, context);
-            var shouldStop = context.ShouldStopEvaluation;
+        context.RealmState.Logger?.LogInformation(
+            "Executing script via IR path ({InstructionCount} instructions)",
+            scriptPlan.Instructions.Length);
 
-            if (!completionJs.IsUnit)
-            {
-                resultJs = completionJs;
-            }
-            else if (ShouldResetScriptCompletion(statement))
-            {
-                // Compound statements with empty completion reset the script completion to undefined
-                resultJs = JsValue.Undefined;
-            }
-
-            // Abrupt completions should yield undefined as the script result (per spec test cases)
-            if (context.IsBreak || context.IsContinue)
-            {
-                resultJs = JsValue.Undefined;
-            }
-
-            if (shouldStop)
-            {
-                break;
-            }
-        }
-
-        if (context.IsThrow)
-        {
-            throw new ThrowSignal(context.FlowValue);
-        }
-
-        return resultJs;
+        // Script-level var declarations are marked with IsScriptLevel=true in the IR
+        // so they correctly update the global object.
+        return ExecutionPlanRunner.RunScript(
+            scriptPlan,
+            executionEnvironment,
+            context);
     }
 }

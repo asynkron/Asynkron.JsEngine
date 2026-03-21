@@ -66,6 +66,19 @@ public sealed class EvaluationContext(
     /// </summary>
     internal bool AllowIdentifierCache { get; set; }
 
+    internal bool DisallowAstEvaluation { get; set; } =
+#if DEBUG
+        AssertNoAstEvaluation;
+#else
+        false;
+#endif
+
+    internal int AstEvaluationCount { get; private set; }
+
+    internal string? LastAstEvaluationNodeType { get; private set; }
+
+    internal SourceReference? LastAstEvaluationSource { get; private set; }
+
     /// <summary>
     ///     Realm-specific state (prototypes/constructors) for the current execution.
     /// </summary>
@@ -337,6 +350,20 @@ public sealed class EvaluationContext(
         cancellationToken.ThrowIfCancellationRequested();
     }
 
+    internal void RecordAstEvaluation(AstNode node)
+    {
+        AssertOwnership(nameof(RecordAstEvaluation));
+        AstEvaluationCount++;
+        LastAstEvaluationNodeType = node.GetType().Name;
+        LastAstEvaluationSource = node.Source;
+
+        if (DisallowAstEvaluation)
+        {
+            throw new InvalidOperationException(
+                $"AST evaluation invoked for {LastAstEvaluationNodeType} during IR execution");
+        }
+    }
+
     /// <summary>
     ///     Pushes a label onto the label stack.
     /// </summary>
@@ -570,6 +597,14 @@ public sealed class EvaluationContext(
         _assignmentSlotCache?.Clear();
         _classFieldInitializerDepth = 0;
         AllowIdentifierCache = false;
+#if DEBUG
+        DisallowAstEvaluation = AssertNoAstEvaluation;
+#else
+        DisallowAstEvaluation = false;
+#endif
+        AstEvaluationCount = 0;
+        LastAstEvaluationNodeType = null;
+        LastAstEvaluationSource = null;
         IsStrictSource = false;
         IsReturn = false;
         _returnValue = default;

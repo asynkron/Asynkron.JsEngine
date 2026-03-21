@@ -178,7 +178,9 @@ internal static class ControlFlowEmitter
     {
         if (!ctx.TryFindBreakTarget(statement.Label, out var target, out var scopeId))
         {
-            ctx.SetFailureReason($"Break target not found for label: {statement.Label?.Name ?? "(none)"}");
+            ctx.SetFailureReason(
+                $"Break target not found for label: {statement.Label?.Name ?? "(none)"}",
+                ExecutionPlanFailureCode.MissingControlFlowTarget);
             entryIndex = -1;
             return false;
         }
@@ -199,7 +201,9 @@ internal static class ControlFlowEmitter
     {
         if (!ctx.TryFindContinueTarget(statement.Label, out var target, out var scopeId))
         {
-            ctx.SetFailureReason($"Continue target not found for label: {statement.Label?.Name ?? "(none)"}");
+            ctx.SetFailureReason(
+                $"Continue target not found for label: {statement.Label?.Name ?? "(none)"}",
+                ExecutionPlanFailureCode.MissingControlFlowTarget);
             entryIndex = -1;
             return false;
         }

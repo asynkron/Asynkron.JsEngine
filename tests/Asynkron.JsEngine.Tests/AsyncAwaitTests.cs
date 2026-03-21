@@ -123,7 +123,10 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
                 .catch(function(error) { captureError(error && error.name); });
             """));
 
-        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
+        var snapshot = ExecutionPlanDiagnostics.DetailedSnapshot();
+        var attempts = snapshot.Functions.Attempts + snapshot.Scripts.Attempts;
+        var succeeded = snapshot.Functions.Succeeded + snapshot.Scripts.Succeeded;
+        var failed = snapshot.Functions.Failed + snapshot.Scripts.Failed;
 
         Assert.True(attempts >= 1);
         Assert.True(succeeded >= 1);

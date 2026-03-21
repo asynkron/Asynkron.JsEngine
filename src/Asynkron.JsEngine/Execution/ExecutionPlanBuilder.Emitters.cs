@@ -32,9 +32,15 @@ internal sealed partial class ExecutionPlanBuilder
     /// <summary>
     /// Sets the failure reason if not already set.
     /// </summary>
-    internal void SetFailureReason(string reason)
+    internal void SetFailureReason(string reason, ExecutionPlanFailureCode code = ExecutionPlanFailureCode.UnsupportedConstruct)
     {
-        _failureReason ??= reason;
+        if (_failureReason is not null)
+        {
+            return;
+        }
+
+        _failureReason = reason;
+        _failureCode = code;
     }
 
     /// <summary>

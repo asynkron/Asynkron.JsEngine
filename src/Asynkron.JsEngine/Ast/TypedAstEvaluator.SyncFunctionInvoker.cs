@@ -560,13 +560,6 @@ public static partial class TypedAstEvaluator
             EvaluationContext? callingContext,
             JsValue newTarget = default)
         {
-            // Fast-path for simple functions - uses precomputed _canUseFastPathBase
-            // Only check newTarget at runtime (everything else is fixed after construction)
-            if (_canUseFastPathBase && newTarget.IsUndefined && !EngineFeatureFlags.PreferSyncIr)
-            {
-                return InvokeSimpleFast(arguments, thisValue, callingContext);
-            }
-
             return InvokeWithContextSlow(arguments, thisValue, callingContext, newTarget);
         }
 
@@ -579,11 +572,6 @@ public static partial class TypedAstEvaluator
             JsValue thisValue,
             EvaluationContext callingContext)
         {
-            if (_canUseFastPathBase && !EngineFeatureFlags.PreferSyncIr)
-            {
-                return InvokeSimpleFast1(arg0, thisValue, callingContext);
-            }
-
             return InvokeWithContextSlow([arg0], thisValue, callingContext, JsValue.Undefined);
         }
 
@@ -598,11 +586,6 @@ public static partial class TypedAstEvaluator
             EvaluationContext callingContext,
             JsEnvironment reuseEnvironment)
         {
-            if (_canUseFastPathBase && !EngineFeatureFlags.PreferSyncIr)
-            {
-                return InvokeSimpleFast1Reuse(arg0, thisValue, callingContext, reuseEnvironment);
-            }
-
             return InvokeWithContextSlow([arg0], thisValue, callingContext, JsValue.Undefined);
         }
 
@@ -616,11 +599,6 @@ public static partial class TypedAstEvaluator
             JsValue thisValue,
             EvaluationContext callingContext)
         {
-            if (_canUseFastPathBase && !EngineFeatureFlags.PreferSyncIr)
-            {
-                return InvokeSimpleFast2(arg0, arg1, thisValue, callingContext);
-            }
-
             return InvokeWithContextSlow([arg0, arg1], thisValue, callingContext, JsValue.Undefined);
         }
 
@@ -698,36 +676,13 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            // ┌──────────────────────────────────────────────────────────────────────────────┐
-            // │ SYNC FUNCTION EXECUTION PATHS                                                 │
-            // │                                                                               │
-            // │ 1. FAST PATH (InvokeSimpleFast) - Direct AST evaluation, no IR               │
-            // │    Used for simple functions: no async, no defaults, no destructuring,       │
-            // │    no hoistable declarations, simple identifier params only.                 │
-            // │    This is the hot path for recursive functions like fibonacci().            │
-            // │                                                                               │
-            // │ 2. SLOW PATH (below) - Uses IR via ExecutionPlanRunner                        │
-            // │    Used for complex sync functions that don't qualify for fast path.         │
-            // │    If IR plan generation fails, throws NotSupportedException to surface it.  │
-            // │                                                                               │
-            // │ Async functions and generators ALWAYS use IR (required for pause/resume).    │
-            // └──────────────────────────────────────────────────────────────────────────────┘
-            //
-            // DEBUG: Log all invocations
             RealmState.Logger?.LogInformation(
                 "[SyncFunctionInvoker.Invoke.ALL] _function.Hash={Hash} _allowIdentifierCache={AllowCache} _function.Name={Name}",
                 _function.GetHashCode(),
                 _allowIdentifierCache,
                 _function.Name?.Name ?? "<anonymous>");
 
-            var forceSyncIr = EngineFeatureFlags.ForceSyncIr;
-            var preferSyncIr = EngineFeatureFlags.PreferSyncIr;
-            var allowDefaultIr = !_function.IsGenerator && !IsClassConstructor && _homeObject is null && _allowIdentifierCache;
-
-            // IR execution (ExecutionPlanRunner) for sync functions.
-            // Default mode uses IR only for the safe/optimized subset (allowDefaultIr) and throws if plan generation fails.
-            // Prefer/Force modes widen IR eligibility to all sync functions, optionally allowing AST fallback.
-            if (!_function.IsGenerator && !IsAsyncFunction && (preferSyncIr || allowDefaultIr))
+            if (!_function.IsGenerator && !IsAsyncFunction && _allowIdentifierCache)
             {
                 var planCache = ((IAstCacheable<ExecutionPlanCache>)_function).GetOrCreateCache();
                 RealmState.Logger?.LogInformation(
@@ -816,13 +771,16 @@ public static partial class TypedAstEvaluator
                     }
                 }
 
-                if (forceSyncIr || !preferSyncIr)
-                {
-                    // IR plan generation failed - throw to surface the limitation clearly
-                    RealmState.ReturnContext(context);
-                    throw new NotSupportedException(
-                        $"IR plan generation failed for function: {planCache.FailureReason}");
-                }
+                RealmState.ReturnContext(context);
+                throw new NotSupportedException(
+                    $"IR plan generation failed for function: {planCache.FailureReason}");
+            }
+
+            if (!_function.IsGenerator && !IsAsyncFunction)
+            {
+                RealmState.Logger?.LogInformation(
+                    "Executing sync function via dynamic-scope executor func={Function}",
+                    _function.Name?.Name ?? "<anonymous>");
             }
 
             var lexicalNames = RentSymbolSet(_lexicalTemplate);

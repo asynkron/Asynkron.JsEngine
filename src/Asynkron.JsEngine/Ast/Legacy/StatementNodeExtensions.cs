@@ -20,14 +20,7 @@ public static partial class TypedAstEvaluator
         EvaluationContext context,
         Symbol? activeLabel = null)
     {
-#if DEBUG
-        // Guard: detect AST evaluation during IR-only execution (see #398, #415, #364)
-        if (EvaluationContext.AssertNoAstEvaluation)
-        {
-            throw new InvalidOperationException(
-                $"AST evaluation invoked for {statement.GetType().Name} during IR execution");
-        }
-#endif
+        context.RecordAstEvaluation(statement);
         context.SourceReference = statement.Source;
         context.ThrowIfCancellationRequested();
 

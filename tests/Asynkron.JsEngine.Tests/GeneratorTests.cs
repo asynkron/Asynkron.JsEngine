@@ -2405,7 +2405,10 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
             let g = gen();
         """);
 
-        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
+        var snapshot = ExecutionPlanDiagnostics.DetailedSnapshot();
+        var attempts = snapshot.Functions.Attempts + snapshot.Scripts.Attempts;
+        var succeeded = snapshot.Functions.Succeeded + snapshot.Scripts.Succeeded;
+        var failed = snapshot.Functions.Failed + snapshot.Scripts.Failed;
 
         Assert.True(attempts >= 1);
         Assert.True(succeeded >= 1);
@@ -2564,7 +2567,10 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
             let g = gen();
         """);
 
-        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
+        var snapshot = ExecutionPlanDiagnostics.DetailedSnapshot();
+        var attempts = snapshot.Functions.Attempts + snapshot.Scripts.Attempts;
+        var succeeded = snapshot.Functions.Succeeded + snapshot.Scripts.Succeeded;
+        var failed = snapshot.Functions.Failed + snapshot.Scripts.Failed;
 
         Assert.True(attempts >= 1);
         Assert.True(succeeded >= 1);
@@ -2622,7 +2628,10 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
             let g = gen();
         """);
 
-        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
+        var snapshot = ExecutionPlanDiagnostics.DetailedSnapshot();
+        var attempts = snapshot.Functions.Attempts + snapshot.Scripts.Attempts;
+        var succeeded = snapshot.Functions.Succeeded + snapshot.Scripts.Succeeded;
+        var failed = snapshot.Functions.Failed + snapshot.Scripts.Failed;
 
         Assert.True(attempts >= 1);
         Assert.True(succeeded >= 1);
@@ -2699,7 +2708,10 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
             var value = first.value;
             """));
 
-        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
+        var snapshot = ExecutionPlanDiagnostics.DetailedSnapshot();
+        var attempts = snapshot.Functions.Attempts + snapshot.Scripts.Attempts;
+        var succeeded = snapshot.Functions.Succeeded + snapshot.Scripts.Succeeded;
+        var failed = snapshot.Functions.Failed + snapshot.Scripts.Failed;
 
         Assert.True(attempts >= 1);
         Assert.True(succeeded >= 1);
@@ -2735,11 +2747,13 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
             let g2 = gen();
         """);
 
-        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
-
-        Assert.Equal(2, attempts);
-        Assert.Equal(2, succeeded);
-        Assert.Equal(0, failed);
+        var snapshot = ExecutionPlanDiagnostics.DetailedSnapshot();
+        Assert.Equal(1, snapshot.Functions.Attempts);
+        Assert.Equal(1, snapshot.Functions.Succeeded);
+        Assert.Equal(0, snapshot.Functions.Failed);
+        Assert.Equal(1, snapshot.Scripts.Attempts);
+        Assert.Equal(1, snapshot.Scripts.Succeeded);
+        Assert.Equal(0, snapshot.Scripts.Failed);
 
         await engine.Evaluate("const first = g1.next();");
         await engine.Evaluate("const second = g1.next(1);");
@@ -2785,11 +2799,13 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
             let g3 = gen(3);
         """);
 
-        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
-
-        Assert.Equal(3, attempts);
-        Assert.Equal(3, succeeded);
-        Assert.Equal(0, failed);
+        var snapshot = ExecutionPlanDiagnostics.DetailedSnapshot();
+        Assert.Equal(1, snapshot.Functions.Attempts);
+        Assert.Equal(1, snapshot.Functions.Succeeded);
+        Assert.Equal(0, snapshot.Functions.Failed);
+        Assert.Equal(1, snapshot.Scripts.Attempts);
+        Assert.Equal(1, snapshot.Scripts.Succeeded);
+        Assert.Equal(0, snapshot.Scripts.Failed);
 
         await engine.Evaluate("const g1_first = g1.next();");
         var g1First = await engine.Evaluate("g1_first.value;");
@@ -3077,7 +3093,10 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
 
                          """);
 
-        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
+        var snapshot = ExecutionPlanDiagnostics.DetailedSnapshot();
+        var attempts = snapshot.Functions.Attempts + snapshot.Scripts.Attempts;
+        var succeeded = snapshot.Functions.Succeeded + snapshot.Scripts.Succeeded;
+        var failed = snapshot.Functions.Failed + snapshot.Scripts.Failed;
 
         // Async functions now use generator IR for execution.
         // The async function with for await...of will use the IR executor.
@@ -3125,7 +3144,10 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
 
                          """);
 
-        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
+        var snapshot = ExecutionPlanDiagnostics.DetailedSnapshot();
+        var attempts = snapshot.Functions.Attempts + snapshot.Scripts.Attempts;
+        var succeeded = snapshot.Functions.Succeeded + snapshot.Scripts.Succeeded;
+        var failed = snapshot.Functions.Failed + snapshot.Scripts.Failed;
 
         // Async functions now use generator IR for execution.
         Assert.True(attempts >= 1, "Expected at least one IR plan to be attempted");

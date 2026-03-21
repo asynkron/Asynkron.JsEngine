@@ -34,6 +34,7 @@ internal sealed partial class ExecutionPlanBuilder
     private readonly Stack<LoopScope> _loopScopes = new();
     private readonly List<Symbol> _slotSymbols = [];
     private int _catchSlotCounter;
+    private ExecutionPlanFailureCode? _failureCode;
     private string? _failureReason;
     private int _analysisRootScopeId;
     private Dictionary<int, ImmutableHashSet<Symbol>> _lexicalBindings = new();
@@ -84,8 +85,8 @@ internal sealed partial class ExecutionPlanBuilder
     ///     When true, indicates this is a top-level script (not a function body).
     ///     Script-level var declarations must update the global object.
     /// </param>
-    public static bool TryBuild(FunctionExpression function, out ExecutionPlan plan, out string? failureReason,
-        bool reportDiagnostics = true, bool isScriptLevel = false)
+    public static ExecutionPlanBuildResult Build(FunctionExpression function, bool reportDiagnostics = true,
+        bool isScriptLevel = false)
     {
         // First run the yield-lowering pre-pass so that ExecutionPlanBuilder
         // can assume a simplified, pauseable-function-friendly AST. The lowerer currently acts
@@ -93,27 +94,41 @@ internal sealed partial class ExecutionPlanBuilder
         // incrementally.
         if (!GeneratorYieldLowerer.TryLowerToGeneratorFriendlyAst(function, out var lowered, out var lowerFailure))
         {
-            plan = null!;
-            failureReason = lowerFailure;
+            var failure = ExecutionPlanBuildResult.FailureResult(
+                ExecutionPlanFailureCode.YieldLoweringFailed,
+                lowerFailure ?? "Failed to lower function to generator-friendly IR.");
 
             if (reportDiagnostics)
             {
-                ExecutionPlanDiagnostics.ReportResult(function, false, failureReason);
+                ExecutionPlanDiagnostics.ReportResult(function, failure);
             }
 
-            return false;
+            return failure;
         }
 
         var builder = new ExecutionPlanBuilder { IsScriptLevel = isScriptLevel };
-        var succeeded = builder.TryBuildInternal(lowered, out plan);
-        failureReason = builder._failureReason ?? lowerFailure;
+        var succeeded = builder.TryBuildInternal(lowered, out var plan);
+        var result = succeeded
+            ? ExecutionPlanBuildResult.Success(plan)
+            : ExecutionPlanBuildResult.FailureResult(
+                builder._failureCode ?? ExecutionPlanFailureCode.UnsupportedConstruct,
+                builder._failureReason ?? lowerFailure ?? "Function contains unsupported construct for execution plan.");
 
         if (reportDiagnostics)
         {
-            ExecutionPlanDiagnostics.ReportResult(function, succeeded, failureReason);
+            ExecutionPlanDiagnostics.ReportResult(function, result);
         }
 
-        return succeeded;
+        return result;
+    }
+
+    public static bool TryBuild(FunctionExpression function, out ExecutionPlan plan, out string? failureReason,
+        bool reportDiagnostics = true, bool isScriptLevel = false)
+    {
+        var result = Build(function, reportDiagnostics, isScriptLevel);
+        plan = result.Plan!;
+        failureReason = result.FailureReason;
+        return result.Succeeded;
     }
 
     private bool TryBuildInternal(FunctionExpression function, out ExecutionPlan plan)

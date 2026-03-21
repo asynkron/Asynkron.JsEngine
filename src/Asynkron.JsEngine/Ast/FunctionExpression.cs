@@ -47,14 +47,8 @@ public sealed partial record FunctionExpression
 
     ExecutionPlanCache IAstCacheable<ExecutionPlanCache>.GetOrCreateCache()
     {
-        var cache = AstCache.GetOrCreate(ref _cachedExecutionPlan, this,
-            static function => ExecutionPlanCache.Build(function), out var created);
-        if (!created)
-        {
-            ExecutionPlanDiagnostics.ReportResult(this, cache.Succeeded, cache.FailureReason);
-        }
-
-        return cache;
+        return AstCache.GetOrCreate(ref _cachedExecutionPlan, this,
+            static function => ExecutionPlanCache.Build(function), out _);
     }
 
     FunctionParameterNamesPlan IAstCacheable<FunctionParameterNamesPlan>.GetOrCreateCache()
@@ -66,6 +60,6 @@ public sealed partial record FunctionExpression
     internal void WarmExecutionPlanCache()
     {
         _ = AstCache.GetOrCreate(ref _cachedExecutionPlan, this,
-            static function => ExecutionPlanCache.Build(function, false));
+            static function => ExecutionPlanCache.Build(function));
     }
 }

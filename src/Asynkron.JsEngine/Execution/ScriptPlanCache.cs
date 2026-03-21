@@ -12,11 +12,11 @@ namespace Asynkron.JsEngine.Execution;
 /// </summary>
 internal sealed class ScriptPlanCache
 {
-    private ScriptPlanCache(ExecutionPlan? plan, FunctionExpression? syntheticFunction, string? failureReason)
+    private ScriptPlanCache(ExecutionPlanBuildResult result, FunctionExpression? syntheticFunction)
     {
-        Plan = plan;
+        Plan = result.Plan;
         SyntheticFunction = syntheticFunction;
-        FailureReason = failureReason;
+        Failure = result.Failure;
     }
 
     public ExecutionPlan? Plan { get; }
@@ -27,7 +27,9 @@ internal sealed class ScriptPlanCache
     /// </summary>
     public FunctionExpression? SyntheticFunction { get; }
 
-    public string? FailureReason { get; }
+    public ExecutionPlanBuildFailure? Failure { get; }
+
+    public string? FailureReason => Failure?.Detail;
 
     public bool Succeeded => Plan is not null;
 
@@ -51,16 +53,21 @@ internal sealed class ScriptPlanCache
             false // Will be determined by analysis
         );
 
-        // Don't report diagnostics for script-level IR builds - these are separate from
-        // function IR builds that tests track via ExecutionPlanDiagnostics.
-        // Pass isScriptLevel: true so var declarations will update the global object.
-        if (ExecutionPlanBuilder.TryBuild(syntheticFunction, out var plan, out var failureReason,
-                false, true))
+        // Script builds are tracked separately from function builds so cache reads do not
+        // inflate the function-only counters that older tests still assert on.
+        var result = ExecutionPlanBuilder.Build(syntheticFunction, false, true);
+        ExecutionPlanDiagnostics.ReportScriptResult(program, result);
+
+        if (result.Succeeded)
         {
-            return new ScriptPlanCache(plan, syntheticFunction, null);
+            return new ScriptPlanCache(result, syntheticFunction);
         }
 
-        return new ScriptPlanCache(null, null,
-            failureReason ?? "Script contains unsupported construct for execution plan.");
+        var failure = result.Failure ?? new ExecutionPlanBuildFailure(
+            ExecutionPlanFailureCode.UnsupportedConstruct,
+            "Script contains unsupported construct for execution plan.");
+        return new ScriptPlanCache(
+            ExecutionPlanBuildResult.FailureResult(failure.Code, failure.Detail),
+            null);
     }
 }

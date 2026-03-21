@@ -211,7 +211,7 @@ internal static class DeclarationEmitter
             varKind,
             identifierBinding.Name,
             declarator.Initializer,
-            isScriptLevel));
+            IsScriptLevel: isScriptLevel));
         return true;
     }
 

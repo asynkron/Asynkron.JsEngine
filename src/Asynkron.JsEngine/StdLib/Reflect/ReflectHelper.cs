@@ -442,14 +442,7 @@ public static class ReflectHelper
                     continue;
                 }
 
-                if (JsSymbol.TryGetByInternalKey(key, out var symbol) && symbol is not null)
-                {
-                    result.Push((JsValue)symbol);
-                }
-                else
-                {
-                    result.Push(key);
-                }
+                result.Push(key);
             }
 
             return JsValue.FromJsArray(result);

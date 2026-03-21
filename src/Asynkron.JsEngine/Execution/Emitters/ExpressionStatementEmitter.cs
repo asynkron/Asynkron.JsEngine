@@ -188,7 +188,7 @@ internal static class ExpressionStatementEmitter
                 compoundAssign.Target,
                 arithmeticBinary.Operator,
                 arithmeticBinary.Right,
-                suppressCompletion));
+                SuppressCompletionValue: suppressCompletion));
             return true;
         }
 
@@ -274,9 +274,9 @@ internal static class ExpressionStatementEmitter
         }
 
         entryIndex = ctx.Append(new BranchInstruction(
-            conditionalExpression.Test,
             consequentEntryIndex,
-            alternateEntryIndex));
+            alternateEntryIndex,
+            conditionalExpression.Test));
         return true;
     }
 }

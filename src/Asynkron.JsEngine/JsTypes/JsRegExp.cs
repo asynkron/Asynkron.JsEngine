@@ -87,11 +87,10 @@ public sealed class JsRegExp
     private readonly Dictionary<string, string>? _groupNameMapping;
 
     /// <summary>
-    /// Maps original JS group name → list of deduplicated .NET group names.
-    /// Only set when ES2025 duplicate named groups exist in the pattern.
-    /// E.g., for /(?&lt;x&gt;a)|(?&lt;x&gt;b)/, maps "x" → ["x__dup0", "x__dup1"].
+    /// ES2025 duplicate named groups: maps original group name → ordered array of .NET renamed names.
+    /// E.g., "x" → ["x__0", "x__1"]. Null if no duplicate group names exist.
     /// </summary>
-    private readonly Dictionary<string, List<string>>? _duplicateGroupNames;
+    private readonly Dictionary<string, string[]>? _duplicateGroupNames;
 
     /// <summary>
     /// Maps JS (left-to-right) group index → .NET group index.
@@ -112,21 +111,15 @@ public sealed class JsRegExp
         var hasUnicodeFlag = Flags.Contains('u', StringComparison.Ordinal) ||
                              Flags.Contains('v', StringComparison.Ordinal);
         var normalized = NormalizePattern(pattern, hasUnicodeFlag, IgnoreCase, DotAll);
-        _normalizedPattern = SanitizeGroupNamesForDotNet(normalized, out _groupNameMapping);
-
-        // ES2025: Handle duplicate named groups in alternatives.
-        // .NET merges duplicate named groups into one, but JS treats them as separate capturing groups.
-        // Rename duplicates (e.g., (?<x>a)|(?<x>b) → (?<x__dup0>a)|(?<x__dup1>b)) and convert
-        // backreferences to conditional patterns.
-        _normalizedPattern = DeduplicateGroupNames(_normalizedPattern, ref _groupNameMapping,
-            out _duplicateGroupNames);
+        var sanitized = SanitizeGroupNamesForDotNet(normalized, out var nameMapping);
+        var renamed = RenameDuplicateGroups(sanitized, ref nameMapping, out _duplicateGroupNames);
+        _normalizedPattern = _duplicateGroupNames is not null
+            ? InsertQuantifierResets(renamed, _duplicateGroupNames)
+            : renamed;
+        _groupNameMapping = nameMapping;
 
         // Convert JavaScript regex flags to .NET RegexOptions
-        // ECMAScript mode is critical for correct JS semantics:
-        //   - Groups are reset on each quantifier iteration (JS behavior)
-        //   - Backreferences to uncaptured groups match empty string (JS behavior)
-        //   - \w, \d, \s use ASCII-only ranges (matches JS; patterns already normalized anyway)
-        var options = RegexOptions.CultureInvariant | RegexOptions.ECMAScript;
+        var options = RegexOptions.CultureInvariant;
         if (IgnoreCase)
         {
             options |= RegexOptions.IgnoreCase;
@@ -148,7 +141,7 @@ public sealed class JsRegExp
         try
         {
             var regex = EnsureRegex();
-            _groupReorderMap = BuildGroupReorderMap(regex, _normalizedPattern, _duplicateGroupNames);
+            _groupReorderMap = BuildGroupReorderMap(regex, _normalizedPattern);
         }
         catch (ArgumentException ex)
         {
@@ -414,50 +407,6 @@ public sealed class JsRegExp
             captureValues[i] = group.Success ? new JsValue(group.Value) : JsValue.Undefined;
         }
 
-        // For duplicate-named groups in quantified contexts, .NET doesn't reset groups between
-        // quantifier iterations. Apply position-based heuristic: only the wrapper group that
-        // captured in the LAST iteration (highest position) keeps its value; others → undefined.
-        if (_duplicateGroupNames is not null)
-        {
-            var regex = EnsureRegex();
-            foreach (var kvp in _duplicateGroupNames)
-            {
-                var variants = kvp.Value;
-                var maxIndex = -1;
-                var maxVariantIdx = -1;
-
-                for (var v = 0; v < variants.Count; v++)
-                {
-                    var groupNumber = regex.GroupNumberFromName(variants[v]);
-                    if (groupNumber >= 0 && groupNumber < match.Groups.Count)
-                    {
-                        var group = match.Groups[groupNumber];
-                        if (group.Success && group.Index > maxIndex)
-                        {
-                            maxIndex = group.Index;
-                            maxVariantIdx = v;
-                        }
-                    }
-                }
-
-                // Set non-latest wrapper groups to undefined
-                if (maxVariantIdx >= 0)
-                {
-                    for (var v = 0; v < variants.Count; v++)
-                    {
-                        if (v != maxVariantIdx)
-                        {
-                            var groupNumber = regex.GroupNumberFromName(variants[v]);
-                            if (groupNumber >= 0 && groupNumber < captureValues.Length)
-                            {
-                                captureValues[groupNumber] = JsValue.Undefined;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
         // Push to result array in JS (left-to-right) order.
         if (reorderMap is not null && reorderMap.Length <= match.Groups.Count)
         {
@@ -519,11 +468,7 @@ public sealed class JsRegExp
     {
         var regex = EnsureRegex();
         JsObject? groups = null;
-
-        // Track which original names we've already added (for deduped groups)
-        HashSet<string>? addedOriginals = _duplicateGroupNames is not null
-            ? new HashSet<string>(StringComparer.Ordinal)
-            : null;
+        HashSet<string>? processedDuplicates = null;
 
         foreach (var name in match.Groups.Keys)
         {
@@ -538,38 +483,33 @@ public sealed class JsRegExp
                 continue;
             }
 
-            // Map back from .NET-sanitized/deduped name to the original ECMAScript group name
+            if (groups is null)
+            {
+                // Per spec step 24: groups = ObjectCreate(null)
+                groups = new JsObject();
+                groups.SetPrototype(null);
+            }
+
+            // Map back from .NET-sanitized name to the original ECMAScript group name
             var originalName = GetOriginalGroupName(name);
 
-            // For deduplicated groups, use the merged group's value.
-            // The merged inner group (e.g., "x") always has the most recent captured value,
-            // which is what JS groups.x should contain.
+            // ES2025: For duplicate named groups, find whichever renamed group matched
             if (_duplicateGroupNames is not null &&
-                _duplicateGroupNames.TryGetValue(originalName, out _))
+                _duplicateGroupNames.TryGetValue(originalName, out var renamedNames))
             {
-                if (addedOriginals!.Contains(originalName))
+                processedDuplicates ??= new HashSet<string>(StringComparer.Ordinal);
+                if (!processedDuplicates.Add(originalName))
                 {
-                    continue; // Already added this original name
+                    continue; // Already processed this duplicate group
                 }
 
-                addedOriginals.Add(originalName);
-
-                // Use the merged group value — it has the correct "most recent capture" semantics
-                var mergedGroup = match.Groups[originalName];
-                var value = mergedGroup.Success ? new JsValue(mergedGroup.Value) : JsValue.Undefined;
-
-                groups ??= CreateNullPrototypeObject();
+                var value = ResolveDuplicateGroupValue(regex, renamedNames, captureValues);
                 groups.DefineProperty(originalName, new PropertyDescriptor
                 {
-                    Value = value,
-                    Writable = true,
-                    Enumerable = true,
-                    Configurable = true
+                    Value = value, Writable = true, Enumerable = true, Configurable = true
                 });
                 continue;
             }
-
-            groups ??= CreateNullPrototypeObject();
 
             // Per spec, properties are created with CreateDataProperty
             groups.DefineProperty(originalName, new PropertyDescriptor
@@ -584,11 +524,21 @@ public sealed class JsRegExp
         return groups;
     }
 
-    private static JsObject CreateNullPrototypeObject()
+    /// <summary>
+    /// For duplicate named groups, finds the value of whichever renamed group actually matched.
+    /// </summary>
+    private static JsValue ResolveDuplicateGroupValue(Regex regex, string[] renamedNames, JsValue[] values)
     {
-        var obj = new JsObject();
-        obj.SetPrototype(null);
-        return obj;
+        foreach (var renamedName in renamedNames)
+        {
+            var num = regex.GroupNumberFromName(renamedName);
+            if (num >= 0 && num < values.Length && values[num] != JsValue.Undefined)
+            {
+                return values[num];
+            }
+        }
+
+        return JsValue.Undefined;
     }
 
     private JsArray BuildIndicesArray(Match match)
@@ -647,10 +597,7 @@ public sealed class JsRegExp
     private JsObject? BuildIndicesGroupsObject(Match match, Regex regex, JsValue[] indexValues)
     {
         JsObject? groups = null;
-
-        HashSet<string>? addedOriginals = _duplicateGroupNames is not null
-            ? new HashSet<string>(StringComparer.Ordinal)
-            : null;
+        HashSet<string>? processedDuplicates = null;
 
         foreach (var name in match.Groups.Keys)
         {
@@ -665,37 +612,33 @@ public sealed class JsRegExp
                 continue;
             }
 
+            if (groups is null)
+            {
+                // Per spec (MakeIndicesArray step 10): groups = ObjectCreate(null)
+                groups = new JsObject();
+                groups.SetPrototype(null);
+            }
+
+            // Map back from .NET-sanitized name to the original ECMAScript group name
             var originalName = GetOriginalGroupName(name);
 
-            // For deduplicated groups, use the merged group's index value
+            // ES2025: For duplicate named groups, find whichever renamed group matched
             if (_duplicateGroupNames is not null &&
-                _duplicateGroupNames.TryGetValue(originalName, out _))
+                _duplicateGroupNames.TryGetValue(originalName, out var renamedNames))
             {
-                if (addedOriginals!.Contains(originalName))
+                processedDuplicates ??= new HashSet<string>(StringComparer.Ordinal);
+                if (!processedDuplicates.Add(originalName))
                 {
                     continue;
                 }
 
-                addedOriginals.Add(originalName);
-
-                // Use the merged group's index — it has the correct "most recent capture" indices
-                var mergedGroupNumber = regex.GroupNumberFromName(originalName);
-                var value = mergedGroupNumber >= 0 && mergedGroupNumber < indexValues.Length
-                    ? indexValues[mergedGroupNumber]
-                    : JsValue.Undefined;
-
-                groups ??= CreateNullPrototypeObject();
+                var value = ResolveDuplicateGroupValue(regex, renamedNames, indexValues);
                 groups.DefineProperty(originalName, new PropertyDescriptor
                 {
-                    Value = value,
-                    Writable = true,
-                    Enumerable = true,
-                    Configurable = true
+                    Value = value, Writable = true, Enumerable = true, Configurable = true
                 });
                 continue;
             }
-
-            groups ??= CreateNullPrototypeObject();
 
             groups.DefineProperty(originalName, new PropertyDescriptor
             {
@@ -817,10 +760,7 @@ public sealed class JsRegExp
         return needsMap ? map : null;
     }
 
-    private static int[]? BuildGroupReorderMap(
-        Regex regex,
-        string normalizedPattern,
-        Dictionary<string, List<string>>? duplicateGroupNames)
+    private static int[]? BuildGroupReorderMap(Regex regex, string normalizedPattern)
     {
         var groupNumbers = regex.GetGroupNumbers();
         if (groupNumbers.Length <= 1)
@@ -828,17 +768,8 @@ public sealed class JsRegExp
             return null; // Only group 0 (full match), no capturing groups
         }
 
-        // Build set of merged group names to skip in the JS result array.
-        // These are the original names (e.g., "x") that have wrapper groups (e.g., "x__dup0").
-        HashSet<string>? mergedGroupNames = null;
-        if (duplicateGroupNames is not null)
-        {
-            mergedGroupNames = new HashSet<string>(duplicateGroupNames.Keys, StringComparer.Ordinal);
-        }
-
         // Walk the normalized pattern to find all capturing groups in left-to-right order.
         // Each entry is: null for unnamed group, or the group name for named groups.
-        // Merged groups (inner groups for duplicate names) are skipped.
         var groupsInOrder = new List<string?>();
         var i = 0;
         var escaped = false;
@@ -895,17 +826,20 @@ public sealed class JsRegExp
                         if (end != -1)
                         {
                             var name = normalizedPattern.Substring(i + 3, end - (i + 3));
-
-                            // Skip merged groups — they're internal for backreference support,
-                            // not JS-visible capturing groups.
-                            if (mergedGroupNames?.Contains(name) == true)
-                            {
-                                i = end + 1;
-                                continue;
-                            }
-
                             groupsInOrder.Add(name);
                             i = end + 1;
+                            continue;
+                        }
+                    }
+
+                    if (i + 2 < normalizedPattern.Length && normalizedPattern[i + 2] == '(')
+                    {
+                        // Conditional (?(name)...|...) — not a capturing group.
+                        // Skip past the condition test part to avoid counting (name) as a group.
+                        var condEnd = normalizedPattern.IndexOf(')', i + 3);
+                        if (condEnd != -1)
+                        {
+                            i = condEnd + 1;
                             continue;
                         }
                     }
@@ -1184,22 +1118,16 @@ public sealed class JsRegExp
                         throw new ParseException($"Invalid regular expression: unknown group '{name}'.");
                     }
 
-                    if (definedSoFar.Contains(normalizedName) && !openGroupNames.Contains(normalizedName))
-                    {
-                        // Backward reference: group already defined and closed
-                        builder.Append(pattern, i, end - i + 1);
-                    }
-                    else
-                    {
-                        // Forward reference or self-reference to an open group:
-                        // use conditional to match empty string if group not yet captured.
-                        // (?(name)\k<name>|) - if group captured use backreference, else match empty
-                        builder.Append("(?(");
-                        builder.Append(normalizedName);
-                        builder.Append(")\\k<");
-                        builder.Append(normalizedName);
-                        builder.Append(">|)");
-                    }
+                    // Always use conditional wrapping: (?(name)\k<name>|)
+                    // In JavaScript, a backreference to an unmatched group matches the empty string.
+                    // In .NET, \k<name> fails when the group hasn't captured. The conditional
+                    // handles both cases: backward refs where the group is in a different alternative,
+                    // and forward/self-references.
+                    builder.Append("(?(");
+                    builder.Append(normalizedName);
+                    builder.Append(")\\k<");
+                    builder.Append(normalizedName);
+                    builder.Append(">|)");
 
                     i = end;
                     continue;
@@ -1565,26 +1493,14 @@ public sealed class JsRegExp
 
                                 if (normalizedName is not null && allGroupNames.Contains(normalizedName))
                                 {
-                                    if (definedSoFar.Contains(normalizedName) && !openGroupNames.Contains(normalizedName))
-                                    {
-                                        // Backward reference: group already defined and closed
-                                        builder.Append('\\');
-                                        builder.Append('k');
-                                        builder.Append('<');
-                                        builder.Append(normalizedName);
-                                        builder.Append('>');
-                                    }
-                                    else
-                                    {
-                                        // Forward reference or self-reference to an open group:
-                                        // use conditional to match empty string if group not yet captured.
-                                        // (?(name)\k<name>|) - if group captured use backreference, else match empty
-                                        builder.Append("(?(");
-                                        builder.Append(normalizedName);
-                                        builder.Append(")\\k<");
-                                        builder.Append(normalizedName);
-                                        builder.Append(">|)");
-                                    }
+                                    // Always use conditional wrapping: (?(name)\k<name>|)
+                                    // In JavaScript, \k<name> matches empty when the group hasn't captured.
+                                    // In .NET, plain \k<name> fails. The conditional handles both cases.
+                                    builder.Append("(?(");
+                                    builder.Append(normalizedName);
+                                    builder.Append(")\\k<");
+                                    builder.Append(normalizedName);
+                                    builder.Append(">|)");
 
                                     i = endBracket;
                                     continue;
@@ -2383,6 +2299,541 @@ public sealed class JsRegExp
     }
 
     /// <summary>
+    /// ES2025 duplicate named groups: renames each occurrence of a duplicated group name
+    /// to a unique name (e.g. x → x__0, x__1) so .NET treats them as separate capture groups.
+    /// Also rewrites \k&lt;name&gt; backreferences to conditional references that match
+    /// whichever renamed group actually participated in the match.
+    /// </summary>
+    private static string RenameDuplicateGroups(
+        string pattern,
+        ref Dictionary<string, string>? nameMapping,
+        out Dictionary<string, string[]>? duplicateGroupNames)
+    {
+        duplicateGroupNames = null;
+
+        // Phase 1: Find which group names appear more than once
+        var duplicates = FindDuplicateGroupNamesInPattern(pattern);
+        if (duplicates is null)
+        {
+            return pattern; // No duplicates, nothing to do
+        }
+
+        // Phase 2: Rewrite the pattern
+        var result = new StringBuilder(pattern.Length + 64);
+        var occurrenceCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+        var renamedGroups = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+
+        var i = 0;
+        var escaped = false;
+        var inCharClass = false;
+
+        while (i < pattern.Length)
+        {
+            var c = pattern[i];
+
+            if (escaped)
+            {
+                result.Append(c);
+                escaped = false;
+                i++;
+                continue;
+            }
+
+            if (c == '\\')
+            {
+                // Check for backreference \k<name> before general escape handling
+                if (!inCharClass && i + 2 < pattern.Length &&
+                    pattern[i + 1] == 'k' && pattern[i + 2] == '<')
+                {
+                    var end = pattern.IndexOf('>', i + 3);
+                    if (end != -1)
+                    {
+                        var name = pattern.Substring(i + 3, end - (i + 3));
+                        if (duplicates.Contains(name) && renamedGroups.TryGetValue(name, out var renames))
+                        {
+                            // Rewrite to conditional backreference:
+                            // (?(x__0)\k<x__0>|(?(x__1)\k<x__1>|))
+                            AppendConditionalBackref(result, renames);
+                            i = end + 1;
+                            continue;
+                        }
+                    }
+                }
+
+                result.Append(c);
+                escaped = true;
+                i++;
+                continue;
+            }
+
+            if (c == '[' && !inCharClass)
+            {
+                inCharClass = true;
+                result.Append(c);
+                i++;
+                continue;
+            }
+
+            if (c == ']' && inCharClass)
+            {
+                inCharClass = false;
+                result.Append(c);
+                i++;
+                continue;
+            }
+
+            if (inCharClass)
+            {
+                result.Append(c);
+                i++;
+                continue;
+            }
+
+            // Check for conditional (?(name)\k<name>|) from NormalizePattern where name is a duplicate.
+            // NormalizePattern wraps ALL named backrefs as (?(name)\k<name>|). When name is a
+            // duplicate group (renamed to name__0, name__1, etc.), we must replace the entire
+            // construct with a multi-conditional: (?(name__0)\k<name__0>|(?(name__1)\k<name__1>|))
+            if (c == '(' && i + 3 < pattern.Length &&
+                pattern[i + 1] == '?' && pattern[i + 2] == '(')
+            {
+                var condEnd = pattern.IndexOf(')', i + 3);
+                if (condEnd != -1)
+                {
+                    var condName = pattern.Substring(i + 3, condEnd - (i + 3));
+                    if (duplicates.Contains(condName) && renamedGroups.TryGetValue(condName, out var renames))
+                    {
+                        // Verify the full pattern: (?(name)\k<name>|)
+                        var expectedSuffix = "\\k<" + condName + ">|)";
+                        var afterCond = condEnd + 1;
+                        if (afterCond + expectedSuffix.Length <= pattern.Length &&
+                            string.Compare(pattern, afterCond, expectedSuffix, 0, expectedSuffix.Length, StringComparison.Ordinal) == 0)
+                        {
+                            // Replace entire (?(name)\k<name>|) with multi-conditional backref
+                            AppendConditionalBackref(result, renames);
+                            i = afterCond + expectedSuffix.Length;
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            // Check for named group: (?<name> (but not (?<= or (?<!)
+            if (c == '(' && i + 2 < pattern.Length &&
+                pattern[i + 1] == '?' && pattern[i + 2] == '<' &&
+                i + 3 < pattern.Length && pattern[i + 3] != '=' && pattern[i + 3] != '!')
+            {
+                var end = pattern.IndexOf('>', i + 3);
+                if (end != -1)
+                {
+                    var name = pattern.Substring(i + 3, end - (i + 3));
+                    if (duplicates.Contains(name))
+                    {
+                        if (!occurrenceCounts.TryGetValue(name, out var count))
+                        {
+                            count = 0;
+                        }
+
+                        var renamedName = name + "__" + count.ToString(CultureInfo.InvariantCulture);
+                        occurrenceCounts[name] = count + 1;
+
+                        if (!renamedGroups.TryGetValue(name, out var list))
+                        {
+                            list = [];
+                            renamedGroups[name] = list;
+                        }
+
+                        list.Add(renamedName);
+
+                        // Add to the name mapping (sanitized .NET name → original JS name)
+                        nameMapping ??= new Dictionary<string, string>();
+                        nameMapping[renamedName] = name;
+
+                        result.Append("(?<");
+                        result.Append(renamedName);
+                        result.Append('>');
+                        i = end + 1;
+                        continue;
+                    }
+                }
+            }
+
+            result.Append(c);
+            i++;
+        }
+
+        // Build the duplicateGroupNames output
+        duplicateGroupNames = new Dictionary<string, string[]>(StringComparer.Ordinal);
+        foreach (var kvp in renamedGroups)
+        {
+            duplicateGroupNames[kvp.Key] = kvp.Value.ToArray();
+        }
+
+        return result.ToString();
+    }
+
+    /// <summary>
+    /// Appends a conditional backreference for duplicate named groups.
+    /// Produces: (?(x__0)\k&lt;x__0&gt;|(?(x__1)\k&lt;x__1&gt;|))
+    /// </summary>
+    private static void AppendConditionalBackref(StringBuilder sb, List<string> renamedNames)
+    {
+        for (var i = 0; i < renamedNames.Count; i++)
+        {
+            sb.Append("(?(");
+            sb.Append(renamedNames[i]);
+            sb.Append(")\\k<");
+            sb.Append(renamedNames[i]);
+            sb.Append(">|");
+        }
+
+        // Close all conditional groups (empty match when none matched)
+        for (var i = 0; i < renamedNames.Count; i++)
+        {
+            sb.Append(')');
+        }
+    }
+
+    /// <summary>
+    /// Pre-scans a pattern to find group names that appear more than once (duplicate named groups).
+    /// </summary>
+    private static HashSet<string>? FindDuplicateGroupNamesInPattern(string pattern)
+    {
+        Dictionary<string, int>? counts = null;
+        var i = 0;
+        var escaped = false;
+        var inCharClass = false;
+
+        while (i < pattern.Length)
+        {
+            var c = pattern[i];
+
+            if (escaped)
+            {
+                escaped = false;
+                i++;
+                continue;
+            }
+
+            if (c == '\\')
+            {
+                escaped = true;
+                i++;
+                continue;
+            }
+
+            if (c == '[' && !inCharClass)
+            {
+                inCharClass = true;
+                i++;
+                continue;
+            }
+
+            if (c == ']' && inCharClass)
+            {
+                inCharClass = false;
+                i++;
+                continue;
+            }
+
+            if (inCharClass)
+            {
+                i++;
+                continue;
+            }
+
+            // Named group (?<name>)
+            if (c == '(' && i + 2 < pattern.Length &&
+                pattern[i + 1] == '?' && pattern[i + 2] == '<' &&
+                i + 3 < pattern.Length && pattern[i + 3] != '=' && pattern[i + 3] != '!')
+            {
+                var end = pattern.IndexOf('>', i + 3);
+                if (end != -1)
+                {
+                    var name = pattern.Substring(i + 3, end - (i + 3));
+                    counts ??= new Dictionary<string, int>(StringComparer.Ordinal);
+                    counts.TryGetValue(name, out var count);
+                    counts[name] = count + 1;
+                    i = end + 1;
+                    continue;
+                }
+            }
+
+            i++;
+        }
+
+        if (counts is null)
+        {
+            return null;
+        }
+
+        HashSet<string>? result = null;
+        foreach (var kvp in counts)
+        {
+            if (kvp.Value > 1)
+            {
+                result ??= new HashSet<string>(StringComparer.Ordinal);
+                result.Add(kvp.Key);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Inserts atomic group resets at the start of each alternative within groups that
+    /// transitively contain duplicate-named captures. This simulates JavaScript's behavior
+    /// of resetting captures at the start of each quantifier iteration, which .NET does not do.
+    /// Uses .NET balancing groups: (?>(?&lt;-name&gt;)?) to pop stale captures.
+    /// </summary>
+    private static string InsertQuantifierResets(string pattern, Dictionary<string, string[]> duplicateGroupNames)
+    {
+        // Build the reset sequence: (?>(?<-n1>)?(?<-n2>)?...)
+        var resetBuilder = new StringBuilder("(?>", 64);
+        foreach (var names in duplicateGroupNames.Values)
+        {
+            foreach (var name in names)
+            {
+                resetBuilder.Append("(?<-");
+                resetBuilder.Append(name);
+                resetBuilder.Append(">)?");
+            }
+        }
+
+        resetBuilder.Append(')');
+        var resetStr = resetBuilder.ToString();
+
+        // Phase 1: Walk pattern to determine which groups contain duplicate captures.
+        // For each group, record: open position, depth, and whether it contains duplicates.
+        // Use index into a list as the group ID.
+        var groupOpenPositions = new List<int>(); // index = group ID, value = position of char AFTER opener
+        var groupContainsDup = new List<bool>(); // index = group ID
+        var groupParent = new List<int>(); // index = group ID, value = parent group ID (-1 for top level)
+        var groupStack = new Stack<int>(); // stack of group IDs
+        var topLevelAlternatives = new List<int>(); // positions of | at top level (no enclosing group)
+
+        var i = 0;
+        var escaped = false;
+        var inCharClass = false;
+
+        while (i < pattern.Length)
+        {
+            var c = pattern[i];
+
+            if (escaped)
+            {
+                escaped = false;
+                i++;
+                continue;
+            }
+
+            if (c == '\\')
+            {
+                escaped = true;
+                i++;
+                continue;
+            }
+
+            if (c == '[' && !inCharClass)
+            {
+                inCharClass = true;
+                i++;
+                continue;
+            }
+
+            if (c == ']' && inCharClass)
+            {
+                inCharClass = false;
+                i++;
+                continue;
+            }
+
+            if (inCharClass)
+            {
+                i++;
+                continue;
+            }
+
+            if (c == '(')
+            {
+                var groupId = groupOpenPositions.Count;
+                var parentId = groupStack.Count > 0 ? groupStack.Peek() : -1;
+
+                // Find position after the group opener (past (?:, (?<name>, etc.)
+                var contentStart = i + 1;
+                if (i + 1 < pattern.Length && pattern[i + 1] == '?')
+                {
+                    if (i + 2 < pattern.Length && pattern[i + 2] == '<' &&
+                        i + 3 < pattern.Length && pattern[i + 3] != '=' && pattern[i + 3] != '!')
+                    {
+                        // Named group (?<name>...) — content starts after >
+                        var end = pattern.IndexOf('>', i + 3);
+                        if (end != -1)
+                        {
+                            contentStart = end + 1;
+
+                            // Check if this is a renamed duplicate group
+                            var name = pattern.Substring(i + 3, end - (i + 3));
+                            if (name.Contains("__", StringComparison.Ordinal))
+                            {
+                                // This is a renamed duplicate capture. Mark this group and all ancestors.
+                                groupOpenPositions.Add(contentStart);
+                                groupContainsDup.Add(false); // The named group itself doesn't need reset
+                                groupParent.Add(parentId);
+                                groupStack.Push(groupId);
+
+                                // Mark all ancestor groups as containing duplicates
+                                var ancestor = parentId;
+                                while (ancestor >= 0)
+                                {
+                                    groupContainsDup[ancestor] = true;
+                                    ancestor = groupParent[ancestor];
+                                }
+
+                                i = end + 1;
+                                continue;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        contentStart = i + 2; // After (?
+                        // Skip to content: (?:, (?=, (?!, (?<=, (?<!
+                        if (i + 2 < pattern.Length && pattern[i + 2] == ':')
+                        {
+                            contentStart = i + 3;
+                        }
+                    }
+                }
+
+                groupOpenPositions.Add(contentStart);
+                groupContainsDup.Add(false);
+                groupParent.Add(parentId);
+                groupStack.Push(groupId);
+                i++;
+                continue;
+            }
+
+            if (c == ')' && groupStack.Count > 0)
+            {
+                groupStack.Pop();
+                i++;
+                continue;
+            }
+
+            i++;
+        }
+
+        // Phase 2: Collect positions where resets need to be inserted.
+        // For each group that contains duplicates: insert at content start and after each |
+        var insertPositions = new HashSet<int>();
+        groupStack.Clear();
+        i = 0;
+        escaped = false;
+        inCharClass = false;
+        var groupIndex = 0;
+
+        while (i < pattern.Length)
+        {
+            var c = pattern[i];
+
+            if (escaped)
+            {
+                escaped = false;
+                i++;
+                continue;
+            }
+
+            if (c == '\\')
+            {
+                escaped = true;
+                i++;
+                continue;
+            }
+
+            if (c == '[' && !inCharClass)
+            {
+                inCharClass = true;
+                i++;
+                continue;
+            }
+
+            if (c == ']' && inCharClass)
+            {
+                inCharClass = false;
+                i++;
+                continue;
+            }
+
+            if (inCharClass)
+            {
+                i++;
+                continue;
+            }
+
+            if (c == '(')
+            {
+                if (groupIndex < groupOpenPositions.Count)
+                {
+                    var contentStart = groupOpenPositions[groupIndex];
+                    if (groupContainsDup[groupIndex])
+                    {
+                        insertPositions.Add(contentStart);
+                    }
+
+                    groupStack.Push(groupIndex);
+                    groupIndex++;
+                }
+
+                i++;
+                continue;
+            }
+
+            if (c == ')' && groupStack.Count > 0)
+            {
+                groupStack.Pop();
+                i++;
+                continue;
+            }
+
+            if (c == '|' && groupStack.Count > 0)
+            {
+                var currentGroup = groupStack.Peek();
+                if (groupContainsDup[currentGroup])
+                {
+                    insertPositions.Add(i + 1); // Insert after the |
+                }
+            }
+
+            i++;
+        }
+
+        if (insertPositions.Count == 0)
+        {
+            return pattern;
+        }
+
+        // Phase 3: Build the new pattern with resets inserted
+        var result = new StringBuilder(pattern.Length + (insertPositions.Count * resetStr.Length));
+        for (i = 0; i < pattern.Length; i++)
+        {
+            if (insertPositions.Contains(i))
+            {
+                result.Append(resetStr);
+            }
+
+            result.Append(pattern[i]);
+        }
+
+        // Check if we need to insert at the very end (unlikely but handle it)
+        if (insertPositions.Contains(pattern.Length))
+        {
+            result.Append(resetStr);
+        }
+
+        return result.ToString();
+    }
+
+    /// <summary>
     /// Returns true if a group name contains characters not supported by .NET regex.
     /// .NET regex doesn't support '$' or supplementary plane characters (surrogates) in group names.
     /// </summary>
@@ -2417,284 +2868,6 @@ public sealed class JsRegExp
         }
 
         return name.Replace("$", "_dollar_", StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// ES2025: Deduplicates named groups in alternatives so that .NET treats each as a separate
-    /// capturing group. E.g., (?&lt;x&gt;a)|(?&lt;x&gt;b) → (?&lt;x__dup0&gt;a)|(?&lt;x__dup1&gt;b).
-    /// Backreferences \k&lt;x&gt; are converted to conditional patterns that try each variant.
-    /// </summary>
-    private static string DeduplicateGroupNames(
-        string pattern,
-        ref Dictionary<string, string>? mapping,
-        out Dictionary<string, List<string>>? duplicateNames)
-    {
-        duplicateNames = null;
-
-        // First pass: collect all named groups and their occurrence counts
-        var nameCount = new Dictionary<string, int>(StringComparer.Ordinal);
-        ScanNamedGroups(pattern, nameCount);
-
-        // Check if any names are duplicated
-        var hasDuplicates = false;
-        foreach (var count in nameCount.Values)
-        {
-            if (count > 1)
-            {
-                hasDuplicates = true;
-                break;
-            }
-        }
-
-        if (!hasDuplicates)
-        {
-            return pattern;
-        }
-
-        // Pre-compute all deduplicated wrapper names
-        duplicateNames = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-        foreach (var kvp in nameCount)
-        {
-            if (kvp.Value > 1)
-            {
-                var names = new List<string>(kvp.Value);
-                for (var j = 0; j < kvp.Value; j++)
-                {
-                    names.Add($"{kvp.Key}__dup{j.ToString(CultureInfo.InvariantCulture)}");
-                }
-
-                duplicateNames[kvp.Key] = names;
-            }
-        }
-
-        // Second pass: wrap duplicate groups with outer wrapper groups.
-        // (?<x>a)|(?<x>b) → (?<x__dup0>(?<x>a))|(?<x__dup1>(?<x>b))
-        // The inner (?<x>...) stays merged (for \k<x> backreferences).
-        // The outer (?<x__dup0>...) provides individual capture values.
-        // Backreferences \k<x> are NOT transformed — they reference the merged group.
-        var result = new StringBuilder(pattern.Length + 64);
-        var dupCounters = new Dictionary<string, int>(StringComparer.Ordinal);
-        var i = 0;
-        var escaped = false;
-        var inCharClass = false;
-
-        while (i < pattern.Length)
-        {
-            var c = pattern[i];
-
-            if (escaped)
-            {
-                result.Append(c);
-                escaped = false;
-                i++;
-                continue;
-            }
-
-            if (c == '\\')
-            {
-                result.Append(c);
-                escaped = true;
-                i++;
-                continue;
-            }
-
-            if (c == '[' && !inCharClass)
-            {
-                inCharClass = true;
-                result.Append(c);
-                i++;
-                continue;
-            }
-
-            if (c == ']' && inCharClass)
-            {
-                inCharClass = false;
-                result.Append(c);
-                i++;
-                continue;
-            }
-
-            if (inCharClass)
-            {
-                result.Append(c);
-                i++;
-                continue;
-            }
-
-            // Check for named group (?<name>...) but not lookbehind (?<= or (?<!
-            if (c == '(' && i + 2 < pattern.Length && pattern[i + 1] == '?' && pattern[i + 2] == '<'
-                && i + 3 < pattern.Length && pattern[i + 3] != '=' && pattern[i + 3] != '!')
-            {
-                var end = pattern.IndexOf('>', i + 3);
-                if (end != -1)
-                {
-                    var name = pattern.Substring(i + 3, end - (i + 3));
-                    if (duplicateNames.ContainsKey(name))
-                    {
-                        if (!dupCounters.TryGetValue(name, out var idx))
-                        {
-                            idx = 0;
-                        }
-
-                        dupCounters[name] = idx + 1;
-                        var wrapperName = duplicateNames[name][idx];
-
-                        // Add wrapper name → original name mapping
-                        mapping ??= new Dictionary<string, string>(StringComparer.Ordinal);
-                        mapping[wrapperName] = mapping.TryGetValue(name, out var origName) ? origName : name;
-
-                        // Wrap: (?<x>...) → (?<x__dup0>(?<x>...))
-                        // We insert the wrapper open before the original group.
-                        // We need to find the matching close paren to insert wrapper close after it.
-                        result.Append("(?<");
-                        result.Append(wrapperName);
-                        result.Append(">(?<");
-                        result.Append(name);
-                        result.Append('>');
-
-                        // Now scan forward to find the matching closing paren of the original group
-                        var depth = 1;
-                        var j = end + 1;
-                        var innerEscaped = false;
-                        var innerCharClass = false;
-
-                        while (j < pattern.Length && depth > 0)
-                        {
-                            var ch = pattern[j];
-
-                            if (innerEscaped)
-                            {
-                                result.Append(ch);
-                                innerEscaped = false;
-                                j++;
-                                continue;
-                            }
-
-                            if (ch == '\\')
-                            {
-                                result.Append(ch);
-                                innerEscaped = true;
-                                j++;
-                                continue;
-                            }
-
-                            if (ch == '[' && !innerCharClass)
-                            {
-                                innerCharClass = true;
-                            }
-                            else if (ch == ']' && innerCharClass)
-                            {
-                                innerCharClass = false;
-                            }
-
-                            if (!innerCharClass)
-                            {
-                                if (ch == '(')
-                                {
-                                    depth++;
-                                }
-                                else if (ch == ')')
-                                {
-                                    depth--;
-                                    if (depth == 0)
-                                    {
-                                        // This is the close paren of the original group.
-                                        // Append it and then the wrapper close paren.
-                                        result.Append(')'); // original group close
-                                        result.Append(')'); // wrapper group close
-                                        j++;
-                                        break;
-                                    }
-                                }
-                            }
-
-                            result.Append(ch);
-                            j++;
-                        }
-
-                        i = j;
-                        continue;
-                    }
-                }
-            }
-
-            result.Append(c);
-            i++;
-        }
-
-        return result.ToString();
-    }
-
-    /// <summary>
-    /// Scans a pattern to count occurrences of each named group.
-    /// </summary>
-    private static void ScanNamedGroups(string pattern, Dictionary<string, int> nameCount)
-    {
-        var i = 0;
-        var escaped = false;
-        var inCharClass = false;
-
-        while (i < pattern.Length)
-        {
-            var c = pattern[i];
-
-            if (escaped)
-            {
-                escaped = false;
-                i++;
-                continue;
-            }
-
-            if (c == '\\')
-            {
-                escaped = true;
-                i++;
-                continue;
-            }
-
-            if (c == '[' && !inCharClass)
-            {
-                inCharClass = true;
-                i++;
-                continue;
-            }
-
-            if (c == ']' && inCharClass)
-            {
-                inCharClass = false;
-                i++;
-                continue;
-            }
-
-            if (inCharClass)
-            {
-                i++;
-                continue;
-            }
-
-            if (c == '(' && i + 2 < pattern.Length && pattern[i + 1] == '?' && pattern[i + 2] == '<'
-                && i + 3 < pattern.Length && pattern[i + 3] != '=' && pattern[i + 3] != '!')
-            {
-                var end = pattern.IndexOf('>', i + 3);
-                if (end != -1)
-                {
-                    var name = pattern.Substring(i + 3, end - (i + 3));
-                    if (nameCount.ContainsKey(name))
-                    {
-                        nameCount[name]++;
-                    }
-                    else
-                    {
-                        nameCount[name] = 1;
-                    }
-
-                    i = end + 1;
-                    continue;
-                }
-            }
-
-            i++;
-        }
     }
 
     /// <summary>

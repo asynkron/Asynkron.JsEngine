@@ -550,8 +550,16 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
         if (!enableScriptSlots || scriptPlanCache is not { Succeeded: true } || scriptPlan is null)
         {
-            throw new NotSupportedException(
-                $"IR plan generation failed for script: {scriptPlanCache?.FailureReason ?? "unknown"}");
+            context.RealmState.Logger?.LogInformation(
+                "Executing script via classic executor because IR script plan is unavailable: {FailureReason}",
+                scriptPlanCache?.FailureReason ?? "slot analysis disabled");
+            var classicResult = EvaluateStatementList(program.Body, executionEnvironment, context);
+            if (context.IsThrow)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+
+            return classicResult;
         }
 
         context.RealmState.Logger?.LogInformation(

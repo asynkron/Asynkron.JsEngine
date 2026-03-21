@@ -113,7 +113,10 @@ internal static class ControlFlowEmitter
         }
 
         // Emit branch instruction
-        entryIndex = ctx.Append(new BranchInstruction(statement.Condition, thenEntry, elseEntry));
+        entryIndex = ctx.Append(new BranchInstruction(
+            ConsequentIndex: thenEntry,
+            AlternateIndex: elseEntry,
+            Condition: statement.Condition));
         return true;
     }
 

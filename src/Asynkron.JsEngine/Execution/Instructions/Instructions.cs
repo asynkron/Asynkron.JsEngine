@@ -17,20 +17,28 @@ internal sealed record StatementInstruction(int Next, StatementNode Statement)
 ///     Represents a throw statement in the generator.
 ///     Evaluates the expression and throws it as an exception.
 /// </summary>
-internal sealed record ThrowInstruction(ExpressionNode Expression)
+/// <param name="Expression">AST representation of the expression to throw (nullable during migration).</param>
+/// <param name="ExpressionOps">Bytecode representation of the expression to throw (nullable during migration).</param>
+internal sealed record ThrowInstruction(
+    ExpressionNode? Expression = null,
+    ImmutableArray<ExpressionOp>? ExpressionOps = null)
     : ExecutionInstruction(InstructionKind.Throw, -1);
 
 /// <summary>
 ///     Represents an expression statement in the generator.
 ///     Evaluates the expression and discards the result.
 /// </summary>
+/// <param name="Next">Next instruction index.</param>
+/// <param name="Expression">AST representation of the expression (nullable during migration).</param>
+/// <param name="ExpressionOps">Bytecode representation of the expression (nullable during migration).</param>
 /// <param name="SuppressCompletionValue">
 ///     When true, the completion value is NOT updated (used for loop update expressions).
 ///     Per ES spec, for-loop update expressions don't contribute to the loop's completion value.
 /// </param>
 internal sealed record EvaluateAndDiscardInstruction(
     int Next,
-    ExpressionNode Expression,
+    ExpressionNode? Expression = null,
+    ImmutableArray<ExpressionOp>? ExpressionOps = null,
     bool SuppressCompletionValue = false)
     : ExecutionInstruction(InstructionKind.EvaluateAndDiscard, Next);
 
@@ -54,11 +62,20 @@ internal sealed record AwaitAndDiscardInstruction(
 ///     Only non-short-circuiting operators are supported (logical operators still
 ///     need BranchInstruction for correct semantics).
 /// </remarks>
+/// <param name="Next">Next instruction index.</param>
+/// <param name="Operator">The binary operator to apply.</param>
+/// <param name="Left">AST representation of the left operand (nullable during migration).</param>
+/// <param name="LeftOps">Bytecode representation of the left operand (nullable during migration).</param>
+/// <param name="Right">AST representation of the right operand (nullable during migration).</param>
+/// <param name="RightOps">Bytecode representation of the right operand (nullable during migration).</param>
+/// <param name="ResultSlot">Symbol for storing the result, or null to discard.</param>
 internal sealed record BinaryOpInstruction(
     int Next,
     BinaryOperator Operator,
-    ExpressionNode Left,
-    ExpressionNode Right,
+    ExpressionNode? Left = null,
+    ImmutableArray<ExpressionOp>? LeftOps = null,
+    ExpressionNode? Right = null,
+    ImmutableArray<ExpressionOp>? RightOps = null,
     Symbol? ResultSlot = null)
     : ExecutionInstruction(InstructionKind.BinaryOp, Next);
 
@@ -134,7 +151,8 @@ internal sealed record LogicalCompoundAssignmentSlotInstruction(
 /// <param name="Next">Next instruction index.</param>
 /// <param name="TargetSymbol">The target identifier symbol.</param>
 /// <param name="Operator">The compound assignment operator (Add, Subtract, etc.).</param>
-/// <param name="RhsExpression">The right-hand side expression.</param>
+/// <param name="RhsExpression">AST representation of the right-hand side expression (nullable during migration).</param>
+/// <param name="RhsExpressionOps">Bytecode representation of the right-hand side expression (nullable during migration).</param>
 /// <param name="SuppressCompletionValue">When true, the completion value is NOT updated.</param>
 /// <param name="ScopeId">Scope ID where the variable is declared. -1 means unresolved.</param>
 /// <param name="SlotIndex">Slot index within the scope. -1 means unresolved.</param>
@@ -144,7 +162,8 @@ internal sealed record CompoundAssignmentSlotInstruction(
     int Next,
     Symbol TargetSymbol,
     BinaryOperator Operator,
-    ExpressionNode RhsExpression,
+    ExpressionNode? RhsExpression = null,
+    ImmutableArray<ExpressionOp>? RhsExpressionOps = null,
     bool SuppressCompletionValue = false,
     int ScopeId = -1,
     int SlotIndex = -1,
@@ -173,6 +192,11 @@ internal sealed record ClassDeclarationInstruction(int Next, ClassDeclaration De
 ///     Represents a simple variable declaration with an identifier binding (no destructuring).
 ///     Handles declarations like: let x = expr; const y = 5; var z = value;
 /// </summary>
+/// <param name="Next">Next instruction index.</param>
+/// <param name="VarKind">The variable declaration kind (var/let/const).</param>
+/// <param name="TargetSymbol">The identifier being declared.</param>
+/// <param name="Initializer">AST representation of the initializer expression (nullable during migration).</param>
+/// <param name="InitializerOps">Bytecode representation of the initializer expression (nullable during migration).</param>
 /// <param name="IsScriptLevel">
 ///     When true, indicates this is a top-level script var declaration.
 ///     Script-level var declarations must update the global object (via AssignJsValue),
@@ -182,7 +206,8 @@ internal sealed record SimpleVariableDeclarationInstruction(
     int Next,
     VariableKind VarKind,
     Symbol TargetSymbol,
-    ExpressionNode? Initializer,
+    ExpressionNode? Initializer = null,
+    ImmutableArray<ExpressionOp>? InitializerOps = null,
     bool IsScriptLevel = false)
     : ExecutionInstruction(InstructionKind.SimpleVariableDeclaration, Next);
 
@@ -239,17 +264,29 @@ internal sealed record PopEnvironmentInstruction(int ScopeId, bool AllowPooling,
 /// <summary>
 ///     Represents a yield expression. When executed, the generator returns control to the caller.
 /// </summary>
-internal sealed record YieldInstruction(int Next, ExpressionNode? YieldExpression)
+/// <param name="Next">Next instruction index after the yield.</param>
+/// <param name="YieldExpression">AST representation of the yield expression (nullable during migration).</param>
+/// <param name="YieldExpressionOps">Bytecode representation of the yield expression (nullable during migration).</param>
+internal sealed record YieldInstruction(
+    int Next,
+    ExpressionNode? YieldExpression = null,
+    ImmutableArray<ExpressionOp>? YieldExpressionOps = null)
     : ExecutionInstruction(InstructionKind.Yield, Next);
 
 /// <summary>
 ///     Represents a delegated <c>yield*</c> expression that iterates another iterable.
 /// </summary>
+/// <param name="Next">Next instruction index.</param>
+/// <param name="IterableExpression">AST representation of the iterable expression (nullable during migration).</param>
+/// <param name="IterableExpressionOps">Bytecode representation of the iterable expression (nullable during migration).</param>
+/// <param name="StateSlotSymbol">Symbol for tracking the yield* state.</param>
+/// <param name="ResultSlotSymbol">Symbol for storing the result, or null.</param>
 internal sealed record YieldStarInstruction(
     int Next,
-    ExpressionNode IterableExpression,
-    Symbol StateSlotSymbol,
-    Symbol? ResultSlotSymbol)
+    ExpressionNode? IterableExpression = null,
+    ImmutableArray<ExpressionOp>? IterableExpressionOps = null,
+    Symbol? StateSlotSymbol = null,
+    Symbol? ResultSlotSymbol = null)
     : ExecutionInstruction(InstructionKind.YieldStar, Next);
 
 /// <summary>
@@ -354,7 +391,8 @@ internal sealed record EndFinallyInstruction(int Next)
 ///     Initializes the iterator for a <c>for...of</c> or <c>for await...of</c> loop.
 /// </summary>
 /// <param name="IteratorKind">Whether this is a sync or async iterator.</param>
-/// <param name="IterableExpression">Expression that produces the iterable.</param>
+/// <param name="IterableExpression">AST representation of the iterable expression (nullable during migration).</param>
+/// <param name="IterableExpressionOps">Bytecode representation of the iterable expression (nullable during migration).</param>
 /// <param name="IteratorSlot">Symbol for the iterator state.</param>
 /// <param name="IteratorSlotIndex">Pre-resolved slot index for fast iterator state access (-1 if not resolved).</param>
 /// <param name="Next">Jump target after initialization.</param>
@@ -366,10 +404,11 @@ internal sealed record EndFinallyInstruction(int Next)
 /// <param name="TdzIsConst">Whether the TDZ bindings are const (true) or let (false).</param>
 internal sealed record IteratorInitInstruction(
     IteratorDriverKind IteratorKind,
-    ExpressionNode IterableExpression,
     Symbol IteratorSlot,
     int IteratorSlotIndex,
     int Next,
+    ExpressionNode? IterableExpression = null,
+    ImmutableArray<ExpressionOp>? IterableExpressionOps = null,
     ImmutableArray<Symbol> TdzBindings = default,
     bool TdzIsConst = false)
     : ExecutionInstruction(InstructionKind.IteratorInit, Next);
@@ -409,7 +448,15 @@ internal sealed record JumpInstruction(int TargetIndex)
 /// <summary>
 ///     Represents a conditional branch.
 /// </summary>
-internal sealed record BranchInstruction(ExpressionNode Condition, int ConsequentIndex, int AlternateIndex)
+/// <param name="Condition">AST representation of the condition expression (nullable during migration).</param>
+/// <param name="ConditionOps">Bytecode representation of the condition expression (nullable during migration).</param>
+/// <param name="ConsequentIndex">Jump target when condition is true.</param>
+/// <param name="AlternateIndex">Jump target when condition is false.</param>
+internal sealed record BranchInstruction(
+    int ConsequentIndex,
+    int AlternateIndex,
+    ExpressionNode? Condition = null,
+    ImmutableArray<ExpressionOp>? ConditionOps = null)
     : ExecutionInstruction(InstructionKind.Branch, -1);
 
 /// <summary>
@@ -433,19 +480,37 @@ internal sealed record ContinueInstruction(int TargetIndex, int TargetScopeId = 
 /// <summary>
 ///     Represents a return statement in the generator.
 /// </summary>
+/// <param name="Next">
+///     Next instruction index. Important for returns inside try/finally blocks.
+///     When a return occurs inside a finally block, we need to continue to
+///     EndFinallyInstruction to properly process the pending completion.
+/// </param>
+/// <param name="ReturnExpression">AST representation of the return expression (nullable during migration).</param>
+/// <param name="ReturnExpressionOps">Bytecode representation of the return expression (nullable during migration).</param>
 /// <remarks>
 ///     The Next parameter is important for returns inside try/finally blocks.
 ///     When a return occurs inside a finally block, we need to continue to
 ///     EndFinallyInstruction to properly process the pending completion.
 /// </remarks>
-internal sealed record ReturnInstruction(int Next, ExpressionNode? ReturnExpression)
+internal sealed record ReturnInstruction(
+    int Next,
+    ExpressionNode? ReturnExpression = null,
+    ImmutableArray<ExpressionOp>? ReturnExpressionOps = null)
     : ExecutionInstruction(InstructionKind.Return, Next);
 
 /// <summary>
 ///     Marks the beginning of a <c>with</c> statement. Evaluates the object expression
 ///     and pushes a with-environment onto the scope chain.
 /// </summary>
-internal sealed record EnterWithInstruction(ExpressionNode ObjectExpression, Symbol WithScopeSlot, int Next)
+/// <param name="ObjectExpression">AST representation of the object expression (nullable during migration).</param>
+/// <param name="ObjectExpressionOps">Bytecode representation of the object expression (nullable during migration).</param>
+/// <param name="WithScopeSlot">Symbol for storing the with scope.</param>
+/// <param name="Next">Next instruction index.</param>
+internal sealed record EnterWithInstruction(
+    Symbol WithScopeSlot,
+    int Next,
+    ExpressionNode? ObjectExpression = null,
+    ImmutableArray<ExpressionOp>? ObjectExpressionOps = null)
     : ExecutionInstruction(InstructionKind.EnterWith, Next);
 
 /// <summary>
@@ -457,7 +522,13 @@ internal sealed record LeaveWithInstruction(Symbol WithScopeSlot, int Next)
 /// <summary>
 ///     Evaluates an expression and exposes the result.
 /// </summary>
-internal sealed record ExpressionInstruction(int Next, ExpressionNode Expression)
+/// <param name="Next">Next instruction index.</param>
+/// <param name="Expression">AST representation of the expression (nullable during migration).</param>
+/// <param name="ExpressionOps">Bytecode representation of the expression (nullable during migration).</param>
+internal sealed record ExpressionInstruction(
+    int Next,
+    ExpressionNode? Expression = null,
+    ImmutableArray<ExpressionOp>? ExpressionOps = null)
     : ExecutionInstruction(InstructionKind.Expression, Next);
 
 /// <summary>
@@ -471,7 +542,8 @@ internal sealed record SetCompletionValueInstruction(int Next)
 ///     Initializes the for-in loop by evaluating the object expression and collecting
 ///     enumerable property keys.
 /// </summary>
-/// <param name="ObjectExpression">Expression that produces the object to iterate.</param>
+/// <param name="ObjectExpression">AST representation of the object expression (nullable during migration).</param>
+/// <param name="ObjectExpressionOps">Bytecode representation of the object expression (nullable during migration).</param>
 /// <param name="StateSlot">Symbol for the for-in state.</param>
 /// <param name="StateSlotIndex">Pre-resolved slot index for fast state access (-1 if not resolved).</param>
 /// <param name="ValueSlot">Symbol for the current property key value.</param>
@@ -483,12 +555,13 @@ internal sealed record SetCompletionValueInstruction(int Next)
 /// </param>
 /// <param name="TdzIsConst">Whether the TDZ bindings are const (true) or let (false).</param>
 internal sealed record ForInInitInstruction(
-    ExpressionNode ObjectExpression,
     Symbol StateSlot,
     int StateSlotIndex,
     Symbol ValueSlot,
     int ValueSlotIndex,
     int Next,
+    ExpressionNode? ObjectExpression = null,
+    ImmutableArray<ExpressionOp>? ObjectExpressionOps = null,
     ImmutableArray<Symbol> TdzBindings = default,
     bool TdzIsConst = false)
     : ExecutionInstruction(InstructionKind.ForInInit, Next);
@@ -519,15 +592,17 @@ internal sealed record ForInMoveNextInstruction(
 ///     Initializes array destructuring by evaluating the source expression and
 ///     getting an iterator from it. Stores the iterator state in a slot.
 /// </summary>
-/// <param name="SourceExpression">Expression that produces the value to destructure (e.g., arr in `let [a] = arr`).</param>
+/// <param name="SourceExpression">AST representation of the source expression (nullable during migration).</param>
+/// <param name="SourceExpressionOps">Bytecode representation of the source expression (nullable during migration).</param>
 /// <param name="IteratorSlot">Symbol for storing the iterator state.</param>
 /// <param name="IteratorSlotIndex">Pre-resolved slot index for fast iterator state access (-1 if not resolved).</param>
 /// <param name="Next">Jump target after initialization (first element instruction).</param>
 internal sealed record ArrayDestructuringInitInstruction(
-    ExpressionNode SourceExpression,
     Symbol IteratorSlot,
     int IteratorSlotIndex,
-    int Next)
+    int Next,
+    ExpressionNode? SourceExpression = null,
+    ImmutableArray<ExpressionOp>? SourceExpressionOps = null)
     : ExecutionInstruction(InstructionKind.ArrayDestructuringInit, Next);
 
 /// <summary>

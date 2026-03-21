@@ -38,8 +38,14 @@ internal static class IteratorInstructionTemplate
         var tdzIsConst = plan.DeclarationKind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
 
         var initIndex = instructions.Count;
-        instructions.Add(new IteratorInitInstruction(plan.Kind, plan.Iterable, iteratorSymbol, iteratorSlotIndex, -1,
-            tdzBindings, tdzIsConst));
+        instructions.Add(new IteratorInitInstruction(
+            plan.Kind,
+            iteratorSymbol,
+            iteratorSlotIndex,
+            Next: -1,
+            IterableExpression: plan.Iterable,
+            TdzBindings: tdzBindings,
+            TdzIsConst: tdzIsConst));
 
         var moveNextIndex = instructions.Count;
         instructions.Add(new IteratorMoveNextInstruction(plan.Kind, iteratorSymbol, valueSymbol, iteratorSlotIndex,

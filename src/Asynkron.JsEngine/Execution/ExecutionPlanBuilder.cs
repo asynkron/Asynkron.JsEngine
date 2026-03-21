@@ -749,7 +749,11 @@ internal sealed partial class ExecutionPlanBuilder
         }
 
         var stateSymbol = CreateYieldStarStateSymbol();
-        return Append(new YieldStarInstruction(continuationIndex, expression.Expression, stateSymbol, resultSlot));
+        return Append(new YieldStarInstruction(
+            continuationIndex,
+            IterableExpression: expression.Expression,
+            StateSlotSymbol: stateSymbol,
+            ResultSlotSymbol: resultSlot));
     }
 
     internal static BlockStatement BuildCatchBlock(CatchClause clause, Symbol catchSlotSymbol)

@@ -164,20 +164,6 @@ public static partial class TypedAstEvaluator
         {
             context.ThrowIfCancellationRequested();
 
-            // Special handling for async/generator function declarations
-            // They need to be initialized when evaluated (not during instantiation)
-            if (stmt is FunctionDeclaration funcDecl &&
-                (funcDecl.Function.IsAsync || funcDecl.Function.WasAsync || funcDecl.Function.IsGenerator))
-            {
-                // Pass skipInternalNameBinding: true so the function doesn't create an internal
-                // const binding for its name (the binding was already defined during instantiation).
-                var functionValue = funcDecl.Function.CreateFunctionValue(switchEnv, context,
-                    skipInternalNameBinding: true);
-                switchEnv.AssignJsValue(funcDecl.Name, JsValue.FromObjectUnsafe(functionValue));
-                // Function declarations have empty completion
-                continue;
-            }
-
             var completion = stmt.EvaluateStatementJsValue(switchEnv, context);
             var shouldStop = context.ShouldStopEvaluation;
             // Apply UpdateEmpty semantics: only update result if completion is not empty (Unit)

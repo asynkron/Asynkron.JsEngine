@@ -17,7 +17,7 @@ internal static class DestructuringEmitter
     /// Try to emit IR for an array destructuring declaration.
     /// Only handles simple cases: identifier bindings, no defaults, no nested patterns.
     /// </summary>
-    /// <returns>True if IR was emitted, false if should fall back to ComplexVariableDeclarationInstruction.</returns>
+    /// <returns>True if IR was emitted, false if the caller should use the generic binding declaration instruction.</returns>
     public static bool TryEmitArrayDestructuring(
         EmitContext ctx,
         ArrayBinding binding,

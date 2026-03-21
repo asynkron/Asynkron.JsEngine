@@ -15,9 +15,9 @@ public static partial class TypedAstEvaluator
         // - If we're in a nested block (if/while/etc): this is a block-scoped function declaration.
         //   Per Annex B.3.3.3, we need to create the function and assign it to both the block-scoped
         //   lexical binding and the outer function-scoped var binding.
-        var functionScope = environment.GetFunctionScope();
-        var isAtFunctionScope = ReferenceEquals(functionScope, environment) ||
-                                environment.IsEvalDeclarationEnvironment;
+        var varEnvironment = environment.GetVarEnvironment();
+        var isAtVarEnvironment = ReferenceEquals(varEnvironment, environment) ||
+                                 environment.IsEvalDeclarationEnvironment;
 
         // Special case: AnnexB function declarations in if/else branches in sloppy mode.
         // In AST evaluation mode, we don't create a block environment for if/else branches,
@@ -25,13 +25,13 @@ public static partial class TypedAstEvaluator
         // inside an if/else. We detect this case by checking if the function-scoped binding
         // has value `undefined` (set during hoisting per Annex B.3.3.2).
         var isAnnexBHoistedFunction = false;
-        if (isAtFunctionScope && !context.CurrentScope.IsStrict)
+        if (isAtVarEnvironment && !context.CurrentScope.IsStrict)
         {
             // In sloppy mode, check if there's a function-scoped binding that was hoisted
             // with undefined value (AnnexB pattern)
-            if (functionScope.HasFunctionScopedBinding(funcDecl.Name))
+            if (varEnvironment.HasFunctionScopedBinding(funcDecl.Name))
             {
-                var existingValue = functionScope.GetBindingValueDirect(funcDecl.Name);
+                var existingValue = varEnvironment.GetBindingValueDirect(funcDecl.Name);
                 if (existingValue.IsUndefined)
                 {
                     isAnnexBHoistedFunction = true;
@@ -39,7 +39,7 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        if (isAtFunctionScope && !isAnnexBHoistedFunction)
+        if (isAtVarEnvironment && !isAnnexBHoistedFunction)
         {
             // Function-scoped: function was hoisted with actual function value, no-op at runtime.
             // Per ES spec, FunctionDeclaration returns NormalCompletion(empty).
@@ -67,19 +67,20 @@ public static partial class TypedAstEvaluator
                 return JsValue.Unit;
             }
 
-            functionScope.AssignJsValue(funcDecl.Name, fnValueJs);
+            varEnvironment.AssignJsValue(funcDecl.Name, fnValueJs);
 
             // For global scope, also update the global object property.
-            if (functionScope.IsGlobalFunctionScope)
+            if (varEnvironment.IsGlobalFunctionScope)
             {
-                var globalThis = functionScope.GetRootGlobalObject();
+                var globalThis = varEnvironment.GetRootGlobalObject();
                 globalThis?.SetProperty(funcDecl.Name.Name, fnValueJs);
             }
         }
         else
         {
             var isBlocked = !context.CurrentScope.IsStrict &&
-                            environment.IsAnnexBBlocked(funcDecl.Name);
+                            (environment.IsAnnexBBlocked(funcDecl.Name) ||
+                             HasEnclosingLexicalBinding(environment.Enclosing, funcDecl.Name));
 
             // Block-scoped case: create lexical binding in block environment.
             // When AnnexB is blocked (param/lexical conflict) and we're in the body
@@ -94,22 +95,51 @@ public static partial class TypedAstEvaluator
                     blocksFunctionScopeOverride: true);
             }
 
-            // For hoisted functions in sloppy mode, also update the function-scope binding.
-            // This implements Annex B.3.3.3 semantics where block-scoped functions also
-            // update the outer function-scope binding.
-            if (!isBlocked && functionScope.HasFunctionScopedBinding(funcDecl.Name))
+            // For hoisted functions in sloppy mode, also update the var-scoped binding.
+            // Annex B.3.3.3 performs SetMutableBinding on the variable environment directly.
+            if (!isBlocked && varEnvironment.HasFunctionScopedBinding(funcDecl.Name))
             {
-                functionScope.AssignJsValue(funcDecl.Name, fnValueJs);
+                varEnvironment.AssignJsValue(funcDecl.Name, fnValueJs);
 
                 // For global scope, also update the global object property.
-                if (functionScope.IsGlobalFunctionScope)
+                if (varEnvironment.IsGlobalFunctionScope)
                 {
-                    var globalThis = functionScope.GetRootGlobalObject();
+                    var globalThis = varEnvironment.GetRootGlobalObject();
                     globalThis?.SetProperty(funcDecl.Name.Name, fnValueJs);
                 }
             }
         }
 
         return JsValue.Unit;
+
+        static bool HasEnclosingLexicalBinding(JsEnvironment? start, Symbol name)
+        {
+            var current = start;
+            while (current is not null)
+            {
+                if (current.IsFunctionScope)
+                {
+                    break;
+                }
+
+                if (current.IsSimpleCatchParameter(name))
+                {
+                    current = current.Enclosing;
+                    continue;
+                }
+
+                ref var slot = ref current.TryGetSlotRef(name);
+                if (!System.Runtime.CompilerServices.Unsafe.IsNullRef(ref slot) &&
+                    slot.IsLexical &&
+                    slot.BlocksFunctionScopeOverride)
+                {
+                    return true;
+                }
+
+                current = current.Enclosing;
+            }
+
+            return false;
+        }
     }
 }

@@ -20,6 +20,7 @@ public sealed record BlockStatement(SourceReference? Source, ImmutableArray<Stat
 
     internal int ScopeId { get; init; } = -1;
     internal int SlotCount { get; init; } = -1;
+    internal bool ReuseEnclosingEnvironment { get; init; }
 
     internal ImmutableDictionary<Symbol, int> SlotMap { get; init; } =
         ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance);

@@ -263,7 +263,10 @@ internal static class SwitchEmitter
             // allowing completion values to flow through fallthrough cases correctly.
             if (execBuilder.Count > 0)
             {
-                var caseBlock = new BlockStatement(body.Source, execBuilder.ToImmutable(), body.IsStrict);
+                var caseBlock = new BlockStatement(body.Source, execBuilder.ToImmutable(), body.IsStrict)
+                {
+                    ReuseEnclosingEnvironment = true
+                };
                 innerStatements.Add(new IfStatement(statement.Source, execCondition, caseBlock, null));
             }
         }

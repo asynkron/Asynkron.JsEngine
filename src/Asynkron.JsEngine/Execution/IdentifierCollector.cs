@@ -354,6 +354,18 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 Visit(eval.Expression);
                 return;
 
+            case AwaitAndDiscardInstruction awaitDiscard:
+                Visit(awaitDiscard.Expression);
+                return;
+
+            case AssignmentSlotInstruction assign:
+                Visit(assign.ValueExpression);
+                return;
+
+            case LogicalCompoundAssignmentSlotInstruction logicalCompound:
+                Visit(logicalCompound.RhsExpression);
+                return;
+
             case YieldInstruction { YieldExpression: not null } yield:
                 Visit(yield.YieldExpression);
                 return;
@@ -377,6 +389,15 @@ internal sealed class ScopeSlotCollector : AstVisitor
 
             case SimpleVariableDeclarationInstruction varDecl:
                 RegisterDeclaration(varDecl);
+                return;
+
+            case BindingVariableDeclarationInstruction { Declarator.Initializer: not null } bindingDecl:
+                RegisterBindingDeclaration(bindingDecl);
+                Visit(bindingDecl.Declarator.Initializer);
+                return;
+
+            case BindingVariableDeclarationInstruction bindingDecl:
+                RegisterBindingDeclaration(bindingDecl);
                 return;
 
             case IteratorInitInstruction iterInit:
@@ -424,6 +445,44 @@ internal sealed class ScopeSlotCollector : AstVisitor
         {
             // Ensure var slots are marked non-lexical
             GetOrCreateScopeInfo(targetScope).LexicalBindings.Remove(varDecl.TargetSymbol);
+        }
+    }
+
+    private void RegisterBindingDeclaration(BindingVariableDeclarationInstruction bindingDecl)
+    {
+        var names = new List<Symbol>();
+        bindingDecl.Declarator.Target.CollectSymbolsFromBinding(names);
+        foreach (var name in names)
+        {
+            RegisterDeclaration(bindingDecl.VarKind, name);
+        }
+    }
+
+    private void RegisterDeclaration(VariableKind varKind, Symbol targetSymbol)
+    {
+        int targetScope;
+        if (varKind == VariableKind.Var)
+        {
+            targetScope = _rootScopeId;
+        }
+        else
+        {
+            targetScope = CurrentScopeId;
+            if (targetScope == _rootScopeId &&
+                _bindingScopeHints.TryGetValue(targetSymbol, out var hintedScope))
+            {
+                targetScope = hintedScope;
+            }
+        }
+
+        _ = AllocateSlotInScope(targetScope, targetSymbol);
+        if (varKind != VariableKind.Var)
+        {
+            GetOrCreateScopeInfo(targetScope).LexicalBindings.Add(targetSymbol);
+        }
+        else
+        {
+            GetOrCreateScopeInfo(targetScope).LexicalBindings.Remove(targetSymbol);
         }
     }
 

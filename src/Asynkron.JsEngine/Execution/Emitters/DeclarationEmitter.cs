@@ -52,7 +52,7 @@ internal static class DeclarationEmitter
 
     /// <summary>
     /// Try to emit IR for a variable declaration.
-    /// Handles yield initializers, binding target defaults, and falls back to ComplexVariableDeclarationInstruction when needed.
+    /// Lowers each declarator to either a specialized instruction or a generic binding declaration instruction.
     /// </summary>
     public static bool TryEmitVariableDeclaration(
         EmitContext ctx,
@@ -66,88 +66,88 @@ internal static class DeclarationEmitter
             return true;
         }
 
-        // Check for variable declarations with yields in binding target default values.
-        // These cannot be safely lowered because defaults are only evaluated when
-        // the value is undefined. Use the complex declaration instruction (AST eval).
-        if (DeclarationContainsYieldInBindingTargetDefaults(declaration))
+        entryIndex = -1;
+        var currentNext = nextIndex;
+
+        for (var i = declaration.Declarators.Length - 1; i >= 0; i--)
         {
-            // AST fallback: var decl with yield in binding target defaults
-            // Reason: Conditional yield semantics in destructuring defaults
-            // Tracking: #398, #416 (IR-only execution epic)
-            entryIndex = ctx.Append(new ComplexVariableDeclarationInstruction(nextIndex, declaration));
+            if (!TryEmitVariableDeclarator(ctx, declaration.Kind, declaration.Declarators[i], currentNext,
+                    out var declaratorEntry))
+            {
+                entryIndex = -1;
+                return false;
+            }
+
+            currentNext = declaratorEntry;
+            if (i == 0)
+            {
+                entryIndex = declaratorEntry;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Try to emit IR for a single declarator.
+    /// </summary>
+    private static bool TryEmitVariableDeclarator(
+        EmitContext ctx,
+        VariableKind varKind,
+        VariableDeclarator declarator,
+        int nextIndex,
+        out int entryIndex)
+    {
+        if (TryEmitSimpleVariableDeclarator(ctx, varKind, declarator, nextIndex, out entryIndex))
+        {
             return true;
         }
 
-        if (DeclarationContainsYield(declaration))
-        {
-            ctx.SetFailureReason("Variable declaration contains unsupported yield shape.");
-            entryIndex = -1;
-            return false;
-        }
-
-        // Try to use native SimpleVariableDeclarationInstruction for simple cases
-        if (TryEmitSimpleVariableDeclaration(ctx, declaration, nextIndex, out entryIndex))
+        if (TryEmitArrayDestructuringDeclarator(ctx, varKind, declarator, nextIndex, out entryIndex))
         {
             return true;
         }
 
-        // Try array destructuring IR emission (Phase 1: simple cases only)
-        if (TryEmitArrayDestructuringDeclaration(ctx, declaration, nextIndex, out entryIndex))
-        {
-            return true;
-        }
-
-        // Use ComplexVariableDeclarationInstruction for declarations with destructuring
-        entryIndex = ctx.Append(new ComplexVariableDeclarationInstruction(nextIndex, declaration));
+        entryIndex = ctx.Append(new BindingVariableDeclarationInstruction(nextIndex, varKind, declarator));
         return true;
     }
 
     /// <summary>
     /// Try to emit IR for array destructuring declarations.
-    /// Only handles single declarator with array binding and no awaits in initializer.
+    /// Only handles simple array binding with no yields or awaits in the source expression.
     /// </summary>
-    private static bool TryEmitArrayDestructuringDeclaration(
+    private static bool TryEmitArrayDestructuringDeclarator(
         EmitContext ctx,
-        VariableDeclaration declaration,
+        VariableKind varKind,
+        VariableDeclarator declarator,
         int nextIndex,
         out int entryIndex)
     {
         entryIndex = -1;
 
-        // Don't handle using/await using
-        if (declaration.Kind is VariableKind.Using or VariableKind.AwaitUsing)
-        {
-            return false;
-        }
-
-        // Only handle single declarator for now
-        if (declaration.Declarators.Length != 1)
-        {
-            return false;
-        }
-
-        var declarator = declaration.Declarators[0];
-
-        // Must be array binding
         if (declarator.Target is not ArrayBinding arrayBinding)
         {
             return false;
         }
 
-        // Must have initializer
         if (declarator.Initializer is null)
         {
             return false;
         }
 
-        // No awaits in initializer (async context handling is complex)
-        if (AstShapeAnalyzer.ContainsAwait(declarator.Initializer))
+        if (varKind is VariableKind.Using or VariableKind.AwaitUsing)
+        {
+            return false;
+        }
+
+        if (AstShapeAnalyzer.ContainsAwait(declarator.Initializer) ||
+            AstShapeAnalyzer.ContainsYield(declarator.Initializer))
         {
             return false;
         }
 
         return DestructuringEmitter.TryEmitArrayDestructuring(
-            ctx, arrayBinding, declarator.Initializer, declaration.Kind, nextIndex, out entryIndex);
+            ctx, arrayBinding, declarator.Initializer, varKind, nextIndex, out entryIndex);
     }
 
     private static bool TryEmitYieldInitializer(
@@ -175,83 +175,43 @@ internal static class DeclarationEmitter
             ctx, targetSymbol, yieldInitializer, nextIndex, out entryIndex);
     }
 
-    private static bool DeclarationContainsYield(VariableDeclaration declaration)
-    {
-        return declaration.Declarators.Any(static d =>
-            d.Initializer is not null &&
-            AstShapeAnalyzer.ContainsYield(d.Initializer) &&
-            !EmitContext.IsLowererTemp(d.Target));
-    }
-
-    private static bool DeclarationContainsYieldInBindingTargetDefaults(VariableDeclaration declaration)
-    {
-        return declaration.Declarators.Any(static d =>
-            AstShapeAnalyzer.BindingTargetContainsYieldInDefaultValue(d.Target) ||
-            (d.Initializer is not null && EmitContext.ExpressionContainsDestructuringWithYieldAnywhere(d.Initializer)));
-    }
-
     /// <summary>
-    /// Try to emit IR for a simple variable declaration (identifier bindings only, no destructuring).
+    /// Try to emit IR for a simple variable declarator (identifier binding only, no yield/await).
     /// </summary>
-    private static bool TryEmitSimpleVariableDeclaration(
+    private static bool TryEmitSimpleVariableDeclarator(
         EmitContext ctx,
-        VariableDeclaration declaration,
+        VariableKind varKind,
+        VariableDeclarator declarator,
         int nextIndex,
         out int entryIndex)
     {
-        // Don't handle using/await using for now - they have complex disposal semantics
-        if (declaration.Kind is VariableKind.Using or VariableKind.AwaitUsing)
+        if (varKind is VariableKind.Using or VariableKind.AwaitUsing)
         {
             entryIndex = -1;
             return false;
         }
 
-        // First, verify ALL declarators are simple (identifier binding, no yields/awaits)
-        foreach (var declarator in declaration.Declarators)
+        if (declarator.Target is not IdentifierBinding identifierBinding)
         {
-            // Only handle simple identifier binding (no destructuring)
-            if (declarator.Target is not IdentifierBinding)
-            {
-                entryIndex = -1;
-                return false;
-            }
-
-            // Ensure no yields or awaits in initializer
-            if (declarator.Initializer is not null &&
-                (AstShapeAnalyzer.ContainsYield(declarator.Initializer) ||
-                 AstShapeAnalyzer.ContainsAwait(declarator.Initializer)))
-            {
-                entryIndex = -1;
-                return false;
-            }
+            entryIndex = -1;
+            return false;
         }
 
-        // All declarators are simple - build a chain of instructions
-        // Work backwards from the last declarator to properly chain next pointers
-        var currentNext = nextIndex;
-        entryIndex = -1;
-
-        for (var i = declaration.Declarators.Length - 1; i >= 0; i--)
+        if (declarator.Initializer is not null &&
+            (AstShapeAnalyzer.ContainsYield(declarator.Initializer) ||
+             AstShapeAnalyzer.ContainsAwait(declarator.Initializer)))
         {
-            var declarator = declaration.Declarators[i];
-            var targetSymbol = ((IdentifierBinding)declarator.Target).Name;
-
-            // Pass IsScriptLevel for var declarations - script-level vars must update global object
-            var isScriptLevel = ctx.IsScriptLevel && declaration.Kind == VariableKind.Var;
-            var instructionIndex = ctx.Append(new SimpleVariableDeclarationInstruction(
-                currentNext,
-                declaration.Kind,
-                targetSymbol!,
-                declarator.Initializer,
-                isScriptLevel));
-
-            currentNext = instructionIndex;
-            if (i == 0)
-            {
-                entryIndex = instructionIndex;
-            }
+            entryIndex = -1;
+            return false;
         }
 
+        var isScriptLevel = ctx.IsScriptLevel && varKind == VariableKind.Var;
+        entryIndex = ctx.Append(new SimpleVariableDeclarationInstruction(
+            nextIndex,
+            varKind,
+            identifierBinding.Name,
+            declarator.Initializer,
+            isScriptLevel));
         return true;
     }
 

@@ -74,12 +74,40 @@ internal static class ExpressionStatementEmitter
             return false;
         }
 
-        // NOTE: Await expressions are handled by EvaluateAndDiscardInstruction via
-        // normal expression evaluation - no fallback to StatementInstruction needed.
-        // The IR runner's TryHandlePendingAwait handles async suspension/resumption.
+        // NOTE: Plain await expressions now use a dedicated instruction so the
+        // runner can suspend/resume without routing through EvaluateAndDiscard.
 
         // Combine context and statement-level suppression flags
         var suppressCompletion = ctx.SuppressCompletionValue || expressionStatement.SuppressCompletionValue;
+
+        if (expressionStatement.Expression is SequenceExpression sequenceExpression)
+        {
+            return TryEmitSequenceExpressionStatement(
+                ctx,
+                sequenceExpression,
+                suppressCompletion,
+                nextIndex,
+                out entryIndex);
+        }
+
+        if (expressionStatement.Expression is ConditionalExpression conditionalExpression)
+        {
+            return TryEmitConditionalExpressionStatement(
+                ctx,
+                conditionalExpression,
+                suppressCompletion,
+                nextIndex,
+                out entryIndex);
+        }
+
+        if (expressionStatement.Expression is AwaitExpression awaitExpression)
+        {
+            entryIndex = ctx.Append(new AwaitAndDiscardInstruction(
+                nextIndex,
+                awaitExpression,
+                suppressCompletion));
+            return true;
+        }
 
         // Fast path: simple increment/decrement on identifiers (e.g., i++, --j)
         if (expressionStatement.Expression is UnaryExpression
@@ -98,9 +126,26 @@ internal static class ExpressionStatementEmitter
             return true;
         }
 
-        // Fast path: compound assignment on simple identifiers (e.g., s += i, s -= 1)
-        // Only handle non-short-circuit operators (+=, -=, *=, /=, %=, **=, bitwise ops)
-        // Logical operators (&&=, ||=, ??=) need special short-circuit handling
+        // Fast path: simple identifier assignment (e.g., x = value).
+        // Keep script-level execution on the generic path because scripts may still
+        // observe dynamic resolution through explicit dynamic-scope execution.
+        if (!ctx.IsScriptLevel &&
+            expressionStatement.Expression is AssignmentExpression
+            {
+                IsCompoundAssignment: false,
+                IsImmutableTarget: false
+            } assignment)
+        {
+            entryIndex = ctx.Append(new AssignmentSlotInstruction(
+                nextIndex,
+                assignment.Target,
+                assignment.Value,
+                suppressCompletion,
+                AllowNameInference: !IsParenthesizedIdentifierAssignment(assignment)));
+            return true;
+        }
+
+        // Fast path: compound assignment on simple identifiers.
         // NOTE: Skip this optimization for script-level code because:
         //   1. Scripts may contain 'with' statements that require dynamic identifier resolution
         //   2. Eval'd code runs at script level and may be inside a with-scope from caller
@@ -109,9 +154,28 @@ internal static class ExpressionStatementEmitter
             expressionStatement.Expression is AssignmentExpression
             {
                 IsCompoundAssignment: true,
-                Value: BinaryExpression compoundBinary
+                Value: BinaryExpression logicalBinary
+            } logicalCompoundAssign &&
+            logicalBinary.Operator is
+                BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr or BinaryOperator.NullishCoalescing)
+        {
+            entryIndex = ctx.Append(new LogicalCompoundAssignmentSlotInstruction(
+                nextIndex,
+                logicalCompoundAssign.Target,
+                logicalBinary.Operator,
+                logicalBinary.Right,
+                suppressCompletion,
+                AllowNameInference: !IsParenthesizedIdentifierAssignment(logicalCompoundAssign)));
+            return true;
+        }
+
+        if (!ctx.IsScriptLevel &&
+            expressionStatement.Expression is AssignmentExpression
+            {
+                IsCompoundAssignment: true,
+                Value: BinaryExpression arithmeticBinary
             } compoundAssign &&
-            compoundBinary.Operator is
+            arithmeticBinary.Operator is
                 BinaryOperator.Add or BinaryOperator.Subtract or
                 BinaryOperator.Multiply or BinaryOperator.Divide or
                 BinaryOperator.Modulo or BinaryOperator.Power or
@@ -122,8 +186,8 @@ internal static class ExpressionStatementEmitter
             entryIndex = ctx.Append(new CompoundAssignmentSlotInstruction(
                 nextIndex,
                 compoundAssign.Target,
-                compoundBinary.Operator,
-                compoundBinary.Right,
+                arithmeticBinary.Operator,
+                arithmeticBinary.Right,
                 suppressCompletion));
             return true;
         }
@@ -132,6 +196,85 @@ internal static class ExpressionStatementEmitter
         entryIndex =
             ctx.Append(new EvaluateAndDiscardInstruction(nextIndex, expressionStatement.Expression,
                 suppressCompletion));
+        return true;
+    }
+
+    private static bool IsParenthesizedIdentifierAssignment(AssignmentExpression expression)
+    {
+        if (expression.Source is null)
+        {
+            return false;
+        }
+
+        var source = expression.Source.Source;
+        var index = expression.Source.StartPosition - 1;
+        while (index >= 0 && char.IsWhiteSpace(source, index))
+        {
+            index--;
+        }
+
+        return index >= 0 && source[index] == '(';
+    }
+
+    private static bool TryEmitSequenceExpressionStatement(
+        EmitContext ctx,
+        SequenceExpression sequenceExpression,
+        bool suppressCompletion,
+        int nextIndex,
+        out int entryIndex)
+    {
+        var rightStatement = new ExpressionStatement(
+            sequenceExpression.Right.Source,
+            sequenceExpression.Right,
+            suppressCompletion);
+        if (!TryEmitExpressionStatement(ctx, rightStatement, nextIndex, out var rightEntryIndex))
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        var leftStatement = new ExpressionStatement(
+            sequenceExpression.Left.Source,
+            sequenceExpression.Left,
+            SuppressCompletionValue: true);
+        return TryEmitExpressionStatement(ctx, leftStatement, rightEntryIndex, out entryIndex);
+    }
+
+    private static bool TryEmitConditionalExpressionStatement(
+        EmitContext ctx,
+        ConditionalExpression conditionalExpression,
+        bool suppressCompletion,
+        int nextIndex,
+        out int entryIndex)
+    {
+        var instructionStart = ctx.InstructionCount;
+
+        var alternateStatement = new ExpressionStatement(
+            conditionalExpression.Alternate.Source,
+            conditionalExpression.Alternate,
+            suppressCompletion);
+        if (!TryEmitExpressionStatement(ctx, alternateStatement, nextIndex, out var alternateEntryIndex))
+        {
+            ctx.Rollback(instructionStart);
+            entryIndex = -1;
+            return false;
+        }
+
+        var consequentStatement = new ExpressionStatement(
+            conditionalExpression.Consequent.Source,
+            conditionalExpression.Consequent,
+            suppressCompletion);
+        if (!TryEmitExpressionStatement(ctx, consequentStatement, nextIndex, out var consequentEntryIndex))
+        {
+            ctx.Rollback(instructionStart);
+            entryIndex = -1;
+            return false;
+        }
+
+        entryIndex = ctx.Append(new BranchInstruction(
+            conditionalExpression.Test,
+            consequentEntryIndex,
+            alternateEntryIndex));
         return true;
     }
 }

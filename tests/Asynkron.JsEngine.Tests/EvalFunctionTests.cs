@@ -373,4 +373,142 @@ public sealed class EvalFunctionTests(ITestOutputHelper output) : InternalTestBa
         Output.WriteLine($"result = {result}");
         Assert.Equal("undefined, true, true, true", result);
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task Eval_DirectSwitchFunctionDeclaration_UpdatesFunctionVarBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function outer() {
+              eval(
+                'switch (1) {' +
+                '  case 1:' +
+                '    function f() { return "inner declaration"; }' +
+                '}' +
+                'function f() { return "outer declaration"; }'
+              );
+              return f();
+            }
+
+            outer();
+        """);
+
+        Assert.Equal("inner declaration", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Eval_IndirectSwitchDefaultFunctionDeclaration_UpdatesGlobalVarBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            delete globalThis.f;
+
+            (0, eval)(
+              'switch (1) {' +
+              '  default:' +
+              '    function f() { return "inner declaration"; }' +
+              '}' +
+              'function f() { return "outer declaration"; }'
+            );
+
+            f();
+        """);
+
+        Assert.Equal("inner declaration", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Eval_DirectSwitchAsyncFunctionDeclaration_UpdatesFunctionVarBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function outer() {
+              eval(
+                'switch (1) {' +
+                '  case 1:' +
+                '    async function f() { return "inner async"; }' +
+                '}' +
+                'async function f() { return "outer async"; }'
+              );
+              return f.toString();
+            }
+
+            outer();
+        """);
+
+        Assert.Equal("""async function f() { return "inner async"; }""", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Eval_IndirectSwitchGeneratorFunctionDeclaration_UpdatesGlobalVarBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            delete globalThis.f;
+
+            (0, eval)(
+              'switch (1) {' +
+              '  default:' +
+              '    function* f() { yield "inner generator"; }' +
+              '}' +
+              'function* f() { yield "outer generator"; }'
+            );
+
+            f().next().value;
+        """);
+
+        Assert.Equal("inner generator", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Eval_DirectCatchSimpleIdentifierFunctionDeclaration_UpdatesFunctionVarBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function outer() {
+              eval(
+                'var before = typeof f;' +
+                'try {' +
+                '  throw null;' +
+                '} catch (f) {' +
+                '  { function f() { return 123; } }' +
+                '}' +
+                'probe = [before, typeof f, f()].join(",");'
+              );
+
+              return probe;
+            }
+
+            outer();
+        """);
+
+        Assert.Equal("undefined,function,123", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Eval_IndirectCatchSimpleIdentifierSwitchFunctionDeclaration_UpdatesGlobalVarBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            delete globalThis.f;
+            delete globalThis.probe;
+
+            (0, eval)(
+              'var before = typeof f;' +
+              'try {' +
+              '  throw null;' +
+              '} catch (f) {' +
+              '  switch (1) {' +
+              '    default:' +
+              '      function f() { return 123; }' +
+              '  }' +
+              '}' +
+              'probe = [before, typeof f, f()].join(",");'
+            );
+
+            probe;
+        """);
+
+        Assert.Equal("undefined,function,123", result);
+    }
 }

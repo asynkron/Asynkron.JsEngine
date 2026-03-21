@@ -52,9 +52,20 @@ public static partial class TypedAstEvaluator
                 {
                     catchEnv.SetSimpleCatchParameters(
                         new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance) { identifierBinding.Name });
-                }
 
-                statement.Catch.Binding.DefineBindingTarget(thrownValue, catchEnv, context, false);
+                    // Simple catch parameters are exempt from Annex B blocking checks.
+                    // Define the binding directly so it stays lexical without becoming a
+                    // function-scope override blocker.
+                    catchEnv.DefineJsValue(
+                        identifierBinding.Name,
+                        thrownValue,
+                        isLexicalBinding: true,
+                        blocksFunctionScopeOverride: false);
+                }
+                else
+                {
+                    statement.Catch.Binding.DefineBindingTarget(thrownValue, catchEnv, context, false);
+                }
             }
 
             result = statement.Catch.Body.EvaluateBlockJsValue(catchEnv, context);

@@ -538,7 +538,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         {
             context.RealmState.Logger?.LogInformation(
                 "Executing script via dynamic-scope executor (eval/with path)");
-            var dynamicResult = programBlock.EvaluateStatementJsValue(executionEnvironment, context);
+            var dynamicResult = EvaluateStatementList(program.Body, executionEnvironment, context);
             if (context.IsThrow)
             {
                 throw new ThrowSignal(context.FlowValue);

@@ -141,13 +141,29 @@ internal static class ExecutionPlanPrinter
             EvaluateAndDiscardInstruction discard =>
                 $"EVAL_DISCARD {FormatExpression(discard.Expression)} → [{discard.Next}]",
 
+            AwaitAndDiscardInstruction awaitDiscard =>
+                $"AWAIT_DISCARD {FormatExpression(awaitDiscard.Expression.Expression)} → [{awaitDiscard.Next}]",
+
             StatementInstruction stmt =>
                 $"STMT {FormatStatement(stmt.Statement)} → [{stmt.Next}]",
+
+            AssignmentSlotInstruction assign =>
+                $"ASSIGN {assign.TargetSymbol.Name} = {FormatExpression(assign.ValueExpression)} → [{assign.Next}]",
+
+            LogicalCompoundAssignmentSlotInstruction logicalCompound =>
+                $"ASSIGN_LOGICAL {logicalCompound.TargetSymbol.Name} {FormatBinaryOperator(logicalCompound.Operator)}= {FormatExpression(logicalCompound.RhsExpression)} → [{logicalCompound.Next}]",
 
             SimpleVariableDeclarationInstruction varDecl =>
                 $"VAR {varDecl.Kind} {varDecl.TargetSymbol.Name}" +
                 (varDecl.Initializer != null ? $" = {FormatExpression(varDecl.Initializer)}" : "") +
                 $" → [{varDecl.Next}]",
+
+            BindingVariableDeclarationInstruction bindingDecl =>
+                $"VAR_BIND {bindingDecl.VarKind} {bindingDecl.Declarator.Target}" +
+                (bindingDecl.Declarator.Initializer != null
+                    ? $" = {FormatExpression(bindingDecl.Declarator.Initializer)}"
+                    : "") +
+                $" → [{bindingDecl.Next}]",
 
             PushEnvironmentInstruction pushEnv =>
                 $"PUSH_ENV (bindings: [{string.Join(", ", pushEnv.PerIterationBindings.Select(s => s.Name))}], " +
@@ -260,6 +276,17 @@ internal static class ExecutionPlanPrinter
             TaggedTemplateExpression tagged => $"{FormatExpression(tagged.Tag)}`...`",
             ClassExpression classExpr => classExpr.Name != null ? $"class {classExpr.Name.Name}" : "class",
             _ => expr.GetType().Name
+        };
+    }
+
+    private static string FormatBinaryOperator(BinaryOperator op)
+    {
+        return op switch
+        {
+            BinaryOperator.LogicalAnd => "&&",
+            BinaryOperator.LogicalOr => "||",
+            BinaryOperator.NullishCoalescing => "??",
+            _ => op.ToString()
         };
     }
 

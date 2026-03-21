@@ -23,6 +23,11 @@ internal static class BlockEmitter
         int nextIndex,
         out int entryIndex)
     {
+        if (block.ReuseEnclosingEnvironment)
+        {
+            return ctx.TryBuildStatementList(block.Statements, nextIndex, out entryIndex);
+        }
+
         // If the block needs its own scope (has let/const declarations),
         // we need to create an environment for it.
         var hoistPlan = ((IAstCacheable<HoistPlan>)block).GetOrCreateCache();

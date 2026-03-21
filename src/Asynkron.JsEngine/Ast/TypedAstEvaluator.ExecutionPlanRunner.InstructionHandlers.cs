@@ -25,17 +25,20 @@ public static partial class TypedAstEvaluator
 
         private static InstructionHandler[] InitializeHandlers()
         {
-            var handlers = new InstructionHandler[40];
+            var handlers = new InstructionHandler[Enum.GetValues<InstructionKind>().Length];
             handlers[(int)InstructionKind.Statement] = HandleStatement;
             handlers[(int)InstructionKind.Throw] = HandleThrow;
             handlers[(int)InstructionKind.EvaluateAndDiscard] = HandleEvaluateAndDiscard;
+            handlers[(int)InstructionKind.AwaitAndDiscard] = HandleAwaitAndDiscard;
             handlers[(int)InstructionKind.BinaryOp] = HandleBinaryOp;
             handlers[(int)InstructionKind.IncrementSlot] = HandleIncrementSlot;
+            handlers[(int)InstructionKind.AssignmentSlot] = HandleAssignmentSlot;
+            handlers[(int)InstructionKind.LogicalCompoundAssignmentSlot] = HandleLogicalCompoundAssignmentSlot;
             handlers[(int)InstructionKind.CompoundAssignmentSlot] = HandleCompoundAssignmentSlot;
             handlers[(int)InstructionKind.FunctionDeclaration] = HandleFunctionDeclaration;
             handlers[(int)InstructionKind.ClassDeclaration] = HandleClassDeclaration;
             handlers[(int)InstructionKind.SimpleVariableDeclaration] = HandleSimpleVariableDeclaration;
-            handlers[(int)InstructionKind.ComplexVariableDeclaration] = HandleComplexVariableDeclaration;
+            handlers[(int)InstructionKind.BindingVariableDeclaration] = HandleBindingVariableDeclaration;
             handlers[(int)InstructionKind.PushEnvironment] = HandlePushEnvironment;
             handlers[(int)InstructionKind.PopEnvironment] = HandlePopEnvironment;
             handlers[(int)InstructionKind.Yield] = HandleYield;

@@ -520,18 +520,18 @@ public sealed class JsEnvironment : IRentable
     [Conditional("DEBUG")]
     internal void AssertVarBindingScope(Symbol name, string usage)
     {
-        var functionScope = GetFunctionScope();
-        if (!functionScope.IsFunctionScope)
+        var varEnvironment = GetVarEnvironment();
+        if (!varEnvironment.IsFunctionScope)
         {
             throw new InvalidOperationException($"Var binding missing function scope ({usage}). name={name.Name}");
         }
 
-        // Check for collision in the function scope, not current environment.
+        // Check for collision in the var environment, not current environment.
         // Current env might be an object environment (e.g., 'with' statement).
-        if (functionScope.HasOwnLexicalBinding(name))
+        if (varEnvironment.HasOwnLexicalBinding(name))
         {
             throw new InvalidOperationException(
-                $"Var binding collided with lexical binding ({usage}). name={name.Name} scopeId={functionScope.ScopeId}");
+                $"Var binding collided with lexical binding ({usage}). name={name.Name} scopeId={varEnvironment.ScopeId}");
         }
     }
 
@@ -891,8 +891,9 @@ public sealed class JsEnvironment : IRentable
         bool? globalVarConfigurable = null,
         bool canDelete = false)
     {
-        // `var` declarations are hoisted to the nearest function/global scope, so we skip block environments here.
-        var scope = GetFunctionScope();
+        // `var` declarations target the running variable environment, which may differ
+        // from the nearest function scope for sloppy eval.
+        var scope = GetVarEnvironment();
         var isGlobalScope = scope.IsGlobalFunctionScope;
         JsObject? globalThis = null;
         PropertyDescriptor? existingDescriptor = null;
@@ -3228,7 +3229,7 @@ public sealed class JsEnvironment : IRentable
     internal bool HasFunctionScopedBinding(Symbol name)
     {
         AssertScopeChain(nameof(HasFunctionScopedBinding));
-        var scope = GetFunctionScope();
+        var scope = GetVarEnvironment();
         ref var slot = ref scope.TryGetSlotRef(name);
         return !Unsafe.IsNullRef(ref slot) && !slot.IsLexical;
     }
@@ -3254,7 +3255,25 @@ public sealed class JsEnvironment : IRentable
     internal JsEnvironment GetVarEnvironment()
     {
         AssertScopeChain(nameof(GetVarEnvironment));
-        return _varEnvironmentOverride ?? GetFunctionScope();
+        var current = this;
+        while (current is not null)
+        {
+            if (current._varEnvironmentOverride is not null)
+            {
+                return ReferenceEquals(current._varEnvironmentOverride, current)
+                    ? current
+                    : current._varEnvironmentOverride.GetVarEnvironment();
+            }
+
+            if (current.IsFunctionScope)
+            {
+                return current;
+            }
+
+            current = current.Enclosing;
+        }
+
+        throw new InvalidOperationException("Unable to locate variable environment.");
     }
 
     internal void SetVarEnvironment(JsEnvironment environment)

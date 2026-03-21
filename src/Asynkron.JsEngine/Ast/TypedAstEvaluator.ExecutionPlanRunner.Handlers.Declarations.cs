@@ -33,20 +33,40 @@ public static partial class TypedAstEvaluator
                     skipInternalNameBinding: true);
                 var fnValueJs = JsValue.FromObjectUnsafe(functionValue);
 
-                // Check if we're at the function/global scope level (no nested block environment).
-                // - If we're at the function scope level: function was hoisted, use var-like binding
-                // - If we're in a nested block: create block-scoped lexical binding
-                var functionScope = environment.GetFunctionScope();
-                var isAtFunctionScope = ReferenceEquals(functionScope, environment);
+                // Function declarations target the variable environment, which may be different
+                // from the nearest function scope for sloppy eval.
+                var varEnvironment = environment.GetVarEnvironment();
+                var isAtVarEnvironment = ReferenceEquals(varEnvironment, environment) ||
+                                         environment.IsEvalDeclarationEnvironment;
 
-                if (isAtFunctionScope)
+                var isHoistedUndefinedBinding = false;
+                if (isAtVarEnvironment && !ctx.CurrentScope.IsStrict &&
+                    varEnvironment.HasFunctionScopedBinding(funcDecl.Name))
                 {
-                    // Function-scoped: function was hoisted during entry, just update the value.
-                    // Use isLexicalBinding: false to allow re-evaluation without conflict.
-                    environment.DefineJsValue(
-                        funcDecl.Name,
-                        fnValueJs,
-                        isLexicalBinding: false);
+                    var existingValue = varEnvironment.GetBindingValueDirect(funcDecl.Name);
+                    if (existingValue.IsUndefined)
+                    {
+                        isHoistedUndefinedBinding = true;
+                    }
+                }
+
+                if (isAtVarEnvironment)
+                {
+                    if (!isHoistedUndefinedBinding)
+                    {
+                        // Function-scoped declarations were initialized during entry/instantiation.
+                        // Runtime evaluation is a no-op unless we are filling a hoisted undefined binding.
+                    }
+                    else if (!environment.IsAnnexBBlocked(funcDecl.Name))
+                    {
+                        varEnvironment.AssignJsValue(funcDecl.Name, fnValueJs);
+
+                        if (varEnvironment.IsGlobalFunctionScope)
+                        {
+                            var globalThis = varEnvironment.GetRootGlobalObject();
+                            globalThis?.SetProperty(funcDecl.Name.Name, fnValueJs);
+                        }
+                    }
                 }
                 else
                 {
@@ -69,15 +89,15 @@ public static partial class TypedAstEvaluator
                             blocksFunctionScopeOverride: true);
                     }
 
-                    // For hoisted functions in sloppy mode, also update the function-scope binding.
+                    // For hoisted functions in sloppy mode, also update the var-scoped binding.
                     // This implements Annex B semantics where block-scoped functions also
-                    // update the outer function-scope binding.
+                    // update the outer binding visible to the surrounding eval/function body.
                     if (!isBlocked)
                     {
-                        if (TryFindEnclosingNonLexicalBindingEnvironment(environment.Enclosing, funcDecl.Name,
-                                out var bindingEnvironment))
+                        ref var varBinding = ref varEnvironment.TryGetSlotRef(funcDecl.Name);
+                        if (!Unsafe.IsNullRef(ref varBinding) && !varBinding.IsLexical)
                         {
-                            bindingEnvironment.AssignJsValue(funcDecl.Name, fnValueJs);
+                            varEnvironment.AssignJsValue(funcDecl.Name, fnValueJs);
                         }
                     }
                 }
@@ -86,28 +106,6 @@ public static partial class TypedAstEvaluator
             runner._programCounter = instruction.Next;
             returnValue = default;
             return InstructionResult.Continue;
-
-            static bool TryFindEnclosingNonLexicalBindingEnvironment(
-                JsEnvironment? start,
-                Symbol name,
-                out JsEnvironment bindingEnvironment)
-            {
-                var current = start;
-                while (current is not null)
-                {
-                    ref var slot = ref current.TryGetSlotRef(name);
-                    if (!Unsafe.IsNullRef(ref slot) && !slot.IsLexical)
-                    {
-                        bindingEnvironment = current;
-                        return true;
-                    }
-
-                    current = current.Enclosing;
-                }
-
-                bindingEnvironment = null!;
-                return false;
-            }
 
             /// <summary>
             /// Checks if there's a non-catch lexical binding for the name in any enclosing
@@ -126,6 +124,12 @@ public static partial class TypedAstEvaluator
                     if (current.IsFunctionScope)
                     {
                         break;
+                    }
+
+                    if (current.IsSimpleCatchParameter(name))
+                    {
+                        current = current.Enclosing;
+                        continue;
                     }
 
                     ref var slot = ref current.TryGetSlotRef(name);
@@ -327,18 +331,15 @@ public static partial class TypedAstEvaluator
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]
-        private static InstructionResult HandleComplexVariableDeclaration(
+        private static InstructionResult HandleBindingVariableDeclaration(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
             ref JsEnvironment environment,
             EvaluationContext context,
             out JsValue returnValue)
         {
-            var instruction = Unsafe.As<ComplexVariableDeclarationInstruction>(instr);
-
-            // Evaluate the variable declaration using the standard AST evaluator
-            // which handles destructuring patterns, rest elements, default values, etc.
-            instruction.Declaration.EvaluateStatementJsValue(environment, context);
+            var instruction = Unsafe.As<BindingVariableDeclarationInstruction>(instr);
+            instruction.VarKind.EvaluateVariableDeclarator(instruction.Declarator, environment, context);
 
             if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingResult, environment))
             {
@@ -348,17 +349,17 @@ public static partial class TypedAstEvaluator
 
             if (context.IsThrow)
             {
-                return HandleComplexVariableDeclarationThrowSlow(runner, instruction, context, out returnValue);
+                return HandleBindingVariableDeclarationThrowSlow(runner, instruction, context, out returnValue);
             }
 
             if (context.IsReturn)
             {
-                return HandleComplexVariableDeclarationReturnSlow(runner, instruction, context, out returnValue);
+                return HandleBindingVariableDeclarationReturnSlow(runner, instruction, context, out returnValue);
             }
 
             if (context.IsYield)
             {
-                return HandleComplexVariableDeclarationYieldSlow(runner, ref environment, context, out returnValue);
+                return HandleBindingVariableDeclarationYieldSlow(runner, ref environment, context, out returnValue);
             }
 
             runner._programCounter = instruction.Next;
@@ -367,9 +368,9 @@ public static partial class TypedAstEvaluator
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static InstructionResult HandleComplexVariableDeclarationThrowSlow(
+        private static InstructionResult HandleBindingVariableDeclarationThrowSlow(
             ExecutionPlanRunner runner,
-            ComplexVariableDeclarationInstruction instruction,
+            BindingVariableDeclarationInstruction instruction,
             EvaluationContext context,
             out JsValue returnValue)
         {
@@ -390,9 +391,9 @@ public static partial class TypedAstEvaluator
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static InstructionResult HandleComplexVariableDeclarationReturnSlow(
+        private static InstructionResult HandleBindingVariableDeclarationReturnSlow(
             ExecutionPlanRunner runner,
-            ComplexVariableDeclarationInstruction instruction,
+            BindingVariableDeclarationInstruction instruction,
             EvaluationContext context,
             out JsValue returnValue)
         {
@@ -413,7 +414,7 @@ public static partial class TypedAstEvaluator
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static InstructionResult HandleComplexVariableDeclarationYieldSlow(
+        private static InstructionResult HandleBindingVariableDeclarationYieldSlow(
             ExecutionPlanRunner runner,
             ref JsEnvironment environment,
             EvaluationContext context,

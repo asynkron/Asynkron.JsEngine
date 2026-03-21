@@ -517,8 +517,8 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
     [Fact(Timeout = 5000)]
     public async Task ArrayDestructuring_UsesIrInstructions()
     {
-        // Verify that simple array destructuring emits IR instructions
-        // instead of falling back to ComplexVariableDeclarationInstruction
+        // Verify that simple array destructuring emits specialized IR instructions
+        // instead of using the generic binding declaration instruction.
         await using var engine = CreateEngine();
 
         var program = engine.ParseProgram("""
@@ -544,9 +544,9 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         var hasArrayDestructuringInit = cache.Plan.Instructions
             .Any(i => i.Kind == InstructionKind.ArrayDestructuringInit);
 
-        // Check we don't have ComplexVariableDeclarationInstruction for this
-        var hasComplexVarDecl = cache.Plan.Instructions
-            .Any(i => i is ComplexVariableDeclarationInstruction);
+        // Check we don't have the generic binding declaration instruction for this
+        var hasBindingVarDecl = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.BindingVariableDeclaration);
 
         // Print IR for debugging
         var planOutput = ExecutionPlanDiagnostics.PrintPlan(funcDecl.Function);
@@ -555,8 +555,8 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
 
         Assert.True(hasArrayDestructuringInit,
             "Simple array destructuring should emit ArrayDestructuringInit instruction");
-        Assert.False(hasComplexVarDecl,
-            "Simple array destructuring should not use ComplexVariableDeclarationInstruction");
+        Assert.False(hasBindingVarDecl,
+            "Simple array destructuring should not use the generic binding declaration instruction");
     }
 
     [Fact(Timeout = 5000)]
@@ -593,5 +593,476 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
 
         Assert.True(hasArrayDestructuringRest,
             "Array destructuring with rest should emit ArrayDestructuringRest instruction");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ObjectDestructuring_UsesBindingDeclarationInstruction()
+    {
+        await using var engine = CreateEngine();
+
+        var program = engine.ParseProgram("""
+            function testObjectDestructuring() {
+                const { x, y = 2, ...rest } = { x: 1, z: 5 };
+                return x + y + rest.z;
+            }
+            """);
+
+        await engine.Evaluate(program);
+        var result = await engine.Evaluate("testObjectDestructuring()");
+        Assert.Equal(8.0, result);
+
+        var funcDecl = program.Body[0] as FunctionDeclaration;
+        Assert.NotNull(funcDecl);
+
+        var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        var hasBindingVarDecl = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.BindingVariableDeclaration);
+
+        var planOutput = ExecutionPlanDiagnostics.PrintPlan(funcDecl.Function);
+        output.WriteLine("=== IR for object destructuring ===");
+        output.WriteLine(planOutput);
+
+        Assert.True(hasBindingVarDecl,
+            "Object destructuring should emit the generic binding declaration instruction");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task MixedDeclaratorChain_UsesBindingAndArrayDestructuringInstructions()
+    {
+        await using var engine = CreateEngine();
+
+        var program = engine.ParseProgram("""
+            function testMixedDeclarators() {
+                const { x, y = 2 } = { x: 1 }, [a, ...rest] = [3, 4, 5];
+                return x + y + a + rest.length;
+            }
+            """);
+
+        await engine.Evaluate(program);
+        var result = await engine.Evaluate("testMixedDeclarators()");
+        Assert.Equal(8.0, result);
+
+        var funcDecl = program.Body[0] as FunctionDeclaration;
+        Assert.NotNull(funcDecl);
+
+        var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        var hasBindingVarDecl = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.BindingVariableDeclaration);
+        var hasArrayDestructuringInit = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.ArrayDestructuringInit);
+
+        var planOutput = ExecutionPlanDiagnostics.PrintPlan(funcDecl.Function);
+        output.WriteLine("=== IR for mixed declarators ===");
+        output.WriteLine(planOutput);
+
+        Assert.True(hasBindingVarDecl,
+            "Mixed declarators should keep object destructuring on the IR runner");
+        Assert.True(hasArrayDestructuringInit,
+            "Mixed declarators should preserve specialized array destructuring IR");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task SimpleAssignmentExpression_UsesAssignmentInstruction()
+    {
+        await using var engine = CreateEngine();
+
+        var program = engine.ParseProgram("""
+            function testAssignmentInstruction() {
+                let total = 1;
+                total = total + 4;
+                return total;
+            }
+            """);
+
+        await engine.Evaluate(program);
+        var result = await engine.Evaluate("testAssignmentInstruction()");
+        Assert.Equal(5.0, result);
+
+        var funcDecl = program.Body[0] as FunctionDeclaration;
+        Assert.NotNull(funcDecl);
+
+        var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        var hasAssignmentInstruction = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.AssignmentSlot);
+        var hasAssignmentEvaluateAndDiscard = cache.Plan.Instructions
+            .OfType<EvaluateAndDiscardInstruction>()
+            .Any(i => i.Expression is AssignmentExpression { Target.Name: "total" });
+
+        var planOutput = ExecutionPlanDiagnostics.PrintPlan(funcDecl.Function);
+        output.WriteLine("=== IR for simple assignment expression ===");
+        output.WriteLine(planOutput);
+
+        Assert.True(hasAssignmentInstruction,
+            "Simple identifier assignment should emit AssignmentSlotInstruction");
+        Assert.False(hasAssignmentEvaluateAndDiscard,
+            "Simple identifier assignment should no longer use EvaluateAndDiscardInstruction");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncAssignmentExpression_UsesAssignmentInstruction()
+    {
+        await using var engine = CreateEngine();
+
+        var program = engine.ParseProgram("""
+            async function testAsyncAssignmentInstruction() {
+                let total = 0;
+                total = await Promise.resolve(7);
+                return total;
+            }
+            """);
+
+        await engine.Evaluate(program);
+        var result = await engine.EvaluateAndAwait("""
+            let asyncAssignmentResult = undefined;
+            testAsyncAssignmentInstruction().then(value => asyncAssignmentResult = value);
+            asyncAssignmentResult;
+            """);
+        Assert.Equal(7.0, result);
+
+        var funcDecl = program.Body[0] as FunctionDeclaration;
+        Assert.NotNull(funcDecl);
+
+        var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        var hasAssignmentInstruction = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.AssignmentSlot);
+
+        Assert.True(hasAssignmentInstruction,
+            "Async simple assignment should stay on AssignmentSlotInstruction");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AwaitExpressionStatement_UsesAwaitInstruction()
+    {
+        await using var engine = CreateEngine();
+
+        var program = engine.ParseProgram("""
+            async function testAwaitStatementInstruction() {
+                await Promise.resolve(1);
+                return 7;
+            }
+            """);
+
+        await engine.Evaluate(program);
+        var result = await engine.EvaluateAndAwait("""
+            let awaitStatementResult = undefined;
+            testAwaitStatementInstruction().then(value => awaitStatementResult = value);
+            awaitStatementResult;
+            """);
+        Assert.Equal(7.0, result);
+
+        var funcDecl = program.Body[0] as FunctionDeclaration;
+        Assert.NotNull(funcDecl);
+
+        var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        var hasAwaitInstruction = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.AwaitAndDiscard);
+        var hasAwaitEvaluateAndDiscard = cache.Plan.Instructions
+            .OfType<EvaluateAndDiscardInstruction>()
+            .Any(i => i.Expression is AwaitExpression);
+
+        Assert.True(hasAwaitInstruction,
+            "Plain await expression statements should emit AwaitAndDiscardInstruction");
+        Assert.False(hasAwaitEvaluateAndDiscard,
+            "Plain await expression statements should no longer use EvaluateAndDiscardInstruction");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task LogicalCompoundAssignment_UsesLogicalAssignmentInstruction()
+    {
+        await using var engine = CreateEngine();
+
+        var program = engine.ParseProgram("""
+            function testLogicalCompoundInstruction() {
+                let a = 0;
+                let b = 1;
+                let c = 2;
+                let calls = 0;
+
+                function nextValue() {
+                    calls++;
+                    return 7;
+                }
+
+                a ||= nextValue();
+                b &&= nextValue();
+                c ??= nextValue();
+
+                return a + b + c + calls;
+            }
+            """);
+
+        await engine.Evaluate(program);
+        var result = await engine.Evaluate("testLogicalCompoundInstruction()");
+        Assert.Equal(18.0, result);
+
+        var funcDecl = program.Body[0] as FunctionDeclaration;
+        Assert.NotNull(funcDecl);
+
+        var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        var logicalInstructionCount = cache.Plan.Instructions
+            .Count(i => i.Kind == InstructionKind.LogicalCompoundAssignmentSlot);
+        var hasLogicalEvaluateAndDiscard = cache.Plan.Instructions
+            .OfType<EvaluateAndDiscardInstruction>()
+            .Any(i => i.Expression is AssignmentExpression
+                {
+                    IsCompoundAssignment: true,
+                    Value: BinaryExpression
+                    {
+                        Operator: BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr or BinaryOperator.NullishCoalescing
+                    }
+                });
+
+        Assert.Equal(3, logicalInstructionCount);
+        Assert.False(hasLogicalEvaluateAndDiscard,
+            "Logical compound assignments should no longer use EvaluateAndDiscardInstruction");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncLogicalCompoundAssignment_UsesLogicalAssignmentInstruction()
+    {
+        await using var engine = CreateEngine();
+
+        var program = engine.ParseProgram("""
+            async function testAsyncLogicalCompoundInstruction() {
+                let value = 0;
+                value ||= await Promise.resolve(7);
+                return value;
+            }
+            """);
+
+        await engine.Evaluate(program);
+        var result = await engine.EvaluateAndAwait("""
+            let asyncLogicalCompoundResult = undefined;
+            testAsyncLogicalCompoundInstruction().then(value => asyncLogicalCompoundResult = value);
+            asyncLogicalCompoundResult;
+            """);
+        Assert.Equal(7.0, result);
+
+        var funcDecl = program.Body[0] as FunctionDeclaration;
+        Assert.NotNull(funcDecl);
+
+        var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        var hasLogicalInstruction = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.LogicalCompoundAssignmentSlot);
+
+        Assert.True(hasLogicalInstruction,
+            "Async logical compound assignments should stay on LogicalCompoundAssignmentSlotInstruction");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task SequenceExpression_ReusesDedicatedStatementInstructions()
+    {
+        await using var engine = CreateEngine();
+
+        var program = engine.ParseProgram("""
+            function testSequenceInstruction() {
+                let total = 0;
+                let calls = 0;
+
+                function nextValue() {
+                    calls++;
+                    return 7;
+                }
+
+                total = 1, total ||= nextValue();
+                return total + calls;
+            }
+            """);
+
+        await engine.Evaluate(program);
+        var result = await engine.Evaluate("testSequenceInstruction()");
+        Assert.Equal(1.0, result);
+
+        var funcDecl = program.Body[0] as FunctionDeclaration;
+        Assert.NotNull(funcDecl);
+
+        var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        var hasAssignmentInstruction = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.AssignmentSlot);
+        var hasLogicalInstruction = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.LogicalCompoundAssignmentSlot);
+        var hasSequenceEvaluateAndDiscard = cache.Plan.Instructions
+            .OfType<EvaluateAndDiscardInstruction>()
+            .Any(i => i.Expression is SequenceExpression);
+
+        Assert.True(hasAssignmentInstruction,
+            "Sequence-expression left legs should reuse AssignmentSlotInstruction when available");
+        Assert.True(hasLogicalInstruction,
+            "Sequence-expression right legs should reuse LogicalCompoundAssignmentSlotInstruction when available");
+        Assert.False(hasSequenceEvaluateAndDiscard,
+            "Sequence expression statements should no longer stay on EvaluateAndDiscardInstruction");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncSequenceExpression_ReusesAwaitAndAssignmentInstructions()
+    {
+        await using var engine = CreateEngine();
+
+        var program = engine.ParseProgram("""
+            async function testAsyncSequenceInstruction() {
+                let total = 0;
+                await Promise.resolve("tick"), total = 7;
+                return total;
+            }
+            """);
+
+        await engine.Evaluate(program);
+        var result = await engine.EvaluateAndAwait("""
+            let asyncSequenceResult = undefined;
+            testAsyncSequenceInstruction().then(value => asyncSequenceResult = value);
+            asyncSequenceResult;
+            """);
+        Assert.Equal(7.0, result);
+
+        var funcDecl = program.Body[0] as FunctionDeclaration;
+        Assert.NotNull(funcDecl);
+
+        var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        var hasAwaitInstruction = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.AwaitAndDiscard);
+        var hasAssignmentInstruction = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.AssignmentSlot);
+        var hasSequenceEvaluateAndDiscard = cache.Plan.Instructions
+            .OfType<EvaluateAndDiscardInstruction>()
+            .Any(i => i.Expression is SequenceExpression);
+
+        Assert.True(hasAwaitInstruction,
+            "Async sequence-expression left legs should reuse AwaitAndDiscardInstruction");
+        Assert.True(hasAssignmentInstruction,
+            "Async sequence-expression right legs should reuse AssignmentSlotInstruction");
+        Assert.False(hasSequenceEvaluateAndDiscard,
+            "Async sequence expression statements should no longer stay on EvaluateAndDiscardInstruction");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ConditionalExpression_ReusesBranchAndDedicatedStatementInstructions()
+    {
+        await using var engine = CreateEngine();
+
+        var program = engine.ParseProgram("""
+            function testConditionalInstruction(flag) {
+                let total = 0;
+                let calls = 0;
+
+                function nextValue() {
+                    calls++;
+                    return 7;
+                }
+
+                flag ? total = 1 : total ||= nextValue();
+                return total + calls;
+            }
+            """);
+
+        await engine.Evaluate(program);
+        var result = await engine.Evaluate("""
+            [testConditionalInstruction(true), testConditionalInstruction(false)];
+            """);
+
+        var array = Assert.IsType<JsArray>(result);
+        Assert.Equal(2, array.Length);
+        Assert.Equal(1.0, array.GetElement(0).AsDouble());
+        Assert.Equal(8.0, array.GetElement(1).AsDouble());
+
+        var funcDecl = program.Body[0] as FunctionDeclaration;
+        Assert.NotNull(funcDecl);
+
+        var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        var hasBranchInstruction = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.Branch);
+        var hasAssignmentInstruction = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.AssignmentSlot);
+        var hasLogicalInstruction = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.LogicalCompoundAssignmentSlot);
+        var hasConditionalEvaluateAndDiscard = cache.Plan.Instructions
+            .OfType<EvaluateAndDiscardInstruction>()
+            .Any(i => i.Expression is ConditionalExpression);
+
+        Assert.True(hasBranchInstruction,
+            "Conditional expression statements should reuse BranchInstruction");
+        Assert.True(hasAssignmentInstruction,
+            "Conditional consequent legs should reuse AssignmentSlotInstruction when available");
+        Assert.True(hasLogicalInstruction,
+            "Conditional alternate legs should reuse LogicalCompoundAssignmentSlotInstruction when available");
+        Assert.False(hasConditionalEvaluateAndDiscard,
+            "Conditional expression statements should no longer stay on EvaluateAndDiscardInstruction");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncConditionalExpression_ReusesBranchAwaitAndAssignmentInstructions()
+    {
+        await using var engine = CreateEngine();
+
+        var program = engine.ParseProgram("""
+            async function testAsyncConditionalInstruction(flag) {
+                let total = 0;
+                flag ? await Promise.resolve("tick") : total = 7;
+                return total;
+            }
+            """);
+
+        await engine.Evaluate(program);
+        var result = await engine.EvaluateAndAwait("""
+            let asyncConditionalResult = undefined;
+            testAsyncConditionalInstruction(false).then(value => asyncConditionalResult = value);
+            asyncConditionalResult;
+            """);
+        Assert.Equal(7.0, result);
+
+        var funcDecl = program.Body[0] as FunctionDeclaration;
+        Assert.NotNull(funcDecl);
+
+        var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        var hasBranchInstruction = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.Branch);
+        var hasAwaitInstruction = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.AwaitAndDiscard);
+        var hasAssignmentInstruction = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.AssignmentSlot);
+        var hasConditionalEvaluateAndDiscard = cache.Plan.Instructions
+            .OfType<EvaluateAndDiscardInstruction>()
+            .Any(i => i.Expression is ConditionalExpression);
+
+        Assert.True(hasBranchInstruction,
+            "Async conditional expression statements should reuse BranchInstruction");
+        Assert.True(hasAwaitInstruction,
+            "Async conditional consequent legs should reuse AwaitAndDiscardInstruction");
+        Assert.True(hasAssignmentInstruction,
+            "Async conditional alternate legs should reuse AssignmentSlotInstruction");
+        Assert.False(hasConditionalEvaluateAndDiscard,
+            "Async conditional expression statements should no longer stay on EvaluateAndDiscardInstruction");
     }
 }

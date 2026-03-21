@@ -293,6 +293,115 @@ public static partial class TypedAstEvaluator
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]
+        private static InstructionResult HandleLogicalCompoundAssignmentSlot(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
+            ref JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var instruction = Unsafe.As<LogicalCompoundAssignmentSlotInstruction>(instr);
+            var variable = FlatSlotAccessor.Create(runner, instruction.FlatSlotId);
+            var useFlatSlot = variable.UseFlatSlot;
+
+            JsValue currentValue;
+            if (useFlatSlot)
+            {
+                currentValue = variable.Variable.Read();
+            }
+            else
+            {
+                currentValue = ProfileGetIdentifier(environment, instruction.TargetSymbol, context);
+            }
+
+            if (context.IsThrow)
+            {
+                var thrown = context.FlowValue;
+                context.Clear();
+                if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
+                {
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                runner.TryCatchStateRef.TryStack.Clear();
+                throw new ThrowSignal(thrown);
+            }
+
+            var shouldAssign = instruction.Operator switch
+            {
+                BinaryOperator.LogicalAnd => currentValue.IsTruthy,
+                BinaryOperator.LogicalOr => !currentValue.IsTruthy,
+                BinaryOperator.NullishCoalescing => currentValue.IsNullish,
+                _ => throw new InvalidOperationException(
+                    $"Unsupported logical compound operator '{instruction.Operator}'.")
+            };
+
+            var resultValue = currentValue;
+            if (shouldAssign)
+            {
+                var isAnonymousFunctionDefinition =
+                    instruction.AllowNameInference &&
+                    instruction.RhsExpression.IsAnonymousFunctionDefinitionNode();
+
+                using var functionNameHint = isAnonymousFunctionDefinition
+                    ? context.EnterFunctionNameHint(instruction.TargetSymbol)
+                    : null;
+
+                var rhsValue = ProfileEvaluateExpression(instruction.RhsExpression, environment, context);
+
+                if (!context.ShouldStopEvaluation &&
+                    isAnonymousFunctionDefinition &&
+                    rhsValue is { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget nameTarget })
+                {
+                    nameTarget.EnsureHasName(instruction.TargetSymbol.Name);
+                }
+
+                var (signalAction, signalResult) = runner.HandleContextSignals(context, environment, instruction.Next);
+                switch (signalAction)
+                {
+                    case SignalAction.Return:
+                        returnValue = signalResult;
+                        return InstructionResult.Return;
+                    case SignalAction.Continue:
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                }
+
+                if (useFlatSlot)
+                {
+                    variable.EnsureAssignable(instruction.TargetSymbol, runner._realmState);
+                    variable.Variable.Write(rhsValue);
+                }
+                else if (instruction.ScopeId >= 0 && instruction.SlotIndex >= 0)
+                {
+                    var targetIdentifier = new IdentifierExpression(
+                        instruction.RhsExpression.Source,
+                        instruction.TargetSymbol,
+                        SlotIndex: instruction.SlotIndex,
+                        ScopeId: instruction.ScopeId,
+                        FlatSlotId: instruction.FlatSlotId);
+                    environment.TryWriteIdentifierWithSlot(targetIdentifier, rhsValue, context);
+                }
+                else
+                {
+                    environment.SetIdentifierJsValue(instruction.TargetSymbol, rhsValue, context);
+                }
+
+                resultValue = rhsValue;
+            }
+
+            if (runner._isScriptMode && !instruction.SuppressCompletionValue)
+            {
+                runner._scriptCompletionValue = resultValue;
+            }
+
+            runner._programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static InstructionResult HandleCompoundAssignmentSlot(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
@@ -373,6 +482,39 @@ public static partial class TypedAstEvaluator
 
                 runner.TryCatchStateRef.TryStack.Clear();
                 throw new ThrowSignal(compThrown);
+            }
+
+            switch (instruction.Operator)
+            {
+                case BinaryOperator.LogicalAnd when !compCurrentValue.IsTruthy:
+                    if (runner._isScriptMode && !instruction.SuppressCompletionValue)
+                    {
+                        runner._scriptCompletionValue = compCurrentValue;
+                    }
+
+                    runner._programCounter = instruction.Next;
+                    returnValue = default;
+                    return InstructionResult.Continue;
+
+                case BinaryOperator.LogicalOr when compCurrentValue.IsTruthy:
+                    if (runner._isScriptMode && !instruction.SuppressCompletionValue)
+                    {
+                        runner._scriptCompletionValue = compCurrentValue;
+                    }
+
+                    runner._programCounter = instruction.Next;
+                    returnValue = default;
+                    return InstructionResult.Continue;
+
+                case BinaryOperator.NullishCoalescing when !compCurrentValue.IsNullish:
+                    if (runner._isScriptMode && !instruction.SuppressCompletionValue)
+                    {
+                        runner._scriptCompletionValue = compCurrentValue;
+                    }
+
+                    runner._programCounter = instruction.Next;
+                    returnValue = default;
+                    return InstructionResult.Continue;
             }
 
             JsValue compRhsValue;

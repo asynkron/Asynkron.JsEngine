@@ -35,6 +35,15 @@ internal sealed record EvaluateAndDiscardInstruction(
     : ExecutionInstruction(InstructionKind.EvaluateAndDiscard, Next);
 
 /// <summary>
+///     Evaluates an await expression statement and discards the result.
+/// </summary>
+internal sealed record AwaitAndDiscardInstruction(
+    int Next,
+    AwaitExpression Expression,
+    bool SuppressCompletionValue = false)
+    : ExecutionInstruction(InstructionKind.AwaitAndDiscard, Next);
+
+/// <summary>
 ///     Evaluates a binary operation directly without going through the generic
 ///     BinaryExpression AST evaluator. Stores the result in the specified slot
 ///     (if provided) or discards it.
@@ -80,6 +89,37 @@ internal sealed record IncrementSlotInstruction(
     int SlotIndex = -1,
     int FlatSlotId = -1)
     : ExecutionInstruction(InstructionKind.IncrementSlot, Next);
+
+/// <summary>
+///     Performs a direct assignment to an identifier binding (e.g., x = expr) without
+///     routing through the generic AssignmentExpression AST evaluator.
+/// </summary>
+internal sealed record AssignmentSlotInstruction(
+    int Next,
+    Symbol TargetSymbol,
+    ExpressionNode ValueExpression,
+    bool SuppressCompletionValue = false,
+    bool AllowNameInference = true,
+    int ScopeId = -1,
+    int SlotIndex = -1,
+    int FlatSlotId = -1)
+    : ExecutionInstruction(InstructionKind.AssignmentSlot, Next);
+
+/// <summary>
+///     Performs a logical compound assignment on an identifier slot (e.g., x ||= y).
+///     The runner preserves short-circuit semantics and only evaluates the RHS when needed.
+/// </summary>
+internal sealed record LogicalCompoundAssignmentSlotInstruction(
+    int Next,
+    Symbol TargetSymbol,
+    BinaryOperator Operator,
+    ExpressionNode RhsExpression,
+    bool SuppressCompletionValue = false,
+    bool AllowNameInference = true,
+    int ScopeId = -1,
+    int SlotIndex = -1,
+    int FlatSlotId = -1)
+    : ExecutionInstruction(InstructionKind.LogicalCompoundAssignmentSlot, Next);
 
 /// <summary>
 ///     Performs a compound assignment operation directly on an identifier slot (e.g., s += i).
@@ -147,19 +187,14 @@ internal sealed record SimpleVariableDeclarationInstruction(
     : ExecutionInstruction(InstructionKind.SimpleVariableDeclaration, Next);
 
 /// <summary>
-///     Represents a complex variable declaration with destructuring patterns.
-///     Handles declarations like: let {a, b} = obj; const [x, y] = arr;
+///     Represents a single variable declarator that uses a binding target.
+///     Handles declarations like: let {a, b} = obj; const [x, y] = arr; var {x = 1} = source;
 /// </summary>
-/// <remarks>
-///     This instruction handles variable declarations that cannot use the simple
-///     identifier-only path. It evaluates the declaration using the standard
-///     AST evaluator, which properly handles destructuring patterns, rest elements,
-///     default values, and computed property names.
-/// </remarks>
-internal sealed record ComplexVariableDeclarationInstruction(
+internal sealed record BindingVariableDeclarationInstruction(
     int Next,
-    VariableDeclaration Declaration)
-    : ExecutionInstruction(InstructionKind.ComplexVariableDeclaration, Next);
+    VariableKind VarKind,
+    VariableDeclarator Declarator)
+    : ExecutionInstruction(InstructionKind.BindingVariableDeclaration, Next);
 
 /// <summary>
 ///     Pushes a new environment onto the scope stack.

@@ -340,6 +340,49 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             case EvaluateAndDiscardInstruction eval:
                 return eval with { Expression = Rewrite(eval.Expression) };
 
+            case AwaitAndDiscardInstruction awaitDiscard:
+                return awaitDiscard with { Expression = (AwaitExpression)Rewrite(awaitDiscard.Expression) };
+
+            case AssignmentSlotInstruction assign:
+                {
+                    var rewrittenValue = Rewrite(assign.ValueExpression);
+                    if (TryResolve(assign.TargetSymbol, out var assignmentResolution))
+                    {
+                        var assignmentFlatSlotId = GetOrCreateFlatSlotId(
+                            assignmentResolution.scopeId,
+                            assignmentResolution.slotIndex);
+                        return assign with
+                        {
+                            ValueExpression = rewrittenValue,
+                            ScopeId = assignmentResolution.scopeId,
+                            SlotIndex = assignmentResolution.slotIndex,
+                            FlatSlotId = assignmentFlatSlotId
+                        };
+                    }
+
+                    return assign with { ValueExpression = rewrittenValue };
+                }
+
+            case LogicalCompoundAssignmentSlotInstruction logicalCompound:
+                {
+                    var rewrittenRhs = Rewrite(logicalCompound.RhsExpression);
+                    if (TryResolve(logicalCompound.TargetSymbol, out var logicalResolution))
+                    {
+                        var logicalFlatSlotId = GetOrCreateFlatSlotId(
+                            logicalResolution.scopeId,
+                            logicalResolution.slotIndex);
+                        return logicalCompound with
+                        {
+                            RhsExpression = rewrittenRhs,
+                            ScopeId = logicalResolution.scopeId,
+                            SlotIndex = logicalResolution.slotIndex,
+                            FlatSlotId = logicalFlatSlotId
+                        };
+                    }
+
+                    return logicalCompound with { RhsExpression = rewrittenRhs };
+                }
+
             case YieldInstruction { YieldExpression: not null } yield:
                 return yield with { YieldExpression = Rewrite(yield.YieldExpression) };
 
@@ -354,6 +397,15 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
 
             case SimpleVariableDeclarationInstruction { Initializer: not null } varDecl:
                 return varDecl with { Initializer = Rewrite(varDecl.Initializer) };
+
+            case BindingVariableDeclarationInstruction { Declarator.Initializer: not null } bindingDecl:
+                return bindingDecl with
+                {
+                    Declarator = bindingDecl.Declarator with
+                    {
+                        Initializer = Rewrite(bindingDecl.Declarator.Initializer)
+                    }
+                };
 
             case IteratorInitInstruction iterInit:
                 return iterInit with { IterableExpression = Rewrite(iterInit.IterableExpression) };

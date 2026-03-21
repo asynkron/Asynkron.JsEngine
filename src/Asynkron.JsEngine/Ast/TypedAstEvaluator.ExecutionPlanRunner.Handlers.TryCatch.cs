@@ -141,6 +141,8 @@ public static partial class TypedAstEvaluator
 
             if (instruction.CatchParameterSymbol is { } param)
             {
+                catchEnv.SetSimpleCatchParameters(
+                    new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance) { param });
                 catchEnv.DefineJsValue(param, thrownValue, false, isLexicalBinding: true);
             }
 

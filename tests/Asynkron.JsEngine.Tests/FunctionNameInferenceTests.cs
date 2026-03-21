@@ -28,6 +28,23 @@ public sealed class FunctionNameInferenceTests(ITestOutputHelper output) : Inter
     }
 
     [Fact]
+    public async Task AssignmentExpression_NameInference()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function run() {
+                let assigned;
+                assigned = function() {};
+                return assigned.name;
+            }
+
+            run();
+            """);
+        Output.WriteLine($"assigned.name = '{result}'");
+        Assert.Equal("assigned", result?.ToString());
+    }
+
+    [Fact]
     public async Task ClassExpression_NameInference()
     {
         await using var engine = CreateEngine();

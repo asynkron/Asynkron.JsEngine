@@ -65,8 +65,8 @@ public static partial class TypedAstEvaluator
                     if (skipBlockedBindingLookup)
                     {
                         environment.EnsureFunctionScopedVarBinding(identifier.Name, context);
-                        var functionScope = environment.GetFunctionScope();
-                        functionScope.AssignJsValue(identifier.Name, value);
+                        var varEnvironment = environment.GetVarEnvironment();
+                        varEnvironment.AssignJsValue(identifier.Name, value);
 
                         break;
                     }

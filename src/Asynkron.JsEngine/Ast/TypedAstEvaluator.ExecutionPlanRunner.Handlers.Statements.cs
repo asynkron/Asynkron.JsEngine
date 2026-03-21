@@ -106,6 +106,104 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+        private static InstructionResult HandleAwaitAndDiscard(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
+            ref JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var instruction = Unsafe.As<AwaitAndDiscardInstruction>(instr);
+            var awaitedValue = runner.EvaluateAwaitInGenerator(instruction.Expression, environment, context);
+
+            if (runner._isScriptMode && !instruction.SuppressCompletionValue)
+            {
+                runner._scriptCompletionValue = awaitedValue;
+            }
+
+            var (signalAction, signalResult) = runner.HandleContextSignals(context, environment, instruction.Next);
+            switch (signalAction)
+            {
+                case SignalAction.Return:
+                    returnValue = signalResult;
+                    return InstructionResult.Return;
+                case SignalAction.Continue:
+                    returnValue = default;
+                    return InstructionResult.Continue;
+            }
+
+            runner._programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        private static InstructionResult HandleAssignmentSlot(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
+            ref JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var instruction = Unsafe.As<AssignmentSlotInstruction>(instr);
+            var isAnonymousFunctionDefinition =
+                instruction.AllowNameInference &&
+                instruction.ValueExpression.IsAnonymousFunctionDefinitionNode();
+
+            using var functionNameHint = isAnonymousFunctionDefinition
+                ? context.EnterFunctionNameHint(instruction.TargetSymbol)
+                : null;
+
+            var assignedValue = ProfileEvaluateExpression(instruction.ValueExpression, environment, context);
+
+            if (!context.ShouldStopEvaluation &&
+                isAnonymousFunctionDefinition &&
+                assignedValue is { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget nameTarget })
+            {
+                nameTarget.EnsureHasName(instruction.TargetSymbol.Name);
+            }
+
+            var (signalAction, signalResult) = runner.HandleContextSignals(context, environment, instruction.Next);
+            switch (signalAction)
+            {
+                case SignalAction.Return:
+                    returnValue = signalResult;
+                    return InstructionResult.Return;
+                case SignalAction.Continue:
+                    returnValue = default;
+                    return InstructionResult.Continue;
+            }
+
+            var variable = FlatSlotAccessor.Create(runner, instruction.FlatSlotId);
+            if (variable.UseFlatSlot)
+            {
+                variable.EnsureAssignable(instruction.TargetSymbol, runner._realmState);
+                variable.Variable.Write(assignedValue);
+            }
+            else if (instruction.ScopeId >= 0 && instruction.SlotIndex >= 0)
+            {
+                var targetIdentifier = new IdentifierExpression(
+                    instruction.ValueExpression.Source,
+                    instruction.TargetSymbol,
+                    SlotIndex: instruction.SlotIndex,
+                    ScopeId: instruction.ScopeId,
+                    FlatSlotId: instruction.FlatSlotId);
+                environment.TryWriteIdentifierWithSlot(targetIdentifier, assignedValue, context);
+            }
+            else
+            {
+                environment.SetIdentifierJsValue(instruction.TargetSymbol, assignedValue, context);
+            }
+
+            if (runner._isScriptMode && !instruction.SuppressCompletionValue)
+            {
+                runner._scriptCompletionValue = assignedValue;
+            }
+
+            runner._programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
         private static InstructionResult HandleSetCompletionValue(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,

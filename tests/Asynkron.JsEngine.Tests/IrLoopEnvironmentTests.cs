@@ -782,6 +782,48 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 5000)]
+    public async Task CompoundAssignmentExpression_UsesCompoundAssignmentInstruction()
+    {
+        await using var engine = CreateEngine();
+
+        var program = engine.ParseProgram("""
+            function testCompoundAssignmentInstruction() {
+                let total = 3;
+                let delta = 4;
+                total += delta;
+                return total;
+            }
+            """);
+
+        await engine.Evaluate(program);
+        var result = await engine.Evaluate("testCompoundAssignmentInstruction()");
+        Assert.Equal(7.0, result);
+
+        var funcDecl = program.Body[0] as FunctionDeclaration;
+        Assert.NotNull(funcDecl);
+
+        var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        var hasCompoundInstruction = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.CompoundAssignmentSlot);
+        var hasCompoundEvaluateAndDiscard = cache.Plan.Instructions
+            .OfType<EvaluateAndDiscardInstruction>()
+            .Any(i => i.Expression is AssignmentExpression
+                {
+                    IsCompoundAssignment: true,
+                    Value: BinaryExpression { Operator: BinaryOperator.Add },
+                    Target.Name: "total"
+                });
+
+        Assert.True(hasCompoundInstruction,
+            "Simple arithmetic compound assignments should emit CompoundAssignmentSlotInstruction");
+        Assert.False(hasCompoundEvaluateAndDiscard,
+            "Simple arithmetic compound assignments should no longer use EvaluateAndDiscardInstruction");
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task LogicalCompoundAssignment_UsesLogicalAssignmentInstruction()
     {
         await using var engine = CreateEngine();

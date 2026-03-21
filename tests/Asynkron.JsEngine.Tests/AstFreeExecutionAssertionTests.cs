@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -283,6 +284,137 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
         {
             EvaluationContext.AssertNoAstEvaluation = originalValue;
         }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsSimpleAssignmentSlotExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            _engine.SetGlobalValue("x", 0d);
+            _engine.SetGlobalValue("y", 7d);
+
+            var program = _engine.ParseProgram("""
+                function assignFromIdentifier() {
+                    x = y;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            InvokeGlobalFunction("assignFromIdentifier");
+
+            Assert.Equal(7.0, _engine.GlobalObject["x"]);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsSimpleLogicalAssignmentExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            _engine.SetGlobalValue("x", 0d);
+            _engine.SetGlobalValue("y", 7d);
+
+            var program = _engine.ParseProgram("""
+                function assignLogicalOr() {
+                    x ||= y;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            InvokeGlobalFunction("assignLogicalOr");
+
+            Assert.Equal(7.0, _engine.GlobalObject["x"]);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsSimpleCompoundAssignmentExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            _engine.SetGlobalValue("x", 3d);
+            _engine.SetGlobalValue("y", 7d);
+
+            var program = _engine.ParseProgram("""
+                function addIntoX() {
+                    x += y;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            InvokeGlobalFunction("addIntoX");
+
+            Assert.Equal(10.0, _engine.GlobalObject["x"]);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsSimpleBranchExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            _engine.SetGlobalValue("x", 0d);
+
+            var program = _engine.ParseProgram("""
+                function branchOnComparison(value) {
+                    if (value < 10) {
+                        x = 1;
+                    } else {
+                        x = 2;
+                    }
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            InvokeGlobalFunction("branchOnComparison", new JsValue(3d));
+            Assert.Equal(1.0, _engine.GlobalObject["x"]);
+
+            _engine.SetGlobalValue("x", 0d);
+            InvokeGlobalFunction("branchOnComparison", new JsValue(13d));
+            Assert.Equal(2.0, _engine.GlobalObject["x"]);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    private JsValue InvokeGlobalFunction(string name, params JsValue[] args)
+    {
+        Assert.True(_engine.GlobalObject.TryGetProperty(name, out var callableValue),
+            $"Missing global function '{name}'.");
+
+        var callable = Assert.IsAssignableFrom<IJsCallable>(callableValue.ObjectValue);
+        return callable.Invoke(args, JsValue.Undefined);
     }
 #else
     /// <summary>

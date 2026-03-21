@@ -474,7 +474,6 @@ public static partial class TypedAstEvaluator
                     EvaluationContext context,
                     out JsValue returnValue)
         {
-            // Fast path for simple binary comparisons (e.g., i < 1000000)
             JsValue testValue;
             var usedFastPath = false;
 
@@ -482,20 +481,12 @@ public static partial class TypedAstEvaluator
                 {
                     Operator: BinaryOperator.LessThan or BinaryOperator.LessThanOrEqual or
                     BinaryOperator.GreaterThan or BinaryOperator.GreaterThanOrEqual
-                } binCond)
+                } binCond &&
+                ProfileReadOperand(environment, context, binCond.Left, out var leftVal) &&
+                ProfileReadOperand(environment, context, binCond.Right, out var rightVal))
             {
-                // Profiling wrappers - NoInlining so they show up in profiler
-                if (ProfileReadOperand(environment, context, binCond.Left, out var leftVal) &&
-                    ProfileReadOperand(environment, context, binCond.Right, out var rightVal))
-                {
-                    // Comparison via profiling wrapper
-                    testValue = ProfileBranchCompare(binCond.Operator, leftVal, rightVal, context);
-                    usedFastPath = true;
-                }
-                else
-                {
-                    testValue = default;
-                }
+                testValue = ProfileBranchCompare(binCond.Operator, leftVal, rightVal, context);
+                usedFastPath = true;
             }
             else
             {
@@ -504,7 +495,11 @@ public static partial class TypedAstEvaluator
 
             if (!usedFastPath)
             {
-                testValue = ProfileEvaluateExpression(instruction.Condition, environment, context);
+                testValue =
+                    instruction.Condition is not null &&
+                    TryEvaluateSimpleExpression(instruction.Condition, environment, context, out var simpleValue)
+                        ? simpleValue
+                        : ProfileEvaluateExpression(instruction.Condition!, environment, context);
             }
 
             // Check for pending await (async code) - skip entirely for sync functions

@@ -348,7 +348,10 @@ public static partial class TypedAstEvaluator
                     ? context.EnterFunctionNameHint(instruction.TargetSymbol)
                     : null;
 
-                var rhsValue = ProfileEvaluateExpression(instruction.RhsExpression, environment, context);
+                var rhsValue =
+                    runner.TryEvaluateSimpleExpression(instruction.RhsExpression, environment, context, out var simpleValue)
+                        ? simpleValue
+                        : ProfileEvaluateExpression(instruction.RhsExpression, environment, context);
 
                 if (!context.ShouldStopEvaluation &&
                     isAnonymousFunctionDefinition &&
@@ -524,7 +527,6 @@ public static partial class TypedAstEvaluator
                     compRhsValue = literalValue;
                     break;
                 case IdentifierExpression { FlatSlotId: >= 0 } rhsIdent when runner._flatSlots is not null:
-                    // Fast path: use flat slot for O(1) RHS read
                     compRhsValue = runner._flatSlots[rhsIdent.FlatSlotId].Read();
                     break;
                 case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0 } rhsIdent:
@@ -534,7 +536,11 @@ public static partial class TypedAstEvaluator
                     }
                     break;
                 default:
-                    compRhsValue = instruction.RhsExpression.EvaluateExpression(environment, context);
+                    compRhsValue =
+                        instruction.RhsExpression is not null &&
+                        runner.TryEvaluateSimpleExpression(instruction.RhsExpression, environment, context, out var simpleRhsValue)
+                            ? simpleRhsValue
+                            : instruction.RhsExpression!.EvaluateExpression(environment, context);
                     break;
             }
 

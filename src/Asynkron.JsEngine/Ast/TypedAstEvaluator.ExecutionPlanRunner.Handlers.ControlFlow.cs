@@ -228,7 +228,11 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<BranchInstruction>(instr);
-            var testValue = instruction.Condition.EvaluateExpression(environment, context);
+            var testValue =
+                instruction.Condition is not null &&
+                runner.TryEvaluateSimpleExpression(instruction.Condition, environment, context, out var simpleValue)
+                    ? simpleValue
+                    : instruction.Condition!.EvaluateExpression(environment, context);
 
             if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingBranchResult, environment))
             {

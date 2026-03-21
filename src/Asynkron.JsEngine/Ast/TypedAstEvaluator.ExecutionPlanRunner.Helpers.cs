@@ -164,5 +164,131 @@ public static partial class TypedAstEvaluator
                 _ => CreateIteratorResult(value, true)
             };
         }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private bool TryEvaluateSimpleExpression(
+            ExpressionNode expression,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue value)
+        {
+            switch (expression)
+            {
+                case LiteralExpression { Value: var literalValue }:
+                    value = literalValue;
+                    return true;
+
+                case IdentifierExpression identifier:
+                    value = EvaluateSimpleIdentifier(identifier, environment, context);
+                    return true;
+
+                case UnaryExpression { Operator: UnaryOperator.LogicalNot } unary:
+                    if (!TryEvaluateSimpleExpression(unary.Operand, environment, context, out var operandValue))
+                    {
+                        value = default;
+                        return false;
+                    }
+
+                    value = operandValue.IsTruthy ? JsValue.False : JsValue.True;
+                    return true;
+
+                case BinaryExpression binary:
+                    return TryEvaluateSimpleBinaryExpression(binary, environment, context, out value);
+
+                default:
+                    value = default;
+                    return false;
+            }
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private JsValue EvaluateSimpleIdentifier(
+            IdentifierExpression identifier,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            if (ReferenceEquals(identifier.Name, Symbol.Arguments))
+            {
+                return environment.TryGetIdentifierJsValue(identifier.Name, context, out var argumentsValue)
+                    ? argumentsValue
+                    : HandleIdentifierNotFound(identifier.Name, context);
+            }
+
+            if (!context.AllowIdentifierCache)
+            {
+                return environment.TryGetIdentifierJsValue(identifier.Name, context, out var resolvedValue)
+                    ? resolvedValue
+                    : HandleIdentifierNotFound(identifier.Name, context);
+            }
+
+            if (environment.TryReadIdentifierWithSlot(identifier, context, out var slotValue))
+            {
+                return slotValue;
+            }
+
+            return HandleIdentifierNotFound(identifier.Name, context);
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private bool TryEvaluateSimpleBinaryExpression(
+            BinaryExpression expression,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue value)
+        {
+            if (!TryEvaluateSimpleExpression(expression.Left, environment, context, out var leftValue))
+            {
+                value = default;
+                return false;
+            }
+
+            if (context.ShouldStopEvaluation)
+            {
+                value = leftValue;
+                return true;
+            }
+
+            switch (expression.Operator)
+            {
+                case BinaryOperator.LogicalAnd when !leftValue.IsTruthy:
+                case BinaryOperator.LogicalOr when leftValue.IsTruthy:
+                case BinaryOperator.NullishCoalescing when !leftValue.IsNullish:
+                    value = leftValue;
+                    return true;
+            }
+
+            if (!TryEvaluateSimpleExpression(expression.Right, environment, context, out var rightValue))
+            {
+                value = default;
+                return false;
+            }
+
+            if (context.ShouldStopEvaluation)
+            {
+                value = rightValue;
+                return true;
+            }
+
+            if (expression.Operator == BinaryOperator.Add)
+            {
+                var fastAdd = ProfileCompoundAdd(leftValue, rightValue);
+                value = !fastAdd.IsUndefined
+                    ? fastAdd
+                    : ProfileApplyBinaryOperator(expression.Operator, leftValue, rightValue, context);
+                return true;
+            }
+
+            value = expression.Operator switch
+            {
+                BinaryOperator.LessThan or
+                BinaryOperator.LessThanOrEqual or
+                BinaryOperator.GreaterThan or
+                BinaryOperator.GreaterThanOrEqual =>
+                    ProfileBranchCompare(expression.Operator, leftValue, rightValue, context),
+                _ => ProfileApplyBinaryOperator(expression.Operator, leftValue, rightValue, context)
+            };
+
+            return true;
+        }
     }
 }

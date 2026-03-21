@@ -194,6 +194,26 @@ try {
         return result;
     }
 
+    internal static JsEngine CreateTest262Engine(ILogger? logger, bool debugMode, bool useSnapshot)
+    {
+        var engine = useSnapshot
+            ? BaseRealmSnapshot.Instance.Value.CreateEngine(new JsEngineOptions
+            {
+                Logger = logger,
+                AllowScriptSlotAnalysis = false,
+                DebugMode = debugMode,
+            })
+            : new JsEngine(new JsEngineOptions
+            {
+                Logger = logger,
+                AllowScriptSlotAnalysis = false,
+                DebugMode = debugMode,
+            });
+
+        engine.ExecutionTimeout = TimeSpan.FromSeconds(10);
+        return engine;
+    }
+
     private static JsEngine BuildTestExecutor(Test262File file)
     {
         var debugMode = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("JSENGINE_TRACE_REALM"));
@@ -202,16 +222,7 @@ try {
             : null;
 
         var useSnapshot = BaseRealmSnapshot.UseSnapshot && !IsEnvEnabled(DisableBaseRealmEnvVar);
-        var engine = useSnapshot
-            ? BaseRealmSnapshot.Instance.Value.CreateEngine(new JsEngineOptions
-            {
-                Logger = logger,
-                AllowScriptSlotAnalysis = false,
-                DebugMode = debugMode,
-            })
-            : new JsEngine(new JsEngineOptions { Logger = logger, AllowScriptSlotAnalysis = false, DebugMode = debugMode });
-
-        engine.ExecutionTimeout = TimeSpan.FromSeconds(10);
+        var engine = CreateTest262Engine(logger, debugMode, useSnapshot);
 
         // Host-defined AgentCanSuspend() used by Atomics.wait sync mode.
         // Test262 uses the `CanBlockIsFalse` flag to indicate blocking must throw.
@@ -241,22 +252,7 @@ try {
         });
 
         var agentRuntime = new Test262AgentRuntime(
-            () => useSnapshot
-                ? BaseRealmSnapshot.Instance.Value.CreateEngine(new JsEngineOptions
-                {
-                    Logger = logger,
-                    AllowScriptSlotAnalysis = false,
-                    DebugMode = debugMode,
-                })
-                : new JsEngine(new JsEngineOptions
-                {
-                    Logger = logger,
-                    AllowScriptSlotAnalysis = false,
-                    DebugMode = debugMode,
-                })
-                {
-                    ExecutionTimeout = TimeSpan.FromSeconds(10),
-                },
+            () => CreateTest262Engine(logger, debugMode, useSnapshot),
             State.Sources);
 
         // Create $262 object for Test262 compatibility
@@ -275,7 +271,7 @@ try {
             {
                 // Create a fresh engine with its own intrinsics; expose its global
                 // object so tests can access constructors like Array/Function.
-                var realmEngine = new JsEngine();
+                var realmEngine = CreateTest262Engine(logger, debugMode, useSnapshot);
                 var realmGlobal = realmEngine.GlobalObject;
                 realmGlobal["global"] = realmGlobal;
 

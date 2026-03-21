@@ -5,6 +5,14 @@ namespace Asynkron.JsEngine.Tests.Test262;
 [TestFixture]
 public class RegressionTests
 {
+    [TestCase(true)]
+    [TestCase(false)]
+    public async Task CreateTest262Engine_AlwaysAppliesExecutionTimeout(bool useSnapshot)
+    {
+        await using var engine = Test262Test.CreateTest262Engine(logger: null, debugMode: false, useSnapshot);
+        Assert.That(engine.ExecutionTimeout, Is.EqualTo(TimeSpan.FromSeconds(10)));
+    }
+
     [Test]
     public async Task ForInMemberLhsInvokesArrayPrototypeSetter()
     {

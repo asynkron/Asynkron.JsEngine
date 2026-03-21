@@ -153,7 +153,10 @@ public static partial class TypedAstEvaluator
                 ? context.EnterFunctionNameHint(instruction.TargetSymbol)
                 : null;
 
-            var assignedValue = ProfileEvaluateExpression(instruction.ValueExpression, environment, context);
+            var assignedValue =
+                runner.TryEvaluateSimpleExpression(instruction.ValueExpression, environment, context, out var simpleValue)
+                    ? simpleValue
+                    : ProfileEvaluateExpression(instruction.ValueExpression, environment, context);
 
             if (!context.ShouldStopEvaluation &&
                 isAnonymousFunctionDefinition &&

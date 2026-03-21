@@ -25,3 +25,16 @@ Full test name:
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Date("built-ins/Date/value-to-primitive-result-faulty.js",True)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Date("built-ins/Date/value-to-primitive-result-string.js",False)
 - Asynkron.JsEngine.Tests.Test262.BuiltInsTests.Date("built-ins/Date/value-to-primitive-result-string.js",True)
+
+---
+## Diagnosis (2026-02-03)
+
+**Summary:** `new Date(dateObj)` was coercing via `ToPrimitive`, calling `toString`/`valueOf` and `Symbol.toPrimitive` instead of reading the internal [[DateValue]] slot directly.
+
+**Fixes:**
+- When a single argument is a Date object with an internal date slot, return that time value without invoking `ToPrimitive`.
+
+**Tests:**
+`dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --settings tests/Asynkron.JsEngine.Tests.Test262/BuiltInsTests.runsettings --filter "Name=Date"`
+
+** DONE **

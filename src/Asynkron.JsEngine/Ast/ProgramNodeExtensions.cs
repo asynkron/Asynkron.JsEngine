@@ -280,8 +280,9 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         // For eval, always disable identifier caching/slot analysis because eval runs in the caller's
         // lexical environment which may contain 'with' statements or allow deletable bindings.
         // The static analysis of the eval code alone doesn't tell us about the outer context.
-        var allowScriptSlotAnalysis = executionKind != ExecutionKind.Eval;
-        context.AllowIdentifierCache = executionKind != ExecutionKind.Eval &&
+        var allowScriptSlotAnalysis = context.RealmState.Options.AllowScriptSlotAnalysis &&
+                                      executionKind != ExecutionKind.Eval;
+        context.AllowIdentifierCache = allowScriptSlotAnalysis &&
                                        AllowsIdentifierCaching(program);
         context.DrainAwaitMicrotasks = drainAwaitMicrotasks;
         if (inheritedPrivateNameScopes is { IsDefault: false, Length: > 0 } scopes)

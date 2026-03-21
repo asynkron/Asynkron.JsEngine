@@ -13,7 +13,7 @@ namespace Asynkron.JsEngine.StdLib;
 /// Iterator prototype provides helper methods for working with iterators.
 /// These are the Iterator Helper methods from the ECMAScript proposal.
 /// </summary>
-[JsPrototype("Iterator")]
+[JsPrototype("Iterator", ToStringTag = "Iterator")]
 public sealed partial class IteratorPrototype : JsPrototype
 {
     /// <summary>

@@ -96,6 +96,23 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task YieldStarInstruction_AwaitExpression_IsLoweredToAwaitedProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            async function* relay(items) {
+                yield* await items;
+            }
+            """, "relay");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<YieldStarInstruction>()
+            .Where(i => i.AwaitedProgram is not null));
+        Assert.Null(instruction.IterableExpression);
+        Assert.Null(instruction.IterableProgram);
+        Assert.NotNull(instruction.AwaitStateKey);
+        AssertProgramContains<LoadIdentifierExpressionOp>(instruction.AwaitedProgram, op => op.Name.Name == "items");
+    }
+
+    [Fact]
     public async Task AssignmentSlotInstruction_SimpleIdentifierValue_IsLoweredToExpressionProgram()
     {
         var plan = await GetFunctionPlan("""
@@ -326,6 +343,66 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         Assert.Null(instruction.Expression);
         AssertProgramContains<SuperConstructExpressionOp>(instruction.ExpressionProgram, op => op.ArgumentCount == 1);
         AssertProgramContains<BinaryExpressionOp>(instruction.ExpressionProgram, op => op.Operator == BinaryOperator.Add);
+    }
+
+    [Fact]
+    public async Task DerivedConstructor_NestedSuperMethodArgument_IsLoweredBeforeOuterSuperConstruct()
+    {
+        var plan = await GetClassConstructorPlan("""
+            class Base {
+                method() {
+                    return 1;
+                }
+            }
+
+            class Derived extends Base {
+                constructor() {
+                    super(super.method());
+                }
+            }
+            """, "Derived");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>()
+            .Where(i => i.ExpressionProgram is not null));
+        Assert.Null(instruction.Expression);
+        Assert.NotNull(instruction.ExpressionProgram);
+
+        var operations = instruction.ExpressionProgram.Value.Operations;
+        var loadSuperCallTargetIndex = Array.FindIndex(operations.ToArray(), op => op is LoadNamedSuperCallTargetExpressionOp);
+        var innerCallIndex = Array.FindIndex(operations.ToArray(), op => op is CallExpressionOp);
+        var outerSuperConstructIndex = Array.FindIndex(operations.ToArray(), op => op is SuperConstructExpressionOp);
+
+        Assert.True(loadSuperCallTargetIndex >= 0);
+        Assert.True(innerCallIndex > loadSuperCallTargetIndex);
+        Assert.True(outerSuperConstructIndex > innerCallIndex);
+    }
+
+    [Fact]
+    public async Task DerivedConstructor_ComputedSuperRead_ChecksThisBeforePropertyExpression()
+    {
+        var plan = await GetClassConstructorPlan("""
+            class Base {}
+
+            class Derived extends Base {
+                constructor() {
+                    super[super()];
+                }
+            }
+            """, "Derived");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>()
+            .Where(i => i.ExpressionProgram is not null));
+        Assert.Null(instruction.Expression);
+        Assert.NotNull(instruction.ExpressionProgram);
+
+        var operations = instruction.ExpressionProgram.Value.Operations;
+        var ensureIndex = Array.FindIndex(operations.ToArray(), op => op is EnsureSuperReferenceExpressionOp);
+        var innerSuperConstructIndex = Array.FindIndex(operations.ToArray(), op => op is SuperConstructExpressionOp);
+        var computedReadIndex = Array.FindIndex(operations.ToArray(), op => op is GetComputedSuperPropertyExpressionOp);
+
+        Assert.True(ensureIndex >= 0);
+        Assert.True(innerSuperConstructIndex > ensureIndex);
+        Assert.True(computedReadIndex > innerSuperConstructIndex);
     }
 
     [Fact]

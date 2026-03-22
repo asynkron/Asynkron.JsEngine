@@ -15,6 +15,14 @@ public static partial class TypedAstEvaluator
 {
     private static JsValue ResolveThisValue(JsEnvironment environment, EvaluationContext context)
     {
+        if (!environment.IsThisInitializationKnownTrue(context))
+        {
+            throw StandardLibrary.ThrowReferenceError(
+                "Must call super constructor in derived class before accessing 'this'",
+                context,
+                context.RealmState);
+        }
+
         try
         {
             // Check if we're in an arrow function that has a lexical this environment.
@@ -270,15 +278,9 @@ public static partial class TypedAstEvaluator
                     // dynamically via GetSuperConstructor() which gets activeFunction.[[Prototype]].
                     // For a constructor, the active function is available via NewTarget when it's
                     // a constructor being invoked via 'new'.
-                    object? dynamicSuperConstructor = binding.Constructor;
-                    if (dynamicSuperConstructor is null &&
-                        environment.TryGetObject<IJsObjectLike>(Symbol.NewTarget, out var activeFunction))
+                    var dynamicSuperConstructor = environment.ResolveSuperConstructorForCall(binding);
+                    if (environment.TryGetObject<IJsObjectLike>(Symbol.NewTarget, out var activeFunction))
                     {
-                        // Get the current [[Prototype]] of the active function (constructor)
-                        // This respects Object.setPrototypeOf changes made after class definition
-                        // Use PrototypeAccessor to handle non-JsObject prototypes (e.g., HostFunction)
-                        dynamicSuperConstructor = (activeFunction as IPrototypeAccessorProvider)?.PrototypeAccessor
-                                                  ?? activeFunction.Prototype;
                         logger?.LogInformation(
                             "Super call: dynamic lookup newTargetType={NewTargetType} protoType={ProtoType}",
                             activeFunction.GetType().Name,

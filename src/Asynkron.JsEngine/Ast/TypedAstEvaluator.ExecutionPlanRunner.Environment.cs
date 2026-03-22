@@ -206,6 +206,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 var newTargetValue = _newTarget.IsUndefined ? JsValue.Undefined : _newTarget;
                 functionEnvironment.DefineJsValue(Symbol.NewTarget, newTargetValue, true, isLexicalBinding: true,
                     blocksFunctionScopeOverride: true);
+                functionEnvironment.DefineJsValue(Symbol.ActiveFunction, JsValue.FromObjectUnsafe(_callable), true,
+                    isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
             functionEnvironment.DefineJsValue(Symbol.YieldResumeContextSymbol,
@@ -332,6 +334,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
             return _executionEnvironment;
+        }
+
+        internal JsEnvironment GetOrCreateExecutionEnvironmentForInternalUse()
+        {
+            return EnsureExecutionEnvironment();
         }
 
         private void LogRootScopeIdOnce()

@@ -1814,6 +1814,38 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsAsyncGeneratorYieldStarAwaitExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = false;
+
+            var program = _engine.ParseProgram("""
+                async function* relay(values) {
+                    yield* await values;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = await _engine.EvaluateAndAwait("""
+                let firstValue = undefined;
+                relay([42]).next().then(step => firstValue = step.value);
+                firstValue;
+                """);
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
     public async Task AssertNoAstEvaluation_Enabled_AllowsSimpleScriptExpressionExecution()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;

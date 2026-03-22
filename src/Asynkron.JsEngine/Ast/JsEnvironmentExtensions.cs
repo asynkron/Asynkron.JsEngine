@@ -1,6 +1,7 @@
 #region
 
 using Asynkron.JsEngine.StdLib;
+using Asynkron.JsEngine.Runtime;
 using Microsoft.Extensions.Logging;
 
 #endregion
@@ -199,12 +200,65 @@ public static partial class TypedAstEvaluator
         return true;
     }
 
+    internal static object? ResolveSuperConstructorForCall(this JsEnvironment environment, SuperBinding binding)
+    {
+        if (environment.TryGetObject<IJsObjectLike>(Symbol.ActiveFunction, out var activeFunction))
+        {
+            var dynamicSuperConstructor = (activeFunction as IPrototypeAccessorProvider)?.PrototypeAccessor ??
+                                          activeFunction.Prototype;
+            if (dynamicSuperConstructor is not null)
+            {
+                return dynamicSuperConstructor;
+            }
+        }
+
+        if (binding.Constructor is not null)
+        {
+            return binding.Constructor;
+        }
+
+        if (binding.Prototype is IJsEnvironmentAwareCallable prototypeCallable)
+        {
+            return prototypeCallable;
+        }
+
+        if (environment.TryGetObject<IJsObjectLike>(Symbol.NewTarget, out var newTargetFunction))
+        {
+            return (newTargetFunction as IPrototypeAccessorProvider)?.PrototypeAccessor ??
+                   newTargetFunction.Prototype;
+        }
+
+        return binding.Constructor;
+    }
+
     internal static Exception CreateSuperReferenceError(this JsEnvironment environment, EvaluationContext context)
     {
         environment.RealmState?.Logger?.LogInformation("SuperBinding: reference error thisInit? {ThisInit}",
             context.IsThisInitialized);
         var message = $"Super is not available in this context.{context.GetSourceInfo()}";
         return StandardLibrary.ThrowReferenceError(message, context, context.RealmState);
+    }
+
+    internal static bool IsThisInitializationKnownTrue(this JsEnvironment environment, EvaluationContext context)
+    {
+        if (environment.TryFindBindingJsValue(Symbol.LexicalThisEnvironment, true, out _, out var lexicalEnvValue) &&
+            lexicalEnvValue.TryGetObject<JsEnvironment>(out var lexicalThisEnvironment))
+        {
+            environment = lexicalThisEnvironment;
+        }
+
+        if (environment.TryFindBindingJsValue(Symbol.ThisInitialized, true, out _, out var initializationValue))
+        {
+            return JsOps.ToBoolean(initializationValue);
+        }
+
+        if (environment.TryFindBindingJsValue(Symbol.This, true, out var thisEnvironment, out _) &&
+            thisEnvironment.TryGetJsValue(Symbol.ThisInitialized, out var thisEnvironmentInitializationValue))
+        {
+            return JsOps.ToBoolean(thisEnvironmentInitializationValue);
+        }
+
+        return context.IsThisInitialized;
     }
 
     private static void SetThisInitializationStatus(this JsEnvironment environment, bool initialized)

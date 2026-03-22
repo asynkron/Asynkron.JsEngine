@@ -184,6 +184,7 @@ internal sealed record SimpleVariableDeclarationInstruction(
     Symbol TargetSymbol,
     ExpressionNode? Initializer = null,
     ExpressionProgram? InitializerProgram = null,
+    bool AllowNameInference = false,
     bool IsScriptLevel = false)
     : ExecutionInstruction(InstructionKind.SimpleVariableDeclaration, Next);
 
@@ -248,7 +249,9 @@ internal sealed record PopEnvironmentInstruction(int ScopeId, bool AllowPooling,
 internal sealed record YieldInstruction(
     int Next,
     ExpressionNode? YieldExpression = null,
-    ExpressionProgram? YieldProgram = null)
+    ExpressionProgram? YieldProgram = null,
+    Symbol? AwaitStateKey = null,
+    ExpressionProgram? AwaitedProgram = null)
     : ExecutionInstruction(InstructionKind.Yield, Next);
 
 /// <summary>
@@ -264,7 +267,9 @@ internal sealed record YieldStarInstruction(
     ExpressionNode? IterableExpression = null,
     ExpressionProgram? IterableProgram = null,
     Symbol? StateSlotSymbol = null,
-    Symbol? ResultSlotSymbol = null)
+    Symbol? ResultSlotSymbol = null,
+    Symbol? AwaitStateKey = null,
+    ExpressionProgram? AwaitedProgram = null)
     : ExecutionInstruction(InstructionKind.YieldStar, Next);
 
 /// <summary>

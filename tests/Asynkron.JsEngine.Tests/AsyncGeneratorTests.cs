@@ -68,6 +68,62 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
     }
 
     [Fact(Timeout = 2000)]
+    public async Task AsyncGenerator_YieldStarAwaitedArray()
+    {
+        await using var engine = CreateEngine();
+
+        await engine.Evaluate("""
+            let log = [];
+
+            async function* relay(values) {
+                yield* await values;
+            }
+
+            async function run() {
+                for await (const value of relay([1, 2])) {
+                    log.push(value);
+                }
+            }
+
+            run();
+        """);
+
+        var result = await engine.Evaluate("log.join(',');");
+        Assert.Equal("1,2", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task AsyncGenerator_ClassPrivateStaticMethod_YieldStarAwaitedArray()
+    {
+        await using var engine = CreateEngine();
+
+        await engine.Evaluate("""
+            let log = [];
+
+            class C {
+                static async * #relay(values) {
+                    yield* await values;
+                }
+
+                static get relay() {
+                    return this.#relay;
+                }
+            }
+
+            async function run() {
+                for await (const value of C.relay([1, 2])) {
+                    log.push(value);
+                }
+            }
+
+            run();
+        """);
+
+        var result = await engine.Evaluate("log.join(',');");
+        Assert.Equal("1,2", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task AsyncGenerator_ForLoopWithYield()
     {
         await using var engine = CreateEngine();
@@ -463,4 +519,3 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
             result);
     }
 }
-

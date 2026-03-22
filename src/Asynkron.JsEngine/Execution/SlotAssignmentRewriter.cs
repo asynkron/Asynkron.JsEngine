@@ -416,6 +416,12 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     };
                 }
 
+            case YieldInstruction { AwaitedProgram: not null } yieldInstruction:
+                return yieldInstruction with
+                {
+                    AwaitedProgram = RewriteExpressionProgram(yieldInstruction.AwaitedProgram!.Value)
+                };
+
             case YieldInstruction { YieldExpression: not null } yieldInstruction:
                 return yieldInstruction with
                 {
@@ -484,6 +490,12 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     ObjectProgram = enterWith.ObjectProgram is { } withObjectProgram
                         ? RewriteExpressionProgram(withObjectProgram)
                         : null
+                };
+
+            case YieldStarInstruction { AwaitedProgram: not null } yieldStar:
+                return yieldStar with
+                {
+                    AwaitedProgram = RewriteExpressionProgram(yieldStar.AwaitedProgram!.Value)
                 };
 
             case YieldStarInstruction yieldStar:

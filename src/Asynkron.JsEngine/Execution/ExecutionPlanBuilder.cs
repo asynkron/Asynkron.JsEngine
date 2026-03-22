@@ -333,6 +333,24 @@ internal sealed partial class ExecutionPlanBuilder
                     };
                     break;
 
+                case YieldInstruction { YieldExpression: AwaitExpression awaitExpression, YieldProgram: null, AwaitedProgram: null } yieldInstruction:
+                    if (!TryCompileExpressionProgram(awaitExpression.Expression, out var awaitedYieldProgram, out var awaitedYieldFailure))
+                    {
+                        return FailExpressionProgram(
+                            "YieldInstruction",
+                            awaitExpression.Expression,
+                            awaitedYieldFailure);
+                    }
+
+                    Instructions[i] = yieldInstruction with
+                    {
+                        YieldExpression = null,
+                        YieldProgram = null,
+                        AwaitStateKey = ((IAstCacheable<Symbol>)awaitExpression).GetOrCreateCache(),
+                        AwaitedProgram = awaitedYieldProgram
+                    };
+                    break;
+
                 case YieldInstruction { YieldExpression: not null, YieldProgram: null } yieldInstruction:
                     if (!TryCompileExpressionProgram(yieldInstruction.YieldExpression, out var yieldProgram, out var yieldFailure))
                     {
@@ -346,6 +364,24 @@ internal sealed partial class ExecutionPlanBuilder
                     {
                         YieldExpression = null,
                         YieldProgram = yieldProgram
+                    };
+                    break;
+
+                case YieldStarInstruction { IterableExpression: AwaitExpression awaitExpression, IterableProgram: null, AwaitedProgram: null } yieldStarInstruction:
+                    if (!TryCompileExpressionProgram(awaitExpression.Expression, out var awaitedIterableProgram, out var awaitedIterableFailure))
+                    {
+                        return FailExpressionProgram(
+                            "YieldStarInstruction",
+                            awaitExpression.Expression,
+                            awaitedIterableFailure);
+                    }
+
+                    Instructions[i] = yieldStarInstruction with
+                    {
+                        IterableExpression = null,
+                        IterableProgram = null,
+                        AwaitStateKey = ((IAstCacheable<Symbol>)awaitExpression).GetOrCreateCache(),
+                        AwaitedProgram = awaitedIterableProgram
                     };
                     break;
 

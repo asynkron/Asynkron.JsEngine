@@ -30,7 +30,8 @@ public static partial class TypedAstEvaluator
             JsValue newTarget = default,
             JsEnvironment? lexicalThisEnvironment = null,
             IJsEnvironmentAwareCallable? superConstructor = null,
-            IJsPropertyAccessor? superPrototype = null)
+            IJsPropertyAccessor? superPrototype = null,
+            EvaluationContext? evaluationContext = null)
         {
             _function = function;
             _closure = closure;
@@ -46,6 +47,7 @@ public static partial class TypedAstEvaluator
             _lexicalThisEnvironment = lexicalThisEnvironment;
             _superConstructor = superConstructor;
             _superPrototype = superPrototype;
+            _context = evaluationContext;
             _isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
             _isAsync = function.IsAsync;
             _isGenerator = function.IsGenerator;

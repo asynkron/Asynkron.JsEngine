@@ -39,7 +39,7 @@ public static partial class TypedAstEvaluator
     private static JsValue EvaluateDefaultMember(this MemberExpression expression, JsEnvironment environment,
         EvaluationContext context)
     {
-        if (expression.Target is ThisExpression && !context.IsThisInitialized)
+        if (expression.Target is ThisExpression && !environment.IsThisInitializationKnownTrue(context))
         {
             throw StandardLibrary.ThrowReferenceError(
                 "Must call super constructor in derived class before accessing 'this'",
@@ -135,7 +135,7 @@ public static partial class TypedAstEvaluator
         // Per ES spec 12.3.5.3 MakeSuperPropertyReference:
         // 3. Let actualThis be ? env.GetThisBinding().
         // This throws ReferenceError if this is uninitialized
-        if (!context.IsThisInitialized)
+        if (!environment.IsThisInitializationKnownTrue(context))
         {
             throw environment.CreateSuperReferenceError(context);
         }

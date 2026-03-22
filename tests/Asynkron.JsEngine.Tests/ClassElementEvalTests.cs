@@ -6,6 +6,38 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class ClassElementEvalTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
+    public async Task DirectEvalReturnsFinalArrowExpressionCompletionValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                               var fn = eval('() => 7;');
+                                               fn();
+
+                                       """);
+
+        Assert.Equal(7d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ClassFieldEvalProducedArrowFunctionWithoutSuperWorks()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                               class Derived {
+                                                   field = eval('() => 9;');
+                                               }
+
+                                               var instance = new Derived();
+                                               instance.field();
+
+                                       """);
+
+        Assert.Equal(9d, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task InstanceFieldEvalCanAccessSuperProperty()
     {
         await using var engine = CreateEngine();
@@ -98,5 +130,67 @@ public sealed class ClassElementEvalTests(ITestOutputHelper output) : InternalTe
                                            """);
 
         Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ClassFieldEvalArrowWithSuperProducesFunctionValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                               class Base {}
+
+                                               class Derived extends Base {
+                                                   kind = typeof eval('() => super.missing;');
+                                               }
+
+                                               new Derived().kind;
+
+                                       """);
+
+        Assert.Equal("function", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task DirectEvalInPublicFieldInitializer_AllowsNewTargetAndReturnsUndefined()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                               var executed = false;
+                                               class C {
+                                                   field = eval('executed = true; new.target;');
+                                               }
+
+                                               var instance = new C();
+                                               [executed, typeof instance.field];
+
+                                       """);
+
+        var array = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.True(array.Items[0].AsBoolean());
+        Assert.Equal("undefined", array.Items[1].AsString());
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task DirectEvalInPrivateFieldInitializer_AllowsNewTargetAndReturnsUndefined()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                               var executed = false;
+                                               class C {
+                                                   #field = eval('executed = true; new.target;');
+                                                   read() { return this.#field; }
+                                               }
+
+                                               var instance = new C();
+                                               [executed, typeof instance.read()];
+
+                                       """);
+
+        var array = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.True(array.Items[0].AsBoolean());
+        Assert.Equal("undefined", array.Items[1].AsString());
     }
 }

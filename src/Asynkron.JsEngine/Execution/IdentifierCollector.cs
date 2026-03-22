@@ -350,6 +350,10 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 Visit(logicalCompound.RhsExpression);
                 return;
 
+            case YieldInstruction { AwaitedProgram: not null } yield:
+                VisitExpressionProgram(yield.AwaitedProgram.Value);
+                return;
+
             case YieldInstruction { YieldExpression: not null } yield:
                 Visit(yield.YieldExpression);
                 return;
@@ -394,6 +398,10 @@ internal sealed class ScopeSlotCollector : AstVisitor
 
             case EnterWithInstruction enterWith:
                 Visit(enterWith.ObjectExpression);
+                return;
+
+            case YieldStarInstruction { AwaitedProgram: not null } yieldStar:
+                VisitExpressionProgram(yieldStar.AwaitedProgram.Value);
                 return;
 
             case YieldStarInstruction yieldStar:

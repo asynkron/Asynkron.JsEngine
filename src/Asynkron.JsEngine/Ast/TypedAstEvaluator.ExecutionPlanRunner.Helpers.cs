@@ -288,7 +288,7 @@ public static partial class TypedAstEvaluator
                             break;
 
                         case LoadThisExpressionOp:
-                            stack[stackIndex++] = _thisValue;
+                            stack[stackIndex++] = ResolveThisValue(environment, context);
                             stackFlags[stackIndex - 1] = false;
                             programCounter++;
                             break;
@@ -363,6 +363,11 @@ public static partial class TypedAstEvaluator
                                 programCounter++;
                                 break;
                             }
+
+                        case EnsureSuperReferenceExpressionOp:
+                            EnsureProgramSuperReference(environment, context);
+                            programCounter++;
+                            break;
 
                         case CreateArrayExpressionOp:
                             stack[stackIndex++] = JsValue.FromJsArray(new JsArray(context.RealmState));
@@ -1487,10 +1492,7 @@ public static partial class TypedAstEvaluator
             JsEnvironment environment,
             EvaluationContext context)
         {
-            if (!context.IsThisInitialized)
-            {
-                throw environment.CreateSuperReferenceError(context);
-            }
+            EnsureProgramSuperReference(environment, context);
 
             var binding = environment.ExpectSuperBinding(context);
             if (binding.Prototype is null)
@@ -1503,6 +1505,16 @@ public static partial class TypedAstEvaluator
             }
 
             return binding;
+        }
+
+        private static void EnsureProgramSuperReference(
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            if (!environment.IsThisInitializationKnownTrue(context))
+            {
+                throw environment.CreateSuperReferenceError(context);
+            }
         }
 
         private static void LoadProgramNamedSuperCallTarget(
@@ -1776,10 +1788,10 @@ public static partial class TypedAstEvaluator
 
             try
             {
-                if (call.IsDirectEval && callable is global::Asynkron.JsEngine.EvalHostFunction evalHostFunction)
+                if (callable is global::Asynkron.JsEngine.EvalHostFunction evalHostFunction)
                 {
                     evalHost = evalHostFunction;
-                    evalHost.IsDirectCall = true;
+                    evalHost.IsDirectCall = call.IsDirectEval;
                     evalHost.InClassFieldInitializer = context.InClassFieldInitializer;
                 }
 
@@ -1927,13 +1939,7 @@ public static partial class TypedAstEvaluator
             try
             {
                 var superBindingForCall = environment.ExpectSuperBinding(context);
-                object? dynamicSuperConstructor = superBindingForCall.Constructor;
-                if (dynamicSuperConstructor is null &&
-                    environment.TryGetObject<IJsObjectLike>(Symbol.NewTarget, out var activeFunction))
-                {
-                    dynamicSuperConstructor = (activeFunction as IPrototypeAccessorProvider)?.PrototypeAccessor ??
-                                              activeFunction.Prototype;
-                }
+                var dynamicSuperConstructor = environment.ResolveSuperConstructorForCall(superBindingForCall);
 
                 if (dynamicSuperConstructor is null)
                 {
@@ -1942,18 +1948,6 @@ public static partial class TypedAstEvaluator
                 }
 
                 var constructorValue = JsValue.FromObjectUnsafe(dynamicSuperConstructor);
-                if (!JsOps.IsConstructor(constructorValue) ||
-                    !constructorValue.TryGetObject<IJsCallable>(out var callable))
-                {
-                    var error = StandardLibrary.CreateTypeError(
-                        "Super constructor is not a constructor",
-                        context,
-                        context.RealmState);
-                    context.SetThrow(error);
-                    stack[baseIndex] = JsValue.Undefined;
-                    stackFlags[baseIndex] = false;
-                    return baseIndex + 1;
-                }
 
                 JsEnvironment? thisInitializationEnvironment = null;
                 var thisInitializationValue = JsValue.Undefined;
@@ -1998,6 +1992,19 @@ public static partial class TypedAstEvaluator
                     baseIndex,
                     context,
                     out pooledArguments);
+
+                if (!JsOps.IsConstructor(constructorValue) ||
+                    !constructorValue.TryGetObject<IJsCallable>(out var callable))
+                {
+                    var error = StandardLibrary.CreateTypeError(
+                        "Super constructor is not a constructor",
+                        context,
+                        context.RealmState);
+                    context.SetThrow(error);
+                    stack[baseIndex] = JsValue.Undefined;
+                    stackFlags[baseIndex] = false;
+                    return baseIndex + 1;
+                }
 
                 var newTargetValue = environment.TryGetJsValue(Symbol.NewTarget, out var inheritedNewTarget)
                     ? inheritedNewTarget

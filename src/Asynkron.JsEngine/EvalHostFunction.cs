@@ -268,7 +268,9 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             var callerFunctionScope = CallingJsEnvironment?.GetFunctionScope();
             var callerHasNewTarget = callerFunctionScope?.HasOwnBinding(Symbol.NewTarget) == true;
-            if (!callerHasNewTarget)
+            // Direct eval inside class field initializers inherits the "inside function"
+            // allowance for new.target, even though the eval source itself is a ScriptBody.
+            if (!callerHasNewTarget && !insideClassFieldInitializer)
             {
                 throw StandardLibrary.ThrowSyntaxError(
                     "new.target is not allowed in this direct eval context.",

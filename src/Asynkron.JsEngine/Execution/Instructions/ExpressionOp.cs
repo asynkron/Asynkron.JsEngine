@@ -22,6 +22,7 @@ internal enum ExpressionOpKind : byte
     LoadComputedCallTarget,
     LoadNamedSuperCallTarget,
     LoadComputedSuperCallTarget,
+    EnsureSuperReference,
     CreateArray,
     ArrayPush,
     ArrayPushHole,
@@ -165,6 +166,9 @@ internal sealed record LoadNamedSuperCallTargetExpressionOp(string PropertyName)
 
 internal sealed record LoadComputedSuperCallTargetExpressionOp()
     : ExpressionOp(ExpressionOpKind.LoadComputedSuperCallTarget);
+
+internal sealed record EnsureSuperReferenceExpressionOp()
+    : ExpressionOp(ExpressionOpKind.EnsureSuperReference);
 
 internal sealed record CreateArrayExpressionOp()
     : ExpressionOp(ExpressionOpKind.CreateArray);

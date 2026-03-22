@@ -41,7 +41,7 @@ public static partial class TypedAstEvaluator
 
         // Per ES spec 6.2.3.2 PutValue, if set fails in strict mode, throw TypeError
         if (!binding.TrySetProperty(propertyName, value, out _) &&
-            context.CurrentScope.IsStrict)
+            environment.IsStrict)
         {
             throw StandardLibrary.ThrowTypeError(
                 $"Cannot assign to read only property '{propertyName}' of object",

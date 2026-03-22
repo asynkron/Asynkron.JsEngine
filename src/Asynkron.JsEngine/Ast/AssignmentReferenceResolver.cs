@@ -186,7 +186,7 @@ internal static class AssignmentReferenceResolver
 
         if (member.Target is SuperExpression)
         {
-            if (!context.IsThisInitialized)
+            if (!environment.IsThisInitializationKnownTrue(context))
             {
                 throw StandardLibrary.ThrowReferenceError(
                     "Super is not available in this context.",
@@ -236,7 +236,7 @@ internal static class AssignmentReferenceResolver
 
                     var propertyName = GetPropertyName();
                     if (!binding.TrySetProperty(propertyName, newValue, out _) &&
-                        context.CurrentScope.IsStrict)
+                        environment.IsStrict)
                     {
                         throw StandardLibrary.ThrowTypeError(
                             $"Cannot assign to read only property '{propertyName}' of object",

@@ -224,11 +224,13 @@ internal static class DeclarationEmitter
         }
 
         var isScriptLevel = ctx.IsScriptLevel && varKind == VariableKind.Var;
+        var allowNameInference = IsAnonymousFunctionDefinition(declarator.Initializer);
         entryIndex = ctx.Append(new SimpleVariableDeclarationInstruction(
             nextIndex,
             varKind,
             identifierBinding.Name,
             declarator.Initializer,
+            AllowNameInference: allowNameInference,
             IsScriptLevel: isScriptLevel));
         return true;
     }
@@ -333,5 +335,15 @@ internal static class DeclarationEmitter
         }
 
         return false;
+    }
+
+    private static bool IsAnonymousFunctionDefinition(ExpressionNode? expression)
+    {
+        if (expression is null or SequenceExpression)
+        {
+            return false;
+        }
+
+        return expression is FunctionExpression { Name: null } or ClassExpression { Name: null };
     }
 }

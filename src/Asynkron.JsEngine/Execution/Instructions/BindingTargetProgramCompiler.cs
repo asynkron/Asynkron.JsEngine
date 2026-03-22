@@ -65,7 +65,8 @@ internal static class BindingTargetProgramCompiler
                     return false;
                 }
 
-                program = new ComputedSuperPropertyAssignmentBindingTargetProgram(superPropertyProgram);
+                program = new ComputedSuperPropertyAssignmentBindingTargetProgram(
+                    ExpressionProgramCompiler.PrependSuperReferenceCheck(superPropertyProgram));
                 failureReason = null;
                 return true;
 

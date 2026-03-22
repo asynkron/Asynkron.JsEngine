@@ -185,15 +185,19 @@ internal static class ExecutionPlanPrinter
                 $"CONTINUE (popTo: {cont.TargetScopeId}) → [{cont.TargetIndex}]",
 
             YieldInstruction yield =>
-                "YIELD" + (yield.YieldExpression != null || yield.YieldProgram is not null
-                    ? $" {FormatExpression(yield.YieldExpression, yield.YieldProgram)}"
-                    : "") +
-                $" → [{yield.Next}]",
+                "YIELD" + (yield.AwaitedProgram is not null
+                    ? $" await {FormatExpression(null, yield.AwaitedProgram)}"
+                    : yield.YieldExpression != null || yield.YieldProgram is not null
+                        ? $" {FormatExpression(yield.YieldExpression, yield.YieldProgram)}"
+                        : "")
+                + $" → [{yield.Next}]",
 
             YieldStarInstruction yieldStar =>
-                $"YIELD* {FormatExpression(yieldStar.IterableExpression, yieldStar.IterableProgram)}" +
-                (yieldStar.ResultSlotSymbol != null ? $" (result → {yieldStar.ResultSlotSymbol.Name})" : "") +
-                $" → [{yieldStar.Next}]",
+                "YIELD* " + (yieldStar.AwaitedProgram is not null
+                    ? $"await {FormatExpression(null, yieldStar.AwaitedProgram)}"
+                    : FormatExpression(yieldStar.IterableExpression, yieldStar.IterableProgram))
+                + (yieldStar.ResultSlotSymbol != null ? $" (result → {yieldStar.ResultSlotSymbol.Name})" : "")
+                + $" → [{yieldStar.Next}]",
 
             EnterTryInstruction enterTry =>
                 $"ENTER_TRY (handler: {(enterTry.HandlerIndex >= 0 ? $"[{enterTry.HandlerIndex}]" : "none")}, " +
@@ -328,6 +332,7 @@ internal static class ExecutionPlanPrinter
             LoadComputedCallTargetExpressionOp => "call[]",
             LoadNamedSuperCallTargetExpressionOp callTarget => $"super.call.{callTarget.PropertyName}",
             LoadComputedSuperCallTargetExpressionOp => "super.call[]",
+            EnsureSuperReferenceExpressionOp => "super.this",
             CreateArrayExpressionOp => "arr[]",
             ArrayPushExpressionOp => "arr.push",
             ArrayPushHoleExpressionOp => "arr.hole",

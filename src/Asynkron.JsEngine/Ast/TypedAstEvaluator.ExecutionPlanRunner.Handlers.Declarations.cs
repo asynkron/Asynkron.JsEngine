@@ -205,7 +205,7 @@ public static partial class TypedAstEvaluator
         {
             var instruction = Unsafe.As<SimpleVariableDeclarationInstruction>(instr);
             var hasInitializer = instruction.Initializer is not null || instruction.InitializerProgram is not null;
-            var isAnonymousFunctionDefinition = instruction.Initializer?.IsAnonymousFunctionDefinitionNode() == true;
+            var isAnonymousFunctionDefinition = instruction.AllowNameInference;
 
             using var functionNameHint = isAnonymousFunctionDefinition
                 ? context.EnterFunctionNameHint(instruction.TargetSymbol)

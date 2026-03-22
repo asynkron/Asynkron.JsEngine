@@ -692,8 +692,6 @@ public static partial class TypedAstEvaluator
                     planCache.Plan?.GetHashCode() ?? -1);
                 if (planCache.Succeeded)
                 {
-                    RealmState.ReturnContext(context);
-
                     // For arrow functions, use lexically captured this instead of the caller's thisValue
                     var effectiveThisValue = thisValue;
                     if (IsArrowFunction)
@@ -749,12 +747,23 @@ public static partial class TypedAstEvaluator
                             newTarget,
                             _lexicalThisEnvironment,
                             _superConstructor,
-                            _superPrototype);
+                            _superPrototype,
+                            context);
+
+                        var runnerContext = runner.EnsureEvaluationContext();
+
+                        if (IsClassConstructor && _isDerivedClassConstructor)
+                        {
+                            var pendingFieldInitialization = new PendingClassFieldInitialization(
+                                this,
+                                runner.GetOrCreateExecutionEnvironmentForInternalUse());
+                            runnerContext.PushClassFieldInitializer(pendingFieldInitialization);
+                        }
 
                         // Initialize instance BEFORE running constructor body (adds private brand and initializes fields)
                         if (instanceToInit is not null)
                         {
-                            var initContext = runner.EnsureEvaluationContext();
+                            var initContext = runnerContext;
                             var initEnv = JsEnvironment.CreateInstance(_closure, isStrict: _isStrict);
                             InitializeInstance(instanceToInit, initEnv, initContext);
                             if (initContext.IsThrow)
@@ -770,6 +779,10 @@ public static partial class TypedAstEvaluator
                     {
                         callingContext.SetThrow(signal.ThrownValue);
                         return signal.ThrownValue;
+                    }
+                    finally
+                    {
+                        RealmState.ReturnContext(context);
                     }
                 }
 
@@ -891,12 +904,14 @@ public static partial class TypedAstEvaluator
                 : null;
             var hasPendingFieldInitialization = false;
 
-            if (!IsArrowFunction)
-            {
-                var newTargetValue = newTarget.IsUndefined ? JsValue.Undefined : newTarget;
-                functionEnvironment.DefineJsValue(Symbol.NewTarget, newTargetValue, true, isLexicalBinding: true,
-                    blocksFunctionScopeOverride: true);
-            }
+                if (!IsArrowFunction)
+                {
+                    var newTargetValue = newTarget.IsUndefined ? JsValue.Undefined : newTarget;
+                    functionEnvironment.DefineJsValue(Symbol.NewTarget, newTargetValue, true, isLexicalBinding: true,
+                        blocksFunctionScopeOverride: true);
+                    functionEnvironment.DefineJsValue(Symbol.ActiveFunction, _cachedJsValue, true,
+                        isLexicalBinding: true, blocksFunctionScopeOverride: true);
+                }
 
             // Bind `this`.
             if (IsArrowFunction)
@@ -1117,7 +1132,7 @@ public static partial class TypedAstEvaluator
                     functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(binding));
                 }
 
-                if (IsClassConstructor && boundThis is JsObject thisInstance)
+                if (IsClassConstructor)
                 {
                     if (_isDerivedClassConstructor)
                     {
@@ -1125,7 +1140,7 @@ public static partial class TypedAstEvaluator
                         context.PushClassFieldInitializer(pendingFieldInitialization);
                         hasPendingFieldInitialization = true;
                     }
-                    else
+                    else if (boundThis is JsObject thisInstance)
                     {
                         InitializeInstance(thisInstance, functionEnvironment, context);
                         if (context.ShouldStopEvaluation)

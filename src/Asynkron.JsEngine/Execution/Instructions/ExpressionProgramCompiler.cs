@@ -5,6 +5,19 @@ namespace Asynkron.JsEngine.Execution.Instructions;
 
 internal static class ExpressionProgramCompiler
 {
+    public static ExpressionProgram PrependSuperReferenceCheck(ExpressionProgram program)
+    {
+        if (program.IsEmpty)
+        {
+            return new ExpressionProgram([new EnsureSuperReferenceExpressionOp()]);
+        }
+
+        var builder = ImmutableArray.CreateBuilder<ExpressionOp>(program.Operations.Length + 1);
+        builder.Add(new EnsureSuperReferenceExpressionOp());
+        builder.AddRange(program.Operations);
+        return new ExpressionProgram(builder.MoveToImmutable());
+    }
+
     public static bool TryCompile(
         ExpressionNode expression,
         out ExpressionProgram program,
@@ -474,6 +487,7 @@ internal static class ExpressionProgramCompiler
                 break;
 
             case MemberExpression { Target: SuperExpression } member:
+                builder.Add(new EnsureSuperReferenceExpressionOp());
                 if (!TryCompileExpression(member.Property, builder, out failureReason))
                 {
                     return false;
@@ -859,6 +873,8 @@ internal static class ExpressionProgramCompiler
                 return true;
             }
 
+            builder.Add(new EnsureSuperReferenceExpressionOp());
+            builder.Add(new EnsureSuperReferenceExpressionOp());
             if (!TryCompileExpression(expression.Property, builder, out failureReason))
             {
                 return false;
@@ -954,6 +970,7 @@ internal static class ExpressionProgramCompiler
                 break;
 
             case MemberExpression { Target: SuperExpression } member:
+                builder.Add(new EnsureSuperReferenceExpressionOp());
                 if (!TryCompileExpression(member.Property, builder, out failureReason))
                 {
                     return false;
@@ -1171,6 +1188,7 @@ internal static class ExpressionProgramCompiler
         {
             if (expression.IsComputed)
             {
+                builder.Add(new EnsureSuperReferenceExpressionOp());
                 if (!TryCompileExpression(expression.Property, builder, out failureReason))
                 {
                     return false;
@@ -1209,6 +1227,7 @@ internal static class ExpressionProgramCompiler
 
         if (expression.IsComputed)
         {
+            builder.Add(new EnsureSuperReferenceExpressionOp());
             if (!TryCompileExpression(expression.Property, builder, out failureReason))
             {
                 return false;
@@ -1258,6 +1277,7 @@ internal static class ExpressionProgramCompiler
 
         if (expression.Target is SuperExpression)
         {
+            builder.Add(new EnsureSuperReferenceExpressionOp());
             if (!TryCompileExpression(expression.Index, builder, out failureReason))
             {
                 return false;
@@ -1499,6 +1519,7 @@ internal static class ExpressionProgramCompiler
 
         if (expression.Target is SuperExpression)
         {
+            builder.Add(new EnsureSuperReferenceExpressionOp());
             if (!TryCompileExpression(expression.Index, builder, out failureReason))
             {
                 return false;
@@ -1751,6 +1772,7 @@ internal static class ExpressionProgramCompiler
                 return true;
             }
 
+            builder.Add(new EnsureSuperReferenceExpressionOp());
             if (!TryCompileExpression(expression.Property, builder, out failureReason))
             {
                 return false;

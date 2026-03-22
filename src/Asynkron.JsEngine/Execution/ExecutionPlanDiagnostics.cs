@@ -17,6 +17,7 @@ public static class ExecutionPlanDiagnostics
 {
     private static readonly Lock Sync = new();
     private static readonly Dictionary<ExecutionPlanFailureCode, int> FailureCodeCounts = [];
+    private static readonly Dictionary<ExpressionProgramFailureCode, int> ExpressionFailureCodeCounts = [];
     private static int TotalAttempts;
     private static int TotalSucceeded;
     private static int TotalFailed;
@@ -26,6 +27,7 @@ public static class ExecutionPlanDiagnostics
     private static int TotalScriptFailed;
     private static int TotalScriptCacheHits;
     private static ExecutionPlanFailureCode? _lastFailureCode;
+    private static ExpressionProgramFailureCode? _lastExpressionFailureCode;
     private static string? _lastFailureReason;
     private static string? _lastFunctionDescription;
 
@@ -62,6 +64,17 @@ public static class ExecutionPlanDiagnostics
         }
     }
 
+    internal static ExpressionProgramFailureCode? LastExpressionFailureCode
+    {
+        get
+        {
+            lock (Sync)
+            {
+                return _lastExpressionFailureCode;
+            }
+        }
+    }
+
     public static void Reset()
     {
         lock (Sync)
@@ -75,7 +88,9 @@ public static class ExecutionPlanDiagnostics
             TotalScriptFailed = 0;
             TotalScriptCacheHits = 0;
             FailureCodeCounts.Clear();
+            ExpressionFailureCodeCounts.Clear();
             _lastFailureCode = null;
+            _lastExpressionFailureCode = null;
             _lastFailureReason = null;
             _lastFunctionDescription = null;
         }
@@ -152,7 +167,9 @@ public static class ExecutionPlanDiagnostics
                 new ExecutionPlanDiagnosticCounters(TotalAttempts, TotalSucceeded, TotalFailed),
                 new ExecutionPlanDiagnosticCounters(TotalScriptAttempts, TotalScriptSucceeded, TotalScriptFailed),
                 FailureCodeCounts.ToImmutableDictionary(),
+                ExpressionFailureCodeCounts.ToImmutableDictionary(),
                 _lastFailureCode,
+                _lastExpressionFailureCode,
                 TotalFunctionCacheHits,
                 TotalScriptCacheHits);
         }
@@ -176,8 +193,21 @@ public static class ExecutionPlanDiagnostics
         }
 
         _lastFailureCode = failureCode;
+        _lastExpressionFailureCode = failure?.ExpressionFailureCode;
         _lastFailureReason = failure?.Detail;
         _lastFunctionDescription = description;
+
+        if (failure?.ExpressionFailureCode is { } expressionFailureCode)
+        {
+            if (ExpressionFailureCodeCounts.TryGetValue(expressionFailureCode, out var expressionCount))
+            {
+                ExpressionFailureCodeCounts[expressionFailureCode] = expressionCount + 1;
+            }
+            else
+            {
+                ExpressionFailureCodeCounts[expressionFailureCode] = 1;
+            }
+        }
     }
 
     private static string DescribeFunction(FunctionExpression function)

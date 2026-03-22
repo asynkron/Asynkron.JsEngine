@@ -21,6 +21,60 @@ internal static class ExpressionProgramCompiler
         return true;
     }
 
+    public static ExpressionProgramCompileFailure ClassifyFailure(
+        ExpressionNode expression,
+        string? failureReason)
+    {
+        var detail = failureReason ?? $"Expression bytecode does not yet support '{expression.GetType().Name}'.";
+
+        var code = detail switch
+        {
+            "Expression bytecode does not yet support delete on super or optional member expressions."
+                => ExpressionProgramFailureCode.UnsupportedDeleteTarget,
+            "Expression bytecode does not yet support super call expressions."
+                => ExpressionProgramFailureCode.SuperCall,
+            "Expression bytecode does not yet support nested optional call expressions."
+                => ExpressionProgramFailureCode.NestedOptionalCall,
+            "Expression bytecode does not yet support super or optional member update expressions."
+                => ExpressionProgramFailureCode.OptionalOrSuperMemberUpdate,
+            "Expression bytecode does not yet support super tagged templates."
+                => ExpressionProgramFailureCode.SuperTaggedTemplate,
+            "Expression bytecode does not yet support optional tagged templates."
+                => ExpressionProgramFailureCode.OptionalTaggedTemplate,
+            "Expression bytecode does not yet support nested optional tagged templates."
+                => ExpressionProgramFailureCode.NestedOptionalTaggedTemplate,
+            "Expression bytecode does not yet support super or optional property assignments."
+                => ExpressionProgramFailureCode.OptionalOrSuperPropertyAssignment,
+            "Expression bytecode does not yet support super or optional index assignments."
+                => ExpressionProgramFailureCode.OptionalOrSuperIndexAssignment,
+            "Expression bytecode does not yet support super member access."
+                => ExpressionProgramFailureCode.SuperMemberAccess,
+            "Expression bytecode only supports lowered binary compound assignments."
+                => ExpressionProgramFailureCode.UnsupportedCompoundAssignmentShape,
+            "Expression bytecode only supports identifier and member update expressions."
+                => ExpressionProgramFailureCode.UnsupportedUpdateTarget,
+            "Expression bytecode only supports static string object property names."
+                => ExpressionProgramFailureCode.UnsupportedStaticObjectPropertyName,
+            "Computed object property names must use an expression key."
+                => ExpressionProgramFailureCode.InvalidComputedObjectKey,
+            "Expression bytecode only supports literal property names for dot access."
+                => ExpressionProgramFailureCode.UnsupportedDotAccessPropertyName,
+            "Expression bytecode only supports literal property names for direct member calls."
+                => ExpressionProgramFailureCode.UnsupportedDirectMemberCallPropertyName,
+            "Expression bytecode only supports literal property names for tagged template member access."
+                => ExpressionProgramFailureCode.UnsupportedTaggedTemplateMemberAccessName,
+            "Expression bytecode does not yet support optional or super member call targets."
+                => ExpressionProgramFailureCode.OptionalOrSuperMemberCallTarget,
+            _ when detail.StartsWith("Expression bytecode does not yet support object member kind '", StringComparison.Ordinal)
+                => ExpressionProgramFailureCode.UnsupportedObjectMemberKind,
+            _ when detail.StartsWith("Expression bytecode does not yet support unary operator '", StringComparison.Ordinal)
+                => ExpressionProgramFailureCode.UnsupportedUnaryOperator,
+            _ => ExpressionProgramFailureCode.UnsupportedExpressionNode
+        };
+
+        return new ExpressionProgramCompileFailure(code, detail);
+    }
+
     private static bool TryCompileExpression(
         ExpressionNode expression,
         List<ExpressionOp> builder,
@@ -53,6 +107,16 @@ internal static class ExpressionProgramCompiler
 
             case NewTargetExpression:
                 builder.Add(new LoadNewTargetExpressionOp());
+                failureReason = null;
+                return true;
+
+            case FunctionExpression function:
+                builder.Add(new LoadFunctionLiteralExpressionOp(function));
+                failureReason = null;
+                return true;
+
+            case ClassExpression classExpression:
+                builder.Add(new LoadClassLiteralExpressionOp(classExpression));
                 failureReason = null;
                 return true;
 
@@ -356,7 +420,9 @@ internal static class ExpressionProgramCompiler
 
         var hasExplicitThis = false;
         var targetNullishJumpIndex = -1;
+        var targetShortCircuitJumpIndex = -1;
         var callNullishJumpIndex = -1;
+        var calleeShortCircuitJumpIndex = -1;
         List<bool>? spreadMaskBuilder = null;
 
         switch (expression.Callee)
@@ -384,7 +450,12 @@ internal static class ExpressionProgramCompiler
                 break;
 
             case MemberExpression { IsComputed: false } member:
-                if (!TryCompileOptionalMemberCallTarget(member, builder, ref targetNullishJumpIndex, out failureReason))
+                if (!TryCompileOptionalMemberCallTarget(
+                        member,
+                        builder,
+                        ref targetNullishJumpIndex,
+                        ref targetShortCircuitJumpIndex,
+                        out failureReason))
                 {
                     return false;
                 }
@@ -406,7 +477,12 @@ internal static class ExpressionProgramCompiler
                 break;
 
             case MemberExpression member:
-                if (!TryCompileOptionalMemberCallTarget(member, builder, ref targetNullishJumpIndex, out failureReason))
+                if (!TryCompileOptionalMemberCallTarget(
+                        member,
+                        builder,
+                        ref targetNullishJumpIndex,
+                        ref targetShortCircuitJumpIndex,
+                        out failureReason))
                 {
                     return false;
                 }
@@ -426,15 +502,15 @@ internal static class ExpressionProgramCompiler
                 break;
 
             default:
-                if (HasOptionalChaining(expression.Callee))
-                {
-                    failureReason = "Expression bytecode does not yet support nested optional call expressions.";
-                    return false;
-                }
-
                 if (!TryCompileExpression(expression.Callee, builder, out failureReason))
                 {
                     return false;
+                }
+
+                if (HasOptionalChaining(expression.Callee))
+                {
+                    calleeShortCircuitJumpIndex = builder.Count;
+                    builder.Add(new JumpIfShortCircuitedExpressionOp(-1));
                 }
 
                 if (expression.IsOptional)
@@ -503,6 +579,16 @@ internal static class ExpressionProgramCompiler
             builder[targetNullishJumpIndex] = new JumpIfNullishExpressionOp(builder.Count, ReplaceWithUndefined: true);
         }
 
+        if (targetShortCircuitJumpIndex >= 0)
+        {
+            builder[targetShortCircuitJumpIndex] = new JumpIfShortCircuitedExpressionOp(builder.Count);
+        }
+
+        if (calleeShortCircuitJumpIndex >= 0)
+        {
+            builder[calleeShortCircuitJumpIndex] = new JumpIfShortCircuitedExpressionOp(builder.Count);
+        }
+
         failureReason = null;
         return true;
     }
@@ -512,12 +598,6 @@ internal static class ExpressionProgramCompiler
         List<ExpressionOp> builder,
         out string? failureReason)
     {
-        if (expression.IsImmutableTarget)
-        {
-            failureReason = "Expression bytecode does not yet support immutable identifier assignments.";
-            return false;
-        }
-
         if (expression.IsCompoundAssignment)
         {
             return TryCompileCompoundAssignmentExpression(expression, builder, out failureReason);
@@ -1498,6 +1578,81 @@ internal static class ExpressionProgramCompiler
                     builder.Add(new DefineComputedObjectPropertyExpressionOp());
                     break;
 
+                case ObjectMemberKind.Method:
+                    if (member.Function is null)
+                    {
+                        failureReason = "Object methods must carry a function payload.";
+                        return false;
+                    }
+
+                    if (!member.IsComputed)
+                    {
+                        if (member.Key is not string methodName)
+                        {
+                            failureReason = "Expression bytecode only supports static string object property names.";
+                            return false;
+                        }
+
+                        builder.Add(new LoadFunctionLiteralExpressionOp(member.Function, IsConstructorFunction: false));
+                        builder.Add(new DefineObjectMethodExpressionOp(methodName));
+                        break;
+                    }
+
+                    if (member.Key is not ExpressionNode methodKeyExpression)
+                    {
+                        failureReason = "Computed object property names must use an expression key.";
+                        return false;
+                    }
+
+                    if (!TryCompileExpression(methodKeyExpression, builder, out failureReason))
+                    {
+                        return false;
+                    }
+
+                    builder.Add(new LoadFunctionLiteralExpressionOp(member.Function, IsConstructorFunction: false));
+                    builder.Add(new DefineComputedObjectMethodExpressionOp());
+                    break;
+
+                case ObjectMemberKind.Getter:
+                case ObjectMemberKind.Setter:
+                    if (member.Function is null)
+                    {
+                        failureReason = "Object accessors must carry a function payload.";
+                        return false;
+                    }
+
+                    var accessorKind = member.Kind == ObjectMemberKind.Getter
+                        ? ObjectAccessorKind.Getter
+                        : ObjectAccessorKind.Setter;
+
+                    if (!member.IsComputed)
+                    {
+                        if (member.Key is not string accessorName)
+                        {
+                            failureReason = "Expression bytecode only supports static string object property names.";
+                            return false;
+                        }
+
+                        builder.Add(new LoadFunctionLiteralExpressionOp(member.Function, IsConstructorFunction: false));
+                        builder.Add(new DefineObjectAccessorExpressionOp(accessorName, accessorKind));
+                        break;
+                    }
+
+                    if (member.Key is not ExpressionNode accessorKeyExpression)
+                    {
+                        failureReason = "Computed object property names must use an expression key.";
+                        return false;
+                    }
+
+                    if (!TryCompileExpression(accessorKeyExpression, builder, out failureReason))
+                    {
+                        return false;
+                    }
+
+                    builder.Add(new LoadFunctionLiteralExpressionOp(member.Function, IsConstructorFunction: false));
+                    builder.Add(new DefineComputedObjectAccessorExpressionOp(accessorKind));
+                    break;
+
                 case ObjectMemberKind.Spread:
                     if (member.Value is null)
                     {
@@ -1528,9 +1683,10 @@ internal static class ExpressionProgramCompiler
         MemberExpression member,
         List<ExpressionOp> builder,
         ref int targetNullishJumpIndex,
+        ref int targetShortCircuitJumpIndex,
         out string? failureReason)
     {
-        if (member.Target is SuperExpression || HasOptionalChaining(member.Target))
+        if (member.Target is SuperExpression)
         {
             failureReason = "Expression bytecode does not yet support optional or super member call targets.";
             return false;
@@ -1539,6 +1695,12 @@ internal static class ExpressionProgramCompiler
         if (!TryCompileExpression(member.Target, builder, out failureReason))
         {
             return false;
+        }
+
+        if (HasOptionalChaining(member.Target))
+        {
+            targetShortCircuitJumpIndex = builder.Count;
+            builder.Add(new JumpIfShortCircuitedExpressionOp(-1));
         }
 
         if (member.IsOptional)

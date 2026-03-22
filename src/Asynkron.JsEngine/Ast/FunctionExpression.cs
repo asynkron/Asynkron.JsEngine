@@ -47,8 +47,17 @@ public sealed partial record FunctionExpression
 
     ExecutionPlanCache IAstCacheable<ExecutionPlanCache>.GetOrCreateCache()
     {
-        return AstCache.GetOrCreate(ref _cachedExecutionPlan, this,
-            static function => ExecutionPlanCache.Build(function), out _);
+        var cache = AstCache.GetOrCreate(
+            ref _cachedExecutionPlan,
+            this,
+            static function => ExecutionPlanCache.Build(function),
+            out var created);
+        if (!created)
+        {
+            ExecutionPlanDiagnostics.ReportFunctionCacheHit();
+        }
+
+        return cache;
     }
 
     FunctionParameterNamesPlan IAstCacheable<FunctionParameterNamesPlan>.GetOrCreateCache()

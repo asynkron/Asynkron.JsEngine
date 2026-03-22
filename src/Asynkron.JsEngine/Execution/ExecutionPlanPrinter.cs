@@ -327,6 +327,10 @@ internal static class ExecutionPlanPrinter
         return op switch
         {
             LoadLiteralExpressionOp literal => literal.Value.ToString() ?? "null",
+            LoadFunctionLiteralExpressionOp loadFunction =>
+                loadFunction.Function.Name is { } functionName ? $"fn:{functionName.Name}" : "fn",
+            LoadClassLiteralExpressionOp loadClass =>
+                loadClass.Class.Name is { } className ? $"class:{className.Name}" : "class",
             LoadTemplateObjectExpressionOp => "template",
             LoadIdentifierExpressionOp identifier => identifier.Name.Name,
             StoreIdentifierExpressionOp identifier => $"store.{identifier.Name.Name}",
@@ -345,6 +349,16 @@ internal static class ExecutionPlanPrinter
             CreateObjectExpressionOp => "obj{}",
             DefineObjectPropertyExpressionOp property => $"obj.{property.PropertyName}",
             DefineComputedObjectPropertyExpressionOp => "obj[]",
+            DefineObjectMethodExpressionOp method => $"obj.method:{method.PropertyName}",
+            DefineComputedObjectMethodExpressionOp => "obj.method[]",
+            DefineObjectAccessorExpressionOp accessor =>
+                accessor.AccessorKind == ObjectAccessorKind.Getter
+                    ? $"obj.get:{accessor.PropertyName}"
+                    : $"obj.set:{accessor.PropertyName}",
+            DefineComputedObjectAccessorExpressionOp accessor =>
+                accessor.AccessorKind == ObjectAccessorKind.Getter
+                    ? "obj.get[]"
+                    : "obj.set[]",
             ObjectSpreadExpressionOp => "obj.spread",
             GetNamedPropertyExpressionOp property => $".{property.PropertyName}",
             GetComputedPropertyExpressionOp => "[]",
@@ -377,6 +391,7 @@ internal static class ExecutionPlanPrinter
             PopExpressionOp => "pop",
             JumpExpressionOp jump => $"jmp:{jump.Target}",
             JumpIfNullishExpressionOp jumpIfNullish => $"jmpN:{jumpIfNullish.Target}",
+            JumpIfShortCircuitedExpressionOp jumpIfShortCircuited => $"jmpS:{jumpIfShortCircuited.Target}",
             JumpIfTrueExpressionOp jumpIfTrue => $"jmpT:{jumpIfTrue.Target}",
             JumpIfFalseExpressionOp jumpIfFalse => $"jmpF:{jumpIfFalse.Target}",
             JumpIfNotNullishExpressionOp jumpIfNotNullish => $"jmpNN:{jumpIfNotNullish.Target}",

@@ -200,13 +200,13 @@ try {
             ? BaseRealmSnapshot.Instance.Value.CreateEngine(new JsEngineOptions
             {
                 Logger = logger,
-                AllowScriptSlotAnalysis = false,
+                AllowScriptSlotAnalysis = true,
                 DebugMode = debugMode,
             })
             : new JsEngine(new JsEngineOptions
             {
                 Logger = logger,
-                AllowScriptSlotAnalysis = false,
+                AllowScriptSlotAnalysis = true,
                 DebugMode = debugMode,
             });
 

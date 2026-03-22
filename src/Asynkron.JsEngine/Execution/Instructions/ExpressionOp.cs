@@ -6,6 +6,8 @@ namespace Asynkron.JsEngine.Execution.Instructions;
 internal enum ExpressionOpKind : byte
 {
     LoadLiteral,
+    LoadFunctionLiteral,
+    LoadClassLiteral,
     LoadIdentifier,
     LoadTemplateObject,
     StoreIdentifier,
@@ -24,6 +26,10 @@ internal enum ExpressionOpKind : byte
     CreateObject,
     DefineObjectProperty,
     DefineComputedObjectProperty,
+    DefineObjectMethod,
+    DefineComputedObjectMethod,
+    DefineObjectAccessor,
+    DefineComputedObjectAccessor,
     ObjectSpread,
     GetNamedProperty,
     GetComputedProperty,
@@ -47,6 +53,7 @@ internal enum ExpressionOpKind : byte
     Pop,
     Jump,
     JumpIfNullish,
+    JumpIfShortCircuited,
     JumpIfTrue,
     JumpIfFalse,
     JumpIfNotNullish,
@@ -65,6 +72,12 @@ internal readonly record struct ExpressionProgram(ImmutableArray<ExpressionOp> O
 
 internal abstract record ExpressionOp(ExpressionOpKind Kind);
 
+internal enum ObjectAccessorKind : byte
+{
+    Getter,
+    Setter
+}
+
 internal sealed class TaggedTemplateDescriptor
 {
     public TaggedTemplateDescriptor(
@@ -82,6 +95,14 @@ internal sealed class TaggedTemplateDescriptor
 
 internal sealed record LoadLiteralExpressionOp(JsValue Value)
     : ExpressionOp(ExpressionOpKind.LoadLiteral);
+
+internal sealed record LoadFunctionLiteralExpressionOp(
+    FunctionExpression Function,
+    bool IsConstructorFunction = true)
+    : ExpressionOp(ExpressionOpKind.LoadFunctionLiteral);
+
+internal sealed record LoadClassLiteralExpressionOp(ClassExpression Class)
+    : ExpressionOp(ExpressionOpKind.LoadClassLiteral);
 
 internal sealed record LoadTemplateObjectExpressionOp(TaggedTemplateDescriptor Descriptor)
     : ExpressionOp(ExpressionOpKind.LoadTemplateObject);
@@ -146,6 +167,18 @@ internal sealed record DefineObjectPropertyExpressionOp(string PropertyName, boo
 
 internal sealed record DefineComputedObjectPropertyExpressionOp()
     : ExpressionOp(ExpressionOpKind.DefineComputedObjectProperty);
+
+internal sealed record DefineObjectMethodExpressionOp(string PropertyName)
+    : ExpressionOp(ExpressionOpKind.DefineObjectMethod);
+
+internal sealed record DefineComputedObjectMethodExpressionOp()
+    : ExpressionOp(ExpressionOpKind.DefineComputedObjectMethod);
+
+internal sealed record DefineObjectAccessorExpressionOp(string PropertyName, ObjectAccessorKind AccessorKind)
+    : ExpressionOp(ExpressionOpKind.DefineObjectAccessor);
+
+internal sealed record DefineComputedObjectAccessorExpressionOp(ObjectAccessorKind AccessorKind)
+    : ExpressionOp(ExpressionOpKind.DefineComputedObjectAccessor);
 
 internal sealed record ObjectSpreadExpressionOp()
     : ExpressionOp(ExpressionOpKind.ObjectSpread);
@@ -235,6 +268,9 @@ internal sealed record JumpExpressionOp(int Target)
 
 internal sealed record JumpIfNullishExpressionOp(int Target, bool ReplaceWithUndefined = false)
     : ExpressionOp(ExpressionOpKind.JumpIfNullish);
+
+internal sealed record JumpIfShortCircuitedExpressionOp(int Target)
+    : ExpressionOp(ExpressionOpKind.JumpIfShortCircuited);
 
 internal sealed record JumpIfTrueExpressionOp(int Target)
     : ExpressionOp(ExpressionOpKind.JumpIfTrue);

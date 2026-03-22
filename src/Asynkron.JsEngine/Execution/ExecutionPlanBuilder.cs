@@ -35,6 +35,7 @@ internal sealed partial class ExecutionPlanBuilder
     private readonly List<Symbol> _slotSymbols = [];
     private int _catchSlotCounter;
     private ExecutionPlanFailureCode? _failureCode;
+    private ExpressionProgramFailureCode? _expressionFailureCode;
     private string? _failureReason;
     private int _analysisRootScopeId;
     private Dictionary<int, ImmutableHashSet<Symbol>> _lexicalBindings = new();
@@ -112,7 +113,8 @@ internal sealed partial class ExecutionPlanBuilder
             ? ExecutionPlanBuildResult.Success(plan)
             : ExecutionPlanBuildResult.FailureResult(
                 builder._failureCode ?? ExecutionPlanFailureCode.UnsupportedConstruct,
-                builder._failureReason ?? lowerFailure ?? "Function contains unsupported construct for execution plan.");
+                builder._failureReason ?? lowerFailure ?? "Function contains unsupported construct for execution plan.",
+                builder._expressionFailureCode);
 
         if (reportDiagnostics)
         {
@@ -538,9 +540,11 @@ internal sealed partial class ExecutionPlanBuilder
 
         bool FailExpressionProgram(string instructionName, ExpressionNode expression, string? failureReason)
         {
+            var classifiedFailure = ExpressionProgramCompiler.ClassifyFailure(expression, failureReason);
             _failureCode ??= ExecutionPlanFailureCode.UnsupportedExpressionProgram;
+            _expressionFailureCode ??= classifiedFailure.Code;
             _failureReason ??=
-                $"{instructionName} could not lower expression '{expression.GetType().Name}' to bytecode: {failureReason ?? "unknown reason"}.";
+                $"{instructionName} could not lower expression '{expression.GetType().Name}' to bytecode [{classifiedFailure.Code}]: {classifiedFailure.Detail}.";
             return false;
         }
 

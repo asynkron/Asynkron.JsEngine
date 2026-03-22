@@ -183,6 +183,8 @@ public static partial class TypedAstEvaluator
             var stackSize = Math.Max(16, operationCount);
             var rentedStack = ArrayPool<JsValue>.Shared.Rent(stackSize);
             var stack = rentedStack.AsSpan(0, stackSize);
+            var rentedFlags = ArrayPool<bool>.Shared.Rent(stackSize);
+            var stackFlags = rentedFlags.AsSpan(0, stackSize);
             var stackIndex = 0;
             var programCounter = 0;
 
@@ -194,27 +196,51 @@ public static partial class TypedAstEvaluator
                     {
                         case LoadLiteralExpressionOp loadLiteral:
                             stack[stackIndex++] = loadLiteral.Value;
+                            stackFlags[stackIndex - 1] = false;
+                            programCounter++;
+                            break;
+
+                        case LoadFunctionLiteralExpressionOp loadFunction:
+                            stack[stackIndex++] = JsValue.FromObjectUnsafe(
+                                loadFunction.Function.CreateFunctionValue(
+                                    environment,
+                                    context,
+                                    loadFunction.IsConstructorFunction));
+                            stackFlags[stackIndex - 1] = false;
+                            programCounter++;
+                            break;
+
+                        case LoadClassLiteralExpressionOp loadClass:
+                            stack[stackIndex++] = loadClass.Class.Definition.CreateClassValue(
+                                environment,
+                                context,
+                                loadClass.Class.Name ?? context.CurrentFunctionNameHint);
+                            stackFlags[stackIndex - 1] = false;
                             programCounter++;
                             break;
 
                         case LoadTemplateObjectExpressionOp loadTemplateObject:
                             stack[stackIndex++] = JsValue.FromJsArray(
                                 GetOrCreateProgramTemplateObject(loadTemplateObject.Descriptor, context));
+                            stackFlags[stackIndex - 1] = false;
                             programCounter++;
                             break;
 
                         case LoadIdentifierExpressionOp loadIdentifier:
                             stack[stackIndex++] = EvaluateProgramIdentifier(loadIdentifier, environment, context);
+                            stackFlags[stackIndex - 1] = false;
                             programCounter++;
                             break;
 
                         case StoreIdentifierExpressionOp storeIdentifier:
                             ApplyProgramIdentifierAssignment(storeIdentifier, stack[stackIndex - 1], environment, context);
+                            stackFlags[stackIndex - 1] = false;
                             programCounter++;
                             break;
 
                         case DuplicateTopExpressionOp:
                             stack[stackIndex] = stack[stackIndex - 1];
+                            stackFlags[stackIndex] = stackFlags[stackIndex - 1];
                             stackIndex++;
                             programCounter++;
                             break;
@@ -222,6 +248,8 @@ public static partial class TypedAstEvaluator
                         case DuplicateTopTwoExpressionOp:
                             stack[stackIndex] = stack[stackIndex - 2];
                             stack[stackIndex + 1] = stack[stackIndex - 1];
+                            stackFlags[stackIndex] = stackFlags[stackIndex - 2];
+                            stackFlags[stackIndex + 1] = stackFlags[stackIndex - 1];
                             stackIndex += 2;
                             programCounter++;
                             break;
@@ -229,22 +257,28 @@ public static partial class TypedAstEvaluator
                         case SwapTopTwoExpressionOp:
                             (stack[stackIndex - 1], stack[stackIndex - 2]) =
                                 (stack[stackIndex - 2], stack[stackIndex - 1]);
+                            (stackFlags[stackIndex - 1], stackFlags[stackIndex - 2]) =
+                                (stackFlags[stackIndex - 2], stackFlags[stackIndex - 1]);
                             programCounter++;
                             break;
 
                         case RotateTopThreeRightExpressionOp:
                             (stack[stackIndex - 1], stack[stackIndex - 2], stack[stackIndex - 3]) =
                                 (stack[stackIndex - 2], stack[stackIndex - 3], stack[stackIndex - 1]);
+                            (stackFlags[stackIndex - 1], stackFlags[stackIndex - 2], stackFlags[stackIndex - 3]) =
+                                (stackFlags[stackIndex - 2], stackFlags[stackIndex - 3], stackFlags[stackIndex - 1]);
                             programCounter++;
                             break;
 
                         case LoadThisExpressionOp:
                             stack[stackIndex++] = _thisValue;
+                            stackFlags[stackIndex - 1] = false;
                             programCounter++;
                             break;
 
                         case LoadNewTargetExpressionOp:
                             stack[stackIndex++] = _newTarget.IsUndefined ? JsValue.Undefined : _newTarget;
+                            stackFlags[stackIndex - 1] = false;
                             programCounter++;
                             break;
 
@@ -253,9 +287,12 @@ public static partial class TypedAstEvaluator
                                 var target = stack[stackIndex - 1];
                                 var callee = GetProgramNamedPropertyValue(
                                     target,
+                                    stackFlags[stackIndex - 1],
                                     new GetNamedPropertyExpressionOp(namedCallTarget.PropertyName),
-                                    context);
+                                    context,
+                                    out var calleeWasShortCircuited);
                                 stack[stackIndex++] = callee;
+                                stackFlags[stackIndex - 1] = calleeWasShortCircuited;
                                 programCounter++;
                                 break;
                             }
@@ -266,16 +303,20 @@ public static partial class TypedAstEvaluator
                                 var target = stack[stackIndex - 1];
                                 var callee = GetProgramComputedPropertyValue(
                                     target,
+                                    stackFlags[stackIndex - 1],
                                     propertyKey,
                                     new GetComputedPropertyExpressionOp(),
-                                    context);
+                                    context,
+                                    out var calleeWasShortCircuited);
                                 stack[stackIndex++] = callee;
+                                stackFlags[stackIndex - 1] = calleeWasShortCircuited;
                                 programCounter++;
                                 break;
                             }
 
                         case CreateArrayExpressionOp:
                             stack[stackIndex++] = JsValue.FromJsArray(new JsArray(context.RealmState));
+                            stackFlags[stackIndex - 1] = false;
                             programCounter++;
                             break;
 
@@ -333,6 +374,7 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 stack[stackIndex++] = JsValue.FromJsObject(targetObject);
+                                stackFlags[stackIndex - 1] = false;
                                 programCounter++;
                                 break;
                             }
@@ -366,6 +408,73 @@ public static partial class TypedAstEvaluator
                                 break;
                             }
 
+                        case DefineObjectMethodExpressionOp defineMethod:
+                            {
+                                var methodValue = stack[--stackIndex];
+                                if (!stack[stackIndex - 1].TryGetObject<JsObject>(out var targetObject))
+                                {
+                                    throw new InvalidOperationException(
+                                        "Object method expression op requires an object receiver.");
+                                }
+
+                                DefineObjectLiteralMethod(targetObject, defineMethod.PropertyName, methodValue);
+                                programCounter++;
+                                break;
+                            }
+
+                        case DefineComputedObjectMethodExpressionOp:
+                            {
+                                var methodValue = stack[--stackIndex];
+                                var propertyKey = stack[--stackIndex];
+                                if (!stack[stackIndex - 1].TryGetObject<JsObject>(out var targetObject))
+                                {
+                                    throw new InvalidOperationException(
+                                        "Computed object method expression op requires an object receiver.");
+                                }
+
+                                DefineComputedObjectLiteralMethod(targetObject, propertyKey, methodValue, context);
+                                programCounter++;
+                                break;
+                            }
+
+                        case DefineObjectAccessorExpressionOp defineAccessor:
+                            {
+                                var accessorValue = stack[--stackIndex];
+                                if (!stack[stackIndex - 1].TryGetObject<JsObject>(out var targetObject))
+                                {
+                                    throw new InvalidOperationException(
+                                        "Object accessor expression op requires an object receiver.");
+                                }
+
+                                DefineObjectLiteralAccessor(
+                                    targetObject,
+                                    defineAccessor.PropertyName,
+                                    defineAccessor.AccessorKind,
+                                    accessorValue);
+                                programCounter++;
+                                break;
+                            }
+
+                        case DefineComputedObjectAccessorExpressionOp defineComputedAccessor:
+                            {
+                                var accessorValue = stack[--stackIndex];
+                                var propertyKey = stack[--stackIndex];
+                                if (!stack[stackIndex - 1].TryGetObject<JsObject>(out var targetObject))
+                                {
+                                    throw new InvalidOperationException(
+                                        "Computed object accessor expression op requires an object receiver.");
+                                }
+
+                                DefineComputedObjectLiteralAccessor(
+                                    targetObject,
+                                    propertyKey,
+                                    defineComputedAccessor.AccessorKind,
+                                    accessorValue,
+                                    context);
+                                programCounter++;
+                                break;
+                            }
+
                         case ObjectSpreadExpressionOp:
                             {
                                 var spreadValue = stack[--stackIndex];
@@ -383,8 +492,10 @@ public static partial class TypedAstEvaluator
                         case GetNamedPropertyExpressionOp namedProperty:
                             stack[stackIndex - 1] = GetProgramNamedPropertyValue(
                                 stack[stackIndex - 1],
+                                stackFlags[stackIndex - 1],
                                 namedProperty,
-                                context);
+                                context,
+                                out stackFlags[stackIndex - 1]);
                             programCounter++;
                             break;
 
@@ -394,9 +505,11 @@ public static partial class TypedAstEvaluator
                                 var target = stack[stackIndex - 1];
                                 stack[stackIndex - 1] = GetProgramComputedPropertyValue(
                                     target,
+                                    stackFlags[stackIndex - 1],
                                     propertyKey,
                                     computedProperty,
-                                    context);
+                                    context,
+                                    out stackFlags[stackIndex - 1]);
                                 programCounter++;
                                 break;
                             }
@@ -407,6 +520,7 @@ public static partial class TypedAstEvaluator
                                 var target = stack[stackIndex - 1];
                                 ApplyProgramNamedPropertyAssignment(target, namedAssignment, propertyValue, context);
                                 stack[stackIndex - 1] = propertyValue;
+                                stackFlags[stackIndex - 1] = false;
                                 programCounter++;
                                 break;
                             }
@@ -423,6 +537,7 @@ public static partial class TypedAstEvaluator
                                     propertyValue,
                                     context);
                                 stack[stackIndex - 1] = propertyValue;
+                                stackFlags[stackIndex - 1] = false;
                                 programCounter++;
                                 break;
                             }
@@ -432,6 +547,7 @@ public static partial class TypedAstEvaluator
                                 updateIdentifier,
                                 environment,
                                 context);
+                            stackFlags[stackIndex - 1] = false;
                             programCounter++;
                             break;
 
@@ -440,6 +556,7 @@ public static partial class TypedAstEvaluator
                                 stack[stackIndex - 1],
                                 updateNamedProperty,
                                 context);
+                            stackFlags[stackIndex - 1] = false;
                             programCounter++;
                             break;
 
@@ -452,12 +569,14 @@ public static partial class TypedAstEvaluator
                                     propertyKey,
                                     updateComputedProperty,
                                     context);
+                                stackFlags[stackIndex - 1] = false;
                                 programCounter++;
                                 break;
                             }
 
                         case TypeOfExpressionOp:
                             stack[stackIndex - 1] = new JsValue(GetTypeofStringValue(stack[stackIndex - 1]));
+                            stackFlags[stackIndex - 1] = false;
                             programCounter++;
                             break;
 
@@ -466,6 +585,7 @@ public static partial class TypedAstEvaluator
                                 typeofIdentifier,
                                 environment,
                                 context);
+                            stackFlags[stackIndex - 1] = false;
                             programCounter++;
                             break;
 
@@ -476,6 +596,7 @@ public static partial class TypedAstEvaluator
                                 context)
                                 ? JsValue.True
                                 : JsValue.False;
+                            stackFlags[stackIndex - 1] = false;
                             programCounter++;
                             break;
 
@@ -486,6 +607,7 @@ public static partial class TypedAstEvaluator
                                 context)
                                 ? JsValue.True
                                 : JsValue.False;
+                            stackFlags[stackIndex - 1] = false;
                             programCounter++;
                             break;
 
@@ -499,6 +621,7 @@ public static partial class TypedAstEvaluator
                                     context)
                                     ? JsValue.True
                                     : JsValue.False;
+                                stackFlags[stackIndex - 1] = false;
                                 programCounter++;
                                 break;
                             }
@@ -511,32 +634,38 @@ public static partial class TypedAstEvaluator
                                         "Cannot convert a BigInt value to a number",
                                         context)
                                     : new JsValue(ToNumberValue(operand, context));
+                                stackFlags[stackIndex - 1] = false;
                                 programCounter++;
                                 break;
                             }
 
                         case UnaryMinusExpressionOp:
                             stack[stackIndex - 1] = NegateValue(stack[stackIndex - 1], context);
+                            stackFlags[stackIndex - 1] = false;
                             programCounter++;
                             break;
 
                         case UnaryBitwiseNotExpressionOp:
                             stack[stackIndex - 1] = BitwiseNotValue(stack[stackIndex - 1], context);
+                            stackFlags[stackIndex - 1] = false;
                             programCounter++;
                             break;
 
                         case UnaryVoidExpressionOp:
                             stack[stackIndex - 1] = JsValue.Undefined;
+                            stackFlags[stackIndex - 1] = false;
                             programCounter++;
                             break;
 
                         case ToStringExpressionOp:
                             stack[stackIndex - 1] = new JsValue(JsOps.ToJsString(stack[stackIndex - 1], context));
+                            stackFlags[stackIndex - 1] = false;
                             programCounter++;
                             break;
 
                         case UnaryLogicalNotExpressionOp:
                             stack[stackIndex - 1] = stack[stackIndex - 1].IsTruthy ? JsValue.False : JsValue.True;
+                            stackFlags[stackIndex - 1] = false;
                             programCounter++;
                             break;
 
@@ -554,6 +683,7 @@ public static partial class TypedAstEvaluator
                                             ProfileBranchCompare(binary.Operator, left, right, context),
                                         _ => ProfileApplyBinaryOperator(binary.Operator, left, right, context)
                                     };
+                                stackFlags[stackIndex - 1] = false;
                                 programCounter++;
                                 break;
                             }
@@ -568,11 +698,12 @@ public static partial class TypedAstEvaluator
                             break;
 
                         case JumpIfNullishExpressionOp jumpIfNullish:
-                            if (stack[stackIndex - 1].IsNullish)
+                            if (stackFlags[stackIndex - 1] || stack[stackIndex - 1].IsNullish)
                             {
                                 if (jumpIfNullish.ReplaceWithUndefined)
                                 {
                                     stack[stackIndex - 1] = JsValue.Undefined;
+                                    stackFlags[stackIndex - 1] = true;
                                 }
 
                                 programCounter = jumpIfNullish.Target;
@@ -581,6 +712,12 @@ public static partial class TypedAstEvaluator
                             {
                                 programCounter++;
                             }
+                            break;
+
+                        case JumpIfShortCircuitedExpressionOp jumpIfShortCircuited:
+                            programCounter = stackFlags[stackIndex - 1]
+                                ? jumpIfShortCircuited.Target
+                                : programCounter + 1;
                             break;
 
                         case JumpIfTrueExpressionOp jumpIfTrue:
@@ -605,6 +742,7 @@ public static partial class TypedAstEvaluator
                             stackIndex = ExecuteProgramCall(
                                 call,
                                 stack,
+                                stackFlags,
                                 stackIndex,
                                 environment,
                                 context);
@@ -615,6 +753,7 @@ public static partial class TypedAstEvaluator
                             stackIndex = ExecuteProgramConstruct(
                                 construct,
                                 stack,
+                                stackFlags,
                                 stackIndex,
                                 context);
                             programCounter++;
@@ -627,15 +766,20 @@ public static partial class TypedAstEvaluator
 
                     if (context.ShouldStopEvaluation)
                     {
-                        return stackIndex > 0 ? stack[stackIndex - 1] : JsValue.Undefined;
+                        return stackIndex > 0
+                            ? stackFlags[stackIndex - 1] ? JsValue.Undefined : stack[stackIndex - 1]
+                            : JsValue.Undefined;
                     }
                 }
 
-                return stackIndex > 0 ? stack[stackIndex - 1] : JsValue.Undefined;
+                return stackIndex > 0
+                    ? stackFlags[stackIndex - 1] ? JsValue.Undefined : stack[stackIndex - 1]
+                    : JsValue.Undefined;
             }
             finally
             {
                 ArrayPool<JsValue>.Shared.Return(rentedStack, clearArray: true);
+                ArrayPool<bool>.Shared.Return(rentedFlags, clearArray: true);
             }
         }
 
@@ -757,8 +901,10 @@ public static partial class TypedAstEvaluator
         {
             var currentValue = GetProgramNamedPropertyValue(
                 target,
+                targetWasShortCircuited: false,
                 new GetNamedPropertyExpressionOp(update.PropertyName),
-                context);
+                context,
+                out _);
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;
@@ -787,9 +933,11 @@ public static partial class TypedAstEvaluator
         {
             var currentValue = GetProgramComputedPropertyValue(
                 target,
+                targetWasShortCircuited: false,
                 propertyKey,
                 new GetComputedPropertyExpressionOp(),
-                context);
+                context,
+                out _);
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;
@@ -969,6 +1117,112 @@ public static partial class TypedAstEvaluator
                 });
         }
 
+        private static void DefineObjectLiteralMethod(
+            JsObject targetObject,
+            string propertyName,
+            JsValue methodValue)
+        {
+            ConfigureObjectLiteralCallable(targetObject, propertyName, methodValue, accessorKind: null);
+            targetObject.DefineProperty(propertyName,
+                new PropertyDescriptor
+                {
+                    JsValue = methodValue,
+                    Writable = true,
+                    Enumerable = true,
+                    Configurable = true
+                });
+        }
+
+        private static void DefineComputedObjectLiteralMethod(
+            JsObject targetObject,
+            JsValue propertyKey,
+            JsValue methodValue,
+            EvaluationContext context)
+        {
+            var propertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return;
+            }
+
+            DefineObjectLiteralMethod(targetObject, propertyName, methodValue);
+        }
+
+        private static void DefineObjectLiteralAccessor(
+            JsObject targetObject,
+            string propertyName,
+            ObjectAccessorKind accessorKind,
+            JsValue accessorValue)
+        {
+            var callable = ConfigureObjectLiteralCallable(
+                targetObject,
+                propertyName,
+                accessorValue,
+                accessorKind);
+
+            targetObject.DefineAccessorProperty(
+                propertyName,
+                accessorKind == ObjectAccessorKind.Getter ? callable : null,
+                accessorKind == ObjectAccessorKind.Setter ? callable : null);
+        }
+
+        private static void DefineComputedObjectLiteralAccessor(
+            JsObject targetObject,
+            JsValue propertyKey,
+            ObjectAccessorKind accessorKind,
+            JsValue accessorValue,
+            EvaluationContext context)
+        {
+            var propertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return;
+            }
+
+            DefineObjectLiteralAccessor(targetObject, propertyName, accessorKind, accessorValue);
+        }
+
+        private static IJsCallable ConfigureObjectLiteralCallable(
+            JsObject targetObject,
+            string propertyName,
+            JsValue callableValue,
+            ObjectAccessorKind? accessorKind)
+        {
+            if (!callableValue.TryGetObject<IJsCallable>(out var callable))
+            {
+                throw new InvalidOperationException("Object literal function members require a callable value.");
+            }
+
+            switch (callable)
+            {
+                case SyncFunctionInvoker typed:
+                    typed.SetHomeObject(targetObject);
+                    typed.DisableConstruction();
+                    break;
+                case SyncGeneratorInvoker generatorFactory:
+                    generatorFactory.SetHomeObject(targetObject);
+                    generatorFactory.DisableConstruction();
+                    break;
+                case AsyncGeneratorFunctionInvoker asyncGeneratorFactory:
+                    asyncGeneratorFactory.SetHomeObject(targetObject);
+                    asyncGeneratorFactory.DisableConstruction();
+                    break;
+            }
+
+            if (callable is IFunctionNameTarget nameTarget)
+            {
+                var displayName = accessorKind switch
+                {
+                    ObjectAccessorKind.Getter => $"get {propertyName.BuildFunctionNameDisplay()}",
+                    ObjectAccessorKind.Setter => $"set {propertyName.BuildFunctionNameDisplay()}",
+                    _ => propertyName.BuildFunctionNameDisplay()
+                };
+                nameTarget.EnsureHasName(displayName);
+            }
+
+            return callable;
+        }
+
         private static void ApplyObjectLiteralSpread(
             JsObject targetObject,
             JsValue spreadValue,
@@ -1045,16 +1299,20 @@ public static partial class TypedAstEvaluator
 
         private static JsValue GetProgramNamedPropertyValue(
             JsValue target,
+            bool targetWasShortCircuited,
             GetNamedPropertyExpressionOp propertyOp,
-            EvaluationContext context)
+            EvaluationContext context,
+            out bool resultWasShortCircuited)
         {
-            if (propertyOp.IsOptional && target.IsNullOrUndefined)
+            if (targetWasShortCircuited)
             {
+                resultWasShortCircuited = true;
                 return JsValue.Undefined;
             }
 
-            if (propertyOp.ShortCircuitOnNullishTarget && target.IsNullOrUndefined)
+            if (propertyOp.IsOptional && target.IsNullOrUndefined)
             {
+                resultWasShortCircuited = true;
                 return JsValue.Undefined;
             }
 
@@ -1065,9 +1323,11 @@ public static partial class TypedAstEvaluator
                     context,
                     context.RealmState);
                 context.SetThrow(error);
+                resultWasShortCircuited = false;
                 return JsValue.Undefined;
             }
 
+            resultWasShortCircuited = false;
             if (!propertyOp.PropertyName.IsPrivateName())
             {
                 return JsOps.TryGetPropertyValue(target, propertyOp.PropertyName, out var directValue, context)
@@ -1086,12 +1346,15 @@ public static partial class TypedAstEvaluator
 
         private static JsValue GetProgramComputedPropertyValue(
             JsValue target,
+            bool targetWasShortCircuited,
             JsValue propertyKey,
             GetComputedPropertyExpressionOp propertyOp,
-            EvaluationContext context)
+            EvaluationContext context,
+            out bool resultWasShortCircuited)
         {
-            if (propertyOp.ShortCircuitOnNullishTarget && target.IsNullOrUndefined)
+            if (targetWasShortCircuited)
             {
+                resultWasShortCircuited = true;
                 return JsValue.Undefined;
             }
 
@@ -1102,9 +1365,11 @@ public static partial class TypedAstEvaluator
                     context,
                     context.RealmState);
                 context.SetThrow(error);
+                resultWasShortCircuited = false;
                 return JsValue.Undefined;
             }
 
+            resultWasShortCircuited = false;
             return JsOps.TryGetPropertyValueJsValue(target, propertyKey, out var directValue, context)
                 ? directValue
                 : JsValue.Undefined;
@@ -1152,6 +1417,7 @@ public static partial class TypedAstEvaluator
         private int ExecuteProgramCall(
             CallExpressionOp call,
             Span<JsValue> stack,
+            Span<bool> stackFlags,
             int stackIndex,
             JsEnvironment environment,
             EvaluationContext context)
@@ -1170,6 +1436,7 @@ public static partial class TypedAstEvaluator
                     context.RealmState);
                 context.SetThrow(error);
                 stack[baseIndex] = JsValue.Undefined;
+                stackFlags[baseIndex] = false;
                 return baseIndex + 1;
             }
 
@@ -1181,6 +1448,7 @@ public static partial class TypedAstEvaluator
                     context.RealmState);
                 context.SetThrow(error);
                 stack[baseIndex] = JsValue.Undefined;
+                stackFlags[baseIndex] = false;
                 return baseIndex + 1;
             }
 
@@ -1272,12 +1540,14 @@ public static partial class TypedAstEvaluator
             }
 
             stack[baseIndex] = result;
+            stackFlags[baseIndex] = false;
             return baseIndex + 1;
         }
 
         private int ExecuteProgramConstruct(
             ConstructExpressionOp construct,
             Span<JsValue> stack,
+            Span<bool> stackFlags,
             int stackIndex,
             EvaluationContext context)
         {
@@ -1293,6 +1563,7 @@ public static partial class TypedAstEvaluator
                     context.RealmState);
                 context.SetThrow(error);
                 stack[constructorIndex] = JsValue.Undefined;
+                stackFlags[constructorIndex] = false;
                 return constructorIndex + 1;
             }
 
@@ -1313,11 +1584,13 @@ public static partial class TypedAstEvaluator
                     arguments,
                     callable,
                     context.RealmState);
+                stackFlags[constructorIndex] = false;
             }
             catch (ThrowSignal signal)
             {
                 context.SetThrow(signal.ThrownValue);
                 stack[constructorIndex] = signal.ThrownValue;
+                stackFlags[constructorIndex] = false;
             }
             finally
             {

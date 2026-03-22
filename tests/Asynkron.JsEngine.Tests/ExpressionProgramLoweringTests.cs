@@ -437,6 +437,37 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ReturnInstruction_NestedOptionalMemberCallTarget_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function maybeNestedCall(box, value) {
+                return box?.inner.read(value);
+            }
+            """, "maybeNestedCall");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>().Where(i => i.ReturnProgram is not null));
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<JumpIfShortCircuitedExpressionOp>(instruction.ReturnProgram);
+        AssertProgramContains<LoadNamedCallTargetExpressionOp>(instruction.ReturnProgram, op => op.PropertyName == "read");
+        AssertProgramContains<CallExpressionOp>(instruction.ReturnProgram, op => op.ArgumentCount == 1 && op.HasExplicitThis);
+    }
+
+    [Fact]
+    public async Task ReturnInstruction_NestedOptionalCallExpression_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function maybeInvoke(factory) {
+                return factory?.()();
+            }
+            """, "maybeInvoke");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>().Where(i => i.ReturnProgram is not null));
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<JumpIfShortCircuitedExpressionOp>(instruction.ReturnProgram);
+        Assert.Equal(2, instruction.ReturnProgram!.Value.Operations.OfType<CallExpressionOp>().Count());
+    }
+
+    [Fact]
     public async Task ReturnInstruction_NewExpression_IsLoweredToExpressionProgram()
     {
         var plan = await GetFunctionPlan("""
@@ -973,6 +1004,96 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
 
         var pushInstruction = Assert.Single(plan.Instructions.OfType<PushEnvironmentInstruction>());
         Assert.Null(pushInstruction.SourceBlock);
+    }
+
+    [Fact]
+    public async Task SimpleVariableDeclaration_AnonymousFunctionInitializer_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function makeAdder() {
+                const add = function(value) { return value + 1; };
+                return add;
+            }
+            """, "makeAdder");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<SimpleVariableDeclarationInstruction>()
+            .Where(i => i.TargetSymbol.Name == "add"));
+        Assert.Null(instruction.Initializer);
+        AssertProgramContains<LoadFunctionLiteralExpressionOp>(instruction.InitializerProgram);
+    }
+
+    [Fact]
+    public async Task SimpleVariableDeclaration_AnonymousClassInitializer_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function makeBox() {
+                const Box = class { value() { return 42; } };
+                return Box;
+            }
+            """, "makeBox");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<SimpleVariableDeclarationInstruction>()
+            .Where(i => i.TargetSymbol.Name == "Box"));
+        Assert.Null(instruction.Initializer);
+        AssertProgramContains<LoadClassLiteralExpressionOp>(instruction.InitializerProgram);
+    }
+
+    [Fact]
+    public async Task SimpleVariableDeclaration_ObjectMethodLiteral_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function makeObject() {
+                const obj = { value() { return 42; } };
+                return obj;
+            }
+            """, "makeObject");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<SimpleVariableDeclarationInstruction>()
+            .Where(i => i.TargetSymbol.Name == "obj"));
+        Assert.Null(instruction.Initializer);
+        AssertProgramContains<DefineObjectMethodExpressionOp>(instruction.InitializerProgram, op => op.PropertyName == "value");
+    }
+
+    [Fact]
+    public async Task SimpleVariableDeclaration_ObjectAccessors_AreLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function makeObject() {
+                const obj = {
+                    get value() { return 42; },
+                    set value(next) { this._value = next; }
+                };
+                return obj;
+            }
+            """, "makeObject");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<SimpleVariableDeclarationInstruction>()
+            .Where(i => i.TargetSymbol.Name == "obj"));
+        Assert.Null(instruction.Initializer);
+        Assert.Equal(
+            2,
+            instruction.InitializerProgram!.Value.Operations.OfType<DefineObjectAccessorExpressionOp>().Count());
+    }
+
+    [Fact]
+    public async Task ScriptExpressionStatement_ImmutableIdentifierAssignment_StillBuildsIrPlan()
+    {
+        var program = _engine.ParseProgram("""
+            const value = 1;
+            value = 2;
+            """);
+
+        await Assert.ThrowsAnyAsync<Exception>(async () => await _engine.Evaluate(program));
+
+        var cache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Script plan should build. Failure: {cache.FailureReason}");
+
+        var assignment = Assert.Single(cache.Plan!.Instructions.OfType<EvaluateAndDiscardInstruction>()
+            .Where(i => i.ExpressionOps is not null));
+        Assert.Null(assignment.Expression);
+        AssertProgramContains<StoreIdentifierExpressionOp>(
+            new ExpressionProgram(assignment.ExpressionOps!.Value),
+            op => op.Name.Name == "value");
     }
 
     private async Task<ExecutionPlan> GetFunctionPlan(string source, string functionName)

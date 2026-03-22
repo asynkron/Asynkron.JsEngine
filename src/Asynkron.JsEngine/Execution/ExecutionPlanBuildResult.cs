@@ -1,6 +1,7 @@
 #region
 
 using System.Collections.Immutable;
+using Asynkron.JsEngine.Execution.Instructions;
 
 #endregion
 
@@ -18,7 +19,10 @@ public enum ExecutionPlanFailureCode
     AstReentryDetected
 }
 
-internal sealed record ExecutionPlanBuildFailure(ExecutionPlanFailureCode Code, string Detail)
+internal sealed record ExecutionPlanBuildFailure(
+    ExecutionPlanFailureCode Code,
+    string Detail,
+    ExpressionProgramFailureCode? ExpressionFailureCode = null)
 {
     public override string ToString() => $"{Code}: {Detail}";
 }
@@ -44,9 +48,14 @@ internal sealed class ExecutionPlanBuildResult
         return new ExecutionPlanBuildResult(plan, null);
     }
 
-    public static ExecutionPlanBuildResult FailureResult(ExecutionPlanFailureCode code, string detail)
+    public static ExecutionPlanBuildResult FailureResult(
+        ExecutionPlanFailureCode code,
+        string detail,
+        ExpressionProgramFailureCode? expressionFailureCode = null)
     {
-        return new ExecutionPlanBuildResult(null, new ExecutionPlanBuildFailure(code, detail));
+        return new ExecutionPlanBuildResult(
+            null,
+            new ExecutionPlanBuildFailure(code, detail, expressionFailureCode));
     }
 }
 
@@ -56,6 +65,8 @@ public readonly record struct ExecutionPlanDiagnosticSnapshot(
     ExecutionPlanDiagnosticCounters Functions,
     ExecutionPlanDiagnosticCounters Scripts,
     ImmutableDictionary<ExecutionPlanFailureCode, int> FailureCodes,
+    ImmutableDictionary<ExpressionProgramFailureCode, int> ExpressionFailureCodes,
     ExecutionPlanFailureCode? LastFailureCode,
+    ExpressionProgramFailureCode? LastExpressionFailureCode,
     int FunctionCacheHits,
     int ScriptCacheHits);

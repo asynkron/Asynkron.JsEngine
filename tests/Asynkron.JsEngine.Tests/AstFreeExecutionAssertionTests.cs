@@ -144,28 +144,22 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
         }
     }
 
-    /// <summary>
-    /// Verifies that unsupported non-dynamic scripts now fail plan building with a clear node type.
-    /// </summary>
     [Fact]
-    public async Task AssertNoAstEvaluation_ErrorMessage_IncludesNodeType()
+    public async Task AssertNoAstEvaluation_Enabled_AllowsObjectMethodScriptExecution()
     {
-        // Arrange
         var originalValue = EvaluationContext.AssertNoAstEvaluation;
-        
+
         try
         {
             EvaluationContext.AssertNoAstEvaluation = true;
-            
-            var program = _engine.ParseProgram("({ value() { return 1; } });");
-            
-            // Act & Assert
-            var exception = await Assert.ThrowsAsync<NotSupportedException>(
-                async () => await _engine.Evaluate(program)
-            );
-            
-            Assert.Contains("IR plan generation failed for script", exception.Message);
-            Assert.Contains("ObjectExpression", exception.Message);
+
+            var program = _engine.ParseProgram("""
+                ({ value() { return 1; } }).value();
+                """);
+
+            var result = await _engine.Evaluate(program);
+
+            Assert.Equal(1.0, result);
         }
         finally
         {
@@ -173,11 +167,8 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
         }
     }
 
-    /// <summary>
-    /// Verifies that expression shapes still outside the bytecode layer fail plan building explicitly.
-    /// </summary>
     [Fact]
-    public async Task AssertNoAstEvaluation_Enabled_ThrowsOnComplexExpression()
+    public async Task AssertNoAstEvaluation_Enabled_AllowsObjectAccessorScriptExecution()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;
 
@@ -185,16 +176,17 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
         {
             EvaluationContext.AssertNoAstEvaluation = true;
 
-            var program = _engine.ParseProgram(@"
-                ({ value() { return 1; } });
-            ");
+            var program = _engine.ParseProgram("""
+                const obj = {
+                    get value() { return 42; },
+                    set value(next) { this._value = next; }
+                };
+                obj.value;
+                """);
 
-            var exception = await Assert.ThrowsAsync<NotSupportedException>(
-                async () => await _engine.Evaluate(program)
-            );
+            var result = await _engine.Evaluate(program);
 
-            Assert.Contains("IR plan generation failed for script", exception.Message);
-            Assert.Contains("ObjectExpression", exception.Message);
+            Assert.Equal(42.0, result);
         }
         finally
         {
@@ -692,6 +684,109 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
             Assert.Equal(42.0, invoked);
 
             var skipped = InvokeGlobalFunction("maybeCall", JsValue.FromJsObject(new JsObject()), new JsValue(41d));
+            Assert.True(skipped.IsUndefined);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsNestedOptionalMemberCallExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function read(value) {
+                    return value + 1;
+                }
+
+                function maybeNestedCall(box, value) {
+                    return box?.inner.read(value);
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            Assert.True(_engine.GlobalObject.TryGetProperty("read", out var readValue));
+            var innerObject = new JsObject();
+            innerObject["read"] = readValue;
+            var boxObject = new JsObject();
+            boxObject["inner"] = JsValue.FromJsObject(innerObject);
+
+            var invoked = InvokeGlobalFunction("maybeNestedCall", JsValue.FromJsObject(boxObject), new JsValue(41d));
+            Assert.Equal(42.0, invoked);
+
+            var skipped = InvokeGlobalFunction("maybeNestedCall", JsValue.Null, new JsValue(41d));
+            Assert.True(skipped.IsUndefined);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_NestedOptionalMemberCall_DoesNotHideRealUndefinedTargetErrors()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function maybeNestedCall(box, value) {
+                    return box?.inner.read(value);
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var boxObject = new JsObject();
+            boxObject["inner"] = JsValue.Undefined;
+
+            var ex = Assert.ThrowsAny<Exception>(() =>
+                InvokeGlobalFunction("maybeNestedCall", JsValue.FromJsObject(boxObject), new JsValue(41d)));
+            Assert.DoesNotContain("IR plan generation failed", ex.ToString());
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsNestedOptionalCallExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function makeFactory() {
+                    return function () {
+                        return 42;
+                    };
+                }
+
+                function maybeInvoke(factory) {
+                    return factory?.()();
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            Assert.True(_engine.GlobalObject.TryGetProperty("makeFactory", out var makeFactory));
+
+            var result = InvokeGlobalFunction("maybeInvoke", makeFactory);
+            Assert.Equal(42.0, result);
+
+            var skipped = InvokeGlobalFunction("maybeInvoke", JsValue.Undefined);
             Assert.True(skipped.IsUndefined);
         }
         finally
@@ -1828,6 +1923,78 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
             var result = InvokeGlobalFunction("readThrown");
 
             Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsFunctionExpressionScriptExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var program = _engine.ParseProgram("""
+                const add = function(value) { return value + 1; };
+                add(41);
+                """);
+
+            var result = await _engine.Evaluate(program);
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsClassExpressionScriptExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var program = _engine.ParseProgram("""
+                const Box = class { value() { return 42; } };
+                new Box().value();
+                """);
+
+            var result = await _engine.Evaluate(program);
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_ImmutableIdentifierAssignment_FailsAtRuntimeNotPlanBuild()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var program = _engine.ParseProgram("""
+                const value = 1;
+                value = 2;
+                """);
+
+            var exception = await Assert.ThrowsAnyAsync<Exception>(async () => await _engine.Evaluate(program));
+
+            Assert.DoesNotContain("IR plan generation failed for script", exception.Message, StringComparison.Ordinal);
         }
         finally
         {

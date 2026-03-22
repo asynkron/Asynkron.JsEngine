@@ -21,8 +21,8 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<EvaluateAndDiscardInstruction>(instr);
-            var evaluatedValue = instruction.ExpressionOps is { } expressionOps
-                ? runner.EvaluateExpressionProgram(new ExpressionProgram(expressionOps), environment, context)
+            var evaluatedValue = instruction.ExpressionProgram is { } expressionProgram
+                ? runner.EvaluateExpressionProgram(expressionProgram, environment, context)
                 : ProfileEvaluateExpression(instruction.Expression!, environment, context);
 
             if (runner._isScriptMode && !instruction.SuppressCompletionValue)
@@ -54,7 +54,12 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<AwaitAndDiscardInstruction>(instr);
-            var awaitedValue = runner.EvaluateAwaitInGenerator(instruction.Expression, environment, context);
+            var awaitedValue = runner.EvaluateAwaitInGenerator(
+                instruction.AwaitStateKey,
+                instruction.AwaitedExpression,
+                instruction.AwaitedProgram,
+                environment,
+                context);
 
             if (runner._isScriptMode && !instruction.SuppressCompletionValue)
             {
@@ -125,7 +130,7 @@ public static partial class TypedAstEvaluator
             }
                 else if (instruction.ScopeId >= 0 && instruction.SlotIndex >= 0)
                 {
-                    var targetIdentifier = new IdentifierExpression(
+                var targetIdentifier = new IdentifierExpression(
                         instruction.ValueExpression?.Source,
                         instruction.TargetSymbol,
                         SlotIndex: instruction.SlotIndex,

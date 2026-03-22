@@ -339,7 +339,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 return;
 
             case AwaitAndDiscardInstruction awaitDiscard:
-                Visit(awaitDiscard.Expression);
+                Visit(awaitDiscard.AwaitedExpression);
                 return;
 
             case AssignmentSlotInstruction assign:
@@ -435,7 +435,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
     private void RegisterBindingDeclaration(BindingVariableDeclarationInstruction bindingDecl)
     {
         var names = new List<Symbol>();
-        bindingDecl.Target.CollectSymbolsFromBinding(names);
+        bindingDecl.TargetProgram.CollectSymbols(names);
         foreach (var name in names)
         {
             RegisterDeclaration(bindingDecl.VarKind, name);

@@ -53,6 +53,47 @@ internal sealed record ArrayBindingTargetProgram(
     }
 }
 
+internal sealed record NamedPropertyAssignmentBindingTargetProgram(
+    ExpressionProgram TargetProgram,
+    string PropertyName) : BindingTargetProgram
+{
+    public override void CollectSymbols(ICollection<Symbol> names)
+    {
+    }
+
+    protected override string DescribeCore() => $"<target>.{PropertyName}";
+}
+
+internal sealed record ComputedPropertyAssignmentBindingTargetProgram(
+    ExpressionProgram TargetProgram,
+    ExpressionProgram PropertyProgram) : BindingTargetProgram
+{
+    public override void CollectSymbols(ICollection<Symbol> names)
+    {
+    }
+
+    protected override string DescribeCore() => "<target>[<expr>]";
+}
+
+internal sealed record NamedSuperPropertyAssignmentBindingTargetProgram(string PropertyName) : BindingTargetProgram
+{
+    public override void CollectSymbols(ICollection<Symbol> names)
+    {
+    }
+
+    protected override string DescribeCore() => $"super.{PropertyName}";
+}
+
+internal sealed record ComputedSuperPropertyAssignmentBindingTargetProgram(
+    ExpressionProgram PropertyProgram) : BindingTargetProgram
+{
+    public override void CollectSymbols(ICollection<Symbol> names)
+    {
+    }
+
+    protected override string DescribeCore() => "super[<expr>]";
+}
+
 internal sealed record ArrayBindingElementProgram(
     BindingTargetProgram? Target,
     ExpressionProgram? DefaultProgram = null,

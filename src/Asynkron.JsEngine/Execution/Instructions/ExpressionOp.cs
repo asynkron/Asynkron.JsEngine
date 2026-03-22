@@ -11,6 +11,7 @@ internal enum ExpressionOpKind : byte
     LoadIdentifier,
     LoadTemplateObject,
     StoreIdentifier,
+    ApplyBindingTarget,
     DuplicateTop,
     DuplicateTopTwo,
     SwapTopTwo,
@@ -19,6 +20,8 @@ internal enum ExpressionOpKind : byte
     LoadNewTarget,
     LoadNamedCallTarget,
     LoadComputedCallTarget,
+    LoadNamedSuperCallTarget,
+    LoadComputedSuperCallTarget,
     CreateArray,
     ArrayPush,
     ArrayPushHole,
@@ -33,11 +36,17 @@ internal enum ExpressionOpKind : byte
     ObjectSpread,
     GetNamedProperty,
     GetComputedProperty,
+    GetNamedSuperProperty,
+    GetComputedSuperProperty,
     SetNamedProperty,
     SetComputedProperty,
+    SetNamedSuperProperty,
+    SetComputedSuperProperty,
     UpdateIdentifier,
     UpdateNamedProperty,
     UpdateComputedProperty,
+    UpdateNamedSuperProperty,
+    UpdateComputedSuperProperty,
     TypeOf,
     TypeOfIdentifier,
     DeleteIdentifier,
@@ -57,6 +66,7 @@ internal enum ExpressionOpKind : byte
     JumpIfTrue,
     JumpIfFalse,
     JumpIfNotNullish,
+    SuperConstruct,
     Call,
     Construct
 }
@@ -123,6 +133,9 @@ internal sealed record StoreIdentifierExpressionOp(
     bool AllowNameInference = true)
     : ExpressionOp(ExpressionOpKind.StoreIdentifier);
 
+internal sealed record ApplyBindingTargetExpressionOp(BindingTargetProgram TargetProgram)
+    : ExpressionOp(ExpressionOpKind.ApplyBindingTarget);
+
 internal sealed record DuplicateTopExpressionOp()
     : ExpressionOp(ExpressionOpKind.DuplicateTop);
 
@@ -146,6 +159,12 @@ internal sealed record LoadNamedCallTargetExpressionOp(string PropertyName)
 
 internal sealed record LoadComputedCallTargetExpressionOp()
     : ExpressionOp(ExpressionOpKind.LoadComputedCallTarget);
+
+internal sealed record LoadNamedSuperCallTargetExpressionOp(string PropertyName)
+    : ExpressionOp(ExpressionOpKind.LoadNamedSuperCallTarget);
+
+internal sealed record LoadComputedSuperCallTargetExpressionOp()
+    : ExpressionOp(ExpressionOpKind.LoadComputedSuperCallTarget);
 
 internal sealed record CreateArrayExpressionOp()
     : ExpressionOp(ExpressionOpKind.CreateArray);
@@ -192,11 +211,23 @@ internal sealed record GetNamedPropertyExpressionOp(
 internal sealed record GetComputedPropertyExpressionOp(bool ShortCircuitOnNullishTarget = false)
     : ExpressionOp(ExpressionOpKind.GetComputedProperty);
 
+internal sealed record GetNamedSuperPropertyExpressionOp(string PropertyName)
+    : ExpressionOp(ExpressionOpKind.GetNamedSuperProperty);
+
+internal sealed record GetComputedSuperPropertyExpressionOp()
+    : ExpressionOp(ExpressionOpKind.GetComputedSuperProperty);
+
 internal sealed record SetNamedPropertyExpressionOp(string PropertyName, bool AllowNameInference = true)
     : ExpressionOp(ExpressionOpKind.SetNamedProperty);
 
 internal sealed record SetComputedPropertyExpressionOp(bool AllowNameInference = true)
     : ExpressionOp(ExpressionOpKind.SetComputedProperty);
+
+internal sealed record SetNamedSuperPropertyExpressionOp(string PropertyName, bool AllowNameInference = true)
+    : ExpressionOp(ExpressionOpKind.SetNamedSuperProperty);
+
+internal sealed record SetComputedSuperPropertyExpressionOp(bool AllowNameInference = true)
+    : ExpressionOp(ExpressionOpKind.SetComputedSuperProperty);
 
 internal sealed record UpdateIdentifierExpressionOp(
     Symbol Name,
@@ -218,6 +249,17 @@ internal sealed record UpdateComputedPropertyExpressionOp(
     bool IsIncrement = true,
     bool IsPrefix = true)
     : ExpressionOp(ExpressionOpKind.UpdateComputedProperty);
+
+internal sealed record UpdateNamedSuperPropertyExpressionOp(
+    string PropertyName,
+    bool IsIncrement = true,
+    bool IsPrefix = true)
+    : ExpressionOp(ExpressionOpKind.UpdateNamedSuperProperty);
+
+internal sealed record UpdateComputedSuperPropertyExpressionOp(
+    bool IsIncrement = true,
+    bool IsPrefix = true)
+    : ExpressionOp(ExpressionOpKind.UpdateComputedSuperProperty);
 
 internal sealed record TypeOfExpressionOp()
     : ExpressionOp(ExpressionOpKind.TypeOf);
@@ -280,6 +322,11 @@ internal sealed record JumpIfFalseExpressionOp(int Target)
 
 internal sealed record JumpIfNotNullishExpressionOp(int Target)
     : ExpressionOp(ExpressionOpKind.JumpIfNotNullish);
+
+internal sealed record SuperConstructExpressionOp(
+    int ArgumentCount,
+    ImmutableArray<bool> SpreadMask = default)
+    : ExpressionOp(ExpressionOpKind.SuperConstruct);
 
 internal sealed record CallExpressionOp(
     int ArgumentCount,

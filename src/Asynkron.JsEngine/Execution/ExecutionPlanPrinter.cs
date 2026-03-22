@@ -137,10 +137,10 @@ internal static class ExecutionPlanPrinter
                 $"BRANCH ({FormatExpression(branch.Condition, branch.ConditionProgram)}) ? [{branch.ConsequentIndex}] : [{branch.AlternateIndex}]",
 
             EvaluateAndDiscardInstruction discard =>
-                $"EVAL_DISCARD {FormatExpression(discard.Expression, discard.ExpressionOps)} → [{discard.Next}]",
+                $"EVAL_DISCARD {FormatExpression(discard.Expression, discard.ExpressionProgram)} → [{discard.Next}]",
 
             AwaitAndDiscardInstruction awaitDiscard =>
-                $"AWAIT_DISCARD {FormatExpression(awaitDiscard.Expression.Expression)} → [{awaitDiscard.Next}]",
+                $"AWAIT_DISCARD {FormatExpression(awaitDiscard.AwaitedExpression, awaitDiscard.AwaitedProgram)} → [{awaitDiscard.Next}]",
 
             AssignmentSlotInstruction assign =>
                 $"ASSIGN {assign.TargetSymbol.Name} = {FormatExpression(assign.ValueExpression, assign.ValueProgram)} → [{assign.Next}]",
@@ -156,7 +156,7 @@ internal static class ExecutionPlanPrinter
                 $" → [{varDecl.Next}]",
 
             BindingVariableDeclarationInstruction bindingDecl =>
-                $"VAR_BIND {bindingDecl.VarKind} {FormatBindingTarget(bindingDecl.Target, bindingDecl.TargetProgram)}" +
+                $"VAR_BIND {bindingDecl.VarKind} {FormatBindingTarget(bindingDecl.TargetProgram)}" +
                 (bindingDecl.Initializer != null || bindingDecl.InitializerProgram is not null
                     ? $" = {FormatExpression(bindingDecl.Initializer, bindingDecl.InitializerProgram)}"
                     : "") +
@@ -206,7 +206,7 @@ internal static class ExecutionPlanPrinter
                 $"END_FINALLY → [{endFinally.Next}]",
 
             IteratorInitInstruction iterInit =>
-                $"ITER_INIT {FormatExpression(iterInit.IterableExpression, iterInit.IterableExpressionOps)} (slot: {iterInit.IteratorSlot.Name}, kind: {iterInit.Kind}) → [{iterInit.Next}]",
+                $"ITER_INIT {FormatExpression(iterInit.IterableExpression, iterInit.IterableProgram)} (slot: {iterInit.IteratorSlot.Name}, kind: {iterInit.Kind}) → [{iterInit.Next}]",
 
             IteratorMoveNextInstruction moveNext =>
                 $"ITER_MOVE_NEXT (iter: {moveNext.IteratorSlot.Name}, value: {moveNext.ValueSlot.Name}) body: [{moveNext.Next}], done: [{moveNext.BreakIndex}]",
@@ -230,10 +230,12 @@ internal static class ExecutionPlanPrinter
                 $"LEAVE_WITH → [{leaveWith.Next}]",
 
             FunctionDeclarationInstruction funcDecl =>
-                $"FUNC_DECL → [{funcDecl.Next}]",
+                funcDecl.Descriptor is null
+                    ? $"FUNC_DECL (hoisted noop) → [{funcDecl.Next}]"
+                    : $"FUNC_DECL {funcDecl.Descriptor.Value.Name.Name} → [{funcDecl.Next}]",
 
             ClassDeclarationInstruction classDecl =>
-                $"CLASS_DECL {classDecl.Declaration.Name.Name} → [{classDecl.Next}]",
+                $"CLASS_DECL {classDecl.Descriptor.Name.Name} → [{classDecl.Next}]",
 
             StoreResumeValueInstruction storeResume =>
                 "STORE_RESUME" + (storeResume.TargetSymbol != null ? $" → {storeResume.TargetSymbol.Name}" : "") +
@@ -245,7 +247,7 @@ internal static class ExecutionPlanPrinter
                 $" → [{inc.Next}]",
 
             CompoundAssignmentSlotInstruction compound =>
-                $"COMPOUND {compound.TargetSymbol.Name} {compound.Operator}= {FormatExpression(compound.RhsExpression, compound.RhsExpressionOps)} → [{compound.Next}]",
+                $"COMPOUND {compound.TargetSymbol.Name} {compound.Operator}= {FormatExpression(compound.RhsExpression, compound.RhsProgram)} → [{compound.Next}]",
 
             _ => instruction.ToString() ?? "<?>"
         };
@@ -274,6 +276,7 @@ internal static class ExecutionPlanPrinter
             TemplateLiteralExpression => "`template`",
             TaggedTemplateExpression tagged => $"{FormatExpression(tagged.Tag)}`...`",
             ClassExpression classExpr => classExpr.Name != null ? $"class {classExpr.Name.Name}" : "class",
+            SuperExpression => "super",
             _ => expr.GetType().Name
         };
     }
@@ -290,27 +293,7 @@ internal static class ExecutionPlanPrinter
             : "<undefined>";
     }
 
-    private static string FormatExpression(ExpressionNode? expr, ImmutableArray<ExpressionOp>? ops)
-    {
-        if (expr is not null)
-        {
-            return FormatExpression(expr);
-        }
-
-        return ops is { } expressionOps
-            ? FormatExpressionProgram(new ExpressionProgram(expressionOps))
-            : "<undefined>";
-    }
-
-    private static string FormatBindingTarget(BindingTarget? target, BindingTargetProgram? program)
-    {
-        if (program is not null)
-        {
-            return program.ToString();
-        }
-
-        return target?.ToString() ?? "<undefined>";
-    }
+    private static string FormatBindingTarget(BindingTargetProgram program) => program.ToString();
 
     private static string FormatExpressionProgram(ExpressionProgram program)
     {
@@ -334,6 +317,7 @@ internal static class ExecutionPlanPrinter
             LoadTemplateObjectExpressionOp => "template",
             LoadIdentifierExpressionOp identifier => identifier.Name.Name,
             StoreIdentifierExpressionOp identifier => $"store.{identifier.Name.Name}",
+            ApplyBindingTargetExpressionOp bindingTarget => $"bind.{bindingTarget.TargetProgram}",
             DuplicateTopExpressionOp => "dup",
             DuplicateTopTwoExpressionOp => "dup2",
             SwapTopTwoExpressionOp => "swap",
@@ -342,6 +326,8 @@ internal static class ExecutionPlanPrinter
             LoadNewTargetExpressionOp => "new.target",
             LoadNamedCallTargetExpressionOp callTarget => $"call.{callTarget.PropertyName}",
             LoadComputedCallTargetExpressionOp => "call[]",
+            LoadNamedSuperCallTargetExpressionOp callTarget => $"super.call.{callTarget.PropertyName}",
+            LoadComputedSuperCallTargetExpressionOp => "super.call[]",
             CreateArrayExpressionOp => "arr[]",
             ArrayPushExpressionOp => "arr.push",
             ArrayPushHoleExpressionOp => "arr.hole",
@@ -362,8 +348,12 @@ internal static class ExecutionPlanPrinter
             ObjectSpreadExpressionOp => "obj.spread",
             GetNamedPropertyExpressionOp property => $".{property.PropertyName}",
             GetComputedPropertyExpressionOp => "[]",
+            GetNamedSuperPropertyExpressionOp property => $"super.{property.PropertyName}",
+            GetComputedSuperPropertyExpressionOp => "super[]",
             SetNamedPropertyExpressionOp property => $"set.{property.PropertyName}",
             SetComputedPropertyExpressionOp => "set[]",
+            SetNamedSuperPropertyExpressionOp property => $"super.set.{property.PropertyName}",
+            SetComputedSuperPropertyExpressionOp => "super.set[]",
             UpdateIdentifierExpressionOp update =>
                 update.IsPrefix
                     ? $"{(update.IsIncrement ? "++" : "--")}{update.Name.Name}"
@@ -376,6 +366,14 @@ internal static class ExecutionPlanPrinter
                 update.IsPrefix
                     ? $"{(update.IsIncrement ? "++" : "--")}[]"
                     : $"[]{(update.IsIncrement ? "++" : "--")}",
+            UpdateNamedSuperPropertyExpressionOp update =>
+                update.IsPrefix
+                    ? $"{(update.IsIncrement ? "++" : "--")}super.{update.PropertyName}"
+                    : $"super.{update.PropertyName}{(update.IsIncrement ? "++" : "--")}",
+            UpdateComputedSuperPropertyExpressionOp update =>
+                update.IsPrefix
+                    ? $"{(update.IsIncrement ? "++" : "--")}super[]"
+                    : $"super[]{(update.IsIncrement ? "++" : "--")}",
             TypeOfExpressionOp => "typeof",
             TypeOfIdentifierExpressionOp typeofIdentifier => $"typeof {typeofIdentifier.Name.Name}",
             DeleteIdentifierExpressionOp deleteIdentifier => $"delete {deleteIdentifier.Name.Name}",
@@ -395,6 +393,9 @@ internal static class ExecutionPlanPrinter
             JumpIfTrueExpressionOp jumpIfTrue => $"jmpT:{jumpIfTrue.Target}",
             JumpIfFalseExpressionOp jumpIfFalse => $"jmpF:{jumpIfFalse.Target}",
             JumpIfNotNullishExpressionOp jumpIfNotNullish => $"jmpNN:{jumpIfNotNullish.Target}",
+            SuperConstructExpressionOp superConstruct => superConstruct.SpreadMask.IsDefaultOrEmpty
+                ? $"super/{superConstruct.ArgumentCount}"
+                : $"super*/{superConstruct.ArgumentCount}",
             CallExpressionOp call => call.SpreadMask.IsDefaultOrEmpty
                 ? $"call/{call.ArgumentCount}"
                 : $"call*/{call.ArgumentCount}",

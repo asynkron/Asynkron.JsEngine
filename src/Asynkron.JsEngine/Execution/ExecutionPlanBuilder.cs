@@ -253,7 +253,7 @@ internal sealed partial class ExecutionPlanBuilder
         {
             switch (Instructions[i])
             {
-                case EvaluateAndDiscardInstruction { Expression: not null, ExpressionOps: null } evaluateInstruction:
+                case EvaluateAndDiscardInstruction { Expression: not null, ExpressionProgram: null } evaluateInstruction:
                     if (!TryCompileExpressionProgram(evaluateInstruction.Expression, out var evaluateProgram, out var evaluateFailure))
                     {
                         return FailExpressionProgram(
@@ -265,7 +265,23 @@ internal sealed partial class ExecutionPlanBuilder
                     Instructions[i] = evaluateInstruction with
                     {
                         Expression = null,
-                        ExpressionOps = evaluateProgram.Operations
+                        ExpressionProgram = evaluateProgram
+                    };
+                    break;
+
+                case AwaitAndDiscardInstruction { AwaitedExpression: not null, AwaitedProgram: null } awaitInstruction:
+                    if (!TryCompileExpressionProgram(awaitInstruction.AwaitedExpression, out var awaitProgram, out var awaitFailure))
+                    {
+                        return FailExpressionProgram(
+                            "AwaitAndDiscardInstruction",
+                            awaitInstruction.AwaitedExpression,
+                            awaitFailure);
+                    }
+
+                    Instructions[i] = awaitInstruction with
+                    {
+                        AwaitedExpression = null,
+                        AwaitedProgram = awaitProgram
                     };
                     break;
 
@@ -301,7 +317,7 @@ internal sealed partial class ExecutionPlanBuilder
                     };
                     break;
 
-                case CompoundAssignmentSlotInstruction { RhsExpression: not null, RhsExpressionOps: null } compoundInstruction:
+                case CompoundAssignmentSlotInstruction { RhsExpression: not null, RhsProgram: null } compoundInstruction:
                     if (!TryCompileExpressionProgram(compoundInstruction.RhsExpression, out var compoundProgram, out var compoundFailure))
                     {
                         return FailExpressionProgram(
@@ -313,7 +329,7 @@ internal sealed partial class ExecutionPlanBuilder
                     Instructions[i] = compoundInstruction with
                     {
                         RhsExpression = null,
-                        RhsExpressionOps = compoundProgram.Operations
+                        RhsProgram = compoundProgram
                     };
                     break;
 
@@ -413,7 +429,7 @@ internal sealed partial class ExecutionPlanBuilder
                     };
                     break;
 
-                case IteratorInitInstruction { IterableExpression: not null, IterableExpressionOps: null } iteratorInitInstruction:
+                case IteratorInitInstruction { IterableExpression: not null, IterableProgram: null } iteratorInitInstruction:
                     if (!TryCompileExpressionProgram(iteratorInitInstruction.IterableExpression, out var iteratorProgram, out var iteratorFailure))
                     {
                         return FailExpressionProgram(
@@ -425,7 +441,7 @@ internal sealed partial class ExecutionPlanBuilder
                     Instructions[i] = iteratorInitInstruction with
                     {
                         IterableExpression = null,
-                        IterableExpressionOps = iteratorProgram.Operations,
+                        IterableProgram = iteratorProgram,
                         IterableSource = iteratorInitInstruction.IterableSource ?? iteratorInitInstruction.IterableExpression.Source
                     };
                     break;
@@ -483,7 +499,6 @@ internal sealed partial class ExecutionPlanBuilder
                 case BindingVariableDeclarationInstruction bindingInstruction:
                 {
                     var updatedBindingInstruction = bindingInstruction;
-                    var changed = false;
 
                     if (updatedBindingInstruction.Initializer is not null && updatedBindingInstruction.InitializerProgram is null)
                     {
@@ -500,29 +515,6 @@ internal sealed partial class ExecutionPlanBuilder
                             Initializer = null,
                             InitializerProgram = bindingInitializerProgram
                         };
-                        changed = true;
-                    }
-
-                    if (updatedBindingInstruction.Target is not null && updatedBindingInstruction.TargetProgram is null)
-                    {
-                        if (!BindingTargetProgramCompiler.TryCompile(updatedBindingInstruction.Target, out var targetProgram, out var bindingFailure))
-                        {
-                            return FailBindingProgram(
-                                "BindingVariableDeclarationInstruction",
-                                updatedBindingInstruction.Target,
-                                bindingFailure);
-                        }
-
-                        updatedBindingInstruction = updatedBindingInstruction with
-                        {
-                            Target = null,
-                            TargetProgram = targetProgram
-                        };
-                        changed = true;
-                    }
-
-                    if (changed)
-                    {
                         Instructions[i] = updatedBindingInstruction;
                     }
 
@@ -531,7 +523,7 @@ internal sealed partial class ExecutionPlanBuilder
             }
         }
 
-        return true;
+        return ValidateLoweredPayloads();
 
         bool TryCompileExpressionProgram(ExpressionNode expression, out ExpressionProgram program, out string? failureReason)
         {
@@ -548,12 +540,36 @@ internal sealed partial class ExecutionPlanBuilder
             return false;
         }
 
-        bool FailBindingProgram(string instructionName, BindingTarget target, string? failureReason)
+        bool ValidateLoweredPayloads()
         {
-            _failureCode ??= ExecutionPlanFailureCode.UnsupportedBindingProgram;
-            _failureReason ??=
-                $"{instructionName} could not lower binding target '{target.GetType().Name}' to a binding program: {failureReason ?? "unknown reason"}.";
-            return false;
+            for (var instructionIndex = 0; instructionIndex < Instructions.Count; instructionIndex++)
+            {
+                switch (Instructions[instructionIndex])
+                {
+                    case EvaluateAndDiscardInstruction { Expression: not null }:
+                    case AwaitAndDiscardInstruction { AwaitedExpression: not null }:
+                    case AssignmentSlotInstruction { ValueExpression: not null }:
+                    case LogicalCompoundAssignmentSlotInstruction { RhsExpression: not null }:
+                    case CompoundAssignmentSlotInstruction { RhsExpression: not null }:
+                    case ThrowInstruction { Expression: not null }:
+                    case ReturnInstruction { ReturnExpression: not null }:
+                    case BranchInstruction { Condition: not null }:
+                    case SimpleVariableDeclarationInstruction { Initializer: not null }:
+                    case YieldInstruction { YieldExpression: not null }:
+                    case YieldStarInstruction { IterableExpression: not null }:
+                    case IteratorInitInstruction { IterableExpression: not null }:
+                    case ForInInitInstruction { ObjectExpression: not null }:
+                    case EnterWithInstruction { ObjectExpression: not null }:
+                    case ArrayDestructuringInitInstruction { SourceExpression: not null }:
+                    case BindingVariableDeclarationInstruction { Initializer: not null }:
+                        _failureCode ??= ExecutionPlanFailureCode.AstPayloadLeak;
+                        _failureReason ??=
+                            $"Execution plan published with an AST payload leak at instruction [{instructionIndex}] ({Instructions[instructionIndex].Kind}).";
+                        return false;
+                }
+            }
+
+            return true;
         }
     }
 

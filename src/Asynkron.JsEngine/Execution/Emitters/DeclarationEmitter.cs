@@ -46,7 +46,9 @@ internal static class DeclarationEmitter
         // The IR runner's TryHandlePendingAwait handles async suspension/resumption.
 
         // Use native ClassDeclarationInstruction - handles both sync and async cases
-        entryIndex = ctx.Append(new ClassDeclarationInstruction(nextIndex, classDeclaration));
+        entryIndex = ctx.Append(new ClassDeclarationInstruction(
+            nextIndex,
+            new ClassDeclarationDescriptor(classDeclaration.Name, classDeclaration.Definition)));
         return true;
     }
 
@@ -108,10 +110,22 @@ internal static class DeclarationEmitter
             return true;
         }
 
+        if (!BindingTargetProgramCompiler.TryCompile(
+                declarator.Target,
+                out var targetProgram,
+                out var failureReason))
+        {
+            ctx.SetFailureReason(
+                $"Binding variable declaration target '{declarator.Target.GetType().Name}' could not lower to a binding program: {failureReason ?? "unknown reason"}.",
+                ExecutionPlanFailureCode.UnsupportedBindingProgram);
+            entryIndex = -1;
+            return false;
+        }
+
         entryIndex = ctx.Append(new BindingVariableDeclarationInstruction(
             nextIndex,
             varKind,
-            declarator.Target,
+            targetProgram,
             declarator.Initializer));
         return true;
     }

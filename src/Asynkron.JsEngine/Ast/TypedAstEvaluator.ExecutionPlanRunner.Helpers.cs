@@ -238,6 +238,23 @@ public static partial class TypedAstEvaluator
                             programCounter++;
                             break;
 
+                        case ApplyBindingTargetExpressionOp applyBindingTarget:
+                            stackIndex--;
+                            ApplyBindingTargetProgram(
+                                applyBindingTarget.TargetProgram,
+                                stack[stackIndex],
+                                environment,
+                                context,
+                                BindingMode.Assign,
+                                allowNameInference: false);
+                            if (context.ShouldStopEvaluation)
+                            {
+                                return JsValue.Undefined;
+                            }
+
+                            programCounter++;
+                            break;
+
                         case DuplicateTopExpressionOp:
                             stack[stackIndex] = stack[stackIndex - 1];
                             stackFlags[stackIndex] = stackFlags[stackIndex - 1];
@@ -310,6 +327,39 @@ public static partial class TypedAstEvaluator
                                     out var calleeWasShortCircuited);
                                 stack[stackIndex++] = callee;
                                 stackFlags[stackIndex - 1] = calleeWasShortCircuited;
+                                programCounter++;
+                                break;
+                            }
+
+                        case LoadNamedSuperCallTargetExpressionOp superCallTarget:
+                            {
+                                LoadProgramNamedSuperCallTarget(
+                                    superCallTarget.PropertyName,
+                                    environment,
+                                    context,
+                                    out var receiver,
+                                    out var callee);
+                                stack[stackIndex++] = receiver;
+                                stackFlags[stackIndex - 1] = false;
+                                stack[stackIndex++] = callee;
+                                stackFlags[stackIndex - 1] = false;
+                                programCounter++;
+                                break;
+                            }
+
+                        case LoadComputedSuperCallTargetExpressionOp:
+                            {
+                                var propertyKey = stack[--stackIndex];
+                                LoadProgramComputedSuperCallTarget(
+                                    propertyKey,
+                                    environment,
+                                    context,
+                                    out var receiver,
+                                    out var callee);
+                                stack[stackIndex++] = receiver;
+                                stackFlags[stackIndex - 1] = false;
+                                stack[stackIndex++] = callee;
+                                stackFlags[stackIndex - 1] = false;
                                 programCounter++;
                                 break;
                             }
@@ -514,6 +564,27 @@ public static partial class TypedAstEvaluator
                                 break;
                             }
 
+                        case GetNamedSuperPropertyExpressionOp namedSuperProperty:
+                            stack[stackIndex++] = GetProgramNamedSuperPropertyValue(
+                                namedSuperProperty.PropertyName,
+                                environment,
+                                context);
+                            stackFlags[stackIndex - 1] = false;
+                            programCounter++;
+                            break;
+
+                        case GetComputedSuperPropertyExpressionOp:
+                            {
+                                var propertyKey = stack[--stackIndex];
+                                stack[stackIndex++] = GetProgramComputedSuperPropertyValue(
+                                    propertyKey,
+                                    environment,
+                                    context);
+                                stackFlags[stackIndex - 1] = false;
+                                programCounter++;
+                                break;
+                            }
+
                         case SetNamedPropertyExpressionOp namedAssignment:
                             {
                                 var propertyValue = stack[--stackIndex];
@@ -537,6 +608,34 @@ public static partial class TypedAstEvaluator
                                     propertyValue,
                                     context);
                                 stack[stackIndex - 1] = propertyValue;
+                                stackFlags[stackIndex - 1] = false;
+                                programCounter++;
+                                break;
+                            }
+
+                        case SetNamedSuperPropertyExpressionOp namedSuperAssignment:
+                            {
+                                var propertyValue = stack[stackIndex - 1];
+                                stack[stackIndex - 1] = ApplyProgramNamedSuperPropertyAssignment(
+                                    namedSuperAssignment,
+                                    propertyValue,
+                                    environment,
+                                    context);
+                                stackFlags[stackIndex - 1] = false;
+                                programCounter++;
+                                break;
+                            }
+
+                        case SetComputedSuperPropertyExpressionOp computedSuperAssignment:
+                            {
+                                var propertyValue = stack[--stackIndex];
+                                var propertyKey = stack[--stackIndex];
+                                stack[stackIndex++] = ApplyProgramComputedSuperPropertyAssignment(
+                                    propertyKey,
+                                    computedSuperAssignment,
+                                    propertyValue,
+                                    environment,
+                                    context);
                                 stackFlags[stackIndex - 1] = false;
                                 programCounter++;
                                 break;
@@ -568,6 +667,28 @@ public static partial class TypedAstEvaluator
                                     target,
                                     propertyKey,
                                     updateComputedProperty,
+                                    context);
+                                stackFlags[stackIndex - 1] = false;
+                                programCounter++;
+                                break;
+                            }
+
+                        case UpdateNamedSuperPropertyExpressionOp updateNamedSuperProperty:
+                            stack[stackIndex++] = ExecuteProgramNamedSuperPropertyUpdate(
+                                updateNamedSuperProperty,
+                                environment,
+                                context);
+                            stackFlags[stackIndex - 1] = false;
+                            programCounter++;
+                            break;
+
+                        case UpdateComputedSuperPropertyExpressionOp updateComputedSuperProperty:
+                            {
+                                var propertyKey = stack[--stackIndex];
+                                stack[stackIndex++] = ExecuteProgramComputedSuperPropertyUpdate(
+                                    propertyKey,
+                                    updateComputedSuperProperty,
+                                    environment,
                                     context);
                                 stackFlags[stackIndex - 1] = false;
                                 programCounter++;
@@ -736,6 +857,17 @@ public static partial class TypedAstEvaluator
                             programCounter = !stack[stackIndex - 1].IsNullish
                                 ? jumpIfNotNullish.Target
                                 : programCounter + 1;
+                            break;
+
+                        case SuperConstructExpressionOp superConstruct:
+                            stackIndex = ExecuteProgramSuperConstruct(
+                                superConstruct,
+                                stack,
+                                stackFlags,
+                                stackIndex,
+                                environment,
+                                context);
+                            programCounter++;
                             break;
 
                         case CallExpressionOp call:
@@ -954,6 +1086,60 @@ public static partial class TypedAstEvaluator
                 propertyKey,
                 new SetComputedPropertyExpressionOp(AllowNameInference: false),
                 newValue,
+                context);
+
+            return update.IsPrefix ? newValue : oldNumericValue;
+        }
+
+        private JsValue ExecuteProgramNamedSuperPropertyUpdate(
+            UpdateNamedSuperPropertyExpressionOp update,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            var currentValue = GetProgramNamedSuperPropertyValue(update.PropertyName, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
+            GetUpdatedNumericValue(currentValue, update.IsIncrement, context, out var oldNumericValue, out var newValue);
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
+            ApplyProgramNamedSuperPropertyAssignment(
+                new SetNamedSuperPropertyExpressionOp(update.PropertyName, AllowNameInference: false),
+                newValue,
+                environment,
+                context);
+
+            return update.IsPrefix ? newValue : oldNumericValue;
+        }
+
+        private JsValue ExecuteProgramComputedSuperPropertyUpdate(
+            JsValue propertyKey,
+            UpdateComputedSuperPropertyExpressionOp update,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            var currentValue = GetProgramComputedSuperPropertyValue(propertyKey, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
+            GetUpdatedNumericValue(currentValue, update.IsIncrement, context, out var oldNumericValue, out var newValue);
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
+            ApplyProgramComputedSuperPropertyAssignment(
+                propertyKey,
+                new SetComputedSuperPropertyExpressionOp(AllowNameInference: false),
+                newValue,
+                environment,
                 context);
 
             return update.IsPrefix ? newValue : oldNumericValue;
@@ -1297,6 +1483,62 @@ public static partial class TypedAstEvaluator
             return templateObject;
         }
 
+        private static SuperBinding GetSuperBindingForProgramRead(
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            if (!context.IsThisInitialized)
+            {
+                throw environment.CreateSuperReferenceError(context);
+            }
+
+            var binding = environment.ExpectSuperBinding(context);
+            if (binding.Prototype is null)
+            {
+                var error = StandardLibrary.CreateTypeError(
+                    "Cannot read properties of null (reading from super)",
+                    context,
+                    context.RealmState);
+                context.SetThrow(error);
+            }
+
+            return binding;
+        }
+
+        private static void LoadProgramNamedSuperCallTarget(
+            string propertyName,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue receiver,
+            out JsValue callee)
+        {
+            var binding = GetSuperBindingForProgramRead(environment, context);
+            receiver = binding.ThisValue;
+            callee = context.ShouldStopEvaluation
+                ? JsValue.Undefined
+                : binding.TryGetProperty(propertyName, out var value)
+                    ? value
+                    : JsValue.Undefined;
+        }
+
+        private static void LoadProgramComputedSuperCallTarget(
+            JsValue propertyKey,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue receiver,
+            out JsValue callee)
+        {
+            var propertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
+            if (context.ShouldStopEvaluation)
+            {
+                receiver = JsValue.Undefined;
+                callee = JsValue.Undefined;
+                return;
+            }
+
+            LoadProgramNamedSuperCallTarget(propertyName, environment, context, out receiver, out callee);
+        }
+
         private static JsValue GetProgramNamedPropertyValue(
             JsValue target,
             bool targetWasShortCircuited,
@@ -1375,6 +1617,36 @@ public static partial class TypedAstEvaluator
                 : JsValue.Undefined;
         }
 
+        private static JsValue GetProgramNamedSuperPropertyValue(
+            string propertyName,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            var binding = GetSuperBindingForProgramRead(environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
+            return binding.TryGetProperty(propertyName, out var value)
+                ? value
+                : JsValue.Undefined;
+        }
+
+        private static JsValue GetProgramComputedSuperPropertyValue(
+            JsValue propertyKey,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            var propertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
+            return GetProgramNamedSuperPropertyValue(propertyName, environment, context);
+        }
+
         private static void ApplyProgramNamedPropertyAssignment(
             JsValue target,
             SetNamedPropertyExpressionOp propertyOp,
@@ -1412,6 +1684,43 @@ public static partial class TypedAstEvaluator
 
             var handle = PropertyHandle.Resolve(target, propertyName, context, context.CurrentScope.IsStrict);
             handle.SetValue(value);
+        }
+
+        private static JsValue ApplyProgramNamedSuperPropertyAssignment(
+            SetNamedSuperPropertyExpressionOp propertyOp,
+            JsValue value,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            if (propertyOp.AllowNameInference &&
+                value is { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget nameTarget })
+            {
+                nameTarget.EnsureHasName(propertyOp.PropertyName);
+            }
+
+            return AssignToSuperBinding(environment, context, propertyOp.PropertyName, value, "property");
+        }
+
+        private static JsValue ApplyProgramComputedSuperPropertyAssignment(
+            JsValue propertyKey,
+            SetComputedSuperPropertyExpressionOp propertyOp,
+            JsValue value,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            var propertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
+            if (propertyOp.AllowNameInference &&
+                value is { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget nameTarget })
+            {
+                nameTarget.EnsureHasName(propertyName);
+            }
+
+            return AssignToSuperBinding(environment, context, propertyName, value, "index");
         }
 
         private int ExecuteProgramCall(
@@ -1601,6 +1910,188 @@ public static partial class TypedAstEvaluator
             }
 
             return constructorIndex + 1;
+        }
+
+        private int ExecuteProgramSuperConstruct(
+            SuperConstructExpressionOp superConstruct,
+            Span<JsValue> stack,
+            Span<bool> stackFlags,
+            int stackIndex,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            var baseIndex = stackIndex - superConstruct.ArgumentCount;
+            JsValue[]? pooledArguments = null;
+            var callDepthIncremented = false;
+
+            try
+            {
+                var superBindingForCall = environment.ExpectSuperBinding(context);
+                object? dynamicSuperConstructor = superBindingForCall.Constructor;
+                if (dynamicSuperConstructor is null &&
+                    environment.TryGetObject<IJsObjectLike>(Symbol.NewTarget, out var activeFunction))
+                {
+                    dynamicSuperConstructor = (activeFunction as IPrototypeAccessorProvider)?.PrototypeAccessor ??
+                                              activeFunction.Prototype;
+                }
+
+                if (dynamicSuperConstructor is null)
+                {
+                    throw new InvalidOperationException(
+                        $"Super constructor is not available in this context.{context.GetSourceInfo()}");
+                }
+
+                var constructorValue = JsValue.FromObjectUnsafe(dynamicSuperConstructor);
+                if (!JsOps.IsConstructor(constructorValue) ||
+                    !constructorValue.TryGetObject<IJsCallable>(out var callable))
+                {
+                    var error = StandardLibrary.CreateTypeError(
+                        "Super constructor is not a constructor",
+                        context,
+                        context.RealmState);
+                    context.SetThrow(error);
+                    stack[baseIndex] = JsValue.Undefined;
+                    stackFlags[baseIndex] = false;
+                    return baseIndex + 1;
+                }
+
+                JsEnvironment? thisInitializationEnvironment = null;
+                var thisInitializationValue = JsValue.Undefined;
+                if (environment.TryFindBindingJsValue(Symbol.LexicalThisEnvironment, true, out _, out var lexicalEnvValue) &&
+                    lexicalEnvValue.TryGetObject<JsEnvironment>(out var lexicalThisEnv))
+                {
+                    thisInitializationEnvironment = lexicalThisEnv;
+                    if (lexicalThisEnv.TryGetJsValue(Symbol.ThisInitialized, out var lexicalInitValue))
+                    {
+                        thisInitializationValue = lexicalInitValue;
+                    }
+                }
+                else if (environment.TryFindBindingJsValue(Symbol.This, true, out var thisEnv, out _))
+                {
+                    thisInitializationEnvironment = thisEnv;
+                    if (thisEnv.TryGetJsValue(Symbol.ThisInitialized, out var initValue))
+                    {
+                        thisInitializationValue = initValue;
+                    }
+                }
+
+                if (thisInitializationEnvironment is null &&
+                    environment.TryFindBindingJsValue(Symbol.ThisInitialized, true, out var foundEnv, out var foundValue))
+                {
+                    thisInitializationEnvironment = foundEnv;
+                    thisInitializationValue = foundValue;
+                }
+
+                if (++context.CallDepth > context.MaxCallDepth)
+                {
+                    context.CallDepth--;
+                    throw new InvalidOperationException(
+                        $"Exceeded maximum call depth of {context.MaxCallDepth}.");
+                }
+
+                callDepthIncremented = true;
+
+                var arguments = MaterializeProgramArguments(
+                    superConstruct.ArgumentCount,
+                    superConstruct.SpreadMask,
+                    stack,
+                    baseIndex,
+                    context,
+                    out pooledArguments);
+
+                var newTargetValue = environment.TryGetJsValue(Symbol.NewTarget, out var inheritedNewTarget)
+                    ? inheritedNewTarget
+                    : JsValue.Undefined;
+                var newTargetCallable = newTargetValue.TryGetObject<IJsCallable>(out var nt)
+                    ? nt
+                    : callable;
+
+                var result = ReflectHelper.Construct(callable, arguments, newTargetCallable, context.RealmState);
+
+                var callResultObject = result.Kind == JsValueKind.Object ? result.ObjectValue : null;
+                object? thisAfterSuper = callResultObject;
+                if (callResultObject is not JsObject && callResultObject is not IJsObjectLike)
+                {
+                    thisAfterSuper = superBindingForCall.ThisValue.Kind == JsValueKind.Object
+                        ? superBindingForCall.ThisValue.ObjectValue
+                        : null;
+                }
+
+                if (thisInitializationEnvironment is not null)
+                {
+                    var alreadyInitialized = thisInitializationValue.IsUndefined
+                        ? thisInitializationEnvironment.TryGetJsValue(Symbol.ThisInitialized, out var initValue)
+                            ? initValue
+                            : JsValue.Undefined
+                        : thisInitializationValue;
+
+                    if (!alreadyInitialized.IsUndefined && JsOps.ToBoolean(alreadyInitialized))
+                    {
+                        throw StandardLibrary.ThrowReferenceError(
+                            "Super constructor may only be called once.", context, context.RealmState);
+                    }
+                }
+
+                var targetEnvironment = thisInitializationEnvironment ?? environment;
+                var initializedThis = thisAfterSuper is null
+                    ? JsValue.Undefined
+                    : JsValue.FromObjectUnsafe(thisAfterSuper);
+                targetEnvironment.AssignJsValue(Symbol.This, initializedThis);
+
+                if (targetEnvironment.TryGetObject<SuperBinding>(Symbol.Super, out var binding))
+                {
+                    var constructorForSuper = superBindingForCall.Constructor ?? binding.Constructor;
+                    var prototypeForSuper = superBindingForCall.Prototype ?? binding.Prototype;
+                    targetEnvironment.AssignJsValue(Symbol.Super,
+                        JsValue.FromObjectUnsafe(new SuperBinding(
+                            constructorForSuper,
+                            prototypeForSuper,
+                            initializedThis,
+                            true)));
+                }
+
+                context.MarkThisInitialized();
+                targetEnvironment.SetThisInitializationStatus(true);
+
+                if (thisAfterSuper is IJsObjectLike objectLike &&
+                    context.TryPopClassFieldInitializer(out var pendingInitializer) &&
+                    pendingInitializer.Constructor is SyncFunctionInvoker pendingConstructor)
+                {
+                    pendingConstructor.InitializeInstance(
+                        objectLike,
+                        pendingInitializer.Environment,
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        stack[baseIndex] = context.FlowValue;
+                        stackFlags[baseIndex] = false;
+                        return baseIndex + 1;
+                    }
+                }
+
+                stack[baseIndex] = result;
+                stackFlags[baseIndex] = false;
+                return baseIndex + 1;
+            }
+            catch (ThrowSignal signal)
+            {
+                context.SetThrow(signal.ThrownValue);
+                stack[baseIndex] = signal.ThrownValue;
+                stackFlags[baseIndex] = false;
+                return baseIndex + 1;
+            }
+            finally
+            {
+                if (pooledArguments is not null)
+                {
+                    global::Asynkron.JsEngine.JsValueCache.ReturnJsValueArray(pooledArguments);
+                }
+
+                if (callDepthIncremented)
+                {
+                    context.CallDepth--;
+                }
+            }
         }
 
         private IReadOnlyList<JsValue> MaterializeProgramArguments(

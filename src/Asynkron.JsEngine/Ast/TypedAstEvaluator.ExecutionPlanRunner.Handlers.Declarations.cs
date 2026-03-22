@@ -26,7 +26,7 @@ public static partial class TypedAstEvaluator
 
             // Block-scoped function declarations need to be instantiated at runtime.
             // Function-scoped declarations are hoisted (handled during function entry).
-            if (instruction.Declaration is { } funcDecl)
+            if (instruction.Descriptor is { } funcDecl)
             {
                 // Pass skipInternalNameBinding: true so the function doesn't create an internal
                 // const binding for its name (the binding is handled by environment.Define below).
@@ -155,8 +155,8 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<ClassDeclarationInstruction>(instr);
-            var classValue = instruction.Declaration.Definition.CreateClassValue(
-                environment, context, instruction.Declaration.Name);
+            var classValue = instruction.Descriptor.Definition.CreateClassValue(
+                environment, context, instruction.Descriptor.Name);
 
             if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingClassResult, environment))
             {
@@ -169,7 +169,7 @@ public static partial class TypedAstEvaluator
                 return HandleClassDeclarationThrowSlow(runner, context, out returnValue);
             }
 
-            environment.DefineJsValue(instruction.Declaration.Name, classValue,
+            environment.DefineJsValue(instruction.Descriptor.Name, classValue,
                 isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
             runner._programCounter = instruction.Next;
@@ -379,31 +379,14 @@ public static partial class TypedAstEvaluator
                 };
 
                 if (instruction.TargetProgram is { } targetProgram)
-                {
-                    runner.ApplyBindingTargetProgram(
-                        targetProgram,
-                        bindingValue,
-                        environment,
-                        context,
-                        mode,
-                        hasInitializer,
-                        allowNameInference: false);
-                }
-                else if (instruction.Target is { } target)
-                {
-                    target.ApplyBindingTarget(
-                        bindingValue,
-                        environment,
-                        context,
-                        mode,
-                        hasInitializer,
-                        allowNameInference: false);
-                }
-                else
-                {
-                    throw new InvalidOperationException(
-                        "Binding variable declaration instruction must carry either a binding target AST or a lowered binding target program.");
-                }
+                runner.ApplyBindingTargetProgram(
+                    instruction.TargetProgram,
+                    bindingValue,
+                    environment,
+                    context,
+                    mode,
+                    hasInitializer,
+                    allowNameInference: false);
             }
 
             if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingResult, environment))

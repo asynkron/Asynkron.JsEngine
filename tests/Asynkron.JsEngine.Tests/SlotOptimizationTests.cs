@@ -101,8 +101,8 @@ public sealed class SlotOptimizationTests : IAsyncLifetime
             return;
         }
 
-        Assert.True(compoundInstr.RhsExpressionOps.HasValue, "Expected lowered RHS expression ops for compound assignment.");
-        var rhsLoad = compoundInstr.RhsExpressionOps.Value
+        Assert.NotNull(compoundInstr.RhsProgram);
+        var rhsLoad = compoundInstr.RhsProgram.Value.Operations
             .OfType<LoadIdentifierExpressionOp>()
             .FirstOrDefault(op => op.Name.Name == "i");
         Assert.NotNull(rhsLoad);

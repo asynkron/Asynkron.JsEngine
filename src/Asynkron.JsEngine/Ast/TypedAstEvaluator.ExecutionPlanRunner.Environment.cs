@@ -179,7 +179,18 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 }
             }
 
-            functionEnvironment.DefineJsValue(Symbol.This, boundThis);
+            var isDerivedClassConstructor = _callable is SyncFunctionInvoker { IsDerivedClassConstructor: true };
+            var thisValueForEnvironment = isDerivedClassConstructor ? JsValue.Uninitialized : boundThis;
+            functionEnvironment.DefineJsValue(Symbol.This, thisValueForEnvironment);
+            functionEnvironment.SetThisInitializationStatus(!isDerivedClassConstructor);
+            if (isDerivedClassConstructor)
+            {
+                generatorContext.MarkThisUninitialized();
+            }
+            else
+            {
+                generatorContext.MarkThisInitialized();
+            }
 
             // For arrow functions with captured lexical this environment, define LexicalThisEnvironment
             // so super() calls can update the correct this binding in the original constructor
@@ -201,15 +212,22 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 JsValue.FromObjectUnsafe(yieldState.ResumeContext));
             functionEnvironment.DefineJsValue(Symbol.GeneratorInstanceSymbol, JsValue.FromObjectUnsafe(this));
 
-            var superPrototype = _homeObject?.Prototype;
+            var superPrototype = (_homeObject as IPrototypeAccessorProvider)?.PrototypeAccessor ??
+                                 _homeObject?.Prototype;
+            superPrototype ??= _superPrototype;
             if (superPrototype is null && boundThis.TryGetObject<JsObject>(out var thisObj))
             {
-                superPrototype = thisObj.Prototype;
+                superPrototype = thisObj.PrototypeAccessor ?? thisObj.Prototype;
             }
 
-            if (superPrototype is not null)
+            var superConstructor = _superConstructor ?? superPrototype as IJsEnvironmentAwareCallable;
+            if (superConstructor is not null || superPrototype is not null)
             {
-                var superBinding = new SuperBinding(null, superPrototype, boundThis, true);
+                var superBinding = new SuperBinding(
+                    superConstructor,
+                    superPrototype,
+                    isDerivedClassConstructor ? JsValue.Undefined : boundThis,
+                    !isDerivedClassConstructor);
                 functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(superBinding));
             }
 

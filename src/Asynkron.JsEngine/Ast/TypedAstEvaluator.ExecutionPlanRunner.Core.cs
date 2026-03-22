@@ -28,7 +28,9 @@ public static partial class TypedAstEvaluator
             PrivateNameScope? privateNameScope,
             ImmutableArray<PrivateNameScope> capturedPrivateNameScopes,
             JsValue newTarget = default,
-            JsEnvironment? lexicalThisEnvironment = null)
+            JsEnvironment? lexicalThisEnvironment = null,
+            IJsEnvironmentAwareCallable? superConstructor = null,
+            IJsPropertyAccessor? superPrototype = null)
         {
             _function = function;
             _closure = closure;
@@ -42,6 +44,8 @@ public static partial class TypedAstEvaluator
             _privateNameScope = privateNameScope;
             _capturedPrivateNameScopes = capturedPrivateNameScopes;
             _lexicalThisEnvironment = lexicalThisEnvironment;
+            _superConstructor = superConstructor;
+            _superPrototype = superPrototype;
             _isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
             _isAsync = function.IsAsync;
             _isGenerator = function.IsGenerator;

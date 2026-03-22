@@ -23,13 +23,95 @@ internal static class BindingTargetProgramCompiler
             case ObjectBinding objectBinding:
                 return TryCompileObjectBinding(objectBinding, out program, out failureReason);
 
-            case AssignmentTargetBinding:
-                failureReason = "Binding target bytecode does not yet support assignment-style destructuring targets.";
-                program = default!;
-                return false;
+            case AssignmentTargetBinding assignmentTarget:
+                return TryCompileAssignmentTargetBinding(assignmentTarget, out program, out failureReason);
 
             default:
                 failureReason = $"Binding target bytecode does not yet support '{target.GetType().Name}'.";
+                program = default!;
+                return false;
+        }
+    }
+
+    private static bool TryCompileAssignmentTargetBinding(
+        AssignmentTargetBinding binding,
+        out BindingTargetProgram program,
+        out string? failureReason)
+    {
+        switch (binding.Expression)
+        {
+            case IdentifierExpression identifier:
+                program = new IdentifierBindingTargetProgram(identifier.Name);
+                failureReason = null;
+                return true;
+
+            case MemberExpression { Target: SuperExpression, IsComputed: false } member:
+                if (member.Property is not LiteralExpression { Value.IsString: true } propertyLiteral)
+                {
+                    failureReason =
+                        "Binding target bytecode only supports literal property names for assignment-style dot targets.";
+                    program = default!;
+                    return false;
+                }
+
+                program = new NamedSuperPropertyAssignmentBindingTargetProgram(propertyLiteral.Value.AsString());
+                failureReason = null;
+                return true;
+
+            case MemberExpression { Target: SuperExpression } member:
+                if (!ExpressionProgramCompiler.TryCompile(member.Property, out var superPropertyProgram, out failureReason))
+                {
+                    program = default!;
+                    return false;
+                }
+
+                program = new ComputedSuperPropertyAssignmentBindingTargetProgram(superPropertyProgram);
+                failureReason = null;
+                return true;
+
+            case MemberExpression { IsComputed: false } member:
+                if (!ExpressionProgramCompiler.TryCompile(member.Target, out var targetProgram, out failureReason))
+                {
+                    program = default!;
+                    return false;
+                }
+
+                if (member.Property is not LiteralExpression { Value.IsString: true } namedPropertyLiteral)
+                {
+                    failureReason =
+                        "Binding target bytecode only supports literal property names for assignment-style dot targets.";
+                    program = default!;
+                    return false;
+                }
+
+                program = new NamedPropertyAssignmentBindingTargetProgram(
+                    targetProgram,
+                    namedPropertyLiteral.Value.AsString());
+                failureReason = null;
+                return true;
+
+            case MemberExpression member:
+                if (!ExpressionProgramCompiler.TryCompile(member.Target, out var computedTargetProgram, out failureReason))
+                {
+                    program = default!;
+                    return false;
+                }
+
+                if (!ExpressionProgramCompiler.TryCompile(member.Property, out var propertyProgram, out failureReason))
+                {
+                    program = default!;
+                    return false;
+                }
+
+                program = new ComputedPropertyAssignmentBindingTargetProgram(
+                    computedTargetProgram,
+                    propertyProgram);
+                failureReason = null;
+                return true;
+
+            default:
+                failureReason =
+                    $"Binding target bytecode does not yet support assignment target '{binding.Expression.GetType().Name}'.";
                 program = default!;
                 return false;
         }

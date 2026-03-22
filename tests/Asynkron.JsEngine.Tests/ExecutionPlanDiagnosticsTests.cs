@@ -92,12 +92,13 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
         ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
-        var program = engine.ParseProgram("""
-            const obj = null;
-            obj?.tag`value`;
-            """);
+        var program = engine.ParseProgram("tag`value`;");
+        var result = ExecutionPlanBuildResult.FailureResult(
+            ExecutionPlanFailureCode.UnsupportedExpressionProgram,
+            "Expression bytecode does not yet support optional tagged templates.",
+            ExpressionProgramFailureCode.OptionalTaggedTemplate);
 
-        await Assert.ThrowsAsync<NotSupportedException>(async () => await engine.Evaluate(program));
+        ExecutionPlanDiagnostics.ReportScriptResult(program, result);
 
         var snapshot = ExecutionPlanDiagnostics.DetailedSnapshot();
         Assert.Equal(0, snapshot.Functions.Attempts);

@@ -82,6 +82,8 @@ public static partial class TypedAstEvaluator
         private readonly ExecutionPlan? _plan;
         private readonly PrivateNameScope? _privateNameScope;
         private readonly RealmState _realmState;
+        private readonly IJsEnvironmentAwareCallable? _superConstructor;
+        private readonly IJsPropertyAccessor? _superPrototype;
         private readonly JsValue _thisValue;
         private EvaluationContext? _context;
         private int _currentInstructionIndex;
@@ -122,12 +124,29 @@ public static partial class TypedAstEvaluator
         internal JsValue EvaluateAwaitInGenerator(AwaitExpression expression, JsEnvironment environment,
             EvaluationContext context)
         {
+            return EvaluateAwaitInGenerator(
+                expression.GetAwaitStateKey(),
+                expression.Expression,
+                null,
+                environment,
+                context);
+        }
+
+        internal JsValue EvaluateAwaitInGenerator(
+            Symbol awaitKey,
+            ExpressionNode? awaitedExpression,
+            ExpressionProgram? awaitedProgram,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
             // When not executing under async-aware stepping, fall back to the
             // legacy blocking helper so synchronous generators remain usable.
             if (!AsyncStateRef.AsyncStepMode)
             {
                 // Keep as JsValue to avoid boxing round trips
-                var awaitedValueSync = expression.Expression.EvaluateExpression(environment, context);
+                var awaitedValueSync = awaitedProgram is { } syncProgram
+                    ? EvaluateExpressionProgram(syncProgram, environment, context)
+                    : awaitedExpression!.EvaluateExpression(environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return awaitedValueSync;
@@ -142,7 +161,6 @@ public static partial class TypedAstEvaluator
 
             // Async-aware mode: use per-site await state so we don't re-run
             // side-effecting expressions after the promise has resolved.
-            var awaitKey = expression.GetAwaitStateKey();
             if (environment.TryGetObject<AwaitState>(awaitKey, out var state) &&
                 state.HasResult)
             {
@@ -161,7 +179,9 @@ public static partial class TypedAstEvaluator
             }
 
             // Keep as JsValue to avoid boxing round trips
-            var awaitedValue = expression.Expression.EvaluateExpression(environment, context);
+            var awaitedValue = awaitedProgram is { } program
+                ? EvaluateExpressionProgram(program, environment, context)
+                : awaitedExpression!.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return awaitedValue;

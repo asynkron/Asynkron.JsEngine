@@ -184,6 +184,13 @@ internal static class GeneratorYieldLowerer
                     continue;
                 }
 
+                if (TryRewriteAssignmentToDestructuringWithYield(statement, isStrict, out var assignmentDestructuringRewrite))
+                {
+                    builder.AddRange(assignmentDestructuringRewrite);
+                    changed = true;
+                    continue;
+                }
+
                 if (TryRewriteDestructuringWithYieldDefaults(statement, isStrict, out var destructuringRewrite))
                 {
                     builder.AddRange(destructuringRewrite);
@@ -1506,26 +1513,48 @@ internal static class GeneratorYieldLowerer
             out ImmutableArray<StatementNode> replacement)
         {
             replacement = default;
+            BindingTarget target;
+            ExpressionNode initializer;
+            VariableKind? varKind;
+            SourceReference? source;
 
-            if (statement is not VariableDeclaration { Declarators.Length: 1 } declaration)
+            switch (statement)
             {
-                return false;
+                case VariableDeclaration { Declarators.Length: 1 } declaration:
+                    {
+                        var declarator = declaration.Declarators[0];
+                        if (declarator.Target is not (ArrayBinding or ObjectBinding) ||
+                            declarator.Initializer is null)
+                        {
+                            return false;
+                        }
+
+                        target = declarator.Target;
+                        initializer = declarator.Initializer;
+                        varKind = declaration.Kind;
+                        source = declaration.Source;
+                        break;
+                    }
+
+                case ExpressionStatement { Expression: DestructuringAssignmentExpression assignment }:
+                    {
+                        if (assignment.Target is not (ArrayBinding or ObjectBinding))
+                        {
+                            return false;
+                        }
+
+                        target = assignment.Target;
+                        initializer = assignment.Value;
+                        varKind = null;
+                        source = statement.Source;
+                        break;
+                    }
+
+                default:
+                    return false;
             }
 
-            var declarator = declaration.Declarators[0];
-            if (declarator.Target is not (ArrayBinding or ObjectBinding))
-            {
-                return false;
-            }
-
-            // Check if the binding target contains yields in default values
-            if (!AstShapeAnalyzer.BindingTargetContainsYieldInDefaultValue(declarator.Target))
-            {
-                return false;
-            }
-
-            // We need an initializer to destructure
-            if (declarator.Initializer is null)
+            if (!AstShapeAnalyzer.BindingTargetContainsYieldInDefaultValue(target))
             {
                 return false;
             }
@@ -1536,17 +1565,17 @@ internal static class GeneratorYieldLowerer
             // let __temp = arr;
             var tempSymbol = CreateResumeIdentifier();
             statements.Add(new VariableDeclaration(
-                declaration.Source,
+                source,
                 VariableKind.Let,
-                [new VariableDeclarator(declaration.Source, tempSymbol, declarator.Initializer)]));
+                [new VariableDeclarator(source, tempSymbol, initializer)]));
 
             // Step 2: Handle the destructuring pattern
-            switch (declarator.Target)
+            switch (target)
             {
                 case ArrayBinding arrayBinding:
                     if (!TryLowerArrayBindingWithYieldDefaults(
                             arrayBinding,
-                            declaration.Kind,
+                            varKind,
                             tempSymbol,
                             statements,
                             isStrict))
@@ -1559,7 +1588,7 @@ internal static class GeneratorYieldLowerer
                 case ObjectBinding objectBinding:
                     if (!TryLowerObjectBindingWithYieldDefaults(
                             objectBinding,
-                            declaration.Kind,
+                            varKind,
                             tempSymbol,
                             statements,
                             isStrict))
@@ -1572,6 +1601,75 @@ internal static class GeneratorYieldLowerer
                 default:
                     return false;
             }
+
+            replacement = statements.ToImmutable();
+            return true;
+        }
+
+        private bool TryRewriteAssignmentToDestructuringWithYield(
+            StatementNode statement,
+            bool isStrict,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            replacement = default;
+
+            if (statement is not ExpressionStatement
+                {
+                    Expression: AssignmentExpression
+                    {
+                        Value: DestructuringAssignmentExpression destructuringAssignment
+                    } outerAssignment
+                } expressionStatement)
+            {
+                return false;
+            }
+
+            if (destructuringAssignment.Target is not (ArrayBinding or ObjectBinding))
+            {
+                return false;
+            }
+
+            if (!AstShapeAnalyzer.BindingTargetContainsYieldInDefaultValue(destructuringAssignment.Target) &&
+                !BindingTargetContainsYieldInAssignmentTarget(destructuringAssignment.Target))
+            {
+                return false;
+            }
+
+            var statements = ImmutableArray.CreateBuilder<StatementNode>();
+            var tempSymbol = CreateResumeIdentifier();
+            statements.Add(new VariableDeclaration(
+                expressionStatement.Source,
+                VariableKind.Let,
+                [new VariableDeclarator(expressionStatement.Source, tempSymbol, destructuringAssignment.Value)]));
+
+            switch (destructuringAssignment.Target)
+            {
+                case ArrayBinding arrayBinding:
+                    if (!TryLowerArrayBindingWithYieldDefaults(arrayBinding, null, tempSymbol, statements, isStrict))
+                    {
+                        return false;
+                    }
+
+                    break;
+
+                case ObjectBinding objectBinding:
+                    if (!TryLowerObjectBindingWithYieldDefaults(objectBinding, null, tempSymbol, statements, isStrict))
+                    {
+                        return false;
+                    }
+
+                    break;
+
+                default:
+                    return false;
+            }
+
+            statements.Add(new ExpressionStatement(
+                expressionStatement.Source,
+                outerAssignment with
+                {
+                    Value = new IdentifierExpression(expressionStatement.Source, tempSymbol.Name)
+                }));
 
             replacement = statements.ToImmutable();
             return true;
@@ -1867,10 +1965,18 @@ internal static class GeneratorYieldLowerer
                             isStrict);
                     }
 
-                case AssignmentTargetBinding:
-                    // Assignment targets (like a.b or a[i]) in binding patterns are complex
-                    // Fall back to AST evaluation for now
-                    return false;
+                case AssignmentTargetBinding assignmentTarget:
+                    if (varKind is not null)
+                    {
+                        return false;
+                    }
+
+                    return TryLowerAssignmentTargetBindingWithDefault(
+                        assignmentTarget,
+                        defaultValue,
+                        valueSymbol,
+                        statements,
+                        isStrict);
 
                 default:
                     return false;
@@ -2013,6 +2119,89 @@ internal static class GeneratorYieldLowerer
                 isStrict);
         }
 
+        private bool TryLowerAssignmentTargetBindingWithDefault(
+            AssignmentTargetBinding assignmentTarget,
+            ExpressionNode? defaultValue,
+            IdentifierBinding valueSymbol,
+            ImmutableArray<StatementNode>.Builder statements,
+            bool isStrict)
+        {
+            if (defaultValue is null)
+            {
+                return TryEmitAssignmentTargetBindingAssignment(
+                    assignmentTarget,
+                    new IdentifierExpression(null, valueSymbol.Name),
+                    statements);
+            }
+
+            if (!AstShapeAnalyzer.ContainsYield(defaultValue))
+            {
+                var resolvedSymbol = CreateResumeIdentifier();
+                var conditional = new ConditionalExpression(
+                    null,
+                    new BinaryExpression(
+                        null,
+                        BinaryOperator.StrictEqual,
+                        new IdentifierExpression(null, valueSymbol.Name),
+                        new IdentifierExpression(null, Symbol.Intern("undefined"))),
+                    defaultValue,
+                    new IdentifierExpression(null, valueSymbol.Name));
+
+                statements.Add(new VariableDeclaration(
+                    null,
+                    VariableKind.Let,
+                    [new VariableDeclarator(null, resolvedSymbol, conditional)]));
+
+                return TryEmitAssignmentTargetBindingAssignment(
+                    assignmentTarget,
+                    new IdentifierExpression(null, resolvedSymbol.Name),
+                    statements);
+            }
+
+            var resolvedYieldSymbol = CreateResumeIdentifier();
+            statements.Add(new VariableDeclaration(
+                null,
+                VariableKind.Let,
+                [new VariableDeclarator(null, resolvedYieldSymbol, null)]));
+
+            if (!EmitYieldDefaultConditional(
+                    resolvedYieldSymbol,
+                    defaultValue,
+                    valueSymbol,
+                    statements,
+                    isStrict))
+            {
+                return false;
+            }
+
+            return TryEmitAssignmentTargetBindingAssignment(
+                assignmentTarget,
+                new IdentifierExpression(null, resolvedYieldSymbol.Name),
+                statements);
+        }
+
+        private bool TryEmitAssignmentTargetBindingAssignment(
+            AssignmentTargetBinding assignmentTarget,
+            ExpressionNode valueExpression,
+            ImmutableArray<StatementNode>.Builder statements)
+        {
+            var prefixStatements = ImmutableArray.CreateBuilder<StatementNode>();
+            var changed = false;
+            var rewrittenTarget =
+                RewriteExpressionForComplexYields(assignmentTarget.Expression, prefixStatements, ref changed);
+
+            if (AstShapeAnalyzer.ContainsYield(rewrittenTarget))
+            {
+                return false;
+            }
+
+            statements.AddRange(prefixStatements);
+            statements.Add(new ExpressionStatement(
+                null,
+                CreateAssignmentExpressionFromLhs(rewrittenTarget, valueExpression)));
+            return true;
+        }
+
         private IdentifierBinding PrepareDefaultValueSource(
             ExpressionNode? defaultValue,
             IdentifierBinding valueSymbol,
@@ -2029,7 +2218,7 @@ internal static class GeneratorYieldLowerer
                         BinaryOperator.StrictEqual,
                         new IdentifierExpression(null, valueSymbol.Name),
                         new IdentifierExpression(null, Symbol.Intern("undefined"))),
-                    defaultValue,
+                defaultValue,
                     new IdentifierExpression(null, valueSymbol.Name));
                 statements.Add(new VariableDeclaration(
                     null,
@@ -2078,6 +2267,21 @@ internal static class GeneratorYieldLowerer
             ImmutableArray<StatementNode>.Builder statements,
             bool isStrict)
         {
+            return EmitYieldDefaultConditional(
+                new IdentifierExpression(null, targetBinding.Name),
+                defaultValue,
+                valueSymbol,
+                statements,
+                isStrict);
+        }
+
+        private bool EmitYieldDefaultConditional(
+            ExpressionNode targetExpression,
+            ExpressionNode defaultValue,
+            IdentifierBinding valueSymbol,
+            ImmutableArray<StatementNode>.Builder statements,
+            bool isStrict)
+        {
             // Handle yields in the default expression by extracting them
             var defaultPrefixStatements = ImmutableArray.CreateBuilder<StatementNode>();
             var changed = false;
@@ -2088,10 +2292,7 @@ internal static class GeneratorYieldLowerer
             consequentStatements.AddRange(defaultPrefixStatements);
             consequentStatements.Add(new ExpressionStatement(
                 null,
-                new AssignmentExpression(
-                    null,
-                    targetBinding.Name,
-                    rewrittenDefault)));
+                CreateAssignmentExpressionFromLhs(targetExpression, rewrittenDefault)));
 
             var consequentBlock = new BlockStatement(null, consequentStatements.ToImmutable(), isStrict);
 
@@ -2101,9 +2302,8 @@ internal static class GeneratorYieldLowerer
                 [
                     new ExpressionStatement(
                         null,
-                        new AssignmentExpression(
-                            null,
-                            targetBinding.Name,
+                        CreateAssignmentExpressionFromLhs(
+                            targetExpression,
                             new IdentifierExpression(null, valueSymbol.Name)))
                 ],
                 isStrict);
@@ -2118,6 +2318,22 @@ internal static class GeneratorYieldLowerer
             // Create the if statement
             statements.Add(new IfStatement(null, condition, consequentBlock, alternateBlock));
             return true;
+        }
+
+        private static ExpressionNode CreateAssignmentExpressionFromLhs(ExpressionNode lhs, ExpressionNode value)
+        {
+            return lhs switch
+            {
+                IdentifierExpression id => new AssignmentExpression(lhs.Source, id.Name, value),
+                MemberExpression member => new PropertyAssignmentExpression(
+                    lhs.Source,
+                    member.Target,
+                    member.Property,
+                    value,
+                    member.IsComputed),
+                _ => throw new NotSupportedException(
+                    $"Unsupported destructuring assignment target '{lhs.GetType().Name}'.")
+            };
         }
 
         private bool TryRewriteYieldingAssignment(StatementNode statement,

@@ -34,7 +34,9 @@ internal static class StatementEmitter
                 case FunctionDeclaration funcDecl:
                     // Block-scoped function declarations need to be instantiated at runtime.
                     // Function-scoped declarations are hoisted (no-op at runtime).
-                    entryIndex = ctx.Append(new FunctionDeclarationInstruction(nextIndex, funcDecl));
+                    entryIndex = ctx.Append(new FunctionDeclarationInstruction(
+                        nextIndex,
+                        new FunctionDeclarationDescriptor(funcDecl.Name, funcDecl.Function)));
                     return true;
 
                 case IfStatement ifStatement:

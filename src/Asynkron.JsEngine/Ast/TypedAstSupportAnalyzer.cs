@@ -237,6 +237,24 @@ internal static class TypedAstSupportAnalyzer
                         return VisitExpression(conditional.Test) && VisitExpression(conditional.Consequent) &&
                                VisitExpression(conditional.Alternate);
                     case CallExpression call:
+                        if (call.Callee is MemberExpression { Target: SuperExpression } superMemberCall)
+                        {
+                            if (!VisitExpression(superMemberCall.Property))
+                            {
+                                return false;
+                            }
+
+                            foreach (var argument in call.Arguments)
+                            {
+                                if (!VisitExpression(argument.Expression))
+                                {
+                                    return false;
+                                }
+                            }
+
+                            return true;
+                        }
+
                         if (!VisitExpression(call.Callee))
                         {
                             return false;
@@ -257,16 +275,20 @@ internal static class TypedAstSupportAnalyzer
                         expression = assignment.Value;
                         continue;
                     case PropertyAssignmentExpression propertyAssignment:
-                        return VisitExpression(propertyAssignment.Target) &&
+                        return (propertyAssignment.Target is SuperExpression ||
+                                VisitExpression(propertyAssignment.Target)) &&
                                VisitExpression(propertyAssignment.Property) &&
                                VisitExpression(propertyAssignment.Value);
                     case IndexAssignmentExpression indexAssignment:
-                        return VisitExpression(indexAssignment.Target) && VisitExpression(indexAssignment.Index) &&
+                        return (indexAssignment.Target is SuperExpression ||
+                                VisitExpression(indexAssignment.Target)) &&
+                               VisitExpression(indexAssignment.Index) &&
                                VisitExpression(indexAssignment.Value);
                     case SequenceExpression sequence:
                         return VisitExpression(sequence.Left) && VisitExpression(sequence.Right);
                     case MemberExpression member:
-                        return VisitExpression(member.Target) && VisitExpression(member.Property);
+                        return (member.Target is SuperExpression || VisitExpression(member.Target)) &&
+                               VisitExpression(member.Property);
                     case NewExpression newExpression:
                         if (!VisitExpression(newExpression.Constructor))
                         {
@@ -315,6 +337,12 @@ internal static class TypedAstSupportAnalyzer
 
                         return true;
                     case TaggedTemplateExpression taggedTemplate:
+                        if (taggedTemplate.Tag is MemberExpression { Target: SuperExpression } superTaggedMember &&
+                            !VisitExpression(superTaggedMember.Property))
+                        {
+                            return false;
+                        }
+
                         if (!VisitExpression(taggedTemplate.Tag) ||
                             !VisitExpression(taggedTemplate.StringsArray) ||
                             !VisitExpression(taggedTemplate.RawStringsArray))
@@ -341,7 +369,7 @@ internal static class TypedAstSupportAnalyzer
                     case YieldExpression yieldExpression:
                         return yieldExpression.Expression is null || VisitExpression(yieldExpression.Expression);
                     case SuperExpression:
-                        return Fail("super expressions are not supported by the typed evaluator yet.");
+                        return true;
                     default:
                         return Fail(
                             $"Expression '{expression.GetType().Name}' is not supported by the typed evaluator yet.");

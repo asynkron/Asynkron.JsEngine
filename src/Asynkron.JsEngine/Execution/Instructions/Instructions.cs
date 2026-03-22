@@ -25,7 +25,7 @@ internal sealed record ThrowInstruction(
 /// </summary>
 /// <param name="Next">Next instruction index.</param>
 /// <param name="Expression">AST representation of the expression (nullable during migration).</param>
-/// <param name="ExpressionOps">Bytecode representation of the expression (nullable during migration).</param>
+/// <param name="ExpressionProgram">Bytecode representation of the expression (nullable during migration).</param>
 /// <param name="SuppressCompletionValue">
 ///     When true, the completion value is NOT updated (used for loop update expressions).
 ///     Per ES spec, for-loop update expressions don't contribute to the loop's completion value.
@@ -33,7 +33,7 @@ internal sealed record ThrowInstruction(
 internal sealed record EvaluateAndDiscardInstruction(
     int Next,
     ExpressionNode? Expression = null,
-    ImmutableArray<ExpressionOp>? ExpressionOps = null,
+    ExpressionProgram? ExpressionProgram = null,
     bool SuppressCompletionValue = false)
     : ExecutionInstruction(InstructionKind.EvaluateAndDiscard, Next);
 
@@ -42,7 +42,9 @@ internal sealed record EvaluateAndDiscardInstruction(
 /// </summary>
 internal sealed record AwaitAndDiscardInstruction(
     int Next,
-    AwaitExpression Expression,
+    Symbol AwaitStateKey,
+    ExpressionNode? AwaitedExpression = null,
+    ExpressionProgram? AwaitedProgram = null,
     bool SuppressCompletionValue = false)
     : ExecutionInstruction(InstructionKind.AwaitAndDiscard, Next);
 
@@ -121,7 +123,7 @@ internal sealed record LogicalCompoundAssignmentSlotInstruction(
 /// <param name="TargetSymbol">The target identifier symbol.</param>
 /// <param name="Operator">The compound assignment operator (Add, Subtract, etc.).</param>
 /// <param name="RhsExpression">AST representation of the right-hand side expression (nullable during migration).</param>
-/// <param name="RhsExpressionOps">Bytecode representation of the right-hand side expression (nullable during migration).</param>
+/// <param name="RhsProgram">Bytecode representation of the right-hand side expression (nullable during migration).</param>
 /// <param name="SuppressCompletionValue">When true, the completion value is NOT updated.</param>
 /// <param name="ScopeId">Scope ID where the variable is declared. -1 means unresolved.</param>
 /// <param name="SlotIndex">Slot index within the scope. -1 means unresolved.</param>
@@ -132,7 +134,7 @@ internal sealed record CompoundAssignmentSlotInstruction(
     Symbol TargetSymbol,
     BinaryOperator Operator,
     ExpressionNode? RhsExpression = null,
-    ImmutableArray<ExpressionOp>? RhsExpressionOps = null,
+    ExpressionProgram? RhsProgram = null,
     bool SuppressCompletionValue = false,
     int ScopeId = -1,
     int SlotIndex = -1,
@@ -140,13 +142,15 @@ internal sealed record CompoundAssignmentSlotInstruction(
     int RhsFlatSlotId = -1)
     : ExecutionInstruction(InstructionKind.CompoundAssignmentSlot, Next);
 
+internal readonly record struct FunctionDeclarationDescriptor(Symbol Name, FunctionExpression Function);
+
 /// <summary>
 ///     Represents a function declaration in the generator.
 ///     For block-scoped function declarations (strict mode), the function is created
 ///     and bound to the environment at runtime. For function-scoped declarations,
 ///     this is a no-op as they are hoisted.
 /// </summary>
-internal sealed record FunctionDeclarationInstruction(int Next, FunctionDeclaration? Declaration)
+internal sealed record FunctionDeclarationInstruction(int Next, FunctionDeclarationDescriptor? Descriptor = null)
     : ExecutionInstruction(InstructionKind.FunctionDeclaration, Next);
 
 /// <summary>
@@ -154,7 +158,9 @@ internal sealed record FunctionDeclarationInstruction(int Next, FunctionDeclarat
 ///     This instruction is used for class declarations that don't contain yields in
 ///     computed property names or extends clause.
 /// </summary>
-internal sealed record ClassDeclarationInstruction(int Next, ClassDeclaration Declaration)
+internal readonly record struct ClassDeclarationDescriptor(Symbol Name, ClassDefinition Definition);
+
+internal sealed record ClassDeclarationInstruction(int Next, ClassDeclarationDescriptor Descriptor)
     : ExecutionInstruction(InstructionKind.ClassDeclaration, Next);
 
 /// <summary>
@@ -187,9 +193,8 @@ internal sealed record SimpleVariableDeclarationInstruction(
 internal sealed record BindingVariableDeclarationInstruction(
     int Next,
     VariableKind VarKind,
-    BindingTarget? Target = null,
+    BindingTargetProgram TargetProgram,
     ExpressionNode? Initializer = null,
-    BindingTargetProgram? TargetProgram = null,
     ExpressionProgram? InitializerProgram = null)
     : ExecutionInstruction(InstructionKind.BindingVariableDeclaration, Next);
 
@@ -347,7 +352,7 @@ internal sealed record EndFinallyInstruction(int Next)
 /// </summary>
 /// <param name="IteratorKind">Whether this is a sync or async iterator.</param>
 /// <param name="IterableExpression">AST representation of the iterable expression (nullable during migration).</param>
-/// <param name="IterableExpressionOps">Bytecode representation of the iterable expression (nullable during migration).</param>
+/// <param name="IterableProgram">Bytecode representation of the iterable expression (nullable during migration).</param>
 /// <param name="IteratorSlot">Symbol for the iterator state.</param>
 /// <param name="IteratorSlotIndex">Pre-resolved slot index for fast iterator state access (-1 if not resolved).</param>
 /// <param name="Next">Jump target after initialization.</param>
@@ -363,7 +368,7 @@ internal sealed record IteratorInitInstruction(
     int IteratorSlotIndex,
     int Next,
     ExpressionNode? IterableExpression = null,
-    ImmutableArray<ExpressionOp>? IterableExpressionOps = null,
+    ExpressionProgram? IterableProgram = null,
     ImmutableArray<Symbol> TdzBindings = default,
     bool TdzIsConst = false,
     SourceReference? IterableSource = null)

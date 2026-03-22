@@ -104,8 +104,9 @@ internal static class ExpressionStatementEmitter
         {
             entryIndex = ctx.Append(new AwaitAndDiscardInstruction(
                 nextIndex,
-                awaitExpression,
-                suppressCompletion));
+                ((IAstCacheable<Symbol>)awaitExpression).GetOrCreateCache(),
+                awaitExpression.Expression,
+                SuppressCompletionValue: suppressCompletion));
             return true;
         }
 

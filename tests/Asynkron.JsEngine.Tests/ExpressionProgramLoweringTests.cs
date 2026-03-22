@@ -140,9 +140,8 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
 
         var instruction = Assert.Single(plan.Instructions.OfType<CompoundAssignmentSlotInstruction>());
         Assert.Null(instruction.RhsExpression);
-        Assert.True(instruction.RhsExpressionOps.HasValue);
         AssertProgramContains<LoadIdentifierExpressionOp>(
-            new ExpressionProgram(instruction.RhsExpressionOps.Value),
+            instruction.RhsProgram,
             op => op.Name.Name == "value");
     }
 
@@ -166,12 +165,10 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         Assert.NotNull(declaration.InitializerProgram);
 
         var expressionStatement = Assert.Single(cache.Plan.Instructions.OfType<EvaluateAndDiscardInstruction>()
-            .Where(i => i.ExpressionOps is not null));
+            .Where(i => i.ExpressionProgram is not null));
         Assert.Null(expressionStatement.Expression);
-        Assert.True(expressionStatement.ExpressionOps.HasValue);
-        var expressionOps = expressionStatement.ExpressionOps.Value;
         AssertProgramContains<LoadIdentifierExpressionOp>(
-            new ExpressionProgram(expressionOps),
+            expressionStatement.ExpressionProgram,
             op => op.Name.Name == "value");
     }
 
@@ -190,10 +187,146 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         var instruction = Assert.Single(plan.Instructions.OfType<IteratorInitInstruction>());
         Assert.Null(instruction.IterableExpression);
         Assert.NotNull(instruction.IterableSource);
-        Assert.True(instruction.IterableExpressionOps.HasValue);
         AssertProgramContains<LoadIdentifierExpressionOp>(
-            new ExpressionProgram(instruction.IterableExpressionOps.Value),
+            instruction.IterableProgram,
             op => op.Name.Name == "items");
+    }
+
+    [Fact]
+    public async Task AwaitAndDiscardInstruction_SimpleIdentifier_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            async function awaitSimple(value) {
+                await value;
+                return 1;
+            }
+            """, "awaitSimple");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<AwaitAndDiscardInstruction>());
+        Assert.Null(instruction.AwaitedExpression);
+        Assert.NotNull(instruction.AwaitedProgram);
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            instruction.AwaitedProgram,
+            op => op.Name.Name == "value");
+    }
+
+    [Fact]
+    public async Task ClassMethod_SuperMemberAccess_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetClassMethodPlan("""
+            class Base {
+                get value() {
+                    return 41;
+                }
+            }
+
+            class Derived extends Base {
+                read() {
+                    return super.value + 1;
+                }
+            }
+            """, "Derived", "read");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>().Where(i => i.ReturnProgram is not null));
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<GetNamedSuperPropertyExpressionOp>(instruction.ReturnProgram, op => op.PropertyName == "value");
+    }
+
+    [Fact]
+    public async Task ClassMethod_SuperMemberCall_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetClassMethodPlan("""
+            class Base {
+                method() {
+                    return 40;
+                }
+            }
+
+            class Derived extends Base {
+                method() {
+                    return super.method() + 2;
+                }
+            }
+            """, "Derived", "method");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>().Where(i => i.ReturnProgram is not null));
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<LoadNamedSuperCallTargetExpressionOp>(instruction.ReturnProgram, op => op.PropertyName == "method");
+        AssertProgramContains<CallExpressionOp>(instruction.ReturnProgram);
+    }
+
+    [Fact]
+    public async Task ClassMethod_SuperPropertyAssignment_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetClassMethodPlan("""
+            class Base {
+                set value(next) {
+                    this._value = next;
+                }
+            }
+
+            class Derived extends Base {
+                write(next) {
+                    return super.value = next;
+                }
+            }
+            """, "Derived", "write");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>().Where(i => i.ReturnProgram is not null));
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<SetNamedSuperPropertyExpressionOp>(instruction.ReturnProgram, op => op.PropertyName == "value");
+        AssertProgramContains<LoadIdentifierExpressionOp>(instruction.ReturnProgram, op => op.Name.Name == "next");
+    }
+
+    [Fact]
+    public async Task ClassMethod_SuperComputedUpdate_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetClassMethodPlan("""
+            class Base {
+                get value() {
+                    return this._value ?? 1;
+                }
+
+                set value(next) {
+                    this._value = next;
+                }
+            }
+
+            class Derived extends Base {
+                bump(key) {
+                    return super[key]++;
+                }
+            }
+            """, "Derived", "bump");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>().Where(i => i.ReturnProgram is not null));
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<UpdateComputedSuperPropertyExpressionOp>(instruction.ReturnProgram);
+        AssertProgramContains<LoadIdentifierExpressionOp>(instruction.ReturnProgram, op => op.Name.Name == "key");
+    }
+
+    [Fact]
+    public async Task DerivedConstructor_SuperCall_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetClassConstructorPlan("""
+            class Base {
+                constructor(value) {
+                    this.value = value;
+                }
+            }
+
+            class Derived extends Base {
+                constructor(value) {
+                    super(value + 1);
+                }
+            }
+            """, "Derived");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>()
+            .Where(i => i.ExpressionProgram is not null));
+        Assert.Null(instruction.Expression);
+        AssertProgramContains<SuperConstructExpressionOp>(instruction.ExpressionProgram, op => op.ArgumentCount == 1);
+        AssertProgramContains<BinaryExpressionOp>(instruction.ExpressionProgram, op => op.Operator == BinaryOperator.Add);
     }
 
     [Fact]
@@ -257,7 +390,6 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             """, "sumPoint");
 
         var instruction = Assert.Single(plan.Instructions.OfType<BindingVariableDeclarationInstruction>());
-        Assert.Null(instruction.Target);
         var targetProgram = Assert.IsType<ObjectBindingTargetProgram>(instruction.TargetProgram);
         Assert.Collection(
             targetProgram.Properties,
@@ -827,13 +959,46 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         Assert.NotNull(cache.Plan);
 
         var expressionStatement = Assert.Single(cache.Plan.Instructions.OfType<EvaluateAndDiscardInstruction>()
-            .Where(i => i.ExpressionOps is not null));
+            .Where(i => i.ExpressionProgram is not null));
         Assert.Null(expressionStatement.Expression);
-        Assert.True(expressionStatement.ExpressionOps.HasValue);
-        AssertProgramContains<LoadTemplateObjectExpressionOp>(new ExpressionProgram(expressionStatement.ExpressionOps.Value));
+        AssertProgramContains<LoadTemplateObjectExpressionOp>(expressionStatement.ExpressionProgram);
         AssertProgramContains<CallExpressionOp>(
-            new ExpressionProgram(expressionStatement.ExpressionOps.Value),
+            expressionStatement.ExpressionProgram,
             op => op.ArgumentCount == 1 && op.HasExplicitThis);
+    }
+
+    [Fact]
+    public async Task ReturnInstruction_OptionalTaggedTemplateExpression_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function maybeTag(box) {
+                return box?.tag`x`;
+            }
+            """, "maybeTag");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>().Where(i => i.ReturnProgram is not null));
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<JumpIfNullishExpressionOp>(instruction.ReturnProgram, op => op.ReplaceWithUndefined);
+        AssertProgramContains<LoadNamedCallTargetExpressionOp>(instruction.ReturnProgram, op => op.PropertyName == "tag");
+        AssertProgramContains<LoadTemplateObjectExpressionOp>(instruction.ReturnProgram);
+        AssertProgramContains<CallExpressionOp>(instruction.ReturnProgram, op => op.ArgumentCount == 1 && op.HasExplicitThis);
+    }
+
+    [Fact]
+    public async Task ReturnInstruction_NestedOptionalTaggedTemplateTarget_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function maybeNestedTag(box) {
+                return box?.inner.tag`x`;
+            }
+            """, "maybeNestedTag");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>().Where(i => i.ReturnProgram is not null));
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<JumpIfShortCircuitedExpressionOp>(instruction.ReturnProgram);
+        AssertProgramContains<LoadNamedCallTargetExpressionOp>(instruction.ReturnProgram, op => op.PropertyName == "tag");
+        AssertProgramContains<LoadTemplateObjectExpressionOp>(instruction.ReturnProgram);
+        AssertProgramContains<CallExpressionOp>(instruction.ReturnProgram, op => op.ArgumentCount == 1 && op.HasExplicitThis);
     }
 
     [Fact]
@@ -896,7 +1061,6 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             """, "readComputedPoint");
 
         var instruction = Assert.Single(plan.Instructions.OfType<BindingVariableDeclarationInstruction>());
-        Assert.Null(instruction.Target);
         Assert.IsType<ObjectBindingTargetProgram>(instruction.TargetProgram);
         Assert.Null(instruction.Initializer);
         AssertProgramContains<DefineComputedObjectPropertyExpressionOp>(instruction.InitializerProgram);
@@ -913,7 +1077,6 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             """, "pickSecond");
 
         var instruction = Assert.Single(plan.Instructions.OfType<BindingVariableDeclarationInstruction>());
-        Assert.Null(instruction.Target);
         var targetProgram = Assert.IsType<ArrayBindingTargetProgram>(instruction.TargetProgram);
         Assert.Collection(
             targetProgram.Elements,
@@ -940,7 +1103,6 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             """, "readComputed");
 
         var instruction = Assert.Single(plan.Instructions.OfType<BindingVariableDeclarationInstruction>());
-        Assert.Null(instruction.Target);
         var targetProgram = Assert.IsType<ObjectBindingTargetProgram>(instruction.TargetProgram);
         var property = Assert.Single(targetProgram.Properties);
         Assert.NotNull(property.NameProgram);
@@ -981,7 +1143,6 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         Assert.NotNull(enterCatch.CatchParameterSymbol);
 
         var bindingInstruction = Assert.Single(plan.Instructions.OfType<BindingVariableDeclarationInstruction>());
-        Assert.Null(bindingInstruction.Target);
         Assert.IsType<ObjectBindingTargetProgram>(bindingInstruction.TargetProgram);
         Assert.Null(bindingInstruction.Initializer);
         Assert.NotNull(bindingInstruction.InitializerProgram);
@@ -1089,11 +1250,30 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         Assert.True(cache.Succeeded, $"Script plan should build. Failure: {cache.FailureReason}");
 
         var assignment = Assert.Single(cache.Plan!.Instructions.OfType<EvaluateAndDiscardInstruction>()
-            .Where(i => i.ExpressionOps is not null));
+            .Where(i => i.ExpressionProgram is not null));
         Assert.Null(assignment.Expression);
         AssertProgramContains<StoreIdentifierExpressionOp>(
-            new ExpressionProgram(assignment.ExpressionOps!.Value),
+            assignment.ExpressionProgram,
             op => op.Name.Name == "value");
+    }
+
+    [Fact]
+    public async Task DestructuringAssignmentExpressionStatement_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function assignFirst(values) {
+                let x = 0;
+                [x] = values;
+                return x;
+            }
+            """, "assignFirst");
+
+        var assignment = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>()
+            .Where(i => i.ExpressionProgram is not null));
+        Assert.Null(assignment.Expression);
+        AssertProgramContains<ApplyBindingTargetExpressionOp>(
+            assignment.ExpressionProgram,
+            op => op.TargetProgram is ArrayBindingTargetProgram);
     }
 
     private async Task<ExecutionPlan> GetFunctionPlan(string source, string functionName)
@@ -1105,6 +1285,38 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             program.Body.Single(statement => statement is FunctionDeclaration declaration && declaration.Name.Name == functionName));
 
         var cache = ((IAstCacheable<ExecutionPlanCache>)function.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Plan should build. Failure: {cache.FailureReason}");
+        return Assert.IsType<ExecutionPlan>(cache.Plan);
+    }
+
+    private async Task<ExecutionPlan> GetClassMethodPlan(string source, string className, string methodName, bool isStatic = false)
+    {
+        var program = _engine.ParseProgram(source);
+        await _engine.Evaluate(program);
+
+        var declaration = Assert.IsType<ClassDeclaration>(
+            program.Body.Single(statement => statement is ClassDeclaration classDeclaration &&
+                                             classDeclaration.Name.Name == className));
+
+        var method = Assert.Single(declaration.Definition.Members.Where(member =>
+            member.Name == methodName &&
+            member.IsStatic == isStatic));
+
+        var cache = ((IAstCacheable<ExecutionPlanCache>)method.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Plan should build. Failure: {cache.FailureReason}");
+        return Assert.IsType<ExecutionPlan>(cache.Plan);
+    }
+
+    private async Task<ExecutionPlan> GetClassConstructorPlan(string source, string className)
+    {
+        var program = _engine.ParseProgram(source);
+        await _engine.Evaluate(program);
+
+        var declaration = Assert.IsType<ClassDeclaration>(
+            program.Body.Single(statement => statement is ClassDeclaration classDeclaration &&
+                                             classDeclaration.Name.Name == className));
+
+        var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Definition.Constructor).GetOrCreateCache();
         Assert.True(cache.Succeeded, $"Plan should build. Failure: {cache.FailureReason}");
         return Assert.IsType<ExecutionPlan>(cache.Plan);
     }

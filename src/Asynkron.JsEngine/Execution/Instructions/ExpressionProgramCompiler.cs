@@ -90,6 +90,9 @@ internal static class ExpressionProgramCompiler
             case AssignmentExpression assignment:
                 return TryCompileAssignmentExpression(assignment, builder, out failureReason);
 
+            case DestructuringAssignmentExpression destructuringAssignment:
+                return TryCompileDestructuringAssignmentExpression(destructuringAssignment, builder, out failureReason);
+
             case IdentifierExpression identifier:
                 builder.Add(new LoadIdentifierExpressionOp(
                     identifier.Name,
@@ -411,6 +414,29 @@ internal static class ExpressionProgramCompiler
         }
     }
 
+    private static bool TryCompileDestructuringAssignmentExpression(
+        DestructuringAssignmentExpression expression,
+        List<ExpressionOp> builder,
+        out string? failureReason)
+    {
+        if (!TryCompileExpression(expression.Value, builder, out failureReason))
+        {
+            return false;
+        }
+
+        if (!BindingTargetProgramCompiler.TryCompile(expression.Target, out var targetProgram, out var bindingFailure))
+        {
+            failureReason =
+                $"Expression bytecode could not lower destructuring assignment target '{expression.Target.GetType().Name}': {bindingFailure ?? "unknown reason"}.";
+            return false;
+        }
+
+        builder.Add(new DuplicateTopExpressionOp());
+        builder.Add(new ApplyBindingTargetExpressionOp(targetProgram));
+        failureReason = null;
+        return true;
+    }
+
     private static bool TryCompileCallExpression(
         CallExpression expression,
         List<ExpressionOp> builder,
@@ -428,9 +454,40 @@ internal static class ExpressionProgramCompiler
         switch (expression.Callee)
         {
             case SuperExpression:
-            case MemberExpression { Target: SuperExpression }:
-                failureReason = "Expression bytecode does not yet support super call expressions.";
-                return false;
+                break;
+
+            case MemberExpression { Target: SuperExpression, IsComputed: false } member:
+                if (member.Property is not LiteralExpression { Value.IsString: true } superPropertyLiteral)
+                {
+                    failureReason = "Expression bytecode only supports literal property names for direct member calls.";
+                    return false;
+                }
+
+                builder.Add(new LoadNamedSuperCallTargetExpressionOp(superPropertyLiteral.Value.AsString()));
+                if (expression.IsOptional)
+                {
+                    callNullishJumpIndex = builder.Count;
+                    builder.Add(new JumpIfNullishExpressionOp(-1, ReplaceWithUndefined: true));
+                }
+
+                hasExplicitThis = true;
+                break;
+
+            case MemberExpression { Target: SuperExpression } member:
+                if (!TryCompileExpression(member.Property, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                builder.Add(new LoadComputedSuperCallTargetExpressionOp());
+                if (expression.IsOptional)
+                {
+                    callNullishJumpIndex = builder.Count;
+                    builder.Add(new JumpIfNullishExpressionOp(-1, ReplaceWithUndefined: true));
+                }
+
+                hasExplicitThis = true;
+                break;
 
             case IdentifierExpression identifier:
                 if (!TryCompileExpression(identifier, builder, out failureReason))
@@ -547,13 +604,24 @@ internal static class ExpressionProgramCompiler
             }
         }
 
-        builder.Add(new CallExpressionOp(
-            expression.Arguments.Length,
-            HasExplicitThis: hasExplicitThis,
-            IsDirectEval: isDirectEval,
-            SpreadMask: spreadMaskBuilder is not null
-                ? ImmutableArray.CreateRange(spreadMaskBuilder)
-                : default));
+        if (expression.Callee is SuperExpression)
+        {
+            builder.Add(new SuperConstructExpressionOp(
+                expression.Arguments.Length,
+                spreadMaskBuilder is not null
+                    ? ImmutableArray.CreateRange(spreadMaskBuilder)
+                    : default));
+        }
+        else
+        {
+            builder.Add(new CallExpressionOp(
+                expression.Arguments.Length,
+                HasExplicitThis: hasExplicitThis,
+                IsDirectEval: isDirectEval,
+                SpreadMask: spreadMaskBuilder is not null
+                    ? ImmutableArray.CreateRange(spreadMaskBuilder)
+                    : default));
+        }
 
         if (callNullishJumpIndex >= 0)
         {
@@ -767,10 +835,40 @@ internal static class ExpressionProgramCompiler
         List<ExpressionOp> builder,
         out string? failureReason)
     {
-        if (expression.Target is SuperExpression || HasOptionalChaining(expression.Target) || expression.IsOptional)
+        if (HasOptionalChaining(expression.Target) || expression.IsOptional)
         {
             failureReason = "Expression bytecode does not yet support super or optional member update expressions.";
             return false;
+        }
+
+        if (expression.Target is SuperExpression)
+        {
+            if (!expression.IsComputed)
+            {
+                if (expression.Property is not LiteralExpression { Value.IsString: true } propertyLiteral)
+                {
+                    failureReason = "Expression bytecode only supports literal property names for member updates.";
+                    return false;
+                }
+
+                builder.Add(new UpdateNamedSuperPropertyExpressionOp(
+                    propertyLiteral.Value.AsString(),
+                    IsIncrement: isIncrement,
+                    IsPrefix: isPrefix));
+                failureReason = null;
+                return true;
+            }
+
+            if (!TryCompileExpression(expression.Property, builder, out failureReason))
+            {
+                return false;
+            }
+
+            builder.Add(new UpdateComputedSuperPropertyExpressionOp(
+                IsIncrement: isIncrement,
+                IsPrefix: isPrefix));
+            failureReason = null;
+            return true;
         }
 
         if (!TryCompileExpression(expression.Target, builder, out failureReason))
@@ -833,26 +931,45 @@ internal static class ExpressionProgramCompiler
         out string? failureReason)
     {
         var hasExplicitThis = false;
+        var targetNullishJumpIndex = -1;
+        var targetShortCircuitJumpIndex = -1;
+        var calleeShortCircuitJumpIndex = -1;
 
         switch (expression.Tag)
         {
             case SuperExpression:
-            case MemberExpression { Target: SuperExpression }:
                 failureReason = "Expression bytecode does not yet support super tagged templates.";
                 return false;
 
-            case MemberExpression { IsOptional: true }:
-                failureReason = "Expression bytecode does not yet support optional tagged templates.";
-                return false;
-
-            case MemberExpression { IsComputed: false } member:
-                if (HasOptionalChaining(member.Target))
+            case MemberExpression { Target: SuperExpression, IsComputed: false } member:
+                if (member.Property is not LiteralExpression { Value.IsString: true } superPropertyLiteral)
                 {
-                    failureReason = "Expression bytecode does not yet support nested optional tagged templates.";
+                    failureReason =
+                        "Expression bytecode only supports literal property names for tagged template member access.";
                     return false;
                 }
 
-                if (!TryCompileExpression(member.Target, builder, out failureReason))
+                builder.Add(new LoadNamedSuperCallTargetExpressionOp(superPropertyLiteral.Value.AsString()));
+                hasExplicitThis = true;
+                break;
+
+            case MemberExpression { Target: SuperExpression } member:
+                if (!TryCompileExpression(member.Property, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                builder.Add(new LoadComputedSuperCallTargetExpressionOp());
+                hasExplicitThis = true;
+                break;
+
+            case MemberExpression { IsComputed: false } member:
+                if (!TryCompileOptionalMemberCallTarget(
+                        member,
+                        builder,
+                        ref targetNullishJumpIndex,
+                        ref targetShortCircuitJumpIndex,
+                        out failureReason))
                 {
                     return false;
                 }
@@ -868,13 +985,12 @@ internal static class ExpressionProgramCompiler
                 break;
 
             case MemberExpression member:
-                if (HasOptionalChaining(member.Target))
-                {
-                    failureReason = "Expression bytecode does not yet support nested optional tagged templates.";
-                    return false;
-                }
-
-                if (!TryCompileExpression(member.Target, builder, out failureReason))
+                if (!TryCompileOptionalMemberCallTarget(
+                        member,
+                        builder,
+                        ref targetNullishJumpIndex,
+                        ref targetShortCircuitJumpIndex,
+                        out failureReason))
                 {
                     return false;
                 }
@@ -889,15 +1005,15 @@ internal static class ExpressionProgramCompiler
                 break;
 
             default:
-                if (HasOptionalChaining(expression.Tag))
-                {
-                    failureReason = "Expression bytecode does not yet support optional tagged templates.";
-                    return false;
-                }
-
                 if (!TryCompileExpression(expression.Tag, builder, out failureReason))
                 {
                     return false;
+                }
+
+                if (HasOptionalChaining(expression.Tag))
+                {
+                    calleeShortCircuitJumpIndex = builder.Count;
+                    builder.Add(new JumpIfShortCircuitedExpressionOp(-1));
                 }
                 break;
         }
@@ -920,6 +1036,22 @@ internal static class ExpressionProgramCompiler
         builder.Add(new CallExpressionOp(
             expression.Expressions.Length + 1,
             HasExplicitThis: hasExplicitThis));
+
+        if (targetNullishJumpIndex >= 0)
+        {
+            builder[targetNullishJumpIndex] = new JumpIfNullishExpressionOp(builder.Count, ReplaceWithUndefined: true);
+        }
+
+        if (targetShortCircuitJumpIndex >= 0)
+        {
+            builder[targetShortCircuitJumpIndex] = new JumpIfShortCircuitedExpressionOp(builder.Count);
+        }
+
+        if (calleeShortCircuitJumpIndex >= 0)
+        {
+            builder[calleeShortCircuitJumpIndex] = new JumpIfShortCircuitedExpressionOp(builder.Count);
+        }
+
         failureReason = null;
         return true;
     }
@@ -1029,10 +1161,45 @@ internal static class ExpressionProgramCompiler
             return TryCompileCompoundPropertyAssignmentExpression(expression, builder, out failureReason);
         }
 
-        if (expression.Target is SuperExpression || HasOptionalChaining(expression.Target))
+        if (HasOptionalChaining(expression.Target))
         {
             failureReason = "Expression bytecode does not yet support super or optional property assignments.";
             return false;
+        }
+
+        if (expression.Target is SuperExpression)
+        {
+            if (expression.IsComputed)
+            {
+                if (!TryCompileExpression(expression.Property, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                if (!TryCompileExpression(expression.Value, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                builder.Add(new SetComputedSuperPropertyExpressionOp());
+                failureReason = null;
+                return true;
+            }
+
+            if (expression.Property is not LiteralExpression { Value.IsString: true } superPropertyLiteral)
+            {
+                failureReason = "Expression bytecode only supports literal property names for direct property assignment.";
+                return false;
+            }
+
+            if (!TryCompileExpression(expression.Value, builder, out failureReason))
+            {
+                return false;
+            }
+
+            builder.Add(new SetNamedSuperPropertyExpressionOp(superPropertyLiteral.Value.AsString()));
+            failureReason = null;
+            return true;
         }
 
         if (!TryCompileExpression(expression.Target, builder, out failureReason))
@@ -1083,10 +1250,27 @@ internal static class ExpressionProgramCompiler
             return TryCompileCompoundIndexAssignmentExpression(expression, builder, out failureReason);
         }
 
-        if (expression.Target is SuperExpression || HasOptionalChaining(expression.Target))
+        if (HasOptionalChaining(expression.Target))
         {
             failureReason = "Expression bytecode does not yet support super or optional index assignments.";
             return false;
+        }
+
+        if (expression.Target is SuperExpression)
+        {
+            if (!TryCompileExpression(expression.Index, builder, out failureReason))
+            {
+                return false;
+            }
+
+            if (!TryCompileExpression(expression.Value, builder, out failureReason))
+            {
+                return false;
+            }
+
+            builder.Add(new SetComputedSuperPropertyExpressionOp());
+            failureReason = null;
+            return true;
         }
 
         if (!TryCompileExpression(expression.Target, builder, out failureReason))
@@ -1114,7 +1298,7 @@ internal static class ExpressionProgramCompiler
         List<ExpressionOp> builder,
         out string? failureReason)
     {
-        if (expression.Target is SuperExpression || HasOptionalChaining(expression.Target))
+        if (HasOptionalChaining(expression.Target))
         {
             failureReason = "Expression bytecode does not yet support super or optional property assignments.";
             return false;
@@ -1132,12 +1316,81 @@ internal static class ExpressionProgramCompiler
             return false;
         }
 
+        var propertyName = propertyLiteral.Value.AsString();
+        if (expression.Target is SuperExpression)
+        {
+            builder.Add(new GetNamedSuperPropertyExpressionOp(propertyName));
+
+            switch (binary.Operator)
+            {
+                case BinaryOperator.LogicalAnd:
+                {
+                    var shortCircuitIndex = builder.Count;
+                    builder.Add(new JumpIfFalseExpressionOp(-1));
+                    builder.Add(new PopExpressionOp());
+
+                    if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                    {
+                        return false;
+                    }
+
+                    builder.Add(new SetNamedSuperPropertyExpressionOp(propertyName));
+                    builder[shortCircuitIndex] = new JumpIfFalseExpressionOp(builder.Count);
+                    failureReason = null;
+                    return true;
+                }
+
+                case BinaryOperator.LogicalOr:
+                {
+                    var shortCircuitIndex = builder.Count;
+                    builder.Add(new JumpIfTrueExpressionOp(-1));
+                    builder.Add(new PopExpressionOp());
+
+                    if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                    {
+                        return false;
+                    }
+
+                    builder.Add(new SetNamedSuperPropertyExpressionOp(propertyName));
+                    builder[shortCircuitIndex] = new JumpIfTrueExpressionOp(builder.Count);
+                    failureReason = null;
+                    return true;
+                }
+
+                case BinaryOperator.NullishCoalescing:
+                {
+                    var shortCircuitIndex = builder.Count;
+                    builder.Add(new JumpIfNotNullishExpressionOp(-1));
+                    builder.Add(new PopExpressionOp());
+
+                    if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                    {
+                        return false;
+                    }
+
+                    builder.Add(new SetNamedSuperPropertyExpressionOp(propertyName));
+                    builder[shortCircuitIndex] = new JumpIfNotNullishExpressionOp(builder.Count);
+                    failureReason = null;
+                    return true;
+                }
+            }
+
+            if (!TryCompileExpression(binary.Right, builder, out failureReason))
+            {
+                return false;
+            }
+
+            builder.Add(new BinaryExpressionOp(binary.Operator));
+            builder.Add(new SetNamedSuperPropertyExpressionOp(propertyName, AllowNameInference: false));
+            failureReason = null;
+            return true;
+        }
+
         if (!TryCompileExpression(expression.Target, builder, out failureReason))
         {
             return false;
         }
 
-        var propertyName = propertyLiteral.Value.AsString();
         builder.Add(new DuplicateTopExpressionOp());
         builder.Add(new GetNamedPropertyExpressionOp(propertyName));
 
@@ -1232,7 +1485,7 @@ internal static class ExpressionProgramCompiler
         List<ExpressionOp> builder,
         out string? failureReason)
     {
-        if (expression.Target is SuperExpression || HasOptionalChaining(expression.Target))
+        if (HasOptionalChaining(expression.Target))
         {
             failureReason = "Expression bytecode does not yet support super or optional index assignments.";
             return false;
@@ -1242,6 +1495,102 @@ internal static class ExpressionProgramCompiler
         {
             failureReason = "Expression bytecode only supports lowered binary index compound assignments.";
             return false;
+        }
+
+        if (expression.Target is SuperExpression)
+        {
+            if (!TryCompileExpression(expression.Index, builder, out failureReason))
+            {
+                return false;
+            }
+
+            builder.Add(new DuplicateTopExpressionOp());
+            builder.Add(new GetComputedSuperPropertyExpressionOp());
+
+            switch (binary.Operator)
+            {
+                case BinaryOperator.LogicalAnd:
+                {
+                    var shortCircuitIndex = builder.Count;
+                    builder.Add(new JumpIfFalseExpressionOp(-1));
+                    builder.Add(new PopExpressionOp());
+
+                    if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                    {
+                        return false;
+                    }
+
+                    builder.Add(new SetComputedSuperPropertyExpressionOp());
+                    var endJumpIndex = builder.Count;
+                    builder.Add(new JumpExpressionOp(-1));
+
+                    var shortCircuitStart = builder.Count;
+                    builder[shortCircuitIndex] = new JumpIfFalseExpressionOp(shortCircuitStart);
+                    builder.Add(new SwapTopTwoExpressionOp());
+                    builder.Add(new PopExpressionOp());
+                    builder[endJumpIndex] = new JumpExpressionOp(builder.Count);
+                    failureReason = null;
+                    return true;
+                }
+
+                case BinaryOperator.LogicalOr:
+                {
+                    var shortCircuitIndex = builder.Count;
+                    builder.Add(new JumpIfTrueExpressionOp(-1));
+                    builder.Add(new PopExpressionOp());
+
+                    if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                    {
+                        return false;
+                    }
+
+                    builder.Add(new SetComputedSuperPropertyExpressionOp());
+                    var endJumpIndex = builder.Count;
+                    builder.Add(new JumpExpressionOp(-1));
+
+                    var shortCircuitStart = builder.Count;
+                    builder[shortCircuitIndex] = new JumpIfTrueExpressionOp(shortCircuitStart);
+                    builder.Add(new SwapTopTwoExpressionOp());
+                    builder.Add(new PopExpressionOp());
+                    builder[endJumpIndex] = new JumpExpressionOp(builder.Count);
+                    failureReason = null;
+                    return true;
+                }
+
+                case BinaryOperator.NullishCoalescing:
+                {
+                    var shortCircuitIndex = builder.Count;
+                    builder.Add(new JumpIfNotNullishExpressionOp(-1));
+                    builder.Add(new PopExpressionOp());
+
+                    if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                    {
+                        return false;
+                    }
+
+                    builder.Add(new SetComputedSuperPropertyExpressionOp());
+                    var endJumpIndex = builder.Count;
+                    builder.Add(new JumpExpressionOp(-1));
+
+                    var shortCircuitStart = builder.Count;
+                    builder[shortCircuitIndex] = new JumpIfNotNullishExpressionOp(shortCircuitStart);
+                    builder.Add(new SwapTopTwoExpressionOp());
+                    builder.Add(new PopExpressionOp());
+                    builder[endJumpIndex] = new JumpExpressionOp(builder.Count);
+                    failureReason = null;
+                    return true;
+                }
+            }
+
+            if (!TryCompileExpression(binary.Right, builder, out failureReason))
+            {
+                return false;
+            }
+
+            builder.Add(new BinaryExpressionOp(binary.Operator));
+            builder.Add(new SetComputedSuperPropertyExpressionOp(AllowNameInference: false));
+            failureReason = null;
+            return true;
         }
 
         if (!TryCompileExpression(expression.Target, builder, out failureReason))
@@ -1389,8 +1738,27 @@ internal static class ExpressionProgramCompiler
     {
         if (expression.Target is SuperExpression)
         {
-            failureReason = "Expression bytecode does not yet support super member access.";
-            return false;
+            if (!expression.IsComputed)
+            {
+                if (expression.Property is not LiteralExpression { Value.IsString: true } propertyLiteral)
+                {
+                    failureReason = "Expression bytecode only supports literal property names for dot access.";
+                    return false;
+                }
+
+                builder.Add(new GetNamedSuperPropertyExpressionOp(propertyLiteral.Value.AsString()));
+                failureReason = null;
+                return true;
+            }
+
+            if (!TryCompileExpression(expression.Property, builder, out failureReason))
+            {
+                return false;
+            }
+
+            builder.Add(new GetComputedSuperPropertyExpressionOp());
+            failureReason = null;
+            return true;
         }
 
         if (expression is { IsComputed: false, Target: IdentifierExpression { Name.Name: "Symbol" }, Property: LiteralExpression { Value.IsString: true } symbolProp })

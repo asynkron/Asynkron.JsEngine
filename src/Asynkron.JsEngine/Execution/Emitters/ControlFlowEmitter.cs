@@ -152,7 +152,9 @@ internal static class ControlFlowEmitter
 
         // 2. FunctionDeclaration → popEnv
         ctx.PushScope(scopeId);
-        var funcDeclIndex = ctx.Append(new FunctionDeclarationInstruction(popEnvIndex, funcDecl));
+        var funcDeclIndex = ctx.Append(new FunctionDeclarationInstruction(
+            popEnvIndex,
+            new FunctionDeclarationDescriptor(funcDecl.Name, funcDecl.Function)));
         ctx.PopScope(scopeId);
 
         // 3. PushEnvironment → funcDecl

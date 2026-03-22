@@ -318,7 +318,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                 return eval with { Expression = Rewrite(eval.Expression) };
 
             case AwaitAndDiscardInstruction awaitDiscard:
-                return awaitDiscard with { Expression = (AwaitExpression)Rewrite(awaitDiscard.Expression) };
+                return awaitDiscard with { AwaitedExpression = Rewrite(awaitDiscard.AwaitedExpression) };
 
             case AssignmentSlotInstruction assign:
                 {
@@ -360,6 +360,35 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     return logicalCompound with { RhsExpression = rewrittenRhs };
                 }
 
+            case CompoundAssignmentSlotInstruction compoundAssign:
+                {
+                    var rewrittenRhs = Rewrite(compoundAssign.RhsExpression);
+                    var rhsFlatSlotId = rewrittenRhs is IdentifierExpression { FlatSlotId: >= 0 } rhsIdent
+                        ? rhsIdent.FlatSlotId
+                        : -1;
+
+                    if (TryResolve(compoundAssign.TargetSymbol, out var compoundResolution))
+                    {
+                        var compoundFlatSlotId = GetOrCreateFlatSlotId(
+                            compoundResolution.scopeId,
+                            compoundResolution.slotIndex);
+                        return compoundAssign with
+                        {
+                            RhsExpression = rewrittenRhs,
+                            ScopeId = compoundResolution.scopeId,
+                            SlotIndex = compoundResolution.slotIndex,
+                            FlatSlotId = compoundFlatSlotId,
+                            RhsFlatSlotId = rhsFlatSlotId
+                        };
+                    }
+
+                    return compoundAssign with
+                    {
+                        RhsExpression = rewrittenRhs,
+                        RhsFlatSlotId = rhsFlatSlotId
+                    };
+                }
+
             case YieldInstruction { YieldExpression: not null } yield:
                 return yield with { YieldExpression = Rewrite(yield.YieldExpression) };
 
@@ -386,31 +415,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
 
             case YieldStarInstruction yieldStar:
                 return yieldStar with { IterableExpression = Rewrite(yieldStar.IterableExpression) };
-
-            case CompoundAssignmentSlotInstruction compoundAssign:
-                {
-                    // Rewrite the RHS expression first to resolve any identifiers
-                    var rewrittenRhs = Rewrite(compoundAssign.RhsExpression);
-                    // Extract RhsFlatSlotId if RHS is an identifier with a flat slot
-                    var rhsFlatSlotId = rewrittenRhs is IdentifierExpression { FlatSlotId: >= 0 } rhsIdent
-                        ? rhsIdent.FlatSlotId
-                        : -1;
-
-                    // Resolve the target symbol to get scope/slot/flatSlot metadata
-                    if (TryResolve(compoundAssign.TargetSymbol, out var compoundResolution))
-                    {
-                        var compoundFlatSlotId = GetOrCreateFlatSlotId(compoundResolution.scopeId, compoundResolution.slotIndex);
-                        return compoundAssign with
-                        {
-                            RhsExpression = rewrittenRhs,
-                            ScopeId = compoundResolution.scopeId,
-                            SlotIndex = compoundResolution.slotIndex,
-                            FlatSlotId = compoundFlatSlotId,
-                            RhsFlatSlotId = rhsFlatSlotId
-                        };
-                    }
-                    return compoundAssign with { RhsExpression = rewrittenRhs, RhsFlatSlotId = rhsFlatSlotId };
-                }
 
             case IncrementSlotInstruction increment:
                 {

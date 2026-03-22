@@ -747,7 +747,9 @@ public static partial class TypedAstEvaluator
                             PrivateNameScope,
                             _capturedPrivateNameScopes,
                             newTarget,
-                            _lexicalThisEnvironment);
+                            _lexicalThisEnvironment,
+                            _superConstructor,
+                            _superPrototype);
 
                         // Initialize instance BEFORE running constructor body (adds private brand and initializes fields)
                         if (instanceToInit is not null)

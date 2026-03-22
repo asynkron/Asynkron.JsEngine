@@ -44,6 +44,40 @@ public static partial class TypedAstEvaluator
                     BindObjectPatternProgram(objectBinding, value, environment, context, mode);
                     return;
 
+                case NamedPropertyAssignmentBindingTargetProgram namedPropertyAssignment:
+                    ApplyNamedPropertyAssignmentTargetProgram(
+                        namedPropertyAssignment,
+                        value,
+                        environment,
+                        context);
+                    return;
+
+                case ComputedPropertyAssignmentBindingTargetProgram computedPropertyAssignment:
+                    ApplyComputedPropertyAssignmentTargetProgram(
+                        computedPropertyAssignment,
+                        value,
+                        environment,
+                        context);
+                    return;
+
+                case NamedSuperPropertyAssignmentBindingTargetProgram namedSuperPropertyAssignment:
+                    ApplyProgramNamedSuperPropertyAssignment(
+                        new SetNamedSuperPropertyExpressionOp(
+                            namedSuperPropertyAssignment.PropertyName,
+                            AllowNameInference: false),
+                        value,
+                        environment,
+                        context);
+                    return;
+
+                case ComputedSuperPropertyAssignmentBindingTargetProgram computedSuperPropertyAssignment:
+                    ApplyComputedSuperPropertyAssignmentTargetProgram(
+                        computedSuperPropertyAssignment,
+                        value,
+                        environment,
+                        context);
+                    return;
+
                 default:
                     throw new NotSupportedException(
                         $"Binding target program '{target.GetType().Name}' is not supported.");
@@ -442,6 +476,71 @@ public static partial class TypedAstEvaluator
                     iterator.IteratorClose(context, preserveExistingThrow: context.IsThrow);
                 }
             }
+        }
+
+        private void ApplyNamedPropertyAssignmentTargetProgram(
+            NamedPropertyAssignmentBindingTargetProgram targetProgram,
+            JsValue value,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            var target = EvaluateExpressionProgram(targetProgram.TargetProgram, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return;
+            }
+
+            ApplyProgramNamedPropertyAssignment(
+                target,
+                new SetNamedPropertyExpressionOp(targetProgram.PropertyName, AllowNameInference: false),
+                value,
+                context);
+        }
+
+        private void ApplyComputedPropertyAssignmentTargetProgram(
+            ComputedPropertyAssignmentBindingTargetProgram targetProgram,
+            JsValue value,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            var target = EvaluateExpressionProgram(targetProgram.TargetProgram, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return;
+            }
+
+            var propertyKey = EvaluateExpressionProgram(targetProgram.PropertyProgram, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return;
+            }
+
+            ApplyProgramComputedPropertyAssignment(
+                target,
+                propertyKey,
+                new SetComputedPropertyExpressionOp(AllowNameInference: false),
+                value,
+                context);
+        }
+
+        private void ApplyComputedSuperPropertyAssignmentTargetProgram(
+            ComputedSuperPropertyAssignmentBindingTargetProgram targetProgram,
+            JsValue value,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            var propertyKey = EvaluateExpressionProgram(targetProgram.PropertyProgram, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return;
+            }
+
+            ApplyProgramComputedSuperPropertyAssignment(
+                propertyKey,
+                new SetComputedSuperPropertyExpressionOp(AllowNameInference: false),
+                value,
+                environment,
+                context);
         }
     }
 }

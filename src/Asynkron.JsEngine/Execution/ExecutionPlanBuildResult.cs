@@ -16,6 +16,7 @@ public enum ExecutionPlanFailureCode
     UnsupportedYieldShape,
     NormalizationFailed,
     MissingControlFlowTarget,
+    AstPayloadLeak,
     AstReentryDetected
 }
 

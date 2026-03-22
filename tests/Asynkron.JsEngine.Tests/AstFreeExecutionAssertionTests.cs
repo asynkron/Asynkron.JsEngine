@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Tests;
@@ -145,6 +146,85 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsOptionalTaggedTemplateExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function tag(strings) {
+                    return this.prefix + strings[0];
+                }
+
+                function maybeTag(box) {
+                    return box?.tag`!`;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            Assert.True(_engine.GlobalObject.TryGetProperty("tag", out var tagValue));
+
+            var boxObject = new JsObject();
+            boxObject["prefix"] = new JsValue("value");
+            boxObject["tag"] = tagValue;
+
+            var invoked = InvokeGlobalFunction("maybeTag", JsValue.FromJsObject(boxObject));
+            Assert.Equal("value!", invoked.AsString());
+
+            var skipped = InvokeGlobalFunction("maybeTag", JsValue.Null);
+            Assert.True(skipped.IsUndefined);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsNestedOptionalTaggedTemplateExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function tag(strings) {
+                    return this.prefix + strings[0];
+                }
+
+                function maybeNestedTag(box) {
+                    return box?.inner.tag`!`;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            Assert.True(_engine.GlobalObject.TryGetProperty("tag", out var tagValue));
+
+            var innerObject = new JsObject();
+            innerObject["prefix"] = new JsValue("nested");
+            innerObject["tag"] = tagValue;
+
+            var boxObject = new JsObject();
+            boxObject["inner"] = JsValue.FromJsObject(innerObject);
+
+            var invoked = InvokeGlobalFunction("maybeNestedTag", JsValue.FromJsObject(boxObject));
+            Assert.Equal("nested!", invoked.AsString());
+
+            var skipped = InvokeGlobalFunction("maybeNestedTag", JsValue.Null);
+            Assert.True(skipped.IsUndefined);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
     public async Task AssertNoAstEvaluation_Enabled_AllowsObjectMethodScriptExecution()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;
@@ -222,6 +302,222 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
         {
             EvaluationContext.AssertNoAstEvaluation = originalValue;
         }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsAwaitExpressionStatementExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = false;
+
+            var program = _engine.ParseProgram("""
+                async function awaitSimple(value) {
+                    await value;
+                    return 42;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+
+            EvaluationContext.AssertNoAstEvaluation = true;
+            var result = await _engine.EvaluateAndAwait("""
+                let awaitedResult = undefined;
+                awaitSimple(Promise.resolve(1)).then(value => awaitedResult = value);
+                awaitedResult;
+                """);
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsDestructuringAssignmentExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = false;
+
+            var program = _engine.ParseProgram("""
+                function assignFirst(values) {
+                    let x = 0;
+                    [x] = values;
+                    return x;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+
+            EvaluationContext.AssertNoAstEvaluation = true;
+            var values = new JsArray(_engine.RealmState);
+            values.Push(19);
+            var result = InvokeGlobalFunction("assignFirst", JsValue.FromJsArray(values));
+            Assert.Equal(19.0, result.NumberValue);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsSuperMethodExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = false;
+
+            var program = _engine.ParseProgram("""
+                class Base {
+                    static method() {
+                        return 40;
+                    }
+                }
+
+                class Derived extends Base {
+                    static method() {
+                        return super.method() + 2;
+                    }
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            var (baseMethod, derivedMethod) = GetClassMethods(program, "Base", "method", "Derived", "method");
+            AssertPlanBuilds(baseMethod);
+            AssertPlanBuilds(derivedMethod);
+
+            EvaluationContext.AssertNoAstEvaluation = true;
+            var result = await _engine.Evaluate("Derived.method()");
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsSuperComputedUpdateExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = false;
+
+            var program = _engine.ParseProgram("""
+                class Base {
+                    static get value() {
+                        return this._value ?? 1;
+                    }
+
+                    static set value(next) {
+                        this._value = next;
+                    }
+                }
+
+                class Derived extends Base {
+                    static bump(key) {
+                        return super[key]++;
+                    }
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            var baseDeclaration = Assert.IsType<ClassDeclaration>(
+                program.Body.Single(statement => statement is ClassDeclaration declaration && declaration.Name.Name == "Base"));
+            var derivedDeclaration = Assert.IsType<ClassDeclaration>(
+                program.Body.Single(statement => statement is ClassDeclaration declaration && declaration.Name.Name == "Derived"));
+            AssertPlanBuilds(Assert.Single(baseDeclaration.Definition.Members.Where(member => member.Name == "value" && member.Kind == ClassMemberKind.Getter)).Function);
+            AssertPlanBuilds(Assert.Single(baseDeclaration.Definition.Members.Where(member => member.Name == "value" && member.Kind == ClassMemberKind.Setter)).Function);
+            AssertPlanBuilds(Assert.Single(derivedDeclaration.Definition.Members.Where(member => member.Name == "bump")).Function);
+
+            EvaluationContext.AssertNoAstEvaluation = true;
+            var result = await _engine.Evaluate("""
+                [Derived.bump("value"), Derived.value];
+                """);
+
+            var values = Assert.IsType<JsArray>(result);
+            Assert.Equal(1.0, values.GetElement(0).NumberValue);
+            Assert.Equal(2.0, values.GetElement(1).NumberValue);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsDerivedConstructorSuperExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = false;
+
+            var program = _engine.ParseProgram("""
+                class Base {
+                    constructor(value) {
+                        this.value = value;
+                    }
+                }
+
+                class Derived extends Base {
+                    constructor(value) {
+                        super(value + 1);
+                    }
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            var derivedDeclaration = Assert.IsType<ClassDeclaration>(
+                program.Body.Single(statement => statement is ClassDeclaration declaration && declaration.Name.Name == "Derived"));
+            AssertPlanBuilds(derivedDeclaration.Definition.Constructor);
+
+            EvaluationContext.AssertNoAstEvaluation = true;
+            var result = await _engine.Evaluate("new Derived(41).value");
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    private static (FunctionExpression BaseMethod, FunctionExpression DerivedMethod) GetClassMethods(
+        ProgramNode program,
+        string baseClassName,
+        string baseMethodName,
+        string derivedClassName,
+        string derivedMethodName)
+    {
+        var baseDeclaration = Assert.IsType<ClassDeclaration>(
+            program.Body.Single(statement => statement is ClassDeclaration declaration && declaration.Name.Name == baseClassName));
+        var derivedDeclaration = Assert.IsType<ClassDeclaration>(
+            program.Body.Single(statement => statement is ClassDeclaration declaration && declaration.Name.Name == derivedClassName));
+
+        var baseMethod = Assert.Single(baseDeclaration.Definition.Members.Where(member => member.Name == baseMethodName)).Function;
+        var derivedMethod = Assert.Single(derivedDeclaration.Definition.Members.Where(member => member.Name == derivedMethodName)).Function;
+        return (baseMethod, derivedMethod);
+    }
+
+    private static void AssertPlanBuilds(FunctionExpression function)
+    {
+        var cache = ((IAstCacheable<ExecutionPlanCache>)function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
     }
 
     /// <summary>

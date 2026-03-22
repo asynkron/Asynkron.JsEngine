@@ -399,10 +399,10 @@ public static partial class TypedAstEvaluator
             }
 
             JsValue compRhsValue;
-            if (instruction.RhsExpressionOps is { } rhsExpressionOps)
+            if (instruction.RhsProgram is { } rhsProgram)
             {
                 compRhsValue = runner.EvaluateExpressionProgram(
-                    new ExpressionProgram(rhsExpressionOps),
+                    rhsProgram,
                     environment,
                     context);
             }

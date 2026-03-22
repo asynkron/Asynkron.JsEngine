@@ -98,7 +98,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
         {
             var program = _engine.ParseProgram(@"
                 function test() {
-                    return Math.max(...[1, 2]);
+                    return String.raw`x`;
                 }
             ");
             
@@ -107,7 +107,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
             await _engine.Evaluate(program);
             
             // Now enable the flag and try to call the function
-            // This spread call is still unsupported by expression bytecode,
+            // Tagged templates are still unsupported by expression bytecode,
             // so executing it should trigger AST evaluation and throw.
             EvaluationContext.AssertNoAstEvaluation = true;
             
@@ -140,8 +140,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
             EvaluationContext.AssertNoAstEvaluation = true;
             
             var program = _engine.ParseProgram(@"
-                let x = 42;
-                Math.max(...[x, 7]);
+                String.raw`x`;
             ");
             
             // Act & Assert
@@ -170,7 +169,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
         {
             EvaluationContext.AssertNoAstEvaluation = true;
             
-            var program = _engine.ParseProgram("Math.max(...[1, 2])");
+            var program = _engine.ParseProgram("String.raw`x`");
             
             // Act & Assert
             var exception = await Assert.ThrowsAsync<InvalidOperationException>(
@@ -200,7 +199,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
             EvaluationContext.AssertNoAstEvaluation = true;
 
             var program = _engine.ParseProgram(@"
-                Math.max(...[10, 20]);
+                String.raw`x`;
             ");
 
             var exception = await Assert.ThrowsAsync<InvalidOperationException>(
@@ -256,12 +255,18 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
         
         try
         {
-            var program = _engine.ParseProgram("Math.max(...[40, 42])");
+            var program = _engine.ParseProgram("""
+                function tag(strings) {
+                    return strings[0];
+                }
+
+                tag`x`;
+                """);
             
             // First, execute normally
             EvaluationContext.AssertNoAstEvaluation = false;
             var result1 = await _engine.Evaluate(program);
-            Assert.Equal(42.0, result1);
+            Assert.Equal("x", result1);
             
             // Now enable assertion - should throw
             EvaluationContext.AssertNoAstEvaluation = true;
@@ -272,7 +277,138 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
             // Disable again - should work
             EvaluationContext.AssertNoAstEvaluation = false;
             var result2 = await _engine.Evaluate(program);
-            Assert.Equal(42.0, result2);
+            Assert.Equal("x", result2);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsSpreadCallExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function pickMax(values) {
+                    return Math.max(...values);
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var values = new JsArray(_engine.RealmState);
+            values.Push(new JsValue(19d));
+            values.Push(new JsValue(23d));
+
+            var result = InvokeGlobalFunction("pickMax", JsValue.FromJsArray(values));
+
+            Assert.Equal(23.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsOptionalIdentifierCallExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function inc(value) {
+                    return value + 1;
+                }
+
+                function maybeInvoke(helper, value) {
+                    return helper?.(value);
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            Assert.True(_engine.GlobalObject.TryGetProperty("inc", out var incValue));
+            var invoked = InvokeGlobalFunction("maybeInvoke", incValue, new JsValue(41d));
+            Assert.Equal(42.0, invoked);
+
+            var skipped = InvokeGlobalFunction("maybeInvoke", JsValue.Undefined, new JsValue(41d));
+            Assert.True(skipped.IsUndefined);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsDotCallExpressionExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function inc(value) {
+                    return value + 1;
+                }
+
+                function invokeViaCall(helper, value) {
+                    return helper.call(undefined, value);
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            Assert.True(_engine.GlobalObject.TryGetProperty("inc", out var incValue));
+            var result = InvokeGlobalFunction("invokeViaCall", incValue, new JsValue(41d));
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsDotApplyExpressionExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function inc(value) {
+                    return value + 1;
+                }
+
+                function invokeViaApply(helper, args) {
+                    return helper.apply(undefined, args);
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            Assert.True(_engine.GlobalObject.TryGetProperty("inc", out var incValue));
+            var argsArray = new JsArray(_engine.RealmState);
+            argsArray.Push(new JsValue(41d));
+
+            var result = InvokeGlobalFunction(
+                "invokeViaApply",
+                incValue,
+                JsValue.FromJsArray(argsArray));
+
+            Assert.Equal(42.0, result);
         }
         finally
         {
@@ -455,6 +591,37 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsSpreadConstructionExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function createDateYear(parts) {
+                    return new Date(...parts).getFullYear();
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var parts = new JsArray(_engine.RealmState);
+            parts.Push(new JsValue(2024d));
+            parts.Push(new JsValue(0d));
+            parts.Push(new JsValue(15d));
+
+            var result = InvokeGlobalFunction("createDateYear", JsValue.FromJsArray(parts));
+
+            Assert.Equal(2024.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
     public async Task AssertNoAstEvaluation_Enabled_AllowsSequenceExpressionExecution()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;
@@ -508,6 +675,42 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsOptionalMemberCallExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function read(value) {
+                    return value + 1;
+                }
+
+                function maybeCall(box, value) {
+                    return box.read?.(value);
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            Assert.True(_engine.GlobalObject.TryGetProperty("read", out var readValue));
+            var readerObject = new JsObject();
+            readerObject["read"] = readValue;
+
+            var invoked = InvokeGlobalFunction("maybeCall", JsValue.FromJsObject(readerObject), new JsValue(41d));
+            Assert.Equal(42.0, invoked);
+
+            var skipped = InvokeGlobalFunction("maybeCall", JsValue.FromJsObject(new JsObject()), new JsValue(41d));
+            Assert.True(skipped.IsUndefined);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
     public async Task AssertNoAstEvaluation_Enabled_AllowsPropertyAssignmentExecution()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;
@@ -528,6 +731,235 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
 
             Assert.Equal(23.0, result);
             Assert.Equal(23.0, box["value"]);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsCompoundPropertyAssignmentExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function addIntoValue(box, value) {
+                    return box.value += value;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var box = new JsObject();
+            box["value"] = 19d;
+            var result = InvokeGlobalFunction("addIntoValue", JsValue.FromJsObject(box), new JsValue(23d));
+
+            Assert.Equal(42.0, result);
+            Assert.Equal(42.0, box["value"]);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsLogicalCompoundPropertyAssignmentExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function ensureValue(box, value) {
+                    return box.value ||= value;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var assignBox = new JsObject();
+            assignBox["value"] = 0d;
+            var assignedResult = InvokeGlobalFunction("ensureValue", JsValue.FromJsObject(assignBox), new JsValue(23d));
+            Assert.Equal(23.0, assignedResult);
+            Assert.Equal(23.0, assignBox["value"]);
+
+            var keepBox = new JsObject();
+            keepBox["value"] = 19d;
+            var preservedResult = InvokeGlobalFunction("ensureValue", JsValue.FromJsObject(keepBox), new JsValue(23d));
+            Assert.Equal(19.0, preservedResult);
+            Assert.Equal(19.0, keepBox["value"]);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsIdentifierAssignmentExpressionExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function assignLocal(value) {
+                    let current = 0;
+                    return current = value;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("assignLocal", new JsValue(23d));
+
+            Assert.Equal(23.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsCompoundAssignmentExpressionExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function addIntoCurrent(value) {
+                    let current = 19;
+                    return current += value;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("addIntoCurrent", new JsValue(23d));
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsLogicalCompoundAssignmentExpressionExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function ensureCurrent(seed, value) {
+                    let current = seed;
+                    return current ||= value;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var assignedResult = InvokeGlobalFunction("ensureCurrent", new JsValue(0d), new JsValue(23d));
+            Assert.Equal(23.0, assignedResult);
+
+            var shortCircuitResult = InvokeGlobalFunction("ensureCurrent", new JsValue(19d), new JsValue(23d));
+            Assert.Equal(19.0, shortCircuitResult);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsNullishCompoundAssignmentExpressionExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function fillCurrent(seed, value) {
+                    let current = seed;
+                    return current ??= value;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var assignedResult = InvokeGlobalFunction("fillCurrent", JsValue.Undefined, new JsValue(23d));
+            Assert.Equal(23.0, assignedResult);
+
+            var preservedResult = InvokeGlobalFunction("fillCurrent", new JsValue(19d), new JsValue(23d));
+            Assert.Equal(19.0, preservedResult);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsPrefixIncrementIdentifierExpressionExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function nextValue(seed) {
+                    let current = seed;
+                    return ++current;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("nextValue", new JsValue(41d));
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsPostfixDecrementIdentifierExpressionExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function currentValue(seed) {
+                    let current = seed;
+                    return current--;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("currentValue", new JsValue(41d));
+
+            Assert.Equal(41.0, result);
         }
         finally
         {
@@ -560,6 +992,80 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
 
             Assert.Equal(42.0, result);
             Assert.Equal(42.0, box["answer"]);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsCompoundIndexAssignmentExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function addAt(box, key, value) {
+                    return box[key] += value;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var box = new JsObject();
+            box["answer"] = 19d;
+            var result = InvokeGlobalFunction(
+                "addAt",
+                JsValue.FromJsObject(box),
+                new JsValue("answer"),
+                new JsValue(23d));
+
+            Assert.Equal(42.0, result);
+            Assert.Equal(42.0, box["answer"]);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsNullishCompoundIndexAssignmentExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function fillAt(box, key, value) {
+                    return box[key] ??= value;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var assignBox = new JsObject();
+            var assignedResult = InvokeGlobalFunction(
+                "fillAt",
+                JsValue.FromJsObject(assignBox),
+                new JsValue("answer"),
+                new JsValue(23d));
+            Assert.Equal(23.0, assignedResult);
+            Assert.Equal(23.0, assignBox["answer"]);
+
+            var keepBox = new JsObject();
+            keepBox["answer"] = 19d;
+            var preservedResult = InvokeGlobalFunction(
+                "fillAt",
+                JsValue.FromJsObject(keepBox),
+                new JsValue("answer"),
+                new JsValue(23d));
+            Assert.Equal(19.0, preservedResult);
+            Assert.Equal(19.0, keepBox["answer"]);
         }
         finally
         {

@@ -1,6 +1,7 @@
 #region
 
 using System.Buffers;
+using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
@@ -201,6 +202,36 @@ public static partial class TypedAstEvaluator
                             programCounter++;
                             break;
 
+                        case StoreIdentifierExpressionOp storeIdentifier:
+                            ApplyProgramIdentifierAssignment(storeIdentifier, stack[stackIndex - 1], environment, context);
+                            programCounter++;
+                            break;
+
+                        case DuplicateTopExpressionOp:
+                            stack[stackIndex] = stack[stackIndex - 1];
+                            stackIndex++;
+                            programCounter++;
+                            break;
+
+                        case DuplicateTopTwoExpressionOp:
+                            stack[stackIndex] = stack[stackIndex - 2];
+                            stack[stackIndex + 1] = stack[stackIndex - 1];
+                            stackIndex += 2;
+                            programCounter++;
+                            break;
+
+                        case SwapTopTwoExpressionOp:
+                            (stack[stackIndex - 1], stack[stackIndex - 2]) =
+                                (stack[stackIndex - 2], stack[stackIndex - 1]);
+                            programCounter++;
+                            break;
+
+                        case RotateTopThreeRightExpressionOp:
+                            (stack[stackIndex - 1], stack[stackIndex - 2], stack[stackIndex - 3]) =
+                                (stack[stackIndex - 2], stack[stackIndex - 3], stack[stackIndex - 1]);
+                            programCounter++;
+                            break;
+
                         case LoadThisExpressionOp:
                             stack[stackIndex++] = _thisValue;
                             programCounter++;
@@ -390,6 +421,14 @@ public static partial class TypedAstEvaluator
                                 break;
                             }
 
+                        case UpdateIdentifierExpressionOp updateIdentifier:
+                            stack[stackIndex++] = ExecuteProgramIdentifierUpdate(
+                                updateIdentifier,
+                                environment,
+                                context);
+                            programCounter++;
+                            break;
+
                         case ToStringExpressionOp:
                             stack[stackIndex - 1] = new JsValue(JsOps.ToJsString(stack[stackIndex - 1], context));
                             programCounter++;
@@ -536,6 +575,119 @@ public static partial class TypedAstEvaluator
             return environment.TryGetIdentifierJsValue(identifier.Name, context, out var value)
                 ? value
                 : HandleIdentifierNotFound(identifier.Name, context);
+        }
+
+        private void ApplyProgramIdentifierAssignment(
+            StoreIdentifierExpressionOp identifier,
+            JsValue value,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            if (identifier.AllowNameInference &&
+                value is { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget nameTarget })
+            {
+                nameTarget.EnsureHasName(identifier.Name.Name);
+            }
+
+            var variable = FlatSlotAccessor.Create(this, identifier.FlatSlotId);
+            if (variable.UseFlatSlot)
+            {
+                variable.EnsureAssignable(identifier.Name, _realmState);
+                variable.Variable.Write(value);
+                return;
+            }
+
+            if (identifier.ScopeId >= 0 && identifier.SlotIndex >= 0)
+            {
+                var targetIdentifier = new IdentifierExpression(
+                    Source: null,
+                    identifier.Name,
+                    SlotIndex: identifier.SlotIndex,
+                    ScopeId: identifier.ScopeId,
+                    FlatSlotId: identifier.FlatSlotId);
+                environment.TryWriteIdentifierWithSlot(targetIdentifier, value, context);
+                return;
+            }
+
+            environment.SetIdentifierJsValue(identifier.Name, value, context);
+        }
+
+        private JsValue ExecuteProgramIdentifierUpdate(
+            UpdateIdentifierExpressionOp update,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            var loadIdentifier = new LoadIdentifierExpressionOp(
+                update.Name,
+                update.ScopeId,
+                update.SlotIndex,
+                update.FlatSlotId,
+                update.IsArguments);
+            var currentValue = EvaluateProgramIdentifier(loadIdentifier, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
+            JsValue newValue;
+            JsValue oldNumericValue;
+
+            if (currentValue.Kind == JsValueKind.Number)
+            {
+                oldNumericValue = currentValue;
+                var updatedNumber = update.IsIncrement
+                    ? currentValue.NumberValue + 1.0
+                    : currentValue.NumberValue - 1.0;
+                newValue = JsValueCache.GetNumberJsValue(updatedNumber);
+            }
+            else if (currentValue.IsBigInt)
+            {
+                var bigInt = (JsBigInt)currentValue.ObjectValue!;
+                oldNumericValue = currentValue;
+                var updatedBigInt = update.IsIncrement
+                    ? bigInt.Value + 1
+                    : bigInt.Value - 1;
+                newValue = new JsBigInt(updatedBigInt);
+            }
+            else
+            {
+                var numericValue = ToNumericValue(currentValue, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return JsValue.Undefined;
+                }
+
+                if (numericValue.IsBigInt)
+                {
+                    var bigInt = (JsBigInt)numericValue.ObjectValue!;
+                    oldNumericValue = numericValue;
+                    var updatedBigInt = update.IsIncrement
+                        ? bigInt.Value + 1
+                        : bigInt.Value - 1;
+                    newValue = new JsBigInt(updatedBigInt);
+                }
+                else
+                {
+                    oldNumericValue = numericValue;
+                    var updatedNumber = update.IsIncrement
+                        ? numericValue.NumberValue + 1.0
+                        : numericValue.NumberValue - 1.0;
+                    newValue = JsValueCache.GetNumberJsValue(updatedNumber);
+                }
+            }
+
+            ApplyProgramIdentifierAssignment(
+                new StoreIdentifierExpressionOp(
+                    update.Name,
+                    update.ScopeId,
+                    update.SlotIndex,
+                    update.FlatSlotId,
+                    AllowNameInference: false),
+                newValue,
+                environment,
+                context);
+
+            return update.IsPrefix ? newValue : oldNumericValue;
         }
 
         private static void DefineObjectLiteralProperty(
@@ -818,28 +970,13 @@ public static partial class TypedAstEvaluator
                 }
 
                 IReadOnlyList<JsValue> arguments;
-                if (call.ArgumentCount == 0)
-                {
-                    arguments = [];
-                }
-                else
-                {
-                    var argumentArray = call.ArgumentCount <= 4
-                        ? global::Asynkron.JsEngine.JsValueCache.RentJsValueArray(call.ArgumentCount)
-                        : new JsValue[call.ArgumentCount];
-
-                    if (call.ArgumentCount <= 4)
-                    {
-                        pooledArguments = argumentArray;
-                    }
-
-                    for (var i = 0; i < call.ArgumentCount; i++)
-                    {
-                        argumentArray[i] = stack[calleeIndex + 1 + i];
-                    }
-
-                    arguments = argumentArray;
-                }
+                arguments = MaterializeProgramArguments(
+                    call.ArgumentCount,
+                    call.SpreadMask,
+                    stack,
+                    calleeIndex + 1,
+                    context,
+                    out pooledArguments);
 
                 result = InvokeCallableJsValue(callable, arguments, thisValue, context, environment);
             }
@@ -919,29 +1056,13 @@ public static partial class TypedAstEvaluator
 
             try
             {
-                IReadOnlyList<JsValue> arguments;
-                if (construct.ArgumentCount == 0)
-                {
-                    arguments = [];
-                }
-                else
-                {
-                    var argumentArray = construct.ArgumentCount <= 4
-                        ? global::Asynkron.JsEngine.JsValueCache.RentJsValueArray(construct.ArgumentCount)
-                        : new JsValue[construct.ArgumentCount];
-
-                    if (construct.ArgumentCount <= 4)
-                    {
-                        pooledArguments = argumentArray;
-                    }
-
-                    for (var i = 0; i < construct.ArgumentCount; i++)
-                    {
-                        argumentArray[i] = stack[constructorIndex + 1 + i];
-                    }
-
-                    arguments = argumentArray;
-                }
+                var arguments = MaterializeProgramArguments(
+                    construct.ArgumentCount,
+                    construct.SpreadMask,
+                    stack,
+                    constructorIndex + 1,
+                    context,
+                    out pooledArguments);
 
                 stack[constructorIndex] = global::Asynkron.JsEngine.StdLib.ReflectHelper.Construct(
                     callable,
@@ -963,6 +1084,57 @@ public static partial class TypedAstEvaluator
             }
 
             return constructorIndex + 1;
+        }
+
+        private IReadOnlyList<JsValue> MaterializeProgramArguments(
+            int argumentCount,
+            ImmutableArray<bool> spreadMask,
+            Span<JsValue> stack,
+            int firstArgumentIndex,
+            EvaluationContext context,
+            out JsValue[]? pooledArguments)
+        {
+            pooledArguments = null;
+
+            if (argumentCount == 0)
+            {
+                return [];
+            }
+
+            if (!spreadMask.IsDefaultOrEmpty)
+            {
+                var spreadArguments = ImmutableArray.CreateBuilder<JsValue>(argumentCount);
+                for (var i = 0; i < argumentCount; i++)
+                {
+                    var argumentValue = stack[firstArgumentIndex + i];
+                    if (spreadMask[i])
+                    {
+                        spreadArguments.AddRange(EnumerateSpread(argumentValue, context));
+                    }
+                    else
+                    {
+                        spreadArguments.Add(argumentValue);
+                    }
+                }
+
+                return spreadArguments.ToImmutable();
+            }
+
+            var argumentArray = argumentCount <= 4
+                ? global::Asynkron.JsEngine.JsValueCache.RentJsValueArray(argumentCount)
+                : new JsValue[argumentCount];
+
+            if (argumentCount <= 4)
+            {
+                pooledArguments = argumentArray;
+            }
+
+            for (var i = 0; i < argumentCount; i++)
+            {
+                argumentArray[i] = stack[firstArgumentIndex + i];
+            }
+
+            return argumentArray;
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]

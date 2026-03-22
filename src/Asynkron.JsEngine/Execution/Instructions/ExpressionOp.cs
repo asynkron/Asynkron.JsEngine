@@ -7,6 +7,11 @@ internal enum ExpressionOpKind : byte
 {
     LoadLiteral,
     LoadIdentifier,
+    StoreIdentifier,
+    DuplicateTop,
+    DuplicateTopTwo,
+    SwapTopTwo,
+    RotateTopThreeRight,
     LoadThis,
     LoadNewTarget,
     LoadNamedCallTarget,
@@ -23,6 +28,7 @@ internal enum ExpressionOpKind : byte
     GetComputedProperty,
     SetNamedProperty,
     SetComputedProperty,
+    UpdateIdentifier,
     ToString,
     UnaryLogicalNot,
     Binary,
@@ -57,6 +63,26 @@ internal sealed record LoadIdentifierExpressionOp(
     int FlatSlotId = -1,
     bool IsArguments = false)
     : ExpressionOp(ExpressionOpKind.LoadIdentifier);
+
+internal sealed record StoreIdentifierExpressionOp(
+    Symbol Name,
+    int ScopeId = -1,
+    int SlotIndex = -1,
+    int FlatSlotId = -1,
+    bool AllowNameInference = true)
+    : ExpressionOp(ExpressionOpKind.StoreIdentifier);
+
+internal sealed record DuplicateTopExpressionOp()
+    : ExpressionOp(ExpressionOpKind.DuplicateTop);
+
+internal sealed record DuplicateTopTwoExpressionOp()
+    : ExpressionOp(ExpressionOpKind.DuplicateTopTwo);
+
+internal sealed record SwapTopTwoExpressionOp()
+    : ExpressionOp(ExpressionOpKind.SwapTopTwo);
+
+internal sealed record RotateTopThreeRightExpressionOp()
+    : ExpressionOp(ExpressionOpKind.RotateTopThreeRight);
 
 internal sealed record LoadThisExpressionOp()
     : ExpressionOp(ExpressionOpKind.LoadThis);
@@ -109,6 +135,16 @@ internal sealed record SetNamedPropertyExpressionOp(string PropertyName, bool Al
 internal sealed record SetComputedPropertyExpressionOp(bool AllowNameInference = true)
     : ExpressionOp(ExpressionOpKind.SetComputedProperty);
 
+internal sealed record UpdateIdentifierExpressionOp(
+    Symbol Name,
+    int ScopeId = -1,
+    int SlotIndex = -1,
+    int FlatSlotId = -1,
+    bool IsIncrement = true,
+    bool IsPrefix = true,
+    bool IsArguments = false)
+    : ExpressionOp(ExpressionOpKind.UpdateIdentifier);
+
 internal sealed record ToStringExpressionOp()
     : ExpressionOp(ExpressionOpKind.ToString);
 
@@ -136,8 +172,14 @@ internal sealed record JumpIfFalseExpressionOp(int Target)
 internal sealed record JumpIfNotNullishExpressionOp(int Target)
     : ExpressionOp(ExpressionOpKind.JumpIfNotNullish);
 
-internal sealed record CallExpressionOp(int ArgumentCount, bool HasExplicitThis = false, bool IsDirectEval = false)
+internal sealed record CallExpressionOp(
+    int ArgumentCount,
+    bool HasExplicitThis = false,
+    bool IsDirectEval = false,
+    ImmutableArray<bool> SpreadMask = default)
     : ExpressionOp(ExpressionOpKind.Call);
 
-internal sealed record ConstructExpressionOp(int ArgumentCount)
+internal sealed record ConstructExpressionOp(
+    int ArgumentCount,
+    ImmutableArray<bool> SpreadMask = default)
     : ExpressionOp(ExpressionOpKind.Construct);

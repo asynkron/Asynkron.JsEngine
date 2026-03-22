@@ -328,6 +328,11 @@ internal static class ExecutionPlanPrinter
         {
             LoadLiteralExpressionOp literal => literal.Value.ToString() ?? "null",
             LoadIdentifierExpressionOp identifier => identifier.Name.Name,
+            StoreIdentifierExpressionOp identifier => $"store.{identifier.Name.Name}",
+            DuplicateTopExpressionOp => "dup",
+            DuplicateTopTwoExpressionOp => "dup2",
+            SwapTopTwoExpressionOp => "swap",
+            RotateTopThreeRightExpressionOp => "rot3r",
             LoadThisExpressionOp => "this",
             LoadNewTargetExpressionOp => "new.target",
             LoadNamedCallTargetExpressionOp callTarget => $"call.{callTarget.PropertyName}",
@@ -344,6 +349,10 @@ internal static class ExecutionPlanPrinter
             GetComputedPropertyExpressionOp => "[]",
             SetNamedPropertyExpressionOp property => $"set.{property.PropertyName}",
             SetComputedPropertyExpressionOp => "set[]",
+            UpdateIdentifierExpressionOp update =>
+                update.IsPrefix
+                    ? $"{(update.IsIncrement ? "++" : "--")}{update.Name.Name}"
+                    : $"{update.Name.Name}{(update.IsIncrement ? "++" : "--")}",
             ToStringExpressionOp => "str",
             UnaryLogicalNotExpressionOp => "!",
             BinaryExpressionOp binary => FormatBinaryOperator(binary.Operator),
@@ -353,8 +362,12 @@ internal static class ExecutionPlanPrinter
             JumpIfTrueExpressionOp jumpIfTrue => $"jmpT:{jumpIfTrue.Target}",
             JumpIfFalseExpressionOp jumpIfFalse => $"jmpF:{jumpIfFalse.Target}",
             JumpIfNotNullishExpressionOp jumpIfNotNullish => $"jmpNN:{jumpIfNotNullish.Target}",
-            CallExpressionOp call => $"call/{call.ArgumentCount}",
-            ConstructExpressionOp construct => $"new/{construct.ArgumentCount}",
+            CallExpressionOp call => call.SpreadMask.IsDefaultOrEmpty
+                ? $"call/{call.ArgumentCount}"
+                : $"call*/{call.ArgumentCount}",
+            ConstructExpressionOp construct => construct.SpreadMask.IsDefaultOrEmpty
+                ? $"new/{construct.ArgumentCount}"
+                : $"new*/{construct.ArgumentCount}",
             _ => op.GetType().Name
         };
     }

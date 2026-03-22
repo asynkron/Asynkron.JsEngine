@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 
 namespace Asynkron.JsEngine.Execution.Instructions;
@@ -31,6 +32,9 @@ internal static class ExpressionProgramCompiler
                 builder.Add(new LoadLiteralExpressionOp(literal.Value));
                 failureReason = null;
                 return true;
+
+            case AssignmentExpression assignment:
+                return TryCompileAssignmentExpression(assignment, builder, out failureReason);
 
             case IdentifierExpression identifier:
                 builder.Add(new LoadIdentifierExpressionOp(
@@ -82,15 +86,8 @@ internal static class ExpressionProgramCompiler
             case NewExpression construct:
                 return TryCompileNewExpression(construct, builder, out failureReason);
 
-            case UnaryExpression { Operator: UnaryOperator.LogicalNot } unary:
-                if (!TryCompileExpression(unary.Operand, builder, out failureReason))
-                {
-                    return false;
-                }
-
-                builder.Add(new UnaryLogicalNotExpressionOp());
-                failureReason = null;
-                return true;
+            case UnaryExpression unary:
+                return TryCompileUnaryExpression(unary, builder, out failureReason);
 
             case BinaryExpression binary:
                 return TryCompileBinaryExpression(binary, builder, out failureReason);
@@ -173,29 +170,59 @@ internal static class ExpressionProgramCompiler
         return true;
     }
 
+    private static bool TryCompileUnaryExpression(
+        UnaryExpression expression,
+        List<ExpressionOp> builder,
+        out string? failureReason)
+    {
+        switch (expression.Operator)
+        {
+            case UnaryOperator.LogicalNot:
+                if (!TryCompileExpression(expression.Operand, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                builder.Add(new UnaryLogicalNotExpressionOp());
+                failureReason = null;
+                return true;
+
+            case UnaryOperator.Increment:
+            case UnaryOperator.Decrement:
+                if (expression.Operand is not IdentifierExpression identifier)
+                {
+                    failureReason = "Expression bytecode only supports identifier update expressions.";
+                    return false;
+                }
+
+                builder.Add(new UpdateIdentifierExpressionOp(
+                    identifier.Name,
+                    identifier.ScopeId,
+                    identifier.SlotIndex,
+                    identifier.FlatSlotId,
+                    IsIncrement: expression.Operator == UnaryOperator.Increment,
+                    IsPrefix: expression.IsPrefix,
+                    IsArguments: ReferenceEquals(identifier.Name, Symbol.Arguments)));
+                failureReason = null;
+                return true;
+
+            default:
+                failureReason = $"Expression bytecode does not yet support unary operator '{expression.Operator}'.";
+                return false;
+        }
+    }
+
     private static bool TryCompileCallExpression(
         CallExpression expression,
         List<ExpressionOp> builder,
         out string? failureReason)
     {
-        if (expression.IsOptional || HasOptionalChaining(expression.Callee))
-        {
-            failureReason = "Expression bytecode does not yet support optional call expressions.";
-            return false;
-        }
-
-        foreach (var argument in expression.Arguments)
-        {
-            if (argument.IsSpread)
-            {
-                failureReason = "Expression bytecode does not yet support spread call arguments.";
-                return false;
-            }
-        }
-
         var isDirectEval = false;
 
         var hasExplicitThis = false;
+        var targetNullishJumpIndex = -1;
+        var callNullishJumpIndex = -1;
+        List<bool>? spreadMaskBuilder = null;
 
         switch (expression.Callee)
         {
@@ -210,11 +237,19 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                isDirectEval = identifier.Name.Name == "eval";
+                if (expression.IsOptional)
+                {
+                    callNullishJumpIndex = builder.Count;
+                    builder.Add(new JumpIfNullishExpressionOp(-1, ReplaceWithUndefined: true));
+                }
+                else
+                {
+                    isDirectEval = identifier.Name.Name == "eval";
+                }
                 break;
 
-            case MemberExpression { IsOptional: false, IsComputed: false } member:
-                if (!TryCompileCallTargetObject(member.Target, builder, out failureReason))
+            case MemberExpression { IsComputed: false } member:
+                if (!TryCompileOptionalMemberCallTarget(member, builder, ref targetNullishJumpIndex, out failureReason))
                 {
                     return false;
                 }
@@ -226,19 +261,17 @@ internal static class ExpressionProgramCompiler
                 }
 
                 var propertyName = propertyLiteral.Value.AsString();
-                if (string.Equals(propertyName, "call", StringComparison.Ordinal) ||
-                    string.Equals(propertyName, "apply", StringComparison.Ordinal))
-                {
-                    failureReason = "Expression bytecode does not yet support .call/.apply call expressions.";
-                    return false;
-                }
-
                 builder.Add(new LoadNamedCallTargetExpressionOp(propertyName));
+                if (expression.IsOptional)
+                {
+                    callNullishJumpIndex = builder.Count;
+                    builder.Add(new JumpIfNullishExpressionOp(-1, ReplaceWithUndefined: true));
+                }
                 hasExplicitThis = true;
                 break;
 
-            case MemberExpression { IsOptional: false, IsComputed: true } member:
-                if (!TryCompileCallTargetObject(member.Target, builder, out failureReason))
+            case MemberExpression member:
+                if (!TryCompileOptionalMemberCallTarget(member, builder, ref targetNullishJumpIndex, out failureReason))
                 {
                     return false;
                 }
@@ -249,32 +282,220 @@ internal static class ExpressionProgramCompiler
                 }
 
                 builder.Add(new LoadComputedCallTargetExpressionOp());
+                if (expression.IsOptional)
+                {
+                    callNullishJumpIndex = builder.Count;
+                    builder.Add(new JumpIfNullishExpressionOp(-1, ReplaceWithUndefined: true));
+                }
                 hasExplicitThis = true;
                 break;
 
             default:
+                if (HasOptionalChaining(expression.Callee))
+                {
+                    failureReason = "Expression bytecode does not yet support nested optional call expressions.";
+                    return false;
+                }
+
                 if (!TryCompileExpression(expression.Callee, builder, out failureReason))
                 {
                     return false;
                 }
 
+                if (expression.IsOptional)
+                {
+                    callNullishJumpIndex = builder.Count;
+                    builder.Add(new JumpIfNullishExpressionOp(-1, ReplaceWithUndefined: true));
+                }
                 break;
         }
 
-        foreach (var argument in expression.Arguments)
+        for (var argumentIndex = 0; argumentIndex < expression.Arguments.Length; argumentIndex++)
         {
+            var argument = expression.Arguments[argumentIndex];
             if (!TryCompileExpression(argument.Expression, builder, out failureReason))
             {
                 return false;
+            }
+
+            if (argument.IsSpread)
+            {
+                if (spreadMaskBuilder is null)
+                {
+                    spreadMaskBuilder = new List<bool>(expression.Arguments.Length);
+                    for (var i = 0; i < argumentIndex; i++)
+                    {
+                        spreadMaskBuilder.Add(false);
+                    }
+                }
+            }
+
+            if (spreadMaskBuilder is not null)
+            {
+                spreadMaskBuilder.Add(argument.IsSpread);
             }
         }
 
         builder.Add(new CallExpressionOp(
             expression.Arguments.Length,
             HasExplicitThis: hasExplicitThis,
-            IsDirectEval: isDirectEval));
+            IsDirectEval: isDirectEval,
+            SpreadMask: spreadMaskBuilder is not null
+                ? ImmutableArray.CreateRange(spreadMaskBuilder)
+                : default));
+
+        if (callNullishJumpIndex >= 0)
+        {
+            if (hasExplicitThis)
+            {
+                var endJumpIndex = builder.Count;
+                builder.Add(new JumpExpressionOp(-1));
+
+                var cleanupIndex = builder.Count;
+                builder[callNullishJumpIndex] = new JumpIfNullishExpressionOp(cleanupIndex, ReplaceWithUndefined: true);
+                builder.Add(new SwapTopTwoExpressionOp());
+                builder.Add(new PopExpressionOp());
+                builder[endJumpIndex] = new JumpExpressionOp(builder.Count);
+            }
+            else
+            {
+                builder[callNullishJumpIndex] = new JumpIfNullishExpressionOp(builder.Count, ReplaceWithUndefined: true);
+            }
+        }
+
+        if (targetNullishJumpIndex >= 0)
+        {
+            builder[targetNullishJumpIndex] = new JumpIfNullishExpressionOp(builder.Count, ReplaceWithUndefined: true);
+        }
+
         failureReason = null;
         return true;
+    }
+
+    private static bool TryCompileAssignmentExpression(
+        AssignmentExpression expression,
+        List<ExpressionOp> builder,
+        out string? failureReason)
+    {
+        if (expression.IsImmutableTarget)
+        {
+            failureReason = "Expression bytecode does not yet support immutable identifier assignments.";
+            return false;
+        }
+
+        if (expression.IsCompoundAssignment)
+        {
+            return TryCompileCompoundAssignmentExpression(expression, builder, out failureReason);
+        }
+
+        if (!TryCompileExpression(expression.Value, builder, out failureReason))
+        {
+            return false;
+        }
+
+        builder.Add(new StoreIdentifierExpressionOp(
+            expression.Target,
+            expression.ScopeId,
+            expression.SlotIndex,
+            expression.FlatSlotId,
+            AllowNameInference: !IsParenthesizedIdentifierAssignment(expression)));
+        failureReason = null;
+        return true;
+    }
+
+    private static bool TryCompileCompoundAssignmentExpression(
+        AssignmentExpression expression,
+        List<ExpressionOp> builder,
+        out string? failureReason)
+    {
+        if (expression.Value is not BinaryExpression binary)
+        {
+            failureReason = "Expression bytecode only supports lowered binary compound assignments.";
+            return false;
+        }
+
+        var storeOp = new StoreIdentifierExpressionOp(
+            expression.Target,
+            expression.ScopeId,
+            expression.SlotIndex,
+            expression.FlatSlotId,
+            AllowNameInference: !IsParenthesizedIdentifierAssignment(expression));
+        var loadOp = new LoadIdentifierExpressionOp(
+            expression.Target,
+            expression.ScopeId,
+            expression.SlotIndex,
+            expression.FlatSlotId,
+            ReferenceEquals(expression.Target, Symbol.Arguments));
+
+        switch (binary.Operator)
+        {
+            case BinaryOperator.LogicalAnd:
+            {
+                builder.Add(loadOp);
+                var shortCircuitIndex = builder.Count;
+                builder.Add(new JumpIfFalseExpressionOp(-1));
+                builder.Add(new PopExpressionOp());
+
+                if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                builder.Add(storeOp);
+                builder[shortCircuitIndex] = new JumpIfFalseExpressionOp(builder.Count);
+                failureReason = null;
+                return true;
+            }
+
+            case BinaryOperator.LogicalOr:
+            {
+                builder.Add(loadOp);
+                var shortCircuitIndex = builder.Count;
+                builder.Add(new JumpIfTrueExpressionOp(-1));
+                builder.Add(new PopExpressionOp());
+
+                if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                builder.Add(storeOp);
+                builder[shortCircuitIndex] = new JumpIfTrueExpressionOp(builder.Count);
+                failureReason = null;
+                return true;
+            }
+
+            case BinaryOperator.NullishCoalescing:
+            {
+                builder.Add(loadOp);
+                var shortCircuitIndex = builder.Count;
+                builder.Add(new JumpIfNotNullishExpressionOp(-1));
+                builder.Add(new PopExpressionOp());
+
+                if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                builder.Add(storeOp);
+                builder[shortCircuitIndex] = new JumpIfNotNullishExpressionOp(builder.Count);
+                failureReason = null;
+                return true;
+            }
+
+            default:
+                builder.Add(loadOp);
+
+                if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                builder.Add(new BinaryExpressionOp(binary.Operator));
+                builder.Add(storeOp);
+                failureReason = null;
+                return true;
+        }
     }
 
     private static bool TryCompileNewExpression(
@@ -282,29 +503,44 @@ internal static class ExpressionProgramCompiler
         List<ExpressionOp> builder,
         out string? failureReason)
     {
-        foreach (var argument in expression.Arguments)
-        {
-            if (argument.IsSpread)
-            {
-                failureReason = "Expression bytecode does not yet support spread constructor arguments.";
-                return false;
-            }
-        }
+        List<bool>? spreadMaskBuilder = null;
 
         if (!TryCompileExpression(expression.Constructor, builder, out failureReason))
         {
             return false;
         }
 
-        foreach (var argument in expression.Arguments)
+        for (var argumentIndex = 0; argumentIndex < expression.Arguments.Length; argumentIndex++)
         {
+            var argument = expression.Arguments[argumentIndex];
             if (!TryCompileExpression(argument.Expression, builder, out failureReason))
             {
                 return false;
             }
+
+            if (argument.IsSpread)
+            {
+                if (spreadMaskBuilder is null)
+                {
+                    spreadMaskBuilder = new List<bool>(expression.Arguments.Length);
+                    for (var i = 0; i < argumentIndex; i++)
+                    {
+                        spreadMaskBuilder.Add(false);
+                    }
+                }
+            }
+
+            if (spreadMaskBuilder is not null)
+            {
+                spreadMaskBuilder.Add(argument.IsSpread);
+            }
         }
 
-        builder.Add(new ConstructExpressionOp(expression.Arguments.Length));
+        builder.Add(new ConstructExpressionOp(
+            expression.Arguments.Length,
+            SpreadMask: spreadMaskBuilder is not null
+                ? ImmutableArray.CreateRange(spreadMaskBuilder)
+                : default));
         failureReason = null;
         return true;
     }
@@ -371,8 +607,7 @@ internal static class ExpressionProgramCompiler
     {
         if (expression.IsCompoundAssignment)
         {
-            failureReason = "Expression bytecode does not yet support compound property assignments.";
-            return false;
+            return TryCompileCompoundPropertyAssignmentExpression(expression, builder, out failureReason);
         }
 
         if (expression.Target is SuperExpression || HasOptionalChaining(expression.Target))
@@ -426,8 +661,7 @@ internal static class ExpressionProgramCompiler
     {
         if (expression.IsCompoundAssignment)
         {
-            failureReason = "Expression bytecode does not yet support compound index assignments.";
-            return false;
+            return TryCompileCompoundIndexAssignmentExpression(expression, builder, out failureReason);
         }
 
         if (expression.Target is SuperExpression || HasOptionalChaining(expression.Target))
@@ -452,6 +686,243 @@ internal static class ExpressionProgramCompiler
         }
 
         builder.Add(new SetComputedPropertyExpressionOp());
+        failureReason = null;
+        return true;
+    }
+
+    private static bool TryCompileCompoundPropertyAssignmentExpression(
+        PropertyAssignmentExpression expression,
+        List<ExpressionOp> builder,
+        out string? failureReason)
+    {
+        if (expression.Target is SuperExpression || HasOptionalChaining(expression.Target))
+        {
+            failureReason = "Expression bytecode does not yet support super or optional property assignments.";
+            return false;
+        }
+
+        if (expression.Property is not LiteralExpression { Value.IsString: true } propertyLiteral)
+        {
+            failureReason = "Expression bytecode only supports literal property names for direct property assignment.";
+            return false;
+        }
+
+        if (expression.Value is not BinaryExpression binary)
+        {
+            failureReason = "Expression bytecode only supports lowered binary property compound assignments.";
+            return false;
+        }
+
+        if (!TryCompileExpression(expression.Target, builder, out failureReason))
+        {
+            return false;
+        }
+
+        var propertyName = propertyLiteral.Value.AsString();
+        builder.Add(new DuplicateTopExpressionOp());
+        builder.Add(new GetNamedPropertyExpressionOp(propertyName));
+
+        switch (binary.Operator)
+        {
+            case BinaryOperator.LogicalAnd:
+            {
+                var shortCircuitIndex = builder.Count;
+                builder.Add(new JumpIfFalseExpressionOp(-1));
+                builder.Add(new PopExpressionOp());
+
+                if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                builder.Add(new SetNamedPropertyExpressionOp(propertyName));
+                var endJumpIndex = builder.Count;
+                builder.Add(new JumpExpressionOp(-1));
+
+                var shortCircuitStart = builder.Count;
+                builder[shortCircuitIndex] = new JumpIfFalseExpressionOp(shortCircuitStart);
+                builder.Add(new SwapTopTwoExpressionOp());
+                builder.Add(new PopExpressionOp());
+                builder[endJumpIndex] = new JumpExpressionOp(builder.Count);
+                failureReason = null;
+                return true;
+            }
+
+            case BinaryOperator.LogicalOr:
+            {
+                var shortCircuitIndex = builder.Count;
+                builder.Add(new JumpIfTrueExpressionOp(-1));
+                builder.Add(new PopExpressionOp());
+
+                if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                builder.Add(new SetNamedPropertyExpressionOp(propertyName));
+                var endJumpIndex = builder.Count;
+                builder.Add(new JumpExpressionOp(-1));
+
+                var shortCircuitStart = builder.Count;
+                builder[shortCircuitIndex] = new JumpIfTrueExpressionOp(shortCircuitStart);
+                builder.Add(new SwapTopTwoExpressionOp());
+                builder.Add(new PopExpressionOp());
+                builder[endJumpIndex] = new JumpExpressionOp(builder.Count);
+                failureReason = null;
+                return true;
+            }
+
+            case BinaryOperator.NullishCoalescing:
+            {
+                var shortCircuitIndex = builder.Count;
+                builder.Add(new JumpIfNotNullishExpressionOp(-1));
+                builder.Add(new PopExpressionOp());
+
+                if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                builder.Add(new SetNamedPropertyExpressionOp(propertyName));
+                var endJumpIndex = builder.Count;
+                builder.Add(new JumpExpressionOp(-1));
+
+                var shortCircuitStart = builder.Count;
+                builder[shortCircuitIndex] = new JumpIfNotNullishExpressionOp(shortCircuitStart);
+                builder.Add(new SwapTopTwoExpressionOp());
+                builder.Add(new PopExpressionOp());
+                builder[endJumpIndex] = new JumpExpressionOp(builder.Count);
+                failureReason = null;
+                return true;
+            }
+        }
+
+        if (!TryCompileExpression(binary.Right, builder, out failureReason))
+        {
+            return false;
+        }
+
+        builder.Add(new BinaryExpressionOp(binary.Operator));
+        builder.Add(new SetNamedPropertyExpressionOp(propertyName, AllowNameInference: false));
+        failureReason = null;
+        return true;
+    }
+
+    private static bool TryCompileCompoundIndexAssignmentExpression(
+        IndexAssignmentExpression expression,
+        List<ExpressionOp> builder,
+        out string? failureReason)
+    {
+        if (expression.Target is SuperExpression || HasOptionalChaining(expression.Target))
+        {
+            failureReason = "Expression bytecode does not yet support super or optional index assignments.";
+            return false;
+        }
+
+        if (expression.Value is not BinaryExpression binary)
+        {
+            failureReason = "Expression bytecode only supports lowered binary index compound assignments.";
+            return false;
+        }
+
+        if (!TryCompileExpression(expression.Target, builder, out failureReason))
+        {
+            return false;
+        }
+
+        if (!TryCompileExpression(expression.Index, builder, out failureReason))
+        {
+            return false;
+        }
+
+        builder.Add(new DuplicateTopTwoExpressionOp());
+        builder.Add(new GetComputedPropertyExpressionOp());
+
+        switch (binary.Operator)
+        {
+            case BinaryOperator.LogicalAnd:
+            {
+                var shortCircuitIndex = builder.Count;
+                builder.Add(new JumpIfFalseExpressionOp(-1));
+                builder.Add(new PopExpressionOp());
+
+                if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                builder.Add(new SetComputedPropertyExpressionOp());
+                var endJumpIndex = builder.Count;
+                builder.Add(new JumpExpressionOp(-1));
+
+                var shortCircuitStart = builder.Count;
+                builder[shortCircuitIndex] = new JumpIfFalseExpressionOp(shortCircuitStart);
+                builder.Add(new RotateTopThreeRightExpressionOp());
+                builder.Add(new PopExpressionOp());
+                builder.Add(new PopExpressionOp());
+                builder[endJumpIndex] = new JumpExpressionOp(builder.Count);
+                failureReason = null;
+                return true;
+            }
+
+            case BinaryOperator.LogicalOr:
+            {
+                var shortCircuitIndex = builder.Count;
+                builder.Add(new JumpIfTrueExpressionOp(-1));
+                builder.Add(new PopExpressionOp());
+
+                if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                builder.Add(new SetComputedPropertyExpressionOp());
+                var endJumpIndex = builder.Count;
+                builder.Add(new JumpExpressionOp(-1));
+
+                var shortCircuitStart = builder.Count;
+                builder[shortCircuitIndex] = new JumpIfTrueExpressionOp(shortCircuitStart);
+                builder.Add(new RotateTopThreeRightExpressionOp());
+                builder.Add(new PopExpressionOp());
+                builder.Add(new PopExpressionOp());
+                builder[endJumpIndex] = new JumpExpressionOp(builder.Count);
+                failureReason = null;
+                return true;
+            }
+
+            case BinaryOperator.NullishCoalescing:
+            {
+                var shortCircuitIndex = builder.Count;
+                builder.Add(new JumpIfNotNullishExpressionOp(-1));
+                builder.Add(new PopExpressionOp());
+
+                if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                builder.Add(new SetComputedPropertyExpressionOp());
+                var endJumpIndex = builder.Count;
+                builder.Add(new JumpExpressionOp(-1));
+
+                var shortCircuitStart = builder.Count;
+                builder[shortCircuitIndex] = new JumpIfNotNullishExpressionOp(shortCircuitStart);
+                builder.Add(new RotateTopThreeRightExpressionOp());
+                builder.Add(new PopExpressionOp());
+                builder.Add(new PopExpressionOp());
+                builder[endJumpIndex] = new JumpExpressionOp(builder.Count);
+                failureReason = null;
+                return true;
+            }
+        }
+
+        if (!TryCompileExpression(binary.Right, builder, out failureReason))
+        {
+            return false;
+        }
+
+        builder.Add(new BinaryExpressionOp(binary.Operator));
+        builder.Add(new SetComputedPropertyExpressionOp(AllowNameInference: false));
         failureReason = null;
         return true;
     }
@@ -714,18 +1185,31 @@ internal static class ExpressionProgramCompiler
         return true;
     }
 
-    private static bool TryCompileCallTargetObject(
-        ExpressionNode target,
+    private static bool TryCompileOptionalMemberCallTarget(
+        MemberExpression member,
         List<ExpressionOp> builder,
+        ref int targetNullishJumpIndex,
         out string? failureReason)
     {
-        if (target is SuperExpression || HasOptionalChaining(target))
+        if (member.Target is SuperExpression || HasOptionalChaining(member.Target))
         {
             failureReason = "Expression bytecode does not yet support optional or super member call targets.";
             return false;
         }
 
-        return TryCompileExpression(target, builder, out failureReason);
+        if (!TryCompileExpression(member.Target, builder, out failureReason))
+        {
+            return false;
+        }
+
+        if (member.IsOptional)
+        {
+            targetNullishJumpIndex = builder.Count;
+            builder.Add(new JumpIfNullishExpressionOp(-1, ReplaceWithUndefined: true));
+        }
+
+        failureReason = null;
+        return true;
     }
 
     private static bool HasOptionalChaining(ExpressionNode? expression)
@@ -749,5 +1233,22 @@ internal static class ExpressionProgramCompiler
         }
 
         return false;
+    }
+
+    private static bool IsParenthesizedIdentifierAssignment(AssignmentExpression expression)
+    {
+        if (expression.Source is null)
+        {
+            return false;
+        }
+
+        var source = expression.Source.Source;
+        var index = expression.Source.StartPosition - 1;
+        while (index >= 0 && char.IsWhiteSpace(source, index))
+        {
+            index--;
+        }
+
+        return index >= 0 && source[index] == '(';
     }
 }

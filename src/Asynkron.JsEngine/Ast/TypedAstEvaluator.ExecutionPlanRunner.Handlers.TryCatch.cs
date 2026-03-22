@@ -22,7 +22,9 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<ThrowInstruction>(instr);
-            var throwValue = instruction.Expression.EvaluateExpression(environment, context);
+            var throwValue = instruction.ThrowProgram is { } throwProgram
+                ? runner.EvaluateExpressionProgram(throwProgram, environment, context)
+                : instruction.Expression!.EvaluateExpression(environment, context);
 
             if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingThrowResult, environment))
             {
@@ -149,54 +151,6 @@ public static partial class TypedAstEvaluator
             runner._programCounter = instruction.Next;
             returnValue = default;
             return InstructionResult.Continue;
-        }
-
-        [MethodImpl(JsEngineConstants.Inlining)]
-        private static InstructionResult HandleEnterCatchWithDestructuring(
-            ExecutionPlanRunner runner,
-            ExecutionInstruction instr,
-            ref JsEnvironment environment,
-            EvaluationContext context,
-            out JsValue returnValue)
-        {
-            var instruction = Unsafe.As<EnterCatchWithDestructuringInstruction>(instr);
-            runner.ResetCompletionValue();
-
-            var thrownValue = PrepareCatchEnvironment(runner, ref environment,
-                instruction.SlotCount, instruction.ScopeId, out var catchEnv);
-
-            instruction.BindingPattern.DefineBindingTarget(thrownValue, catchEnv, context, false);
-
-            if (context.ShouldStopEvaluation)
-            {
-                if (context.IsThrow)
-                {
-                    return HandleEnterCatchWithDestructuringThrowSlow(runner, context, out returnValue);
-                }
-            }
-
-            environment = catchEnv;
-            runner._programCounter = instruction.Next;
-            returnValue = default;
-            return InstructionResult.Continue;
-        }
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static InstructionResult HandleEnterCatchWithDestructuringThrowSlow(
-            ExecutionPlanRunner runner,
-            EvaluationContext context,
-            out JsValue returnValue)
-        {
-            var exception = context.FlowValue;
-            context.Clear();
-            if (runner.HandleAbruptCompletion(AbruptKind.Throw, exception))
-            {
-                returnValue = default;
-                return InstructionResult.Continue;
-            }
-
-            runner.TryCatchStateRef.TryStack.Clear();
-            throw new ThrowSignal(exception);
         }
 
         private static JsValue PrepareCatchEnvironment(

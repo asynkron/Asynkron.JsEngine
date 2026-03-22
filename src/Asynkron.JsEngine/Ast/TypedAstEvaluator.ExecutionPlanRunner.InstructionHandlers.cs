@@ -26,11 +26,9 @@ public static partial class TypedAstEvaluator
         private static InstructionHandler[] InitializeHandlers()
         {
             var handlers = new InstructionHandler[Enum.GetValues<InstructionKind>().Length];
-            handlers[(int)InstructionKind.Statement] = HandleStatement;
             handlers[(int)InstructionKind.Throw] = HandleThrow;
             handlers[(int)InstructionKind.EvaluateAndDiscard] = HandleEvaluateAndDiscard;
             handlers[(int)InstructionKind.AwaitAndDiscard] = HandleAwaitAndDiscard;
-            handlers[(int)InstructionKind.BinaryOp] = HandleBinaryOp;
             handlers[(int)InstructionKind.IncrementSlot] = HandleIncrementSlot;
             handlers[(int)InstructionKind.AssignmentSlot] = HandleAssignmentSlot;
             handlers[(int)InstructionKind.LogicalCompoundAssignmentSlot] = HandleLogicalCompoundAssignmentSlot;
@@ -46,7 +44,6 @@ public static partial class TypedAstEvaluator
             handlers[(int)InstructionKind.StoreResumeValue] = HandleStoreResumeValue;
             handlers[(int)InstructionKind.EnterTry] = HandleEnterTry;
             handlers[(int)InstructionKind.EnterCatch] = HandleEnterCatch;
-            handlers[(int)InstructionKind.EnterCatchWithDestructuring] = HandleEnterCatchWithDestructuring;
             handlers[(int)InstructionKind.LeaveTry] = HandleLeaveTry;
             handlers[(int)InstructionKind.BreakableEnter] = HandleBreakableEnter;
             handlers[(int)InstructionKind.BreakableExit] = HandleBreakableExit;
@@ -62,7 +59,6 @@ public static partial class TypedAstEvaluator
             handlers[(int)InstructionKind.LeaveWith] = HandleLeaveWith;
             handlers[(int)InstructionKind.IteratorClose] = HandleIteratorClose;
             handlers[(int)InstructionKind.SetCompletionValue] = HandleSetCompletionValue;
-            handlers[(int)InstructionKind.Expression] = DispatchExpression;
             handlers[(int)InstructionKind.ForInInit] = HandleForInInit;
             handlers[(int)InstructionKind.ForInMoveNext] = HandleForInMoveNext;
             // Array destructuring
@@ -72,14 +68,6 @@ public static partial class TypedAstEvaluator
             handlers[(int)InstructionKind.ArrayDestructuringClose] = HandleArrayDestructuringClose;
             return handlers;
         }
-
-        private static InstructionResult DispatchExpression(
-            ExecutionPlanRunner runner,
-            ExecutionInstruction instr,
-            ref JsEnvironment env,
-            EvaluationContext ctx,
-            out JsValue ret)
-            => throw new InvalidOperationException("Expression instruction should not be dispatched via handler table");
 
         /// <summary>
         /// Result of an instruction handler for control flow.

@@ -140,7 +140,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
             
             var program = _engine.ParseProgram(@"
                 let x = 42;
-                x;
+                Math.max(x, 7);
             ");
             
             // Act & Assert
@@ -169,7 +169,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
         {
             EvaluationContext.AssertNoAstEvaluation = true;
             
-            var program = _engine.ParseProgram("1 + 2");
+            var program = _engine.ParseProgram("Math.max(1, 2)");
             
             // Act & Assert
             var exception = await Assert.ThrowsAsync<InvalidOperationException>(
@@ -187,28 +187,25 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Verifies that complex expressions trigger the assertion when the flag is enabled.
+    /// Verifies that expression shapes still outside the bytecode layer trigger the assertion.
     /// </summary>
     [Fact]
     public async Task AssertNoAstEvaluation_Enabled_ThrowsOnComplexExpression()
     {
-        // Arrange
         var originalValue = EvaluationContext.AssertNoAstEvaluation;
-        
+
         try
         {
             EvaluationContext.AssertNoAstEvaluation = true;
-            
+
             var program = _engine.ParseProgram(@"
-                const obj = { x: 10, y: 20 };
-                obj.x + obj.y;
+                Math.max(10, 20);
             ");
-            
-            // Act & Assert
+
             var exception = await Assert.ThrowsAsync<InvalidOperationException>(
                 async () => await _engine.Evaluate(program)
             );
-            
+
             Assert.Contains("AST evaluation invoked", exception.Message);
         }
         finally
@@ -231,7 +228,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
             EvaluationContext.AssertNoAstEvaluation = true;
             
             var program = _engine.ParseProgram(@"
-                if (true) {
+                if (Math.max(1, 0)) {
                     42;
                 } else {
                     0;
@@ -262,7 +259,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
         
         try
         {
-            var program = _engine.ParseProgram("40 + 2");
+            var program = _engine.ParseProgram("Math.max(40, 42)");
             
             // First, execute normally
             EvaluationContext.AssertNoAstEvaluation = false;
@@ -408,6 +405,583 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsSimpleVariableDeclarationExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function declareSimple(value) {
+                    let next = value + 1;
+                    return next;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("declareSimple", new JsValue(41d));
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsSimpleReturnExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function returnSimple(left, right) {
+                    return left + right;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("returnSimple", new JsValue(19d), new JsValue(23d));
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsSimpleThrowExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function throwSimple(value) {
+                    throw value || 7;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var exception = Assert.Throws<ThrowSignal>(() => InvokeGlobalFunction("throwSimple", new JsValue(42d)));
+            Assert.Equal(42.0, exception.ThrownValue);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsSimpleYieldExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function* yieldSimple(value) {
+                    yield value + 1;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var generator = InvokeGenerator("yieldSimple", new JsValue(41d));
+            var firstResult = InvokeGeneratorMethod(generator, "next");
+
+            Assert.Equal(42.0, GetRequiredProperty(firstResult, "value"));
+            Assert.False(GetRequiredProperty(firstResult, "done").IsTruthy);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsSimpleYieldStarExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                const values = [42];
+                function* relayValues() {
+                    yield* values;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var generator = InvokeGenerator("relayValues");
+            var firstResult = InvokeGeneratorMethod(generator, "next");
+
+            Assert.Equal(42.0, GetRequiredProperty(firstResult, "value"));
+            Assert.False(GetRequiredProperty(firstResult, "done").IsTruthy);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsSimpleScriptExpressionExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = await _engine.Evaluate("""
+                let value = 41;
+                value;
+                """);
+
+            Assert.Equal(41.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsSimpleForOfInitialization()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                const items = [42];
+                function firstItem() {
+                    for (const item of items) {
+                        return item;
+                    }
+                    return 0;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("firstItem");
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsSimpleForInInitialization()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                const source = { first: 1 };
+                function firstKey() {
+                    for (const key in source) {
+                        return key;
+                    }
+                    return "missing";
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("firstKey");
+
+            Assert.Equal("first", result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsSimpleArrayDestructuringInitialization()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                const values = [19, 23];
+                function sumFirstTwo() {
+                    const [first, second] = values;
+                    return first + second;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("sumFirstTwo");
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsSimpleObjectDestructuringInitialization()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                const point = { x: 19, y: 23 };
+                function sumPoint() {
+                    const { x, y } = point;
+                    return x + y;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("sumPoint");
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsInlineArrayLiteralDestructuringInitialization()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function sumInlineArray() {
+                    const [first, second] = [19, 23];
+                    return first + second;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("sumInlineArray");
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsInlineObjectLiteralDestructuringInitialization()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function sumInlinePoint() {
+                    const { x, y } = { x: 19, y: 23 };
+                    return x + y;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("sumInlinePoint");
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsArrayDestructuringDefaultExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function pickDefault() {
+                    const [first = 19, second = 23] = [];
+                    return first + second;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("pickDefault");
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsComputedObjectDestructuringExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                const source = { answer: 42 };
+                function readComputed(key) {
+                    const { [key]: value = 42 } = source;
+                    return value;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("readComputed", new JsValue("answer"));
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsSimpleConditionalExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function pick(flag, left, right) {
+                    return flag ? left : right;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("pick", JsValue.True, new JsValue(19d), new JsValue(23d));
+
+            Assert.Equal(19.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsNamedMemberAccessExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                const point = { x: 42 };
+                function readPoint() {
+                    return point.x;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("readPoint");
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsComputedMemberAccessExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                const point = { x: 42 };
+                const key = "x";
+                function readPointByKey() {
+                    return point[key];
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("readPointByKey");
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsComputedObjectLiteralExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                const key = "x";
+                function readComputedLiteral() {
+                    const point = { [key]: 42 };
+                    return point.x;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("readComputedLiteral");
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsOptionalComputedMemberAccessExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                const key = "x";
+                function maybeRead(point) {
+                    return point?.[key];
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("maybeRead", JsValue.Null);
+
+            Assert.True(result.IsUndefined);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsCatchDestructuringExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function readThrown() {
+                    try {
+                        throw { x: 19, y: 23 };
+                    } catch ({ x, y }) {
+                        return x + y;
+                    }
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("readThrown");
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_ThrowsOnWithStatementExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                const scopeObj = { answer: 42 };
+                function readWith() {
+                    with (scopeObj) {
+                        return answer;
+                    }
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var exception = Assert.Throws<InvalidOperationException>(() => InvokeGlobalFunction("readWith"));
+
+            Assert.Contains("WithStatement", exception.Message);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
     private JsValue InvokeGlobalFunction(string name, params JsValue[] args)
     {
         Assert.True(_engine.GlobalObject.TryGetProperty(name, out var callableValue),
@@ -415,6 +989,30 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
 
         var callable = Assert.IsAssignableFrom<IJsCallable>(callableValue.ObjectValue);
         return callable.Invoke(args, JsValue.Undefined);
+    }
+
+    private JsObject InvokeGenerator(string name, params JsValue[] args)
+    {
+        var generatorValue = InvokeGlobalFunction(name, args);
+        return Assert.IsType<JsObject>(generatorValue.ObjectValue);
+    }
+
+    private static JsValue InvokeGeneratorMethod(JsObject generator, string methodName, params JsValue[] args)
+    {
+        Assert.True(generator.TryGetProperty(methodName, out var methodValue),
+            $"Missing generator method '{methodName}'.");
+
+        var callable = Assert.IsAssignableFrom<IJsCallable>(methodValue.ObjectValue);
+        return callable.Invoke(args, JsValue.FromObjectUnsafe(generator));
+    }
+
+    private static JsValue GetRequiredProperty(JsValue value, string propertyName)
+    {
+        Assert.True(value.TryGetObject<IJsPropertyAccessor>(out var accessor),
+            $"Expected value with readable properties for '{propertyName}'.");
+        Assert.True(accessor.TryGetProperty(propertyName, out var property),
+            $"Missing property '{propertyName}'.");
+        return property;
     }
 #else
     /// <summary>

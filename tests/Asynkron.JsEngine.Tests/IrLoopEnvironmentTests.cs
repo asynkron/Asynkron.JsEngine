@@ -376,10 +376,10 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 5000)]
-    public async Task NestedLoops_NoStatementInstructionFallback()
+    public async Task NestedLoops_NoGenericStatementFallback()
     {
         // This test verifies that nested loops are fully emitted as IR instructions,
-        // with no StatementInstruction fallback for any level of nesting.
+        // with no generic EvaluateAndDiscard fallback for any level of nesting.
         await using var engine = CreateEngine();
 
         var program = engine.ParseProgram("""
@@ -404,7 +404,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         var result = await engine.Evaluate("testNestedLoops()");
         Assert.Equal(12.0, result); // 2 outer × 2 for-of × 2 for-in = 2×(1+2+1+2) = 12
 
-        // Now verify the execution plan has no StatementInstruction
+        // Now verify the execution plan has no generic statement fallback.
         var funcDecl = program.Body[0] as FunctionDeclaration;
         Assert.NotNull(funcDecl);
 
@@ -412,25 +412,25 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
         Assert.NotNull(cache.Plan);
 
-        var statementInstructions = cache.Plan.Instructions
-            .Where(i => i is StatementInstruction)
+        var fallbackInstructions = cache.Plan.Instructions
+            .OfType<EvaluateAndDiscardInstruction>()
             .ToList();
 
-        if (statementInstructions.Count > 0)
+        if (fallbackInstructions.Count > 0)
         {
-            foreach (var si in statementInstructions.Cast<StatementInstruction>())
+            foreach (var fallback in fallbackInstructions)
             {
-                output.WriteLine($"Found StatementInstruction for: {si.Statement.GetType().Name}");
+                output.WriteLine($"Found EvaluateAndDiscardInstruction for: {fallback.Expression?.GetType().Name ?? "<lowered>"}");
             }
         }
 
-        Assert.Empty(statementInstructions);
+        Assert.Empty(fallbackInstructions);
 
         // Print full IR
         var planOutput = ExecutionPlanDiagnostics.PrintPlan(funcDecl.Function);
         output.WriteLine("=== Full IR for nested loops ===");
         output.WriteLine(planOutput);
-        output.WriteLine($"✓ All {cache.Plan.Instructions.Length} instructions are proper IR (no StatementInstruction fallback)");
+        output.WriteLine($"✓ All {cache.Plan.Instructions.Length} instructions are proper IR (no generic statement fallback)");
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -620,6 +620,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
 
         var hasBindingVarDecl = cache.Plan.Instructions
             .Any(i => i.Kind == InstructionKind.BindingVariableDeclaration);
+        var bindingInstruction = Assert.Single(cache.Plan.Instructions.OfType<BindingVariableDeclarationInstruction>());
 
         var planOutput = ExecutionPlanDiagnostics.PrintPlan(funcDecl.Function);
         output.WriteLine("=== IR for object destructuring ===");
@@ -627,6 +628,8 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
 
         Assert.True(hasBindingVarDecl,
             "Object destructuring should emit the generic binding declaration instruction");
+        Assert.Null(bindingInstruction.Initializer);
+        Assert.NotNull(bindingInstruction.InitializerProgram);
     }
 
     [Fact(Timeout = 5000)]

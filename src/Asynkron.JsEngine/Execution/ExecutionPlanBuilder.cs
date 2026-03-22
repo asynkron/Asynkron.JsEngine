@@ -171,6 +171,8 @@ internal sealed partial class ExecutionPlanBuilder
                 out rewriter);
         }
 
+        LowerExpressionPayloads();
+
         var rootSlotCount = analysis is not null && analysis.Scopes.TryGetValue(analysisRootScopeId, out var rootInfo)
             ? rootInfo.SlotCount
             : 0;
@@ -195,14 +197,29 @@ internal sealed partial class ExecutionPlanBuilder
                 continue;
             }
 
+            var updatedPush = push;
+            var changed = false;
             if (flatSlotMappings is { Count: > 0 } &&
-                flatSlotMappings.TryGetValue(push.ScopeId, out var scopeMappings))
+                flatSlotMappings.TryGetValue(updatedPush.ScopeId, out var scopeMappings))
             {
-                Instructions[i] = push with { FlatSlotMappings = scopeMappings };
+                updatedPush = updatedPush with { FlatSlotMappings = scopeMappings };
+                changed = true;
             }
-            else if (!push.FlatSlotMappings.IsDefaultOrEmpty)
+            else if (!updatedPush.FlatSlotMappings.IsDefaultOrEmpty)
             {
-                Instructions[i] = push with { FlatSlotMappings = default };
+                updatedPush = updatedPush with { FlatSlotMappings = default };
+                changed = true;
+            }
+
+            if (updatedPush.SourceBlock is not null)
+            {
+                updatedPush = updatedPush with { SourceBlock = null };
+                changed = true;
+            }
+
+            if (changed)
+            {
+                Instructions[i] = updatedPush;
             }
         }
 
@@ -221,6 +238,242 @@ internal sealed partial class ExecutionPlanBuilder
             flatSlotCount,
             flatSlotMappings);
         return true;
+    }
+
+    private void LowerExpressionPayloads()
+    {
+        for (var i = 0; i < Instructions.Count; i++)
+        {
+            switch (Instructions[i])
+            {
+                case EvaluateAndDiscardInstruction { Expression: not null, ExpressionOps: null } evaluateInstruction:
+                    if (!TryCompileExpressionProgram(evaluateInstruction.Expression, out var evaluateProgram))
+                    {
+                        break;
+                    }
+
+                    Instructions[i] = evaluateInstruction with
+                    {
+                        Expression = null,
+                        ExpressionOps = evaluateProgram.Operations
+                    };
+                    break;
+
+                case AssignmentSlotInstruction { ValueExpression: not null, ValueProgram: null } assignmentInstruction:
+                    if (!TryCompileExpressionProgram(assignmentInstruction.ValueExpression, out var assignmentProgram))
+                    {
+                        break;
+                    }
+
+                    Instructions[i] = assignmentInstruction with
+                    {
+                        ValueExpression = null,
+                        ValueProgram = assignmentProgram
+                    };
+                    break;
+
+                case LogicalCompoundAssignmentSlotInstruction { RhsExpression: not null, RhsProgram: null } logicalInstruction:
+                    if (!TryCompileExpressionProgram(logicalInstruction.RhsExpression, out var logicalProgram))
+                    {
+                        break;
+                    }
+
+                    Instructions[i] = logicalInstruction with
+                    {
+                        RhsExpression = null,
+                        RhsProgram = logicalProgram
+                    };
+                    break;
+
+                case CompoundAssignmentSlotInstruction { RhsExpression: not null, RhsExpressionOps: null } compoundInstruction:
+                    if (!TryCompileExpressionProgram(compoundInstruction.RhsExpression, out var compoundProgram))
+                    {
+                        break;
+                    }
+
+                    Instructions[i] = compoundInstruction with
+                    {
+                        RhsExpression = null,
+                        RhsExpressionOps = compoundProgram.Operations
+                    };
+                    break;
+
+                case ThrowInstruction { Expression: not null, ThrowProgram: null } throwInstruction:
+                    if (!TryCompileExpressionProgram(throwInstruction.Expression, out var throwProgram))
+                    {
+                        break;
+                    }
+
+                    Instructions[i] = throwInstruction with
+                    {
+                        Expression = null,
+                        ThrowProgram = throwProgram
+                    };
+                    break;
+
+                case ReturnInstruction { ReturnExpression: not null, ReturnProgram: null } returnInstruction:
+                    if (!TryCompileExpressionProgram(returnInstruction.ReturnExpression, out var returnProgram))
+                    {
+                        break;
+                    }
+
+                    Instructions[i] = returnInstruction with
+                    {
+                        ReturnExpression = null,
+                        ReturnProgram = returnProgram
+                    };
+                    break;
+
+                case BranchInstruction { Condition: not null, ConditionProgram: null } branchInstruction:
+                    if (!TryCompileExpressionProgram(branchInstruction.Condition, out var conditionProgram))
+                    {
+                        break;
+                    }
+
+                    Instructions[i] = branchInstruction with
+                    {
+                        Condition = null,
+                        ConditionProgram = conditionProgram
+                    };
+                    break;
+
+                case SimpleVariableDeclarationInstruction { Initializer: not null, InitializerProgram: null } variableInstruction:
+                    if (!TryCompileExpressionProgram(variableInstruction.Initializer, out var initializerProgram))
+                    {
+                        break;
+                    }
+
+                    Instructions[i] = variableInstruction with
+                    {
+                        Initializer = null,
+                        InitializerProgram = initializerProgram
+                    };
+                    break;
+
+                case YieldInstruction { YieldExpression: not null, YieldProgram: null } yieldInstruction:
+                    if (!TryCompileExpressionProgram(yieldInstruction.YieldExpression, out var yieldProgram))
+                    {
+                        break;
+                    }
+
+                    Instructions[i] = yieldInstruction with
+                    {
+                        YieldExpression = null,
+                        YieldProgram = yieldProgram
+                    };
+                    break;
+
+                case YieldStarInstruction { IterableExpression: not null, IterableProgram: null } yieldStarInstruction:
+                    if (!TryCompileExpressionProgram(yieldStarInstruction.IterableExpression, out var iterableProgram))
+                    {
+                        break;
+                    }
+
+                    Instructions[i] = yieldStarInstruction with
+                    {
+                        IterableExpression = null,
+                        IterableProgram = iterableProgram
+                    };
+                    break;
+
+                case IteratorInitInstruction { IterableExpression: not null, IterableExpressionOps: null } iteratorInitInstruction:
+                    if (!TryCompileExpressionProgram(iteratorInitInstruction.IterableExpression, out var iteratorProgram))
+                    {
+                        break;
+                    }
+
+                    Instructions[i] = iteratorInitInstruction with
+                    {
+                        IterableExpression = null,
+                        IterableExpressionOps = iteratorProgram.Operations,
+                        IterableSource = iteratorInitInstruction.IterableSource ?? iteratorInitInstruction.IterableExpression.Source
+                    };
+                    break;
+
+                case ForInInitInstruction { ObjectExpression: not null, ObjectProgram: null } forInInitInstruction:
+                    if (!TryCompileExpressionProgram(forInInitInstruction.ObjectExpression, out var objectProgram))
+                    {
+                        break;
+                    }
+
+                    Instructions[i] = forInInitInstruction with
+                    {
+                        ObjectExpression = null,
+                        ObjectProgram = objectProgram,
+                        ObjectSource = forInInitInstruction.ObjectSource ?? forInInitInstruction.ObjectExpression.Source
+                    };
+                    break;
+
+                case EnterWithInstruction { ObjectExpression: not null, ObjectProgram: null } enterWithInstruction:
+                    if (!TryCompileExpressionProgram(enterWithInstruction.ObjectExpression, out var withObjectProgram))
+                    {
+                        break;
+                    }
+
+                    Instructions[i] = enterWithInstruction with
+                    {
+                        ObjectExpression = null,
+                        ObjectProgram = withObjectProgram,
+                        ObjectSource = enterWithInstruction.ObjectSource ?? enterWithInstruction.ObjectExpression.Source
+                    };
+                    break;
+
+                case ArrayDestructuringInitInstruction { SourceExpression: not null, SourceProgram: null } arrayDestructuringInitInstruction:
+                    if (!TryCompileExpressionProgram(arrayDestructuringInitInstruction.SourceExpression, out var destructuringSourceProgram))
+                    {
+                        break;
+                    }
+
+                    Instructions[i] = arrayDestructuringInitInstruction with
+                    {
+                        SourceExpression = null,
+                        SourceProgram = destructuringSourceProgram
+                    };
+                    break;
+
+                case BindingVariableDeclarationInstruction bindingInstruction:
+                {
+                    var updatedBindingInstruction = bindingInstruction;
+                    var changed = false;
+
+                    if (updatedBindingInstruction.Initializer is not null &&
+                        updatedBindingInstruction.InitializerProgram is null &&
+                        TryCompileExpressionProgram(updatedBindingInstruction.Initializer, out var bindingInitializerProgram))
+                    {
+                        updatedBindingInstruction = updatedBindingInstruction with
+                        {
+                            Initializer = null,
+                            InitializerProgram = bindingInitializerProgram
+                        };
+                        changed = true;
+                    }
+
+                    if (updatedBindingInstruction.Target is not null &&
+                        updatedBindingInstruction.TargetProgram is null &&
+                        BindingTargetProgramCompiler.TryCompile(updatedBindingInstruction.Target, out var targetProgram, out _))
+                    {
+                        updatedBindingInstruction = updatedBindingInstruction with
+                        {
+                            Target = null,
+                            TargetProgram = targetProgram
+                        };
+                        changed = true;
+                    }
+
+                    if (changed)
+                    {
+                        Instructions[i] = updatedBindingInstruction;
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        bool TryCompileExpressionProgram(ExpressionNode expression, out ExpressionProgram program)
+        {
+            return ExpressionProgramCompiler.TryCompile(expression, out program, out _);
+        }
     }
 
     /// <summary>

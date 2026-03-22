@@ -3,6 +3,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution.Instructions;
 using Microsoft.Extensions.Logging;
@@ -133,35 +134,31 @@ internal static class ExecutionPlanPrinter
                 $"JUMP → [{jump.TargetIndex}]",
 
             BranchInstruction branch =>
-                $"BRANCH ({FormatExpression(branch.Condition)}) ? [{branch.ConsequentIndex}] : [{branch.AlternateIndex}]",
-
-            ExpressionInstruction expr =>
-                $"EVAL {FormatExpression(expr.Expression)} → [{expr.Next}]",
+                $"BRANCH ({FormatExpression(branch.Condition, branch.ConditionProgram)}) ? [{branch.ConsequentIndex}] : [{branch.AlternateIndex}]",
 
             EvaluateAndDiscardInstruction discard =>
-                $"EVAL_DISCARD {FormatExpression(discard.Expression)} → [{discard.Next}]",
+                $"EVAL_DISCARD {FormatExpression(discard.Expression, discard.ExpressionOps)} → [{discard.Next}]",
 
             AwaitAndDiscardInstruction awaitDiscard =>
                 $"AWAIT_DISCARD {FormatExpression(awaitDiscard.Expression.Expression)} → [{awaitDiscard.Next}]",
 
-            StatementInstruction stmt =>
-                $"STMT {FormatStatement(stmt.Statement)} → [{stmt.Next}]",
-
             AssignmentSlotInstruction assign =>
-                $"ASSIGN {assign.TargetSymbol.Name} = {FormatExpression(assign.ValueExpression)} → [{assign.Next}]",
+                $"ASSIGN {assign.TargetSymbol.Name} = {FormatExpression(assign.ValueExpression, assign.ValueProgram)} → [{assign.Next}]",
 
             LogicalCompoundAssignmentSlotInstruction logicalCompound =>
-                $"ASSIGN_LOGICAL {logicalCompound.TargetSymbol.Name} {FormatBinaryOperator(logicalCompound.Operator)}= {FormatExpression(logicalCompound.RhsExpression)} → [{logicalCompound.Next}]",
+                $"ASSIGN_LOGICAL {logicalCompound.TargetSymbol.Name} {FormatBinaryOperator(logicalCompound.Operator)}= {FormatExpression(logicalCompound.RhsExpression, logicalCompound.RhsProgram)} → [{logicalCompound.Next}]",
 
             SimpleVariableDeclarationInstruction varDecl =>
                 $"VAR {varDecl.Kind} {varDecl.TargetSymbol.Name}" +
-                (varDecl.Initializer != null ? $" = {FormatExpression(varDecl.Initializer)}" : "") +
+                (varDecl.Initializer != null || varDecl.InitializerProgram is not null
+                    ? $" = {FormatExpression(varDecl.Initializer, varDecl.InitializerProgram)}"
+                    : "") +
                 $" → [{varDecl.Next}]",
 
             BindingVariableDeclarationInstruction bindingDecl =>
-                $"VAR_BIND {bindingDecl.VarKind} {bindingDecl.Declarator.Target}" +
-                (bindingDecl.Declarator.Initializer != null
-                    ? $" = {FormatExpression(bindingDecl.Declarator.Initializer)}"
+                $"VAR_BIND {bindingDecl.VarKind} {FormatBindingTarget(bindingDecl.Target, bindingDecl.TargetProgram)}" +
+                (bindingDecl.Initializer != null || bindingDecl.InitializerProgram is not null
+                    ? $" = {FormatExpression(bindingDecl.Initializer, bindingDecl.InitializerProgram)}"
                     : "") +
                 $" → [{bindingDecl.Next}]",
 
@@ -173,11 +170,13 @@ internal static class ExecutionPlanPrinter
                 $"POP_ENV (scopeId: {popEnv.ScopeId}, pool: {popEnv.AllowPooling}) → [{popEnv.Next}]",
 
             ReturnInstruction ret =>
-                "RETURN" + (ret.ReturnExpression != null ? $" {FormatExpression(ret.ReturnExpression)}" : "") +
+                "RETURN" + (ret.ReturnExpression != null || ret.ReturnProgram is not null
+                    ? $" {FormatExpression(ret.ReturnExpression, ret.ReturnProgram)}"
+                    : "") +
                 (ret.Next >= 0 ? $" → [{ret.Next}]" : ""),
 
             ThrowInstruction thr =>
-                $"THROW {FormatExpression(thr.Expression)}",
+                $"THROW {FormatExpression(thr.Expression, thr.ThrowProgram)}",
 
             BreakInstruction brk =>
                 $"BREAK (popTo: {brk.TargetScopeId}) → [{brk.TargetIndex}]",
@@ -186,11 +185,13 @@ internal static class ExecutionPlanPrinter
                 $"CONTINUE (popTo: {cont.TargetScopeId}) → [{cont.TargetIndex}]",
 
             YieldInstruction yield =>
-                "YIELD" + (yield.YieldExpression != null ? $" {FormatExpression(yield.YieldExpression)}" : "") +
+                "YIELD" + (yield.YieldExpression != null || yield.YieldProgram is not null
+                    ? $" {FormatExpression(yield.YieldExpression, yield.YieldProgram)}"
+                    : "") +
                 $" → [{yield.Next}]",
 
             YieldStarInstruction yieldStar =>
-                $"YIELD* {FormatExpression(yieldStar.IterableExpression)}" +
+                $"YIELD* {FormatExpression(yieldStar.IterableExpression, yieldStar.IterableProgram)}" +
                 (yieldStar.ResultSlotSymbol != null ? $" (result → {yieldStar.ResultSlotSymbol.Name})" : "") +
                 $" → [{yieldStar.Next}]",
 
@@ -205,7 +206,7 @@ internal static class ExecutionPlanPrinter
                 $"END_FINALLY → [{endFinally.Next}]",
 
             IteratorInitInstruction iterInit =>
-                $"ITER_INIT {FormatExpression(iterInit.IterableExpression)} (slot: {iterInit.IteratorSlot.Name}, kind: {iterInit.Kind}) → [{iterInit.Next}]",
+                $"ITER_INIT {FormatExpression(iterInit.IterableExpression, iterInit.IterableExpressionOps)} (slot: {iterInit.IteratorSlot.Name}, kind: {iterInit.Kind}) → [{iterInit.Next}]",
 
             IteratorMoveNextInstruction moveNext =>
                 $"ITER_MOVE_NEXT (iter: {moveNext.IteratorSlot.Name}, value: {moveNext.ValueSlot.Name}) body: [{moveNext.Next}], done: [{moveNext.BreakIndex}]",
@@ -214,13 +215,16 @@ internal static class ExecutionPlanPrinter
                 $"ITER_CLOSE (iter: {iterClose.IteratorSlot.Name}) → [{iterClose.Next}]",
 
             ForInInitInstruction forInInit =>
-                $"FORIN_INIT {FormatExpression(forInInit.ObjectExpression)} (state: {forInInit.StateSlot.Name}, value: {forInInit.ValueSlot.Name}) → [{forInInit.Next}]",
+                $"FORIN_INIT {FormatExpression(forInInit.ObjectExpression, forInInit.ObjectProgram)} (state: {forInInit.StateSlot.Name}, value: {forInInit.ValueSlot.Name}) → [{forInInit.Next}]",
 
             ForInMoveNextInstruction forInMoveNext =>
                 $"FORIN_MOVE_NEXT (state: {forInMoveNext.StateSlot.Name}, value: {forInMoveNext.ValueSlot.Name}) body: [{forInMoveNext.Next}], done: [{forInMoveNext.BreakIndex}]",
 
+            ArrayDestructuringInitInstruction arrayDestructuringInit =>
+                $"ARRAY_DESTRUCT_INIT {FormatExpression(arrayDestructuringInit.SourceExpression, arrayDestructuringInit.SourceProgram)} (iter: {arrayDestructuringInit.IteratorSlot.Name}) → [{arrayDestructuringInit.Next}]",
+
             EnterWithInstruction enterWith =>
-                $"ENTER_WITH {FormatExpression(enterWith.ObjectExpression)} → [{enterWith.Next}]",
+                $"ENTER_WITH {FormatExpression(enterWith.ObjectExpression, enterWith.ObjectProgram)} → [{enterWith.Next}]",
 
             LeaveWithInstruction leaveWith =>
                 $"LEAVE_WITH → [{leaveWith.Next}]",
@@ -235,18 +239,13 @@ internal static class ExecutionPlanPrinter
                 "STORE_RESUME" + (storeResume.TargetSymbol != null ? $" → {storeResume.TargetSymbol.Name}" : "") +
                 $" → [{storeResume.Next}]",
 
-            BinaryOpInstruction binOp =>
-                $"BINOP {FormatExpression(binOp.Left)} {binOp.Operator} {FormatExpression(binOp.Right)}" +
-                (binOp.ResultSlot != null ? $" → {binOp.ResultSlot.Name}" : "") +
-                $" → [{binOp.Next}]",
-
             IncrementSlotInstruction inc =>
                 $"{(inc.IsPrefix ? inc.IsIncrement ? "++" : "--" : "")}{inc.TargetSymbol.Name}" +
                 $"{(inc.IsPrefix ? "" : inc.IsIncrement ? "++" : "--")}" +
                 $" → [{inc.Next}]",
 
             CompoundAssignmentSlotInstruction compound =>
-                $"COMPOUND {compound.TargetSymbol.Name} {compound.Operator}= {FormatExpression(compound.RhsExpression)} → [{compound.Next}]",
+                $"COMPOUND {compound.TargetSymbol.Name} {compound.Operator}= {FormatExpression(compound.RhsExpression, compound.RhsExpressionOps)} → [{compound.Next}]",
 
             _ => instruction.ToString() ?? "<?>"
         };
@@ -276,6 +275,80 @@ internal static class ExecutionPlanPrinter
             TaggedTemplateExpression tagged => $"{FormatExpression(tagged.Tag)}`...`",
             ClassExpression classExpr => classExpr.Name != null ? $"class {classExpr.Name.Name}" : "class",
             _ => expr.GetType().Name
+        };
+    }
+
+    private static string FormatExpression(ExpressionNode? expr, ExpressionProgram? program)
+    {
+        if (expr is not null)
+        {
+            return FormatExpression(expr);
+        }
+
+        return program is { } expressionProgram
+            ? FormatExpressionProgram(expressionProgram)
+            : "<undefined>";
+    }
+
+    private static string FormatExpression(ExpressionNode? expr, ImmutableArray<ExpressionOp>? ops)
+    {
+        if (expr is not null)
+        {
+            return FormatExpression(expr);
+        }
+
+        return ops is { } expressionOps
+            ? FormatExpressionProgram(new ExpressionProgram(expressionOps))
+            : "<undefined>";
+    }
+
+    private static string FormatBindingTarget(BindingTarget? target, BindingTargetProgram? program)
+    {
+        if (program is not null)
+        {
+            return program.ToString();
+        }
+
+        return target?.ToString() ?? "<undefined>";
+    }
+
+    private static string FormatExpressionProgram(ExpressionProgram program)
+    {
+        if (program.IsEmpty)
+        {
+            return "<empty>";
+        }
+
+        return string.Join(" ", program.Operations.Select(FormatExpressionOp));
+    }
+
+    private static string FormatExpressionOp(ExpressionOp op)
+    {
+        return op switch
+        {
+            LoadLiteralExpressionOp literal => literal.Value.ToString() ?? "null",
+            LoadIdentifierExpressionOp identifier => identifier.Name.Name,
+            LoadThisExpressionOp => "this",
+            LoadNewTargetExpressionOp => "new.target",
+            CreateArrayExpressionOp => "arr[]",
+            ArrayPushExpressionOp => "arr.push",
+            ArrayPushHoleExpressionOp => "arr.hole",
+            ArraySpreadExpressionOp => "arr.spread",
+            CreateObjectExpressionOp => "obj{}",
+            DefineObjectPropertyExpressionOp property => $"obj.{property.PropertyName}",
+            DefineComputedObjectPropertyExpressionOp => "obj[]",
+            ObjectSpreadExpressionOp => "obj.spread",
+            GetNamedPropertyExpressionOp property => $".{property.PropertyName}",
+            GetComputedPropertyExpressionOp => "[]",
+            UnaryLogicalNotExpressionOp => "!",
+            BinaryExpressionOp binary => FormatBinaryOperator(binary.Operator),
+            PopExpressionOp => "pop",
+            JumpExpressionOp jump => $"jmp:{jump.Target}",
+            JumpIfNullishExpressionOp jumpIfNullish => $"jmpN:{jumpIfNullish.Target}",
+            JumpIfTrueExpressionOp jumpIfTrue => $"jmpT:{jumpIfTrue.Target}",
+            JumpIfFalseExpressionOp jumpIfFalse => $"jmpF:{jumpIfFalse.Target}",
+            JumpIfNotNullishExpressionOp jumpIfNotNullish => $"jmpNN:{jumpIfNotNullish.Target}",
+            _ => op.GetType().Name
         };
     }
 

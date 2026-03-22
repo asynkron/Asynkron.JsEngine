@@ -221,7 +221,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                 case PushEnvironmentInstruction:
                 case PopEnvironmentInstruction:
                 case EnterCatchInstruction:
-                case EnterCatchWithDestructuringInstruction:
                 case BreakInstruction:
                 case ContinueInstruction:
                     return instruction;
@@ -273,22 +272,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                 }
                 return updatedCatch;
 
-            case EnterCatchWithDestructuringInstruction enterCatchDestructure:
-                var mappedDestructureScope = RemapScopeId(enterCatchDestructure.ScopeId);
-                _scopeStack.Push(mappedDestructureScope);
-                if (_tryFrameCatchScopes.Count > 0)
-                {
-                    _tryFrameCatchScopes.Pop();
-                    _tryFrameCatchScopes.Push(mappedDestructureScope);
-                }
-                var updatedDestructure = enterCatchDestructure with
-                {
-                    ScopeId = mappedDestructureScope,
-                    SlotCount = GetSlotCount(mappedDestructureScope),
-                    SlotMap = GetSlotMap(mappedDestructureScope)
-                };
-                return updatedDestructure;
-
             case LeaveTryInstruction:
                 if (_tryFrameCatchScopes.Count > 0)
                 {
@@ -330,12 +313,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                 var mappedContinueScope = RemapScopeId(continueInstruction.TargetScopeId);
                 PopToScope(mappedContinueScope);
                 return continueInstruction with { TargetScopeId = mappedContinueScope };
-
-            case StatementInstruction stmt:
-                return stmt with { Statement = Rewrite(stmt.Statement) };
-
-            case ExpressionInstruction expr:
-                return expr with { Expression = Rewrite(expr.Expression) };
 
             case EvaluateAndDiscardInstruction eval:
                 return eval with { Expression = Rewrite(eval.Expression) };
@@ -398,14 +375,8 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             case SimpleVariableDeclarationInstruction { Initializer: not null } varDecl:
                 return varDecl with { Initializer = Rewrite(varDecl.Initializer) };
 
-            case BindingVariableDeclarationInstruction { Declarator.Initializer: not null } bindingDecl:
-                return bindingDecl with
-                {
-                    Declarator = bindingDecl.Declarator with
-                    {
-                        Initializer = Rewrite(bindingDecl.Declarator.Initializer)
-                    }
-                };
+            case BindingVariableDeclarationInstruction { Initializer: not null } bindingDecl:
+                return bindingDecl with { Initializer = Rewrite(bindingDecl.Initializer) };
 
             case IteratorInitInstruction iterInit:
                 return iterInit with { IterableExpression = Rewrite(iterInit.IterableExpression) };

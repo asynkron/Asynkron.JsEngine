@@ -334,22 +334,6 @@ internal sealed class ScopeSlotCollector : AstVisitor
 
                 return;
 
-            case EnterCatchWithDestructuringInstruction enterCatchDestructure:
-                EnterScope(enterCatchDestructure.ScopeId,
-                    enterCatchDestructure.SlotMap,
-                    ImmutableArray<Symbol>.Empty,
-                    enterCatchDestructure.SlotCount);
-                CollectBindingTargetSlots(enterCatchDestructure.BindingPattern, enterCatchDestructure.ScopeId);
-                return;
-
-            case StatementInstruction stmt:
-                Visit(stmt.Statement);
-                return;
-
-            case ExpressionInstruction expr:
-                Visit(expr.Expression);
-                return;
-
             case EvaluateAndDiscardInstruction eval:
                 Visit(eval.Expression);
                 return;
@@ -391,9 +375,9 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 RegisterDeclaration(varDecl);
                 return;
 
-            case BindingVariableDeclarationInstruction { Declarator.Initializer: not null } bindingDecl:
+            case BindingVariableDeclarationInstruction { Initializer: not null } bindingDecl:
                 RegisterBindingDeclaration(bindingDecl);
-                Visit(bindingDecl.Declarator.Initializer);
+                Visit(bindingDecl.Initializer);
                 return;
 
             case BindingVariableDeclarationInstruction bindingDecl:
@@ -451,7 +435,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
     private void RegisterBindingDeclaration(BindingVariableDeclarationInstruction bindingDecl)
     {
         var names = new List<Symbol>();
-        bindingDecl.Declarator.Target.CollectSymbolsFromBinding(names);
+        bindingDecl.Target.CollectSymbolsFromBinding(names);
         foreach (var name in names)
         {
             RegisterDeclaration(bindingDecl.VarKind, name);

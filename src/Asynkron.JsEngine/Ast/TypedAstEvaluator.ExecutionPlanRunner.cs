@@ -477,7 +477,12 @@ public static partial class TypedAstEvaluator
             JsValue testValue;
             var usedFastPath = false;
 
-            if (instruction.Condition is BinaryExpression
+            if (instruction.ConditionProgram is { } conditionProgram)
+            {
+                testValue = EvaluateExpressionProgram(conditionProgram, environment, context);
+                usedFastPath = true;
+            }
+            else if (instruction.Condition is BinaryExpression
                 {
                     Operator: BinaryOperator.LessThan or BinaryOperator.LessThanOrEqual or
                     BinaryOperator.GreaterThan or BinaryOperator.GreaterThanOrEqual

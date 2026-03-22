@@ -1,7 +1,10 @@
 #region
 
+using System.Buffers;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 
@@ -163,6 +166,476 @@ public static partial class TypedAstEvaluator
                 ResumeMode.Throw => throw new ThrowSignal(value),
                 _ => CreateIteratorResult(value, true)
             };
+        }
+
+        private JsValue EvaluateExpressionProgram(
+            ExpressionProgram program,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            if (program.IsEmpty)
+            {
+                return JsValue.Undefined;
+            }
+
+            var operationCount = program.Operations.Length;
+            var stackSize = Math.Max(16, operationCount);
+            var rentedStack = ArrayPool<JsValue>.Shared.Rent(stackSize);
+            var stack = rentedStack.AsSpan(0, stackSize);
+            var stackIndex = 0;
+            var programCounter = 0;
+
+            try
+            {
+                while ((uint)programCounter < (uint)operationCount)
+                {
+                    switch (program.Operations[programCounter])
+                    {
+                        case LoadLiteralExpressionOp loadLiteral:
+                            stack[stackIndex++] = loadLiteral.Value;
+                            programCounter++;
+                            break;
+
+                        case LoadIdentifierExpressionOp loadIdentifier:
+                            stack[stackIndex++] = EvaluateProgramIdentifier(loadIdentifier, environment, context);
+                            programCounter++;
+                            break;
+
+                        case LoadThisExpressionOp:
+                            stack[stackIndex++] = _thisValue;
+                            programCounter++;
+                            break;
+
+                        case LoadNewTargetExpressionOp:
+                            stack[stackIndex++] = _newTarget.IsUndefined ? JsValue.Undefined : _newTarget;
+                            programCounter++;
+                            break;
+
+                        case CreateArrayExpressionOp:
+                            stack[stackIndex++] = JsValue.FromJsArray(new JsArray(context.RealmState));
+                            programCounter++;
+                            break;
+
+                        case ArrayPushExpressionOp:
+                            {
+                                var elementValue = stack[--stackIndex];
+                                if (!stack[stackIndex - 1].TryGetArray(out var targetArray))
+                                {
+                                    throw new InvalidOperationException("Array push expression op requires an array receiver.");
+                                }
+
+                                targetArray.Push(elementValue);
+                                programCounter++;
+                                break;
+                            }
+
+                        case ArrayPushHoleExpressionOp:
+                            {
+                                if (!stack[stackIndex - 1].TryGetArray(out var targetArray))
+                                {
+                                    throw new InvalidOperationException("Array hole expression op requires an array receiver.");
+                                }
+
+                                targetArray.PushHole();
+                                programCounter++;
+                                break;
+                            }
+
+                        case ArraySpreadExpressionOp:
+                            {
+                                var spreadValue = stack[--stackIndex];
+                                if (!stack[stackIndex - 1].TryGetArray(out var targetArray))
+                                {
+                                    throw new InvalidOperationException("Array spread expression op requires an array receiver.");
+                                }
+
+                                foreach (var item in EnumerateSpread(spreadValue, context))
+                                {
+                                    targetArray.Push(item);
+                                }
+
+                                programCounter++;
+                                break;
+                            }
+
+                        case CreateObjectExpressionOp:
+                            {
+                                var targetObject = new JsObject
+                                {
+                                    RealmState = context.RealmState
+                                };
+                                if (context.RealmState.ObjectPrototype is { } objectPrototype)
+                                {
+                                    targetObject.SetPrototype(objectPrototype);
+                                }
+
+                                stack[stackIndex++] = JsValue.FromJsObject(targetObject);
+                                programCounter++;
+                                break;
+                            }
+
+                        case DefineObjectPropertyExpressionOp defineProperty:
+                            {
+                                var propertyValue = stack[--stackIndex];
+                                if (!stack[stackIndex - 1].TryGetObject<JsObject>(out var targetObject))
+                                {
+                                    throw new InvalidOperationException(
+                                        "Object property expression op requires an object receiver.");
+                                }
+
+                                DefineObjectLiteralProperty(targetObject, defineProperty, propertyValue);
+                                programCounter++;
+                                break;
+                            }
+
+                        case DefineComputedObjectPropertyExpressionOp:
+                            {
+                                var propertyValue = stack[--stackIndex];
+                                var propertyKey = stack[--stackIndex];
+                                if (!stack[stackIndex - 1].TryGetObject<JsObject>(out var targetObject))
+                                {
+                                    throw new InvalidOperationException(
+                                        "Computed object property expression op requires an object receiver.");
+                                }
+
+                                DefineComputedObjectLiteralProperty(targetObject, propertyKey, propertyValue, context);
+                                programCounter++;
+                                break;
+                            }
+
+                        case ObjectSpreadExpressionOp:
+                            {
+                                var spreadValue = stack[--stackIndex];
+                                if (!stack[stackIndex - 1].TryGetObject<JsObject>(out var targetObject))
+                                {
+                                    throw new InvalidOperationException(
+                                        "Object spread expression op requires an object receiver.");
+                                }
+
+                                ApplyObjectLiteralSpread(targetObject, spreadValue, context);
+                                programCounter++;
+                                break;
+                            }
+
+                        case GetNamedPropertyExpressionOp namedProperty:
+                            stack[stackIndex - 1] = GetProgramNamedPropertyValue(
+                                stack[stackIndex - 1],
+                                namedProperty,
+                                context);
+                            programCounter++;
+                            break;
+
+                        case GetComputedPropertyExpressionOp computedProperty:
+                            {
+                                var propertyKey = stack[--stackIndex];
+                                var target = stack[stackIndex - 1];
+                                stack[stackIndex - 1] = GetProgramComputedPropertyValue(
+                                    target,
+                                    propertyKey,
+                                    computedProperty,
+                                    context);
+                                programCounter++;
+                                break;
+                            }
+
+                        case UnaryLogicalNotExpressionOp:
+                            stack[stackIndex - 1] = stack[stackIndex - 1].IsTruthy ? JsValue.False : JsValue.True;
+                            programCounter++;
+                            break;
+
+                        case BinaryExpressionOp binary:
+                            {
+                                var right = stack[--stackIndex];
+                                var left = stack[stackIndex - 1];
+                                stack[stackIndex - 1] =
+                                    binary.Operator switch
+                                    {
+                                        BinaryOperator.LessThan or
+                                        BinaryOperator.LessThanOrEqual or
+                                        BinaryOperator.GreaterThan or
+                                        BinaryOperator.GreaterThanOrEqual =>
+                                            ProfileBranchCompare(binary.Operator, left, right, context),
+                                        _ => ProfileApplyBinaryOperator(binary.Operator, left, right, context)
+                                    };
+                                programCounter++;
+                                break;
+                            }
+
+                        case PopExpressionOp:
+                            stackIndex--;
+                            programCounter++;
+                            break;
+
+                        case JumpExpressionOp jump:
+                            programCounter = jump.Target;
+                            break;
+
+                        case JumpIfNullishExpressionOp jumpIfNullish:
+                            if (stack[stackIndex - 1].IsNullish)
+                            {
+                                if (jumpIfNullish.ReplaceWithUndefined)
+                                {
+                                    stack[stackIndex - 1] = JsValue.Undefined;
+                                }
+
+                                programCounter = jumpIfNullish.Target;
+                            }
+                            else
+                            {
+                                programCounter++;
+                            }
+                            break;
+
+                        case JumpIfTrueExpressionOp jumpIfTrue:
+                            programCounter = stack[stackIndex - 1].IsTruthy
+                                ? jumpIfTrue.Target
+                                : programCounter + 1;
+                            break;
+
+                        case JumpIfFalseExpressionOp jumpIfFalse:
+                            programCounter = !stack[stackIndex - 1].IsTruthy
+                                ? jumpIfFalse.Target
+                                : programCounter + 1;
+                            break;
+
+                        case JumpIfNotNullishExpressionOp jumpIfNotNullish:
+                            programCounter = !stack[stackIndex - 1].IsNullish
+                                ? jumpIfNotNullish.Target
+                                : programCounter + 1;
+                            break;
+
+                        default:
+                            throw new NotSupportedException(
+                                $"Unsupported expression op '{program.Operations[programCounter].GetType().Name}'.");
+                    }
+
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return stackIndex > 0 ? stack[stackIndex - 1] : JsValue.Undefined;
+                    }
+                }
+
+                return stackIndex > 0 ? stack[stackIndex - 1] : JsValue.Undefined;
+            }
+            finally
+            {
+                ArrayPool<JsValue>.Shared.Return(rentedStack, clearArray: true);
+            }
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private JsValue EvaluateProgramIdentifier(
+            LoadIdentifierExpressionOp identifier,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            if (identifier.IsArguments)
+            {
+                return environment.TryGetIdentifierJsValue(identifier.Name, context, out var argumentsValue)
+                    ? argumentsValue
+                    : HandleIdentifierNotFound(identifier.Name, context);
+            }
+
+            if (!context.AllowIdentifierCache)
+            {
+                return environment.TryGetIdentifierJsValue(identifier.Name, context, out var resolvedValue)
+                    ? resolvedValue
+                    : HandleIdentifierNotFound(identifier.Name, context);
+            }
+
+            if (identifier.ScopeId >= 0 && identifier.SlotIndex >= 0)
+            {
+                var identifierExpression = new IdentifierExpression(
+                    Source: null,
+                    identifier.Name,
+                    SlotIndex: identifier.SlotIndex,
+                    ScopeId: identifier.ScopeId,
+                    FlatSlotId: identifier.FlatSlotId);
+                if (environment.TryReadIdentifierWithSlot(identifierExpression, context, out var slotValue))
+                {
+                    return slotValue;
+                }
+            }
+
+            return environment.TryGetIdentifierJsValue(identifier.Name, context, out var value)
+                ? value
+                : HandleIdentifierNotFound(identifier.Name, context);
+        }
+
+        private static void DefineObjectLiteralProperty(
+            JsObject targetObject,
+            DefineObjectPropertyExpressionOp defineProperty,
+            JsValue propertyValue)
+        {
+            if (defineProperty.IsPrototypeMutation)
+            {
+                if (propertyValue.IsNull)
+                {
+                    targetObject.SetPrototype(null);
+                }
+                else if (propertyValue.TryGetObject<IJsPropertyAccessor>(out var prototypeAccessor))
+                {
+                    targetObject.SetPrototype(prototypeAccessor);
+                }
+
+                return;
+            }
+
+            targetObject.DefineProperty(defineProperty.PropertyName,
+                new PropertyDescriptor
+                {
+                    JsValue = propertyValue,
+                    Writable = true,
+                    Enumerable = true,
+                    Configurable = true
+                });
+        }
+
+        private static void DefineComputedObjectLiteralProperty(
+            JsObject targetObject,
+            JsValue propertyKey,
+            JsValue propertyValue,
+            EvaluationContext context)
+        {
+            var propertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return;
+            }
+
+            targetObject.DefineProperty(propertyName,
+                new PropertyDescriptor
+                {
+                    JsValue = propertyValue,
+                    Writable = true,
+                    Enumerable = true,
+                    Configurable = true
+                });
+        }
+
+        private static void ApplyObjectLiteralSpread(
+            JsObject targetObject,
+            JsValue spreadValue,
+            EvaluationContext context)
+        {
+            if (spreadValue.IsNullOrUndefined)
+            {
+                return;
+            }
+
+            if (spreadValue.ObjectValue is IIsHtmlDda)
+            {
+                return;
+            }
+
+            if (spreadValue.ObjectValue is IDictionary<string, object?> dictionary and not JsObject)
+            {
+                foreach (var (key, value) in dictionary)
+                {
+                    targetObject.DefineProperty(key,
+                        new PropertyDescriptor
+                        {
+                            Value = value,
+                            Writable = true,
+                            Enumerable = true,
+                            Configurable = true
+                        });
+                }
+
+                return;
+            }
+
+            var accessor = spreadValue.ObjectValue is IJsPropertyAccessor propertyAccessor
+                ? propertyAccessor
+                : ToObjectForDestructuringJsValue(spreadValue, context);
+
+            foreach (var key in accessor.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
+            {
+                var descriptor = accessor.GetOwnPropertyDescriptor(key);
+                if (descriptor is not { Enumerable: true })
+                {
+                    continue;
+                }
+
+                var spreadPropertyValue = accessor.TryGetProperty(key, out var value)
+                    ? value
+                    : JsValue.Undefined;
+                targetObject.DefineProperty(key,
+                    new PropertyDescriptor
+                    {
+                        JsValue = spreadPropertyValue,
+                        Writable = true,
+                        Enumerable = true,
+                        Configurable = true
+                    });
+            }
+        }
+
+        private static JsValue GetProgramNamedPropertyValue(
+            JsValue target,
+            GetNamedPropertyExpressionOp propertyOp,
+            EvaluationContext context)
+        {
+            if (propertyOp.IsOptional && target.IsNullOrUndefined)
+            {
+                return JsValue.Undefined;
+            }
+
+            if (propertyOp.ShortCircuitOnNullishTarget && target.IsNullOrUndefined)
+            {
+                return JsValue.Undefined;
+            }
+
+            if (target.IsNullOrUndefined)
+            {
+                var error = StandardLibrary.CreateTypeError(
+                    "Cannot read properties of null or undefined",
+                    context,
+                    context.RealmState);
+                context.SetThrow(error);
+                return JsValue.Undefined;
+            }
+
+            if (!propertyOp.PropertyName.IsPrivateName())
+            {
+                return JsOps.TryGetPropertyValue(target, propertyOp.PropertyName, out var directValue, context)
+                    ? directValue
+                    : JsValue.Undefined;
+            }
+
+            var handle = PropertyHandle.Resolve(
+                target,
+                propertyOp.PropertyName,
+                context,
+                context.CurrentScope.IsStrict,
+                allowPrivate: true);
+            return handle.GetJsValue();
+        }
+
+        private static JsValue GetProgramComputedPropertyValue(
+            JsValue target,
+            JsValue propertyKey,
+            GetComputedPropertyExpressionOp propertyOp,
+            EvaluationContext context)
+        {
+            if (propertyOp.ShortCircuitOnNullishTarget && target.IsNullOrUndefined)
+            {
+                return JsValue.Undefined;
+            }
+
+            if (target.IsNullOrUndefined)
+            {
+                var error = StandardLibrary.CreateTypeError(
+                    "Cannot read properties of null or undefined",
+                    context,
+                    context.RealmState);
+                context.SetThrow(error);
+                return JsValue.Undefined;
+            }
+
+            return JsOps.TryGetPropertyValueJsValue(target, propertyKey, out var directValue, context)
+                ? directValue
+                : JsValue.Undefined;
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]

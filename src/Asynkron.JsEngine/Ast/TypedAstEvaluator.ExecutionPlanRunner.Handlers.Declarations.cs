@@ -3,6 +3,7 @@
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.StdLib;
 
 #endregion
 
@@ -203,14 +204,16 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<SimpleVariableDeclarationInstruction>(instr);
+            var hasInitializer = instruction.Initializer is not null || instruction.InitializerProgram is not null;
             var isAnonymousFunctionDefinition = instruction.Initializer?.IsAnonymousFunctionDefinitionNode() == true;
 
             using var functionNameHint = isAnonymousFunctionDefinition
                 ? context.EnterFunctionNameHint(instruction.TargetSymbol)
                 : null;
 
-            var varValue = instruction.Initializer?.EvaluateExpression(environment, context)
-                           ?? JsValue.Undefined;
+            var varValue = instruction.InitializerProgram is { } initializerProgram
+                ? runner.EvaluateExpressionProgram(initializerProgram, environment, context)
+                : instruction.Initializer?.EvaluateExpression(environment, context) ?? JsValue.Undefined;
 
             if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingVarResult, environment))
             {
@@ -236,7 +239,7 @@ public static partial class TypedAstEvaluator
             if (instruction.VarKind == VariableKind.Var)
             {
                 environment.EnsureFunctionScopedVarBinding(instruction.TargetSymbol, context);
-                if (instruction.Initializer is not null)
+                if (hasInitializer)
                 {
                     if (!environment.TryAssignBlockedBinding(instruction.TargetSymbol, varValue))
                     {
@@ -339,7 +342,69 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<BindingVariableDeclarationInstruction>(instr);
-            instruction.VarKind.EvaluateVariableDeclarator(instruction.Declarator, environment, context);
+            var hasInitializer = instruction.Initializer is not null || instruction.InitializerProgram is not null;
+            var bindingValue = instruction.InitializerProgram is { } initializerProgram
+                ? runner.EvaluateExpressionProgram(initializerProgram, environment, context)
+                : instruction.Initializer is { } initializer
+                    ? initializer.EvaluateExpression(environment, context)
+                    : JsValue.Undefined;
+
+            if (!context.ShouldStopEvaluation)
+            {
+                if (instruction.VarKind is VariableKind.Using or VariableKind.AwaitUsing)
+                {
+                    if (!bindingValue.IsNullOrUndefined && !bindingValue.TryGetObject<IJsObjectLike>(out _))
+                    {
+                        throw StandardLibrary.ThrowTypeError(
+                            "using declarations require an object value",
+                            context,
+                            context.RealmState);
+                    }
+
+                    if (bindingValue.TryGetObject<IJsObjectLike>(out _))
+                    {
+                        throw new NotSupportedException(
+                            "Explicit resource management is not implemented for object resources.");
+                    }
+                }
+
+                var mode = instruction.VarKind switch
+                {
+                    VariableKind.Var => BindingMode.DefineVar,
+                    VariableKind.Let => BindingMode.DefineLet,
+                    VariableKind.Const => BindingMode.DefineConst,
+                    VariableKind.Using => BindingMode.DefineConst,
+                    VariableKind.AwaitUsing => BindingMode.DefineConst,
+                    _ => throw new ArgumentOutOfRangeException(nameof(instruction.VarKind), instruction.VarKind, null)
+                };
+
+                if (instruction.TargetProgram is { } targetProgram)
+                {
+                    runner.ApplyBindingTargetProgram(
+                        targetProgram,
+                        bindingValue,
+                        environment,
+                        context,
+                        mode,
+                        hasInitializer,
+                        allowNameInference: false);
+                }
+                else if (instruction.Target is { } target)
+                {
+                    target.ApplyBindingTarget(
+                        bindingValue,
+                        environment,
+                        context,
+                        mode,
+                        hasInitializer,
+                        allowNameInference: false);
+                }
+                else
+                {
+                    throw new InvalidOperationException(
+                        "Binding variable declaration instruction must carry either a binding target AST or a lowered binding target program.");
+                }
+            }
 
             if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingResult, environment))
             {

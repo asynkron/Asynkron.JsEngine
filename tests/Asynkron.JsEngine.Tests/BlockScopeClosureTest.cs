@@ -107,32 +107,32 @@ public sealed class BlockScopeClosureTest(ITestOutputHelper output) : InternalTe
                 foreach (var instr in cache.Plan.Instructions)
                 {
                     Output.WriteLine($"  Instr: {instr.GetType().Name}");
-                    if (instr is StatementInstruction stmtInstr)
+                    if (instr is PushEnvironmentInstruction { SourceBlock: BlockStatement blk })
                     {
-                        Output.WriteLine($"    Statement: {stmtInstr.Statement.GetType().Name}");
-                        if (stmtInstr.Statement is BlockStatement blk)
+                        Output.WriteLine($"    Block ScopeId: {blk.ScopeId}, SlotCount: {blk.SlotCount}");
+                        Output.WriteLine($"    Block SlotMap keys: {string.Join(", ", blk.SlotMap.Keys.Select(k => k.Name))}");
+
+                        // Check the inner function declaration in the stamped block
+                        foreach (var stmtInBlk in blk.Statements)
                         {
-                            Output.WriteLine($"    Block ScopeId: {blk.ScopeId}, SlotCount: {blk.SlotCount}");
-                            Output.WriteLine($"    Block SlotMap keys: {string.Join(", ", blk.SlotMap.Keys.Select(k => k.Name))}");
-
-                            // Check the inner function declaration in the stamped block
-                            foreach (var stmtInBlk in blk.Statements)
+                            if (stmtInBlk is FunctionDeclaration stampedInnerDecl)
                             {
-                                if (stmtInBlk is FunctionDeclaration stampedInnerDecl)
-                                {
-                                    Output.WriteLine($"    Stamped block has inner function: {stampedInnerDecl.Name.Name}");
-                                    Output.WriteLine($"    Stamped FunctionExpression hash: {stampedInnerDecl.Function.GetHashCode()}");
-                                    var stampedInnerCache = ((IAstCacheable<ExecutionPlanCache>)stampedInnerDecl.Function).GetOrCreateCache();
-                                    Output.WriteLine($"    Stamped inner plan built: {stampedInnerCache.Succeeded}");
-                                    Output.WriteLine($"    Stamped inner plan hash: {stampedInnerCache.Plan?.GetHashCode()}");
+                                Output.WriteLine($"    Stamped block has inner function: {stampedInnerDecl.Name.Name}");
+                                Output.WriteLine($"    Stamped FunctionExpression hash: {stampedInnerDecl.Function.GetHashCode()}");
+                                var stampedInnerCache = ((IAstCacheable<ExecutionPlanCache>)stampedInnerDecl.Function).GetOrCreateCache();
+                                Output.WriteLine($"    Stamped inner plan built: {stampedInnerCache.Succeeded}");
+                                Output.WriteLine($"    Stamped inner plan hash: {stampedInnerCache.Plan?.GetHashCode()}");
 
-                                    if (stampedInnerCache.Succeeded && stampedInnerCache.Plan != null)
+                                if (stampedInnerCache.Succeeded && stampedInnerCache.Plan != null)
+                                {
+                                    Output.WriteLine($"    Stamped inner plan has {stampedInnerCache.Plan.Instructions.Length} instructions");
+                                    foreach (var innerInstr in stampedInnerCache.Plan.Instructions)
                                     {
-                                        Output.WriteLine($"    Stamped inner plan has {stampedInnerCache.Plan.Instructions.Length} instructions");
-                                        foreach (var innerInstr in stampedInnerCache.Plan.Instructions)
+                                        Output.WriteLine($"      Inner instr: {innerInstr.GetType().Name}");
+                                        if (innerInstr is ReturnInstruction { ReturnProgram: { } returnProgram })
                                         {
-                                            Output.WriteLine($"      Inner instr: {innerInstr.GetType().Name}");
-                                            if (innerInstr is ReturnInstruction retInstr && retInstr.ReturnExpression is IdentifierExpression retId)
+                                            var retId = returnProgram.Operations.OfType<LoadIdentifierExpressionOp>().FirstOrDefault();
+                                            if (retId is not null)
                                             {
                                                 Output.WriteLine($"        Return z - ScopeId: {retId.ScopeId}, SlotIndex: {retId.SlotIndex}");
                                             }

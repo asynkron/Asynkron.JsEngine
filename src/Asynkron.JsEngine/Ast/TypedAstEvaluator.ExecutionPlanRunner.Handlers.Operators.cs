@@ -16,129 +16,6 @@ public static partial class TypedAstEvaluator
     private sealed partial class ExecutionPlanRunner
     {
         [MethodImpl(JsEngineConstants.Inlining)]
-        private static InstructionResult HandleBinaryOp(
-            ExecutionPlanRunner runner,
-            ExecutionInstruction instr,
-            ref JsEnvironment environment,
-            EvaluationContext context,
-            out JsValue returnValue)
-        {
-            var instruction = Unsafe.As<BinaryOpInstruction>(instr);
-            var binLeft = instruction.Left.EvaluateExpression(environment, context);
-            if (context.ShouldStopEvaluation)
-            {
-                return HandleBinaryOpLeftSlow(runner, instruction, binLeft, ref environment, context, out returnValue);
-            }
-
-            var binRight = instruction.Right.EvaluateExpression(environment, context);
-            if (context.ShouldStopEvaluation)
-            {
-                return HandleBinaryOpRightSlow(runner, instruction, binLeft, binRight, ref environment, context, out returnValue);
-            }
-
-            var binResult = ApplyBinaryOperator(instruction.Operator, binLeft, binRight, context);
-
-            if (instruction.ResultSlot is not null)
-            {
-                environment.AssignJsValue(instruction.ResultSlot, binResult);
-            }
-
-            runner._programCounter = instruction.Next;
-            returnValue = default;
-            return InstructionResult.Continue;
-        }
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static InstructionResult HandleBinaryOpLeftSlow(
-            ExecutionPlanRunner runner,
-            BinaryOpInstruction instruction,
-            JsValue binLeft,
-            ref JsEnvironment environment,
-            EvaluationContext context,
-            out JsValue returnValue)
-        {
-            if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingBinLeftResult, environment))
-            {
-                returnValue = pendingBinLeftResult;
-                return InstructionResult.Return;
-            }
-
-            if (context.IsThrow)
-            {
-                var binThrown = context.FlowValue;
-                context.Clear();
-                if (runner.HandleAbruptCompletion(AbruptKind.Throw, binThrown))
-                {
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                runner.TryCatchStateRef.TryStack.Clear();
-                throw new ThrowSignal(binThrown);
-            }
-
-            // Continue evaluation of right operand after handling left operand signals
-            var binRight = instruction.Right.EvaluateExpression(environment, context);
-            if (context.ShouldStopEvaluation)
-            {
-                return HandleBinaryOpRightSlow(runner, instruction, binLeft, binRight, ref environment, context, out returnValue);
-            }
-
-            var binResult = ApplyBinaryOperator(instruction.Operator, binLeft, binRight, context);
-
-            if (instruction.ResultSlot is not null)
-            {
-                environment.AssignJsValue(instruction.ResultSlot, binResult);
-            }
-
-            runner._programCounter = instruction.Next;
-            returnValue = default;
-            return InstructionResult.Continue;
-        }
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static InstructionResult HandleBinaryOpRightSlow(
-            ExecutionPlanRunner runner,
-            BinaryOpInstruction instruction,
-            JsValue binLeft,
-            JsValue binRight,
-            ref JsEnvironment environment,
-            EvaluationContext context,
-            out JsValue returnValue)
-        {
-            if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingBinRightResult, environment))
-            {
-                returnValue = pendingBinRightResult;
-                return InstructionResult.Return;
-            }
-
-            if (context.IsThrow)
-            {
-                var binThrown = context.FlowValue;
-                context.Clear();
-                if (runner.HandleAbruptCompletion(AbruptKind.Throw, binThrown))
-                {
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                runner.TryCatchStateRef.TryStack.Clear();
-                throw new ThrowSignal(binThrown);
-            }
-
-            var binResult = ApplyBinaryOperator(instruction.Operator, binLeft, binRight, context);
-
-            if (instruction.ResultSlot is not null)
-            {
-                environment.AssignJsValue(instruction.ResultSlot, binResult);
-            }
-
-            runner._programCounter = instruction.Next;
-            returnValue = default;
-            return InstructionResult.Continue;
-        }
-
-        [MethodImpl(JsEngineConstants.Inlining)]
         private static InstructionResult HandleIncrementSlot(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
@@ -342,16 +219,17 @@ public static partial class TypedAstEvaluator
             {
                 var isAnonymousFunctionDefinition =
                     instruction.AllowNameInference &&
-                    instruction.RhsExpression.IsAnonymousFunctionDefinitionNode();
+                    instruction.RhsExpression?.IsAnonymousFunctionDefinitionNode() == true;
 
                 using var functionNameHint = isAnonymousFunctionDefinition
                     ? context.EnterFunctionNameHint(instruction.TargetSymbol)
                     : null;
 
-                var rhsValue =
-                    runner.TryEvaluateSimpleExpression(instruction.RhsExpression, environment, context, out var simpleValue)
+                var rhsValue = instruction.RhsProgram is { } rhsProgram
+                    ? runner.EvaluateExpressionProgram(rhsProgram, environment, context)
+                    : runner.TryEvaluateSimpleExpression(instruction.RhsExpression!, environment, context, out var simpleValue)
                         ? simpleValue
-                        : ProfileEvaluateExpression(instruction.RhsExpression, environment, context);
+                        : ProfileEvaluateExpression(instruction.RhsExpression!, environment, context);
 
                 if (!context.ShouldStopEvaluation &&
                     isAnonymousFunctionDefinition &&
@@ -379,7 +257,7 @@ public static partial class TypedAstEvaluator
                 else if (instruction.ScopeId >= 0 && instruction.SlotIndex >= 0)
                 {
                     var targetIdentifier = new IdentifierExpression(
-                        instruction.RhsExpression.Source,
+                        instruction.RhsExpression?.Source,
                         instruction.TargetSymbol,
                         SlotIndex: instruction.SlotIndex,
                         ScopeId: instruction.ScopeId,
@@ -521,27 +399,37 @@ public static partial class TypedAstEvaluator
             }
 
             JsValue compRhsValue;
-            switch (instruction.RhsExpression)
+            if (instruction.RhsExpressionOps is { } rhsExpressionOps)
             {
-                case LiteralExpression { Value: var literalValue }:
-                    compRhsValue = literalValue;
-                    break;
-                case IdentifierExpression { FlatSlotId: >= 0 } rhsIdent when runner._flatSlots is not null:
-                    compRhsValue = runner._flatSlots[rhsIdent.FlatSlotId].Read();
-                    break;
-                case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0 } rhsIdent:
-                    if (!environment.TryReadIdentifierWithSlot(rhsIdent, context, out compRhsValue))
-                    {
-                        compRhsValue = rhsIdent.EvaluateExpression(environment, context);
-                    }
-                    break;
-                default:
-                    compRhsValue =
-                        instruction.RhsExpression is not null &&
-                        runner.TryEvaluateSimpleExpression(instruction.RhsExpression, environment, context, out var simpleRhsValue)
-                            ? simpleRhsValue
-                            : instruction.RhsExpression!.EvaluateExpression(environment, context);
-                    break;
+                compRhsValue = runner.EvaluateExpressionProgram(
+                    new ExpressionProgram(rhsExpressionOps),
+                    environment,
+                    context);
+            }
+            else
+            {
+                switch (instruction.RhsExpression)
+                {
+                    case LiteralExpression { Value: var literalValue }:
+                        compRhsValue = literalValue;
+                        break;
+                    case IdentifierExpression { FlatSlotId: >= 0 } rhsIdent when runner._flatSlots is not null:
+                        compRhsValue = runner._flatSlots[rhsIdent.FlatSlotId].Read();
+                        break;
+                    case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0 } rhsIdent:
+                        if (!environment.TryReadIdentifierWithSlot(rhsIdent, context, out compRhsValue))
+                        {
+                            compRhsValue = rhsIdent.EvaluateExpression(environment, context);
+                        }
+                        break;
+                    default:
+                        compRhsValue =
+                            instruction.RhsExpression is not null &&
+                            runner.TryEvaluateSimpleExpression(instruction.RhsExpression, environment, context, out var simpleRhsValue)
+                                ? simpleRhsValue
+                                : instruction.RhsExpression!.EvaluateExpression(environment, context);
+                        break;
+                }
             }
 
             if (context.ShouldStopEvaluation)

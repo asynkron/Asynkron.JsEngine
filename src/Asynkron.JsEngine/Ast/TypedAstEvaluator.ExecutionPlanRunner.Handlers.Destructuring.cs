@@ -92,7 +92,9 @@ public static partial class TypedAstEvaluator
             var instruction = Unsafe.As<ArrayDestructuringInitInstruction>(instr);
 
             // Evaluate the source expression
-            var sourceValue = instruction.SourceExpression.EvaluateExpression(environment, context);
+            var sourceValue = instruction.SourceProgram is { } sourceProgram
+                ? runner.EvaluateExpressionProgram(sourceProgram, environment, context)
+                : instruction.SourceExpression!.EvaluateExpression(environment, context);
 
             if (context.IsThrow)
             {

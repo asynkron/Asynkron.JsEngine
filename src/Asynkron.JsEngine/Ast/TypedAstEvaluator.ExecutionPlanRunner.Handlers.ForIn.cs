@@ -30,7 +30,7 @@ public static partial class TypedAstEvaluator
             if (!instruction.TdzBindings.IsDefaultOrEmpty)
             {
                 objectEnv = JsEnvironment.CreateInstance(environment, false, false,
-                    instruction.ObjectExpression.Source, "for-in-head-tdz");
+                    instruction.ObjectSource ?? instruction.ObjectExpression?.Source, "for-in-head-tdz");
                 foreach (var tdzSymbol in instruction.TdzBindings)
                 {
                     objectEnv.DefineJsValue(tdzSymbol, JsValue.Uninitialized,
@@ -40,7 +40,9 @@ public static partial class TypedAstEvaluator
             }
 
             // Evaluate the object expression
-            var objectValue = instruction.ObjectExpression.EvaluateExpression(objectEnv, context);
+            var objectValue = instruction.ObjectProgram is { } objectProgram
+                ? runner.EvaluateExpressionProgram(objectProgram, objectEnv, context)
+                : instruction.ObjectExpression!.EvaluateExpression(objectEnv, context);
             if (context.IsThrow)
             {
                 var initThrown = context.FlowValue;

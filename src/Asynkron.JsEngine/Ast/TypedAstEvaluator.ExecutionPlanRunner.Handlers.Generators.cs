@@ -24,9 +24,11 @@ public static partial class TypedAstEvaluator
         {
             var instruction = Unsafe.As<YieldInstruction>(instr);
             var yieldedValue = JsValue.Undefined;
-            if (instruction.YieldExpression is not null)
+            if (instruction.YieldProgram is not null || instruction.YieldExpression is not null)
             {
-                yieldedValue = instruction.YieldExpression.EvaluateExpression(environment, context);
+                yieldedValue = instruction.YieldProgram is { } yieldProgram
+                    ? runner.EvaluateExpressionProgram(yieldProgram, environment, context)
+                    : instruction.YieldExpression!.EvaluateExpression(environment, context);
 
                 if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingYieldResult, environment))
                 {
@@ -227,8 +229,9 @@ public static partial class TypedAstEvaluator
             if (yieldStarState.State is null)
             {
                 runner._realmState.Logger?.LogInformation("YieldStar: Creating new DelegatedState");
-                var yieldStarIterableValue =
-                    instruction.IterableExpression.EvaluateExpression(environment, context);
+                var yieldStarIterableValue = instruction.IterableProgram is { } iterableProgram
+                    ? runner.EvaluateExpressionProgram(iterableProgram, environment, context)
+                    : instruction.IterableExpression!.EvaluateExpression(environment, context);
                 if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingYieldStarResult, environment))
                 {
                     returnValue = pendingYieldStarResult;

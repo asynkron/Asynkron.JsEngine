@@ -1,35 +1,115 @@
-#region
-
 using System.Collections.Immutable;
-
-#endregion
+using Asynkron.JsEngine.Ast;
 
 namespace Asynkron.JsEngine.Execution.Instructions;
 
-/// <summary>
-///     Represents a bytecode operation for expressions.
-///     This is a placeholder type for the bytecode migration effort.
-///     In the future, this will be replaced with actual bytecode operations.
-/// </summary>
-/// <remarks>
-///     During the migration from AST interpretation to bytecode execution,
-///     instructions will have both AST fields (nullable) and bytecode operation
-///     fields (nullable). This allows incremental migration where either representation
-///     can be used. Once migration is complete, AST fields will be removed.
-/// </remarks>
-internal abstract record ExpressionOp
+internal enum ExpressionOpKind : byte
 {
-    /// <summary>
-    ///     Placeholder for future bytecode data.
-    ///     The actual implementation will be added during Phase 1 of the bytecode migration.
-    /// </summary>
-    private ExpressionOp()
-    {
-    }
-
-    /// <summary>
-    ///     A no-op placeholder for bytecode operations.
-    ///     This allows code to compile during the migration phase.
-    /// </summary>
-    internal sealed record PlaceholderOp : ExpressionOp;
+    LoadLiteral,
+    LoadIdentifier,
+    LoadThis,
+    LoadNewTarget,
+    CreateArray,
+    ArrayPush,
+    ArrayPushHole,
+    ArraySpread,
+    CreateObject,
+    DefineObjectProperty,
+    DefineComputedObjectProperty,
+    ObjectSpread,
+    GetNamedProperty,
+    GetComputedProperty,
+    UnaryLogicalNot,
+    Binary,
+    Pop,
+    Jump,
+    JumpIfNullish,
+    JumpIfTrue,
+    JumpIfFalse,
+    JumpIfNotNullish
 }
+
+internal readonly record struct ExpressionProgram(ImmutableArray<ExpressionOp> Operations)
+{
+    public static ExpressionProgram Empty { get; } = new([]);
+
+    public bool IsEmpty => Operations.IsDefaultOrEmpty || Operations.Length == 0;
+
+    public override string ToString() => $"{Operations.Length} ops";
+}
+
+internal abstract record ExpressionOp(ExpressionOpKind Kind);
+
+internal sealed record LoadLiteralExpressionOp(JsValue Value)
+    : ExpressionOp(ExpressionOpKind.LoadLiteral);
+
+internal sealed record LoadIdentifierExpressionOp(
+    Symbol Name,
+    int ScopeId = -1,
+    int SlotIndex = -1,
+    int FlatSlotId = -1,
+    bool IsArguments = false)
+    : ExpressionOp(ExpressionOpKind.LoadIdentifier);
+
+internal sealed record LoadThisExpressionOp()
+    : ExpressionOp(ExpressionOpKind.LoadThis);
+
+internal sealed record LoadNewTargetExpressionOp()
+    : ExpressionOp(ExpressionOpKind.LoadNewTarget);
+
+internal sealed record CreateArrayExpressionOp()
+    : ExpressionOp(ExpressionOpKind.CreateArray);
+
+internal sealed record ArrayPushExpressionOp()
+    : ExpressionOp(ExpressionOpKind.ArrayPush);
+
+internal sealed record ArrayPushHoleExpressionOp()
+    : ExpressionOp(ExpressionOpKind.ArrayPushHole);
+
+internal sealed record ArraySpreadExpressionOp()
+    : ExpressionOp(ExpressionOpKind.ArraySpread);
+
+internal sealed record CreateObjectExpressionOp()
+    : ExpressionOp(ExpressionOpKind.CreateObject);
+
+internal sealed record DefineObjectPropertyExpressionOp(string PropertyName, bool IsPrototypeMutation = false)
+    : ExpressionOp(ExpressionOpKind.DefineObjectProperty);
+
+internal sealed record DefineComputedObjectPropertyExpressionOp()
+    : ExpressionOp(ExpressionOpKind.DefineComputedObjectProperty);
+
+internal sealed record ObjectSpreadExpressionOp()
+    : ExpressionOp(ExpressionOpKind.ObjectSpread);
+
+internal sealed record GetNamedPropertyExpressionOp(
+    string PropertyName,
+    bool IsOptional = false,
+    bool ShortCircuitOnNullishTarget = false)
+    : ExpressionOp(ExpressionOpKind.GetNamedProperty);
+
+internal sealed record GetComputedPropertyExpressionOp(bool ShortCircuitOnNullishTarget = false)
+    : ExpressionOp(ExpressionOpKind.GetComputedProperty);
+
+internal sealed record UnaryLogicalNotExpressionOp()
+    : ExpressionOp(ExpressionOpKind.UnaryLogicalNot);
+
+internal sealed record BinaryExpressionOp(BinaryOperator Operator)
+    : ExpressionOp(ExpressionOpKind.Binary);
+
+internal sealed record PopExpressionOp()
+    : ExpressionOp(ExpressionOpKind.Pop);
+
+internal sealed record JumpExpressionOp(int Target)
+    : ExpressionOp(ExpressionOpKind.Jump);
+
+internal sealed record JumpIfNullishExpressionOp(int Target, bool ReplaceWithUndefined = false)
+    : ExpressionOp(ExpressionOpKind.JumpIfNullish);
+
+internal sealed record JumpIfTrueExpressionOp(int Target)
+    : ExpressionOp(ExpressionOpKind.JumpIfTrue);
+
+internal sealed record JumpIfFalseExpressionOp(int Target)
+    : ExpressionOp(ExpressionOpKind.JumpIfFalse);
+
+internal sealed record JumpIfNotNullishExpressionOp(int Target)
+    : ExpressionOp(ExpressionOpKind.JumpIfNotNullish);

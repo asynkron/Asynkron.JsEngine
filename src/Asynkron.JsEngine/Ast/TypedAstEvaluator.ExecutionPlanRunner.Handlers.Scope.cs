@@ -25,7 +25,9 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<EnterWithInstruction>(instr);
-            var objValueJs = instruction.ObjectExpression.EvaluateExpression(environment, context);
+            var objValueJs = instruction.ObjectProgram is { } objectProgram
+                ? runner.EvaluateExpressionProgram(objectProgram, environment, context)
+                : instruction.ObjectExpression!.EvaluateExpression(environment, context);
 
             if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingWithResult, environment))
             {
@@ -41,7 +43,7 @@ public static partial class TypedAstEvaluator
             if (TryConvertToWithBindingObject(objValueJs, context, out var withObject))
             {
                 var withEnv = JsEnvironment.CreateInstance(environment, false, context.CurrentScope.IsStrict,
-                    instruction.ObjectExpression.Source, "with", withObject);
+                    instruction.ObjectSource ?? instruction.ObjectExpression?.Source, "with", withObject);
                 StoreSymbolValue(runner._executionEnvironment!, instruction.WithScopeSlot, withEnv);
                 runner.WithStateRef.ActiveWithScopes.Push(instruction.WithScopeSlot);
                 environment = withEnv;

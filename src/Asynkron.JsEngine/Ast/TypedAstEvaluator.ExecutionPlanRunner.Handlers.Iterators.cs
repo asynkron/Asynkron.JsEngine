@@ -86,7 +86,7 @@ public static partial class TypedAstEvaluator
             if (!instruction.TdzBindings.IsDefaultOrEmpty)
             {
                 iterableEnv = JsEnvironment.CreateInstance(environment, false, false,
-                    instruction.IterableExpression.Source, "for-of-head-tdz");
+                    instruction.IterableSource ?? instruction.IterableExpression?.Source, "for-of-head-tdz");
                 foreach (var tdzSymbol in instruction.TdzBindings)
                 {
                     iterableEnv.DefineJsValue(tdzSymbol, JsValue.Uninitialized,
@@ -95,7 +95,9 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            var iterableValue = instruction.IterableExpression.EvaluateExpression(iterableEnv, context);
+            var iterableValue = instruction.IterableExpressionOps is { } iterableExpressionOps
+                ? runner.EvaluateExpressionProgram(new ExpressionProgram(iterableExpressionOps), iterableEnv, context)
+                : instruction.IterableExpression!.EvaluateExpression(iterableEnv, context);
             if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingIteratorResult, environment))
             {
                 returnValue = pendingIteratorResult;

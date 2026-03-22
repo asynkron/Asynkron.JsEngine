@@ -9,6 +9,7 @@ namespace Asynkron.JsEngine.Execution;
 public enum ExecutionPlanFailureCode
 {
     UnsupportedConstruct,
+    UnsupportedExpressionProgram,
     YieldLoweringFailed,
     UnsupportedYieldShape,
     NormalizationFailed,

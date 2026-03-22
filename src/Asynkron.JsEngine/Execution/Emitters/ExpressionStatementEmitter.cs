@@ -139,8 +139,8 @@ internal static class ExpressionStatementEmitter
             entryIndex = ctx.Append(new AssignmentSlotInstruction(
                 nextIndex,
                 assignment.Target,
-                assignment.Value,
-                suppressCompletion,
+                ValueExpression: assignment.Value,
+                SuppressCompletionValue: suppressCompletion,
                 AllowNameInference: !IsParenthesizedIdentifierAssignment(assignment)));
             return true;
         }
@@ -163,8 +163,8 @@ internal static class ExpressionStatementEmitter
                 nextIndex,
                 logicalCompoundAssign.Target,
                 logicalBinary.Operator,
-                logicalBinary.Right,
-                suppressCompletion,
+                RhsExpression: logicalBinary.Right,
+                SuppressCompletionValue: suppressCompletion,
                 AllowNameInference: !IsParenthesizedIdentifierAssignment(logicalCompoundAssign)));
             return true;
         }

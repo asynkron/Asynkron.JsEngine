@@ -7,11 +7,9 @@ namespace Asynkron.JsEngine.Execution.Instructions;
 /// </summary>
 internal enum InstructionKind : byte
 {
-    Statement,
     Throw,
     EvaluateAndDiscard,
     AwaitAndDiscard,
-    BinaryOp,
     IncrementSlot,
     AssignmentSlot,
     LogicalCompoundAssignmentSlot,
@@ -26,7 +24,6 @@ internal enum InstructionKind : byte
     StoreResumeValue,
     EnterTry,
     EnterCatch,
-    EnterCatchWithDestructuring,
     LeaveTry,
     BreakableEnter,
     BreakableExit,
@@ -41,7 +38,6 @@ internal enum InstructionKind : byte
     Return,
     EnterWith,
     LeaveWith,
-    Expression,
     SetCompletionValue,
     CompoundAssignmentSlot,
     ForInInit,

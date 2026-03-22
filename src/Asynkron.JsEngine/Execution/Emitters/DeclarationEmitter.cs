@@ -108,7 +108,11 @@ internal static class DeclarationEmitter
             return true;
         }
 
-        entryIndex = ctx.Append(new BindingVariableDeclarationInstruction(nextIndex, varKind, declarator));
+        entryIndex = ctx.Append(new BindingVariableDeclarationInstruction(
+            nextIndex,
+            varKind,
+            declarator.Target,
+            declarator.Initializer));
         return true;
     }
 

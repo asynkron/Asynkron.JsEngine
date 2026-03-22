@@ -57,10 +57,7 @@ public sealed class SlotOptimizationTests : IAsyncLifetime
             .FirstOrDefault();
         Assert.NotNull(branchInstr);
 
-        var condition = branchInstr.Condition as BinaryExpression;
-        Assert.NotNull(condition);
-        var leftId = condition.Left as IdentifierExpression;
-        Assert.NotNull(leftId);
+        var leftId = GetFirstLoadIdentifier(branchInstr.ConditionProgram, "i");
         Assert.Equal("i", leftId.Name.Name);
 
         Assert.True(leftId.SlotIndex >= 0, $"Loop variable 'i' should have SlotIndex >= 0, but was {leftId.SlotIndex}");
@@ -96,12 +93,21 @@ public sealed class SlotOptimizationTests : IAsyncLifetime
         Assert.NotNull(compoundInstr);
         Assert.Equal("s", compoundInstr.TargetSymbol.Name);
 
-        var rhsId = compoundInstr.RhsExpression as IdentifierExpression;
-        Assert.NotNull(rhsId);
-        Assert.Equal("i", rhsId.Name.Name);
+        if (compoundInstr.RhsExpression is IdentifierExpression rhsId)
+        {
+            Assert.Equal("i", rhsId.Name.Name);
+            Assert.True(rhsId.SlotIndex >= 0, $"RHS 'i' should have SlotIndex >= 0, but was {rhsId.SlotIndex}");
+            Assert.True(rhsId.ScopeId >= 0, $"RHS 'i' should have ScopeId >= 0, but was {rhsId.ScopeId}");
+            return;
+        }
 
-        Assert.True(rhsId.SlotIndex >= 0, $"RHS 'i' should have SlotIndex >= 0, but was {rhsId.SlotIndex}");
-        Assert.True(rhsId.ScopeId >= 0, $"RHS 'i' should have ScopeId >= 0, but was {rhsId.ScopeId}");
+        Assert.True(compoundInstr.RhsExpressionOps.HasValue, "Expected lowered RHS expression ops for compound assignment.");
+        var rhsLoad = compoundInstr.RhsExpressionOps.Value
+            .OfType<LoadIdentifierExpressionOp>()
+            .FirstOrDefault(op => op.Name.Name == "i");
+        Assert.NotNull(rhsLoad);
+        Assert.True(rhsLoad.SlotIndex >= 0, $"RHS 'i' should have SlotIndex >= 0, but was {rhsLoad.SlotIndex}");
+        Assert.True(rhsLoad.ScopeId >= 0, $"RHS 'i' should have ScopeId >= 0, but was {rhsLoad.ScopeId}");
     }
 
     /// <summary>
@@ -129,11 +135,10 @@ public sealed class SlotOptimizationTests : IAsyncLifetime
 
         var returnInstr = cache.Plan.Instructions
             .OfType<ReturnInstruction>()
-            .FirstOrDefault(r => r.ReturnExpression is IdentifierExpression);
+            .FirstOrDefault(r => r.ReturnProgram is not null);
         Assert.NotNull(returnInstr);
 
-        var returnId = returnInstr.ReturnExpression as IdentifierExpression;
-        Assert.NotNull(returnId);
+        var returnId = GetFirstLoadIdentifier(returnInstr.ReturnProgram, "s");
         Assert.Equal("s", returnId.Name.Name);
 
         Assert.True(returnId.SlotIndex >= 0, $"Return variable 's' should have SlotIndex >= 0, but was {returnId.SlotIndex}");
@@ -167,9 +172,7 @@ public sealed class SlotOptimizationTests : IAsyncLifetime
             .FirstOrDefault();
         Assert.NotNull(branchInstr);
 
-        var condition = branchInstr.Condition as BinaryExpression;
-        var leftId = condition?.Left as IdentifierExpression;
-        Assert.NotNull(leftId);
+        var leftId = GetFirstLoadIdentifier(branchInstr.ConditionProgram, "i");
 
         Assert.True(leftId.SlotIndex >= 0, $"Loop variable 'i' should have SlotIndex >= 0, but was {leftId.SlotIndex}");
         Assert.True(leftId.ScopeId >= 0, $"Loop variable 'i' should have ScopeId >= 0, but was {leftId.ScopeId}");
@@ -200,22 +203,22 @@ public sealed class SlotOptimizationTests : IAsyncLifetime
         var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
         Assert.NotNull(cache.Plan);
 
-        var userIdentifiers = new List<IdentifierExpression>();
+        var userIdentifiers = new List<IdentifierSlotInfo>();
         foreach (var instr in cache.Plan.Instructions)
         {
             CollectIdentifiers(instr, userIdentifiers);
         }
 
         var loopVars = userIdentifiers
-            .Where(id => id.Name.Name is "i" or "j" or "sum")
+            .Where(id => id.Name is "i" or "j" or "sum")
             .ToList();
 
         Assert.True(loopVars.Count > 0, "Should find at least one loop variable identifier");
 
         foreach (var id in loopVars)
         {
-            Assert.True(id.SlotIndex >= 0, $"Variable '{id.Name.Name}' should have SlotIndex >= 0, but was {id.SlotIndex}");
-            Assert.True(id.ScopeId >= 0, $"Variable '{id.Name.Name}' should have ScopeId >= 0, but was {id.ScopeId}");
+            Assert.True(id.SlotIndex >= 0, $"Variable '{id.Name}' should have SlotIndex >= 0, but was {id.SlotIndex}");
+            Assert.True(id.ScopeId >= 0, $"Variable '{id.Name}' should have ScopeId >= 0, but was {id.ScopeId}");
         }
     }
 
@@ -246,7 +249,7 @@ public sealed class SlotOptimizationTests : IAsyncLifetime
         var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
         Assert.NotNull(cache.Plan);
 
-        var xIdentifiers = new List<IdentifierExpression>();
+        var xIdentifiers = new List<IdentifierSlotInfo>();
         foreach (var instr in cache.Plan.Instructions)
         {
             CollectIdentifiers(instr, xIdentifiers, "x");
@@ -284,11 +287,10 @@ public sealed class SlotOptimizationTests : IAsyncLifetime
 
         var returnInstr = cache.Plan.Instructions
             .OfType<ReturnInstruction>()
-            .FirstOrDefault(r => r.ReturnExpression is IdentifierExpression);
+            .FirstOrDefault(r => r.ReturnProgram is not null);
         Assert.NotNull(returnInstr);
 
-        var returnId = returnInstr.ReturnExpression as IdentifierExpression;
-        Assert.NotNull(returnId);
+        var returnId = GetFirstLoadIdentifier(returnInstr.ReturnProgram, "x");
         Assert.Equal("x", returnId.Name.Name);
 
         Assert.True(returnId.SlotIndex >= 0, $"Variable 'x' should have SlotIndex >= 0, but was {returnId.SlotIndex}");
@@ -360,33 +362,46 @@ public sealed class SlotOptimizationTests : IAsyncLifetime
         Assert.True(slotHitsForI > 0, $"Variable 'i' should use slot fast path, but got {slotHitsForI} hits");
     }
 
-    private static void CollectIdentifiers(ExecutionInstruction instr, List<IdentifierExpression> result, string? nameFilter = null)
+    private static LoadIdentifierExpressionOp GetFirstLoadIdentifier(ExpressionProgram? program, string expectedName)
+    {
+        Assert.True(program is not null, "Expected an expression program.");
+        var loadIdentifier = program.Value.Operations
+            .OfType<LoadIdentifierExpressionOp>()
+            .FirstOrDefault(op => op.Name.Name == expectedName);
+        Assert.NotNull(loadIdentifier);
+        return loadIdentifier;
+    }
+
+    private static void CollectIdentifiers(ExecutionInstruction instr, List<IdentifierSlotInfo> result, string? nameFilter = null)
     {
         switch (instr)
         {
             case BranchInstruction branch:
-                CollectIdentifiersFromExpression(branch.Condition, result, nameFilter);
+                if (branch.ConditionProgram is { } branchProgram)
+                {
+                    CollectIdentifiersFromProgram(branchProgram, result, nameFilter);
+                }
                 break;
             case CompoundAssignmentSlotInstruction compound:
                 CollectIdentifiersFromExpression(compound.RhsExpression, result, nameFilter);
                 break;
-            case ReturnInstruction ret when ret.ReturnExpression is not null:
-                CollectIdentifiersFromExpression(ret.ReturnExpression, result, nameFilter);
+            case ReturnInstruction ret when ret.ReturnProgram is { } returnProgram:
+                CollectIdentifiersFromProgram(returnProgram, result, nameFilter);
                 break;
-            case SimpleVariableDeclarationInstruction varDecl when varDecl.Initializer is not null:
-                CollectIdentifiersFromExpression(varDecl.Initializer, result, nameFilter);
+            case SimpleVariableDeclarationInstruction varDecl when varDecl.InitializerProgram is { } initializerProgram:
+                CollectIdentifiersFromProgram(initializerProgram, result, nameFilter);
                 break;
         }
     }
 
-    private static void CollectIdentifiersFromExpression(ExpressionNode expr, List<IdentifierExpression> result, string? nameFilter)
+    private static void CollectIdentifiersFromExpression(ExpressionNode expr, List<IdentifierSlotInfo> result, string? nameFilter)
     {
         while (true)
         {
             switch (expr)
             {
                 case IdentifierExpression id when nameFilter is null || id.Name.Name == nameFilter:
-                    result.Add(id);
+                    result.Add(new IdentifierSlotInfo(id.Name.Name, id.ScopeId, id.SlotIndex));
                     break;
                 case BinaryExpression bin:
                     CollectIdentifiersFromExpression(bin.Left, result, nameFilter);
@@ -400,4 +415,20 @@ public sealed class SlotOptimizationTests : IAsyncLifetime
             break;
         }
     }
+
+    private static void CollectIdentifiersFromProgram(
+        ExpressionProgram program,
+        List<IdentifierSlotInfo> result,
+        string? nameFilter)
+    {
+        foreach (var identifier in program.Operations.OfType<LoadIdentifierExpressionOp>())
+        {
+            if (nameFilter is null || identifier.Name.Name == nameFilter)
+            {
+                result.Add(new IdentifierSlotInfo(identifier.Name.Name, identifier.ScopeId, identifier.SlotIndex));
+            }
+        }
+    }
+
+    private readonly record struct IdentifierSlotInfo(string Name, int ScopeId, int SlotIndex);
 }

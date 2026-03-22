@@ -339,7 +339,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 return;
 
             case AwaitAndDiscardInstruction awaitDiscard:
-                Visit(awaitDiscard.AwaitedExpression);
+                VisitExpressionProgram(awaitDiscard.AwaitedProgram);
                 return;
 
             case AssignmentSlotInstruction assign:
@@ -354,16 +354,16 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 Visit(yield.YieldExpression);
                 return;
 
-            case ReturnInstruction { ReturnExpression: not null } ret:
-                Visit(ret.ReturnExpression);
+            case ReturnInstruction { ReturnProgram: not null } ret:
+                VisitExpressionProgram(ret.ReturnProgram.Value);
                 return;
 
             case ThrowInstruction thr:
-                Visit(thr.Expression);
+                VisitExpressionProgram(thr.ThrowProgram);
                 return;
 
             case BranchInstruction branch:
-                Visit(branch.Condition);
+                VisitExpressionProgram(branch.ConditionProgram);
                 return;
 
             case SimpleVariableDeclarationInstruction { Initializer: not null } varDecl:
@@ -399,6 +399,126 @@ internal sealed class ScopeSlotCollector : AstVisitor
             case YieldStarInstruction yieldStar:
                 Visit(yieldStar.IterableExpression);
                 return;
+        }
+    }
+
+    private void VisitExpressionProgram(ExpressionProgram program)
+    {
+        if (program.IsEmpty)
+        {
+            return;
+        }
+
+        foreach (var op in program.Operations)
+        {
+            switch (op)
+            {
+                case LoadIdentifierExpressionOp loadIdentifier:
+                    RegisterCompilerGeneratedIdentifier(loadIdentifier.Name);
+                    break;
+
+                case StoreIdentifierExpressionOp storeIdentifier:
+                    RegisterCompilerGeneratedIdentifier(storeIdentifier.Name);
+                    break;
+
+                case UpdateIdentifierExpressionOp updateIdentifier:
+                    RegisterCompilerGeneratedIdentifier(updateIdentifier.Name);
+                    break;
+
+                case TypeOfIdentifierExpressionOp typeofIdentifier:
+                    RegisterCompilerGeneratedIdentifier(typeofIdentifier.Name);
+                    break;
+
+                case DeleteIdentifierExpressionOp deleteIdentifier:
+                    RegisterCompilerGeneratedIdentifier(deleteIdentifier.Name);
+                    break;
+
+                case ApplyBindingTargetExpressionOp applyBindingTarget:
+                    VisitBindingTargetProgram(applyBindingTarget.TargetProgram);
+                    break;
+
+                case LoadFunctionLiteralExpressionOp functionLiteral:
+                    Visit(functionLiteral.Function);
+                    break;
+
+                case LoadClassLiteralExpressionOp classLiteral:
+                    Visit(classLiteral.Class);
+                    break;
+            }
+        }
+    }
+
+    private void VisitBindingTargetProgram(BindingTargetProgram program)
+    {
+        switch (program)
+        {
+            case IdentifierBindingTargetProgram identifier:
+                RegisterCompilerGeneratedIdentifier(identifier.Name);
+                break;
+
+            case ArrayBindingTargetProgram arrayBinding:
+                foreach (var element in arrayBinding.Elements)
+                {
+                    if (element.Target is not null)
+                    {
+                        VisitBindingTargetProgram(element.Target);
+                    }
+
+                    if (element.DefaultProgram is { } defaultProgram)
+                    {
+                        VisitExpressionProgram(defaultProgram);
+                    }
+                }
+
+                if (arrayBinding.RestElement is not null)
+                {
+                    VisitBindingTargetProgram(arrayBinding.RestElement);
+                }
+
+                break;
+
+            case ObjectBindingTargetProgram objectBinding:
+                foreach (var property in objectBinding.Properties)
+                {
+                    VisitBindingTargetProgram(property.Target);
+                    if (property.DefaultProgram is { } defaultProgram)
+                    {
+                        VisitExpressionProgram(defaultProgram);
+                    }
+
+                    if (property.NameProgram is { } nameProgram)
+                    {
+                        VisitExpressionProgram(nameProgram);
+                    }
+                }
+
+                if (objectBinding.RestElement is not null)
+                {
+                    VisitBindingTargetProgram(objectBinding.RestElement);
+                }
+
+                break;
+
+            case NamedPropertyAssignmentBindingTargetProgram namedPropertyAssignment:
+                VisitExpressionProgram(namedPropertyAssignment.TargetProgram);
+                break;
+
+            case ComputedPropertyAssignmentBindingTargetProgram computedPropertyAssignment:
+                VisitExpressionProgram(computedPropertyAssignment.TargetProgram);
+                VisitExpressionProgram(computedPropertyAssignment.PropertyProgram);
+                break;
+
+            case ComputedSuperPropertyAssignmentBindingTargetProgram computedSuperPropertyAssignment:
+                VisitExpressionProgram(computedSuperPropertyAssignment.PropertyProgram);
+                break;
+        }
+    }
+
+    private void RegisterCompilerGeneratedIdentifier(Symbol name)
+    {
+        if (name.Name.StartsWith('\u0001'))
+        {
+            AllocateSlotInScope(_rootScopeId, name);
         }
     }
 

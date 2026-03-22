@@ -195,6 +195,11 @@ internal sealed class EmitContext(
         builder.SetFailureReason(reason, code);
     }
 
+    public void SetExpressionProgramFailure(string instructionName, ExpressionNode expression, string? failureReason)
+    {
+        builder.SetExpressionProgramFailure(instructionName, expression, failureReason);
+    }
+
     /// <summary>
     /// Create a catch slot symbol.
     /// </summary>

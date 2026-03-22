@@ -56,7 +56,6 @@ public static partial class TypedAstEvaluator
             var instruction = Unsafe.As<AwaitAndDiscardInstruction>(instr);
             var awaitedValue = runner.EvaluateAwaitInGenerator(
                 instruction.AwaitStateKey,
-                instruction.AwaitedExpression,
                 instruction.AwaitedProgram,
                 environment,
                 context);

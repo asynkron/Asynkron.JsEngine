@@ -12,12 +12,14 @@ namespace Asynkron.JsEngine.Execution.Instructions;
 ///     Represents a throw statement in the generator.
 ///     Evaluates the expression and throws it as an exception.
 /// </summary>
-/// <param name="Expression">Builder-stage AST representation of the expression to throw.</param>
 /// <param name="ThrowProgram">Lowered bytecode representation of the expression to throw.</param>
 internal sealed record ThrowInstruction(
-    ExpressionNode? Expression = null,
-    ExpressionProgram? ThrowProgram = null)
-    : ExecutionInstruction(InstructionKind.Throw, -1);
+    ExpressionProgram ThrowProgram)
+    : ExecutionInstruction(InstructionKind.Throw, -1)
+{
+    // The AST payload has been removed; this stays null so AST-leak assertions remain explicit.
+    public ExpressionNode? Expression => null;
+}
 
 /// <summary>
 ///     Represents an expression statement in the generator.
@@ -43,8 +45,7 @@ internal sealed record EvaluateAndDiscardInstruction(
 internal sealed record AwaitAndDiscardInstruction(
     int Next,
     Symbol AwaitStateKey,
-    ExpressionNode? AwaitedExpression = null,
-    ExpressionProgram? AwaitedProgram = null,
+    ExpressionProgram AwaitedProgram,
     bool SuppressCompletionValue = false)
     : ExecutionInstruction(InstructionKind.AwaitAndDiscard, Next);
 
@@ -409,15 +410,13 @@ internal sealed record JumpInstruction(int TargetIndex)
 /// <summary>
 ///     Represents a conditional branch.
 /// </summary>
-/// <param name="Condition">Builder-stage AST representation of the condition expression.</param>
 /// <param name="ConditionProgram">Lowered bytecode representation of the condition expression.</param>
 /// <param name="ConsequentIndex">Jump target when condition is true.</param>
 /// <param name="AlternateIndex">Jump target when condition is false.</param>
 internal sealed record BranchInstruction(
     int ConsequentIndex,
     int AlternateIndex,
-    ExpressionNode? Condition = null,
-    ExpressionProgram? ConditionProgram = null)
+    ExpressionProgram ConditionProgram)
     : ExecutionInstruction(InstructionKind.Branch, -1);
 
 /// <summary>
@@ -446,7 +445,6 @@ internal sealed record ContinueInstruction(int TargetIndex, int TargetScopeId = 
 ///     When a return occurs inside a finally block, we need to continue to
 ///     EndFinallyInstruction to properly process the pending completion.
 /// </param>
-/// <param name="ReturnExpression">Builder-stage AST representation of the return expression.</param>
 /// <param name="ReturnProgram">Lowered bytecode representation of the return expression.</param>
 /// <remarks>
 ///     The Next parameter is important for returns inside try/finally blocks.
@@ -455,9 +453,12 @@ internal sealed record ContinueInstruction(int TargetIndex, int TargetScopeId = 
 /// </remarks>
 internal sealed record ReturnInstruction(
     int Next,
-    ExpressionNode? ReturnExpression = null,
     ExpressionProgram? ReturnProgram = null)
-    : ExecutionInstruction(InstructionKind.Return, Next);
+    : ExecutionInstruction(InstructionKind.Return, Next)
+{
+    // The AST payload has been removed; this stays null so AST-leak assertions remain explicit.
+    public ExpressionNode? ReturnExpression => null;
+}
 
 /// <summary>
 ///     Marks the beginning of a <c>with</c> statement. Evaluates the object expression

@@ -112,11 +112,19 @@ internal static class ControlFlowEmitter
                 : ctx.Append(new SetCompletionValueInstruction(thenBodyEntry));
         }
 
+        if (!ExpressionProgramCompiler.TryCompile(statement.Condition, out var conditionProgram, out var conditionFailure))
+        {
+            ctx.Rollback(instructionStart);
+            ctx.SetExpressionProgramFailure("BranchInstruction", statement.Condition, conditionFailure);
+            entryIndex = -1;
+            return false;
+        }
+
         // Emit branch instruction
         entryIndex = ctx.Append(new BranchInstruction(
             ConsequentIndex: thenEntry,
             AlternateIndex: elseEntry,
-            Condition: statement.Condition));
+            ConditionProgram: conditionProgram));
         return true;
     }
 

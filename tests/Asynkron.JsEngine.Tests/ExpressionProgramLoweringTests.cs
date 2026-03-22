@@ -45,7 +45,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             }
             """, "throwSimple");
 
-        var instruction = Assert.Single(plan.Instructions.OfType<ThrowInstruction>().Where(i => i.ThrowProgram is not null));
+        var instruction = Assert.Single(plan.Instructions.OfType<ThrowInstruction>());
         Assert.Null(instruction.Expression);
         AssertProgramContains<JumpIfTrueExpressionOp>(instruction.ThrowProgram);
     }
@@ -203,8 +203,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             """, "awaitSimple");
 
         var instruction = Assert.Single(plan.Instructions.OfType<AwaitAndDiscardInstruction>());
-        Assert.Null(instruction.AwaitedExpression);
-        Assert.NotNull(instruction.AwaitedProgram);
+        Assert.False(instruction.AwaitedProgram.IsEmpty);
         AssertProgramContains<LoadIdentifierExpressionOp>(
             instruction.AwaitedProgram,
             op => op.Name.Name == "value");

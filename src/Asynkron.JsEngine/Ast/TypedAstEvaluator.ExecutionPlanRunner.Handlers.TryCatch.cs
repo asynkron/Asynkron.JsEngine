@@ -22,9 +22,7 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<ThrowInstruction>(instr);
-            var throwValue = instruction.ThrowProgram is { } throwProgram
-                ? runner.EvaluateExpressionProgram(throwProgram, environment, context)
-                : instruction.Expression!.EvaluateExpression(environment, context);
+            var throwValue = runner.EvaluateExpressionProgram(instruction.ThrowProgram, environment, context);
 
             if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingThrowResult, environment))
             {

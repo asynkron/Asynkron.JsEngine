@@ -102,10 +102,23 @@ internal static class ExpressionStatementEmitter
 
         if (expressionStatement.Expression is AwaitExpression awaitExpression)
         {
+            if (!ExpressionProgramCompiler.TryCompile(
+                    awaitExpression.Expression,
+                    out var awaitedProgram,
+                    out var awaitFailure))
+            {
+                ctx.SetExpressionProgramFailure(
+                    "AwaitAndDiscardInstruction",
+                    awaitExpression.Expression,
+                    awaitFailure);
+                entryIndex = -1;
+                return false;
+            }
+
             entryIndex = ctx.Append(new AwaitAndDiscardInstruction(
                 nextIndex,
                 ((IAstCacheable<Symbol>)awaitExpression).GetOrCreateCache(),
-                awaitExpression.Expression,
+                awaitedProgram,
                 SuppressCompletionValue: suppressCompletion));
             return true;
         }
@@ -274,10 +287,18 @@ internal static class ExpressionStatementEmitter
             return false;
         }
 
+        if (!ExpressionProgramCompiler.TryCompile(conditionalExpression.Test, out var conditionProgram, out var conditionFailure))
+        {
+            ctx.Rollback(instructionStart);
+            ctx.SetExpressionProgramFailure("BranchInstruction", conditionalExpression.Test, conditionFailure);
+            entryIndex = -1;
+            return false;
+        }
+
         entryIndex = ctx.Append(new BranchInstruction(
             consequentEntryIndex,
             alternateEntryIndex,
-            conditionalExpression.Test));
+            conditionProgram));
         return true;
     }
 }

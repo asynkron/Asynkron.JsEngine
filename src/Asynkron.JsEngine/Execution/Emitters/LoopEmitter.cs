@@ -172,12 +172,20 @@ internal static class LoopEmitter
             iterationBodyEntry = createEnvBeforeBody;
         }
 
+        if (!ExpressionProgramCompiler.TryCompile(plan.Condition, out var conditionProgram, out var conditionFailure))
+        {
+            ctx.Rollback(instructionStart);
+            ctx.SetExpressionProgramFailure("BranchInstruction", plan.Condition, conditionFailure);
+            entryIndex = -1;
+            return false;
+        }
+
         // Branch flows to body directly (for For loops) or CreateEnv (for others)
         // loopExitTarget (with Pop if needed) was created earlier for LoopScope break target
         var branchIndex = ctx.Append(new BranchInstruction(
             ConsequentIndex: iterationBodyEntry,
             AlternateIndex: loopExitTarget,
-            Condition: plan.Condition));
+            ConditionProgram: conditionProgram));
 
         var conditionEntry = branchIndex;
         if (!plan.ConditionPrologue.IsDefaultOrEmpty)

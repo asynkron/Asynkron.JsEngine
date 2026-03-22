@@ -315,14 +315,23 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                 return continueInstruction with { TargetScopeId = mappedContinueScope };
 
             case EvaluateAndDiscardInstruction eval:
-                return eval with { Expression = Rewrite(eval.Expression) };
+                return eval with
+                {
+                    Expression = Rewrite(eval.Expression),
+                    ExpressionProgram = eval.ExpressionProgram is { } evalProgram
+                        ? RewriteExpressionProgram(evalProgram)
+                        : null
+                };
 
             case AwaitAndDiscardInstruction awaitDiscard:
-                return awaitDiscard with { AwaitedExpression = Rewrite(awaitDiscard.AwaitedExpression) };
+                return awaitDiscard with { AwaitedProgram = RewriteExpressionProgram(awaitDiscard.AwaitedProgram) };
 
             case AssignmentSlotInstruction assign:
                 {
                     var rewrittenValue = Rewrite(assign.ValueExpression);
+                    ExpressionProgram? rewrittenProgram = assign.ValueProgram is { } valueProgram
+                        ? RewriteExpressionProgram(valueProgram)
+                        : null;
                     if (TryResolve(assign.TargetSymbol, out var assignmentResolution))
                     {
                         var assignmentFlatSlotId = GetOrCreateFlatSlotId(
@@ -331,18 +340,26 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                         return assign with
                         {
                             ValueExpression = rewrittenValue,
+                            ValueProgram = rewrittenProgram,
                             ScopeId = assignmentResolution.scopeId,
                             SlotIndex = assignmentResolution.slotIndex,
                             FlatSlotId = assignmentFlatSlotId
                         };
                     }
 
-                    return assign with { ValueExpression = rewrittenValue };
+                    return assign with
+                    {
+                        ValueExpression = rewrittenValue,
+                        ValueProgram = rewrittenProgram
+                    };
                 }
 
             case LogicalCompoundAssignmentSlotInstruction logicalCompound:
                 {
                     var rewrittenRhs = Rewrite(logicalCompound.RhsExpression);
+                    ExpressionProgram? rewrittenProgram = logicalCompound.RhsProgram is { } logicalRhsProgram
+                        ? RewriteExpressionProgram(logicalRhsProgram)
+                        : null;
                     if (TryResolve(logicalCompound.TargetSymbol, out var logicalResolution))
                     {
                         var logicalFlatSlotId = GetOrCreateFlatSlotId(
@@ -351,18 +368,26 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                         return logicalCompound with
                         {
                             RhsExpression = rewrittenRhs,
+                            RhsProgram = rewrittenProgram,
                             ScopeId = logicalResolution.scopeId,
                             SlotIndex = logicalResolution.slotIndex,
                             FlatSlotId = logicalFlatSlotId
                         };
                     }
 
-                    return logicalCompound with { RhsExpression = rewrittenRhs };
+                    return logicalCompound with
+                    {
+                        RhsExpression = rewrittenRhs,
+                        RhsProgram = rewrittenProgram
+                    };
                 }
 
             case CompoundAssignmentSlotInstruction compoundAssign:
                 {
                     var rewrittenRhs = Rewrite(compoundAssign.RhsExpression);
+                    ExpressionProgram? rewrittenProgram = compoundAssign.RhsProgram is { } compoundRhsProgram
+                        ? RewriteExpressionProgram(compoundRhsProgram)
+                        : null;
                     var rhsFlatSlotId = rewrittenRhs is IdentifierExpression { FlatSlotId: >= 0 } rhsIdent
                         ? rhsIdent.FlatSlotId
                         : -1;
@@ -375,6 +400,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                         return compoundAssign with
                         {
                             RhsExpression = rewrittenRhs,
+                            RhsProgram = rewrittenProgram,
                             ScopeId = compoundResolution.scopeId,
                             SlotIndex = compoundResolution.slotIndex,
                             FlatSlotId = compoundFlatSlotId,
@@ -385,36 +411,107 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     return compoundAssign with
                     {
                         RhsExpression = rewrittenRhs,
+                        RhsProgram = rewrittenProgram,
                         RhsFlatSlotId = rhsFlatSlotId
                     };
                 }
 
-            case YieldInstruction { YieldExpression: not null } yield:
-                return yield with { YieldExpression = Rewrite(yield.YieldExpression) };
+            case YieldInstruction { YieldExpression: not null } yieldInstruction:
+                return yieldInstruction with
+                {
+                    YieldExpression = Rewrite(yieldInstruction.YieldExpression),
+                    YieldProgram = yieldInstruction.YieldProgram is { } loweredYieldProgram
+                        ? RewriteExpressionProgram(loweredYieldProgram)
+                        : null
+                };
 
-            case ReturnInstruction { ReturnExpression: not null } ret:
-                return ret with { ReturnExpression = Rewrite(ret.ReturnExpression) };
+            case YieldInstruction { YieldProgram: not null } yieldInstruction:
+                return yieldInstruction with { YieldProgram = RewriteExpressionProgram(yieldInstruction.YieldProgram!.Value) };
+
+            case ReturnInstruction { ReturnProgram: not null } returnInstruction:
+                return returnInstruction with { ReturnProgram = RewriteExpressionProgram(returnInstruction.ReturnProgram!.Value) };
 
             case ThrowInstruction thr:
-                return thr with { Expression = Rewrite(thr.Expression) };
+                return thr with { ThrowProgram = RewriteExpressionProgram(thr.ThrowProgram) };
 
             case BranchInstruction branch:
-                return branch with { Condition = Rewrite(branch.Condition) };
+                return branch with { ConditionProgram = RewriteExpressionProgram(branch.ConditionProgram) };
 
             case SimpleVariableDeclarationInstruction { Initializer: not null } varDecl:
-                return varDecl with { Initializer = Rewrite(varDecl.Initializer) };
+                return varDecl with
+                {
+                    Initializer = Rewrite(varDecl.Initializer),
+                    InitializerProgram = varDecl.InitializerProgram is { } simpleInitializerProgram
+                        ? RewriteExpressionProgram(simpleInitializerProgram)
+                        : null
+                };
+
+            case SimpleVariableDeclarationInstruction { InitializerProgram: not null } varDecl:
+                return varDecl with { InitializerProgram = RewriteExpressionProgram(varDecl.InitializerProgram!.Value) };
 
             case BindingVariableDeclarationInstruction { Initializer: not null } bindingDecl:
-                return bindingDecl with { Initializer = Rewrite(bindingDecl.Initializer) };
+                return bindingDecl with
+                {
+                    TargetProgram = RewriteBindingTargetProgram(bindingDecl.TargetProgram),
+                    Initializer = Rewrite(bindingDecl.Initializer),
+                    InitializerProgram = bindingDecl.InitializerProgram is { } bindingInitializerProgram
+                        ? RewriteExpressionProgram(bindingInitializerProgram)
+                        : null
+                };
+
+            case BindingVariableDeclarationInstruction bindingDecl:
+                return bindingDecl with
+                {
+                    TargetProgram = RewriteBindingTargetProgram(bindingDecl.TargetProgram),
+                    InitializerProgram = bindingDecl.InitializerProgram is { } bindingProgramOnlyInitializer
+                        ? RewriteExpressionProgram(bindingProgramOnlyInitializer)
+                        : null
+                };
 
             case IteratorInitInstruction iterInit:
-                return iterInit with { IterableExpression = Rewrite(iterInit.IterableExpression) };
+                return iterInit with
+                {
+                    IterableExpression = Rewrite(iterInit.IterableExpression),
+                    IterableProgram = iterInit.IterableProgram is { } iteratorIterableProgram
+                        ? RewriteExpressionProgram(iteratorIterableProgram)
+                        : null
+                };
 
             case EnterWithInstruction enterWith:
-                return enterWith with { ObjectExpression = Rewrite(enterWith.ObjectExpression) };
+                return enterWith with
+                {
+                    ObjectExpression = Rewrite(enterWith.ObjectExpression),
+                    ObjectProgram = enterWith.ObjectProgram is { } withObjectProgram
+                        ? RewriteExpressionProgram(withObjectProgram)
+                        : null
+                };
 
             case YieldStarInstruction yieldStar:
-                return yieldStar with { IterableExpression = Rewrite(yieldStar.IterableExpression) };
+                return yieldStar with
+                {
+                    IterableExpression = Rewrite(yieldStar.IterableExpression),
+                    IterableProgram = yieldStar.IterableProgram is { } yieldStarIterableProgram
+                        ? RewriteExpressionProgram(yieldStarIterableProgram)
+                        : null
+                };
+
+            case ForInInitInstruction forInInit:
+                return forInInit with
+                {
+                    ObjectExpression = Rewrite(forInInit.ObjectExpression),
+                    ObjectProgram = forInInit.ObjectProgram is { } forInObjectProgram
+                        ? RewriteExpressionProgram(forInObjectProgram)
+                        : null
+                };
+
+            case ArrayDestructuringInitInstruction destructuringInit:
+                return destructuringInit with
+                {
+                    SourceExpression = Rewrite(destructuringInit.SourceExpression),
+                    SourceProgram = destructuringInit.SourceProgram is { } destructuringSourceProgram
+                        ? RewriteExpressionProgram(destructuringSourceProgram)
+                        : null
+                };
 
             case IncrementSlotInstruction increment:
                 {
@@ -434,6 +531,185 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
 
             default:
                 return instruction;
+        }
+    }
+
+    private ExpressionProgram RewriteExpressionProgram(ExpressionProgram program)
+    {
+        if (program.IsEmpty)
+        {
+            return program;
+        }
+
+        var changed = false;
+        var builder = ImmutableArray.CreateBuilder<ExpressionOp>(program.Operations.Length);
+        foreach (var operation in program.Operations)
+        {
+            var rewritten = RewriteExpressionOp(operation);
+            changed |= !ReferenceEquals(operation, rewritten);
+            builder.Add(rewritten);
+        }
+
+        return changed ? new ExpressionProgram(builder.MoveToImmutable()) : program;
+    }
+
+    private ExpressionOp RewriteExpressionOp(ExpressionOp operation)
+    {
+        switch (operation)
+        {
+            case LoadIdentifierExpressionOp loadIdentifier when TryResolve(loadIdentifier.Name, out var loadResolution):
+                return loadIdentifier with
+                {
+                    ScopeId = loadResolution.scopeId,
+                    SlotIndex = loadResolution.slotIndex,
+                    FlatSlotId = GetOrCreateFlatSlotId(loadResolution.scopeId, loadResolution.slotIndex)
+                };
+
+            case StoreIdentifierExpressionOp storeIdentifier when TryResolve(storeIdentifier.Name, out var storeResolution):
+                return storeIdentifier with
+                {
+                    ScopeId = storeResolution.scopeId,
+                    SlotIndex = storeResolution.slotIndex,
+                    FlatSlotId = GetOrCreateFlatSlotId(storeResolution.scopeId, storeResolution.slotIndex)
+                };
+
+            case UpdateIdentifierExpressionOp updateIdentifier when TryResolve(updateIdentifier.Name, out var updateResolution):
+                return updateIdentifier with
+                {
+                    ScopeId = updateResolution.scopeId,
+                    SlotIndex = updateResolution.slotIndex,
+                    FlatSlotId = GetOrCreateFlatSlotId(updateResolution.scopeId, updateResolution.slotIndex)
+                };
+
+            case TypeOfIdentifierExpressionOp typeofIdentifier when TryResolve(typeofIdentifier.Name, out var typeofResolution):
+                return typeofIdentifier with
+                {
+                    ScopeId = typeofResolution.scopeId,
+                    SlotIndex = typeofResolution.slotIndex,
+                    FlatSlotId = GetOrCreateFlatSlotId(typeofResolution.scopeId, typeofResolution.slotIndex)
+                };
+
+            case ApplyBindingTargetExpressionOp applyBindingTarget:
+                return applyBindingTarget with
+                {
+                    TargetProgram = RewriteBindingTargetProgram(applyBindingTarget.TargetProgram)
+                };
+
+            case LoadFunctionLiteralExpressionOp functionLiteral:
+                return functionLiteral with
+                {
+                    Function = (FunctionExpression)Rewrite(functionLiteral.Function)
+                };
+
+            case LoadClassLiteralExpressionOp classLiteral:
+                return classLiteral with
+                {
+                    Class = (ClassExpression)Rewrite(classLiteral.Class)
+                };
+
+            default:
+                return operation;
+        }
+    }
+
+    private BindingTargetProgram RewriteBindingTargetProgram(BindingTargetProgram program)
+    {
+        switch (program)
+        {
+            case IdentifierBindingTargetProgram:
+            case NamedSuperPropertyAssignmentBindingTargetProgram:
+                return program;
+
+            case ArrayBindingTargetProgram arrayBinding:
+                {
+                    var changed = false;
+                    var elements = ImmutableArray.CreateBuilder<ArrayBindingElementProgram>(arrayBinding.Elements.Length);
+                    foreach (var element in arrayBinding.Elements)
+                    {
+                        var rewrittenTarget = element.Target is null
+                            ? null
+                            : RewriteBindingTargetProgram(element.Target);
+                        ExpressionProgram? rewrittenDefault = element.DefaultProgram is { } elementDefaultProgram
+                            ? RewriteExpressionProgram(elementDefaultProgram)
+                            : null;
+                        changed |= !ReferenceEquals(element.Target, rewrittenTarget) || element.DefaultProgram != rewrittenDefault;
+                        elements.Add(element with { Target = rewrittenTarget, DefaultProgram = rewrittenDefault });
+                    }
+
+                    var rewrittenRest = arrayBinding.RestElement is null
+                        ? null
+                        : RewriteBindingTargetProgram(arrayBinding.RestElement);
+                    changed |= !ReferenceEquals(arrayBinding.RestElement, rewrittenRest);
+                    return changed
+                        ? arrayBinding with { Elements = elements.MoveToImmutable(), RestElement = rewrittenRest }
+                        : program;
+                }
+
+            case ObjectBindingTargetProgram objectBinding:
+                {
+                    var changed = false;
+                    var properties = ImmutableArray.CreateBuilder<ObjectBindingPropertyProgram>(objectBinding.Properties.Length);
+                    foreach (var property in objectBinding.Properties)
+                    {
+                        var rewrittenTarget = RewriteBindingTargetProgram(property.Target);
+                        ExpressionProgram? rewrittenDefault = property.DefaultProgram is { } propertyDefaultProgram
+                            ? RewriteExpressionProgram(propertyDefaultProgram)
+                            : null;
+                        ExpressionProgram? rewrittenName = property.NameProgram is { } propertyNameProgram
+                            ? RewriteExpressionProgram(propertyNameProgram)
+                            : null;
+                        changed |= !ReferenceEquals(property.Target, rewrittenTarget) ||
+                                   property.DefaultProgram != rewrittenDefault ||
+                                   property.NameProgram != rewrittenName;
+                        properties.Add(property with
+                        {
+                            Target = rewrittenTarget,
+                            DefaultProgram = rewrittenDefault,
+                            NameProgram = rewrittenName
+                        });
+                    }
+
+                    var rewrittenRest = objectBinding.RestElement is null
+                        ? null
+                        : RewriteBindingTargetProgram(objectBinding.RestElement);
+                    changed |= !ReferenceEquals(objectBinding.RestElement, rewrittenRest);
+                    return changed
+                        ? objectBinding with { Properties = properties.MoveToImmutable(), RestElement = rewrittenRest }
+                        : program;
+                }
+
+            case NamedPropertyAssignmentBindingTargetProgram namedPropertyAssignment:
+                {
+                    var rewrittenTarget = RewriteExpressionProgram(namedPropertyAssignment.TargetProgram);
+                    return namedPropertyAssignment.TargetProgram == rewrittenTarget
+                        ? program
+                        : namedPropertyAssignment with { TargetProgram = rewrittenTarget };
+                }
+
+            case ComputedPropertyAssignmentBindingTargetProgram computedPropertyAssignment:
+                {
+                    var rewrittenTarget = RewriteExpressionProgram(computedPropertyAssignment.TargetProgram);
+                    var rewrittenProperty = RewriteExpressionProgram(computedPropertyAssignment.PropertyProgram);
+                    return computedPropertyAssignment.TargetProgram == rewrittenTarget &&
+                           computedPropertyAssignment.PropertyProgram == rewrittenProperty
+                        ? program
+                        : computedPropertyAssignment with
+                        {
+                            TargetProgram = rewrittenTarget,
+                            PropertyProgram = rewrittenProperty
+                        };
+                }
+
+            case ComputedSuperPropertyAssignmentBindingTargetProgram computedSuperPropertyAssignment:
+                {
+                    var rewrittenProperty = RewriteExpressionProgram(computedSuperPropertyAssignment.PropertyProgram);
+                    return computedSuperPropertyAssignment.PropertyProgram == rewrittenProperty
+                        ? program
+                        : computedSuperPropertyAssignment with { PropertyProgram = rewrittenProperty };
+                }
+
+            default:
+                return program;
         }
     }
 

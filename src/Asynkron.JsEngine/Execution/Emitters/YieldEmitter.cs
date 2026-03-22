@@ -40,7 +40,14 @@ internal static class YieldEmitter
         //     that slot (`return yield <expr>;`), or
         //   - a delegated yield* sequence that stores the delegate's final
         //     completion value into the slot (`return yield* <expr>;`).
-        var returnIndex = ctx.Append(new ReturnInstruction(-1, returnExpression));
+        if (!ExpressionProgramCompiler.TryCompile(returnExpression, out var returnProgram, out var returnFailure))
+        {
+            ctx.SetExpressionProgramFailure("ReturnInstruction", returnExpression, returnFailure);
+            entryIndex = -1;
+            return false;
+        }
+
+        var returnIndex = ctx.Append(new ReturnInstruction(-1, returnProgram));
         entryIndex = yieldExpression.IsDelegated
             ? ctx.AppendYieldStarSequence(yieldExpression, returnIndex, resumeSymbol)
             : ctx.AppendYieldSequence(yieldExpression.Expression, returnIndex, resumeSymbol);

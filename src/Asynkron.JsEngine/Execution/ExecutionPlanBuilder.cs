@@ -269,22 +269,6 @@ internal sealed partial class ExecutionPlanBuilder
                     };
                     break;
 
-                case AwaitAndDiscardInstruction { AwaitedExpression: not null, AwaitedProgram: null } awaitInstruction:
-                    if (!TryCompileExpressionProgram(awaitInstruction.AwaitedExpression, out var awaitProgram, out var awaitFailure))
-                    {
-                        return FailExpressionProgram(
-                            "AwaitAndDiscardInstruction",
-                            awaitInstruction.AwaitedExpression,
-                            awaitFailure);
-                    }
-
-                    Instructions[i] = awaitInstruction with
-                    {
-                        AwaitedExpression = null,
-                        AwaitedProgram = awaitProgram
-                    };
-                    break;
-
                 case AssignmentSlotInstruction { ValueExpression: not null, ValueProgram: null } assignmentInstruction:
                     if (!TryCompileExpressionProgram(assignmentInstruction.ValueExpression, out var assignmentProgram, out var assignmentFailure))
                     {
@@ -330,54 +314,6 @@ internal sealed partial class ExecutionPlanBuilder
                     {
                         RhsExpression = null,
                         RhsProgram = compoundProgram
-                    };
-                    break;
-
-                case ThrowInstruction { Expression: not null, ThrowProgram: null } throwInstruction:
-                    if (!TryCompileExpressionProgram(throwInstruction.Expression, out var throwProgram, out var throwFailure))
-                    {
-                        return FailExpressionProgram(
-                            "ThrowInstruction",
-                            throwInstruction.Expression,
-                            throwFailure);
-                    }
-
-                    Instructions[i] = throwInstruction with
-                    {
-                        Expression = null,
-                        ThrowProgram = throwProgram
-                    };
-                    break;
-
-                case ReturnInstruction { ReturnExpression: not null, ReturnProgram: null } returnInstruction:
-                    if (!TryCompileExpressionProgram(returnInstruction.ReturnExpression, out var returnProgram, out var returnFailure))
-                    {
-                        return FailExpressionProgram(
-                            "ReturnInstruction",
-                            returnInstruction.ReturnExpression,
-                            returnFailure);
-                    }
-
-                    Instructions[i] = returnInstruction with
-                    {
-                        ReturnExpression = null,
-                        ReturnProgram = returnProgram
-                    };
-                    break;
-
-                case BranchInstruction { Condition: not null, ConditionProgram: null } branchInstruction:
-                    if (!TryCompileExpressionProgram(branchInstruction.Condition, out var conditionProgram, out var conditionFailure))
-                    {
-                        return FailExpressionProgram(
-                            "BranchInstruction",
-                            branchInstruction.Condition,
-                            conditionFailure);
-                    }
-
-                    Instructions[i] = branchInstruction with
-                    {
-                        Condition = null,
-                        ConditionProgram = conditionProgram
                     };
                     break;
 
@@ -547,13 +483,9 @@ internal sealed partial class ExecutionPlanBuilder
                 switch (Instructions[instructionIndex])
                 {
                     case EvaluateAndDiscardInstruction { Expression: not null }:
-                    case AwaitAndDiscardInstruction { AwaitedExpression: not null }:
                     case AssignmentSlotInstruction { ValueExpression: not null }:
                     case LogicalCompoundAssignmentSlotInstruction { RhsExpression: not null }:
                     case CompoundAssignmentSlotInstruction { RhsExpression: not null }:
-                    case ThrowInstruction { Expression: not null }:
-                    case ReturnInstruction { ReturnExpression: not null }:
-                    case BranchInstruction { Condition: not null }:
                     case SimpleVariableDeclarationInstruction { Initializer: not null }:
                     case YieldInstruction { YieldExpression: not null }:
                     case YieldStarInstruction { IterableExpression: not null }:

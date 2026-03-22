@@ -248,8 +248,14 @@ internal static class DeclarationEmitter
             return false;
         }
 
-        // Use native ThrowInstruction - it evaluates the expression and throws
-        entryIndex = ctx.Append(new ThrowInstruction(throwStatement.Expression!));
+        if (!ExpressionProgramCompiler.TryCompile(throwStatement.Expression!, out var throwProgram, out var throwFailure))
+        {
+            ctx.SetExpressionProgramFailure("ThrowInstruction", throwStatement.Expression!, throwFailure);
+            entryIndex = -1;
+            return false;
+        }
+
+        entryIndex = ctx.Append(new ThrowInstruction(throwProgram));
         return true;
     }
 
@@ -270,9 +276,22 @@ internal static class DeclarationEmitter
             return false;
         }
 
+        ExpressionProgram? returnProgram = null;
+        if (returnStatement.Expression is not null)
+        {
+            if (!ExpressionProgramCompiler.TryCompile(returnStatement.Expression, out var compiledReturnProgram, out var returnFailure))
+            {
+                ctx.SetExpressionProgramFailure("ReturnInstruction", returnStatement.Expression, returnFailure);
+                entryIndex = -1;
+                return false;
+            }
+
+            returnProgram = compiledReturnProgram;
+        }
+
         // Pass nextIndex so that if return is inside try/finally, we can
         // continue to EndFinallyInstruction after updating pending completion.
-        entryIndex = ctx.Append(new ReturnInstruction(nextIndex, returnStatement.Expression));
+        entryIndex = ctx.Append(new ReturnInstruction(nextIndex, returnProgram));
         return true;
     }
 

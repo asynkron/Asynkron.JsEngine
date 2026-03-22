@@ -134,13 +134,13 @@ internal static class ExecutionPlanPrinter
                 $"JUMP → [{jump.TargetIndex}]",
 
             BranchInstruction branch =>
-                $"BRANCH ({FormatExpression(branch.Condition, branch.ConditionProgram)}) ? [{branch.ConsequentIndex}] : [{branch.AlternateIndex}]",
+                $"BRANCH ({FormatExpression(null, branch.ConditionProgram)}) ? [{branch.ConsequentIndex}] : [{branch.AlternateIndex}]",
 
             EvaluateAndDiscardInstruction discard =>
                 $"EVAL_DISCARD {FormatExpression(discard.Expression, discard.ExpressionProgram)} → [{discard.Next}]",
 
             AwaitAndDiscardInstruction awaitDiscard =>
-                $"AWAIT_DISCARD {FormatExpression(awaitDiscard.AwaitedExpression, awaitDiscard.AwaitedProgram)} → [{awaitDiscard.Next}]",
+                $"AWAIT_DISCARD {FormatExpression(null, awaitDiscard.AwaitedProgram)} → [{awaitDiscard.Next}]",
 
             AssignmentSlotInstruction assign =>
                 $"ASSIGN {assign.TargetSymbol.Name} = {FormatExpression(assign.ValueExpression, assign.ValueProgram)} → [{assign.Next}]",
@@ -170,13 +170,13 @@ internal static class ExecutionPlanPrinter
                 $"POP_ENV (scopeId: {popEnv.ScopeId}, pool: {popEnv.AllowPooling}) → [{popEnv.Next}]",
 
             ReturnInstruction ret =>
-                "RETURN" + (ret.ReturnExpression != null || ret.ReturnProgram is not null
-                    ? $" {FormatExpression(ret.ReturnExpression, ret.ReturnProgram)}"
+                "RETURN" + (ret.ReturnProgram is not null
+                    ? $" {FormatExpression(null, ret.ReturnProgram)}"
                     : "") +
                 (ret.Next >= 0 ? $" → [{ret.Next}]" : ""),
 
             ThrowInstruction thr =>
-                $"THROW {FormatExpression(thr.Expression, thr.ThrowProgram)}",
+                $"THROW {FormatExpression(null, thr.ThrowProgram)}",
 
             BreakInstruction brk =>
                 $"BREAK (popTo: {brk.TargetScopeId}) → [{brk.TargetIndex}]",

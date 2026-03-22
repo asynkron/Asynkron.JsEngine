@@ -143,7 +143,7 @@ public static partial class TypedAstEvaluator
             var instruction = Unsafe.As<ReturnInstruction>(instr);
             var returnVal = instruction.ReturnProgram is { } returnProgram
                 ? runner.EvaluateExpressionProgram(returnProgram, environment, context)
-                : instruction.ReturnExpression?.EvaluateExpression(environment, context) ?? JsValue.Undefined;
+                : JsValue.Undefined;
 
             if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingReturnResult, environment))
             {
@@ -230,12 +230,7 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<BranchInstruction>(instr);
-            var testValue = instruction.ConditionProgram is { } conditionProgram
-                ? runner.EvaluateExpressionProgram(conditionProgram, environment, context)
-                : instruction.Condition is not null &&
-                  runner.TryEvaluateSimpleExpression(instruction.Condition, environment, context, out var simpleValue)
-                    ? simpleValue
-                    : instruction.Condition!.EvaluateExpression(environment, context);
+            var testValue = runner.EvaluateExpressionProgram(instruction.ConditionProgram, environment, context);
 
             if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingBranchResult, environment))
             {

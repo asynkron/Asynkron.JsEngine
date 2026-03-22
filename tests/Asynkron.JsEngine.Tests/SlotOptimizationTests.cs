@@ -377,10 +377,7 @@ public sealed class SlotOptimizationTests : IAsyncLifetime
         switch (instr)
         {
             case BranchInstruction branch:
-                if (branch.ConditionProgram is { } branchProgram)
-                {
-                    CollectIdentifiersFromProgram(branchProgram, result, nameFilter);
-                }
+                CollectIdentifiersFromProgram(branch.ConditionProgram, result, nameFilter);
                 break;
             case CompoundAssignmentSlotInstruction compound:
                 CollectIdentifiersFromExpression(compound.RhsExpression, result, nameFilter);

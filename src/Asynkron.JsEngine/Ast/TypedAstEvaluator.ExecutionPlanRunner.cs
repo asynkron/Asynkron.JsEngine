@@ -134,6 +134,15 @@ public static partial class TypedAstEvaluator
 
         internal JsValue EvaluateAwaitInGenerator(
             Symbol awaitKey,
+            ExpressionProgram awaitedProgram,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            return EvaluateAwaitInGenerator(awaitKey, null, awaitedProgram, environment, context);
+        }
+
+        internal JsValue EvaluateAwaitInGenerator(
+            Symbol awaitKey,
             ExpressionNode? awaitedExpression,
             ExpressionProgram? awaitedProgram,
             JsEnvironment environment,
@@ -494,38 +503,7 @@ public static partial class TypedAstEvaluator
                     EvaluationContext context,
                     out JsValue returnValue)
         {
-            JsValue testValue;
-            var usedFastPath = false;
-
-            if (instruction.ConditionProgram is { } conditionProgram)
-            {
-                testValue = EvaluateExpressionProgram(conditionProgram, environment, context);
-                usedFastPath = true;
-            }
-            else if (instruction.Condition is BinaryExpression
-                {
-                    Operator: BinaryOperator.LessThan or BinaryOperator.LessThanOrEqual or
-                    BinaryOperator.GreaterThan or BinaryOperator.GreaterThanOrEqual
-                } binCond &&
-                ProfileReadOperand(environment, context, binCond.Left, out var leftVal) &&
-                ProfileReadOperand(environment, context, binCond.Right, out var rightVal))
-            {
-                testValue = ProfileBranchCompare(binCond.Operator, leftVal, rightVal, context);
-                usedFastPath = true;
-            }
-            else
-            {
-                testValue = default;
-            }
-
-            if (!usedFastPath)
-            {
-                testValue =
-                    instruction.Condition is not null &&
-                    TryEvaluateSimpleExpression(instruction.Condition, environment, context, out var simpleValue)
-                        ? simpleValue
-                        : ProfileEvaluateExpression(instruction.Condition!, environment, context);
-            }
+            var testValue = EvaluateExpressionProgram(instruction.ConditionProgram, environment, context);
 
             // Check for pending await (async code) - skip entirely for sync functions
             if (_isAsync && TryHandlePendingAwait(context, out var pendingBranchResult, environment))

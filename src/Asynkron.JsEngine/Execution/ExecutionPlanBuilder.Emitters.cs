@@ -43,6 +43,20 @@ internal sealed partial class ExecutionPlanBuilder
         _failureCode = code;
     }
 
+    internal void SetExpressionProgramFailure(string instructionName, ExpressionNode expression, string? failureReason)
+    {
+        if (_failureReason is not null)
+        {
+            return;
+        }
+
+        var classifiedFailure = ExpressionProgramCompiler.ClassifyFailure(expression, failureReason);
+        _failureReason =
+            $"{instructionName} could not lower expression '{expression.GetType().Name}' to bytecode [{classifiedFailure.Code}]: {classifiedFailure.Detail}.";
+        _failureCode = ExecutionPlanFailureCode.UnsupportedExpressionProgram;
+        _expressionFailureCode = classifiedFailure.Code;
+    }
+
     /// <summary>
     /// Loop scope structure for break/continue resolution.
     /// </summary>

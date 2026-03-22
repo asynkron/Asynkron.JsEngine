@@ -58,11 +58,29 @@ internal static class ExpressionProgramCompiler
             case ObjectExpression obj:
                 return TryCompileObjectExpression(obj, builder, out failureReason);
 
+            case SequenceExpression sequence:
+                return TryCompileSequenceExpression(sequence, builder, out failureReason);
+
+            case TemplateLiteralExpression template:
+                return TryCompileTemplateLiteralExpression(template, builder, out failureReason);
+
+            case PropertyAssignmentExpression propertyAssignment:
+                return TryCompilePropertyAssignmentExpression(propertyAssignment, builder, out failureReason);
+
+            case IndexAssignmentExpression indexAssignment:
+                return TryCompileIndexAssignmentExpression(indexAssignment, builder, out failureReason);
+
             case ConditionalExpression conditional:
                 return TryCompileConditionalExpression(conditional, builder, out failureReason);
 
             case MemberExpression member:
                 return TryCompileMemberExpression(member, builder, out failureReason);
+
+            case CallExpression call:
+                return TryCompileCallExpression(call, builder, out failureReason);
+
+            case NewExpression construct:
+                return TryCompileNewExpression(construct, builder, out failureReason);
 
             case UnaryExpression { Operator: UnaryOperator.LogicalNot } unary:
                 if (!TryCompileExpression(unary.Operand, builder, out failureReason))
@@ -151,6 +169,289 @@ internal static class ExpressionProgramCompiler
         }
 
         builder.Add(new BinaryExpressionOp(expression.Operator));
+        failureReason = null;
+        return true;
+    }
+
+    private static bool TryCompileCallExpression(
+        CallExpression expression,
+        List<ExpressionOp> builder,
+        out string? failureReason)
+    {
+        if (expression.IsOptional || HasOptionalChaining(expression.Callee))
+        {
+            failureReason = "Expression bytecode does not yet support optional call expressions.";
+            return false;
+        }
+
+        foreach (var argument in expression.Arguments)
+        {
+            if (argument.IsSpread)
+            {
+                failureReason = "Expression bytecode does not yet support spread call arguments.";
+                return false;
+            }
+        }
+
+        var isDirectEval = false;
+
+        var hasExplicitThis = false;
+
+        switch (expression.Callee)
+        {
+            case SuperExpression:
+            case MemberExpression { Target: SuperExpression }:
+                failureReason = "Expression bytecode does not yet support super call expressions.";
+                return false;
+
+            case IdentifierExpression identifier:
+                if (!TryCompileExpression(identifier, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                isDirectEval = identifier.Name.Name == "eval";
+                break;
+
+            case MemberExpression { IsOptional: false, IsComputed: false } member:
+                if (!TryCompileCallTargetObject(member.Target, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                if (member.Property is not LiteralExpression { Value.IsString: true } propertyLiteral)
+                {
+                    failureReason = "Expression bytecode only supports literal property names for direct member calls.";
+                    return false;
+                }
+
+                var propertyName = propertyLiteral.Value.AsString();
+                if (string.Equals(propertyName, "call", StringComparison.Ordinal) ||
+                    string.Equals(propertyName, "apply", StringComparison.Ordinal))
+                {
+                    failureReason = "Expression bytecode does not yet support .call/.apply call expressions.";
+                    return false;
+                }
+
+                builder.Add(new LoadNamedCallTargetExpressionOp(propertyName));
+                hasExplicitThis = true;
+                break;
+
+            case MemberExpression { IsOptional: false, IsComputed: true } member:
+                if (!TryCompileCallTargetObject(member.Target, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                if (!TryCompileExpression(member.Property, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                builder.Add(new LoadComputedCallTargetExpressionOp());
+                hasExplicitThis = true;
+                break;
+
+            default:
+                if (!TryCompileExpression(expression.Callee, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                break;
+        }
+
+        foreach (var argument in expression.Arguments)
+        {
+            if (!TryCompileExpression(argument.Expression, builder, out failureReason))
+            {
+                return false;
+            }
+        }
+
+        builder.Add(new CallExpressionOp(
+            expression.Arguments.Length,
+            HasExplicitThis: hasExplicitThis,
+            IsDirectEval: isDirectEval));
+        failureReason = null;
+        return true;
+    }
+
+    private static bool TryCompileNewExpression(
+        NewExpression expression,
+        List<ExpressionOp> builder,
+        out string? failureReason)
+    {
+        foreach (var argument in expression.Arguments)
+        {
+            if (argument.IsSpread)
+            {
+                failureReason = "Expression bytecode does not yet support spread constructor arguments.";
+                return false;
+            }
+        }
+
+        if (!TryCompileExpression(expression.Constructor, builder, out failureReason))
+        {
+            return false;
+        }
+
+        foreach (var argument in expression.Arguments)
+        {
+            if (!TryCompileExpression(argument.Expression, builder, out failureReason))
+            {
+                return false;
+            }
+        }
+
+        builder.Add(new ConstructExpressionOp(expression.Arguments.Length));
+        failureReason = null;
+        return true;
+    }
+
+    private static bool TryCompileSequenceExpression(
+        SequenceExpression expression,
+        List<ExpressionOp> builder,
+        out string? failureReason)
+    {
+        if (!TryCompileExpression(expression.Left, builder, out failureReason))
+        {
+            return false;
+        }
+
+        builder.Add(new PopExpressionOp());
+
+        if (!TryCompileExpression(expression.Right, builder, out failureReason))
+        {
+            return false;
+        }
+
+        failureReason = null;
+        return true;
+    }
+
+    private static bool TryCompileTemplateLiteralExpression(
+        TemplateLiteralExpression expression,
+        List<ExpressionOp> builder,
+        out string? failureReason)
+    {
+        builder.Add(new LoadLiteralExpressionOp(new JsValue(string.Empty)));
+
+        foreach (var part in expression.Parts)
+        {
+            if (part.Text is not null)
+            {
+                builder.Add(new LoadLiteralExpressionOp(new JsValue(part.Text)));
+                builder.Add(new BinaryExpressionOp(BinaryOperator.Add));
+                continue;
+            }
+
+            if (part.Expression is null)
+            {
+                continue;
+            }
+
+            if (!TryCompileExpression(part.Expression, builder, out failureReason))
+            {
+                return false;
+            }
+
+            builder.Add(new ToStringExpressionOp());
+            builder.Add(new BinaryExpressionOp(BinaryOperator.Add));
+        }
+
+        failureReason = null;
+        return true;
+    }
+
+    private static bool TryCompilePropertyAssignmentExpression(
+        PropertyAssignmentExpression expression,
+        List<ExpressionOp> builder,
+        out string? failureReason)
+    {
+        if (expression.IsCompoundAssignment)
+        {
+            failureReason = "Expression bytecode does not yet support compound property assignments.";
+            return false;
+        }
+
+        if (expression.Target is SuperExpression || HasOptionalChaining(expression.Target))
+        {
+            failureReason = "Expression bytecode does not yet support super or optional property assignments.";
+            return false;
+        }
+
+        if (!TryCompileExpression(expression.Target, builder, out failureReason))
+        {
+            return false;
+        }
+
+        if (expression.IsComputed)
+        {
+            if (!TryCompileExpression(expression.Property, builder, out failureReason))
+            {
+                return false;
+            }
+
+            if (!TryCompileExpression(expression.Value, builder, out failureReason))
+            {
+                return false;
+            }
+
+            builder.Add(new SetComputedPropertyExpressionOp());
+            failureReason = null;
+            return true;
+        }
+
+        if (expression.Property is not LiteralExpression { Value.IsString: true } propertyLiteral)
+        {
+            failureReason = "Expression bytecode only supports literal property names for direct property assignment.";
+            return false;
+        }
+
+        if (!TryCompileExpression(expression.Value, builder, out failureReason))
+        {
+            return false;
+        }
+
+        builder.Add(new SetNamedPropertyExpressionOp(propertyLiteral.Value.AsString()));
+        failureReason = null;
+        return true;
+    }
+
+    private static bool TryCompileIndexAssignmentExpression(
+        IndexAssignmentExpression expression,
+        List<ExpressionOp> builder,
+        out string? failureReason)
+    {
+        if (expression.IsCompoundAssignment)
+        {
+            failureReason = "Expression bytecode does not yet support compound index assignments.";
+            return false;
+        }
+
+        if (expression.Target is SuperExpression || HasOptionalChaining(expression.Target))
+        {
+            failureReason = "Expression bytecode does not yet support super or optional index assignments.";
+            return false;
+        }
+
+        if (!TryCompileExpression(expression.Target, builder, out failureReason))
+        {
+            return false;
+        }
+
+        if (!TryCompileExpression(expression.Index, builder, out failureReason))
+        {
+            return false;
+        }
+
+        if (!TryCompileExpression(expression.Value, builder, out failureReason))
+        {
+            return false;
+        }
+
+        builder.Add(new SetComputedPropertyExpressionOp());
         failureReason = null;
         return true;
     }
@@ -411,6 +712,20 @@ internal static class ExpressionProgramCompiler
 
         failureReason = null;
         return true;
+    }
+
+    private static bool TryCompileCallTargetObject(
+        ExpressionNode target,
+        List<ExpressionOp> builder,
+        out string? failureReason)
+    {
+        if (target is SuperExpression || HasOptionalChaining(target))
+        {
+            failureReason = "Expression bytecode does not yet support optional or super member call targets.";
+            return false;
+        }
+
+        return TryCompileExpression(target, builder, out failureReason);
     }
 
     private static bool HasOptionalChaining(ExpressionNode? expression)

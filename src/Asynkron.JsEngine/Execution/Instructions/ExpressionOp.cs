@@ -9,6 +9,8 @@ internal enum ExpressionOpKind : byte
     LoadIdentifier,
     LoadThis,
     LoadNewTarget,
+    LoadNamedCallTarget,
+    LoadComputedCallTarget,
     CreateArray,
     ArrayPush,
     ArrayPushHole,
@@ -19,6 +21,9 @@ internal enum ExpressionOpKind : byte
     ObjectSpread,
     GetNamedProperty,
     GetComputedProperty,
+    SetNamedProperty,
+    SetComputedProperty,
+    ToString,
     UnaryLogicalNot,
     Binary,
     Pop,
@@ -26,7 +31,9 @@ internal enum ExpressionOpKind : byte
     JumpIfNullish,
     JumpIfTrue,
     JumpIfFalse,
-    JumpIfNotNullish
+    JumpIfNotNullish,
+    Call,
+    Construct
 }
 
 internal readonly record struct ExpressionProgram(ImmutableArray<ExpressionOp> Operations)
@@ -56,6 +63,12 @@ internal sealed record LoadThisExpressionOp()
 
 internal sealed record LoadNewTargetExpressionOp()
     : ExpressionOp(ExpressionOpKind.LoadNewTarget);
+
+internal sealed record LoadNamedCallTargetExpressionOp(string PropertyName)
+    : ExpressionOp(ExpressionOpKind.LoadNamedCallTarget);
+
+internal sealed record LoadComputedCallTargetExpressionOp()
+    : ExpressionOp(ExpressionOpKind.LoadComputedCallTarget);
 
 internal sealed record CreateArrayExpressionOp()
     : ExpressionOp(ExpressionOpKind.CreateArray);
@@ -90,6 +103,15 @@ internal sealed record GetNamedPropertyExpressionOp(
 internal sealed record GetComputedPropertyExpressionOp(bool ShortCircuitOnNullishTarget = false)
     : ExpressionOp(ExpressionOpKind.GetComputedProperty);
 
+internal sealed record SetNamedPropertyExpressionOp(string PropertyName, bool AllowNameInference = true)
+    : ExpressionOp(ExpressionOpKind.SetNamedProperty);
+
+internal sealed record SetComputedPropertyExpressionOp(bool AllowNameInference = true)
+    : ExpressionOp(ExpressionOpKind.SetComputedProperty);
+
+internal sealed record ToStringExpressionOp()
+    : ExpressionOp(ExpressionOpKind.ToString);
+
 internal sealed record UnaryLogicalNotExpressionOp()
     : ExpressionOp(ExpressionOpKind.UnaryLogicalNot);
 
@@ -113,3 +135,9 @@ internal sealed record JumpIfFalseExpressionOp(int Target)
 
 internal sealed record JumpIfNotNullishExpressionOp(int Target)
     : ExpressionOp(ExpressionOpKind.JumpIfNotNullish);
+
+internal sealed record CallExpressionOp(int ArgumentCount, bool HasExplicitThis = false, bool IsDirectEval = false)
+    : ExpressionOp(ExpressionOpKind.Call);
+
+internal sealed record ConstructExpressionOp(int ArgumentCount)
+    : ExpressionOp(ExpressionOpKind.Construct);

@@ -98,7 +98,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
         {
             var program = _engine.ParseProgram(@"
                 function test() {
-                    return 1 + 2;
+                    return Math.max(...[1, 2]);
                 }
             ");
             
@@ -107,7 +107,8 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
             await _engine.Evaluate(program);
             
             // Now enable the flag and try to call the function
-            // This should trigger AST evaluation and throw
+            // This spread call is still unsupported by expression bytecode,
+            // so executing it should trigger AST evaluation and throw.
             EvaluationContext.AssertNoAstEvaluation = true;
             
             // Act & Assert
@@ -140,7 +141,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
             
             var program = _engine.ParseProgram(@"
                 let x = 42;
-                Math.max(x, 7);
+                Math.max(...[x, 7]);
             ");
             
             // Act & Assert
@@ -169,7 +170,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
         {
             EvaluationContext.AssertNoAstEvaluation = true;
             
-            var program = _engine.ParseProgram("Math.max(1, 2)");
+            var program = _engine.ParseProgram("Math.max(...[1, 2])");
             
             // Act & Assert
             var exception = await Assert.ThrowsAsync<InvalidOperationException>(
@@ -199,7 +200,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
             EvaluationContext.AssertNoAstEvaluation = true;
 
             var program = _engine.ParseProgram(@"
-                Math.max(10, 20);
+                Math.max(...[10, 20]);
             ");
 
             var exception = await Assert.ThrowsAsync<InvalidOperationException>(
@@ -218,7 +219,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     /// Verifies that control flow statements trigger the assertion when the flag is enabled.
     /// </summary>
     [Fact]
-    public async Task AssertNoAstEvaluation_Enabled_ThrowsOnControlFlowStatement()
+    public async Task AssertNoAstEvaluation_Enabled_AllowsCallExpressionInControlFlow()
     {
         // Arrange
         var originalValue = EvaluationContext.AssertNoAstEvaluation;
@@ -235,12 +236,8 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
                 }
             ");
             
-            // Act & Assert
-            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-                async () => await _engine.Evaluate(program)
-            );
-            
-            Assert.Contains("AST evaluation invoked", exception.Message);
+            var result = await _engine.Evaluate(program);
+            Assert.Equal(42.0, result);
         }
         finally
         {
@@ -259,7 +256,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
         
         try
         {
-            var program = _engine.ParseProgram("Math.max(40, 42)");
+            var program = _engine.ParseProgram("Math.max(...[40, 42])");
             
             // First, execute normally
             EvaluationContext.AssertNoAstEvaluation = false;
@@ -398,6 +395,171 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
             _engine.SetGlobalValue("x", 0d);
             InvokeGlobalFunction("branchOnComparison", new JsValue(13d));
             Assert.Equal(2.0, _engine.GlobalObject["x"]);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsSimpleCallExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function pickMax(left, right) {
+                    return Math.max(left, right);
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("pickMax", new JsValue(19d), new JsValue(23d));
+
+            Assert.Equal(23.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsSimpleConstructionExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function createDateYear(year) {
+                    return new Date(year, 0, 15).getFullYear();
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("createDateYear", new JsValue(2024d));
+
+            Assert.Equal(2024.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsSequenceExpressionExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function pickLast(left, right) {
+                    return (left + 1, right + 2);
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("pickLast", new JsValue(19d), new JsValue(23d));
+
+            Assert.Equal(25.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsTemplateLiteralExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function greet(name, count) {
+                    return `Hello ${name} ${count}`;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("greet", new JsValue("Ada"), new JsValue(3d));
+
+            Assert.True(result.IsString);
+            Assert.Equal("Hello Ada 3", result.AsString());
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsPropertyAssignmentExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function assignValue(box, value) {
+                    return box.value = value;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var box = new JsObject();
+            var result = InvokeGlobalFunction("assignValue", JsValue.FromJsObject(box), new JsValue(23d));
+
+            Assert.Equal(23.0, result);
+            Assert.Equal(23.0, box["value"]);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsIndexAssignmentExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function assignAt(box, key, value) {
+                    return box[key] = value;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var box = new JsObject();
+            var result = InvokeGlobalFunction(
+                "assignAt",
+                JsValue.FromJsObject(box),
+                new JsValue("answer"),
+                new JsValue(42d));
+
+            Assert.Equal(42.0, result);
+            Assert.Equal(42.0, box["answer"]);
         }
         finally
         {

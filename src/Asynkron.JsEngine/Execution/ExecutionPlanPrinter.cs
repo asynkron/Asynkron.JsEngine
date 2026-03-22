@@ -330,6 +330,8 @@ internal static class ExecutionPlanPrinter
             LoadIdentifierExpressionOp identifier => identifier.Name.Name,
             LoadThisExpressionOp => "this",
             LoadNewTargetExpressionOp => "new.target",
+            LoadNamedCallTargetExpressionOp callTarget => $"call.{callTarget.PropertyName}",
+            LoadComputedCallTargetExpressionOp => "call[]",
             CreateArrayExpressionOp => "arr[]",
             ArrayPushExpressionOp => "arr.push",
             ArrayPushHoleExpressionOp => "arr.hole",
@@ -340,6 +342,9 @@ internal static class ExecutionPlanPrinter
             ObjectSpreadExpressionOp => "obj.spread",
             GetNamedPropertyExpressionOp property => $".{property.PropertyName}",
             GetComputedPropertyExpressionOp => "[]",
+            SetNamedPropertyExpressionOp property => $"set.{property.PropertyName}",
+            SetComputedPropertyExpressionOp => "set[]",
+            ToStringExpressionOp => "str",
             UnaryLogicalNotExpressionOp => "!",
             BinaryExpressionOp binary => FormatBinaryOperator(binary.Operator),
             PopExpressionOp => "pop",
@@ -348,6 +353,8 @@ internal static class ExecutionPlanPrinter
             JumpIfTrueExpressionOp jumpIfTrue => $"jmpT:{jumpIfTrue.Target}",
             JumpIfFalseExpressionOp jumpIfFalse => $"jmpF:{jumpIfFalse.Target}",
             JumpIfNotNullishExpressionOp jumpIfNotNullish => $"jmpNN:{jumpIfNotNullish.Target}",
+            CallExpressionOp call => $"call/{call.ArgumentCount}",
+            ConstructExpressionOp construct => $"new/{construct.ArgumentCount}",
             _ => op.GetType().Name
         };
     }

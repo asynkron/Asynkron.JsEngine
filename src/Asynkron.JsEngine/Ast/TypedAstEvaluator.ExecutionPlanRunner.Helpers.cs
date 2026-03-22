@@ -211,6 +211,32 @@ public static partial class TypedAstEvaluator
                             programCounter++;
                             break;
 
+                        case LoadNamedCallTargetExpressionOp namedCallTarget:
+                            {
+                                var target = stack[stackIndex - 1];
+                                var callee = GetProgramNamedPropertyValue(
+                                    target,
+                                    new GetNamedPropertyExpressionOp(namedCallTarget.PropertyName),
+                                    context);
+                                stack[stackIndex++] = callee;
+                                programCounter++;
+                                break;
+                            }
+
+                        case LoadComputedCallTargetExpressionOp:
+                            {
+                                var propertyKey = stack[--stackIndex];
+                                var target = stack[stackIndex - 1];
+                                var callee = GetProgramComputedPropertyValue(
+                                    target,
+                                    propertyKey,
+                                    new GetComputedPropertyExpressionOp(),
+                                    context);
+                                stack[stackIndex++] = callee;
+                                programCounter++;
+                                break;
+                            }
+
                         case CreateArrayExpressionOp:
                             stack[stackIndex++] = JsValue.FromJsArray(new JsArray(context.RealmState));
                             programCounter++;
@@ -338,6 +364,37 @@ public static partial class TypedAstEvaluator
                                 break;
                             }
 
+                        case SetNamedPropertyExpressionOp namedAssignment:
+                            {
+                                var propertyValue = stack[--stackIndex];
+                                var target = stack[stackIndex - 1];
+                                ApplyProgramNamedPropertyAssignment(target, namedAssignment, propertyValue, context);
+                                stack[stackIndex - 1] = propertyValue;
+                                programCounter++;
+                                break;
+                            }
+
+                        case SetComputedPropertyExpressionOp computedAssignment:
+                            {
+                                var propertyValue = stack[--stackIndex];
+                                var propertyKey = stack[--stackIndex];
+                                var target = stack[stackIndex - 1];
+                                ApplyProgramComputedPropertyAssignment(
+                                    target,
+                                    propertyKey,
+                                    computedAssignment,
+                                    propertyValue,
+                                    context);
+                                stack[stackIndex - 1] = propertyValue;
+                                programCounter++;
+                                break;
+                            }
+
+                        case ToStringExpressionOp:
+                            stack[stackIndex - 1] = new JsValue(JsOps.ToJsString(stack[stackIndex - 1], context));
+                            programCounter++;
+                            break;
+
                         case UnaryLogicalNotExpressionOp:
                             stack[stackIndex - 1] = stack[stackIndex - 1].IsTruthy ? JsValue.False : JsValue.True;
                             programCounter++;
@@ -402,6 +459,25 @@ public static partial class TypedAstEvaluator
                             programCounter = !stack[stackIndex - 1].IsNullish
                                 ? jumpIfNotNullish.Target
                                 : programCounter + 1;
+                            break;
+
+                        case CallExpressionOp call:
+                            stackIndex = ExecuteProgramCall(
+                                call,
+                                stack,
+                                stackIndex,
+                                environment,
+                                context);
+                            programCounter++;
+                            break;
+
+                        case ConstructExpressionOp construct:
+                            stackIndex = ExecuteProgramConstruct(
+                                construct,
+                                stack,
+                                stackIndex,
+                                context);
+                            programCounter++;
                             break;
 
                         default:
@@ -636,6 +712,257 @@ public static partial class TypedAstEvaluator
             return JsOps.TryGetPropertyValueJsValue(target, propertyKey, out var directValue, context)
                 ? directValue
                 : JsValue.Undefined;
+        }
+
+        private static void ApplyProgramNamedPropertyAssignment(
+            JsValue target,
+            SetNamedPropertyExpressionOp propertyOp,
+            JsValue value,
+            EvaluationContext context)
+        {
+            if (propertyOp.AllowNameInference &&
+                value is { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget nameTarget })
+            {
+                nameTarget.EnsureHasName(propertyOp.PropertyName);
+            }
+
+            var handle = PropertyHandle.Resolve(target, propertyOp.PropertyName, context, context.CurrentScope.IsStrict);
+            handle.SetValue(value);
+        }
+
+        private static void ApplyProgramComputedPropertyAssignment(
+            JsValue target,
+            JsValue propertyKey,
+            SetComputedPropertyExpressionOp propertyOp,
+            JsValue value,
+            EvaluationContext context)
+        {
+            var propertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return;
+            }
+
+            if (propertyOp.AllowNameInference &&
+                value is { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget nameTarget })
+            {
+                nameTarget.EnsureHasName(propertyName);
+            }
+
+            var handle = PropertyHandle.Resolve(target, propertyName, context, context.CurrentScope.IsStrict);
+            handle.SetValue(value);
+        }
+
+        private int ExecuteProgramCall(
+            CallExpressionOp call,
+            Span<JsValue> stack,
+            int stackIndex,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            var calleeIndex = stackIndex - call.ArgumentCount - 1;
+            var receiverIndex = call.HasExplicitThis ? calleeIndex - 1 : -1;
+            var baseIndex = call.HasExplicitThis ? receiverIndex : calleeIndex;
+            var calleeValue = stack[calleeIndex];
+            var thisValue = call.HasExplicitThis ? stack[receiverIndex] : JsValue.Undefined;
+
+            if (!calleeValue.TryGetObject<IJsCallable>(out var callable))
+            {
+                var error = StandardLibrary.CreateTypeError(
+                    "Attempted to call a non-callable value.",
+                    context,
+                    context.RealmState);
+                context.SetThrow(error);
+                stack[baseIndex] = JsValue.Undefined;
+                return baseIndex + 1;
+            }
+
+            if (callable is SyncFunctionInvoker { IsClassConstructor: true })
+            {
+                var error = StandardLibrary.CreateTypeError(
+                    "Class constructor cannot be invoked without 'new'",
+                    context,
+                    context.RealmState);
+                context.SetThrow(error);
+                stack[baseIndex] = JsValue.Undefined;
+                return baseIndex + 1;
+            }
+
+            if (++context.CallDepth > context.MaxCallDepth)
+            {
+                context.CallDepth--;
+                throw new InvalidOperationException(
+                    $"Exceeded maximum call depth of {context.MaxCallDepth}.");
+            }
+
+            var isAsyncCallable = callable is SyncFunctionInvoker { IsAsyncLike: true };
+            global::Asynkron.JsEngine.EvalHostFunction? evalHost = null;
+            DebugAwareHostFunction? debugFunction = null;
+            JsValue result = JsValue.Undefined;
+            JsValue[]? pooledArguments = null;
+
+            try
+            {
+                if (call.IsDirectEval && callable is global::Asynkron.JsEngine.EvalHostFunction evalHostFunction)
+                {
+                    evalHost = evalHostFunction;
+                    evalHost.IsDirectCall = true;
+                    evalHost.InClassFieldInitializer = context.InClassFieldInitializer;
+                }
+
+                if (callable is DebugAwareHostFunction debugAware)
+                {
+                    debugFunction = debugAware;
+                    debugFunction.CurrentJsEnvironment = environment;
+                    debugFunction.CurrentContext = context;
+                }
+
+                IReadOnlyList<JsValue> arguments;
+                if (call.ArgumentCount == 0)
+                {
+                    arguments = [];
+                }
+                else
+                {
+                    var argumentArray = call.ArgumentCount <= 4
+                        ? global::Asynkron.JsEngine.JsValueCache.RentJsValueArray(call.ArgumentCount)
+                        : new JsValue[call.ArgumentCount];
+
+                    if (call.ArgumentCount <= 4)
+                    {
+                        pooledArguments = argumentArray;
+                    }
+
+                    for (var i = 0; i < call.ArgumentCount; i++)
+                    {
+                        argumentArray[i] = stack[calleeIndex + 1 + i];
+                    }
+
+                    arguments = argumentArray;
+                }
+
+                result = InvokeCallableJsValue(callable, arguments, thisValue, context, environment);
+            }
+            catch (ThrowSignal signal)
+            {
+                if (isAsyncCallable)
+                {
+                    context.Clear();
+                    result = CreateRejectedPromise(signal.ThrownValue, environment);
+                }
+                else
+                {
+                    context.SetThrow(signal.ThrownValue);
+                    result = signal.ThrownValue;
+                }
+            }
+            catch (Exception ex) when (isAsyncCallable)
+            {
+                context.Clear();
+                result = CreateRejectedPromise(JsValue.FromObjectUnsafe(ex), environment);
+            }
+            finally
+            {
+                if (evalHost is not null)
+                {
+                    evalHost.IsDirectCall = false;
+                    evalHost.InClassFieldInitializer = false;
+                }
+
+                if (debugFunction is not null)
+                {
+                    debugFunction.CurrentJsEnvironment = null;
+                    debugFunction.CurrentContext = null;
+                }
+
+                if (pooledArguments is not null)
+                {
+                    global::Asynkron.JsEngine.JsValueCache.ReturnJsValueArray(pooledArguments);
+                }
+
+                context.CallDepth--;
+            }
+
+            if (isAsyncCallable && context.IsThrow)
+            {
+                var reason = context.FlowValue;
+                context.Clear();
+                result = CreateRejectedPromise(reason, environment);
+            }
+
+            stack[baseIndex] = result;
+            return baseIndex + 1;
+        }
+
+        private int ExecuteProgramConstruct(
+            ConstructExpressionOp construct,
+            Span<JsValue> stack,
+            int stackIndex,
+            EvaluationContext context)
+        {
+            var constructorIndex = stackIndex - construct.ArgumentCount - 1;
+            var constructorValue = stack[constructorIndex];
+
+            if (!JsOps.IsConstructor(constructorValue) ||
+                !constructorValue.TryGetObject<IJsCallable>(out var callable))
+            {
+                var error = StandardLibrary.CreateTypeError(
+                    "Target is not a constructor",
+                    context,
+                    context.RealmState);
+                context.SetThrow(error);
+                stack[constructorIndex] = JsValue.Undefined;
+                return constructorIndex + 1;
+            }
+
+            JsValue[]? pooledArguments = null;
+
+            try
+            {
+                IReadOnlyList<JsValue> arguments;
+                if (construct.ArgumentCount == 0)
+                {
+                    arguments = [];
+                }
+                else
+                {
+                    var argumentArray = construct.ArgumentCount <= 4
+                        ? global::Asynkron.JsEngine.JsValueCache.RentJsValueArray(construct.ArgumentCount)
+                        : new JsValue[construct.ArgumentCount];
+
+                    if (construct.ArgumentCount <= 4)
+                    {
+                        pooledArguments = argumentArray;
+                    }
+
+                    for (var i = 0; i < construct.ArgumentCount; i++)
+                    {
+                        argumentArray[i] = stack[constructorIndex + 1 + i];
+                    }
+
+                    arguments = argumentArray;
+                }
+
+                stack[constructorIndex] = global::Asynkron.JsEngine.StdLib.ReflectHelper.Construct(
+                    callable,
+                    arguments,
+                    callable,
+                    context.RealmState);
+            }
+            catch (ThrowSignal signal)
+            {
+                context.SetThrow(signal.ThrownValue);
+                stack[constructorIndex] = signal.ThrownValue;
+            }
+            finally
+            {
+                if (pooledArguments is not null)
+                {
+                    global::Asynkron.JsEngine.JsValueCache.ReturnJsValueArray(pooledArguments);
+                }
+            }
+
+            return constructorIndex + 1;
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]

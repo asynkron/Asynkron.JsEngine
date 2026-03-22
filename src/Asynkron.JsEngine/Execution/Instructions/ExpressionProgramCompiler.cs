@@ -68,6 +68,9 @@ internal static class ExpressionProgramCompiler
             case TemplateLiteralExpression template:
                 return TryCompileTemplateLiteralExpression(template, builder, out failureReason);
 
+            case TaggedTemplateExpression taggedTemplate:
+                return TryCompileTaggedTemplateExpression(taggedTemplate, builder, out failureReason);
+
             case PropertyAssignmentExpression propertyAssignment:
                 return TryCompilePropertyAssignmentExpression(propertyAssignment, builder, out failureReason);
 
@@ -187,24 +190,156 @@ internal static class ExpressionProgramCompiler
                 failureReason = null;
                 return true;
 
-            case UnaryOperator.Increment:
-            case UnaryOperator.Decrement:
-                if (expression.Operand is not IdentifierExpression identifier)
+            case UnaryOperator.TypeOf:
+                if (expression.Operand is IdentifierExpression identifierForTypeOf)
                 {
-                    failureReason = "Expression bytecode only supports identifier update expressions.";
+                    builder.Add(new TypeOfIdentifierExpressionOp(
+                        identifierForTypeOf.Name,
+                        identifierForTypeOf.ScopeId,
+                        identifierForTypeOf.SlotIndex,
+                        identifierForTypeOf.FlatSlotId,
+                        IsArguments: ReferenceEquals(identifierForTypeOf.Name, Symbol.Arguments)));
+                    failureReason = null;
+                    return true;
+                }
+
+                if (!TryCompileExpression(expression.Operand, builder, out failureReason))
+                {
                     return false;
                 }
 
-                builder.Add(new UpdateIdentifierExpressionOp(
-                    identifier.Name,
-                    identifier.ScopeId,
-                    identifier.SlotIndex,
-                    identifier.FlatSlotId,
-                    IsIncrement: expression.Operator == UnaryOperator.Increment,
-                    IsPrefix: expression.IsPrefix,
-                    IsArguments: ReferenceEquals(identifier.Name, Symbol.Arguments)));
+                builder.Add(new TypeOfExpressionOp());
                 failureReason = null;
                 return true;
+
+            case UnaryOperator.Delete:
+                switch (expression.Operand)
+                {
+                    case IdentifierExpression identifierForDelete:
+                        builder.Add(new DeleteIdentifierExpressionOp(identifierForDelete.Name));
+                        failureReason = null;
+                        return true;
+
+                    case MemberExpression
+                        {
+                            Target: not SuperExpression,
+                            IsOptional: false,
+                            IsComputed: false,
+                            Property: LiteralExpression { Value.IsString: true } propertyLiteral
+                        } namedDelete:
+                        if (!TryCompileExpression(namedDelete.Target, builder, out failureReason))
+                        {
+                            return false;
+                        }
+
+                        builder.Add(new DeleteNamedPropertyExpressionOp(propertyLiteral.Value.AsString()));
+                        failureReason = null;
+                        return true;
+
+                    case MemberExpression
+                        {
+                            Target: not SuperExpression,
+                            IsOptional: false,
+                            IsComputed: true
+                        } computedDelete:
+                        if (!TryCompileExpression(computedDelete.Target, builder, out failureReason))
+                        {
+                            return false;
+                        }
+
+                        if (!TryCompileExpression(computedDelete.Property, builder, out failureReason))
+                        {
+                            return false;
+                        }
+
+                        builder.Add(new DeleteComputedPropertyExpressionOp());
+                        failureReason = null;
+                        return true;
+
+                    case MemberExpression { IsOptional: true }:
+                    case MemberExpression { Target: SuperExpression }:
+                        failureReason = "Expression bytecode does not yet support delete on super or optional member expressions.";
+                        return false;
+                }
+
+                if (!TryCompileExpression(expression.Operand, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                builder.Add(new PopExpressionOp());
+                builder.Add(new LoadLiteralExpressionOp(JsValue.True));
+                failureReason = null;
+                return true;
+
+            case UnaryOperator.Plus:
+                if (!TryCompileExpression(expression.Operand, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                builder.Add(new UnaryPlusExpressionOp());
+                failureReason = null;
+                return true;
+
+            case UnaryOperator.Minus:
+                if (!TryCompileExpression(expression.Operand, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                builder.Add(new UnaryMinusExpressionOp());
+                failureReason = null;
+                return true;
+
+            case UnaryOperator.BitwiseNot:
+                if (!TryCompileExpression(expression.Operand, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                builder.Add(new UnaryBitwiseNotExpressionOp());
+                failureReason = null;
+                return true;
+
+            case UnaryOperator.Void:
+                if (!TryCompileExpression(expression.Operand, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                builder.Add(new UnaryVoidExpressionOp());
+                failureReason = null;
+                return true;
+
+            case UnaryOperator.Increment:
+            case UnaryOperator.Decrement:
+                if (expression.Operand is IdentifierExpression identifier)
+                {
+                    builder.Add(new UpdateIdentifierExpressionOp(
+                        identifier.Name,
+                        identifier.ScopeId,
+                        identifier.SlotIndex,
+                        identifier.FlatSlotId,
+                        IsIncrement: expression.Operator == UnaryOperator.Increment,
+                        IsPrefix: expression.IsPrefix,
+                        IsArguments: ReferenceEquals(identifier.Name, Symbol.Arguments)));
+                    failureReason = null;
+                    return true;
+                }
+
+                if (expression.Operand is MemberExpression member)
+                {
+                    return TryCompileMemberUpdateExpression(
+                        member,
+                        expression.Operator == UnaryOperator.Increment,
+                        expression.IsPrefix,
+                        builder,
+                        out failureReason);
+                }
+
+                failureReason = "Expression bytecode only supports identifier and member update expressions.";
+                return false;
 
             default:
                 failureReason = $"Expression bytecode does not yet support unary operator '{expression.Operator}'.";
@@ -545,6 +680,52 @@ internal static class ExpressionProgramCompiler
         return true;
     }
 
+    private static bool TryCompileMemberUpdateExpression(
+        MemberExpression expression,
+        bool isIncrement,
+        bool isPrefix,
+        List<ExpressionOp> builder,
+        out string? failureReason)
+    {
+        if (expression.Target is SuperExpression || HasOptionalChaining(expression.Target) || expression.IsOptional)
+        {
+            failureReason = "Expression bytecode does not yet support super or optional member update expressions.";
+            return false;
+        }
+
+        if (!TryCompileExpression(expression.Target, builder, out failureReason))
+        {
+            return false;
+        }
+
+        if (!expression.IsComputed)
+        {
+            if (expression.Property is not LiteralExpression { Value.IsString: true } propertyLiteral)
+            {
+                failureReason = "Expression bytecode only supports literal property names for member updates.";
+                return false;
+            }
+
+            builder.Add(new UpdateNamedPropertyExpressionOp(
+                propertyLiteral.Value.AsString(),
+                IsIncrement: isIncrement,
+                IsPrefix: isPrefix));
+            failureReason = null;
+            return true;
+        }
+
+        if (!TryCompileExpression(expression.Property, builder, out failureReason))
+        {
+            return false;
+        }
+
+        builder.Add(new UpdateComputedPropertyExpressionOp(
+            IsIncrement: isIncrement,
+            IsPrefix: isPrefix));
+        failureReason = null;
+        return true;
+    }
+
     private static bool TryCompileSequenceExpression(
         SequenceExpression expression,
         List<ExpressionOp> builder,
@@ -562,6 +743,103 @@ internal static class ExpressionProgramCompiler
             return false;
         }
 
+        failureReason = null;
+        return true;
+    }
+
+    private static bool TryCompileTaggedTemplateExpression(
+        TaggedTemplateExpression expression,
+        List<ExpressionOp> builder,
+        out string? failureReason)
+    {
+        var hasExplicitThis = false;
+
+        switch (expression.Tag)
+        {
+            case SuperExpression:
+            case MemberExpression { Target: SuperExpression }:
+                failureReason = "Expression bytecode does not yet support super tagged templates.";
+                return false;
+
+            case MemberExpression { IsOptional: true }:
+                failureReason = "Expression bytecode does not yet support optional tagged templates.";
+                return false;
+
+            case MemberExpression { IsComputed: false } member:
+                if (HasOptionalChaining(member.Target))
+                {
+                    failureReason = "Expression bytecode does not yet support nested optional tagged templates.";
+                    return false;
+                }
+
+                if (!TryCompileExpression(member.Target, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                if (member.Property is not LiteralExpression { Value.IsString: true } propertyLiteral)
+                {
+                    failureReason = "Expression bytecode only supports literal property names for tagged template member access.";
+                    return false;
+                }
+
+                builder.Add(new LoadNamedCallTargetExpressionOp(propertyLiteral.Value.AsString()));
+                hasExplicitThis = true;
+                break;
+
+            case MemberExpression member:
+                if (HasOptionalChaining(member.Target))
+                {
+                    failureReason = "Expression bytecode does not yet support nested optional tagged templates.";
+                    return false;
+                }
+
+                if (!TryCompileExpression(member.Target, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                if (!TryCompileExpression(member.Property, builder, out failureReason))
+                {
+                    return false;
+                }
+
+                builder.Add(new LoadComputedCallTargetExpressionOp());
+                hasExplicitThis = true;
+                break;
+
+            default:
+                if (HasOptionalChaining(expression.Tag))
+                {
+                    failureReason = "Expression bytecode does not yet support optional tagged templates.";
+                    return false;
+                }
+
+                if (!TryCompileExpression(expression.Tag, builder, out failureReason))
+                {
+                    return false;
+                }
+                break;
+        }
+
+        if (!TryCreateTaggedTemplateDescriptor(expression, out var descriptor, out failureReason))
+        {
+            return false;
+        }
+
+        builder.Add(new LoadTemplateObjectExpressionOp(descriptor));
+
+        foreach (var templateExpression in expression.Expressions)
+        {
+            if (!TryCompileExpression(templateExpression, builder, out failureReason))
+            {
+                return false;
+            }
+        }
+
+        builder.Add(new CallExpressionOp(
+            expression.Expressions.Length + 1,
+            HasExplicitThis: hasExplicitThis));
         failureReason = null;
         return true;
     }
@@ -596,6 +874,67 @@ internal static class ExpressionProgramCompiler
             builder.Add(new BinaryExpressionOp(BinaryOperator.Add));
         }
 
+        failureReason = null;
+        return true;
+    }
+
+    private static bool TryCreateTaggedTemplateDescriptor(
+        TaggedTemplateExpression expression,
+        out TaggedTemplateDescriptor descriptor,
+        out string? failureReason)
+    {
+        if (expression.StringsArray is not ArrayExpression cookedArray)
+        {
+            descriptor = null!;
+            failureReason = "Tagged template cooked strings must lower to an array literal.";
+            return false;
+        }
+
+        if (expression.RawStringsArray is not ArrayExpression rawArray)
+        {
+            descriptor = null!;
+            failureReason = "Tagged template raw strings must lower to an array literal.";
+            return false;
+        }
+
+        if (!TryCompileTemplateArray(cookedArray, out var cookedStrings, out failureReason) ||
+            !TryCompileTemplateArray(rawArray, out var rawStrings, out failureReason))
+        {
+            descriptor = null!;
+            return false;
+        }
+
+        descriptor = new TaggedTemplateDescriptor(cookedStrings, rawStrings);
+        failureReason = null;
+        return true;
+    }
+
+    private static bool TryCompileTemplateArray(
+        ArrayExpression expression,
+        out ImmutableArray<JsValue> values,
+        out string? failureReason)
+    {
+        var builder = ImmutableArray.CreateBuilder<JsValue>(expression.Elements.Length);
+        foreach (var element in expression.Elements)
+        {
+            if (element.IsSpread)
+            {
+                values = default;
+                failureReason = "Tagged template arrays do not support spread elements.";
+                return false;
+            }
+
+            if (element.Expression is not LiteralExpression literal)
+            {
+                values = default;
+                failureReason = "Tagged template arrays must contain only literal elements.";
+                return false;
+            }
+
+            builder.Add(literal.Value);
+        }
+
+        values = builder.MoveToImmutable();
         failureReason = null;
         return true;
     }

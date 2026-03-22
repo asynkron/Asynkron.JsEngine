@@ -197,6 +197,12 @@ public static partial class TypedAstEvaluator
                             programCounter++;
                             break;
 
+                        case LoadTemplateObjectExpressionOp loadTemplateObject:
+                            stack[stackIndex++] = JsValue.FromJsArray(
+                                GetOrCreateProgramTemplateObject(loadTemplateObject.Descriptor, context));
+                            programCounter++;
+                            break;
+
                         case LoadIdentifierExpressionOp loadIdentifier:
                             stack[stackIndex++] = EvaluateProgramIdentifier(loadIdentifier, environment, context);
                             programCounter++;
@@ -429,6 +435,101 @@ public static partial class TypedAstEvaluator
                             programCounter++;
                             break;
 
+                        case UpdateNamedPropertyExpressionOp updateNamedProperty:
+                            stack[stackIndex - 1] = ExecuteProgramNamedPropertyUpdate(
+                                stack[stackIndex - 1],
+                                updateNamedProperty,
+                                context);
+                            programCounter++;
+                            break;
+
+                        case UpdateComputedPropertyExpressionOp updateComputedProperty:
+                            {
+                                var propertyKey = stack[--stackIndex];
+                                var target = stack[stackIndex - 1];
+                                stack[stackIndex - 1] = ExecuteProgramComputedPropertyUpdate(
+                                    target,
+                                    propertyKey,
+                                    updateComputedProperty,
+                                    context);
+                                programCounter++;
+                                break;
+                            }
+
+                        case TypeOfExpressionOp:
+                            stack[stackIndex - 1] = new JsValue(GetTypeofStringValue(stack[stackIndex - 1]));
+                            programCounter++;
+                            break;
+
+                        case TypeOfIdentifierExpressionOp typeofIdentifier:
+                            stack[stackIndex++] = ExecuteProgramTypeOfIdentifier(
+                                typeofIdentifier,
+                                environment,
+                                context);
+                            programCounter++;
+                            break;
+
+                        case DeleteIdentifierExpressionOp deleteIdentifier:
+                            stack[stackIndex++] = ExecuteProgramDeleteIdentifier(
+                                deleteIdentifier,
+                                environment,
+                                context)
+                                ? JsValue.True
+                                : JsValue.False;
+                            programCounter++;
+                            break;
+
+                        case DeleteNamedPropertyExpressionOp deleteNamedProperty:
+                            stack[stackIndex - 1] = ExecuteProgramDeleteNamedProperty(
+                                stack[stackIndex - 1],
+                                deleteNamedProperty,
+                                context)
+                                ? JsValue.True
+                                : JsValue.False;
+                            programCounter++;
+                            break;
+
+                        case DeleteComputedPropertyExpressionOp:
+                            {
+                                var propertyKey = stack[--stackIndex];
+                                var target = stack[stackIndex - 1];
+                                stack[stackIndex - 1] = ExecuteProgramDeleteComputedProperty(
+                                    target,
+                                    propertyKey,
+                                    context)
+                                    ? JsValue.True
+                                    : JsValue.False;
+                                programCounter++;
+                                break;
+                            }
+
+                        case UnaryPlusExpressionOp:
+                            {
+                                var operand = stack[stackIndex - 1];
+                                stack[stackIndex - 1] = operand.IsBigInt
+                                    ? throw StandardLibrary.ThrowTypeError(
+                                        "Cannot convert a BigInt value to a number",
+                                        context)
+                                    : new JsValue(ToNumberValue(operand, context));
+                                programCounter++;
+                                break;
+                            }
+
+                        case UnaryMinusExpressionOp:
+                            stack[stackIndex - 1] = NegateValue(stack[stackIndex - 1], context);
+                            programCounter++;
+                            break;
+
+                        case UnaryBitwiseNotExpressionOp:
+                            stack[stackIndex - 1] = BitwiseNotValue(stack[stackIndex - 1], context);
+                            programCounter++;
+                            break;
+
+                        case UnaryVoidExpressionOp:
+                            stack[stackIndex - 1] = JsValue.Undefined;
+                            programCounter++;
+                            break;
+
                         case ToStringExpressionOp:
                             stack[stackIndex - 1] = new JsValue(JsOps.ToJsString(stack[stackIndex - 1], context));
                             programCounter++;
@@ -629,51 +730,10 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            JsValue newValue;
-            JsValue oldNumericValue;
-
-            if (currentValue.Kind == JsValueKind.Number)
+            GetUpdatedNumericValue(currentValue, update.IsIncrement, context, out var oldNumericValue, out var newValue);
+            if (context.ShouldStopEvaluation)
             {
-                oldNumericValue = currentValue;
-                var updatedNumber = update.IsIncrement
-                    ? currentValue.NumberValue + 1.0
-                    : currentValue.NumberValue - 1.0;
-                newValue = JsValueCache.GetNumberJsValue(updatedNumber);
-            }
-            else if (currentValue.IsBigInt)
-            {
-                var bigInt = (JsBigInt)currentValue.ObjectValue!;
-                oldNumericValue = currentValue;
-                var updatedBigInt = update.IsIncrement
-                    ? bigInt.Value + 1
-                    : bigInt.Value - 1;
-                newValue = new JsBigInt(updatedBigInt);
-            }
-            else
-            {
-                var numericValue = ToNumericValue(currentValue, context);
-                if (context.ShouldStopEvaluation)
-                {
-                    return JsValue.Undefined;
-                }
-
-                if (numericValue.IsBigInt)
-                {
-                    var bigInt = (JsBigInt)numericValue.ObjectValue!;
-                    oldNumericValue = numericValue;
-                    var updatedBigInt = update.IsIncrement
-                        ? bigInt.Value + 1
-                        : bigInt.Value - 1;
-                    newValue = new JsBigInt(updatedBigInt);
-                }
-                else
-                {
-                    oldNumericValue = numericValue;
-                    var updatedNumber = update.IsIncrement
-                        ? numericValue.NumberValue + 1.0
-                        : numericValue.NumberValue - 1.0;
-                    newValue = JsValueCache.GetNumberJsValue(updatedNumber);
-                }
+                return JsValue.Undefined;
             }
 
             ApplyProgramIdentifierAssignment(
@@ -688,6 +748,174 @@ public static partial class TypedAstEvaluator
                 context);
 
             return update.IsPrefix ? newValue : oldNumericValue;
+        }
+
+        private static JsValue ExecuteProgramNamedPropertyUpdate(
+            JsValue target,
+            UpdateNamedPropertyExpressionOp update,
+            EvaluationContext context)
+        {
+            var currentValue = GetProgramNamedPropertyValue(
+                target,
+                new GetNamedPropertyExpressionOp(update.PropertyName),
+                context);
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
+            GetUpdatedNumericValue(currentValue, update.IsIncrement, context, out var oldNumericValue, out var newValue);
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
+            ApplyProgramNamedPropertyAssignment(
+                target,
+                new SetNamedPropertyExpressionOp(update.PropertyName, AllowNameInference: false),
+                newValue,
+                context);
+
+            return update.IsPrefix ? newValue : oldNumericValue;
+        }
+
+        private static JsValue ExecuteProgramComputedPropertyUpdate(
+            JsValue target,
+            JsValue propertyKey,
+            UpdateComputedPropertyExpressionOp update,
+            EvaluationContext context)
+        {
+            var currentValue = GetProgramComputedPropertyValue(
+                target,
+                propertyKey,
+                new GetComputedPropertyExpressionOp(),
+                context);
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
+            GetUpdatedNumericValue(currentValue, update.IsIncrement, context, out var oldNumericValue, out var newValue);
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
+            ApplyProgramComputedPropertyAssignment(
+                target,
+                propertyKey,
+                new SetComputedPropertyExpressionOp(AllowNameInference: false),
+                newValue,
+                context);
+
+            return update.IsPrefix ? newValue : oldNumericValue;
+        }
+
+        private JsValue ExecuteProgramTypeOfIdentifier(
+            TypeOfIdentifierExpressionOp identifier,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            var hasBinding = environment.HasBinding(identifier.Name);
+            var operandValue = EvaluateProgramIdentifier(
+                new LoadIdentifierExpressionOp(
+                    identifier.Name,
+                    identifier.ScopeId,
+                    identifier.SlotIndex,
+                    identifier.FlatSlotId,
+                    identifier.IsArguments),
+                environment,
+                context);
+
+            if (context.IsThrow && !hasBinding)
+            {
+                context.Clear();
+                return new JsValue("undefined");
+            }
+
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
+            return new JsValue(GetTypeofStringValue(operandValue));
+        }
+
+        private static bool ExecuteProgramDeleteIdentifier(
+            DeleteIdentifierExpressionOp identifier,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            if (context.CurrentScope.IsStrict)
+            {
+                throw StandardLibrary.ThrowSyntaxError(
+                    "Delete of an unqualified identifier is not allowed in strict mode.",
+                    context,
+                    context.RealmState);
+            }
+
+            var outcome = environment.DeleteBinding(identifier.Name);
+            return outcome is DeleteBindingResult.Deleted or DeleteBindingResult.NotFound;
+        }
+
+        private static bool ExecuteProgramDeleteNamedProperty(
+            JsValue target,
+            DeleteNamedPropertyExpressionOp propertyOp,
+            EvaluationContext context)
+        {
+            var handle = PropertyHandle.Resolve(
+                target,
+                propertyOp.PropertyName,
+                context,
+                context.CurrentScope.IsStrict);
+            return handle.Delete();
+        }
+
+        private static bool ExecuteProgramDeleteComputedProperty(
+            JsValue target,
+            JsValue propertyKey,
+            EvaluationContext context)
+        {
+            var handle = PropertyHandle.Resolve(
+                target,
+                propertyKey,
+                context,
+                context.CurrentScope.IsStrict,
+                allowPrivate: false);
+            return handle.Delete();
+        }
+
+        private static void GetUpdatedNumericValue(
+            JsValue currentValue,
+            bool isIncrement,
+            EvaluationContext context,
+            out JsValue oldNumericValue,
+            out JsValue newValue)
+        {
+            if (currentValue.Kind == JsValueKind.Number)
+            {
+                oldNumericValue = currentValue;
+                newValue = JsValueCache.GetNumberJsValue(
+                    isIncrement
+                        ? currentValue.NumberValue + 1.0
+                        : currentValue.NumberValue - 1.0);
+                return;
+            }
+
+            var numericValue = currentValue.IsBigInt
+                ? currentValue
+                : ToNumericValue(currentValue, context);
+            if (context.ShouldStopEvaluation)
+            {
+                oldNumericValue = JsValue.Undefined;
+                newValue = JsValue.Undefined;
+                return;
+            }
+
+            oldNumericValue = numericValue;
+            newValue = isIncrement
+                ? IncrementValue(numericValue, context)
+                : DecrementValue(numericValue, context);
         }
 
         private static void DefineObjectLiteralProperty(
@@ -797,6 +1025,22 @@ public static partial class TypedAstEvaluator
                         Configurable = true
                     });
             }
+        }
+
+        private static JsArray GetOrCreateProgramTemplateObject(
+            TaggedTemplateDescriptor descriptor,
+            EvaluationContext context)
+        {
+            if (context.RealmState.TemplateObjectCache.TryGetValue(descriptor, out var cachedTemplate))
+            {
+                return (JsArray)cachedTemplate;
+            }
+
+            var stringsArray = new JsArray(descriptor.CookedStrings, context.RealmState);
+            var rawStringsArray = new JsArray(descriptor.RawStrings, context.RealmState);
+            var templateObject = (JsArray)stringsArray.CreateTemplateObject(rawStringsArray);
+            context.RealmState.TemplateObjectCache[descriptor] = templateObject;
+            return templateObject;
         }
 
         private static JsValue GetProgramNamedPropertyValue(

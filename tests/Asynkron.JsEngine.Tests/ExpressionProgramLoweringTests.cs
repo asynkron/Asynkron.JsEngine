@@ -646,6 +646,166 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ReturnInstruction_PostfixNamedPropertyIncrement_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function currentValue(box) {
+                return box.value++;
+            }
+            """, "currentValue");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>().Where(i => i.ReturnProgram is not null));
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<UpdateNamedPropertyExpressionOp>(
+            instruction.ReturnProgram,
+            op => op.PropertyName == "value" && op.IsIncrement && !op.IsPrefix);
+    }
+
+    [Fact]
+    public async Task ReturnInstruction_PrefixComputedPropertyDecrement_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function nextValue(box, key) {
+                return --box[key];
+            }
+            """, "nextValue");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>().Where(i => i.ReturnProgram is not null));
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<UpdateComputedPropertyExpressionOp>(
+            instruction.ReturnProgram,
+            op => !op.IsIncrement && op.IsPrefix);
+    }
+
+    [Fact]
+    public async Task ReturnInstruction_UnaryMinus_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function negate(value) {
+                return -value;
+            }
+            """, "negate");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>().Where(i => i.ReturnProgram is not null));
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<UnaryMinusExpressionOp>(instruction.ReturnProgram);
+    }
+
+    [Fact]
+    public async Task ReturnInstruction_TypeOfIdentifier_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function describe(value) {
+                return typeof value;
+            }
+            """, "describe");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>().Where(i => i.ReturnProgram is not null));
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<TypeOfIdentifierExpressionOp>(
+            instruction.ReturnProgram,
+            op => op.Name.Name == "value");
+    }
+
+    [Fact]
+    public async Task ReturnInstruction_UnaryVoid_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function discard(value) {
+                return void value;
+            }
+            """, "discard");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>().Where(i => i.ReturnProgram is not null));
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<UnaryVoidExpressionOp>(instruction.ReturnProgram);
+    }
+
+    [Fact]
+    public async Task ReturnInstruction_DeleteNamedProperty_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function drop(box) {
+                return delete box.value;
+            }
+            """, "drop");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>().Where(i => i.ReturnProgram is not null));
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<DeleteNamedPropertyExpressionOp>(
+            instruction.ReturnProgram,
+            op => op.PropertyName == "value");
+    }
+
+    [Fact]
+    public async Task ReturnInstruction_DeleteComputedProperty_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function drop(box, key) {
+                return delete box[key];
+            }
+            """, "drop");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>().Where(i => i.ReturnProgram is not null));
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<DeleteComputedPropertyExpressionOp>(instruction.ReturnProgram);
+    }
+
+    [Fact]
+    public async Task ReturnInstruction_DeleteNonReferenceExpression_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function drop(value) {
+                return delete (value + 1);
+            }
+            """, "drop");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>().Where(i => i.ReturnProgram is not null));
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<PopExpressionOp>(instruction.ReturnProgram);
+        AssertProgramContains<LoadLiteralExpressionOp>(instruction.ReturnProgram, op => op.Value.IsBoolean && op.Value.AsBoolean());
+    }
+
+    [Fact]
+    public async Task FunctionPlan_TaggedTemplateExpression_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function test() {
+                return String.raw`x`;
+            }
+            """, "test");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>().Where(i => i.ReturnProgram is not null));
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<LoadTemplateObjectExpressionOp>(instruction.ReturnProgram);
+        AssertProgramContains<CallExpressionOp>(instruction.ReturnProgram, op => op.ArgumentCount == 1 && op.HasExplicitThis);
+    }
+
+    [Fact]
+    public async Task ScriptPlan_TaggedTemplateExpression_IsLoweredToExpressionProgram()
+    {
+        var program = _engine.ParseProgram("""
+            String.raw`x`;
+            """);
+
+        var result = await _engine.Evaluate(program);
+        Assert.Equal("x", result);
+
+        var cache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Script plan should build. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        var expressionStatement = Assert.Single(cache.Plan.Instructions.OfType<EvaluateAndDiscardInstruction>()
+            .Where(i => i.ExpressionOps is not null));
+        Assert.Null(expressionStatement.Expression);
+        Assert.True(expressionStatement.ExpressionOps.HasValue);
+        AssertProgramContains<LoadTemplateObjectExpressionOp>(new ExpressionProgram(expressionStatement.ExpressionOps.Value));
+        AssertProgramContains<CallExpressionOp>(
+            new ExpressionProgram(expressionStatement.ExpressionOps.Value),
+            op => op.ArgumentCount == 1 && op.HasExplicitThis);
+    }
+
+    [Fact]
     public async Task ReturnInstruction_IndexAssignment_IsLoweredToExpressionProgram()
     {
         var plan = await GetFunctionPlan("""

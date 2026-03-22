@@ -10,6 +10,7 @@ public enum ExecutionPlanFailureCode
 {
     UnsupportedConstruct,
     UnsupportedExpressionProgram,
+    UnsupportedBindingProgram,
     YieldLoweringFailed,
     UnsupportedYieldShape,
     NormalizationFailed,

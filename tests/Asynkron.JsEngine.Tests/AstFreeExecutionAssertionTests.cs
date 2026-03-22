@@ -85,8 +85,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Verifies that expression evaluation throws when the assertion flag is enabled.
-    /// This test deliberately triggers AST evaluation with the flag on to verify the guard works.
+    /// Verifies that tagged template function payloads can execute without AST re-entry.
     /// </summary>
     [Fact]
     public async Task AssertNoAstEvaluation_Enabled_ThrowsOnExpressionEvaluation()
@@ -106,18 +105,11 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
             EvaluationContext.AssertNoAstEvaluation = false;
             await _engine.Evaluate(program);
             
-            // Now enable the flag and try to call the function
-            // Tagged templates are still unsupported by expression bytecode,
-            // so executing it should trigger AST evaluation and throw.
+            // Now enable the flag and try to call the function.
             EvaluationContext.AssertNoAstEvaluation = true;
             
-            // Act & Assert
-            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-                async () => await _engine.Evaluate("test()")
-            );
-            
-            Assert.Contains("AST evaluation invoked", exception.Message);
-            Assert.Contains("during IR execution", exception.Message);
+            var result = await _engine.Evaluate("test()");
+            Assert.Equal("x", result);
         }
         finally
         {
@@ -126,7 +118,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Verifies that statement evaluation throws when the assertion flag is enabled.
+    /// Verifies that top-level tagged-template scripts can execute without AST re-entry.
     /// </summary>
     [Fact]
     public async Task AssertNoAstEvaluation_Enabled_ThrowsOnStatementEvaluation()
@@ -143,12 +135,8 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
                 String.raw`x`;
             ");
             
-            // Act & Assert
-            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-                async () => await _engine.Evaluate(program)
-            );
-            
-            Assert.Contains("AST evaluation invoked", exception.Message);
+            var result = await _engine.Evaluate(program);
+            Assert.Equal("x", result);
         }
         finally
         {
@@ -157,7 +145,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Verifies that the assertion mechanism includes the AST node type in the error message.
+    /// Verifies that unsupported non-dynamic scripts now fail plan building with a clear node type.
     /// </summary>
     [Fact]
     public async Task AssertNoAstEvaluation_ErrorMessage_IncludesNodeType()
@@ -169,16 +157,15 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
         {
             EvaluationContext.AssertNoAstEvaluation = true;
             
-            var program = _engine.ParseProgram("String.raw`x`");
+            var program = _engine.ParseProgram("({ value() { return 1; } });");
             
             // Act & Assert
-            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            var exception = await Assert.ThrowsAsync<NotSupportedException>(
                 async () => await _engine.Evaluate(program)
             );
             
-            // The error message should include the expression or statement type name
-            Assert.Contains("AST evaluation invoked", exception.Message);
-            Assert.Matches(@"\w+Expression|\w+Statement", exception.Message);
+            Assert.Contains("IR plan generation failed for script", exception.Message);
+            Assert.Contains("ObjectExpression", exception.Message);
         }
         finally
         {
@@ -187,7 +174,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Verifies that expression shapes still outside the bytecode layer trigger the assertion.
+    /// Verifies that expression shapes still outside the bytecode layer fail plan building explicitly.
     /// </summary>
     [Fact]
     public async Task AssertNoAstEvaluation_Enabled_ThrowsOnComplexExpression()
@@ -199,14 +186,15 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
             EvaluationContext.AssertNoAstEvaluation = true;
 
             var program = _engine.ParseProgram(@"
-                String.raw`x`;
+                ({ value() { return 1; } });
             ");
 
-            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            var exception = await Assert.ThrowsAsync<NotSupportedException>(
                 async () => await _engine.Evaluate(program)
             );
 
-            Assert.Contains("AST evaluation invoked", exception.Message);
+            Assert.Contains("IR plan generation failed for script", exception.Message);
+            Assert.Contains("ObjectExpression", exception.Message);
         }
         finally
         {
@@ -245,7 +233,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Verifies that the flag can be toggled on and off during test execution.
+    /// Verifies that the flag can be toggled on and off for the explicit dynamic-scope executor path.
     /// </summary>
     [Fact]
     public async Task AssertNoAstEvaluation_CanBeToggledDuringExecution()
@@ -256,28 +244,30 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
         try
         {
             var program = _engine.ParseProgram("""
-                function tag(strings) {
-                    return strings[0];
-                }
+                const scopeObj = { answer: 42 };
 
-                tag`x`;
+                function readWith() {
+                    with (scopeObj) {
+                        return answer;
+                    }
+                }
                 """);
             
             // First, execute normally
             EvaluationContext.AssertNoAstEvaluation = false;
-            var result1 = await _engine.Evaluate(program);
-            Assert.Equal("x", result1);
+            await _engine.Evaluate(program);
+            var result1 = InvokeGlobalFunction("readWith");
+            Assert.Equal(42.0, result1);
             
             // Now enable assertion - should throw
             EvaluationContext.AssertNoAstEvaluation = true;
-            await Assert.ThrowsAsync<InvalidOperationException>(
-                async () => await _engine.Evaluate(program)
-            );
+            var exception = Assert.Throws<InvalidOperationException>(() => InvokeGlobalFunction("readWith"));
+            Assert.Contains("WithStatement", exception.Message);
             
             // Disable again - should work
             EvaluationContext.AssertNoAstEvaluation = false;
-            var result2 = await _engine.Evaluate(program);
-            Assert.Equal("x", result2);
+            var result2 = InvokeGlobalFunction("readWith");
+            Assert.Equal(42.0, result2);
         }
         finally
         {
@@ -960,6 +950,230 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
             var result = InvokeGlobalFunction("currentValue", new JsValue(41d));
 
             Assert.Equal(41.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsPostfixNamedPropertyIncrementExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function currentValue(box) {
+                    return box.value++;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var box = new JsObject();
+            box["value"] = 41d;
+
+            var result = InvokeGlobalFunction("currentValue", JsValue.FromJsObject(box));
+
+            Assert.Equal(41.0, result);
+            Assert.Equal(42.0, box["value"]);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsPrefixComputedPropertyDecrementExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function nextValue(box, key) {
+                    return --box[key];
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var box = new JsObject();
+            box["value"] = 41d;
+
+            var result = InvokeGlobalFunction("nextValue", JsValue.FromJsObject(box), new JsValue("value"));
+
+            Assert.Equal(40.0, result);
+            Assert.Equal(40.0, box["value"]);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsUnaryMinusExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function negate(value) {
+                    return -value;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("negate", new JsValue(41d));
+
+            Assert.Equal(-41.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsTypeOfMissingIdentifierExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function describeMissing() {
+                    return typeof missingValue;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("describeMissing");
+
+            Assert.Equal("undefined", result.AsString());
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsUnaryVoidExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function discard(value) {
+                    return void value;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("discard", new JsValue(41d));
+
+            Assert.True(result.IsUndefined);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsDeleteNamedPropertyExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function drop(box) {
+                    return delete box.value;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var box = new JsObject();
+            box["value"] = 41d;
+
+            var result = InvokeGlobalFunction("drop", JsValue.FromJsObject(box));
+
+            Assert.True(result.IsBoolean && result.AsBoolean());
+            Assert.False(box.TryGetProperty("value", out _));
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsDeleteComputedPropertyExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function drop(box, key) {
+                    return delete box[key];
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var box = new JsObject();
+            box["value"] = 41d;
+
+            var result = InvokeGlobalFunction("drop", JsValue.FromJsObject(box), new JsValue("value"));
+
+            Assert.True(result.IsBoolean && result.AsBoolean());
+            Assert.False(box.TryGetProperty("value", out _));
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsDeleteNonReferenceExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function drop(value) {
+                    return delete (value + 1);
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("drop", new JsValue(41d));
+
+            Assert.True(result.IsBoolean && result.AsBoolean());
         }
         finally
         {

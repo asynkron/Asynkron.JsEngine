@@ -7,6 +7,7 @@ internal enum ExpressionOpKind : byte
 {
     LoadLiteral,
     LoadIdentifier,
+    LoadTemplateObject,
     StoreIdentifier,
     DuplicateTop,
     DuplicateTopTwo,
@@ -29,6 +30,17 @@ internal enum ExpressionOpKind : byte
     SetNamedProperty,
     SetComputedProperty,
     UpdateIdentifier,
+    UpdateNamedProperty,
+    UpdateComputedProperty,
+    TypeOf,
+    TypeOfIdentifier,
+    DeleteIdentifier,
+    DeleteNamedProperty,
+    DeleteComputedProperty,
+    UnaryPlus,
+    UnaryMinus,
+    UnaryBitwiseNot,
+    UnaryVoid,
     ToString,
     UnaryLogicalNot,
     Binary,
@@ -53,8 +65,26 @@ internal readonly record struct ExpressionProgram(ImmutableArray<ExpressionOp> O
 
 internal abstract record ExpressionOp(ExpressionOpKind Kind);
 
+internal sealed class TaggedTemplateDescriptor
+{
+    public TaggedTemplateDescriptor(
+        ImmutableArray<JsValue> cookedStrings,
+        ImmutableArray<JsValue> rawStrings)
+    {
+        CookedStrings = cookedStrings;
+        RawStrings = rawStrings;
+    }
+
+    public ImmutableArray<JsValue> CookedStrings { get; }
+
+    public ImmutableArray<JsValue> RawStrings { get; }
+}
+
 internal sealed record LoadLiteralExpressionOp(JsValue Value)
     : ExpressionOp(ExpressionOpKind.LoadLiteral);
+
+internal sealed record LoadTemplateObjectExpressionOp(TaggedTemplateDescriptor Descriptor)
+    : ExpressionOp(ExpressionOpKind.LoadTemplateObject);
 
 internal sealed record LoadIdentifierExpressionOp(
     Symbol Name,
@@ -144,6 +174,49 @@ internal sealed record UpdateIdentifierExpressionOp(
     bool IsPrefix = true,
     bool IsArguments = false)
     : ExpressionOp(ExpressionOpKind.UpdateIdentifier);
+
+internal sealed record UpdateNamedPropertyExpressionOp(
+    string PropertyName,
+    bool IsIncrement = true,
+    bool IsPrefix = true)
+    : ExpressionOp(ExpressionOpKind.UpdateNamedProperty);
+
+internal sealed record UpdateComputedPropertyExpressionOp(
+    bool IsIncrement = true,
+    bool IsPrefix = true)
+    : ExpressionOp(ExpressionOpKind.UpdateComputedProperty);
+
+internal sealed record TypeOfExpressionOp()
+    : ExpressionOp(ExpressionOpKind.TypeOf);
+
+internal sealed record TypeOfIdentifierExpressionOp(
+    Symbol Name,
+    int ScopeId = -1,
+    int SlotIndex = -1,
+    int FlatSlotId = -1,
+    bool IsArguments = false)
+    : ExpressionOp(ExpressionOpKind.TypeOfIdentifier);
+
+internal sealed record DeleteIdentifierExpressionOp(Symbol Name)
+    : ExpressionOp(ExpressionOpKind.DeleteIdentifier);
+
+internal sealed record DeleteNamedPropertyExpressionOp(string PropertyName)
+    : ExpressionOp(ExpressionOpKind.DeleteNamedProperty);
+
+internal sealed record DeleteComputedPropertyExpressionOp()
+    : ExpressionOp(ExpressionOpKind.DeleteComputedProperty);
+
+internal sealed record UnaryPlusExpressionOp()
+    : ExpressionOp(ExpressionOpKind.UnaryPlus);
+
+internal sealed record UnaryMinusExpressionOp()
+    : ExpressionOp(ExpressionOpKind.UnaryMinus);
+
+internal sealed record UnaryBitwiseNotExpressionOp()
+    : ExpressionOp(ExpressionOpKind.UnaryBitwiseNot);
+
+internal sealed record UnaryVoidExpressionOp()
+    : ExpressionOp(ExpressionOpKind.UnaryVoid);
 
 internal sealed record ToStringExpressionOp()
     : ExpressionOp(ExpressionOpKind.ToString);

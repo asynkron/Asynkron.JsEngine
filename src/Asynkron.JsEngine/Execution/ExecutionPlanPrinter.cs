@@ -327,6 +327,7 @@ internal static class ExecutionPlanPrinter
         return op switch
         {
             LoadLiteralExpressionOp literal => literal.Value.ToString() ?? "null",
+            LoadTemplateObjectExpressionOp => "template",
             LoadIdentifierExpressionOp identifier => identifier.Name.Name,
             StoreIdentifierExpressionOp identifier => $"store.{identifier.Name.Name}",
             DuplicateTopExpressionOp => "dup",
@@ -353,6 +354,23 @@ internal static class ExecutionPlanPrinter
                 update.IsPrefix
                     ? $"{(update.IsIncrement ? "++" : "--")}{update.Name.Name}"
                     : $"{update.Name.Name}{(update.IsIncrement ? "++" : "--")}",
+            UpdateNamedPropertyExpressionOp update =>
+                update.IsPrefix
+                    ? $"{(update.IsIncrement ? "++" : "--")}.{update.PropertyName}"
+                    : $".{update.PropertyName}{(update.IsIncrement ? "++" : "--")}",
+            UpdateComputedPropertyExpressionOp update =>
+                update.IsPrefix
+                    ? $"{(update.IsIncrement ? "++" : "--")}[]"
+                    : $"[]{(update.IsIncrement ? "++" : "--")}",
+            TypeOfExpressionOp => "typeof",
+            TypeOfIdentifierExpressionOp typeofIdentifier => $"typeof {typeofIdentifier.Name.Name}",
+            DeleteIdentifierExpressionOp deleteIdentifier => $"delete {deleteIdentifier.Name.Name}",
+            DeleteNamedPropertyExpressionOp deleteNamedProperty => $"delete .{deleteNamedProperty.PropertyName}",
+            DeleteComputedPropertyExpressionOp => "delete []",
+            UnaryPlusExpressionOp => "+",
+            UnaryMinusExpressionOp => "-",
+            UnaryBitwiseNotExpressionOp => "~",
+            UnaryVoidExpressionOp => "void",
             ToStringExpressionOp => "str",
             UnaryLogicalNotExpressionOp => "!",
             BinaryExpressionOp binary => FormatBinaryOperator(binary.Operator),

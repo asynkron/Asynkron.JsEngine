@@ -171,7 +171,12 @@ internal sealed partial class ExecutionPlanBuilder
                 out rewriter);
         }
 
-        LowerExpressionPayloads();
+        if (!LowerExpressionPayloads())
+        {
+            plan = default!;
+            _failureReason ??= "Execution plan contains payloads that could not be lowered to bytecode.";
+            return false;
+        }
 
         var rootSlotCount = analysis is not null && analysis.Scopes.TryGetValue(analysisRootScopeId, out var rootInfo)
             ? rootInfo.SlotCount
@@ -240,16 +245,19 @@ internal sealed partial class ExecutionPlanBuilder
         return true;
     }
 
-    private void LowerExpressionPayloads()
+    private bool LowerExpressionPayloads()
     {
         for (var i = 0; i < Instructions.Count; i++)
         {
             switch (Instructions[i])
             {
                 case EvaluateAndDiscardInstruction { Expression: not null, ExpressionOps: null } evaluateInstruction:
-                    if (!TryCompileExpressionProgram(evaluateInstruction.Expression, out var evaluateProgram))
+                    if (!TryCompileExpressionProgram(evaluateInstruction.Expression, out var evaluateProgram, out var evaluateFailure))
                     {
-                        break;
+                        return FailExpressionProgram(
+                            "EvaluateAndDiscardInstruction",
+                            evaluateInstruction.Expression,
+                            evaluateFailure);
                     }
 
                     Instructions[i] = evaluateInstruction with
@@ -260,9 +268,12 @@ internal sealed partial class ExecutionPlanBuilder
                     break;
 
                 case AssignmentSlotInstruction { ValueExpression: not null, ValueProgram: null } assignmentInstruction:
-                    if (!TryCompileExpressionProgram(assignmentInstruction.ValueExpression, out var assignmentProgram))
+                    if (!TryCompileExpressionProgram(assignmentInstruction.ValueExpression, out var assignmentProgram, out var assignmentFailure))
                     {
-                        break;
+                        return FailExpressionProgram(
+                            "AssignmentSlotInstruction",
+                            assignmentInstruction.ValueExpression,
+                            assignmentFailure);
                     }
 
                     Instructions[i] = assignmentInstruction with
@@ -273,9 +284,12 @@ internal sealed partial class ExecutionPlanBuilder
                     break;
 
                 case LogicalCompoundAssignmentSlotInstruction { RhsExpression: not null, RhsProgram: null } logicalInstruction:
-                    if (!TryCompileExpressionProgram(logicalInstruction.RhsExpression, out var logicalProgram))
+                    if (!TryCompileExpressionProgram(logicalInstruction.RhsExpression, out var logicalProgram, out var logicalFailure))
                     {
-                        break;
+                        return FailExpressionProgram(
+                            "LogicalCompoundAssignmentSlotInstruction",
+                            logicalInstruction.RhsExpression,
+                            logicalFailure);
                     }
 
                     Instructions[i] = logicalInstruction with
@@ -286,9 +300,12 @@ internal sealed partial class ExecutionPlanBuilder
                     break;
 
                 case CompoundAssignmentSlotInstruction { RhsExpression: not null, RhsExpressionOps: null } compoundInstruction:
-                    if (!TryCompileExpressionProgram(compoundInstruction.RhsExpression, out var compoundProgram))
+                    if (!TryCompileExpressionProgram(compoundInstruction.RhsExpression, out var compoundProgram, out var compoundFailure))
                     {
-                        break;
+                        return FailExpressionProgram(
+                            "CompoundAssignmentSlotInstruction",
+                            compoundInstruction.RhsExpression,
+                            compoundFailure);
                     }
 
                     Instructions[i] = compoundInstruction with
@@ -299,9 +316,12 @@ internal sealed partial class ExecutionPlanBuilder
                     break;
 
                 case ThrowInstruction { Expression: not null, ThrowProgram: null } throwInstruction:
-                    if (!TryCompileExpressionProgram(throwInstruction.Expression, out var throwProgram))
+                    if (!TryCompileExpressionProgram(throwInstruction.Expression, out var throwProgram, out var throwFailure))
                     {
-                        break;
+                        return FailExpressionProgram(
+                            "ThrowInstruction",
+                            throwInstruction.Expression,
+                            throwFailure);
                     }
 
                     Instructions[i] = throwInstruction with
@@ -312,9 +332,12 @@ internal sealed partial class ExecutionPlanBuilder
                     break;
 
                 case ReturnInstruction { ReturnExpression: not null, ReturnProgram: null } returnInstruction:
-                    if (!TryCompileExpressionProgram(returnInstruction.ReturnExpression, out var returnProgram))
+                    if (!TryCompileExpressionProgram(returnInstruction.ReturnExpression, out var returnProgram, out var returnFailure))
                     {
-                        break;
+                        return FailExpressionProgram(
+                            "ReturnInstruction",
+                            returnInstruction.ReturnExpression,
+                            returnFailure);
                     }
 
                     Instructions[i] = returnInstruction with
@@ -325,9 +348,12 @@ internal sealed partial class ExecutionPlanBuilder
                     break;
 
                 case BranchInstruction { Condition: not null, ConditionProgram: null } branchInstruction:
-                    if (!TryCompileExpressionProgram(branchInstruction.Condition, out var conditionProgram))
+                    if (!TryCompileExpressionProgram(branchInstruction.Condition, out var conditionProgram, out var conditionFailure))
                     {
-                        break;
+                        return FailExpressionProgram(
+                            "BranchInstruction",
+                            branchInstruction.Condition,
+                            conditionFailure);
                     }
 
                     Instructions[i] = branchInstruction with
@@ -338,9 +364,12 @@ internal sealed partial class ExecutionPlanBuilder
                     break;
 
                 case SimpleVariableDeclarationInstruction { Initializer: not null, InitializerProgram: null } variableInstruction:
-                    if (!TryCompileExpressionProgram(variableInstruction.Initializer, out var initializerProgram))
+                    if (!TryCompileExpressionProgram(variableInstruction.Initializer, out var initializerProgram, out var initializerFailure))
                     {
-                        break;
+                        return FailExpressionProgram(
+                            "SimpleVariableDeclarationInstruction",
+                            variableInstruction.Initializer,
+                            initializerFailure);
                     }
 
                     Instructions[i] = variableInstruction with
@@ -351,9 +380,12 @@ internal sealed partial class ExecutionPlanBuilder
                     break;
 
                 case YieldInstruction { YieldExpression: not null, YieldProgram: null } yieldInstruction:
-                    if (!TryCompileExpressionProgram(yieldInstruction.YieldExpression, out var yieldProgram))
+                    if (!TryCompileExpressionProgram(yieldInstruction.YieldExpression, out var yieldProgram, out var yieldFailure))
                     {
-                        break;
+                        return FailExpressionProgram(
+                            "YieldInstruction",
+                            yieldInstruction.YieldExpression,
+                            yieldFailure);
                     }
 
                     Instructions[i] = yieldInstruction with
@@ -364,9 +396,12 @@ internal sealed partial class ExecutionPlanBuilder
                     break;
 
                 case YieldStarInstruction { IterableExpression: not null, IterableProgram: null } yieldStarInstruction:
-                    if (!TryCompileExpressionProgram(yieldStarInstruction.IterableExpression, out var iterableProgram))
+                    if (!TryCompileExpressionProgram(yieldStarInstruction.IterableExpression, out var iterableProgram, out var iterableFailure))
                     {
-                        break;
+                        return FailExpressionProgram(
+                            "YieldStarInstruction",
+                            yieldStarInstruction.IterableExpression,
+                            iterableFailure);
                     }
 
                     Instructions[i] = yieldStarInstruction with
@@ -377,9 +412,12 @@ internal sealed partial class ExecutionPlanBuilder
                     break;
 
                 case IteratorInitInstruction { IterableExpression: not null, IterableExpressionOps: null } iteratorInitInstruction:
-                    if (!TryCompileExpressionProgram(iteratorInitInstruction.IterableExpression, out var iteratorProgram))
+                    if (!TryCompileExpressionProgram(iteratorInitInstruction.IterableExpression, out var iteratorProgram, out var iteratorFailure))
                     {
-                        break;
+                        return FailExpressionProgram(
+                            "IteratorInitInstruction",
+                            iteratorInitInstruction.IterableExpression,
+                            iteratorFailure);
                     }
 
                     Instructions[i] = iteratorInitInstruction with
@@ -391,9 +429,12 @@ internal sealed partial class ExecutionPlanBuilder
                     break;
 
                 case ForInInitInstruction { ObjectExpression: not null, ObjectProgram: null } forInInitInstruction:
-                    if (!TryCompileExpressionProgram(forInInitInstruction.ObjectExpression, out var objectProgram))
+                    if (!TryCompileExpressionProgram(forInInitInstruction.ObjectExpression, out var objectProgram, out var forInFailure))
                     {
-                        break;
+                        return FailExpressionProgram(
+                            "ForInInitInstruction",
+                            forInInitInstruction.ObjectExpression,
+                            forInFailure);
                     }
 
                     Instructions[i] = forInInitInstruction with
@@ -405,9 +446,12 @@ internal sealed partial class ExecutionPlanBuilder
                     break;
 
                 case EnterWithInstruction { ObjectExpression: not null, ObjectProgram: null } enterWithInstruction:
-                    if (!TryCompileExpressionProgram(enterWithInstruction.ObjectExpression, out var withObjectProgram))
+                    if (!TryCompileExpressionProgram(enterWithInstruction.ObjectExpression, out var withObjectProgram, out var withFailure))
                     {
-                        break;
+                        return FailExpressionProgram(
+                            "EnterWithInstruction",
+                            enterWithInstruction.ObjectExpression,
+                            withFailure);
                     }
 
                     Instructions[i] = enterWithInstruction with
@@ -419,9 +463,12 @@ internal sealed partial class ExecutionPlanBuilder
                     break;
 
                 case ArrayDestructuringInitInstruction { SourceExpression: not null, SourceProgram: null } arrayDestructuringInitInstruction:
-                    if (!TryCompileExpressionProgram(arrayDestructuringInitInstruction.SourceExpression, out var destructuringSourceProgram))
+                    if (!TryCompileExpressionProgram(arrayDestructuringInitInstruction.SourceExpression, out var destructuringSourceProgram, out var destructuringFailure))
                     {
-                        break;
+                        return FailExpressionProgram(
+                            "ArrayDestructuringInitInstruction",
+                            arrayDestructuringInitInstruction.SourceExpression,
+                            destructuringFailure);
                     }
 
                     Instructions[i] = arrayDestructuringInitInstruction with
@@ -436,10 +483,16 @@ internal sealed partial class ExecutionPlanBuilder
                     var updatedBindingInstruction = bindingInstruction;
                     var changed = false;
 
-                    if (updatedBindingInstruction.Initializer is not null &&
-                        updatedBindingInstruction.InitializerProgram is null &&
-                        TryCompileExpressionProgram(updatedBindingInstruction.Initializer, out var bindingInitializerProgram))
+                    if (updatedBindingInstruction.Initializer is not null && updatedBindingInstruction.InitializerProgram is null)
                     {
+                        if (!TryCompileExpressionProgram(updatedBindingInstruction.Initializer, out var bindingInitializerProgram, out var bindingInitializerFailure))
+                        {
+                            return FailExpressionProgram(
+                                "BindingVariableDeclarationInstruction",
+                                updatedBindingInstruction.Initializer,
+                                bindingInitializerFailure);
+                        }
+
                         updatedBindingInstruction = updatedBindingInstruction with
                         {
                             Initializer = null,
@@ -448,10 +501,16 @@ internal sealed partial class ExecutionPlanBuilder
                         changed = true;
                     }
 
-                    if (updatedBindingInstruction.Target is not null &&
-                        updatedBindingInstruction.TargetProgram is null &&
-                        BindingTargetProgramCompiler.TryCompile(updatedBindingInstruction.Target, out var targetProgram, out _))
+                    if (updatedBindingInstruction.Target is not null && updatedBindingInstruction.TargetProgram is null)
                     {
+                        if (!BindingTargetProgramCompiler.TryCompile(updatedBindingInstruction.Target, out var targetProgram, out var bindingFailure))
+                        {
+                            return FailBindingProgram(
+                                "BindingVariableDeclarationInstruction",
+                                updatedBindingInstruction.Target,
+                                bindingFailure);
+                        }
+
                         updatedBindingInstruction = updatedBindingInstruction with
                         {
                             Target = null,
@@ -470,9 +529,27 @@ internal sealed partial class ExecutionPlanBuilder
             }
         }
 
-        bool TryCompileExpressionProgram(ExpressionNode expression, out ExpressionProgram program)
+        return true;
+
+        bool TryCompileExpressionProgram(ExpressionNode expression, out ExpressionProgram program, out string? failureReason)
         {
-            return ExpressionProgramCompiler.TryCompile(expression, out program, out _);
+            return ExpressionProgramCompiler.TryCompile(expression, out program, out failureReason);
+        }
+
+        bool FailExpressionProgram(string instructionName, ExpressionNode expression, string? failureReason)
+        {
+            _failureCode ??= ExecutionPlanFailureCode.UnsupportedExpressionProgram;
+            _failureReason ??=
+                $"{instructionName} could not lower expression '{expression.GetType().Name}' to bytecode: {failureReason ?? "unknown reason"}.";
+            return false;
+        }
+
+        bool FailBindingProgram(string instructionName, BindingTarget target, string? failureReason)
+        {
+            _failureCode ??= ExecutionPlanFailureCode.UnsupportedBindingProgram;
+            _failureReason ??=
+                $"{instructionName} could not lower binding target '{target.GetType().Name}' to a binding program: {failureReason ?? "unknown reason"}.";
+            return false;
         }
     }
 

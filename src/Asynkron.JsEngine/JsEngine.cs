@@ -4436,6 +4436,7 @@ public sealed class JsEngine : IAsyncDisposable
 
     private sealed class AsyncModuleBodyRunner
     {
+        private readonly Stack<Action<ThrowSignal>> _asyncTryHandlers = new();
         private readonly TaskCompletionSource<object?> _completion =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -4559,8 +4560,8 @@ public sealed class JsEngine : IAsyncDisposable
                             _statementIndex++;
                             continue;
                         case VariableDeclaration variableDeclaration
-                            when ContainsDirectAwaitInitializer(variableDeclaration):
-                            if (!TryEvaluateDeclarationWithAwait(variableDeclaration, env))
+                            when AstShapeAnalyzer.StatementContainsAwait(variableDeclaration):
+                            if (!TryEvaluateDeclarationWithAwait(variableDeclaration, env, isStrict))
                             {
                                 return;
                             }
@@ -4668,8 +4669,25 @@ public sealed class JsEngine : IAsyncDisposable
 
         private void Fail(Exception exception)
         {
+            if (exception is ThrowSignal signal && TryHandleAsyncTry(signal))
+            {
+                return;
+            }
+
             _entry.Evaluating = false;
             _completion.TrySetException(exception);
+        }
+
+        private bool TryHandleAsyncTry(ThrowSignal signal)
+        {
+            if (_asyncTryHandlers.Count == 0)
+            {
+                return false;
+            }
+
+            var handler = _asyncTryHandlers.Pop();
+            handler(signal);
+            return true;
         }
 
         private bool TryEvaluateExportDefault(ExportDefaultStatement statement, JsEnvironment env, JsObject exports,
@@ -4708,9 +4726,9 @@ public sealed class JsEngine : IAsyncDisposable
             }
 
             if (statement.Declaration is VariableDeclaration variableDeclaration &&
-                ContainsDirectAwaitInitializer(variableDeclaration))
+                AstShapeAnalyzer.StatementContainsAwait(variableDeclaration))
             {
-                return TryEvaluateDeclarationWithAwait(variableDeclaration, env);
+                return TryEvaluateDeclarationWithAwait(variableDeclaration, env, isStrict);
             }
 
             if (AstShapeAnalyzer.StatementContainsAwait(statement))
@@ -4736,13 +4754,32 @@ public sealed class JsEngine : IAsyncDisposable
             return false;
         }
 
-        private bool TryEvaluateDeclarationWithAwait(VariableDeclaration declaration, JsEnvironment env)
+        private bool TryEvaluateDeclarationWithAwait(VariableDeclaration declaration, JsEnvironment env, bool isStrict)
+        {
+            return TryEvaluateDeclarationWithAwait(declaration, env, isStrict, advanceTopLevelStatement: true,
+                onCompleted: null);
+        }
+
+        private bool TryEvaluateDeclarationWithAwait(
+            VariableDeclaration declaration,
+            JsEnvironment env,
+            bool isStrict,
+            bool advanceTopLevelStatement,
+            Func<bool>? onCompleted)
         {
             var isLexical = declaration.Kind is VariableKind.Let or VariableKind.Const;
             var isConst = declaration.Kind == VariableKind.Const;
 
-            foreach (var declarator in declaration.Declarators)
+            return EvaluateDeclarator(0);
+
+            bool EvaluateDeclarator(int index)
             {
+                if (index >= declaration.Declarators.Length)
+                {
+                    return true;
+                }
+
+                var declarator = declaration.Declarators[index];
                 if (declarator.Target is not IdentifierBinding identifier)
                 {
                     throw new NotSupportedException(
@@ -4759,35 +4796,79 @@ public sealed class JsEngine : IAsyncDisposable
                     }
 
                     // For var, it's already hoisted with undefined value
-                    continue;
+                    return EvaluateDeclarator(index + 1);
                 }
 
-                if (declarator.Initializer is not AwaitExpression awaitExpression)
+                if (!AstShapeAnalyzer.ContainsAwait(declarator.Initializer))
                 {
-                    throw new NotSupportedException(
-                        "Async module execution only supports direct await initializers.");
+                    try
+                    {
+                        var resolved =
+                            JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(declarator.Initializer, env,
+                                isStrict));
+                        AssignResolvedValue(identifier.Name, resolved);
+                        return EvaluateDeclarator(index + 1);
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        Fail(signal);
+                        return false;
+                    }
                 }
 
-                return TryAwaitExpression(awaitExpression.Expression, resolved =>
+                return TryEvaluateExpressionWithAwait(declarator.Initializer, env, isStrict, resolved =>
+                {
+                    AssignResolvedValue(identifier.Name, resolved);
+                    if (!EvaluateDeclarator(index + 1))
+                    {
+                        return;
+                    }
+
+                    if (advanceTopLevelStatement)
+                    {
+                        _statementIndex++;
+                        Run();
+                    }
+                    else
+                    {
+                        _ = onCompleted?.Invoke();
+                    }
+                }, advanceTopLevelStatement: false);
+
+                void AssignResolvedValue(Symbol name, JsValue resolved)
                 {
                     if (isLexical)
                     {
-                        env.DefineJsValue(identifier.Name, resolved, isConst, isLexicalBinding: true,
+                        env.DefineJsValue(name, resolved, isConst, isLexicalBinding: true,
                             blocksFunctionScopeOverride: false);
                     }
                     else
                     {
-                        // For var declarations, assign to the already-hoisted binding
-                        env.AssignJsValue(identifier.Name, resolved);
+                        env.AssignJsValue(name, resolved);
                     }
-                }, env);
+                }
             }
-
-            return true;
         }
 
         private bool TryAwaitExpression(ExpressionNode awaitedExpression, Action<JsValue> onFulfilled,
             JsEnvironment environment)
+        {
+            return TryAwaitExpressionCore(awaitedExpression, environment, resolved =>
+            {
+                onFulfilled(resolved);
+                _statementIndex++;
+                Run();
+            });
+        }
+
+        private bool TryAwaitExpressionNested(ExpressionNode awaitedExpression, Action<JsValue> onFulfilled,
+            JsEnvironment environment)
+        {
+            return TryAwaitExpressionCore(awaitedExpression, environment, onFulfilled);
+        }
+
+        private bool TryAwaitExpressionCore(ExpressionNode awaitedExpression, JsEnvironment environment,
+            Action<JsValue> onFulfilled)
         {
             var onFulfilledFn = new HostFunction(args =>
             {
@@ -4800,8 +4881,6 @@ public sealed class JsEngine : IAsyncDisposable
                 {
                     var resolved = args.GetArgument(0);
                     onFulfilled(resolved);
-                    _statementIndex++;
-                    Run();
                 }
                 catch (ThrowSignal signal)
                 {
@@ -4971,20 +5050,33 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         private bool TryEvaluateExpressionStatementWithAwait(ExpressionStatement exprStatement, JsEnvironment env,
-            bool isStrict)
+            bool isStrict,
+            bool advanceTopLevelStatement = true)
         {
             // Expression statement with await nested somewhere (e.g., void await x, f(await x))
             // We need to evaluate expressions with await using CPS-style transformation.
-            return TryEvaluateExpressionWithAwait(exprStatement.Expression, env, isStrict, _ => { });
+            return TryEvaluateExpressionWithAwait(exprStatement.Expression, env, isStrict,
+                _ =>
+                {
+                    if (advanceTopLevelStatement)
+                    {
+                        _statementIndex++;
+                        Run();
+                    }
+                },
+                advanceTopLevelStatement);
         }
 
         private bool TryEvaluateExpressionWithAwait(ExpressionNode expression, JsEnvironment env, bool isStrict,
-            Action<JsValue> continuation)
+            Action<JsValue> continuation,
+            bool advanceTopLevelStatement = true)
         {
             switch (expression)
             {
                 case AwaitExpression awaitExpression:
-                    return TryAwaitExpression(awaitExpression.Expression, continuation, env);
+                    return advanceTopLevelStatement
+                        ? TryAwaitExpression(awaitExpression.Expression, continuation, env)
+                        : TryAwaitExpressionNested(awaitExpression.Expression, continuation, env);
 
                 case UnaryExpression unaryExpr when AstShapeAnalyzer.ContainsAwait(unaryExpr.Operand):
                     // e.g., void await x, !await x
@@ -4992,17 +5084,28 @@ public sealed class JsEngine : IAsyncDisposable
                     {
                         var result = EvaluateUnaryOnValue(unaryExpr.Operator, resolved);
                         continuation(result);
-                    });
+                    }, advanceTopLevelStatement);
 
                 case CallExpression callExpr when AstShapeAnalyzer.ContainsAwait(callExpr):
-                    return TryEvaluateCallExpressionWithAwait(callExpr, env, isStrict, continuation);
+                    return TryEvaluateCallExpressionWithAwait(callExpr, env, isStrict, continuation,
+                        advanceTopLevelStatement);
 
                 case MemberExpression memberExpression when AstShapeAnalyzer.ContainsAwait(memberExpression):
                     return TryEvaluateMemberExpressionWithAwait(memberExpression, env, isStrict,
-                        (value, _) => continuation(value));
+                        (value, _) => continuation(value),
+                        advanceTopLevelStatement);
 
                 case NewExpression newExpression when AstShapeAnalyzer.ContainsAwait(newExpression):
-                    return TryEvaluateNewExpressionWithAwait(newExpression, env, isStrict, continuation);
+                    return TryEvaluateNewExpressionWithAwait(newExpression, env, isStrict, continuation,
+                        advanceTopLevelStatement);
+
+                case ClassExpression classExpression when AstShapeAnalyzer.ContainsAwait(classExpression):
+                    return TryEvaluateClassExpressionWithAwait(classExpression, env, isStrict, continuation,
+                        advanceTopLevelStatement);
+
+                case var _ when AstShapeAnalyzer.ContainsAwait(expression):
+                    return TryEvaluateExpressionViaAwaitTemps(expression, env, isStrict, continuation,
+                        advanceTopLevelStatement);
 
                 default:
                     // No await found in this expression, or expression types we don't need to handle specially
@@ -5040,7 +5143,8 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         private bool TryEvaluateCallExpressionWithAwait(CallExpression callExpr, JsEnvironment env, bool isStrict,
-            Action<JsValue> continuation)
+            Action<JsValue> continuation,
+            bool advanceTopLevelStatement)
         {
             // Evaluate callee first (await-aware), then arguments.
             var evaluatedArgs = new List<JsValue>();
@@ -5091,13 +5195,13 @@ public sealed class JsEngine : IAsyncDisposable
                     {
                         Fail(signal);
                     }
-                });
+                }, advanceTopLevelStatement);
 
                 if (!argsResult)
                 {
                     completedSynchronously = false;
                 }
-            });
+            }, advanceTopLevelStatement);
 
             return calleeResult && completedSynchronously;
 
@@ -5124,7 +5228,7 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         private bool TryEvaluateArgumentsWithAwait(List<CallArgument> args, int index, List<JsValue> evaluated,
-            JsEnvironment env, bool isStrict, Action onComplete)
+            JsEnvironment env, bool isStrict, Action onComplete, bool advanceTopLevelStatement)
         {
             if (index >= args.Count)
             {
@@ -5138,15 +5242,17 @@ public sealed class JsEngine : IAsyncDisposable
                 return TryEvaluateExpressionWithAwait(arg.Expression, env, isStrict, resolved =>
                 {
                     evaluated.Add(resolved);
-                    TryEvaluateArgumentsWithAwait(args, index + 1, evaluated, env, isStrict, onComplete);
-                });
+                    TryEvaluateArgumentsWithAwait(args, index + 1, evaluated, env, isStrict, onComplete,
+                        advanceTopLevelStatement);
+                }, advanceTopLevelStatement);
             }
 
             try
             {
                 var value = JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(arg.Expression, env, isStrict));
                 evaluated.Add(value);
-                return TryEvaluateArgumentsWithAwait(args, index + 1, evaluated, env, isStrict, onComplete);
+                return TryEvaluateArgumentsWithAwait(args, index + 1, evaluated, env, isStrict, onComplete,
+                    advanceTopLevelStatement);
             }
             catch (ThrowSignal signal)
             {
@@ -5156,13 +5262,15 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         private bool EvaluateCalleeWithAwait(ExpressionNode calleeExpr, JsEnvironment env, bool isStrict,
-            Action<JsValue, JsValue> continuation)
+            Action<JsValue, JsValue> continuation,
+            bool advanceTopLevelStatement)
         {
             if (calleeExpr is MemberExpression memberExpression)
             {
                 if (AstShapeAnalyzer.ContainsAwait(memberExpression))
                 {
-                    return TryEvaluateMemberExpressionWithAwait(memberExpression, env, isStrict, continuation);
+                    return TryEvaluateMemberExpressionWithAwait(memberExpression, env, isStrict, continuation,
+                        advanceTopLevelStatement);
                 }
 
                 try
@@ -5181,7 +5289,8 @@ public sealed class JsEngine : IAsyncDisposable
             if (AstShapeAnalyzer.ContainsAwait(calleeExpr))
             {
                 return TryEvaluateExpressionWithAwait(calleeExpr, env, isStrict,
-                    resolved => continuation(resolved, JsValue.Undefined));
+                    resolved => continuation(resolved, JsValue.Undefined),
+                    advanceTopLevelStatement);
             }
 
             try
@@ -5201,7 +5310,8 @@ public sealed class JsEngine : IAsyncDisposable
             MemberExpression memberExpression,
             JsEnvironment env,
             bool isStrict,
-            Action<JsValue, JsValue> continuation)
+            Action<JsValue, JsValue> continuation,
+            bool advanceTopLevelStatement)
         {
             var propertyAwaited = false;
             var propertyCompletedSynchronously = true;
@@ -5221,7 +5331,8 @@ public sealed class JsEngine : IAsyncDisposable
                     propertyAwaited = true;
                     propertyCompletedSynchronously = TryEvaluateExpressionWithAwait(memberExpression.Property, env,
                         isStrict,
-                        propertyResolved => Finish(propertyResolved));
+                        propertyResolved => Finish(propertyResolved),
+                        advanceTopLevelStatement);
                     return;
                 }
 
@@ -5259,7 +5370,7 @@ public sealed class JsEngine : IAsyncDisposable
                     continuation(calleeValue, thisValue);
                     return true;
                 }
-            });
+            }, advanceTopLevelStatement);
 
             return targetResult && (!propertyAwaited || propertyCompletedSynchronously);
         }
@@ -5293,7 +5404,8 @@ public sealed class JsEngine : IAsyncDisposable
             NewExpression newExpression,
             JsEnvironment env,
             bool isStrict,
-            Action<JsValue> continuation)
+            Action<JsValue> continuation,
+            bool advanceTopLevelStatement)
         {
             var evaluatedArgs = new List<JsValue>();
             var argList = newExpression.Arguments.ToList();
@@ -5320,15 +5432,333 @@ public sealed class JsEngine : IAsyncDisposable
                     {
                         Fail(signal);
                     }
-                });
+                }, advanceTopLevelStatement);
 
                 if (!argsResult)
                 {
                     completedSynchronously = false;
                 }
-            });
+            }, advanceTopLevelStatement);
 
             return calleeResult && completedSynchronously;
+        }
+
+        private readonly record struct AwaitTempBinding(Symbol Symbol, ExpressionNode Expression);
+
+        private bool TryEvaluateExpressionViaAwaitTemps(
+            ExpressionNode expression,
+            JsEnvironment env,
+            bool isStrict,
+            Action<JsValue> continuation,
+            bool advanceTopLevelStatement)
+        {
+            var tempBuilder = ImmutableArray.CreateBuilder<AwaitTempBinding>();
+            var rewrittenExpression = RewriteAwaitExpressionToSyntheticIdentifier(expression, tempBuilder);
+            if (AstShapeAnalyzer.ContainsAwait(rewrittenExpression))
+            {
+                Fail(new NotSupportedException(
+                    $"Async module execution does not support await in this expression shape: '{expression.GetType().Name}'."));
+                return false;
+            }
+
+            var tempEnv = JsEnvironment.CreateInstance(
+                env,
+                isStrict: isStrict,
+                creatingSource: expression.Source,
+                description: "async await temp scope");
+
+            var tempBindings = tempBuilder.ToImmutable();
+            return EvaluateTempBinding(0);
+
+            bool EvaluateTempBinding(int index)
+            {
+                if (index >= tempBindings.Length)
+                {
+                    try
+                    {
+                        var result = JsValue.FromObjectUnsafe(
+                            _engine.ExecuteTypedExpression(rewrittenExpression, tempEnv, isStrict));
+                        continuation(result);
+                        return true;
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        Fail(signal);
+                        return false;
+                    }
+                }
+
+                var binding = tempBindings[index];
+                return TryEvaluateExpressionWithAwait(binding.Expression, tempEnv, isStrict, resolved =>
+                {
+                    tempEnv.DefineJsValue(binding.Symbol, resolved, true, isLexicalBinding: true,
+                        blocksFunctionScopeOverride: false);
+                    EvaluateTempBinding(index + 1);
+                }, advanceTopLevelStatement);
+            }
+        }
+
+        private bool TryEvaluateClassExpressionWithAwait(
+            ClassExpression classExpression,
+            JsEnvironment env,
+            bool isStrict,
+            Action<JsValue> continuation,
+            bool advanceTopLevelStatement)
+        {
+            if (!TryRewriteClassExpressionAwaitTemps(classExpression, out var rewrittenClass, out var tempBindings))
+            {
+                Fail(new NotSupportedException(
+                    "Async module execution does not support await in this class expression shape."));
+                return false;
+            }
+
+            if (AstShapeAnalyzer.ContainsAwait(rewrittenClass))
+            {
+                Fail(new NotSupportedException(
+                    "Async module execution does not support await in class field initializers or unsupported class elements."));
+                return false;
+            }
+
+            var tempEnv = JsEnvironment.CreateInstance(
+                env,
+                isStrict: isStrict,
+                creatingSource: classExpression.Source,
+                description: "async class await scope");
+
+            return EvaluateTempBinding(0);
+
+            bool EvaluateTempBinding(int index)
+            {
+                if (index >= tempBindings.Length)
+                {
+                    try
+                    {
+                        var result =
+                            JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(rewrittenClass, tempEnv, isStrict));
+                        continuation(result);
+                        return true;
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        Fail(signal);
+                        return false;
+                    }
+                }
+
+                var binding = tempBindings[index];
+                return TryEvaluateExpressionWithAwait(binding.Expression, tempEnv, isStrict, resolved =>
+                {
+                    tempEnv.DefineJsValue(binding.Symbol, resolved, true, isLexicalBinding: true,
+                        blocksFunctionScopeOverride: false);
+                    EvaluateTempBinding(index + 1);
+                }, advanceTopLevelStatement);
+            }
+        }
+
+        private static bool TryRewriteClassExpressionAwaitTemps(
+            ClassExpression classExpression,
+            out ClassExpression rewrittenClass,
+            out ImmutableArray<AwaitTempBinding> tempBindings)
+        {
+            var definition = classExpression.Definition;
+            var tempBuilder = ImmutableArray.CreateBuilder<AwaitTempBinding>();
+            var members = definition.Members.ToBuilder();
+            var fields = definition.Fields.ToBuilder();
+            var rewrittenExtends = definition.Extends;
+            var changed = false;
+
+            if (definition.Extends is not null && AstShapeAnalyzer.ContainsAwait(definition.Extends))
+            {
+                rewrittenExtends = RewriteAwaitExpressionToSyntheticIdentifier(definition.Extends, tempBuilder);
+                changed = true;
+            }
+
+            for (var i = 0; i < members.Count; i++)
+            {
+                var member = members[i];
+                if (member is { IsComputed: true, ComputedName: not null } &&
+                    AstShapeAnalyzer.ContainsAwait(member.ComputedName))
+                {
+                    members[i] = member with
+                    {
+                        ComputedName = RewriteAwaitExpressionToSyntheticIdentifier(member.ComputedName, tempBuilder)
+                    };
+                    changed = true;
+                }
+            }
+
+            for (var i = 0; i < fields.Count; i++)
+            {
+                var field = fields[i];
+                if (field is { IsComputed: true, ComputedName: not null } &&
+                    AstShapeAnalyzer.ContainsAwait(field.ComputedName))
+                {
+                    fields[i] = field with
+                    {
+                        ComputedName = RewriteAwaitExpressionToSyntheticIdentifier(field.ComputedName, tempBuilder)
+                    };
+                    changed = true;
+                }
+            }
+
+            rewrittenClass = classExpression with
+            {
+                Definition = definition with
+                {
+                    Extends = rewrittenExtends,
+                    Members = members.ToImmutable(),
+                    Fields = fields.ToImmutable()
+                }
+            };
+            tempBindings = tempBuilder.ToImmutable();
+            return changed;
+        }
+
+        private static ExpressionNode RewriteAwaitExpressionToSyntheticIdentifier(
+            ExpressionNode expression,
+            ImmutableArray<AwaitTempBinding>.Builder tempBindings)
+        {
+            switch (expression)
+            {
+                case AwaitExpression awaitExpression:
+                {
+                    var tempSymbol = Symbol.Synthetic("__await_class");
+                    tempBindings.Add(new AwaitTempBinding(tempSymbol, awaitExpression));
+                    return new IdentifierExpression(awaitExpression.Source, tempSymbol);
+                }
+                case CallExpression callExpression:
+                {
+                    var rewrittenCallee =
+                        RewriteAwaitExpressionToSyntheticIdentifier(callExpression.Callee, tempBindings);
+                    var rewrittenArgs = callExpression.Arguments
+                        .Select(arg => arg with
+                        {
+                            Expression = RewriteAwaitExpressionToSyntheticIdentifier(arg.Expression, tempBindings)
+                        })
+                        .ToImmutableArray();
+                    return callExpression with { Callee = rewrittenCallee, Arguments = rewrittenArgs };
+                }
+                case MemberExpression memberExpression:
+                    return memberExpression with
+                    {
+                        Target = RewriteAwaitExpressionToSyntheticIdentifier(memberExpression.Target, tempBindings),
+                        Property = RewriteAwaitExpressionToSyntheticIdentifier(memberExpression.Property, tempBindings)
+                    };
+                case NewExpression newExpression:
+                {
+                    var rewrittenCtor =
+                        RewriteAwaitExpressionToSyntheticIdentifier(newExpression.Constructor, tempBindings);
+                    var rewrittenArgs = newExpression.Arguments
+                        .Select(arg => arg with
+                        {
+                            Expression = RewriteAwaitExpressionToSyntheticIdentifier(arg.Expression, tempBindings)
+                        })
+                        .ToImmutableArray();
+                    return newExpression with { Constructor = rewrittenCtor, Arguments = rewrittenArgs };
+                }
+                case UnaryExpression unaryExpression:
+                    return unaryExpression with
+                    {
+                        Operand = RewriteAwaitExpressionToSyntheticIdentifier(unaryExpression.Operand, tempBindings)
+                    };
+                case BinaryExpression binaryExpression:
+                    return binaryExpression with
+                    {
+                        Left = RewriteAwaitExpressionToSyntheticIdentifier(binaryExpression.Left, tempBindings),
+                        Right = RewriteAwaitExpressionToSyntheticIdentifier(binaryExpression.Right, tempBindings)
+                    };
+                case ConditionalExpression conditionalExpression:
+                    return conditionalExpression with
+                    {
+                        Test = RewriteAwaitExpressionToSyntheticIdentifier(conditionalExpression.Test, tempBindings),
+                        Consequent =
+                            RewriteAwaitExpressionToSyntheticIdentifier(conditionalExpression.Consequent, tempBindings),
+                        Alternate =
+                            RewriteAwaitExpressionToSyntheticIdentifier(conditionalExpression.Alternate, tempBindings)
+                    };
+                case SequenceExpression sequenceExpression:
+                    return sequenceExpression with
+                    {
+                        Left = RewriteAwaitExpressionToSyntheticIdentifier(sequenceExpression.Left, tempBindings),
+                        Right = RewriteAwaitExpressionToSyntheticIdentifier(sequenceExpression.Right, tempBindings)
+                    };
+                case AssignmentExpression assignmentExpression:
+                    return assignmentExpression with
+                    {
+                        Value = RewriteAwaitExpressionToSyntheticIdentifier(assignmentExpression.Value, tempBindings)
+                    };
+                case PropertyAssignmentExpression propertyAssignmentExpression:
+                    return propertyAssignmentExpression with
+                    {
+                        Target = RewriteAwaitExpressionToSyntheticIdentifier(propertyAssignmentExpression.Target, tempBindings),
+                        Property =
+                            RewriteAwaitExpressionToSyntheticIdentifier(propertyAssignmentExpression.Property, tempBindings),
+                        Value = RewriteAwaitExpressionToSyntheticIdentifier(propertyAssignmentExpression.Value, tempBindings)
+                    };
+                case IndexAssignmentExpression indexAssignmentExpression:
+                    return indexAssignmentExpression with
+                    {
+                        Target = RewriteAwaitExpressionToSyntheticIdentifier(indexAssignmentExpression.Target, tempBindings),
+                        Index = RewriteAwaitExpressionToSyntheticIdentifier(indexAssignmentExpression.Index, tempBindings),
+                        Value = RewriteAwaitExpressionToSyntheticIdentifier(indexAssignmentExpression.Value, tempBindings)
+                    };
+                case ArrayExpression arrayExpression:
+                    return arrayExpression with
+                    {
+                        Elements = arrayExpression.Elements
+                            .Select(element => element.Expression is null
+                                ? element
+                                : element with
+                                {
+                                    Expression =
+                                        RewriteAwaitExpressionToSyntheticIdentifier(element.Expression, tempBindings)
+                                })
+                            .ToImmutableArray()
+                    };
+                case ObjectExpression objectExpression:
+                    return objectExpression with
+                    {
+                        Members = objectExpression.Members
+                            .Select(member => member with
+                            {
+                                Key = member is { IsComputed: true, Key: ExpressionNode keyExpression }
+                                    ? RewriteAwaitExpressionToSyntheticIdentifier(keyExpression, tempBindings)
+                                    : member.Key,
+                                Value = member.Value is null
+                                    ? null
+                                    : RewriteAwaitExpressionToSyntheticIdentifier(member.Value, tempBindings)
+                            })
+                            .ToImmutableArray()
+                    };
+                case TemplateLiteralExpression templateExpression:
+                {
+                    var rewrittenParts = templateExpression.Parts
+                        .Select(part => part.Expression is null
+                            ? part
+                            : part with
+                            {
+                                Expression =
+                                    RewriteAwaitExpressionToSyntheticIdentifier(part.Expression, tempBindings)
+                            })
+                        .ToImmutableArray();
+                    return templateExpression with { Parts = rewrittenParts };
+                }
+                case TaggedTemplateExpression taggedTemplateExpression:
+                    return taggedTemplateExpression with
+                    {
+                        Tag = RewriteAwaitExpressionToSyntheticIdentifier(taggedTemplateExpression.Tag, tempBindings),
+                        StringsArray =
+                            RewriteAwaitExpressionToSyntheticIdentifier(taggedTemplateExpression.StringsArray, tempBindings),
+                        RawStringsArray =
+                            RewriteAwaitExpressionToSyntheticIdentifier(taggedTemplateExpression.RawStringsArray, tempBindings),
+                        Expressions = taggedTemplateExpression.Expressions
+                            .Select(expressionNode =>
+                                RewriteAwaitExpressionToSyntheticIdentifier(expressionNode, tempBindings))
+                            .ToImmutableArray()
+                    };
+                default:
+                    return expression;
+            }
         }
 
         private bool TryEvaluateWhileStatementWithAwait(WhileStatement whileStatement, JsEnvironment env, bool isStrict)
@@ -5533,6 +5963,82 @@ public sealed class JsEngine : IAsyncDisposable
             }
         }
 
+        private bool ExecuteStatementSequenceWithAwaitInTry(
+            ImmutableArray<StatementNode> statements,
+            int index,
+            JsEnvironment env,
+            bool isStrict,
+            Func<bool> onCompleted)
+        {
+            if (index >= statements.Length)
+            {
+                return onCompleted();
+            }
+
+            return ExecuteStatementWithAwaitInTry(statements[index], env, isStrict,
+                () => ExecuteStatementSequenceWithAwaitInTry(statements, index + 1, env, isStrict, onCompleted));
+        }
+
+        private bool ExecuteBlockWithAwaitInTry(
+            BlockStatement blockStatement,
+            JsEnvironment env,
+            bool isStrict,
+            Func<bool> onCompleted)
+        {
+            var blockEnv = JsEnvironment.CreateInstance(env, false, isStrict);
+            return ExecuteStatementSequenceWithAwaitInTry(blockStatement.Statements, 0, blockEnv, isStrict, onCompleted);
+        }
+
+        private bool ExecuteStatementWithAwaitInTry(
+            StatementNode statement,
+            JsEnvironment env,
+            bool isStrict,
+            Func<bool> onCompleted)
+        {
+            switch (statement)
+            {
+                case BlockStatement blockStatement:
+                    return ExecuteBlockWithAwaitInTry(blockStatement, env, isStrict, onCompleted);
+
+                case ExpressionStatement { Expression: AwaitExpression awaitExpression }:
+                    return TryAwaitExpressionNested(awaitExpression.Expression, _ => _ = onCompleted(), env);
+
+                case ExpressionStatement exprStatement
+                    when AstShapeAnalyzer.StatementContainsAwait(exprStatement):
+                    return TryEvaluateExpressionWithAwait(exprStatement.Expression, env, isStrict,
+                        _ => _ = onCompleted(),
+                        advanceTopLevelStatement: false);
+
+                case VariableDeclaration variableDeclaration
+                    when AstShapeAnalyzer.StatementContainsAwait(variableDeclaration):
+                    return TryEvaluateDeclarationWithAwait(variableDeclaration, env, isStrict,
+                        advanceTopLevelStatement: false,
+                        onCompleted);
+
+                case TryStatement tryStatement
+                    when AstShapeAnalyzer.StatementContainsAwait(tryStatement):
+                    return TryEvaluateTryStatementWithAwait(tryStatement, env, isStrict, onCompleted);
+
+                default:
+                    if (AstShapeAnalyzer.StatementContainsAwait(statement))
+                    {
+                        throw new NotSupportedException(
+                            $"Async module execution inside try/catch does not yet support nested '{statement.GetType().Name}' containing await.");
+                    }
+
+                    try
+                    {
+                        _lastValue = _engine.ExecuteTypedStatement(statement, env, isStrict, false);
+                        return onCompleted();
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        Fail(signal);
+                        return false;
+                    }
+            }
+        }
+
         private bool TryEvaluateBlockStatementWithBreakSupport(BlockStatement blockStatement, JsEnvironment env,
             bool isStrict)
         {
@@ -5589,17 +6095,98 @@ public sealed class JsEngine : IAsyncDisposable
 
         private bool TryEvaluateTryStatementWithAwait(TryStatement statement, JsEnvironment env, bool isStrict)
         {
-            // Try/catch/finally with await - delegate to regular evaluation
-            try
+            return TryEvaluateTryStatementWithAwait(statement, env, isStrict, () =>
             {
-                _lastValue = _engine.ExecuteTypedStatement(statement, env, isStrict, false);
+                _statementIndex++;
+                Run();
                 return true;
-            }
-            catch (ThrowSignal signal)
+            });
+        }
+
+        private bool TryEvaluateTryStatementWithAwait(
+            TryStatement statement,
+            JsEnvironment env,
+            bool isStrict,
+            Func<bool> onCompleted)
+        {
+            bool RunFinally(Func<bool> next)
             {
-                Fail(signal);
-                return false;
+                if (statement.Finally is null)
+                {
+                    return next();
+                }
+
+                return ExecuteBlockWithAwaitInTry(statement.Finally, env, isStrict, next);
             }
+
+            void PropagateOrCatch(ThrowSignal signal)
+            {
+                if (statement.Catch is null)
+                {
+                    _ = RunFinally(() =>
+                    {
+                        Fail(signal);
+                        return false;
+                    });
+                    return;
+                }
+
+                var catchEnv = JsEnvironment.CreateInstance(env, creatingSource: statement.Catch.Body.Source,
+                    description: "catch");
+                BindCatchValue(statement.Catch, signal.ThrownValue, catchEnv);
+
+                if (statement.Finally is null)
+                {
+                    _ = ExecuteBlockWithAwaitInTry(statement.Catch.Body, catchEnv, isStrict, onCompleted);
+                    return;
+                }
+
+                _asyncTryHandlers.Push(catchSignal =>
+                {
+                    _ = RunFinally(() =>
+                    {
+                        Fail(catchSignal);
+                        return false;
+                    });
+                });
+                if (ExecuteBlockWithAwaitInTry(statement.Catch.Body, catchEnv, isStrict,
+                        () =>
+                        {
+                            _ = _asyncTryHandlers.Pop();
+                            return RunFinally(onCompleted);
+                        }))
+                {
+                    return;
+                }
+            }
+
+            _asyncTryHandlers.Push(PropagateOrCatch);
+            return ExecuteBlockWithAwaitInTry(statement.TryBlock, env, isStrict,
+                () =>
+                {
+                    _ = _asyncTryHandlers.Pop();
+                    return RunFinally(onCompleted);
+                });
+        }
+
+        private static void BindCatchValue(CatchClause catchClause, JsValue thrownValue, JsEnvironment catchEnv)
+        {
+            if (catchClause.Binding is null)
+            {
+                return;
+            }
+
+            if (catchClause.Binding is IdentifierBinding identifierBinding)
+            {
+                catchEnv.SetSimpleCatchParameters(
+                    new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance) { identifierBinding.Name });
+                catchEnv.DefineJsValue(identifierBinding.Name, thrownValue, isLexicalBinding: true,
+                    blocksFunctionScopeOverride: false);
+                return;
+            }
+
+            throw new NotSupportedException(
+                "Async module execution only supports identifier catch bindings when try/catch contains await.");
         }
 
         private bool TryEvaluateForStatementWithAwait(ForStatement statement, JsEnvironment env, bool isStrict)

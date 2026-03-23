@@ -973,11 +973,19 @@ public static partial class TypedAstEvaluator
                 SuperBinding? lexicalSuperBinding = null;
                 if (_superConstructor is not null || _superPrototype is not null)
                 {
-                    lexicalSuperBinding = new SuperBinding(_superConstructor, _superPrototype, thisValue, true);
+                    lexicalSuperBinding = new SuperBinding(
+                        _superConstructor,
+                        _superPrototype,
+                        boundThis,
+                        lexicalThisInitialized);
                 }
                 else if (_closure.TryGetObject<SuperBinding>(Symbol.Super, out var inheritedSuperBinding))
                 {
-                    lexicalSuperBinding = inheritedSuperBinding;
+                    lexicalSuperBinding = new SuperBinding(
+                        inheritedSuperBinding.Constructor,
+                        inheritedSuperBinding.Prototype,
+                        boundThis,
+                        lexicalThisInitialized);
                 }
 
                 if (lexicalSuperBinding is not null)

@@ -200,6 +200,19 @@ public static partial class TypedAstEvaluator
                     }
                 }
 
+                AssignmentReference? preResolvedReference = null;
+                if (mode == BindingMode.Assign)
+                {
+                    preResolvedReference = TryPreResolveAssignmentTargetProgram(
+                        property.Target,
+                        environment,
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return;
+                    }
+                }
+
                 if (property.Target is IdentifierBindingTargetProgram identifierForSideEffects)
                 {
                     _ = environment.HasBinding(identifierForSideEffects.Name);
@@ -240,16 +253,23 @@ public static partial class TypedAstEvaluator
                     nameTarget.EnsureHasName(identifierTarget.Name.Name);
                 }
 
-                ApplyBindingTargetProgram(
-                    property.Target,
-                    propertyValue,
-                    environment,
-                    context,
-                    mode,
-                    hasInitializer: property.DefaultProgram is not null || !propertyValue.IsUndefined,
-                    allowNameInference: false,
-                    skipBlockedBindingLookup: mode == BindingMode.DefineVar &&
-                                              property.Target is IdentifierBindingTargetProgram);
+                if (preResolvedReference is { } resolvedReference)
+                {
+                    resolvedReference.SetValue(propertyValue);
+                }
+                else
+                {
+                    ApplyBindingTargetProgram(
+                        property.Target,
+                        propertyValue,
+                        environment,
+                        context,
+                        mode,
+                        hasInitializer: property.DefaultProgram is not null || !propertyValue.IsUndefined,
+                        allowNameInference: false,
+                        skipBlockedBindingLookup: mode == BindingMode.DefineVar &&
+                                                  property.Target is IdentifierBindingTargetProgram);
+                }
                 if (context.ShouldStopEvaluation)
                 {
                     return;
@@ -328,6 +348,20 @@ public static partial class TypedAstEvaluator
             {
                 foreach (var element in binding.Elements)
                 {
+                    AssignmentReference? preResolvedReference = null;
+                    if (mode == BindingMode.Assign && element.Target is not null)
+                    {
+                        preResolvedReference = TryPreResolveAssignmentTargetProgram(
+                            element.Target,
+                            environment,
+                            context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            CloseIteratorOnAbrupt();
+                            return;
+                        }
+                    }
+
                     (JsValue Value, bool Done) next;
                     try
                     {
@@ -372,14 +406,21 @@ public static partial class TypedAstEvaluator
                         nameTarget.EnsureHasName(identifierTarget.Name.Name);
                     }
 
-                    ApplyBindingTargetProgram(
-                        element.Target,
-                        elementValue,
-                        environment,
-                        context,
-                        mode,
-                        hasInitializer: element.DefaultProgram is not null || !next.Done,
-                        allowNameInference: false);
+                    if (preResolvedReference is { } resolvedReference)
+                    {
+                        resolvedReference.SetValue(elementValue);
+                    }
+                    else
+                    {
+                        ApplyBindingTargetProgram(
+                            element.Target,
+                            elementValue,
+                            environment,
+                            context,
+                            mode,
+                            hasInitializer: element.DefaultProgram is not null || !next.Done,
+                            allowNameInference: false);
+                    }
                     if (context.ShouldStopEvaluation)
                     {
                         CloseIteratorOnAbrupt();
@@ -389,6 +430,20 @@ public static partial class TypedAstEvaluator
 
                 if (binding.RestElement is not null)
                 {
+                    AssignmentReference? preResolvedReference = null;
+                    if (mode == BindingMode.Assign)
+                    {
+                        preResolvedReference = TryPreResolveAssignmentTargetProgram(
+                            binding.RestElement,
+                            environment,
+                            context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            CloseIteratorOnAbrupt();
+                            return;
+                        }
+                    }
+
                     var restArray = new JsArray(context.RealmState);
                     while (true)
                     {
@@ -418,13 +473,20 @@ public static partial class TypedAstEvaluator
                         restArray.Push(restNext.Value);
                     }
 
-                    ApplyBindingTargetProgram(
-                        binding.RestElement,
-                        JsValue.FromJsArray(restArray),
-                        environment,
-                        context,
-                        mode,
-                        allowNameInference: false);
+                    if (preResolvedReference is { } resolvedReference)
+                    {
+                        resolvedReference.SetValue(JsValue.FromJsArray(restArray));
+                    }
+                    else
+                    {
+                        ApplyBindingTargetProgram(
+                            binding.RestElement,
+                            JsValue.FromJsArray(restArray),
+                            environment,
+                            context,
+                            mode,
+                            allowNameInference: false);
+                    }
                     if (context.ShouldStopEvaluation)
                     {
                         CloseIteratorOnAbrupt();
@@ -476,6 +538,107 @@ public static partial class TypedAstEvaluator
                     iterator.IteratorClose(context, preserveExistingThrow: context.IsThrow);
                 }
             }
+        }
+
+        private AssignmentReference? TryPreResolveAssignmentTargetProgram(
+            BindingTargetProgram target,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            return target switch
+            {
+                NamedPropertyAssignmentBindingTargetProgram namedProperty =>
+                    PreResolveNamedPropertyAssignmentTargetProgram(namedProperty, environment, context),
+                ComputedPropertyAssignmentBindingTargetProgram computedProperty =>
+                    PreResolveComputedPropertyAssignmentTargetProgram(computedProperty, environment, context),
+                NamedSuperPropertyAssignmentBindingTargetProgram namedSuperProperty =>
+                    PreResolveNamedSuperPropertyAssignmentTargetProgram(namedSuperProperty, environment, context),
+                ComputedSuperPropertyAssignmentBindingTargetProgram computedSuperProperty =>
+                    PreResolveComputedSuperPropertyAssignmentTargetProgram(computedSuperProperty, environment, context),
+                _ => null
+            };
+        }
+
+        private AssignmentReference? PreResolveNamedPropertyAssignmentTargetProgram(
+            NamedPropertyAssignmentBindingTargetProgram targetProgram,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            var target = EvaluateExpressionProgram(targetProgram.TargetProgram, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return null;
+            }
+
+            var propertyOp = new SetNamedPropertyExpressionOp(targetProgram.PropertyName, AllowNameInference: false);
+            return AssignmentReference.ForDelegate(
+                static () => JsValue.Undefined,
+                value => ApplyProgramNamedPropertyAssignment(target, propertyOp, value, context));
+        }
+
+        private AssignmentReference? PreResolveComputedPropertyAssignmentTargetProgram(
+            ComputedPropertyAssignmentBindingTargetProgram targetProgram,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            var target = EvaluateExpressionProgram(targetProgram.TargetProgram, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return null;
+            }
+
+            var propertyKey = EvaluateExpressionProgram(targetProgram.PropertyProgram, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return null;
+            }
+
+            var propertyOp = new SetComputedPropertyExpressionOp(AllowNameInference: false);
+            return AssignmentReference.ForDelegate(
+                static () => JsValue.Undefined,
+                value => ApplyProgramComputedPropertyAssignment(target, propertyKey, propertyOp, value, context));
+        }
+
+        private static AssignmentReference? PreResolveNamedSuperPropertyAssignmentTargetProgram(
+            NamedSuperPropertyAssignmentBindingTargetProgram targetProgram,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            EnsureProgramSuperReference(environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return null;
+            }
+
+            var propertyOp = new SetNamedSuperPropertyExpressionOp(
+                targetProgram.PropertyName,
+                AllowNameInference: false);
+            return AssignmentReference.ForDelegate(
+                static () => JsValue.Undefined,
+                value => ApplyProgramNamedSuperPropertyAssignment(propertyOp, value, environment, context));
+        }
+
+        private AssignmentReference? PreResolveComputedSuperPropertyAssignmentTargetProgram(
+            ComputedSuperPropertyAssignmentBindingTargetProgram targetProgram,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            EnsureProgramSuperReference(environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return null;
+            }
+
+            var propertyKey = EvaluateExpressionProgram(targetProgram.PropertyProgram, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return null;
+            }
+
+            var propertyOp = new SetComputedSuperPropertyExpressionOp(AllowNameInference: false);
+            return AssignmentReference.ForDelegate(
+                static () => JsValue.Undefined,
+                value => ApplyProgramComputedSuperPropertyAssignment(propertyKey, propertyOp, value, environment, context));
         }
 
         private void ApplyNamedPropertyAssignmentTargetProgram(

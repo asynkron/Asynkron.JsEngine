@@ -123,7 +123,7 @@ public sealed partial class FunctionConstructor(IJsObjectLike prototype, RealmSt
             JsValueKind.Null => "null",
             JsValueKind.Boolean => value.NumberValue != 0 ? "true" : "false",
             JsValueKind.Number => NumberToString(value.NumberValue),
-            JsValueKind.String => value.ObjectValue as string ?? string.Empty,
+            JsValueKind.String => value.AsString(),
             JsValueKind.Symbol => throw ThrowTypeError("Cannot convert a Symbol value to a string", evalContext,
                 realmState),
             JsValueKind.BigInt => value.ObjectValue is JsBigInt bigInt

@@ -114,6 +114,57 @@ public sealed class ClassSuperSemanticsTests(ITestOutputHelper output) : Interna
     }
 
     [Fact(Timeout = 2000)]
+    public async Task DerivedConstructor_BindsThisBeforeRunningInstanceFieldInitializers()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var probeCtorThis;
+            var thisDuringField;
+            var thisFromProbe;
+            var thisDuringCtor;
+            var preSuperError;
+
+            class Base {
+              constructor() {
+                try {
+                  probeCtorThis();
+                  return "no-throw";
+                } catch (e) {
+                  return e.name;
+                }
+              }
+            }
+
+            var C = class extends Base {
+              field = (thisDuringField = this, thisFromProbe = probeCtorThis());
+
+              constructor() {
+                probeCtorThis = () => this;
+
+                try {
+                  probeCtorThis();
+                  preSuperError = "no-throw";
+                } catch (e) {
+                  preSuperError = e.name;
+                }
+
+                super();
+                thisDuringCtor = this;
+              }
+            };
+
+            var instance = new C();
+            [preSuperError, thisDuringField === instance, thisFromProbe === instance, thisDuringCtor === instance];
+            """);
+
+        var array = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.Equal("ReferenceError", array.Items[0].AsString());
+        Assert.True(array.Items[1].AsBoolean());
+        Assert.True(array.Items[2].AsBoolean());
+        Assert.True(array.Items[3].AsBoolean());
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task DerivedConstructor_SuperCall_ForwardsNewTarget()
     {
         await using var engine = CreateEngine();
@@ -144,6 +195,64 @@ public sealed class ClassSuperSemanticsTests(ITestOutputHelper output) : Interna
         Assert.Equal(2d, array.Items[3].NumberValue);
         Assert.Equal(3d, array.Items[4].NumberValue);
         Assert.True(array.Items[5].AsBoolean());
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task DerivedConstructor_ReturningPrimitiveAfterSuper_ThrowsTypeErrorOutsideBody()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+              constructor() {}
+            }
+
+            class Derived extends Base {
+              constructor() {
+                super();
+
+                try {
+                  return 0;
+                } catch (e) {
+                  return e.name;
+                }
+              }
+            }
+
+            try {
+              new Derived();
+              return "no-throw";
+            } catch (e) {
+              return e.name;
+            }
+            """);
+
+        Assert.Equal("TypeError", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task DerivedConstructor_ReturningUndefinedWithoutSuper_ThrowsReferenceError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+              constructor() {}
+            }
+
+            class Derived extends Base {
+              constructor() {
+                return;
+              }
+            }
+
+            try {
+              new Derived();
+              return "no-throw";
+            } catch (e) {
+              return e.name;
+            }
+            """);
+
+        Assert.Equal("ReferenceError", result);
     }
 
     [Fact(Timeout = 2000)]

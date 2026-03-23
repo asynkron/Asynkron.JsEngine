@@ -1554,7 +1554,8 @@ internal static class GeneratorYieldLowerer
                     return false;
             }
 
-            if (!AstShapeAnalyzer.BindingTargetContainsYieldInDefaultValue(target))
+            if (!AstShapeAnalyzer.BindingTargetContainsYieldInDefaultValue(target) &&
+                !BindingTargetContainsYieldInAssignmentTarget(target))
             {
                 return false;
             }
@@ -1693,6 +1694,7 @@ internal static class GeneratorYieldLowerer
             // Step 1: Create the iterator
             // let __iter = __temp[Symbol.iterator]();
             var iterSymbol = CreateResumeIdentifier();
+            var iteratorDoneSymbol = CreateResumeIdentifier();
             // Symbol.iterator access: get the iterator well-known symbol
             var symbolIteratorAccess = new MemberExpression(
                 null,
@@ -1716,83 +1718,47 @@ internal static class GeneratorYieldLowerer
                 VariableKind.Let,
                 [new VariableDeclarator(null, iterSymbol, getIteratorCall)]));
 
-            // Step 2: Process each element
-            for (var i = 0; i < arrayBinding.Elements.Length; i++)
-            {
-                var element = arrayBinding.Elements[i];
+            statements.Add(new VariableDeclaration(
+                null,
+                VariableKind.Let,
+                [new VariableDeclarator(null, iteratorDoneSymbol, new LiteralExpression(null, JsValue.False))]));
 
-                // Handle elision (empty slot like [,a])
+            var tryStatements = ImmutableArray.CreateBuilder<StatementNode>();
+
+            // Step 2: Process each element
+            foreach (var element in arrayBinding.Elements)
+            {
                 if (element.Target is null)
                 {
-                    // Just advance the iterator
-                    // let __skipN = __iter.next();
-                    var skipSymbol = CreateResumeIdentifier();
-                    var skipNextCall = new CallExpression(
-                        null,
-                        new MemberExpression(
-                            null,
-                            new IdentifierExpression(null, iterSymbol.Name),
-                            new LiteralExpression(null, JsValue.FromString("next")),
-                            false,
-                            false),
-                        ImmutableArray<CallArgument>.Empty,
-                        false);
-                    statements.Add(new VariableDeclaration(
-                        null,
-                        VariableKind.Let,
-                        [new VariableDeclarator(null, skipSymbol, skipNextCall)]));
+                    EmitIteratorAdvance(iterSymbol, iteratorDoneSymbol, tryStatements, isStrict);
                     continue;
                 }
 
-                // Step 2a: Call iterator.next()
-                // let __nextN = __iter.next();
-                var nextSymbol = CreateResumeIdentifier();
-                var nextCall = new CallExpression(
-                    null,
-                    new MemberExpression(
-                        null,
-                        new IdentifierExpression(null, iterSymbol.Name),
-                        new LiteralExpression(null, JsValue.FromString("next")),
-                        false,
-                        false),
-                    ImmutableArray<CallArgument>.Empty,
-                    false);
-                statements.Add(new VariableDeclaration(
-                    null,
-                    VariableKind.Let,
-                    [new VariableDeclarator(null, nextSymbol, nextCall)]));
+                var elementTarget = element.Target;
+                if (varKind is null &&
+                    elementTarget is AssignmentTargetBinding directAssignmentTarget &&
+                    !TryPreResolveAssignmentTargetBinding(
+                        directAssignmentTarget,
+                        tryStatements,
+                        out elementTarget))
+                {
+                    return false;
+                }
 
-                // Step 2b: Extract value: __valN = __nextN.done ? undefined : __nextN.value
                 var valSymbol = CreateResumeIdentifier();
-                var doneAccess = new MemberExpression(
-                    null,
-                    new IdentifierExpression(null, nextSymbol.Name),
-                    new LiteralExpression(null, JsValue.FromString("done")),
-                    false,
-                    false);
-                var valueAccess = new MemberExpression(
-                    null,
-                    new IdentifierExpression(null, nextSymbol.Name),
-                    new LiteralExpression(null, JsValue.FromString("value")),
-                    false,
-                    false);
-                var valConditional = new ConditionalExpression(
-                    null,
-                    doneAccess,
-                    new IdentifierExpression(null, Symbol.Intern("undefined")),
-                    valueAccess);
-                statements.Add(new VariableDeclaration(
-                    null,
-                    VariableKind.Let,
-                    [new VariableDeclarator(null, valSymbol, valConditional)]));
+                EmitIteratorNextValue(
+                    iterSymbol,
+                    iteratorDoneSymbol,
+                    valSymbol,
+                    tryStatements,
+                    isStrict);
 
-                // Step 2c: Handle the binding target with default value
                 if (!TryLowerBindingTargetWithOptionalDefault(
-                        element.Target,
+                        elementTarget,
                         element.DefaultValue,
                         varKind,
                         valSymbol,
-                        statements,
+                        tryStatements,
                         isStrict))
                 {
                     return false;
@@ -1802,11 +1768,98 @@ internal static class GeneratorYieldLowerer
             // Step 3: Handle rest element if present
             if (arrayBinding.RestElement is not null)
             {
-                // For rest element, collect remaining values into an array
-                // This is more complex - for now, return false to fall back to AST evaluation
-                // TODO: Implement rest element lowering
-                return false;
+                var restTarget = arrayBinding.RestElement;
+                if (varKind is null &&
+                    restTarget is AssignmentTargetBinding directAssignmentTarget &&
+                    !TryPreResolveAssignmentTargetBinding(
+                        directAssignmentTarget,
+                        tryStatements,
+                        out restTarget))
+                {
+                    return false;
+                }
+
+                var restArraySymbol = CreateResumeIdentifier();
+                tryStatements.Add(new VariableDeclaration(
+                    null,
+                    VariableKind.Let,
+                    [new VariableDeclarator(
+                        null,
+                        restArraySymbol,
+                        new ArrayExpression(null, ImmutableArray<ArrayElement>.Empty))]));
+
+                var loopStatements = ImmutableArray.CreateBuilder<StatementNode>();
+                loopStatements.Add(new IfStatement(
+                    null,
+                    new BinaryExpression(
+                        null,
+                        BinaryOperator.StrictEqual,
+                        new IdentifierExpression(null, iteratorDoneSymbol.Name),
+                        new LiteralExpression(null, JsValue.True)),
+                    new BreakStatement(null, null),
+                    null));
+
+                var restNextSymbol = CreateResumeIdentifier();
+                loopStatements.Add(new VariableDeclaration(
+                    null,
+                    VariableKind.Let,
+                    [new VariableDeclarator(null, restNextSymbol, CreateIteratorNextCall(iterSymbol))]));
+
+                var restDoneAccess = CreateMemberAccess(restNextSymbol, "done");
+                loopStatements.Add(new IfStatement(
+                    null,
+                    restDoneAccess,
+                    new BlockStatement(
+                        null,
+                        [
+                            new ExpressionStatement(
+                                null,
+                                new AssignmentExpression(
+                                    null,
+                                    iteratorDoneSymbol.Name,
+                                    new LiteralExpression(null, JsValue.True))),
+                            new BreakStatement(null, null)
+                        ],
+                        isStrict),
+                    null));
+
+                var restValueAccess = CreateMemberAccess(restNextSymbol, "value");
+                var pushCall = new CallExpression(
+                    null,
+                    new MemberExpression(
+                        null,
+                        new IdentifierExpression(null, restArraySymbol.Name),
+                        new LiteralExpression(null, JsValue.FromString("push")),
+                        false,
+                        false),
+                    [new CallArgument(null, restValueAccess, false)],
+                    false);
+                loopStatements.Add(new ExpressionStatement(null, pushCall));
+
+                tryStatements.Add(new WhileStatement(
+                    null,
+                    new LiteralExpression(null, JsValue.True),
+                    new BlockStatement(null, loopStatements.ToImmutable(), isStrict)));
+
+                if (!TryLowerBindingTargetWithOptionalDefault(
+                        restTarget,
+                        null,
+                        varKind,
+                        restArraySymbol,
+                        tryStatements,
+                        isStrict))
+                {
+                    return false;
+                }
             }
+
+            var finallyStatements = ImmutableArray.CreateBuilder<StatementNode>();
+            EmitIteratorCloseFinally(iterSymbol, iteratorDoneSymbol, finallyStatements, isStrict);
+            statements.Add(new TryStatement(
+                null,
+                new BlockStatement(null, tryStatements.ToImmutable(), isStrict),
+                null,
+                new BlockStatement(null, finallyStatements.ToImmutable(), isStrict)));
 
             return true;
         }
@@ -1829,6 +1882,17 @@ internal static class GeneratorYieldLowerer
             // Process each property
             foreach (var prop in objectBinding.Properties)
             {
+                var propertyTarget = prop.Target;
+                if (varKind is null &&
+                    propertyTarget is AssignmentTargetBinding directAssignmentTarget &&
+                    !TryPreResolveAssignmentTargetBinding(
+                        directAssignmentTarget,
+                        statements,
+                        out propertyTarget))
+                {
+                    return false;
+                }
+
                 // Step 1: Get the property value
                 // let __propVal = __temp.propertyName;
                 var propValSymbol = CreateResumeIdentifier();
@@ -1851,7 +1915,7 @@ internal static class GeneratorYieldLowerer
 
                 // Step 2: Handle the binding target with default value
                 if (!TryLowerBindingTargetWithOptionalDefault(
-                        prop.Target,
+                        propertyTarget,
                         prop.DefaultValue,
                         varKind,
                         propValSymbol,
@@ -2200,6 +2264,295 @@ internal static class GeneratorYieldLowerer
                 null,
                 CreateAssignmentExpressionFromLhs(rewrittenTarget, valueExpression)));
             return true;
+        }
+
+        private bool TryPreResolveAssignmentTargetBinding(
+            AssignmentTargetBinding assignmentTarget,
+            ImmutableArray<StatementNode>.Builder statements,
+            out BindingTarget rewrittenTarget)
+        {
+            var rewrittenExpression = PreResolveAssignmentTargetExpression(assignmentTarget.Expression, statements);
+            if (AstShapeAnalyzer.ContainsYield(rewrittenExpression))
+            {
+                rewrittenTarget = assignmentTarget;
+                return false;
+            }
+
+            rewrittenTarget = ReferenceEquals(rewrittenExpression, assignmentTarget.Expression)
+                ? assignmentTarget
+                : assignmentTarget with { Expression = rewrittenExpression };
+            return true;
+        }
+
+        private ExpressionNode PreResolveAssignmentTargetExpression(
+            ExpressionNode expression,
+            ImmutableArray<StatementNode>.Builder statements)
+        {
+            switch (expression)
+            {
+                case MemberExpression member:
+                    {
+                        var target = member.Target;
+                        if (AstShapeAnalyzer.ContainsYield(target))
+                        {
+                            var targetChanged = false;
+                            target = RewriteExpressionForComplexYields(target, statements, ref targetChanged);
+                        }
+
+                        if (ShouldCaptureAssignmentTargetBase(target))
+                        {
+                            target = CaptureExpressionInTemp(target, statements);
+                        }
+
+                        var property = member.Property;
+                        if (member.IsComputed)
+                        {
+                            if (AstShapeAnalyzer.ContainsYield(property))
+                            {
+                                var propertyChanged = false;
+                                property = RewriteExpressionForComplexYields(property, statements, ref propertyChanged);
+                            }
+
+                            property = CaptureExpressionInTemp(property, statements);
+                        }
+
+                        return member with { Target = target, Property = property };
+                    }
+
+                default:
+                    if (AstShapeAnalyzer.ContainsYield(expression))
+                    {
+                        var changed = false;
+                        return RewriteExpressionForComplexYields(expression, statements, ref changed);
+                    }
+
+                    return expression;
+            }
+        }
+
+        private IdentifierExpression CaptureExpressionInTemp(
+            ExpressionNode expression,
+            ImmutableArray<StatementNode>.Builder statements)
+        {
+            var tempSymbol = CreateResumeIdentifier();
+            statements.Add(new VariableDeclaration(
+                null,
+                VariableKind.Let,
+                [new VariableDeclarator(null, tempSymbol, expression)]));
+            return new IdentifierExpression(null, tempSymbol.Name);
+        }
+
+        private static bool ShouldCaptureAssignmentTargetBase(ExpressionNode target)
+        {
+            return target is not (IdentifierExpression or ThisExpression or SuperExpression);
+        }
+
+        private static CallExpression CreateIteratorNextCall(IdentifierBinding iterSymbol)
+        {
+            return new CallExpression(
+                null,
+                new MemberExpression(
+                    null,
+                    new IdentifierExpression(null, iterSymbol.Name),
+                    new LiteralExpression(null, JsValue.FromString("next")),
+                    false,
+                    false),
+                ImmutableArray<CallArgument>.Empty,
+                false);
+        }
+
+        private static MemberExpression CreateMemberAccess(IdentifierBinding targetSymbol, string propertyName)
+        {
+            return new MemberExpression(
+                null,
+                new IdentifierExpression(null, targetSymbol.Name),
+                new LiteralExpression(null, JsValue.FromString(propertyName)),
+                false,
+                false);
+        }
+
+        private void EmitIteratorAdvance(
+            IdentifierBinding iterSymbol,
+            IdentifierBinding iteratorDoneSymbol,
+            ImmutableArray<StatementNode>.Builder statements,
+            bool isStrict)
+        {
+            var skipNextSymbol = CreateResumeIdentifier();
+            statements.Add(new IfStatement(
+                null,
+                new BinaryExpression(
+                    null,
+                    BinaryOperator.StrictEqual,
+                    new IdentifierExpression(null, iteratorDoneSymbol.Name),
+                    new LiteralExpression(null, JsValue.False)),
+                new BlockStatement(
+                    null,
+                    [
+                        new VariableDeclaration(
+                            null,
+                            VariableKind.Let,
+                            [new VariableDeclarator(null, skipNextSymbol, CreateIteratorNextCall(iterSymbol))]),
+                        new IfStatement(
+                            null,
+                            CreateMemberAccess(skipNextSymbol, "done"),
+                            new ExpressionStatement(
+                                null,
+                                new AssignmentExpression(
+                                    null,
+                                    iteratorDoneSymbol.Name,
+                                    new LiteralExpression(null, JsValue.True))),
+                            null)
+                    ],
+                    isStrict),
+                null));
+        }
+
+        private void EmitIteratorNextValue(
+            IdentifierBinding iterSymbol,
+            IdentifierBinding iteratorDoneSymbol,
+            IdentifierBinding valueSymbol,
+            ImmutableArray<StatementNode>.Builder statements,
+            bool isStrict)
+        {
+            statements.Add(new VariableDeclaration(
+                null,
+                VariableKind.Let,
+                [new VariableDeclarator(
+                    null,
+                    valueSymbol,
+                    new IdentifierExpression(null, Symbol.Intern("undefined")))]));
+
+            var nextSymbol = CreateResumeIdentifier();
+            var doneAccess = CreateMemberAccess(nextSymbol, "done");
+            var valueAccess = CreateMemberAccess(nextSymbol, "value");
+            statements.Add(new IfStatement(
+                null,
+                new BinaryExpression(
+                    null,
+                    BinaryOperator.StrictEqual,
+                    new IdentifierExpression(null, iteratorDoneSymbol.Name),
+                    new LiteralExpression(null, JsValue.False)),
+                new BlockStatement(
+                    null,
+                    [
+                        new VariableDeclaration(
+                            null,
+                            VariableKind.Let,
+                            [new VariableDeclarator(null, nextSymbol, CreateIteratorNextCall(iterSymbol))]),
+                        new IfStatement(
+                            null,
+                            doneAccess,
+                            new ExpressionStatement(
+                                null,
+                                new AssignmentExpression(
+                                    null,
+                                    iteratorDoneSymbol.Name,
+                                    new LiteralExpression(null, JsValue.True))),
+                            new ExpressionStatement(
+                                null,
+                                new AssignmentExpression(
+                                    null,
+                                    valueSymbol.Name,
+                                    valueAccess)))
+                    ],
+                    isStrict),
+                null));
+        }
+
+        private void EmitIteratorCloseFinally(
+            IdentifierBinding iterSymbol,
+            IdentifierBinding iteratorDoneSymbol,
+            ImmutableArray<StatementNode>.Builder statements,
+            bool isStrict)
+        {
+            var returnMethodSymbol = CreateResumeIdentifier();
+            var innerResultSymbol = CreateResumeIdentifier();
+            statements.Add(new IfStatement(
+                null,
+                new BinaryExpression(
+                    null,
+                    BinaryOperator.StrictEqual,
+                    new IdentifierExpression(null, iteratorDoneSymbol.Name),
+                    new LiteralExpression(null, JsValue.False)),
+                new BlockStatement(
+                    null,
+                    [
+                        new VariableDeclaration(
+                            null,
+                            VariableKind.Let,
+                            [new VariableDeclarator(
+                                null,
+                                returnMethodSymbol,
+                                new MemberExpression(
+                                    null,
+                                    new IdentifierExpression(null, iterSymbol.Name),
+                                    new LiteralExpression(null, JsValue.FromString("return")),
+                                    false,
+                                    false))]),
+                        new IfStatement(
+                            null,
+                            new BinaryExpression(
+                                null,
+                                BinaryOperator.LogicalAnd,
+                                new BinaryExpression(
+                                    null,
+                                    BinaryOperator.StrictNotEqual,
+                                    new IdentifierExpression(null, returnMethodSymbol.Name),
+                                    new IdentifierExpression(null, Symbol.Intern("undefined"))),
+                                new BinaryExpression(
+                                    null,
+                                    BinaryOperator.StrictNotEqual,
+                                    new IdentifierExpression(null, returnMethodSymbol.Name),
+                                    new LiteralExpression(null, JsValue.Null))),
+                            new BlockStatement(
+                                null,
+                                [
+                                    new VariableDeclaration(
+                                        null,
+                                        VariableKind.Let,
+                                        [new VariableDeclarator(
+                                            null,
+                                            innerResultSymbol,
+                                            new CallExpression(
+                                                null,
+                                                new MemberExpression(
+                                                    null,
+                                                    new IdentifierExpression(null, returnMethodSymbol.Name),
+                                                    new LiteralExpression(null, JsValue.FromString("call")),
+                                                    false,
+                                                    false),
+                                                [new CallArgument(
+                                                    null,
+                                                    new IdentifierExpression(null, iterSymbol.Name),
+                                                    false)],
+                                                false))]),
+                                    new IfStatement(
+                                        null,
+                                        new BinaryExpression(
+                                            null,
+                                            BinaryOperator.StrictNotEqual,
+                                            new CallExpression(
+                                                null,
+                                                new IdentifierExpression(null, Symbol.Intern("Object")),
+                                                [new CallArgument(
+                                                    null,
+                                                    new IdentifierExpression(null, innerResultSymbol.Name),
+                                                    false)],
+                                                false),
+                                            new IdentifierExpression(null, innerResultSymbol.Name)),
+                                        new ThrowStatement(
+                                            null,
+                                            new NewExpression(
+                                                null,
+                                                new IdentifierExpression(null, Symbol.Intern("TypeError")),
+                                                ImmutableArray<CallArgument>.Empty)),
+                                        null)
+                                ],
+                                isStrict),
+                            null)
+                    ],
+                    isStrict),
+                null));
         }
 
         private IdentifierBinding PrepareDefaultValueSource(
@@ -2710,27 +3063,10 @@ internal static class GeneratorYieldLowerer
                 return false;
             }
 
-            // If yields are in assignment target expressions (like [ ...{}[yield] ]), we
-            // cannot extract them. The yield must happen AFTER the for-of's outer iterator
-            // begins so that iterator close semantics work correctly.
-            if (BindingTargetContainsYieldInAssignmentTarget(forEachStatement.Target))
-            {
-                return false;
-            }
-
-            // Check if yields are in default values - requires full destructuring lowering
+            // Yields in defaults and assignment target expressions both require full destructuring
+            // lowering so the target evaluation happens after the for-of iterator is opened.
             var hasYieldInDefaults = AstShapeAnalyzer.BindingTargetContainsYieldInDefaultValue(forEachStatement.Target);
-
-            // For for-of loops, we can't safely lower nested binding patterns (ArrayBinding/ObjectBinding)
-            // that have yields in their defaults, because the iterator close semantics are complex.
-            // When generator.return() is called while suspended at a yield, both the for-of iterator
-            // AND any nested destructuring iterators need to be closed properly.
-            // The AST evaluation path handles this correctly via state-saving.
-            // Example: for ([ {} = yield ] of [iterable]) - the {} creates a nested iterator
-            if (hasYieldInDefaults && BindingHasNestedPatternWithYieldInDefault(forEachStatement.Target))
-            {
-                return false;
-            }
+            var hasYieldInAssignmentTarget = BindingTargetContainsYieldInAssignmentTarget(forEachStatement.Target);
 
             // Create a temporary identifier for the iteration value
             var iterTemp = CreateResumeIdentifier();
@@ -2738,10 +3074,10 @@ internal static class GeneratorYieldLowerer
             // Build the new loop body statements
             var newBodyStatements = ImmutableArray.CreateBuilder<StatementNode>();
 
-            if (hasYieldInDefaults)
+            if (hasYieldInDefaults || hasYieldInAssignmentTarget)
             {
-                // For yields in defaults, we need to fully lower the destructuring using
-                // the same approach as TryRewriteDestructuringWithYieldDefaults.
+                // For yields in defaults or assignment target evaluation, we need to fully lower
+                // the destructuring using the same approach as TryRewriteDestructuringWithYieldDefaults.
                 // This generates explicit iterator/property access with conditional yields.
                 // Pass null for varKind when this is an assignment (non-declaration) for-of,
                 // so that TryLowerIdentifierBindingWithDefault uses assignment instead of declaration.

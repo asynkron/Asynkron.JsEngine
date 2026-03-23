@@ -180,28 +180,49 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
             var isDerivedClassConstructor = _callable is SyncFunctionInvoker { IsDerivedClassConstructor: true };
-            var thisValueForEnvironment = isDerivedClassConstructor ? JsValue.Uninitialized : boundThis;
-            functionEnvironment.DefineJsValue(Symbol.This, thisValueForEnvironment);
-            functionEnvironment.SetThisInitializationStatus(!isDerivedClassConstructor);
-            if (isDerivedClassConstructor)
+            var isArrowFunction = _function.IsArrow;
+            var arrowThisInitialized = true;
+            if (isArrowFunction)
             {
-                generatorContext.MarkThisUninitialized();
+                var lexicalThis = _thisValue;
+                if (_lexicalThisEnvironment is not null &&
+                    _lexicalThisEnvironment.TryFindBindingJsValue(Symbol.This, true, out _, out var lexicalEnvThis))
+                {
+                    lexicalThis = lexicalEnvThis;
+                }
+
+                arrowThisInitialized = !lexicalThis.IsUninitialized;
+                boundThis = arrowThisInitialized ? lexicalThis : JsValue.Undefined;
+            }
+
+            var thisValueForEnvironment = isArrowFunction
+                ? boundThis
+                : isDerivedClassConstructor
+                    ? JsValue.Uninitialized
+                    : boundThis;
+            var thisInitialized = isArrowFunction ? arrowThisInitialized : !isDerivedClassConstructor;
+
+            functionEnvironment.DefineJsValue(Symbol.This, thisValueForEnvironment);
+            functionEnvironment.SetThisInitializationStatus(thisInitialized);
+            if (thisInitialized)
+            {
+                generatorContext.MarkThisInitialized();
             }
             else
             {
-                generatorContext.MarkThisInitialized();
+                generatorContext.MarkThisUninitialized();
             }
 
             // For arrow functions with captured lexical this environment, define LexicalThisEnvironment
             // so super() calls can update the correct this binding in the original constructor
-            if (_function.IsArrow && _lexicalThisEnvironment is not null)
+            if (isArrowFunction && _lexicalThisEnvironment is not null)
             {
                 functionEnvironment.DefineJsValue(Symbol.LexicalThisEnvironment,
                     JsValue.FromObjectUnsafe(_lexicalThisEnvironment));
             }
 
             // Define new.target for non-arrow functions so inner arrow functions can access it lexically
-            if (!_function.IsArrow)
+            if (!isArrowFunction)
             {
                 var newTargetValue = _newTarget.IsUndefined ? JsValue.Undefined : _newTarget;
                 functionEnvironment.DefineJsValue(Symbol.NewTarget, newTargetValue, true, isLexicalBinding: true,
@@ -228,8 +249,12 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 var superBinding = new SuperBinding(
                     superConstructor,
                     superPrototype,
-                    isDerivedClassConstructor ? JsValue.Undefined : boundThis,
-                    !isDerivedClassConstructor);
+                    isArrowFunction
+                        ? boundThis
+                        : isDerivedClassConstructor
+                            ? JsValue.Undefined
+                            : boundThis,
+                    thisInitialized);
                 functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(superBinding));
             }
 

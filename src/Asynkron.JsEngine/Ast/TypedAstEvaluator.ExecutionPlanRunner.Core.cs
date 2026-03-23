@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.StdLib;
 
 #endregion
 
@@ -222,8 +223,7 @@ public static partial class TypedAstEvaluator
                 returnValue = result;
             }
 
-            // For class constructors, apply ES spec [[Construct]] semantics:
-            // If the return value is not an object, return `this` instead.
+            // For class constructors, apply ES spec [[Construct]] semantics.
             if (_callable is not SyncFunctionInvoker syncInvoker || !syncInvoker.IsClassConstructor)
             {
                 return returnValue;
@@ -234,8 +234,31 @@ public static partial class TypedAstEvaluator
                 return returnValue;
             }
 
-            // Otherwise, return `this` from the execution environment.
-            // The execution environment was set up with the correct `this` value by the caller.
+            if (syncInvoker.IsDerivedClassConstructor)
+            {
+                if (!returnValue.IsUndefined)
+                {
+                    throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                        "Derived constructors may only return object or undefined",
+                        _context,
+                        _realmState));
+                }
+
+                if (_executionEnvironment is null ||
+                    !_executionEnvironment.TryGetJsValue(Symbol.This, out var derivedThis) ||
+                    derivedThis.IsUninitialized ||
+                    ReferenceEquals(derivedThis.ObjectValue, JsEnvironment.Uninitialized))
+                {
+                    throw new ThrowSignal(StandardLibrary.CreateReferenceError(
+                        "ReferenceError: this is not defined - must call super() in derived class constructor",
+                        _context,
+                        _realmState));
+                }
+
+                return derivedThis;
+            }
+
+            // Base class constructors ignore non-object returns and yield `this`.
             if (_executionEnvironment is not null &&
                 _executionEnvironment.TryGetJsValue(Symbol.This, out var thisValue))
             {

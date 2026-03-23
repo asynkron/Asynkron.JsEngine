@@ -1694,7 +1694,12 @@ public static partial class TypedAstEvaluator
                 nameTarget.EnsureHasName(propertyName);
             }
 
-            var handle = PropertyHandle.Resolve(target, propertyName, context, context.CurrentScope.IsStrict);
+            var handle = PropertyHandle.Resolve(
+                target,
+                propertyName,
+                context,
+                context.CurrentScope.IsStrict,
+                allowPrivate: false);
             handle.SetValue(value);
         }
 

@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Tests.Helpers;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -554,5 +555,96 @@ public sealed class GeneratorYieldLowererTests(ITestOutputHelper output) : Inter
         var rightId = Assert.IsType<IdentifierExpression>(finalInit.Right);
         Assert.Equal(firstTemp.Name, leftId.Name);
         Assert.Equal(secondTemp.Name, rightId.Name);
+    }
+
+    [Fact]
+    public void Lowerer_RewritesForOfNestedYieldDefaultIntoSimpleTempLoopTarget()
+    {
+        var function = new FunctionExpression(
+            null,
+            Symbol.Intern("g"),
+            ImmutableArray<FunctionParameter>.Empty,
+            new BlockStatement(
+                null,
+                [
+                    new ForEachStatement(
+                        null,
+                        new ArrayBinding(
+                            null,
+                            [
+                                new ArrayBindingElement(
+                                    null,
+                                    new ObjectBinding(null, ImmutableArray<ObjectBindingProperty>.Empty, null),
+                                    new YieldExpression(null, null, false))
+                            ],
+                            null),
+                        new ArrayExpression(
+                            null,
+                            [new ArrayElement(null, new IdentifierExpression(null, Symbol.Intern("iterable")), false)]),
+                        new BlockStatement(null, ImmutableArray<StatementNode>.Empty, false),
+                        ForEachKind.Of,
+                        null)
+                ],
+                false),
+            false,
+            true);
+
+        var loweredResult = GeneratorYieldLowerer.TryLowerToGeneratorFriendlyAst(function, out var lowered,
+            out var reason);
+
+        Assert.True(loweredResult);
+        Assert.Null(reason);
+
+        var loweredLoop = Assert.IsType<ForEachStatement>(Assert.Single(lowered.Body.Statements));
+        var tempTarget = Assert.IsType<IdentifierBinding>(loweredLoop.Target);
+        Assert.StartsWith("__yield_lower_resume", tempTarget.Name.Name, StringComparison.Ordinal);
+        Assert.Equal(VariableKind.Let, loweredLoop.DeclarationKind);
+
+        var loopBody = Assert.IsType<BlockStatement>(loweredLoop.Body);
+        Assert.Contains(loopBody.Statements, static statement => statement is TryStatement);
+        Assert.DoesNotContain(AstTestHelpers.Walk(loopBody, includeSelf: true),
+            static node => node is DestructuringAssignmentExpression);
+        Assert.Contains(loopBody.Statements, static statement => statement is BlockStatement or TryStatement);
+    }
+
+    [Fact]
+    public void Lowerer_RewritesStandaloneNestedYieldDefaultDestructuringWithoutResidualAssignmentPattern()
+    {
+        var function = new FunctionExpression(
+            null,
+            Symbol.Intern("g"),
+            ImmutableArray<FunctionParameter>.Empty,
+            new BlockStatement(
+                null,
+                [
+                    new ExpressionStatement(
+                        null,
+                        new DestructuringAssignmentExpression(
+                            null,
+                            new ArrayBinding(
+                                null,
+                                [
+                                    new ArrayBindingElement(
+                                        null,
+                                        new ObjectBinding(null, ImmutableArray<ObjectBindingProperty>.Empty, null),
+                                        new YieldExpression(null, null, false))
+                                ],
+                                null),
+                            new IdentifierExpression(null, Symbol.Intern("source"))))
+                ],
+                false),
+            false,
+            true);
+
+        var loweredResult = GeneratorYieldLowerer.TryLowerToGeneratorFriendlyAst(function, out var lowered,
+            out var reason);
+
+        Assert.True(loweredResult);
+        Assert.Null(reason);
+
+        Assert.DoesNotContain(AstTestHelpers.Walk(lowered.Body, includeSelf: true),
+            static node => node is DestructuringAssignmentExpression);
+        Assert.Contains(lowered.Body.Statements, static statement => statement is VariableDeclaration);
+        Assert.Contains(lowered.Body.Statements, static statement => statement is TryStatement);
     }
 }

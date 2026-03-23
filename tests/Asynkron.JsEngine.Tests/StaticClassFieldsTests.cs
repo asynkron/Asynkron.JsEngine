@@ -191,6 +191,62 @@ public sealed class StaticClassFieldsTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 2000)]
+    public async Task PublicFieldNamedHashConstructorUsesOrdinaryWritableDescriptor()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            (function () {
+              class C1 {
+                ["#constructor"];
+              }
+
+              class C2 {
+                ["#constructor"] = 42;
+              }
+
+              var c1 = new C1();
+              var c2 = new C2();
+              var d1 = Object.getOwnPropertyDescriptor(c1, "#constructor");
+              var d2 = Object.getOwnPropertyDescriptor(c2, "#constructor");
+              var old1 = c1["#constructor"];
+              var old2 = c2["#constructor"];
+
+              c1["#constructor"] = "updated";
+              c2["#constructor"] = "changed";
+
+              return [
+                d1.value,
+                d1.writable,
+                d1.enumerable,
+                d1.configurable,
+                c1["#constructor"],
+                old1,
+                d2.value,
+                d2.writable,
+                d2.enumerable,
+                d2.configurable,
+                c2["#constructor"],
+                old2
+              ];
+            })();
+            """);
+
+        var array = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.True(array.Items[0].IsUndefined);
+        Assert.True(array.Items[1].AsBoolean());
+        Assert.True(array.Items[2].AsBoolean());
+        Assert.True(array.Items[3].AsBoolean());
+        Assert.Equal("updated", array.Items[4].AsString());
+        Assert.True(array.Items[5].IsUndefined);
+        Assert.Equal(42d, array.Items[6].NumberValue);
+        Assert.True(array.Items[7].AsBoolean());
+        Assert.True(array.Items[8].AsBoolean());
+        Assert.True(array.Items[9].AsBoolean());
+        Assert.Equal("changed", array.Items[10].AsString());
+        Assert.Equal(42d, array.Items[11].NumberValue);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Instance_Method_Cannot_Access_Static_Field_Via_This()
     {
         await using var engine = CreateEngine();

@@ -38,4 +38,98 @@ public sealed class FunctionConstructorTests(ITestOutputHelper output) : Interna
         Assert.Equal(4d, obj["length"]);
         Assert.True(obj["isView"] as bool?);
     }
+
+    [Fact]
+    public async Task NewFunctionCanReturnDistinctPrivateBrandedClasses()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            (function () {
+              let step = 0;
+
+              try {
+                const source = "return class C { #m() { return 'test262'; } access(o) { return o.#m(); } }";
+                function createAndInstantiateClass() {
+                  step = 1;
+                  const factory = new Function(source);
+                  step = 2;
+                  const C = factory();
+                  step = 3;
+                  return new C();
+                }
+
+                const c1 = createAndInstantiateClass();
+                const c2 = createAndInstantiateClass();
+
+                return [
+                  step,
+                  c1.access(c1),
+                  c2.access(c2),
+                  (() => { try { c1.access(c2); return "no-throw"; } catch (e) { return e.name; } })(),
+                  (() => { try { c2.access(c1); return "no-throw"; } catch (e) { return e.name; } })()
+                ];
+              } catch (e) {
+                return ["threw", step, e && e.name, String(e && e.message ? e.message : e)];
+              }
+            })();
+        """);
+
+        var array = Assert.IsType<JsArray>(result);
+        Assert.Equal(3d, array.Items[0].NumberValue);
+        Assert.Equal("test262", array.Items[1].AsString());
+        Assert.Equal("test262", array.Items[2].AsString());
+        Assert.Equal("TypeError", array.Items[3].AsString());
+        Assert.Equal("TypeError", array.Items[4].AsString());
+    }
+
+    [Fact]
+    public async Task NewFunctionReturnedClassStaysConstructableAcrossFreshFactoryCreation()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            (function () {
+              const source = "return class C { #m() { return 'test262'; } access(o) { return o.#m(); } }";
+
+              function inspect() {
+                const factory = new Function(source);
+                const Class = factory();
+                const details = [
+                  typeof factory,
+                  typeof Class,
+                  Object.prototype.hasOwnProperty.call(Class, "prototype"),
+                  typeof Class.prototype
+                ];
+
+                try {
+                  const instance = new Class();
+                  details.push("constructed");
+                  details.push(instance.access(instance));
+                } catch (e) {
+                  details.push(e.name);
+                  details.push(String(e && e.message ? e.message : e));
+                }
+
+                return details;
+              }
+
+              return [inspect(), inspect()];
+            })();
+        """);
+
+        var runs = Assert.IsType<JsArray>(result);
+        Assert.Equal(2, runs.Items.Count);
+
+        foreach (var run in runs.Items)
+        {
+            Assert.True(run.TryGetObject<JsArray>(out var details));
+            Assert.Equal("function", details.Items[0].AsString());
+            Assert.Equal("function", details.Items[1].AsString());
+            Assert.True(details.Items[2].AsBoolean());
+            Assert.Equal("object", details.Items[3].AsString());
+            Assert.Equal("constructed", details.Items[4].AsString());
+            Assert.Equal("test262", details.Items[5].AsString());
+        }
+    }
 }

@@ -2484,6 +2484,8 @@ internal static class GeneratorYieldLowerer
             ImmutableArray<StatementNode>.Builder statements,
             bool isStrict)
         {
+            var returnMethodSymbol = CreateResumeIdentifier();
+            var innerResultSymbol = CreateResumeIdentifier();
             statements.Add(new IfStatement(
                 null,
                 new BinaryExpression(
@@ -2494,25 +2496,79 @@ internal static class GeneratorYieldLowerer
                 new BlockStatement(
                     null,
                     [
-                        // Mark the iterator as closed before invoking return(). If IteratorClose
-                        // throws while unwinding a generator, the same finally block can be
-                        // revisited; this one-shot guard keeps the lowered close path idempotent.
-                        new ExpressionStatement(
+                        new VariableDeclaration(
                             null,
-                            new AssignmentExpression(
+                            VariableKind.Let,
+                            [new VariableDeclarator(
                                 null,
-                                iteratorDoneSymbol.Name,
-                                new LiteralExpression(null, JsValue.True))),
-                        new ExpressionStatement(
-                            null,
-                            new CallExpression(
-                                null,
-                                new IdentifierExpression(null, Symbol.YieldIteratorCloseHelperSymbol),
-                                [new CallArgument(
+                                returnMethodSymbol,
+                                new MemberExpression(
                                     null,
                                     new IdentifierExpression(null, iterSymbol.Name),
-                                    false)],
-                                false))
+                                    new LiteralExpression(null, JsValue.FromString("return")),
+                                    false,
+                                    false))]),
+                        new IfStatement(
+                            null,
+                            new BinaryExpression(
+                                null,
+                                BinaryOperator.LogicalAnd,
+                                new BinaryExpression(
+                                    null,
+                                    BinaryOperator.StrictNotEqual,
+                                    new IdentifierExpression(null, returnMethodSymbol.Name),
+                                    new IdentifierExpression(null, Symbol.Intern("undefined"))),
+                                new BinaryExpression(
+                                    null,
+                                    BinaryOperator.StrictNotEqual,
+                                    new IdentifierExpression(null, returnMethodSymbol.Name),
+                                    new LiteralExpression(null, JsValue.Null))),
+                            new BlockStatement(
+                                null,
+                                [
+                                    new VariableDeclaration(
+                                        null,
+                                        VariableKind.Let,
+                                        [new VariableDeclarator(
+                                            null,
+                                            innerResultSymbol,
+                                            new CallExpression(
+                                                null,
+                                                new MemberExpression(
+                                                    null,
+                                                    new IdentifierExpression(null, returnMethodSymbol.Name),
+                                                    new LiteralExpression(null, JsValue.FromString("call")),
+                                                    false,
+                                                    false),
+                                                [new CallArgument(
+                                                    null,
+                                                    new IdentifierExpression(null, iterSymbol.Name),
+                                                    false)],
+                                                false))]),
+                                    new IfStatement(
+                                        null,
+                                        new BinaryExpression(
+                                            null,
+                                            BinaryOperator.StrictNotEqual,
+                                            new CallExpression(
+                                                null,
+                                                new IdentifierExpression(null, Symbol.Intern("Object")),
+                                                [new CallArgument(
+                                                    null,
+                                                    new IdentifierExpression(null, innerResultSymbol.Name),
+                                                    false)],
+                                                false),
+                                            new IdentifierExpression(null, innerResultSymbol.Name)),
+                                        new ThrowStatement(
+                                            null,
+                                            new NewExpression(
+                                                null,
+                                                new IdentifierExpression(null, Symbol.Intern("TypeError")),
+                                                ImmutableArray<CallArgument>.Empty)),
+                                        null)
+                                ],
+                                isStrict),
+                            null)
                     ],
                     isStrict),
                 null));

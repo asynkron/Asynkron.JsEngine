@@ -155,7 +155,7 @@ internal static class ExpressionStatementEmitter
                 assignment.Target,
                 ValueExpression: assignment.Value,
                 SuppressCompletionValue: suppressCompletion,
-                AllowNameInference: !IsParenthesizedIdentifierAssignment(assignment)));
+                AllowNameInference: ShouldAllowAssignmentNameInference(assignment)));
             return true;
         }
 
@@ -179,7 +179,7 @@ internal static class ExpressionStatementEmitter
                 logicalBinary.Operator,
                 RhsExpression: logicalBinary.Right,
                 SuppressCompletionValue: suppressCompletion,
-                AllowNameInference: !IsParenthesizedIdentifierAssignment(logicalCompoundAssign)));
+                AllowNameInference: ShouldAllowAssignmentNameInference(logicalCompoundAssign)));
             return true;
         }
 
@@ -230,6 +230,23 @@ internal static class ExpressionStatementEmitter
         }
 
         return index >= 0 && source[index] == '(';
+    }
+
+    private static bool ShouldAllowAssignmentNameInference(AssignmentExpression expression)
+    {
+        return IsAnonymousFunctionDefinitionForNameInference(expression.Value) &&
+               !IsParenthesizedIdentifierAssignment(expression);
+    }
+
+    private static bool IsAnonymousFunctionDefinitionForNameInference(ExpressionNode? expression)
+    {
+        return expression switch
+        {
+            SequenceExpression => false,
+            FunctionExpression { Name: null } => true,
+            ClassExpression { Name: null } => true,
+            _ => false
+        };
     }
 
     private static bool TryEmitSequenceExpressionStatement(

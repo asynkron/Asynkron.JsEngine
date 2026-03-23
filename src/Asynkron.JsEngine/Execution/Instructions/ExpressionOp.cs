@@ -28,6 +28,7 @@ internal enum ExpressionOpKind : byte
     ArrayPushHole,
     ArraySpread,
     CreateObject,
+    ResolvePropertyKey,
     DefineObjectProperty,
     DefineComputedObjectProperty,
     DefineObjectMethod,
@@ -185,10 +186,16 @@ internal sealed record ArraySpreadExpressionOp()
 internal sealed record CreateObjectExpressionOp()
     : ExpressionOp(ExpressionOpKind.CreateObject);
 
-internal sealed record DefineObjectPropertyExpressionOp(string PropertyName, bool IsPrototypeMutation = false)
+internal sealed record ResolvePropertyKeyExpressionOp()
+    : ExpressionOp(ExpressionOpKind.ResolvePropertyKey);
+
+internal sealed record DefineObjectPropertyExpressionOp(
+    string PropertyName,
+    bool IsPrototypeMutation = false,
+    bool AllowNameInference = false)
     : ExpressionOp(ExpressionOpKind.DefineObjectProperty);
 
-internal sealed record DefineComputedObjectPropertyExpressionOp()
+internal sealed record DefineComputedObjectPropertyExpressionOp(bool AllowNameInference = false)
     : ExpressionOp(ExpressionOpKind.DefineComputedObjectProperty);
 
 internal sealed record DefineObjectMethodExpressionOp(string PropertyName)

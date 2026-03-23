@@ -338,6 +338,7 @@ internal static class ExecutionPlanPrinter
             ArrayPushHoleExpressionOp => "arr.hole",
             ArraySpreadExpressionOp => "arr.spread",
             CreateObjectExpressionOp => "obj{}",
+            ResolvePropertyKeyExpressionOp => "propkey",
             DefineObjectPropertyExpressionOp property => $"obj.{property.PropertyName}",
             DefineComputedObjectPropertyExpressionOp => "obj[]",
             DefineObjectMethodExpressionOp method => $"obj.method:{method.PropertyName}",

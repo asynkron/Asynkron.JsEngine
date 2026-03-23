@@ -434,6 +434,12 @@ public static partial class TypedAstEvaluator
                                 break;
                             }
 
+                        case ResolvePropertyKeyExpressionOp:
+                            stack[stackIndex - 1] = ResolveProgramPropertyKey(stack[stackIndex - 1], context);
+                            stackFlags[stackIndex - 1] = false;
+                            programCounter++;
+                            break;
+
                         case DefineObjectPropertyExpressionOp defineProperty:
                             {
                                 var propertyValue = stack[--stackIndex];
@@ -448,7 +454,7 @@ public static partial class TypedAstEvaluator
                                 break;
                             }
 
-                        case DefineComputedObjectPropertyExpressionOp:
+                        case DefineComputedObjectPropertyExpressionOp defineComputedProperty:
                             {
                                 var propertyValue = stack[--stackIndex];
                                 var propertyKey = stack[--stackIndex];
@@ -458,7 +464,12 @@ public static partial class TypedAstEvaluator
                                         "Computed object property expression op requires an object receiver.");
                                 }
 
-                                DefineComputedObjectLiteralProperty(targetObject, propertyKey, propertyValue, context);
+                                DefineComputedObjectLiteralProperty(
+                                    targetObject,
+                                    propertyKey,
+                                    defineComputedProperty,
+                                    propertyValue,
+                                    context);
                                 programCounter++;
                                 break;
                             }
@@ -1276,6 +1287,11 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
+            if (defineProperty.AllowNameInference)
+            {
+                ApplyObjectLiteralAnonymousFunctionName(propertyValue, defineProperty.PropertyName);
+            }
+
             targetObject.DefineProperty(defineProperty.PropertyName,
                 new PropertyDescriptor
                 {
@@ -1289,6 +1305,7 @@ public static partial class TypedAstEvaluator
         private static void DefineComputedObjectLiteralProperty(
             JsObject targetObject,
             JsValue propertyKey,
+            DefineComputedObjectPropertyExpressionOp defineProperty,
             JsValue propertyValue,
             EvaluationContext context)
         {
@@ -1296,6 +1313,11 @@ public static partial class TypedAstEvaluator
             if (context.ShouldStopEvaluation)
             {
                 return;
+            }
+
+            if (defineProperty.AllowNameInference)
+            {
+                ApplyObjectLiteralAnonymousFunctionName(propertyValue, propertyName);
             }
 
             targetObject.DefineProperty(propertyName,
@@ -1412,6 +1434,32 @@ public static partial class TypedAstEvaluator
             }
 
             return callable;
+        }
+
+        private static JsValue ResolveProgramPropertyKey(JsValue propertyKey, EvaluationContext context)
+        {
+            var propertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
+            return context.ShouldStopEvaluation ? JsValue.Undefined : new JsValue(propertyName);
+        }
+
+        private static void ApplyObjectLiteralAnonymousFunctionName(JsValue propertyValue, string propertyName)
+        {
+            if (propertyValue.ObjectValue is not IFunctionNameTarget nameTarget)
+            {
+                return;
+            }
+
+            nameTarget.EnsureHasName(BuildFunctionNameDisplay(propertyName));
+        }
+
+        private static string BuildFunctionNameDisplay(string propertyName)
+        {
+            if (JsSymbol.TryGetByInternalKey(propertyName, out var symbol))
+            {
+                return symbol!.Description is null ? string.Empty : $"[{symbol.Description}]";
+            }
+
+            return propertyName;
         }
 
         private static void ApplyObjectLiteralSpread(

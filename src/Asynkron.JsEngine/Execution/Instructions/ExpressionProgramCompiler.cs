@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Execution.Instructions;
 
@@ -67,6 +69,8 @@ internal static class ExpressionProgramCompiler
             "Expression bytecode only supports identifier and member update expressions."
                 => ExpressionProgramFailureCode.UnsupportedUpdateTarget,
             "Expression bytecode only supports static string object property names."
+                => ExpressionProgramFailureCode.UnsupportedStaticObjectPropertyName,
+            "Expression bytecode only supports static literal object property names."
                 => ExpressionProgramFailureCode.UnsupportedStaticObjectPropertyName,
             "Computed object property names must use an expression key."
                 => ExpressionProgramFailureCode.InvalidComputedObjectKey,
@@ -695,7 +699,7 @@ internal static class ExpressionProgramCompiler
             expression.ScopeId,
             expression.SlotIndex,
             expression.FlatSlotId,
-            AllowNameInference: !IsParenthesizedIdentifierAssignment(expression)));
+            AllowNameInference: ShouldAllowAssignmentNameInference(expression)));
         failureReason = null;
         return true;
     }
@@ -716,7 +720,7 @@ internal static class ExpressionProgramCompiler
             expression.ScopeId,
             expression.SlotIndex,
             expression.FlatSlotId,
-            AllowNameInference: !IsParenthesizedIdentifierAssignment(expression));
+            AllowNameInference: ShouldAllowAssignmentNameInference(expression));
         var loadOp = new LoadIdentifierExpressionOp(
             expression.Target,
             expression.ScopeId,
@@ -1928,9 +1932,9 @@ internal static class ExpressionProgramCompiler
                             builder.Add(new LoadLiteralExpressionOp(JsValue.Undefined));
                         }
 
-                        if (member.Key is not string propertyName)
+                        if (!TryGetStaticObjectPropertyName(member.Key, out var propertyName))
                         {
-                            failureReason = "Expression bytecode only supports static string object property names.";
+                            failureReason = "Expression bytecode only supports static literal object property names.";
                             return false;
                         }
 
@@ -1938,7 +1942,8 @@ internal static class ExpressionProgramCompiler
                             propertyName,
                             IsPrototypeMutation: member.Kind == ObjectMemberKind.Property &&
                                                  member.Parameter is null &&
-                                                 string.Equals(propertyName, "__proto__", StringComparison.Ordinal)));
+                                                 string.Equals(propertyName, "__proto__", StringComparison.Ordinal),
+                            AllowNameInference: IsAnonymousFunctionDefinitionForNameInference(member.Value)));
                         break;
                     }
 
@@ -1953,6 +1958,8 @@ internal static class ExpressionProgramCompiler
                         return false;
                     }
 
+                    builder.Add(new ResolvePropertyKeyExpressionOp());
+
                     if (member.Value is not null)
                     {
                         if (!TryCompileExpression(member.Value, builder, out failureReason))
@@ -1965,7 +1972,8 @@ internal static class ExpressionProgramCompiler
                         builder.Add(new LoadLiteralExpressionOp(JsValue.Undefined));
                     }
 
-                    builder.Add(new DefineComputedObjectPropertyExpressionOp());
+                    builder.Add(new DefineComputedObjectPropertyExpressionOp(
+                        AllowNameInference: IsAnonymousFunctionDefinitionForNameInference(member.Value)));
                     break;
 
                 case ObjectMemberKind.Method:
@@ -1977,9 +1985,9 @@ internal static class ExpressionProgramCompiler
 
                     if (!member.IsComputed)
                     {
-                        if (member.Key is not string methodName)
+                        if (!TryGetStaticObjectPropertyName(member.Key, out var methodName))
                         {
-                            failureReason = "Expression bytecode only supports static string object property names.";
+                            failureReason = "Expression bytecode only supports static literal object property names.";
                             return false;
                         }
 
@@ -1999,6 +2007,7 @@ internal static class ExpressionProgramCompiler
                         return false;
                     }
 
+                    builder.Add(new ResolvePropertyKeyExpressionOp());
                     builder.Add(new LoadFunctionLiteralExpressionOp(member.Function, IsConstructorFunction: false));
                     builder.Add(new DefineComputedObjectMethodExpressionOp());
                     break;
@@ -2017,9 +2026,9 @@ internal static class ExpressionProgramCompiler
 
                     if (!member.IsComputed)
                     {
-                        if (member.Key is not string accessorName)
+                        if (!TryGetStaticObjectPropertyName(member.Key, out var accessorName))
                         {
-                            failureReason = "Expression bytecode only supports static string object property names.";
+                            failureReason = "Expression bytecode only supports static literal object property names.";
                             return false;
                         }
 
@@ -2039,6 +2048,7 @@ internal static class ExpressionProgramCompiler
                         return false;
                     }
 
+                    builder.Add(new ResolvePropertyKeyExpressionOp());
                     builder.Add(new LoadFunctionLiteralExpressionOp(member.Function, IsConstructorFunction: false));
                     builder.Add(new DefineComputedObjectAccessorExpressionOp(accessorKind));
                     break;
@@ -2141,5 +2151,50 @@ internal static class ExpressionProgramCompiler
         }
 
         return index >= 0 && source[index] == '(';
+    }
+
+    private static bool ShouldAllowAssignmentNameInference(AssignmentExpression expression)
+    {
+        return IsAnonymousFunctionDefinitionForNameInference(expression.Value) &&
+               !IsParenthesizedIdentifierAssignment(expression);
+    }
+
+    private static bool TryGetStaticObjectPropertyName(object key, out string propertyName)
+    {
+        switch (key)
+        {
+            case string value:
+                propertyName = value;
+                return true;
+            case double number:
+                propertyName = number.ToString(CultureInfo.InvariantCulture);
+                return true;
+            case JsBigInt bigInt:
+                propertyName = bigInt.Value.ToString(CultureInfo.InvariantCulture);
+                return true;
+            case bool boolean:
+                propertyName = boolean ? "true" : "false";
+                return true;
+            case null:
+                propertyName = "null";
+                return true;
+            case IFormattable formattable:
+                propertyName = formattable.ToString(null, CultureInfo.InvariantCulture) ?? string.Empty;
+                return true;
+            default:
+                propertyName = key.ToString() ?? string.Empty;
+                return key is not ExpressionNode;
+        }
+    }
+
+    private static bool IsAnonymousFunctionDefinitionForNameInference(ExpressionNode? expression)
+    {
+        return expression switch
+        {
+            SequenceExpression => false,
+            FunctionExpression { Name: null } => true,
+            ClassExpression { Name: null } => true,
+            _ => false
+        };
     }
 }

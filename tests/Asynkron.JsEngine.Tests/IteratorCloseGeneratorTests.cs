@@ -89,6 +89,172 @@ public sealed class IteratorCloseGeneratorTests(ITestOutputHelper output) : Inte
         Assert.Equal(1.0, arr.GetElement(0).AsDouble());
         Assert.True(arr.GetElement(1).AsBoolean());
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorReturn_DestructuringAssignmentTargetYield_ClosesIteratorAndPropagatesReturnError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var returnCount = 0;
+            var unreachable = 0;
+            var iterable = {};
+            var iterator = {
+              return: function() {
+                returnCount += 1;
+                throw new Error("boom");
+              }
+            };
+
+            iterable[Symbol.iterator] = function() {
+              return iterator;
+            };
+
+            function* g() {
+              var result;
+              var vals = iterable;
+              result = [ {}[ yield ] ] = vals;
+              unreachable += 1;
+              return result === vals;
+            }
+
+            var iter = g();
+            iter.next();
+
+            var caught = false;
+            try {
+              iter.return();
+            } catch (e) {
+              caught = e instanceof Error && e.message === "boom";
+            }
+
+            [caught, returnCount, unreachable];
+            """);
+
+        var arr = (JsTypes.JsArray)result!;
+        Assert.True(arr.GetElement(0).AsBoolean());
+        Assert.Equal(1.0, arr.GetElement(1).AsDouble());
+        Assert.Equal(0.0, arr.GetElement(2).AsDouble());
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorReturn_ComputedAssignmentTargetYield_RunsFinally()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var finallyCount = 0;
+            function* g() {
+              try {
+                var target = {};
+                target[yield] = 1;
+              } finally {
+                finallyCount += 1;
+              }
+            }
+
+            var iter = g();
+            iter.next();
+            var returned = iter.return(42);
+
+            [finallyCount, returned.done, returned.value];
+            """);
+
+        var arr = (JsTypes.JsArray)result!;
+        Assert.Equal(1.0, arr.GetElement(0).AsDouble());
+        Assert.True(arr.GetElement(1).AsBoolean());
+        Assert.Equal(42.0, arr.GetElement(2).AsDouble());
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorRestComputedAssignmentTargetYield_ResolvesSyntheticTemps()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g() {
+              var holder = {};
+              var vals = [1, 2];
+              var result;
+              result = [...holder[yield]] = vals;
+              return [result === vals, holder.k.length, holder.k[0], holder.k[1]];
+            }
+
+            var iter = g();
+            var first = iter.next();
+            var second = iter.next("k");
+
+            [first.done, second.done, second.value[0], second.value[1], second.value[2], second.value[3]];
+            """);
+
+        var arr = (JsTypes.JsArray)result!;
+        Assert.False(arr.GetElement(0).AsBoolean());
+        Assert.True(arr.GetElement(1).AsBoolean());
+        Assert.True(arr.GetElement(2).AsBoolean());
+        Assert.Equal(2.0, arr.GetElement(3).AsDouble());
+        Assert.Equal(1.0, arr.GetElement(4).AsDouble());
+        Assert.Equal(2.0, arr.GetElement(5).AsDouble());
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorRestNestedArrayYieldDefault_ResolvesSyntheticTemps()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g() {
+              var captured = "unset";
+              var vals = [[undefined]];
+              var result;
+              result = [...[captured = yield]] = vals;
+              return [result === vals, captured];
+            }
+
+            var iter = g();
+            var first = iter.next();
+            var second = iter.next("ok");
+
+            [
+              first.done,
+              first.value[0],
+              Array.isArray(first.value[1]),
+              first.value[1].length,
+              first.value[1][0] === undefined,
+              second.done
+            ];
+            """);
+
+        var arr = (JsTypes.JsArray)result!;
+        Assert.True(arr.GetElement(0).AsBoolean());
+        Assert.True(arr.GetElement(1).AsBoolean());
+        Assert.True(arr.GetElement(2).AsBoolean());
+        Assert.Equal(1.0, arr.GetElement(3).AsDouble());
+        Assert.True(arr.GetElement(4).AsBoolean());
+        Assert.True(arr.GetElement(5).AsBoolean());
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorRestNestedObjectYieldDefault_ResolvesSyntheticTemps()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g() {
+              var captured = "unset";
+              var vals = [{ }];
+              var result;
+              result = [...[{ x: captured = yield }]] = vals;
+              return [result === vals, captured];
+            }
+
+            var iter = g();
+            var first = iter.next();
+            var second = iter.next("ok");
+
+            [first.done, second.done, second.value[0], second.value[1]];
+            """);
+
+        var arr = (JsTypes.JsArray)result!;
+        Assert.False(arr.GetElement(0).AsBoolean());
+        Assert.True(arr.GetElement(1).AsBoolean());
+        Assert.True(arr.GetElement(2).AsBoolean());
+        Assert.Equal("ok", arr.GetElement(3).AsString());
+    }
 }
 
 public sealed class IteratorCloseGeneratorTests_Test262(ITestOutputHelper output) : InternalTestBase(output)

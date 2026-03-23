@@ -27,10 +27,25 @@ internal static class GeneratorYieldLowerer
 
         lowered = ReferenceEquals(loweredBody, function.Body)
             ? function
-            : function with { Body = loweredBody };
+            : CreateFreshFunction(function, loweredBody);
 
         failureReason = null;
         return true;
+    }
+
+    private static FunctionExpression CreateFreshFunction(FunctionExpression function, BlockStatement loweredBody)
+    {
+        return new FunctionExpression(
+            function.Source,
+            function.Name,
+            function.Parameters,
+            loweredBody,
+            function.IsAsync,
+            function.IsGenerator,
+            function.IsArrow,
+            function.WasAsync,
+            function.IsHoistableDefaultExport,
+            function.IsDefaultDerivedConstructor);
     }
 
     private sealed class LoweringContext
@@ -45,7 +60,7 @@ internal static class GeneratorYieldLowerer
                 return block;
             }
 
-            return block with { Statements = rewritten };
+            return CreateFreshBlock(block.Source, rewritten, block.IsStrict);
         }
 
         private TryStatement RewriteTryStatement(TryStatement tryStatement)
@@ -57,7 +72,8 @@ internal static class GeneratorYieldLowerer
                 var rewrittenCatchBody = RewriteBlock(catchBody);
                 if (!ReferenceEquals(rewrittenCatchBody, catchBody))
                 {
-                    rewrittenCatch = tryStatement.Catch with { Body = rewrittenCatchBody };
+                    rewrittenCatch = new CatchClause(tryStatement.Catch.Source, tryStatement.Catch.Binding,
+                        rewrittenCatchBody);
                 }
             }
 
@@ -78,12 +94,7 @@ internal static class GeneratorYieldLowerer
                 return tryStatement;
             }
 
-            return tryStatement with
-            {
-                TryBlock = rewrittenTryBlock,
-                Catch = rewrittenCatch,
-                Finally = rewrittenFinally
-            };
+            return new TryStatement(tryStatement.Source, rewrittenTryBlock, rewrittenCatch, rewrittenFinally);
         }
 
         private ImmutableArray<StatementNode> RewriteStatements(ImmutableArray<StatementNode> statements, bool isStrict)
@@ -209,6 +220,14 @@ internal static class GeneratorYieldLowerer
             }
 
             return changed ? builder.ToImmutable() : statements;
+        }
+
+        private static BlockStatement CreateFreshBlock(
+            SourceReference? source,
+            ImmutableArray<StatementNode> statements,
+            bool isStrict)
+        {
+            return new BlockStatement(source, statements, isStrict);
         }
 
         private bool TryRewriteClassExpressionUsage(StatementNode statement,
@@ -1002,7 +1021,7 @@ internal static class GeneratorYieldLowerer
                 yieldExpression.Expression,
                 yieldExpression.IsDelegated);
             var declarator = new VariableDeclarator(source, tempBinding, clonedYield);
-            return new VariableDeclaration(source, VariableKind.Let, [declarator]);
+            return new VariableDeclaration(source, VariableKind.Var, [declarator]);
         }
 
         private BindingTarget RewriteBindingTarget(
@@ -1567,7 +1586,7 @@ internal static class GeneratorYieldLowerer
             var tempSymbol = CreateResumeIdentifier();
             statements.Add(new VariableDeclaration(
                 source,
-                VariableKind.Let,
+                VariableKind.Var,
                 [new VariableDeclarator(source, tempSymbol, initializer)]));
 
             // Step 2: Handle the destructuring pattern
@@ -1640,7 +1659,7 @@ internal static class GeneratorYieldLowerer
             var tempSymbol = CreateResumeIdentifier();
             statements.Add(new VariableDeclaration(
                 expressionStatement.Source,
-                VariableKind.Let,
+                VariableKind.Var,
                 [new VariableDeclarator(expressionStatement.Source, tempSymbol, destructuringAssignment.Value)]));
 
             switch (destructuringAssignment.Target)
@@ -1715,12 +1734,12 @@ internal static class GeneratorYieldLowerer
 
             statements.Add(new VariableDeclaration(
                 null,
-                VariableKind.Let,
+                VariableKind.Var,
                 [new VariableDeclarator(null, iterSymbol, getIteratorCall)]));
 
             statements.Add(new VariableDeclaration(
                 null,
-                VariableKind.Let,
+                VariableKind.Var,
                 [new VariableDeclarator(null, iteratorDoneSymbol, new LiteralExpression(null, JsValue.False))]));
 
             var tryStatements = ImmutableArray.CreateBuilder<StatementNode>();
@@ -1782,7 +1801,7 @@ internal static class GeneratorYieldLowerer
                 var restArraySymbol = CreateResumeIdentifier();
                 tryStatements.Add(new VariableDeclaration(
                     null,
-                    VariableKind.Let,
+                    VariableKind.Var,
                     [new VariableDeclarator(
                         null,
                         restArraySymbol,
@@ -1802,7 +1821,7 @@ internal static class GeneratorYieldLowerer
                 var restNextSymbol = CreateResumeIdentifier();
                 loopStatements.Add(new VariableDeclaration(
                     null,
-                    VariableKind.Let,
+                    VariableKind.Var,
                     [new VariableDeclarator(null, restNextSymbol, CreateIteratorNextCall(iterSymbol))]));
 
                 var restDoneAccess = CreateMemberAccess(restNextSymbol, "done");
@@ -1910,7 +1929,7 @@ internal static class GeneratorYieldLowerer
 
                 statements.Add(new VariableDeclaration(
                     null,
-                    VariableKind.Let,
+                    VariableKind.Var,
                     [new VariableDeclarator(null, propValSymbol, propertyAccess)]));
 
                 // Step 2: Handle the binding target with default value
@@ -2213,7 +2232,7 @@ internal static class GeneratorYieldLowerer
 
                 statements.Add(new VariableDeclaration(
                     null,
-                    VariableKind.Let,
+                    VariableKind.Var,
                     [new VariableDeclarator(null, resolvedSymbol, conditional)]));
 
                 return TryEmitAssignmentTargetBindingAssignment(
@@ -2225,7 +2244,7 @@ internal static class GeneratorYieldLowerer
             var resolvedYieldSymbol = CreateResumeIdentifier();
             statements.Add(new VariableDeclaration(
                 null,
-                VariableKind.Let,
+                VariableKind.Var,
                 [new VariableDeclarator(null, resolvedYieldSymbol, null)]));
 
             if (!EmitYieldDefaultConditional(
@@ -2337,7 +2356,7 @@ internal static class GeneratorYieldLowerer
             var tempSymbol = CreateResumeIdentifier();
             statements.Add(new VariableDeclaration(
                 null,
-                VariableKind.Let,
+                VariableKind.Var,
                 [new VariableDeclarator(null, tempSymbol, expression)]));
             return new IdentifierExpression(null, tempSymbol.Name);
         }
@@ -2390,7 +2409,7 @@ internal static class GeneratorYieldLowerer
                     [
                         new VariableDeclaration(
                             null,
-                            VariableKind.Let,
+                            VariableKind.Var,
                             [new VariableDeclarator(null, skipNextSymbol, CreateIteratorNextCall(iterSymbol))]),
                         new IfStatement(
                             null,
@@ -2416,7 +2435,7 @@ internal static class GeneratorYieldLowerer
         {
             statements.Add(new VariableDeclaration(
                 null,
-                VariableKind.Let,
+                VariableKind.Var,
                 [new VariableDeclarator(
                     null,
                     valueSymbol,
@@ -2437,7 +2456,7 @@ internal static class GeneratorYieldLowerer
                     [
                         new VariableDeclaration(
                             null,
-                            VariableKind.Let,
+                            VariableKind.Var,
                             [new VariableDeclarator(null, nextSymbol, CreateIteratorNextCall(iterSymbol))]),
                         new IfStatement(
                             null,
@@ -2465,8 +2484,6 @@ internal static class GeneratorYieldLowerer
             ImmutableArray<StatementNode>.Builder statements,
             bool isStrict)
         {
-            var returnMethodSymbol = CreateResumeIdentifier();
-            var innerResultSymbol = CreateResumeIdentifier();
             statements.Add(new IfStatement(
                 null,
                 new BinaryExpression(
@@ -2477,79 +2494,25 @@ internal static class GeneratorYieldLowerer
                 new BlockStatement(
                     null,
                     [
-                        new VariableDeclaration(
+                        // Mark the iterator as closed before invoking return(). If IteratorClose
+                        // throws while unwinding a generator, the same finally block can be
+                        // revisited; this one-shot guard keeps the lowered close path idempotent.
+                        new ExpressionStatement(
                             null,
-                            VariableKind.Let,
-                            [new VariableDeclarator(
+                            new AssignmentExpression(
                                 null,
-                                returnMethodSymbol,
-                                new MemberExpression(
+                                iteratorDoneSymbol.Name,
+                                new LiteralExpression(null, JsValue.True))),
+                        new ExpressionStatement(
+                            null,
+                            new CallExpression(
+                                null,
+                                new IdentifierExpression(null, Symbol.YieldIteratorCloseHelperSymbol),
+                                [new CallArgument(
                                     null,
                                     new IdentifierExpression(null, iterSymbol.Name),
-                                    new LiteralExpression(null, JsValue.FromString("return")),
-                                    false,
-                                    false))]),
-                        new IfStatement(
-                            null,
-                            new BinaryExpression(
-                                null,
-                                BinaryOperator.LogicalAnd,
-                                new BinaryExpression(
-                                    null,
-                                    BinaryOperator.StrictNotEqual,
-                                    new IdentifierExpression(null, returnMethodSymbol.Name),
-                                    new IdentifierExpression(null, Symbol.Intern("undefined"))),
-                                new BinaryExpression(
-                                    null,
-                                    BinaryOperator.StrictNotEqual,
-                                    new IdentifierExpression(null, returnMethodSymbol.Name),
-                                    new LiteralExpression(null, JsValue.Null))),
-                            new BlockStatement(
-                                null,
-                                [
-                                    new VariableDeclaration(
-                                        null,
-                                        VariableKind.Let,
-                                        [new VariableDeclarator(
-                                            null,
-                                            innerResultSymbol,
-                                            new CallExpression(
-                                                null,
-                                                new MemberExpression(
-                                                    null,
-                                                    new IdentifierExpression(null, returnMethodSymbol.Name),
-                                                    new LiteralExpression(null, JsValue.FromString("call")),
-                                                    false,
-                                                    false),
-                                                [new CallArgument(
-                                                    null,
-                                                    new IdentifierExpression(null, iterSymbol.Name),
-                                                    false)],
-                                                false))]),
-                                    new IfStatement(
-                                        null,
-                                        new BinaryExpression(
-                                            null,
-                                            BinaryOperator.StrictNotEqual,
-                                            new CallExpression(
-                                                null,
-                                                new IdentifierExpression(null, Symbol.Intern("Object")),
-                                                [new CallArgument(
-                                                    null,
-                                                    new IdentifierExpression(null, innerResultSymbol.Name),
-                                                    false)],
-                                                false),
-                                            new IdentifierExpression(null, innerResultSymbol.Name)),
-                                        new ThrowStatement(
-                                            null,
-                                            new NewExpression(
-                                                null,
-                                                new IdentifierExpression(null, Symbol.Intern("TypeError")),
-                                                ImmutableArray<CallArgument>.Empty)),
-                                        null)
-                                ],
-                                isStrict),
-                            null)
+                                    false)],
+                                false))
                     ],
                     isStrict),
                 null));
@@ -2575,7 +2538,7 @@ internal static class GeneratorYieldLowerer
                     new IdentifierExpression(null, valueSymbol.Name));
                 statements.Add(new VariableDeclaration(
                     null,
-                    VariableKind.Let,
+                    VariableKind.Var,
                     [new VariableDeclarator(null, resolvedSymbol, conditional)]));
                 sourceForNested = resolvedSymbol;
             }
@@ -2593,7 +2556,7 @@ internal static class GeneratorYieldLowerer
             var resolvedSymbol = CreateResumeIdentifier();
             statements.Add(new VariableDeclaration(
                 null,
-                VariableKind.Let,
+                VariableKind.Var,
                 [new VariableDeclarator(null, resolvedSymbol, null)]));
 
             if (!EmitYieldDefaultConditional(
@@ -3460,7 +3423,7 @@ internal static class GeneratorYieldLowerer
                 blockStatements.AddRange(plan.ConditionPrologue);
                 blockStatements.AddRange(prologue);
                 blockStatements.Add(loopBlock);
-                loopBlock = loopBlock with { Statements = blockStatements.ToImmutable() };
+                loopBlock = CreateFreshBlock(loopBlock.Source, blockStatements.ToImmutable(), loopBlock.IsStrict);
             }
             else
             {
@@ -3468,7 +3431,7 @@ internal static class GeneratorYieldLowerer
                     loopBlock.Statements.Length + prologue.Count);
                 blockStatements.AddRange(loopBlock.Statements);
                 blockStatements.AddRange(prologue);
-                loopBlock = loopBlock with { Statements = blockStatements.ToImmutable() };
+                loopBlock = CreateFreshBlock(loopBlock.Source, blockStatements.ToImmutable(), loopBlock.IsStrict);
             }
 
             StatementNode loweredLoop = plan.ConditionAfterBody

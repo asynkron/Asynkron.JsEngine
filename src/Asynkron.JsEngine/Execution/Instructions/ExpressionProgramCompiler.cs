@@ -130,6 +130,11 @@ internal static class ExpressionProgramCompiler
                 failureReason = null;
                 return true;
 
+            case RegexLiteralExpression regex:
+                builder.Add(new LoadRegexLiteralExpressionOp(regex.Pattern, regex.Flags));
+                failureReason = null;
+                return true;
+
             case FunctionExpression function:
                 builder.Add(new LoadFunctionLiteralExpressionOp(function));
                 failureReason = null;
@@ -191,6 +196,20 @@ internal static class ExpressionProgramCompiler
         List<ExpressionOp> builder,
         out string? failureReason)
     {
+        // Special case: #privateField in obj — the LHS is a PrivateIdentifierExpression
+        // which can't be compiled as a regular expression. Handle it as a dedicated op.
+        if (expression is { Operator: BinaryOperator.In, Left: PrivateIdentifierExpression privateId })
+        {
+            if (!TryCompileExpression(expression.Right, builder, out failureReason))
+            {
+                return false;
+            }
+
+            builder.Add(new PrivateFieldInExpressionOp(privateId.Name));
+            failureReason = null;
+            return true;
+        }
+
         if (!TryCompileExpression(expression.Left, builder, out failureReason))
         {
             return false;
@@ -340,9 +359,26 @@ internal static class ExpressionProgramCompiler
                         failureReason = null;
                         return true;
 
+                    case MemberExpression { Target: SuperExpression } superDelete:
+                        // Per ES spec 13.5.1.2: delete on a super reference always throws ReferenceError.
+                        // Evaluate the property expression for side effects, then throw.
+                        if (superDelete.IsComputed)
+                        {
+                            if (!TryCompileExpression(superDelete.Property, builder, out failureReason))
+                            {
+                                return false;
+                            }
+
+                            builder.Add(new PopExpressionOp());
+                        }
+
+                        builder.Add(new ThrowReferenceErrorExpressionOp(
+                            "Unsupported reference to 'super'"));
+                        failureReason = null;
+                        return true;
+
                     case MemberExpression { IsOptional: true }:
-                    case MemberExpression { Target: SuperExpression }:
-                        failureReason = "Expression bytecode does not yet support delete on super or optional member expressions.";
+                        failureReason = "Expression bytecode does not yet support delete on optional member expressions.";
                         return false;
                 }
 
@@ -728,6 +764,18 @@ internal static class ExpressionProgramCompiler
             expression.FlatSlotId,
             ReferenceEquals(expression.Target, Symbol.Arguments));
 
+        // For logical compound assignments (&&=, ||=, ??=), the assignment value
+        // is lowered to BinaryExpression(op, lhs, rhs). NamedEvaluation applies to
+        // the actual RHS (binary.Right), not the whole BinaryExpression. Create a
+        // separate store op that checks binary.Right for anonymous function defs.
+        var logicalStoreOp = new StoreIdentifierExpressionOp(
+            expression.Target,
+            expression.ScopeId,
+            expression.SlotIndex,
+            expression.FlatSlotId,
+            AllowNameInference: IsAnonymousFunctionDefinitionForNameInference(binary.Right) &&
+                                !IsParenthesizedIdentifierAssignment(expression));
+
         switch (binary.Operator)
         {
             case BinaryOperator.LogicalAnd:
@@ -742,7 +790,7 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(storeOp);
+                builder.Add(logicalStoreOp);
                 builder[shortCircuitIndex] = new JumpIfFalseExpressionOp(builder.Count);
                 failureReason = null;
                 return true;
@@ -760,7 +808,7 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(storeOp);
+                builder.Add(logicalStoreOp);
                 builder[shortCircuitIndex] = new JumpIfTrueExpressionOp(builder.Count);
                 failureReason = null;
                 return true;
@@ -778,7 +826,7 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(storeOp);
+                builder.Add(logicalStoreOp);
                 builder[shortCircuitIndex] = new JumpIfNotNullishExpressionOp(builder.Count);
                 failureReason = null;
                 return true;
@@ -1628,6 +1676,10 @@ internal static class ExpressionProgramCompiler
             return false;
         }
 
+        // Resolve the property key once before duplicating, so both Get and Set
+        // use the already-resolved string. This ensures ToPropertyKey is called
+        // exactly once per the ECMAScript spec (e.g. S11.13.2_A7.1_T4).
+        builder.Add(new ResolvePropertyKeyExpressionOp());
         builder.Add(new DuplicateTopTwoExpressionOp());
         builder.Add(new GetComputedPropertyExpressionOp());
 

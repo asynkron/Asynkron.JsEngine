@@ -314,6 +314,7 @@ internal static class ExecutionPlanPrinter
         return op switch
         {
             LoadLiteralExpressionOp literal => literal.Value.ToString() ?? "null",
+            LoadRegexLiteralExpressionOp loadRegex => $"/{loadRegex.Pattern}/{loadRegex.Flags}",
             LoadFunctionLiteralExpressionOp loadFunction =>
                 loadFunction.Function.Name is { } functionName ? $"fn:{functionName.Name}" : "fn",
             LoadClassLiteralExpressionOp loadClass =>
@@ -392,6 +393,8 @@ internal static class ExecutionPlanPrinter
             ToStringExpressionOp => "str",
             UnaryLogicalNotExpressionOp => "!",
             BinaryExpressionOp binary => FormatBinaryOperator(binary.Operator),
+            PrivateFieldInExpressionOp privateIn => $"#{privateIn.PrivateName} in",
+            ThrowReferenceErrorExpressionOp throwRef => $"throw.ref:{throwRef.Message}",
             PopExpressionOp => "pop",
             JumpExpressionOp jump => $"jmp:{jump.Target}",
             JumpIfNullishExpressionOp jumpIfNullish => $"jmpN:{jumpIfNullish.Target}",

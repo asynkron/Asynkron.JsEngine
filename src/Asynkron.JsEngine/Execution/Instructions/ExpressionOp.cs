@@ -6,6 +6,7 @@ namespace Asynkron.JsEngine.Execution.Instructions;
 internal enum ExpressionOpKind : byte
 {
     LoadLiteral,
+    LoadRegexLiteral,
     LoadFunctionLiteral,
     LoadClassLiteral,
     LoadIdentifier,
@@ -70,7 +71,9 @@ internal enum ExpressionOpKind : byte
     JumpIfNotNullish,
     SuperConstruct,
     Call,
-    Construct
+    Construct,
+    PrivateFieldIn,
+    ThrowReferenceError
 }
 
 internal readonly record struct ExpressionProgram(ImmutableArray<ExpressionOp> Operations)
@@ -107,6 +110,9 @@ internal sealed class TaggedTemplateDescriptor
 
 internal sealed record LoadLiteralExpressionOp(JsValue Value)
     : ExpressionOp(ExpressionOpKind.LoadLiteral);
+
+internal sealed record LoadRegexLiteralExpressionOp(string Pattern, string Flags)
+    : ExpressionOp(ExpressionOpKind.LoadRegexLiteral);
 
 internal sealed record LoadFunctionLiteralExpressionOp(
     FunctionExpression Function,
@@ -312,6 +318,12 @@ internal sealed record UnaryLogicalNotExpressionOp()
 
 internal sealed record BinaryExpressionOp(BinaryOperator Operator)
     : ExpressionOp(ExpressionOpKind.Binary);
+
+internal sealed record PrivateFieldInExpressionOp(string PrivateName)
+    : ExpressionOp(ExpressionOpKind.PrivateFieldIn);
+
+internal sealed record ThrowReferenceErrorExpressionOp(string Message)
+    : ExpressionOp(ExpressionOpKind.ThrowReferenceError);
 
 internal sealed record PopExpressionOp()
     : ExpressionOp(ExpressionOpKind.Pop);

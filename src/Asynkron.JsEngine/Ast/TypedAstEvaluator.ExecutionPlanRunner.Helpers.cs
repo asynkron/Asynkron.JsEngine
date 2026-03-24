@@ -200,6 +200,16 @@ public static partial class TypedAstEvaluator
                             programCounter++;
                             break;
 
+                        case LoadRegexLiteralExpressionOp loadRegex:
+                            stack[stackIndex++] = new JsValue(
+                                StdLib.RegExpHelper.CreateRegExpLiteral(
+                                    loadRegex.Pattern,
+                                    loadRegex.Flags,
+                                    context.RealmState));
+                            stackFlags[stackIndex - 1] = false;
+                            programCounter++;
+                            break;
+
                         case LoadFunctionLiteralExpressionOp loadFunction:
                             stack[stackIndex++] = JsValue.FromObjectUnsafe(
                                 loadFunction.Function.CreateFunctionValue(
@@ -824,6 +834,44 @@ public static partial class TypedAstEvaluator
                                 programCounter++;
                                 break;
                             }
+
+                        case PrivateFieldInExpressionOp privateFieldIn:
+                            {
+                                var target = stack[stackIndex - 1];
+                                if (target.Kind != JsValueKind.Object ||
+                                    target.ObjectValue is not JsObject jsObj)
+                                {
+                                    context.SetThrow(StandardLibrary.CreateTypeError(
+                                        "Cannot use 'in' operator to search for a private field in a non-object",
+                                        context,
+                                        context.RealmState));
+                                    return JsValue.Undefined;
+                                }
+
+                                var lexeme = $"#{privateFieldIn.PrivateName}";
+                                var resolvedKey = context.ResolvePrivateNameKey(lexeme);
+                                var found = false;
+                                if (resolvedKey is not null)
+                                {
+                                    found = jsObj.HasPrivateField(resolvedKey);
+                                    if (!found &&
+                                        PrivateNameScope.TryResolveScope(
+                                            context.RealmState, resolvedKey, out var scope) &&
+                                        scope is not null)
+                                    {
+                                        found = jsObj.HasPrivateBrand(scope.BrandToken);
+                                    }
+                                }
+
+                                stack[stackIndex - 1] = found ? JsValue.True : JsValue.False;
+                                stackFlags[stackIndex - 1] = false;
+                                programCounter++;
+                                break;
+                            }
+
+                        case ThrowReferenceErrorExpressionOp throwRefError:
+                            throw StandardLibrary.ThrowReferenceError(
+                                throwRefError.Message, context, context.RealmState);
 
                         case PopExpressionOp:
                             stackIndex--;

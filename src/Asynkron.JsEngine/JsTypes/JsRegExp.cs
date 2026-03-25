@@ -1214,6 +1214,32 @@ public sealed class JsRegExp
                     }
                 }
 
+                // \c control escape: must be followed by [A-Za-z] in unicode mode
+                if (next == 'c')
+                {
+                    if (i + 2 < pattern.Length && IsControlLetter(pattern[i + 2]))
+                    {
+                        var controlValue = pattern[i + 2] % 32;
+                        AppendCodePoint(builder, controlValue, hasUnicodeFlag, ignoreCase, true);
+                        i += 2;
+                        continue;
+                    }
+
+                    if (hasUnicodeFlag)
+                    {
+                        throw new ParseException("Invalid regular expression: invalid control escape.");
+                    }
+                }
+
+                // In unicode mode, only specific escapes are allowed.
+                // Syntax characters, control escapes, and assertions are valid identity escapes.
+                // Everything else (like \a, \e, \q) is a SyntaxError.
+                if (hasUnicodeFlag && !IsValidUnicodeEscape(next))
+                {
+                    throw new ParseException(
+                        $"Invalid regular expression: invalid escape \\{next}.");
+                }
+
                 builder.Append('\\');
                 builder.Append(next);
                 i++; // skip escaped character while preserving escape
@@ -1364,6 +1390,14 @@ public sealed class JsRegExp
             if (!inCharClass && c == '{')
             {
                 ValidateQuantifierBrace(pattern, i);
+            }
+
+            // In unicode mode, lone ']' and '}' are SyntaxErrors (not valid PatternCharacter).
+            // Annex B allows them as literals in non-unicode mode.
+            if (hasUnicodeFlag && !inCharClass && c is ']' or '}')
+            {
+                throw new ParseException(
+                    $"Invalid regular expression: lone '{c}' in unicode mode.");
             }
 
             // In ECMAScript, ^ and $ without multiline only match at absolute string start/end.
@@ -1884,6 +1918,27 @@ public sealed class JsRegExp
     }
 
     /// <summary>
+    /// <summary>
+    /// Returns true if the character is a valid escape character in unicode mode (after \).
+    /// In unicode mode, only specific escapes are allowed per the ES spec.
+    /// This is called for escapes NOT already handled by earlier specific cases
+    /// (unicode escapes, hex escapes, property escapes, backrefs, class escapes, etc.)
+    /// </summary>
+    private static bool IsValidUnicodeEscape(char c)
+    {
+        return c switch
+        {
+            // Syntax characters (valid identity escapes)
+            '^' or '$' or '\\' or '.' or '*' or '+' or '?' or '(' or ')' or
+            '[' or ']' or '{' or '}' or '|' or '/' => true,
+            // Word boundary assertions
+            'b' or 'B' => true,
+            // Control character escapes
+            'n' or 'r' or 't' or 'f' or 'v' => true,
+            _ => false,
+        };
+    }
+
     /// <summary>
     /// Validates that '{' at position i is part of a complete quantifier: {n}, {n,}, or {n,m}.
     /// In unicode mode, bare '{' is not allowed as a literal.
@@ -3919,8 +3974,53 @@ public sealed class JsRegExp
             return 0;
         }
 
-        index += 2;
-        return escape;
+        // \c followed by A-Z or a-z is a control escape
+        if (escape == 'c' && index + 2 < pattern.Length && IsControlLetter(pattern[index + 2]))
+        {
+            var controlValue = pattern[index + 2] % 32;
+            index += 3;
+            return controlValue;
+        }
+
+        // Known character class escapes: d, D, w, W, s, S are handled by the caller
+        // via property escape resolution. But single-char escapes are valid:
+        switch (escape)
+        {
+            case 'd' or 'D' or 'w' or 'W' or 's' or 'S':
+                // These are class escapes — they represent ranges, not single code points.
+                // For range validation ([\d-a] should throw), return a sentinel.
+                // The caller handles these via the property escape path before reaching here.
+                // If we get here, something went wrong — throw to be safe.
+                throw new ParseException(
+                    $"Invalid regular expression: character class escape \\{escape} cannot be used in a range.");
+            case 'b':
+                index += 2;
+                return 0x08; // backspace in character class
+            case 'n':
+                index += 2;
+                return '\n';
+            case 'r':
+                index += 2;
+                return '\r';
+            case 't':
+                index += 2;
+                return '\t';
+            case 'f':
+                index += 2;
+                return '\f';
+            case 'v':
+                index += 2;
+                return '\v';
+            // Syntax characters valid as identity escapes in character classes
+            case '^' or '$' or '\\' or '.' or '*' or '+' or '?' or '(' or ')' or
+                 '[' or ']' or '{' or '}' or '|' or '/' or '-':
+                index += 2;
+                return escape;
+        }
+
+        // In unicode mode, anything else is invalid
+        throw new ParseException(
+            $"Invalid regular expression: invalid escape \\{escape}.");
     }
 
     private static bool TryParseLowSurrogate(string pattern, ref int index, out int codePoint)

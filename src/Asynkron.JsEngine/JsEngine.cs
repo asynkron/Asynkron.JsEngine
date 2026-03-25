@@ -18,7 +18,7 @@ namespace Asynkron.JsEngine;
 /// <summary>
 ///     High level façade that turns JavaScript source into S-expressions and evaluates them.
 /// </summary>
-public sealed class JsEngine : IAsyncDisposable
+public sealed class JsEngine : IAsyncDisposable, IDisposable
 {
     private readonly Channel<string>? _asyncIteratorTraceChannel;
     private readonly bool _asyncIteratorTracingEnabled;
@@ -358,6 +358,12 @@ public sealed class JsEngine : IAsyncDisposable
     {
         CancelAllTimers();
         await StopEventLoopAsync().ConfigureAwait(false);
+    }
+
+    public void Dispose()
+    {
+        CancelAllTimers();
+        StopEventLoopAsync().GetAwaiter().GetResult();
     }
 
     internal void SetGlobalExecutionScope(JsEnvironment environment)

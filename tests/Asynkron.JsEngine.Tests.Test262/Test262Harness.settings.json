@@ -22,7 +22,6 @@
     "legacy-regexp",
     "__getter__",
     "__setter__",
-    "caller",
     "explicit-resource-management"
   ],
   "ExcludedFlags": [

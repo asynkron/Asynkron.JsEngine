@@ -23,6 +23,13 @@ public static partial class TypedAstEvaluator
         private static readonly ObjectPool<HashSet<Symbol>> SymbolSetPool = new(32,
             static () => new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance));
 
+        /// <summary>
+        /// Tracks the currently executing SyncFunctionInvoker on this thread.
+        /// Used to resolve the non-standard Function.caller property (Annex B).
+        /// </summary>
+        [ThreadStatic]
+        private static SyncFunctionInvoker? t_currentlyExecuting;
+
         // Cached JsValue to avoid repeated struct creation
         private readonly JsValue _cachedJsValue;
 
@@ -63,6 +70,12 @@ public static partial class TypedAstEvaluator
         private Parser.SourceReference? _sourceReferenceOverride;
         private IJsEnvironmentAwareCallable? _superConstructor;
         private IJsPropertyAccessor? _superPrototype;
+
+        /// <summary>
+        /// The function that most recently called this function (Annex B Function.caller).
+        /// Set during invocation and cleared on exit.
+        /// </summary>
+        private IJsCallable? _currentCaller;
 
         public SyncFunctionInvoker(
             FunctionExpression function,
@@ -370,6 +383,33 @@ public static partial class TypedAstEvaluator
 
         public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
         {
+            // Annex B: Non-strict functions expose a "caller" property that returns
+            // the function that most recently called this one. Must be checked before
+            // _properties to avoid hitting the poison pill accessor on Function.prototype.
+            // Strict functions rely on the poison pill (set up in FunctionPrototype).
+            if (!_isStrict && string.Equals(name, "caller", StringComparison.Ordinal))
+            {
+                if (_currentCaller is null)
+                {
+                    value = JsValue.Null;
+                }
+                else if (_currentCaller is SyncFunctionInvoker { _isStrict: true })
+                {
+                    // Cross-strict boundary: caller is strict, so return null per spec.
+                    value = JsValue.Null;
+                }
+                else if (_currentCaller is IAsJsValue asJsValue)
+                {
+                    value = asJsValue.AsJsValue;
+                }
+                else
+                {
+                    value = JsValue.FromObjectUnsafe(_currentCaller);
+                }
+
+                return true;
+            }
+
             if (_properties.TryGetProperty(name, receiver.IsUndefined ? _cachedJsValue : receiver,
                     out value))
             {
@@ -637,6 +677,15 @@ public static partial class TypedAstEvaluator
                 context.CallDepth = callingContext.CallDepth;
                 context.MaxCallDepth = callingContext.MaxCallDepth;
             }
+
+            // Track Function.caller (Annex B) for non-strict functions.
+            // Save and restore the caller chain so recursive/nested calls work correctly.
+            var previousCaller = _currentCaller;
+            var previouslyExecuting = t_currentlyExecuting;
+            _currentCaller = t_currentlyExecuting;
+            t_currentlyExecuting = this;
+            try
+            {
 
             if (IsClassConstructor && newTarget.IsUndefined)
             {
@@ -1445,6 +1494,13 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 }
 
                 RealmState.ReturnContext(context);
+            }
+            }
+            finally
+            {
+                // Restore Function.caller tracking (Annex B).
+                _currentCaller = previousCaller;
+                t_currentlyExecuting = previouslyExecuting;
             }
         }
 

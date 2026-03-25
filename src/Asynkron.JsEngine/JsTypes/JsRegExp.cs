@@ -1319,7 +1319,14 @@ public sealed class JsRegExp
                     captureCount++;
                 }
 
-                openGroupNames.Push(null);
+                // Track assertion groups for quantifier validation
+                string? groupKind = null;
+                if (i + 2 < pattern.Length && pattern[i + 1] == '?' && pattern[i + 2] is '=' or '!')
+                {
+                    groupKind = pattern[i + 2].ToString();
+                }
+
+                openGroupNames.Push(groupKind);
                 modifierDotAllStack.Push(effectiveDotAll);
                 modifierMultilineStack.Push(effectiveMultiline);
             }
@@ -1327,9 +1334,11 @@ public sealed class JsRegExp
             if (!inCharClass && c == ')' && groupDepth > 0)
             {
                 groupDepth--;
+                var wasAssertion = false;
                 if (openGroupNames.Count > 0)
                 {
-                    openGroupNames.Pop();
+                    var popped = openGroupNames.Pop();
+                    wasAssertion = popped is "=" or "!";
                 }
 
                 // Restore modifier state from parent group
@@ -1341,14 +1350,20 @@ public sealed class JsRegExp
                 {
                     effectiveMultiline = modifierMultilineStack.Pop();
                 }
+
+                // In unicode mode, quantifiers on lookahead/negative lookahead are forbidden
+                // Annex B allows (?=.)*  in non-unicode mode, but not here.
+                if (wasAssertion && i + 1 < pattern.Length && pattern[i + 1] is '*' or '+' or '?' or '{')
+                {
+                    throw new ParseException("Invalid regular expression: quantifier on assertion.");
+                }
             }
 
+            // In unicode mode, '{' must be part of a valid quantifier {n}, {n,}, or {n,m}
+            // Annex B allows bare '{' as a literal in non-unicode mode, but not here.
             if (!inCharClass && c == '{')
             {
-                if (i + 1 >= pattern.Length || !char.IsDigit(pattern[i + 1]))
-                {
-                    throw new ParseException("Invalid regular expression: incomplete quantifier.");
-                }
+                ValidateQuantifierBrace(pattern, i);
             }
 
             // In ECMAScript, ^ and $ without multiline only match at absolute string start/end.
@@ -1869,6 +1884,46 @@ public sealed class JsRegExp
     }
 
     /// <summary>
+    /// <summary>
+    /// Validates that '{' at position i is part of a complete quantifier: {n}, {n,}, or {n,m}.
+    /// In unicode mode, bare '{' is not allowed as a literal.
+    /// </summary>
+    private static void ValidateQuantifierBrace(string pattern, int i)
+    {
+        var pos = i + 1;
+
+        // Must start with at least one digit
+        if (pos >= pattern.Length || !char.IsDigit(pattern[pos]))
+            throw new ParseException("Invalid regular expression: incomplete quantifier.");
+
+        // Skip digits (the 'n' part)
+        while (pos < pattern.Length && char.IsDigit(pattern[pos]))
+            pos++;
+
+        if (pos >= pattern.Length)
+            throw new ParseException("Invalid regular expression: incomplete quantifier.");
+
+        if (pattern[pos] == '}')
+            return; // {n} — valid
+
+        if (pattern[pos] != ',')
+            throw new ParseException("Invalid regular expression: incomplete quantifier.");
+
+        pos++; // skip ','
+
+        if (pos >= pattern.Length)
+            throw new ParseException("Invalid regular expression: incomplete quantifier.");
+
+        // Skip optional digits (the 'm' part)
+        while (pos < pattern.Length && char.IsDigit(pattern[pos]))
+            pos++;
+
+        if (pos >= pattern.Length || pattern[pos] != '}')
+            throw new ParseException("Invalid regular expression: incomplete quantifier.");
+
+        // {n,} or {n,m} — valid
+    }
+
     /// Tries to parse a modifier group at position i: (?s:, (?m:, (?-s:, (?sm:, (?s-m:, etc.
     /// Returns true if a valid modifier group prefix was found.
     /// Throws ParseException for invalid modifier syntax per ES2024 spec early errors:

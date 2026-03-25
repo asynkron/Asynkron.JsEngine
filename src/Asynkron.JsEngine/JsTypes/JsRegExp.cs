@@ -1,6 +1,7 @@
 #region
 
 using System.Buffers;
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -18,6 +19,12 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public sealed class JsRegExp
 {
+    // Cache for BuildPropertyEscapePattern results. Same (expression, negate) always
+    // produces the same pattern string, and building it is expensive (surrogate pair math,
+    // large string allocations). ~1200 entries max (600 properties x 2 for negate).
+    private static readonly ConcurrentDictionary<(string Expression, bool Negate), string>
+        PropertyEscapePatternCache = new();
+
     private const string AnyCodePointPattern =
         @"(?<![\uD800-\uDBFF])(?:[\uD800-\uDBFF][\uDC00-\uDFFF]|[\u0000-\uD7FF\uE000-\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|[\uDC00-\uDFFF])";
 
@@ -3299,6 +3306,13 @@ public sealed class JsRegExp
     /// Resolves the property name to code point ranges and generates a compatible pattern.
     /// </summary>
     private static string BuildPropertyEscapePattern(string propertyExpression, bool negate)
+    {
+        return PropertyEscapePatternCache.GetOrAdd(
+            (propertyExpression, negate),
+            static key => BuildPropertyEscapePatternCore(key.Expression, key.Negate));
+    }
+
+    private static string BuildPropertyEscapePatternCore(string propertyExpression, bool negate)
     {
         var ranges = UnicodePropertyData.Resolve(propertyExpression);
         if (ranges is null)

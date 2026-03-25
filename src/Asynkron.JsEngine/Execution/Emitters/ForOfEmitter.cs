@@ -31,26 +31,13 @@ internal static class ForOfEmitter
             return false;
         }
 
-        // Use the cached iterator plan to ensure any synthetic scope ids (for per-iteration bindings)
-        // are stable across IR emission, slot analysis, and later plan stamping.
         var iteratorPlan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
 
-        var instructionStart = ctx.InstructionCount;
         var lexicalBindings = iteratorPlan.PerIterationBindings.IsDefaultOrEmpty
             ? null
             : iteratorPlan.PerIterationBindings.ToImmutableHashSet(ReferenceEqualityComparer<Symbol>.Instance);
 
-        // Build the structure bottom-up:
-        // 1. EndFinally -> nextIndex
-        // 2. IteratorClose -> EndFinally
-        // 3. LeaveTry -> nextIndex
-        // 4. Body -> MoveNext
-        // 5. MoveNext -> Body, BreakIndex -> LeaveTry
-        // 6. EnterTry -> MoveNext, finally -> IteratorClose
-        // 7. IteratorInit -> EnterTry
-
         // Pre-create symbols and allocate slots for O(1) access
-        // Use Synthetic() for globally unique symbols (Intern + instructionStart is only unique per-plan)
         var iteratorSymbol = Symbol.Synthetic(iteratorPlan.Kind == IteratorDriverKind.Await
             ? "__forAwait_iter"
             : "__forOf_iter");
@@ -61,96 +48,93 @@ internal static class ForOfEmitter
         var iteratorSlotIndex = ctx.AllocateSlot(iteratorSymbol);
         var valueSlotIndex = ctx.AllocateSlot(valueSymbol);
 
-        // First, create the iterator instructions with pre-allocated slots
-        var iteratorInstructions =
-            IteratorInstructionTemplate.AppendInstructions(ctx.Instructions, iteratorPlan,
-                -1, // breakIndex will be LeaveTry
-                iteratorSymbol,
-                valueSymbol,
-                iteratorSlotIndex,
-                valueSlotIndex);
+        var bindingStatement = ctx.CreateIteratorBindingStatement(iteratorPlan, valueSymbol, valueSlotIndex);
 
-        // EndFinally - this is the end of the finally block
-        var endFinallyIndex = ctx.Append(new EndFinallyInstruction(nextIndex));
+        var needsPerIterEnv = iteratorPlan.DeclarationKind is VariableKind.Let or VariableKind.Const
+            && !iteratorPlan.PerIterationBindings.IsDefaultOrEmpty;
 
-        // IteratorClose - the finally block content
-        var iteratorCloseIndex =
-            ctx.Append(new IteratorCloseInstruction(iteratorInstructions.IteratorSlot, endFinallyIndex));
-
-        // LeaveTry - normal exit from the loop
-        var leaveTryIndex = ctx.Append(new LeaveTryInstruction(nextIndex));
-
-        // BreakableExit - pops breakable context from runtime stack, flows to LeaveTry
-        // This enables break/continue from AST-evaluated code (StatementInstruction)
-        // to resolve their jump targets using the runtime breakable stack.
-        var loopExitIndex = ctx.Append(new BreakableExitInstruction(leaveTryIndex));
-
-        // For loops with per-iteration bindings, create PopEnvironment before BreakableExit
-        var loopExitTarget = loopExitIndex;
-        if (iteratorPlan.DeclarationKind is VariableKind.Let or VariableKind.Const &&
-            !iteratorPlan.PerIterationBindings.IsDefaultOrEmpty)
+        var config = new LoopSkeletonConfig
         {
-            loopExitTarget = ctx.Append(new PopEnvironmentInstruction(
-                iteratorPlan.IterationScopeId,
-                iteratorPlan.CanReuseIterationEnvironment,
-                loopExitIndex));
-        }
+            Body = iteratorPlan.Body,
+            BindingStatement = bindingStatement,
+            PerIterationBindings = needsPerIterEnv ? iteratorPlan.PerIterationBindings : default,
+            IterationScopeId = needsPerIterEnv ? iteratorPlan.IterationScopeId : -1,
+            IterationSlotCount = iteratorPlan.IterationSlotCount,
+            PerIterationSlotIndices = iteratorPlan.PerIterationSlotIndices,
+            CanReuseIterationEnvironment = iteratorPlan.CanReuseIterationEnvironment,
+            LexicalBindings = lexicalBindings,
+            LoopScopeId = -1,
+            ConditionAfterBody = false,
+            PerIterationEnvAfterBody = false,
+            NeedsTryFinally = true,
+        };
 
-        // Now update the MoveNext break target to point to Pop (or LeaveTry if no per-iteration bindings)
-        ctx.Patch(iteratorInstructions.MoveNextIndex,
-            (IteratorMoveNextInstruction)ctx.Instructions[iteratorInstructions.MoveNextIndex] with
-            {
-                BreakIndex = loopExitTarget
-            });
+        var driver = new ForOfLoopDriver(iteratorPlan, iteratorSymbol, valueSymbol,
+            iteratorSlotIndex, valueSlotIndex);
 
-        // Build the loop body.
-        // IMPORTANT: Do NOT wrap the per-iteration binding in a synthetic BlockStatement with a lexical
-        // declaration. That causes TryBuildStatement(BlockStatement) to fall back to StatementInstruction
-        // (HoistPlan.NeedsEnvironment) which prevents the IR loop machinery from handling break/continue
-        // correctly. Build the binding statement and the user body as a straight instruction chain instead.
-        var bindingStatement = ctx.CreateIteratorBindingStatement(iteratorPlan, iteratorInstructions.ValueSlot,
-            iteratorInstructions.ValueSlotIndex);
-        var targetScopeId = iteratorPlan.IterationScopeId >= 0 ? iteratorPlan.IterationScopeId : -1;
+        return LoopEmitterHelpers.EmitLoopSkeleton(ctx, ref driver, in config, nextIndex, label, out entryIndex);
+    }
+}
 
-        if (!LoopEmitterHelpers.TryBuildLoopBody(ctx, iteratorPlan, iteratorPlan.Body, bindingStatement,
-                label, iteratorInstructions.MoveNextIndex, loopExitTarget, targetScopeId, lexicalBindings,
-                instructionStart, out var loopBodyResult))
-        {
-            entryIndex = -1;
-            return false;
-        }
+/// <summary>
+/// Driver for for-of / for-await-of loop emission.
+/// Provides IteratorInit, IteratorMoveNext, and IteratorClose instructions.
+/// </summary>
+internal struct ForOfLoopDriver : ILoopDriver
+{
+    private readonly IteratorDriverPlan _plan;
+    private readonly Symbol _iteratorSymbol;
+    private readonly Symbol _valueSymbol;
+    private readonly int _iteratorSlotIndex;
+    private readonly int _valueSlotIndex;
+    private IteratorInstructionPlan _instrPlan;
 
-        var continueTarget = loopBodyResult.ContinueTarget;
+    public ForOfLoopDriver(
+        IteratorDriverPlan plan,
+        Symbol iteratorSymbol, Symbol valueSymbol,
+        int iteratorSlotIndex, int valueSlotIndex)
+    {
+        _plan = plan;
+        _iteratorSymbol = iteratorSymbol;
+        _valueSymbol = valueSymbol;
+        _iteratorSlotIndex = iteratorSlotIndex;
+        _valueSlotIndex = valueSlotIndex;
+    }
 
-        // Wire up the MoveNext to point to the loop entry (env instruction or body)
-        IteratorInstructionTemplate.Wire(iteratorInstructions, loopBodyResult.LoopEntry, ctx.Instructions);
+    public bool EmitMoveNext(EmitContext ctx, out int moveNextEntry, out int moveNextBranch)
+    {
+        _instrPlan = IteratorInstructionTemplate.AppendInstructions(
+            ctx.Instructions, _plan,
+            -1, // breakIndex will be patched by WireMoveNext
+            _iteratorSymbol, _valueSymbol,
+            _iteratorSlotIndex, _valueSlotIndex);
 
-        // BreakableEnter - pushes context to runtime stack for break/continue from AST-evaluated code.
-        // Default is ResetsCompletionValue - loops need runtime to reset completion value per ES spec.
-        var loopEnterIndex = ctx.Append(new BreakableEnterInstruction(
-            iteratorInstructions.MoveNextIndex,
-            label,
-            loopExitTarget,
-            continueTarget));
-
-        // EnterTry - wraps the loop in a try/finally, points to BreakableEnter
-        // Pass the loop continue target so that continue within the loop skips the finally
-        // (we don't want to close the iterator on continue, only on break/throw/return)
-        var enterTryIndex =
-            ctx.Append(new EnterTryInstruction(
-                loopEnterIndex,
-                -1,
-                null,
-                iteratorCloseIndex,
-                endFinallyIndex,
-                continueTarget,
-                loopExitTarget));
-
-        // Wire IteratorInit to point to EnterTry
-        ctx.Patch(iteratorInstructions.InitIndex,
-            (IteratorInitInstruction)ctx.Instructions[iteratorInstructions.InitIndex] with { Next = enterTryIndex });
-
-        entryIndex = iteratorInstructions.InitIndex;
+        moveNextEntry = _instrPlan.MoveNextIndex;
+        moveNextBranch = _instrPlan.MoveNextIndex;
         return true;
+    }
+
+    public void WireMoveNext(EmitContext ctx, int moveNextBranch, int bodyTarget, int exitTarget)
+    {
+        ctx.Patch(moveNextBranch,
+            (IteratorMoveNextInstruction)ctx.Instructions[moveNextBranch] with
+            {
+                Next = bodyTarget,
+                BreakIndex = exitTarget
+            });
+    }
+
+    public int EmitInitAndWire(EmitContext ctx, int loopEnterTarget)
+    {
+        ctx.Patch(_instrPlan.InitIndex,
+            (IteratorInitInstruction)ctx.Instructions[_instrPlan.InitIndex] with { Next = loopEnterTarget });
+        return _instrPlan.InitIndex;
+    }
+
+    public (int CleanupEntry, int EndFinallyIndex) EmitCleanup(EmitContext ctx, int nextIndex)
+    {
+        var endFinallyIndex = ctx.Append(new EndFinallyInstruction(nextIndex));
+        var iteratorCloseIndex = ctx.Append(new IteratorCloseInstruction(_instrPlan.IteratorSlot, endFinallyIndex));
+        return (iteratorCloseIndex, endFinallyIndex);
     }
 }

@@ -71,7 +71,11 @@ public static partial class TypedAstEvaluator
                 }
                 else
                 {
-                    var isBlocked = !ctx.CurrentScope.IsStrict &&
+                    // Use the var environment's strictness (not ctx.CurrentScope.IsStrict)
+                    // to determine Annex B applicability. The evaluation context's scope
+                    // mode may reflect the outer script's strict mode while the function
+                    // itself is sloppy, causing incorrect blocking decisions.
+                    var isBlocked = !varEnvironment.IsStrict &&
                                     (environment.IsAnnexBBlocked(funcDecl.Name) ||
                                      HasEnclosingLexicalBinding(environment.Enclosing, funcDecl.Name));
 
@@ -95,11 +99,20 @@ public static partial class TypedAstEvaluator
                     // update the outer binding visible to the surrounding eval/function body.
                     if (!isBlocked)
                     {
+                        // Update the var-scoped binding in the function scope.
                         ref var varBinding = ref varEnvironment.TryGetSlotRef(funcDecl.Name);
                         if (!Unsafe.IsNullRef(ref varBinding) && !varBinding.IsLexical)
                         {
                             varEnvironment.AssignJsValue(funcDecl.Name, fnValueJs);
                         }
+
+                        // Also update any intermediate environments between the block and
+                        // the function scope (e.g. the body environment) that have a
+                        // non-lexical slot for this name. The IR plan may allocate hoisted
+                        // function names in the body environment for O(1) slot access;
+                        // without this update, the IR read path sees stale undefined.
+                        UpdateIntermediateVarBindings(
+                            environment.Enclosing, varEnvironment, funcDecl.Name, fnValueJs);
                     }
                 }
             }
@@ -143,6 +156,28 @@ public static partial class TypedAstEvaluator
                 }
 
                 return false;
+            }
+
+            /// <summary>
+            /// Updates non-lexical slots for <paramref name="name"/> in environments between
+            /// <paramref name="start"/> and <paramref name="stop"/> (exclusive). This ensures
+            /// that body environments whose slots were pre-allocated by the IR plan receive the
+            /// Annex B function value so that direct slot reads return the correct value.
+            /// </summary>
+            static void UpdateIntermediateVarBindings(
+                JsEnvironment? start, JsEnvironment stop, Symbol name, JsValue value)
+            {
+                var current = start;
+                while (current is not null && !ReferenceEquals(current, stop))
+                {
+                    ref var slot = ref current.TryGetSlotRef(name);
+                    if (!Unsafe.IsNullRef(ref slot) && !slot.IsLexical)
+                    {
+                        slot.Value = value;
+                    }
+
+                    current = current.Enclosing;
+                }
             }
         }
 

@@ -59,6 +59,7 @@ public static partial class TypedAstEvaluator
 
             // Rent a ForInDriverState and collect property keys
             var forInState = ForInDriverStatePool.Rent();
+            forInState.SourceObject = objectValue;
             CollectEnumerablePropertyKeys(objectValue, forInState.PropertyKeys);
 
             // Set up the state environment
@@ -168,29 +169,39 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            // Check if we have more property keys
-            if (driverState.CurrentIndex >= driverState.PropertyKeys.Count)
+            // Find the next property key that still exists on the object.
+            // Per ES spec, properties deleted during enumeration should be skipped.
+            JsValue currentKey;
+            while (true)
             {
-                // Iteration complete - clean up and jump to break
-                runner.ForInStateRef.CurrentDriverState = null;
-                ForInDriverStatePool.Return(driverState);
-                runner._programCounter = instruction.BreakIndex;
-                returnValue = default;
-                return InstructionResult.Continue;
+                if (driverState.CurrentIndex >= driverState.PropertyKeys.Count)
+                {
+                    // Iteration complete - clean up and jump to break
+                    runner.ForInStateRef.CurrentDriverState = null;
+                    ForInDriverStatePool.Return(driverState);
+                    runner._programCounter = instruction.BreakIndex;
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                currentKey = driverState.PropertyKeys[driverState.CurrentIndex];
+                driverState.CurrentIndex++;
+
+                // Check if the property still exists on the source object (or its prototype chain)
+                if (PropertyStillExists(driverState.SourceObject, currentKey))
+                {
+                    break;
+                }
             }
 
-            // Get the current property key
-            var currentKey = driverState.PropertyKeys[driverState.CurrentIndex];
-            driverState.CurrentIndex++;
-
-            // Store the value in the value slot
-            if (valueVar.IsValid)
+            // Store the value in the value slot.
+            // Always use StoreValueBySlot which updates both the slot AND the dictionary.
+            // The dictionary write is needed because the binding statement reads __forIn_value
+            // via identifier resolution, which falls back to dictionary lookup when the slot
+            // ScopeId doesn't match (e.g., strict-wrapper scripts where the environment's
+            // ScopeId is synthetic but identifiers use the analysis root scope ID).
             {
-                valueVar.Write(currentKey);
-            }
-            else
-            {
-                var loopScopeEnv = stateVar.IsValid ? stateVar.Environment : environment;
+                var loopScopeEnv = valueVar.IsValid ? valueVar.Environment : (stateVar.IsValid ? stateVar.Environment : environment);
                 runner.StoreValueBySlot(loopScopeEnv, instruction.ValueSlot,
                     instruction.ValueSlotIndex, currentKey);
             }
@@ -323,6 +334,41 @@ public static partial class TypedAstEvaluator
             {
                 keys.Add(JsValue.FromString(JsValueCache.GetIndexString(i)));
             }
+        }
+
+        /// <summary>
+        /// Checks if a property key still exists as an enumerable property on the object
+        /// or its prototype chain. Used to skip properties deleted during for-in enumeration.
+        /// </summary>
+        private static bool PropertyStillExists(JsValue sourceObject, JsValue key)
+        {
+            if (sourceObject.ObjectValue is not IJsObjectLike obj)
+            {
+                return true; // can't check, assume exists
+            }
+
+            var keyStr = key.IsString && key.ObjectValue is string s ? s : key.ToString();
+
+            // Walk prototype chain
+            IJsPropertyAccessor? current = obj;
+            while (current is not null)
+            {
+                var desc = current.GetOwnPropertyDescriptor(keyStr);
+                if (desc is not null)
+                {
+                    return desc is not { Enumerable: false };
+                }
+
+                current = current switch
+                {
+                    IJsObjectLike objectLike when objectLike.Prototype is not null => objectLike.Prototype,
+                    IPrototypeAccessorProvider provider when provider.PrototypeAccessor is not null =>
+                        provider.PrototypeAccessor,
+                    _ => null
+                };
+            }
+
+            return false; // property no longer exists
         }
 
         private static void CollectObjectPropertyKeys(IJsObjectLike accessor, List<JsValue> keys)

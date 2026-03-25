@@ -43,6 +43,12 @@ internal sealed class ForInDriverState : IRentable, IAsJsValue
     /// </summary>
     public JsEnvironment? LoopScopeEnvironment { get; set; }
 
+    /// <summary>
+    /// The object being enumerated. Used to check if properties still exist
+    /// during iteration (per ES spec, deleted properties should be skipped).
+    /// </summary>
+    public JsValue SourceObject { get; set; }
+
     [Conditional("DEBUG")]
     internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
 
@@ -70,6 +76,7 @@ internal sealed class ForInDriverState : IRentable, IAsJsValue
         StateVariable = default;
         ValueVariable = default;
         LoopScopeEnvironment = null;
+        SourceObject = default;
     }
 
     /// <summary>
@@ -84,6 +91,7 @@ internal sealed class ForInDriverState : IRentable, IAsJsValue
         StateVariable = default;
         ValueVariable = default;
         LoopScopeEnvironment = null;
+        SourceObject = default;
     }
 }
 

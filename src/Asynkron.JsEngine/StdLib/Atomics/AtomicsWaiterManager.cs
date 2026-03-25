@@ -16,10 +16,15 @@ internal static class AtomicsWaiterManager
 
         internal Waiter()
         {
-            Event = new ManualResetEventSlim(false);
+            Semaphore = new SemaphoreSlim(0, 1);
         }
 
-        internal ManualResetEventSlim Event { get; }
+        /// <summary>
+        /// SemaphoreSlim instead of ManualResetEventSlim for better thread pool behavior.
+        /// WaitAsync() frees the thread during the wait; Wait() still blocks but participates
+        /// in .NET's thread pool work-stealing.
+        /// </summary>
+        internal SemaphoreSlim Semaphore { get; }
 
         internal LinkedListNode<Waiter>? Node { get; set; }
 
@@ -46,7 +51,7 @@ internal static class AtomicsWaiterManager
             }
 
             PromiseCompletionSource?.TrySetResult((JsValue)"ok");
-            Event.Set();
+            try { Semaphore.Release(); } catch (SemaphoreFullException) { }
         }
 
         internal bool TryTimeout()
@@ -72,7 +77,7 @@ internal static class AtomicsWaiterManager
             }
 
             TimeoutTokenSource = null;
-            Event.Dispose();
+            Semaphore.Dispose();
         }
     }
 

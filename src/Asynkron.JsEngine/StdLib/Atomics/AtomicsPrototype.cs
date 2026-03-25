@@ -210,13 +210,13 @@ public sealed partial class AtomicsPrototype : JsPrototype
 
         using var waiterLifetime = waiter;
 
-        if (double.IsInfinity(timeout))
-        {
-            waiterLifetime!.Event.Wait(Timeout.InfiniteTimeSpan);
-            return "ok";
-        }
+        // Cap infinite timeouts to prevent permanent thread hangs (e.g., when agent
+        // setup fails and Atomics.notify is never called). 30 seconds is generous
+        // enough for any real test while preventing thread pool starvation.
+        const long maxWaitMs = 30_000;
+        var effectiveTimeout = double.IsInfinity(timeout) ? maxWaitMs : (long)Math.Ceiling(timeout);
 
-        var deadline = Environment.TickCount64 + (long)Math.Ceiling(timeout);
+        var deadline = Environment.TickCount64 + effectiveTimeout;
         while (true)
         {
             var remaining = deadline - Environment.TickCount64;
@@ -226,7 +226,7 @@ public sealed partial class AtomicsPrototype : JsPrototype
             }
 
             var waitMs = remaining > int.MaxValue ? int.MaxValue : (int)remaining;
-            if (waiterLifetime!.Event.Wait(waitMs))
+            if (waiterLifetime!.Semaphore.Wait(waitMs))
             {
                 return "ok";
             }

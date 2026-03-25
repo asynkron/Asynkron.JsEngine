@@ -10,7 +10,7 @@ public class RegressionTests
     public async Task CreateTest262Engine_AlwaysAppliesExecutionTimeout(bool useSnapshot)
     {
         await using var engine = Test262Test.CreateTest262Engine(logger: null, debugMode: false, useSnapshot);
-        Assert.That(engine.ExecutionTimeout, Is.EqualTo(TimeSpan.FromSeconds(10)));
+        Assert.That(engine.ExecutionTimeout, Is.EqualTo(TimeSpan.FromSeconds(30)));
     }
 
     [Test]

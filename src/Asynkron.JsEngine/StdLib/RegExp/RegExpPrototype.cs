@@ -663,26 +663,46 @@ public sealed partial class RegExpPrototype
     [JsSymbolMethod("search", Length = 1d)]
     private JsValue SearchSymbol(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
+        // ES spec 22.2.5.11 RegExp.prototype[@@search](string)
+        // Step 1-2: Type check
         if (!thisValue.IsObject)
         {
             throw ThrowTypeError("RegExp.prototype[Symbol.search] requires an object receiver", realm: Realm);
         }
 
+        // Step 3: Let string be ? ToString(string).
         var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : string.Empty;
 
-        // Save and restore lastIndex per spec
+        // Step 4: Let previousLastIndex be ? Get(rx, "lastIndex").
         JsOps.TryGetPropertyValue(thisValue, "lastIndex", out var previousLastIndex);
-        SetProperty(thisValue, "lastIndex", new JsValue(0d));
 
+        // Step 5: If SameValue(previousLastIndex, +0) is false, then
+        //   a. Perform ? Set(rx, "lastIndex", +0, true).
+        if (!JsOps.SameValue(previousLastIndex, new JsValue(0d)))
+        {
+            SetPropertyOrThrow(thisValue, "lastIndex", new JsValue(0d));
+        }
+
+        // Step 6: Let result be ? RegExpExec(rx, string).
         var result = RegExpExec(thisValue, input);
 
-        SetProperty(thisValue, "lastIndex", previousLastIndex);
+        // Step 7: Let currentLastIndex be ? Get(rx, "lastIndex").
+        JsOps.TryGetPropertyValue(thisValue, "lastIndex", out var currentLastIndex);
 
+        // Step 8: If SameValue(currentLastIndex, previousLastIndex) is false, then
+        //   a. Perform ? Set(rx, "lastIndex", previousLastIndex, true).
+        if (!JsOps.SameValue(currentLastIndex, previousLastIndex))
+        {
+            SetPropertyOrThrow(thisValue, "lastIndex", previousLastIndex);
+        }
+
+        // Step 9: If result is null, return -1.
         if (result == JsValue.Null)
         {
             return new JsValue(-1d);
         }
 
+        // Step 10: Return ? Get(result, "index").
         JsOps.TryGetPropertyValue(result, "index", out var indexValue);
         return indexValue;
     }
@@ -1065,6 +1085,17 @@ public sealed partial class RegExpPrototype
         }
 
         return index + 1;
+    }
+
+    /// <summary>
+    /// ES spec Set(O, P, V, Throw=true): invokes setters, throws on non-writable or no-setter.
+    /// </summary>
+    private void SetPropertyOrThrow(JsValue target, string name, JsValue value)
+    {
+        if (target.TryGetObject<IJsObjectLike>(out var obj))
+        {
+            ObjectHelper.SetPropertyOrThrow(obj, name, value, target, Realm);
+        }
     }
 
     private void SetProperty(JsValue target, string name, JsValue value)

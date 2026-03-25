@@ -816,9 +816,9 @@ public static partial class NumberHelper
             // Step 6: 0 < n ≤ 21 (and n < k) → s₁...sₙ.sₙ₊₁...sₖ
             result = trimmedDigits[..n] + "." + trimmedDigits[n..];
         }
-        else if (-5 < n && n <= 0)
+        else if (-6 < n && n <= 0)
         {
-            // Step 7: -5 < n ≤ 0 → "0." + zeros + digits
+            // Step 7: -6 < n ≤ 0 → "0." + zeros + digits (ES2024 6.1.6.1.20)
             result = "0." + new string('0', -n) + trimmedDigits;
         }
         else if (k == 1)

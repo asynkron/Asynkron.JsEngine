@@ -117,7 +117,7 @@ public sealed class JsRegExp
         ValidateFlags(Flags);
         var hasUnicodeFlag = Flags.Contains('u', StringComparison.Ordinal) ||
                              Flags.Contains('v', StringComparison.Ordinal);
-        var normalized = NormalizePattern(pattern, hasUnicodeFlag, IgnoreCase, DotAll);
+        var normalized = NormalizePattern(pattern, hasUnicodeFlag, IgnoreCase, DotAll, Multiline);
         var sanitized = SanitizeGroupNamesForDotNet(normalized, out var nameMapping);
         var renamed = RenameDuplicateGroups(sanitized, ref nameMapping, out _duplicateGroupNames);
         _normalizedPattern = _duplicateGroupNames is not null
@@ -915,11 +915,11 @@ public sealed class JsRegExp
         return map;
     }
 
-    private static string NormalizePattern(string pattern, bool hasUnicodeFlag, bool ignoreCase, bool dotAll)
+    private static string NormalizePattern(string pattern, bool hasUnicodeFlag, bool ignoreCase, bool dotAll, bool multiline)
     {
         if (!hasUnicodeFlag)
         {
-            return NormalizeLegacyPattern(pattern, ignoreCase, dotAll);
+            return NormalizeLegacyPattern(pattern, ignoreCase, dotAll, multiline);
         }
 
         if (string.IsNullOrEmpty(pattern))
@@ -939,9 +939,11 @@ public sealed class JsRegExp
         var openGroupNames = new Stack<string?>();
         var groupDepth = 0;
         // Track modifier group state for (?s:...) and (?m:...) modifier groups.
-        // Each entry represents the effective dotAll state at that group depth.
+        // Each entry represents the effective dotAll/multiline state at that group depth.
         var modifierDotAllStack = new Stack<bool>();
+        var modifierMultilineStack = new Stack<bool>();
         var effectiveDotAll = dotAll;
+        var effectiveMultiline = multiline;
 
         for (var i = 0; i < pattern.Length; i++)
         {
@@ -1282,17 +1284,24 @@ public sealed class JsRegExp
 
             // Modifier groups: (?s:...), (?m:...), (?-s:...), (?sm:...), (?s-m:...), etc.
             if (!inCharClass && c == '(' && i + 1 < pattern.Length && pattern[i + 1] == '?' &&
-                TryParseModifierGroup(pattern, i, out var modEnd, out var enableS, out var disableS, out var hasM))
+                TryParseModifierGroup(pattern, i, out var modEnd, out var enableS, out var disableS, out var enableM, out var disableM))
             {
                 groupDepth++;
                 openGroupNames.Push(null);
                 modifierDotAllStack.Push(effectiveDotAll);
+                modifierMultilineStack.Push(effectiveMultiline);
 
                 // Compute new effective dotAll for this group
                 if (enableS)
                     effectiveDotAll = true;
                 else if (disableS)
                     effectiveDotAll = false;
+
+                // Compute new effective multiline for this group
+                if (enableM)
+                    effectiveMultiline = true;
+                else if (disableM)
+                    effectiveMultiline = false;
 
                 // Emit as .NET non-capturing group with modifier flags
                 // .NET supports (?s:...) and (?m:...) natively for ^/$ handling
@@ -1312,6 +1321,7 @@ public sealed class JsRegExp
 
                 openGroupNames.Push(null);
                 modifierDotAllStack.Push(effectiveDotAll);
+                modifierMultilineStack.Push(effectiveMultiline);
             }
 
             if (!inCharClass && c == ')' && groupDepth > 0)
@@ -1327,6 +1337,10 @@ public sealed class JsRegExp
                 {
                     effectiveDotAll = modifierDotAllStack.Pop();
                 }
+                if (modifierMultilineStack.Count > 0)
+                {
+                    effectiveMultiline = modifierMultilineStack.Pop();
+                }
             }
 
             if (!inCharClass && c == '{')
@@ -1337,13 +1351,29 @@ public sealed class JsRegExp
                 }
             }
 
+            // In ECMAScript, ^ and $ without multiline only match at absolute string start/end.
+            // .NET's $ without Multiline also matches before a trailing \n, which differs from ES.
+            // When effectiveMultiline is false, use \A and \z for correct ECMAScript semantics.
+            // When effectiveMultiline is true, keep ^ and $ for .NET's line boundary matching.
+            if (!inCharClass && c == '^' && !effectiveMultiline)
+            {
+                builder.Append(@"\A");
+                continue;
+            }
+
+            if (!inCharClass && c == '$' && !effectiveMultiline)
+            {
+                builder.Append(@"\z");
+                continue;
+            }
+
             AppendCodePoint(builder, c, hasUnicodeFlag, ignoreCase, false);
         }
 
         return builder.ToString();
     }
 
-    private static string NormalizeLegacyPattern(string pattern, bool ignoreCase, bool dotAll)
+    private static string NormalizeLegacyPattern(string pattern, bool ignoreCase, bool dotAll, bool multiline)
     {
         if (string.IsNullOrEmpty(pattern))
         {
@@ -1369,7 +1399,9 @@ public sealed class JsRegExp
         var groupDepth = 0;
         // Track modifier group state for (?s:...) and (?m:...) modifier groups.
         var modifierDotAllStack = new Stack<bool>();
+        var modifierMultilineStack = new Stack<bool>();
         var effectiveDotAll = dotAll;
+        var effectiveMultiline = multiline;
 
         for (var i = 0; i < pattern.Length; i++)
         {
@@ -1645,18 +1677,25 @@ public sealed class JsRegExp
 
             // Modifier groups: (?s:...), (?m:...), (?-s:...), (?sm:...), etc.
             if (!inCharClass && c == '(' && i + 1 < pattern.Length && pattern[i + 1] == '?' &&
-                TryParseModifierGroup(pattern, i, out var modEnd, out var enableS, out var disableS, out var hasM))
+                TryParseModifierGroup(pattern, i, out var modEnd, out var enableS, out var disableS, out var enableM, out var disableM))
             {
                 groupDepth++;
                 openGroupStack.Push(0); // non-capturing
                 openGroupNames.Push(null);
                 modifierDotAllStack.Push(effectiveDotAll);
+                modifierMultilineStack.Push(effectiveMultiline);
 
                 // Compute new effective dotAll for this group
                 if (enableS)
                     effectiveDotAll = true;
                 else if (disableS)
                     effectiveDotAll = false;
+
+                // Compute new effective multiline for this group
+                if (enableM)
+                    effectiveMultiline = true;
+                else if (disableM)
+                    effectiveMultiline = false;
 
                 // Emit as .NET non-capturing group with modifier flags
                 builder.Append(pattern, i, modEnd - i + 1);
@@ -1683,6 +1722,7 @@ public sealed class JsRegExp
                 }
 
                 modifierDotAllStack.Push(effectiveDotAll);
+                modifierMultilineStack.Push(effectiveMultiline);
 
                 // Named capture group: normalize and emit the decoded name
                 // This must happen here to prevent \u{...} escapes in group names
@@ -1734,6 +1774,10 @@ public sealed class JsRegExp
                 if (modifierDotAllStack.Count > 0)
                 {
                     effectiveDotAll = modifierDotAllStack.Pop();
+                }
+                if (modifierMultilineStack.Count > 0)
+                {
+                    effectiveMultiline = modifierMultilineStack.Pop();
                 }
             }
 
@@ -1794,6 +1838,21 @@ public sealed class JsRegExp
                 continue;
             }
 
+            // In ECMAScript, ^ and $ without multiline only match at absolute string start/end.
+            // .NET's $ without Multiline also matches before a trailing \n, which differs from ES.
+            // When effectiveMultiline is false, use \A and \z for correct ECMAScript semantics.
+            if (!inCharClass && c == '^' && !effectiveMultiline)
+            {
+                builder.Append(@"\A");
+                continue;
+            }
+
+            if (!inCharClass && c == '$' && !effectiveMultiline)
+            {
+                builder.Append(@"\z");
+                continue;
+            }
+
             AppendCodePoint(builder, c, false, ignoreCase, false);
             if (inCharClass)
             {
@@ -1812,13 +1871,19 @@ public sealed class JsRegExp
     /// <summary>
     /// Tries to parse a modifier group at position i: (?s:, (?m:, (?-s:, (?sm:, (?s-m:, etc.
     /// Returns true if a valid modifier group prefix was found.
+    /// Throws ParseException for invalid modifier syntax per ES2024 spec early errors:
+    /// - Both add and remove sides empty: (?-:...)
+    /// - Duplicate flags: (?ii:...), (?-ss:...)
+    /// - Same flag on both sides: (?s-s:...)
+    /// - Invalid flag characters: (?I:...), (?S:...)
     /// </summary>
     private static bool TryParseModifierGroup(string pattern, int i, out int endIndex,
-        out bool enableS, out bool disableS, out bool hasM)
+        out bool enableS, out bool disableS, out bool enableM, out bool disableM)
     {
         enableS = false;
         disableS = false;
-        hasM = false;
+        enableM = false;
+        disableM = false;
         endIndex = i;
 
         // Must start with (?
@@ -1826,25 +1891,78 @@ public sealed class JsRegExp
             return false;
 
         var pos = i + 2;
+        var ch = pattern[pos];
+
+        // Quick check: is this potentially a modifier group?
+        // Modifier groups start with [ims-] after (?
+        // If the character is a known non-modifier construct prefix, bail out fast
+        if (ch is ':' or '=' or '!' or '<' or 'P')
+            return false;
+
+        // If the character is not a letter or '-', it's not a modifier group
+        if (ch is not ('s' or 'm' or 'i' or '-') && !char.IsLetter(ch))
+            return false;
+
+        // If it IS a letter but NOT [ims-], scan ahead to see if this looks like a modifier
+        // group with invalid flags (e.g., (?I:...), (?S:...)). If it ends with ':', throw.
+        if (ch is not ('s' or 'm' or 'i' or '-'))
+        {
+            // Scan forward: if we see [letterOrDash]*: it's an invalid modifier group
+            var scanPos = pos;
+            while (scanPos < pattern.Length)
+            {
+                var sc = pattern[scanPos];
+                if (sc == ':')
+                {
+                    throw new ParseException("Invalid regular expression: invalid modifier group flags.");
+                }
+                if (sc == '-' || char.IsLetter(sc))
+                {
+                    scanPos++;
+                    continue;
+                }
+                break; // hit something else — not a modifier group
+            }
+            return false;
+        }
+
         var inDisable = false;
-        var foundModifier = false;
+        var addFlags = new HashSet<char>();
+        var removeFlags = new HashSet<char>();
 
         // Parse modifier flags: [ims] or -[ims], ending with :
         while (pos < pattern.Length)
         {
-            var ch = pattern[pos];
+            ch = pattern[pos];
             if (ch == ':')
             {
-                // End of modifier prefix — must have found at least one modifier
-                if (!foundModifier)
-                    return false;
-                endIndex = pos; // position of ':'
+                // End of modifier prefix — validate per spec early errors
+                if (addFlags.Count == 0 && removeFlags.Count == 0)
+                {
+                    // (?-:...) — both sides empty
+                    throw new ParseException("Invalid regular expression: invalid modifier group flags.");
+                }
+
+                // Check for same flag on both sides
+                foreach (var f in addFlags)
+                {
+                    if (removeFlags.Contains(f))
+                        throw new ParseException("Invalid regular expression: invalid modifier group flags.");
+                }
+
+                // Extract results
+                enableS = addFlags.Contains('s');
+                disableS = removeFlags.Contains('s');
+                enableM = addFlags.Contains('m');
+                disableM = removeFlags.Contains('m');
+                endIndex = pos;
                 return true;
             }
 
             if (ch == '-')
             {
-                if (inDisable) return false; // double dash
+                if (inDisable)
+                    throw new ParseException("Invalid regular expression: invalid modifier group flags.");
                 inDisable = true;
                 pos++;
                 continue;
@@ -1852,22 +1970,24 @@ public sealed class JsRegExp
 
             if (ch is 's' or 'm' or 'i')
             {
-                foundModifier = true;
-                if (ch == 's')
+                var targetSet = inDisable ? removeFlags : addFlags;
+                if (!targetSet.Add(ch))
                 {
-                    if (inDisable) disableS = true;
-                    else enableS = true;
+                    // Duplicate flag: (?ii:...) or (?-ss:...)
+                    throw new ParseException("Invalid regular expression: invalid modifier group flags.");
                 }
-                else if (ch == 'm')
-                {
-                    hasM = true;
-                }
-                // 'i' modifier is recognized but not specially handled (deferred)
                 pos++;
                 continue;
             }
 
-            // Not a modifier character — this isn't a modifier group
+            // Character is NOT a valid modifier [ims] and NOT : or -
+            // If we've already seen modifier chars, this is an invalid modifier group
+            if (addFlags.Count > 0 || removeFlags.Count > 0 || inDisable)
+            {
+                throw new ParseException("Invalid regular expression: invalid modifier group flags.");
+            }
+
+            // No modifier chars seen yet — not a modifier group at all
             return false;
         }
 

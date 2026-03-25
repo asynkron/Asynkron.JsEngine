@@ -2,6 +2,7 @@
 
 using System.Collections;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -29,6 +30,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     private readonly List<JsValue> _items = [];
 
     private readonly JsObject _properties = new();
+    internal JsObject Properties => _properties;
     private readonly IJsCallable? _rangeErrorCtor;
     private readonly IJsCallable? _typeErrorCtor;
     private uint _length;
@@ -666,6 +668,27 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         return false;
     }
 
+    /// <summary>
+    /// Fast path for dense array element assignment. Skips property descriptor checks,
+    /// prototype chain walks, and extensibility guards. Only valid when:
+    /// - The array has no numeric descriptor keys (no getters/setters on indices)
+    /// - The array is extensible
+    /// Called from JsOps.TryAssignArrayLikeValueJsValue fast path.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void SetElementFast(uint index, JsValue value)
+    {
+        var extended = StoreElement(index, value);
+        if (extended)
+        {
+            BumpLength((uint)_items.Count);
+        }
+        else
+        {
+            BumpLength(index + 1);
+        }
+    }
+
     public void SetElement(int index, JsValue value)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(index);
@@ -1135,6 +1158,21 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     private bool TryShrinkLength(uint newLength, EvaluationContext? context, bool throwOnWritableFailure)
     {
+        // Fast path: dense array with no property descriptors on numeric indices.
+        // No non-configurable elements to worry about — just truncate the list directly.
+        // This turns O(n log n) sort + O(n) delete into O(1) for the common case
+        // (e.g., codePoints.length = 0 to clear an array in a loop).
+        if (!_properties.HasNumericDescriptorKeys() && _sparseItems is null)
+        {
+            if (_items.Count > (int)newLength)
+            {
+                _items.RemoveRange((int)newLength, _items.Count - (int)newLength);
+            }
+
+            SetExplicitLength(newLength);
+            return true;
+        }
+
         List<uint>? indicesToDelete = null;
 
         if (_items.Count > newLength)

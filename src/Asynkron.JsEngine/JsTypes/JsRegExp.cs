@@ -1919,6 +1919,27 @@ public sealed class JsRegExp
 
     /// <summary>
     /// <summary>
+    /// Returns the code point ranges for a character class escape (\d, \D, \w, \W, \s, \S).
+    /// Used in unicode character class normalization to expand these into explicit ranges.
+    /// </summary>
+    private static (int Start, int End)[] GetCharacterClassEscapeRanges(char escape)
+    {
+        return escape switch
+        {
+            'd' => [(0x30, 0x39)], // 0-9
+            'D' => [(0x00, 0x2F), (0x3A, 0xD7FF), (0xE000, 0x10FFFF)],
+            'w' => [(0x30, 0x39), (0x41, 0x5A), (0x5F, 0x5F), (0x61, 0x7A)], // 0-9 A-Z _ a-z
+            'W' => [(0x00, 0x2F), (0x3A, 0x40), (0x5B, 0x5E), (0x60, 0x60), (0x7B, 0xD7FF), (0xE000, 0x10FFFF)],
+            's' => [(0x09, 0x0D), (0x20, 0x20), (0xA0, 0xA0), (0x1680, 0x1680), (0x2000, 0x200A),
+                (0x2028, 0x2029), (0x202F, 0x202F), (0x205F, 0x205F), (0x3000, 0x3000), (0xFEFF, 0xFEFF)],
+            'S' => [(0x00, 0x08), (0x0E, 0x1F), (0x21, 0x9F), (0xA1, 0x167F), (0x1681, 0x1FFF),
+                (0x200B, 0x2027), (0x202A, 0x202E), (0x2030, 0x205E), (0x2060, 0x2FFF),
+                (0x3001, 0xD7FF), (0xE000, 0xFEFE), (0xFF00, 0x10FFFF)],
+            _ => throw new ArgumentOutOfRangeException(nameof(escape))
+        };
+    }
+
+    /// <summary>
     /// Returns true if the character is a valid escape character in unicode mode (after \).
     /// In unicode mode, only specific escapes are allowed per the ES spec.
     /// This is called for escapes NOT already handled by earlier specific cases
@@ -3479,6 +3500,43 @@ public sealed class JsRegExp
                 continue;
             }
 
+            // Handle character class escapes \d, \D, \w, \W, \s, \S inside [...]
+            // These represent sets of code points, not single code points.
+            if (cursor + 1 < pattern.Length && pattern[cursor] == '\\' &&
+                pattern[cursor + 1] is 'd' or 'D' or 'w' or 'W' or 's' or 'S')
+            {
+                var escapeChar = pattern[cursor + 1];
+                var classRanges = GetCharacterClassEscapeRanges(escapeChar);
+
+                // Check for invalid range: [\d-a] should throw in unicode mode
+                if (cursor + 2 < pattern.Length && pattern[cursor + 2] == '-' &&
+                    cursor + 3 < pattern.Length && pattern[cursor + 3] != ']')
+                {
+                    throw new ParseException(
+                        $"Invalid regular expression: character class escape \\{escapeChar} cannot be used as range endpoint.");
+                }
+
+                foreach (var (s, e) in classRanges)
+                {
+                    if (e <= 0xFFFF)
+                        bmpRanges.Add((s, e));
+                    else if (s > 0xFFFF)
+                        astralRanges.Add((s, e));
+                    else
+                    {
+                        bmpRanges.Add((s, 0xFFFF));
+                        astralRanges.Add((0x10000, e));
+                    }
+                }
+
+                cursor += 2;
+                continue;
+            }
+
+            // Also check if a range starts with a literal and ends with a class escape: [a-\d]
+            // This needs to be caught too. We'll detect it after parsing the first code point
+            // when we see '-' followed by \d/\D/\w/\W/\s/\S.
+
             var cp = ParseClassCodePoint(pattern, ref cursor);
             if (IsHighSurrogate(cp) &&
                 TryParseLowSurrogate(pattern, ref cursor, out var trail))
@@ -3494,6 +3552,14 @@ public sealed class JsRegExp
             if (cursor < pattern.Length && pattern[cursor] == '-' && cursor + 1 < pattern.Length &&
                 pattern[cursor + 1] != ']')
             {
+                // Check for [a-\d] — class escape as range endpoint is invalid in unicode mode
+                if (cursor + 2 < pattern.Length && pattern[cursor + 1] == '\\' &&
+                    pattern[cursor + 2] is 'd' or 'D' or 'w' or 'W' or 's' or 'S')
+                {
+                    throw new ParseException(
+                        $"Invalid regular expression: character class escape \\{pattern[cursor + 2]} cannot be used as range endpoint.");
+                }
+
                 cursor++;
                 endCp = ParseClassCodePoint(pattern, ref cursor);
                 if (IsHighSurrogate(endCp) &&
@@ -3982,17 +4048,8 @@ public sealed class JsRegExp
             return controlValue;
         }
 
-        // Known character class escapes: d, D, w, W, s, S are handled by the caller
-        // via property escape resolution. But single-char escapes are valid:
         switch (escape)
         {
-            case 'd' or 'D' or 'w' or 'W' or 's' or 'S':
-                // These are class escapes — they represent ranges, not single code points.
-                // For range validation ([\d-a] should throw), return a sentinel.
-                // The caller handles these via the property escape path before reaching here.
-                // If we get here, something went wrong — throw to be safe.
-                throw new ParseException(
-                    $"Invalid regular expression: character class escape \\{escape} cannot be used in a range.");
             case 'b':
                 index += 2;
                 return 0x08; // backspace in character class

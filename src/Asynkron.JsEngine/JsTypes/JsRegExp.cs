@@ -125,8 +125,10 @@ public sealed class JsRegExp
             : renamed;
         _groupNameMapping = nameMapping;
 
-        // Convert JavaScript regex flags to .NET RegexOptions
-        var options = RegexOptions.CultureInvariant;
+        // Convert JavaScript regex flags to .NET RegexOptions.
+        // Always use Compiled: the JIT cost is amortized across matches,
+        // and large property-escape patterns are orders of magnitude faster compiled.
+        var options = RegexOptions.CultureInvariant | RegexOptions.Compiled;
         if (IgnoreCase)
         {
             options |= RegexOptions.IgnoreCase;

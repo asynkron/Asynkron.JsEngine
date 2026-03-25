@@ -288,6 +288,16 @@ public static partial class TypedAstEvaluator
                             break;
                         }
 
+                        // Per ES spec, Annex B.3.3 only applies to plain function declarations.
+                        // async function, function*, and async function* in blocks are always
+                        // lexically scoped — they do NOT get var-style hoisting even in sloppy mode.
+                        if (inBlockScope && (functionDeclaration.Function.IsAsync ||
+                                             functionDeclaration.Function.WasAsync ||
+                                             functionDeclaration.Function.IsGenerator))
+                        {
+                            break;
+                        }
+
                         if (functionHoistDedupe?.Add(functionDeclaration.Name) == false)
                         {
                             break;

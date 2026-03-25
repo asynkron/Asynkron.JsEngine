@@ -29,6 +29,7 @@ internal enum ExpressionOpKind : byte
     ArrayPushHole,
     ArraySpread,
     CreateObject,
+    RequireObjectCoercible,
     ResolvePropertyKey,
     DefineObjectProperty,
     DefineComputedObjectProperty,
@@ -191,6 +192,14 @@ internal sealed record ArraySpreadExpressionOp()
 
 internal sealed record CreateObjectExpressionOp()
     : ExpressionOp(ExpressionOpKind.CreateObject);
+
+/// <summary>
+/// Checks that the value at [stackIndex - 1 - Depth] is not null/undefined.
+/// Throws TypeError if it is. Per ES spec, RequireObjectCoercible must be called
+/// before ToPropertyKey in compound assignment (13.15.2 step 1.e).
+/// </summary>
+internal sealed record RequireObjectCoercibleExpressionOp(int Depth = 0)
+    : ExpressionOp(ExpressionOpKind.RequireObjectCoercible);
 
 internal sealed record ResolvePropertyKeyExpressionOp()
     : ExpressionOp(ExpressionOpKind.ResolvePropertyKey);

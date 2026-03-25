@@ -444,6 +444,21 @@ public static partial class TypedAstEvaluator
                                 break;
                             }
 
+                        case RequireObjectCoercibleExpressionOp requireCoercible:
+                            {
+                                var checkIndex = stackIndex - 1 - requireCoercible.Depth;
+                                if (stack[checkIndex].IsNullOrUndefined)
+                                {
+                                    throw StandardLibrary.ThrowTypeError(
+                                        "Cannot read properties of null or undefined",
+                                        context,
+                                        context.RealmState);
+                                }
+
+                                programCounter++;
+                                break;
+                            }
+
                         case ResolvePropertyKeyExpressionOp:
                             stack[stackIndex - 1] = ResolveProgramPropertyKey(stack[stackIndex - 1], context);
                             stackFlags[stackIndex - 1] = false;

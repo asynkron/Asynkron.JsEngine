@@ -1679,6 +1679,10 @@ internal static class ExpressionProgramCompiler
             return false;
         }
 
+        // Per ES spec 13.15.2 step 1.e: RequireObjectCoercible(base) BEFORE ToPropertyKey(index).
+        // Stack is [target, index]. Check target (depth 1) is not null/undefined before resolving key.
+        builder.Add(new RequireObjectCoercibleExpressionOp(Depth: 1));
+
         // Resolve the property key once before duplicating, so both Get and Set
         // use the already-resolved string. This ensures ToPropertyKey is called
         // exactly once per the ECMAScript spec (e.g. S11.13.2_A7.1_T4).

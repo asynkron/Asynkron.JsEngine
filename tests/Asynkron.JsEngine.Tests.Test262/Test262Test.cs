@@ -210,7 +210,7 @@ try {
                 DebugMode = debugMode,
             });
 
-        engine.ExecutionTimeout = TimeSpan.FromSeconds(10);
+        engine.ExecutionTimeout = TimeSpan.FromSeconds(30);
         return engine;
     }
 

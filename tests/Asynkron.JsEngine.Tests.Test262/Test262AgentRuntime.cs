@@ -45,7 +45,16 @@ internal sealed class Test262AgentRuntime
 
     private JsValue StartAgent(IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || args[0].ToObject() is not string source)
+        if (args.Count == 0)
+        {
+            return JsValue.Undefined;
+        }
+
+        // Use AsString() instead of ToObject() — JsRopeString doesn't cast to System.String
+        // via ToObject(), but AsString() correctly materializes the rope.
+        var arg0 = args[0];
+        var source = arg0.Kind == JsValueKind.String ? arg0.AsString() : arg0.ToObject() as string;
+        if (source is null)
         {
             return JsValue.Undefined;
         }

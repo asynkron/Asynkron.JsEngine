@@ -308,7 +308,60 @@ public sealed class JsRegExp
 
     private Regex EnsureRegex()
     {
-        return _compiledRegex ??= new Regex(_normalizedPattern, _regexOptions);
+        return _compiledRegex ??= new Regex(CapLargeQuantifiers(_normalizedPattern), _regexOptions);
+    }
+
+    /// <summary>
+    /// Caps quantifier values > Int32.MaxValue to Int32.MaxValue.
+    /// .NET regex rejects quantifiers larger than Int32.MaxValue, but the ES spec allows
+    /// arbitrary large integers. Since any quantifier > string length never matches,
+    /// capping to Int32.MaxValue is semantically correct.
+    /// </summary>
+    private static string CapLargeQuantifiers(string pattern)
+    {
+        // Quick check: only process if pattern contains '{' followed by a digit
+        if (!pattern.Contains('{'))
+            return pattern;
+
+        var builder = new StringBuilder(pattern.Length);
+        var inCharClass = false;
+        var escaped = false;
+
+        for (var i = 0; i < pattern.Length; i++)
+        {
+            var c = pattern[i];
+            if (escaped)
+            {
+                escaped = false;
+                builder.Append(c);
+                continue;
+            }
+
+            if (c == '\\')
+            {
+                escaped = true;
+                builder.Append(c);
+                continue;
+            }
+
+            if (c == '[') inCharClass = true;
+            if (c == ']') inCharClass = false;
+
+            if (!inCharClass && c == '{' && i + 1 < pattern.Length && char.IsDigit(pattern[i + 1]))
+            {
+                var end = pattern.IndexOf('}', i + 1);
+                if (end > i)
+                {
+                    AppendCappedQuantifier(builder, pattern, i, end);
+                    i = end;
+                    continue;
+                }
+            }
+
+            builder.Append(c);
+        }
+
+        return builder.ToString();
     }
 
     internal Regex GetRegex()
@@ -1387,9 +1440,16 @@ public sealed class JsRegExp
 
             // In unicode mode, '{' must be part of a valid quantifier {n}, {n,}, or {n,m}
             // Annex B allows bare '{' as a literal in non-unicode mode, but not here.
-            if (!inCharClass && c == '{')
+            // After validation, skip past the entire {n,m} so '}' isn't caught as lone '}'.
+            if (hasUnicodeFlag && !inCharClass && c == '{')
             {
-                ValidateQuantifierBrace(pattern, i);
+                var braceEnd = ValidateQuantifierBrace(pattern, i);
+                // Append the quantifier, capping large values to Int32.MaxValue for .NET compat.
+                // ES spec allows arbitrary large integers but .NET rejects > Int32.MaxValue.
+                // Any value larger than string length never matches anyway.
+                AppendCappedQuantifier(builder, pattern, i, braceEnd);
+                i = braceEnd;
+                continue;
             }
 
             // In unicode mode, lone ']' and '}' are SyntaxErrors (not valid PatternCharacter).
@@ -1961,10 +2021,56 @@ public sealed class JsRegExp
     }
 
     /// <summary>
+    /// Appends a quantifier {n}, {n,}, or {n,m} to the builder, capping numbers to Int32.MaxValue.
+    /// .NET regex rejects quantifiers > Int32.MaxValue, but ES spec allows any integer.
+    /// </summary>
+    private static void AppendCappedQuantifier(StringBuilder builder, string pattern, int braceStart, int braceEnd)
+    {
+        var content = pattern.AsSpan(braceStart + 1, braceEnd - braceStart - 1); // between { and }
+        var commaIdx = content.IndexOf(',');
+
+        if (commaIdx < 0)
+        {
+            // {n}
+            builder.Append('{');
+            AppendCappedInt(builder, content);
+            builder.Append('}');
+        }
+        else
+        {
+            // {n,} or {n,m}
+            builder.Append('{');
+            AppendCappedInt(builder, content[..commaIdx]);
+            builder.Append(',');
+            var after = content[(commaIdx + 1)..];
+            if (after.Length > 0)
+            {
+                AppendCappedInt(builder, after);
+            }
+
+            builder.Append('}');
+        }
+    }
+
+    private static void AppendCappedInt(StringBuilder builder, ReadOnlySpan<char> digits)
+    {
+        const int max = int.MaxValue;
+        if (digits.Length > 10 || (long.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out var val) && val > max))
+        {
+            builder.Append(max.ToString(CultureInfo.InvariantCulture));
+        }
+        else
+        {
+            builder.Append(digits);
+        }
+    }
+
+    /// <summary>
     /// Validates that '{' at position i is part of a complete quantifier: {n}, {n,}, or {n,m}.
     /// In unicode mode, bare '{' is not allowed as a literal.
+    /// Returns the index of the closing '}'.
     /// </summary>
-    private static void ValidateQuantifierBrace(string pattern, int i)
+    private static int ValidateQuantifierBrace(string pattern, int i)
     {
         var pos = i + 1;
 
@@ -1980,7 +2086,7 @@ public sealed class JsRegExp
             throw new ParseException("Invalid regular expression: incomplete quantifier.");
 
         if (pattern[pos] == '}')
-            return; // {n} — valid
+            return pos; // {n} — valid
 
         if (pattern[pos] != ',')
             throw new ParseException("Invalid regular expression: incomplete quantifier.");
@@ -1997,7 +2103,7 @@ public sealed class JsRegExp
         if (pos >= pattern.Length || pattern[pos] != '}')
             throw new ParseException("Invalid regular expression: incomplete quantifier.");
 
-        // {n,} or {n,m} — valid
+        return pos; // {n,} or {n,m} — valid
     }
 
     /// Tries to parse a modifier group at position i: (?s:, (?m:, (?-s:, (?sm:, (?s-m:, etc.

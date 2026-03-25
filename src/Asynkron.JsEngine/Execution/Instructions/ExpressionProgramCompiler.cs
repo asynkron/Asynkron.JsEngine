@@ -1290,7 +1290,8 @@ internal static class ExpressionProgramCompiler
                 return false;
             }
 
-            builder.Add(new SetComputedPropertyExpressionOp());
+            // Per ES spec, assignment to MemberExpression does NOT trigger NamedEvaluation.
+            builder.Add(new SetComputedPropertyExpressionOp(AllowNameInference: false));
             failureReason = null;
             return true;
         }
@@ -1306,7 +1307,9 @@ internal static class ExpressionProgramCompiler
             return false;
         }
 
-        builder.Add(new SetNamedPropertyExpressionOp(propertyLiteral.Value.AsString()));
+        // Per ES spec, assignment to MemberExpression does NOT trigger NamedEvaluation.
+        // Only assignments to IdentifierRef get name inference (handled by AssignmentExpression).
+        builder.Add(new SetNamedPropertyExpressionOp(propertyLiteral.Value.AsString(), AllowNameInference: false));
         failureReason = null;
         return true;
     }

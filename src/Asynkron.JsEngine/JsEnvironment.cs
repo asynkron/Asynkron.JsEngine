@@ -3796,6 +3796,28 @@ public sealed class JsEnvironment : IRentable
     }
 
     /// <summary>
+    /// Like PopulateSyntheticSlotNames but preserves existing flags (e.g., Uninitialized for TDZ).
+    /// Used in ResetSlotLayoutForPlan where MarkSlotsLexicalUninitialized runs first.
+    /// </summary>
+    internal void PopulateSyntheticSlotNamesPreserveFlags(ImmutableArray<Symbol> slotSymbols, int offset = 0)
+    {
+        if (_slots is null || slotSymbols.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        for (var i = 0; i < slotSymbols.Length && (i + offset) < _slots.Length; i++)
+        {
+            ref var slot = ref _slots[i + offset];
+            if (slot.Name is null)
+            {
+                // Only set name if not already populated — preserve existing flags
+                slot = new JsSlot(slotSymbols[i], slot.Value, slot.Flags);
+            }
+        }
+    }
+
+    /// <summary>
     /// Ensures the slot layout matches the expected plan layout.
     /// If the layoutId or capacity does not match, the slots are rebuilt.
     /// </summary>
@@ -3841,7 +3863,9 @@ public sealed class JsEnvironment : IRentable
         // Populate slot names from slotSymbols so TryValidateSlotTarget can verify
         // name-based slot resolution. Without this, strict-wrapper scripts fail because
         // the slot entries have null names while identifiers expect to find them.
-        PopulateSyntheticSlotNames(slotSymbols);
+        // IMPORTANT: Use flag-preserving variant to avoid overwriting Uninitialized flags
+        // set by MarkSlotsLexicalUninitialized above.
+        PopulateSyntheticSlotNamesPreserveFlags(slotSymbols);
 
         LayoutId = layoutId;
         AssertSlotSymbols(slotSymbols, nameof(ResetSlotLayoutForPlan));

@@ -25,3 +25,28 @@ Use these task-specific guides while working in the repo. MUST READ AND UNDERSTA
 - [Debugging aids (logger assertions, slot metadata)](agents/how-to-debugging.md)
 - [Test Bomb methodology](agents/how-to-test-bombs.md)
 - [Layered Tests methodology](agents/how-to-layered-tests.md)
+
+## Test262 Conformance Testing
+
+### Testrunner
+- The custom testrunner lives at `~/git/asynkron/Asynkron.TestRunner` (global tool: `testrunner`)
+- Run: `testrunner run tests/Asynkron.JsEngine.Tests.Test262/Asynkron.JsEngine.Tests.Test262.csproj --workers 4`
+- Baselines: `.testrunner/baseline.md` — copy `summary.md` after each run to track progress
+
+### Crash collateral vs real failures
+- The testrunner reports ~1000+ "failures" but most are **crash collateral** — innocent tests killed when an OOM test crashes the worker process
+- **Always verify failures individually**: `dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --no-build --filter "Name=<TestMethod>" --blame-hang-timeout 15s`
+- Real correctness failures are typically <20. Run Language and BuiltIns runsettings to get true counts:
+  - `dotnet test ... --settings tests/Asynkron.JsEngine.Tests.Test262/LanguageTests.runsettings`
+  - `dotnet test ... --settings tests/Asynkron.JsEngine.Tests.Test262/BuiltInsTests.runsettings`
+
+### Checking for regressions
+- Before assuming a new failure is a regression, `git stash` and test on clean main
+- Compare testrunner baselines with `diff` on sorted failure lists — most churn is crash collateral noise
+- Excluded features (dynamic import, import-defer, etc.) are in `Test262Harness.settings.json`
+
+### Performance-related test failures
+- RegExp property escapes, DecodeURI/EncodeURI tests are CPU-heavy — they pass individually but timeout in parallel
+- Use `/profile` skill to profile before optimizing: `dnx asynkron-profiler --cpu -- <target>`
+- `RegexOptions.Compiled` is enabled for all JS regex patterns — large patterns benefit from JIT compilation
+- Property escape pattern expansions are cached via `ConcurrentDictionary`

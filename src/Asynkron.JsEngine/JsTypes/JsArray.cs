@@ -1239,8 +1239,12 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 continue;
             }
 
+            // Per ES spec 10.4.2.4 step 3.l.iii.1-2:
+            // When a non-configurable element blocks length reduction,
+            // set length to (index + 1) and return false. The caller
+            // handles writable and may throw TypeError if needed.
             SetExplicitLength(index + 1);
-            return FailTypeError(context, throwOnWritableFailure);
+            return false;
         }
 
         SetExplicitLength(newLength);

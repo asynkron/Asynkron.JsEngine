@@ -1910,7 +1910,10 @@ public sealed class JsEnvironment : IRentable
     /// </summary>
     internal void SetIdentifierJsValue(Symbol name, JsValue value, EvaluationContext context)
     {
-        var isStrictContext = context.CurrentScope.IsStrict;
+        // Check both the scope frame (AST path) and the environment chain (IR path).
+        // The IR execution path doesn't push scope frames, so CurrentScope.IsStrict
+        // returns false even for strict functions. Fall back to environment strictness.
+        var isStrictContext = context.CurrentScope.IsStrict || IsStrict;
 
         if (TryGetCachedDeclarativeBinding(name, context, out var cached))
         {

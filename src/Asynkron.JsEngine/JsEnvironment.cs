@@ -19,7 +19,7 @@ namespace Asynkron.JsEngine;
 
 public sealed class JsEnvironment : IRentable
 {
-    private const int MaxDepth = 1_000;
+    private const int MaxDepth = 10_000;
     internal static readonly object Uninitialized = new();
     private static readonly ConcurrentDictionary<int, WeakReference<JsEnvironment>> ScopeEnvironmentRegistry = new();
 
@@ -3835,6 +3835,11 @@ public sealed class JsEnvironment : IRentable
         {
             MarkSlotsLexicalUninitialized(lexicalBindings);
         }
+
+        // Populate slot names from slotSymbols so TryValidateSlotTarget can verify
+        // name-based slot resolution. Without this, strict-wrapper scripts fail because
+        // the slot entries have null names while identifiers expect to find them.
+        PopulateSyntheticSlotNames(slotSymbols);
 
         LayoutId = layoutId;
         AssertSlotSymbols(slotSymbols, nameof(ResetSlotLayoutForPlan));

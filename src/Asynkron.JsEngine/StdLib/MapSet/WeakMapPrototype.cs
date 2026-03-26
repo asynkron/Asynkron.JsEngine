@@ -39,6 +39,42 @@ public sealed partial class WeakMapPrototype
         return new JsValue(map.Delete(args.GetArgument(0)));
     }
 
+    [JsHostMethod("getOrInsert", Length = 2d)]
+    public JsValue GetOrInsert(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var map = RequireInstance(thisValue);
+        var key = args.GetArgument(0);
+        var value = args.GetArgument(1);
+        if (map.Has(key))
+        {
+            return map.Get(key);
+        }
+
+        map.Set(key, value);
+        return value;
+    }
+
+    [JsHostMethod("getOrInsertComputed", Length = 2d)]
+    public JsValue GetOrInsertComputed(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var map = RequireInstance(thisValue);
+        var key = args.GetArgument(0);
+        var callbackfn = args.GetArgument(1);
+        if (map.Has(key))
+        {
+            return map.Get(key);
+        }
+
+        if (!callbackfn.TryGetCallable(out var callable))
+        {
+            throw StandardLibrary.ThrowTypeError("WeakMap.prototype.getOrInsertComputed callback must be callable", realm: Realm);
+        }
+
+        var value = callable.Invoke([key], JsValue.Undefined);
+        map.Set(key, value);
+        return value;
+    }
+
     protected override void ConfigurePrototype()
     {
         if (Prototype is JsObject { RealmState: null } jsObj)

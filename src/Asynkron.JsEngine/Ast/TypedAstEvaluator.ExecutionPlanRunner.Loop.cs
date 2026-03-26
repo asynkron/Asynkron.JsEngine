@@ -190,6 +190,7 @@ public static partial class TypedAstEvaluator
                 {
                     while ((uint)_programCounter < (uint)instructionsLength)
                     {
+
                         // Check if HandleAbruptCompletion restored the environment (e.g., jumping to catch handler)
                         // This ensures block-scoped bindings from inside the try are no longer visible.
                         // NOTE: Must check _tryCatchState directly (not cached hasTryCatchState) because

@@ -393,13 +393,30 @@ public static partial class TypedAstEvaluator
 
         private JsValue CompleteReturn(JsValue value)
         {
-            // Close any active iterators before completing (array patterns and for-of loops)
-            CloseActiveIterators();
+            // Close any active iterators before completing (array patterns and for-of loops).
+            // Per ES spec 27.5.3.4 step 8: if IteratorClose throws, that error replaces
+            // the return completion. We must still mark the generator as completed.
+            ThrowSignal? closeError = null;
+            try
+            {
+                CloseActiveIterators();
+            }
+            catch (ThrowSignal signal)
+            {
+                closeError = signal;
+            }
 
             _programCounter = -1;
             _state = GeneratorState.Completed;
             _done = true;
             TryCatchStateRef.TryStack.Clear();
+
+            // If an iterator close threw, propagate that error instead of the return value.
+            if (closeError is not null)
+            {
+                throw closeError;
+            }
+
             return CreateIteratorResult(value, true);
         }
 
@@ -423,20 +440,37 @@ public static partial class TypedAstEvaluator
             ScanEnvironmentForActiveIterators(_executionEnvironment, statesToClose);
             var closedIterators = new HashSet<IJsObjectLike>(ReferenceEqualityComparer<IJsObjectLike>.Instance);
 
-            foreach (var (state, iterator) in statesToClose)
+            // Mark ALL iterators as closed first to prevent re-entrancy.
+            foreach (var (state, _) in statesToClose)
             {
-                // Mark as closed first (before potential exception)
                 state.MarkIteratorClosed();
+            }
 
+            ThrowSignal? firstError = null;
+            foreach (var (_, iterator) in statesToClose)
+            {
                 // Skip duplicate iterator objects to avoid double-closing the same iterator
                 if (!closedIterators.Add(iterator))
                 {
                     continue;
                 }
 
-                // Close the iterator - if it throws, that error replaces the return completion
-                // Let the exception propagate directly without catching
-                iterator.IteratorClose(context);
+                // Close the iterator. If it throws, remember the first error but continue
+                // closing remaining iterators to avoid resource leaks.
+                try
+                {
+                    iterator.IteratorClose(context);
+                }
+                catch (ThrowSignal signal)
+                {
+                    firstError ??= signal;
+                }
+            }
+
+            // Propagate the first error after all iterators are closed.
+            if (firstError is not null)
+            {
+                throw firstError;
             }
         }
 

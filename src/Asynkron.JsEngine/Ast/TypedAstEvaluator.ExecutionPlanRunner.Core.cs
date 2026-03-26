@@ -114,6 +114,17 @@ public static partial class TypedAstEvaluator
             JsEnvironment environment,
             EvaluationContext context)
         {
+            // When ProgramNodeExtensions.ResetSlotLayoutForPlan already initialized the
+            // slot layout (strict-wrapper scripts where HasSlots was false), the plan's
+            // synthetic slots are at index 0..N-1 and hoisted vars were appended after
+            // them. Skip re-initialization and use offset 0 so IR 0-based indices map
+            // directly to the correct slots.
+            if (environment.LayoutId == plan.LayoutId && plan.LayoutId > 0)
+            {
+                var strictRunner = new ExecutionPlanRunner(plan, environment, context, slotOffset: 0);
+                return strictRunner.RunScriptInternal();
+            }
+
             // Capture existing slot count before InitializeSlots appends new slots.
             // This offset is used to adjust IR slot indices at runtime for the GlobalEnvironment.
             // IR uses 0-based indices, but GlobalEnvironment already has slots (Symbol.This at 0, etc.)
@@ -131,8 +142,8 @@ public static partial class TypedAstEvaluator
                 environment.PopulateSyntheticSlotNames(plan.SlotSymbols, existingSlotCount);
             }
 
-            var runner = new ExecutionPlanRunner(plan, environment, context, existingSlotCount);
-            return runner.RunScriptInternal();
+            var globalRunner = new ExecutionPlanRunner(plan, environment, context, existingSlotCount);
+            return globalRunner.RunScriptInternal();
         }
 
         /// <summary>

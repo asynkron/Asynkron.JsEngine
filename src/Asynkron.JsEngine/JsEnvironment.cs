@@ -4318,6 +4318,16 @@ public sealed class JsEnvironment : IRentable
     }
 
     /// <summary>
+    /// Checks if a slot is in the TDZ (uninitialized).
+    /// Used by fast path handlers to throw ReferenceError on TDZ access.
+    /// </summary>
+    [MethodImpl(JsEngineConstants.Inlining)]
+    internal bool IsSlotUninitialized(int slotIndex)
+    {
+        return _slots![slotIndex].IsUninitialized;
+    }
+
+    /// <summary>
     /// Sets a slot value directly without any lookups.
     /// Used for fast per-iteration binding copies in generators.
     /// WARNING: Caller must ensure slotIndex is valid and _slots is initialized.

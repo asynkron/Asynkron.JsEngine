@@ -508,7 +508,20 @@ public static partial class TypedAstEvaluator
 
             public void EnsureAssignable(Symbol targetSymbol, RealmState realmState)
             {
-                if (UseFlatSlot && _variable.IsConst)
+                if (!UseFlatSlot)
+                {
+                    return;
+                }
+
+                // TDZ check: assignment to uninitialized let/const binding
+                if (_variable.Environment.IsSlotUninitialized(_variable.SlotIndex))
+                {
+                    throw StandardLibrary.ThrowReferenceError(
+                        $"Cannot access '{targetSymbol.Name}' before initialization",
+                        realm: realmState);
+                }
+
+                if (_variable.IsConst)
                 {
                     throw new ThrowSignal(StandardLibrary.CreateTypeError(
                         $"Assignment to constant variable '{targetSymbol.Name}'.",

@@ -395,6 +395,14 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             else
             {
                 _context.Clear();
+                // Ensure the scope frame reflects the function's strictness.
+                // The AST path may have popped the initial scope frame, or Clear()
+                // may have been called after previous use. Re-push to guarantee
+                // context.CurrentScope.IsStrict matches _isStrict.
+                if (_context.CurrentScope.IsStrict != _isStrict)
+                {
+                    _context.PushScope(ScopeKind.Function, DetermineGeneratorScopeMode());
+                }
             }
 
             _context.AllowIdentifierCache = _allowIdentifierCache;

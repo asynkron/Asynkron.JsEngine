@@ -395,7 +395,7 @@ public static partial class TypedAstEvaluator
             // the function that most recently called this one. Must be checked before
             // _properties to avoid hitting the poison pill accessor on Function.prototype.
             // Strict functions rely on the poison pill (set up in FunctionPrototype).
-            if (!_isStrict && string.Equals(name, "caller", StringComparison.Ordinal))
+            if (!_isStrict && !IsArrowFunction && string.Equals(name, "caller", StringComparison.Ordinal))
             {
                 if (_currentCaller is null)
                 {

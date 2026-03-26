@@ -132,6 +132,12 @@ internal static class BlockEmitter
         // This is critical: the ExecutionPlanRunner uses PerIterationBindings to detect
         // whether a PUSH_ENV is for a loop iteration (non-empty) vs a regular block (empty).
         // Passing LexicalTemplate here would incorrectly mark this as a loop iteration scope.
+        //
+        // Compute LexicalBindings for TDZ enforcement: let/const names that should be
+        // marked Uninitialized when the block scope is entered. Exclude function declarations
+        // since those are initialized immediately by hoisting.
+        var lexicalBindings = ComputeBlockLexicalBindings(hoistPlan.TopLevelLexicalNames, functionDeclarations);
+
         entryIndex = ctx.Append(new PushEnvironmentInstruction(
             hoistEntry,
             ImmutableArray<Symbol>.Empty,
@@ -139,9 +145,48 @@ internal static class BlockEmitter
             slotCount,
             slotMap,
             allowPooling,
+            LexicalBindings: lexicalBindings,
             SourceBlock: block));
 
         return true;
+    }
+
+    /// <summary>
+    /// Computes the set of lexical bindings that need TDZ enforcement.
+    /// Includes let/const names, excludes function declaration names (which are
+    /// initialized immediately by hoisting and don't have a temporal dead zone).
+    /// </summary>
+    private static ImmutableHashSet<Symbol>? ComputeBlockLexicalBindings(
+        HashSet<Symbol> topLevelLexicalNames,
+        ImmutableArray<StatementNode>.Builder functionDeclarations)
+    {
+        if (topLevelLexicalNames.Count == 0)
+        {
+            return null;
+        }
+
+        // Collect function declaration names to exclude from TDZ
+        HashSet<Symbol>? funcNames = null;
+        foreach (var stmt in functionDeclarations)
+        {
+            if (stmt is FunctionDeclaration { Name: { } name })
+            {
+                funcNames ??= new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+                funcNames.Add(name);
+            }
+        }
+
+        // Build the lexical bindings set (let/const only, not function declarations)
+        var builder = ImmutableHashSet.CreateBuilder(ReferenceEqualityComparer<Symbol>.Instance);
+        foreach (var name in topLevelLexicalNames)
+        {
+            if (funcNames is null || !funcNames.Contains(name))
+            {
+                builder.Add(name);
+            }
+        }
+
+        return builder.Count > 0 ? builder.ToImmutable() : null;
     }
 
     /// <summary>

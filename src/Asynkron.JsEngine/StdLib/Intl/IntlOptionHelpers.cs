@@ -79,28 +79,33 @@ internal static class IntlOptionHelpers
         return JsOps.ToBoolean(value);
     }
 
+    /// <summary>
+    /// Spec: GetNumberOption(options, property, minimum, maximum, fallback)
+    /// Returns null when fallback is null and value is undefined.
+    /// </summary>
     public static int? GetNumberOption(
         IJsPropertyAccessor? options,
         string property,
         int minimum,
         int maximum,
-        int? defaultValue,
+        int? fallback,
         RealmState realm,
         string typeName)
     {
-        if (options is null || !options.TryGetProperty(property, out var value) ||
-            value.IsUndefined)
+        if (options is null || !options.TryGetProperty(property, out var rawValue) ||
+            rawValue.IsUndefined)
         {
-            return defaultValue;
+            return fallback;
         }
 
-        var numValue = JsOps.ToNumber(value);
-        if (double.IsNaN(numValue) || numValue < minimum || numValue > maximum)
+        var value = JsOps.ToNumber(rawValue);
+        if (double.IsNaN(value) || value < minimum || value > maximum)
         {
             throw StandardLibrary.ThrowRangeError(
-                $"Value {numValue} out of range for Intl.{typeName} option {property}", realm: realm);
+                $"Value {value} out of range for Intl.{typeName} option '{property}' [{minimum}, {maximum}]",
+                realm: realm);
         }
 
-        return (int)Math.Floor(numValue);
+        return (int)Math.Floor(value);
     }
 }

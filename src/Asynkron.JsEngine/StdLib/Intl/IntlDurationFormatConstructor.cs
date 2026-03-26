@@ -14,8 +14,9 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 public sealed partial class IntlDurationFormatConstructor(IJsObjectLike prototype, RealmState realm)
     : JsConstructor(prototype, realm)
 {
-    // Table 1: units with their allowed styles and digital defaults
-    private static readonly (string Unit, string[] StylesList, string DigitalBase)[] UnitTable =
+    // Table 1: Duration format units
+    // Each entry: (unit, styleProperty, displayProperty, allowedStyles, digitalBase)
+    private static readonly (string Unit, string[] AllowedStyles, string DigitalBase)[] UnitTable =
     [
         ("years", ["long", "short", "narrow"], "short"),
         ("months", ["long", "short", "narrow"], "short"),
@@ -36,11 +37,13 @@ public sealed partial class IntlDurationFormatConstructor(IJsObjectLike prototyp
 
     protected override void ConfigureConstructor(HostFunction constructor)
     {
+        // Intl.DurationFormat step 1: If NewTarget is undefined, throw a TypeError exception.
         constructor.SetInvokeWithContext((args, thisValue, _, newTarget) =>
         {
             if (newTarget.IsUndefined)
             {
-                throw ThrowTypeError("Intl.DurationFormat constructor requires 'new'", realm: Realm);
+                throw ThrowTypeError("Intl.DurationFormat constructor requires 'new'",
+                    realm: Realm);
             }
 
             return ConstructCore(thisValue, args);
@@ -57,41 +60,42 @@ public sealed partial class IntlDurationFormatConstructor(IJsObjectLike prototyp
         var (_, resolvedLocale) = ResolveIntlLocales(localesArg, Realm);
         var options = IntlOptionHelpers.GetOptionsObject(optionsArg, Realm, "DurationFormat");
 
-        // Read options in spec order: localeMatcher, numberingSystem, style
+        // Per spec option read order: localeMatcher, numberingSystem, style, then per-unit options
         _ = IntlOptionHelpers.GetStringOption(options, "localeMatcher", Realm, "DurationFormat",
             ["lookup", "best fit"], "best fit");
 
         var numberingSystem = ResolveNumberingSystem(options);
 
-        var baseStyle = IntlOptionHelpers.GetStringOption(options, "style", Realm, "DurationFormat",
+        var style = IntlOptionHelpers.GetStringOption(options, "style", Realm, "DurationFormat",
             ["long", "short", "narrow", "digital"], "short");
 
+        // Process per-unit options
+        var unitStyles = new string[10];
+        var unitDisplays = new string[10];
+        var prevStyle = (string?)null;
+
+        for (var i = 0; i < UnitTable.Length; i++)
+        {
+            var (unit, allowedStyles, digitalBase) = UnitTable[i];
+            var (unitStyle, unitDisplay) = GetDurationUnitOptions(
+                unit, options, style, allowedStyles, digitalBase, prevStyle);
+            unitStyles[i] = unitStyle;
+            unitDisplays[i] = unitDisplay;
+            prevStyle = unitStyle;
+        }
+
+        // fractionalDigits: GetNumberOption(options, "fractionalDigits", 0, 9, undefined)
+        var fractionalDigits = IntlOptionHelpers.GetNumberOption(
+            options, "fractionalDigits", 0, 9, null, Realm, "DurationFormat");
+
+        // Resolve numbering system from option, unicode extension, or default
         var (resolvedNumberingSystem, finalLocale) =
             ResolveNumberingSystemAndLocale(numberingSystem, resolvedLocale);
 
         var instance = PrepareThisObject(thisValue);
-
-        // Process per-unit options
-        string? prevStyle = null;
-        var unitStyles = new Dictionary<string, string>(10, StringComparer.Ordinal);
-        var unitDisplays = new Dictionary<string, string>(10, StringComparer.Ordinal);
-
-        foreach (var (unit, stylesList, digitalBase) in UnitTable)
-        {
-            var (style, display) = GetDurationUnitOptions(unit, options, baseStyle, stylesList, digitalBase,
-                prevStyle);
-            unitStyles[unit] = style;
-            unitDisplays[unit] = display;
-            prevStyle = style;
-        }
-
-        // fractionalDigits: 0-9 or undefined
-        var fractionalDigits = IntlOptionHelpers.GetNumberOption(options, "fractionalDigits", 0, 9, null, Realm,
-            "DurationFormat");
-
-        IntlDurationFormatPrototype.InitializeInternalSlots(instance, finalLocale, resolvedNumberingSystem,
-            baseStyle, unitStyles, unitDisplays, fractionalDigits);
-
+        IntlDurationFormatPrototype.InitializeInternalSlots(
+            instance, finalLocale, resolvedNumberingSystem, style,
+            unitStyles, unitDisplays, fractionalDigits);
         return new JsValue(instance);
     }
 
@@ -103,52 +107,61 @@ public sealed partial class IntlDurationFormatConstructor(IJsObjectLike prototyp
         string digitalBase,
         string? prevStyle)
     {
-        // Read the style option for this unit
-        string? style = null;
-        if (options is not null && options.TryGetProperty(unit, out var rawStyle) && !rawStyle.IsUndefined)
-        {
-            style = JsValueToString(rawStyle, Realm);
-            if (!stylesList.Contains(style, StringComparer.Ordinal))
-            {
-                throw ThrowRangeError(
-                    $"Invalid value '{style}' for option '{unit}' on Intl.DurationFormat", realm: Realm);
-            }
-        }
+        // Step 1: Read the unit style option
+        var styleValue = IntlOptionHelpers.GetStringOption(options, unit, Realm, "DurationFormat",
+            stylesList, null!);
+        var style = string.IsNullOrEmpty(styleValue) ? null : styleValue;
 
-        // Read the display option for this unit
-        var displayProp = unit + "Display";
-        var display = IntlOptionHelpers.GetStringOption(options, displayProp, Realm, "DurationFormat",
-            ["auto", "always"], "auto");
+        // Step 2-3: Determine defaults
+        string displayDefault;
 
-        // If style is undefined, resolve default based on prevStyle and baseStyle
         if (style is null)
         {
-            // prevStyle cascade takes priority
-            if (prevStyle is "numeric" or "2-digit")
+            if (baseStyle == "digital")
             {
-                style = Array.IndexOf(stylesList, "numeric") >= 0 ? "numeric" : baseStyle;
-            }
-            else if (baseStyle == "digital")
-            {
-                style = digitalBase;
+                // For digital: non-time units get "short", time units get their digitalBase
+                style = unit is "hours" or "minutes" or "seconds"
+                    ? digitalBase
+                    : "short";
             }
             else
             {
-                style = baseStyle;
+                // For non-digital: cascade from previous numeric style
+                if (prevStyle is "fractional" or "numeric" or "2-digit")
+                {
+                    style = Array.IndexOf(stylesList, "numeric") >= 0 ? "numeric" : "fractional";
+                }
+                else
+                {
+                    style = baseStyle;
+                }
             }
         }
 
-        // Validate: if prevStyle is "numeric" or "2-digit", style must be "numeric" or "2-digit"
+        // Determine display default based on prevStyle
+        if (prevStyle is "numeric" or "2-digit" or "fractional")
+        {
+            displayDefault = "always";
+        }
+        else
+        {
+            displayDefault = "auto";
+        }
+
+        // Step 4: Read display option
+        var display = IntlOptionHelpers.GetStringOption(options, unit + "Display", Realm, "DurationFormat",
+            ["auto", "always"], displayDefault);
+
+        // Step 5: Enforce style constraints when previous was numeric/2-digit
         if (prevStyle is "numeric" or "2-digit")
         {
             if (style is not "numeric" and not "2-digit")
             {
                 throw ThrowRangeError(
-                    $"Invalid style '{style}' for '{unit}': must be 'numeric' or '2-digit' after a numeric unit",
+                    $"Intl.DurationFormat: '{style}' style for '{unit}' is not allowed after a numeric-styled unit",
                     realm: Realm);
             }
 
-            // Force minutes/seconds to "2-digit" when following numeric/2-digit
             if (unit is "minutes" or "seconds")
             {
                 style = "2-digit";
@@ -168,11 +181,13 @@ public sealed partial class IntlDurationFormatConstructor(IJsObjectLike prototyp
 
         var numberingSystem = JsValueToString(rawValue, Realm);
 
+        // Validate against Unicode Locale Identifier type nonterminal: 3*8alphanum *("-" 3*8alphanum)
         if (!IntlUtilities.IsValidUnicodeTypeNonterminal(numberingSystem))
         {
             throw ThrowRangeError($"Invalid numbering system '{numberingSystem}'", realm: Realm);
         }
 
+        // Normalize if possible, otherwise keep the well-formed value as-is
         return IntlUtilities.TryNormalizeNumberingSystem(numberingSystem, out var canonical)
             ? canonical
             : numberingSystem;
@@ -182,6 +197,7 @@ public sealed partial class IntlDurationFormatConstructor(IJsObjectLike prototyp
         string? optionNu,
         string resolvedLocale)
     {
+        // Extract unicode extension numbering system from locale (e.g., "en-u-nu-arab" → "arab")
         var unicodeKeywords = IntlUtilities.ParseUnicodeExtensionKeywords(resolvedLocale);
         string? extensionNu = null;
         if (unicodeKeywords.TryGetValue("nu", out var nuValues) && nuValues.Count > 0)
@@ -191,6 +207,7 @@ public sealed partial class IntlDurationFormatConstructor(IJsObjectLike prototyp
 
         var baseLocale = IntlUtilities.RemoveUnicodeExtensions(resolvedLocale);
 
+        // Resolution: option > unicode extension > default
         if (optionNu is not null && IntlUtilities.TryNormalizeNumberingSystem(optionNu, out var canonicalOption))
         {
             if (extensionNu is not null &&

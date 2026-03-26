@@ -47,6 +47,7 @@ public static partial class TypedAstEvaluator
         private readonly Dictionary<Symbol, bool> _lexicalDeclarationKinds;
         private readonly ImmutableArray<Symbol> _lexicalTemplate;
         private readonly JsValue _lexicalThis;
+        private readonly JsValue _lexicalNewTarget;
         private readonly JsEnvironment? _lexicalThisEnvironment;
         private readonly ImmutableArray<Symbol> _parameterNames;
         private readonly HashSet<object> _privateBrands = new(ReferenceEqualityComparer<object>.Instance);
@@ -188,6 +189,13 @@ public static partial class TypedAstEvaluator
                 {
                     // No `this` binding in the environment chain
                     _lexicalThis = JsValue.Undefined;
+                }
+
+                // Capture new.target from the lexical scope for arrow functions.
+                // Per ES spec, arrow functions inherit new.target from the enclosing function.
+                if (_closure.TryFindBindingJsValue(Symbol.NewTarget, true, out _, out var capturedNewTarget))
+                {
+                    _lexicalNewTarget = capturedNewTarget;
                 }
             }
 
@@ -741,8 +749,9 @@ public static partial class TypedAstEvaluator
                     planCache.Plan?.GetHashCode() ?? -1);
                 if (planCache.Succeeded)
                 {
-                    // For arrow functions, use lexically captured this instead of the caller's thisValue
+                    // For arrow functions, use lexically captured this and new.target
                     var effectiveThisValue = thisValue;
+                    var effectiveNewTarget = newTarget;
                     if (IsArrowFunction)
                     {
                         var lexicalThis = _lexicalThis;
@@ -753,6 +762,12 @@ public static partial class TypedAstEvaluator
                         }
 
                         effectiveThisValue = lexicalThis.IsUninitialized ? JsValue.Undefined : lexicalThis;
+
+                        // Arrow functions inherit new.target from the enclosing function
+                        if (effectiveNewTarget.IsUndefined && !_lexicalNewTarget.IsUndefined)
+                        {
+                            effectiveNewTarget = _lexicalNewTarget;
+                        }
                     }
 
                     try
@@ -793,7 +808,7 @@ public static partial class TypedAstEvaluator
                             _homeObject,
                             PrivateNameScope,
                             _capturedPrivateNameScopes,
-                            newTarget,
+                            effectiveNewTarget,
                             _lexicalThisEnvironment,
                             _superConstructor,
                             _superPrototype,

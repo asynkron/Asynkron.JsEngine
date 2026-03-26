@@ -172,6 +172,33 @@ public sealed class TdzClosureTest(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// H5: Block-local closure TDZ - bare block at script level
+    /// </summary>
+    [Fact(Timeout = 10000)]
+    public async Task H5_BlockLocalClosure_ReadBeforeInit()
+    {
+        var testLogger = new TestLogger(output, "TdzTest", minLogLevel: LogLevel.Debug);
+        var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
+        await using var engine = new JsEngine(options);
+
+        // Block-local case: function reads x from block scope before let x
+        var result = await engine.Evaluate("""
+            var result = "not-caught";
+            var fResult = "not-called";
+            {
+              function f() { return x + 1; }
+              try { fResult = f(); } catch(e) { result = e.constructor.name; }
+              let x;
+            }
+            result + "|" + fResult;
+        """);
+
+        output.WriteLine($"Result: {result}");
+        // Expected: "ReferenceError|not-called"
+        Assert.Equal("ReferenceError|not-called", result?.ToString());
+    }
+
+    /// <summary>
     /// Debug test: Check if x is accessible at all after let declaration
     /// </summary>
     [Fact(Timeout = 10000)]

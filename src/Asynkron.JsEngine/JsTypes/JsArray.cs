@@ -1251,26 +1251,30 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         return true;
     }
 
-    private void UpdateLengthProperty()
+    private void UpdateLengthProperty(bool? writable = null)
     {
         var lengthDescriptor = _properties.GetOwnPropertyDescriptor("length");
         if (lengthDescriptor is null)
         {
-            DefineInitialLengthProperty();
+            DefineInitialLengthProperty(writable);
             return;
         }
 
         lengthDescriptor.JsValue = JsValue.FromObjectUnsafe((double)_length);
         _properties["length"] = (double)_length;
+        if (writable.HasValue)
+        {
+            lengthDescriptor.Writable = writable.Value;
+        }
     }
 
-    private void DefineInitialLengthProperty()
+    private void DefineInitialLengthProperty(bool? writable = null)
     {
         _properties.DefineProperty("length",
             new PropertyDescriptor
             {
                 Value = (double)_length,
-                Writable = true,
+                Writable = writable ?? true,
                 Enumerable = false,
                 Configurable = false
             });
@@ -1451,10 +1455,19 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         if (!lengthDescriptor.Writable)
         {
-            // Per ES spec 15.4.5.1 step 3.f.i: If newLen == oldLen, the operation
-            // succeeds even when the length property is non-writable.
+            // Per ES spec ArraySetLength step 11: If newLen >= oldLen, delegate to
+            // OrdinaryDefineOwnProperty which validates descriptor constraints.
+            // In particular, attempting to set writable=true when current is
+            // writable=false and configurable=false must fail.
             if (hasValue && newLength == oldLength)
             {
+                // Still need to validate writable transitions per ValidateAndApplyPropertyDescriptor 7a:
+                // If configurable=false, writable=false, and Desc.[[Writable]]=true → return false
+                if (hasWritable && writableValue)
+                {
+                    return FailTypeError(context, throwOnWritableFailure);
+                }
+
                 return true;
             }
 
@@ -1516,11 +1529,12 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             }
 
             lengthDescriptor.Writable = newWritable;
-            UpdateLengthProperty();
+            UpdateLengthProperty(newWritable);
             return true;
         }
 
         lengthDescriptor.Writable = newWritable;
+        UpdateLengthProperty(newWritable);
         return true;
     }
 

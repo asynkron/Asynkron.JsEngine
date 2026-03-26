@@ -426,7 +426,14 @@ public sealed partial class AtomicsPrototype : JsPrototype
         var iterationArg = args.GetArgument(0);
         if (!iterationArg.IsUndefined)
         {
-            var n = JsOps.ToNumber(iterationArg);
+            // Per spec: iterationNumber must be a non-negative integer Number value.
+            // Any non-Number type (boolean, string, BigInt, object, etc.) throws TypeError.
+            if (!iterationArg.IsNumber)
+            {
+                throw ThrowTypeError("Atomics.pause requires a non-negative integer", realm: Realm);
+            }
+
+            var n = iterationArg.AsDouble();
             if (double.IsNaN(n) || !double.IsFinite(n) || n < 0 || n != Math.Floor(n))
             {
                 throw ThrowTypeError("Atomics.pause requires a non-negative integer", realm: Realm);

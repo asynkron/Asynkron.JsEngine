@@ -78,6 +78,79 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
         });
 
         DefineLegacyRegExpAccessors(constructor, Realm);
+
+        // RegExp.escape(string) — escapes a string for use in a RegExp
+        var escapeFn = new HostFunction(
+            (_, args) =>
+            {
+                var arg = args.GetArgument(0);
+                if (!arg.IsString)
+                {
+                    throw StandardLibrary.ThrowTypeError("RegExp.escape requires a string argument", realm: Realm);
+                }
+
+                var str = arg.AsString();
+                return (JsValue)EncodeForRegExpEscape(str);
+            }, Realm, false);
+        escapeFn.SetProperty("name", (JsValue)"escape");
+        escapeFn.SetProperty("length", JsValue.FromDouble(1));
+        constructor.SetHostedProperty("escape", escapeFn, Realm);
+    }
+
+    /// <summary>
+    /// Per spec: EncodeForRegExpEscape encodes a string so that it can be used
+    /// as a literal pattern in a RegExp constructor.
+    /// </summary>
+    private static string EncodeForRegExpEscape(string s)
+    {
+        if (s.Length == 0) return "";
+
+        var sb = new System.Text.StringBuilder(s.Length + 8);
+        foreach (var c in s)
+        {
+            switch (c)
+            {
+                // SyntaxCharacter :: one of ^ $ \ . * + ? ( ) [ ] { } |
+                case '^' or '$' or '\\' or '.' or '*' or '+' or '?' or '(' or ')' or '[' or ']' or '{' or '}' or '|':
+                    sb.Append('\\');
+                    sb.Append(c);
+                    break;
+                // WhiteSpace, LineTerminator, and other control characters → unicode escape
+                case '/' or '-':
+                    sb.Append('\\');
+                    sb.Append(c);
+                    break;
+                case '\t':
+                    sb.Append("\\t");
+                    break;
+                case '\n':
+                    sb.Append("\\n");
+                    break;
+                case '\r':
+                    sb.Append("\\r");
+                    break;
+                case '\f':
+                    sb.Append("\\f");
+                    break;
+                case '\v':
+                    sb.Append("\\v");
+                    break;
+                default:
+                    if (c <= 0x1F || c == 0x7F || (c >= 0x2028 && c <= 0x2029) || c == 0xFEFF || c == 0x00A0)
+                    {
+                        sb.Append("\\u");
+                        sb.Append(((int)c).ToString("x4", System.Globalization.CultureInfo.InvariantCulture));
+                    }
+                    else
+                    {
+                        sb.Append(c);
+                    }
+
+                    break;
+            }
+        }
+
+        return sb.ToString();
     }
 
     [JsConstructorSymbolGetter("species")]

@@ -82,6 +82,50 @@ public sealed partial class MapPrototype
         return CreateMapIterator(map, MapIterationKind.Values);
     }
 
+    /// <summary>
+    /// Map.prototype.getOrInsert(key, value)
+    /// If key exists, return its value. Otherwise insert value and return it.
+    /// </summary>
+    [JsHostMethod("getOrInsert", Length = 2d)]
+    public JsValue GetOrInsert(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var map = RequireInstance(thisValue);
+        var key = args.GetArgument(0);
+        var value = args.GetArgument(1);
+        if (map.Has(key))
+        {
+            return map.Get(key);
+        }
+
+        map.Set(key, value);
+        return value;
+    }
+
+    /// <summary>
+    /// Map.prototype.getOrInsertComputed(key, callbackfn)
+    /// If key exists, return its value. Otherwise call callbackfn(key), insert result, return it.
+    /// </summary>
+    [JsHostMethod("getOrInsertComputed", Length = 2d)]
+    public JsValue GetOrInsertComputed(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var map = RequireInstance(thisValue);
+        var key = args.GetArgument(0);
+        var callbackfn = args.GetArgument(1);
+        if (map.Has(key))
+        {
+            return map.Get(key);
+        }
+
+        if (!callbackfn.TryGetCallable(out var callable))
+        {
+            throw ThrowTypeError("Map.prototype.getOrInsertComputed callback must be callable", realm: Realm);
+        }
+
+        var value = callable.Invoke([key], JsValue.Undefined);
+        map.Set(key, value);
+        return value;
+    }
+
     [JsHostGetter("size")]
     public JsValue Size(JsValue thisValue)
     {

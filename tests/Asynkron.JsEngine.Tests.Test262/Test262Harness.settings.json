@@ -7,12 +7,6 @@
     "tail-call-optimization",
     "import-defer",
     "source-phase-imports",
-    "upsert",
-    "Math.sumPrecise",
-    "Error.isError",
-    "Atomics.pause",
-    "promise-try",
-    "RegExp.escape",
     "uint8array-base64",
     "import-attributes",
     "annexB-legacy-octal",
@@ -20,8 +14,6 @@
     "annexB-block-function",
     "annexB-function-declarations-in-if-statement-clauses",
     "legacy-regexp",
-    "__getter__",
-    "__setter__",
     "explicit-resource-management"
   ],
   "ExcludedFlags": [

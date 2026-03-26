@@ -353,6 +353,70 @@ public sealed partial class ObjectPrototype
         return realm?.ObjectPrototype;
     }
 
+    /// <summary>
+    /// Object.prototype.__defineGetter__(name, getter) — Annex B
+    /// Defines a getter for the specified property.
+    /// </summary>
+    [JsHostMethod("__defineGetter__", Length = 2d)]
+    private JsValue DefineGetter(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        if (!TryGetObject(thisValue, Realm, out var obj))
+        {
+            throw ThrowTypeError("__defineGetter__ called on null or undefined", realm: Realm);
+        }
+
+        var propertyName = JsOps.ToPropertyName(args.GetArgument(0));
+        var getter = args.GetArgument(1);
+        if (!getter.TryGetCallable(out var getterCallable))
+        {
+            throw ThrowTypeError("__defineGetter__ getter must be callable", realm: Realm);
+        }
+
+        var desc = new PropertyDescriptor
+        {
+            Get = getterCallable,
+            Enumerable = true,
+            Configurable = true
+        };
+        if (obj is IPropertyDefinitionHost definable)
+        {
+            definable.TryDefineProperty(propertyName, desc);
+        }
+        return JsValue.Undefined;
+    }
+
+    /// <summary>
+    /// Object.prototype.__defineSetter__(name, setter) — Annex B
+    /// Defines a setter for the specified property.
+    /// </summary>
+    [JsHostMethod("__defineSetter__", Length = 2d)]
+    private JsValue DefineSetter(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        if (!TryGetObject(thisValue, Realm, out var obj))
+        {
+            throw ThrowTypeError("__defineSetter__ called on null or undefined", realm: Realm);
+        }
+
+        var propertyName = JsOps.ToPropertyName(args.GetArgument(0));
+        var setter = args.GetArgument(1);
+        if (!setter.TryGetCallable(out var setterCallable))
+        {
+            throw ThrowTypeError("__defineSetter__ setter must be callable", realm: Realm);
+        }
+
+        var desc = new PropertyDescriptor
+        {
+            Set = setterCallable,
+            Enumerable = true,
+            Configurable = true
+        };
+        if (obj is IPropertyDefinitionHost definable)
+        {
+            definable.TryDefineProperty(propertyName, desc);
+        }
+        return JsValue.Undefined;
+    }
+
     [JsHostMethod("__lookupGetter__", Length = 1d)]
     private JsValue LookupGetter(JsValue thisValue, IReadOnlyList<JsValue> args)
     {

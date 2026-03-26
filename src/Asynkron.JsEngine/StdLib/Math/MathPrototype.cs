@@ -491,6 +491,57 @@ public sealed partial class MathPrototype
         return (double)half;
     }
 
+    /// <summary>
+    /// Math.sumPrecise(items) — Returns the sum of the elements of items using
+    /// a higher-precision algorithm (Kahan compensated summation).
+    /// </summary>
+    [JsHostMethod("sumPrecise", Length = 1d)]
+    public JsValue SumPrecise(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var items = args.GetArgument(0);
+
+        // Use Kahan compensated summation for higher precision
+        var sum = 0.0;
+        var compensation = 0.0;
+        var hasNaN = false;
+        var posInf = false;
+        var negInf = false;
+
+        MapSetIterationHelper.Iterate(items, Realm, "Math.sumPrecise", value =>
+        {
+            var n = JsOps.ToNumber(value);
+
+            if (double.IsNaN(n))
+            {
+                hasNaN = true;
+            }
+            else if (double.IsPositiveInfinity(n))
+            {
+                posInf = true;
+            }
+            else if (double.IsNegativeInfinity(n))
+            {
+                negInf = true;
+            }
+            else
+            {
+                // Kahan summation
+                var y = n - compensation;
+                var t = sum + y;
+                compensation = (t - sum) - y;
+                sum = t;
+            }
+        });
+
+        // Per spec: NaN wins, then conflicting infinities = NaN
+        if (hasNaN) return JsValue.NaN;
+        if (posInf && negInf) return JsValue.NaN;
+        if (posInf) return JsValue.PositiveInfinity;
+        if (negInf) return JsValue.NegativeInfinity;
+
+        return JsValue.FromDouble(sum);
+    }
+
     protected override void ConfigurePrototype()
     {
         if (Prototype is JsObject { RealmState: null } jsObj)

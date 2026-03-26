@@ -416,6 +416,27 @@ public sealed partial class AtomicsPrototype : JsPrototype
     public JsValue Xor(IReadOnlyList<JsValue> args) =>
         AtomicBitwiseOperation(args, nameof(Xor), (a, b) => a ^ b, (a, b) => a ^ b);
 
+    /// <summary>
+    /// Atomics.pause([iterationNumber])
+    /// A hint to the implementation that the caller is in a spin-wait loop.
+    /// </summary>
+    [JsHostMethod("pause", Length = 0d)]
+    public JsValue Pause(IReadOnlyList<JsValue> args)
+    {
+        var iterationArg = args.GetArgument(0);
+        if (!iterationArg.IsUndefined)
+        {
+            var n = JsOps.ToNumber(iterationArg);
+            if (double.IsNaN(n) || !double.IsFinite(n) || n < 0 || n != Math.Floor(n))
+            {
+                throw ThrowTypeError("Atomics.pause requires a non-negative integer", realm: Realm);
+            }
+        }
+
+        Thread.SpinWait(1);
+        return JsValue.Undefined;
+    }
+
     private TypedArrayBase RequireAtomicTypedArray(JsValue value, string methodName, out bool isBigInt)
     {
         if (!value.TryGetObject<TypedArrayBase>(out var typedArray))

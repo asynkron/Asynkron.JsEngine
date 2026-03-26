@@ -156,6 +156,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         SetBuiltInStatic("allSettled", 1, (thisValue, args) => PromiseAllSettled(thisValue, args));
         SetBuiltInStatic("any", 1, (thisValue, args) => PromiseAny(thisValue, args));
         SetBuiltInStatic("withResolvers", 0, (thisValue, _) => PromiseWithResolvers(thisValue));
+        SetBuiltInStatic("try", 1, (thisValue, args) => PromiseTry(thisValue, args));
 
         void SetBuiltInStatic(string name, int length, JsHostHandler handler)
         {
@@ -952,6 +953,51 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
                 Configurable = true
             });
         }
+    }
+
+    /// <summary>
+    /// Promise.try(callbackfn, ...args)
+    /// Calls callbackfn synchronously, wrapping the result (or thrown exception) in a promise.
+    /// </summary>
+    private JsValue PromiseTry(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var callbackfn = args.GetArgument(0);
+        if (!callbackfn.TryGetCallable(out var callable))
+        {
+            throw ThrowTypeError("Promise.try requires a callable argument", realm: Realm);
+        }
+
+        // Collect extra args (args[1], args[2], ...)
+        var callArgs = args.Count > 1
+            ? args.Skip(1).ToList()
+            : (IReadOnlyList<JsValue>)[];
+
+        // Create promise capability
+        var capability = NewPromiseCapability(thisValue);
+
+        JsValue result;
+        try
+        {
+            result = callable.Invoke(callArgs, JsValue.Undefined);
+        }
+        catch (ThrowSignal signal)
+        {
+            // callbackfn threw — reject the promise
+            if (capability.reject.TryGetCallable(out var rejectFn))
+            {
+                rejectFn.Invoke([signal.ThrownValue], JsValue.Undefined);
+            }
+
+            return capability.promise;
+        }
+
+        // callbackfn returned normally — resolve the promise
+        if (capability.resolve.TryGetCallable(out var resolveFn))
+        {
+            resolveFn.Invoke([result], JsValue.Undefined);
+        }
+
+        return capability.promise;
     }
 
     /// <summary>

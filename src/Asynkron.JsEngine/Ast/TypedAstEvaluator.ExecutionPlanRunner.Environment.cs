@@ -258,15 +258,20 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(superBinding));
             }
 
-            var argumentsObject = _function.CreateArgumentsObject(_arguments, executionEnvironment, _realmState,
-                _callable,
-                _isStrict);
-            parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
-                isLexicalBinding: false);
-            if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
+            // Per ES spec 10.2.11 step 18: Arrow functions don't have their own arguments object.
+            // They inherit `arguments` from the lexically enclosing function.
+            if (!isArrowFunction)
             {
-                functionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
+                var argumentsObject = _function.CreateArgumentsObject(_arguments, executionEnvironment, _realmState,
+                    _callable,
+                    _isStrict);
+                parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
                     isLexicalBinding: false);
+                if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
+                {
+                    functionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
+                        isLexicalBinding: false);
+                }
             }
 
             if (_function.Name is { } functionName && !_hasFunctionNameEnvironment)

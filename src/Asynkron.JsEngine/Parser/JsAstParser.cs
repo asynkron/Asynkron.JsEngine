@@ -661,8 +661,8 @@ public sealed class JsAstParser(
         private BlockStatement ParseSwitchClauseBody(Token clauseToken)
         {
             var statements = ImmutableArray.CreateBuilder<StatementNode>();
-            var hasDirectiveStrict = CheckForUseStrictDirective();
-            var isStrict = InStrictContext || hasDirectiveStrict;
+            // Switch case bodies don't have directive prologues per ES spec.
+            var isStrict = InStrictContext;
 
             using (EnterStrictContext(isStrict))
             {
@@ -1588,7 +1588,7 @@ public sealed class JsAstParser(
                 new ExportDefaultExpression(exportSource, hoistableFunction));
         }
 
-        private BlockStatement ParseBlock(bool leftBraceConsumed = false)
+        private BlockStatement ParseBlock(bool leftBraceConsumed = false, bool isFunctionBody = false)
         {
             Token startToken;
             if (leftBraceConsumed)
@@ -1601,7 +1601,10 @@ public sealed class JsAstParser(
             }
 
             var statements = ImmutableArray.CreateBuilder<StatementNode>();
-            var hasDirectiveStrict = CheckForUseStrictDirective();
+            // Per ES spec, directive prologues only apply to function bodies, scripts, and modules.
+            // Regular block statements (if/for/while/try bodies) don't have directive prologues.
+            // For function bodies, ParseFunctionTail already checked — this is a safety net.
+            var hasDirectiveStrict = isFunctionBody && CheckForUseStrictDirective();
             var isStrict = InStrictContext || hasDirectiveStrict;
 
             using (EnterStrictContext(isStrict))
@@ -3297,7 +3300,7 @@ public sealed class JsAstParser(
                 ValidateStrictModeParameters(parameters);
             }
 
-            var body = ParseBlock(true);
+            var body = ParseBlock(true, isFunctionBody: true);
             var sourceReference = CreateSourceReference(startToken) ?? body.Source;
             return new FunctionExpression(sourceReference, name, parameters, body, isAsync, isGenerator,
                 WasAsync: isAsync);
@@ -4124,7 +4127,7 @@ public sealed class JsAstParser(
             BlockStatement body;
             if (Match(TokenType.LeftBrace))
             {
-                body = ParseBlock(true);
+                body = ParseBlock(true, isFunctionBody: true);
             }
             else
             {

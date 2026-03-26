@@ -1654,13 +1654,12 @@ public sealed class JsEnvironment : IRentable
             ref var slot = ref slots![slotIndex];
             if (slot.IsUninitialized)
             {
-                var errorObject = StandardLibrary.CreateReferenceError(
+                // TDZ violation — throw ThrowSignal so it propagates correctly through
+                // all call paths (IR expression evaluator, AST evaluator, etc.)
+                throw new ThrowSignal(StandardLibrary.CreateReferenceError(
                     $"Cannot access '{name.Name}' before initialization",
                     context,
-                    context.RealmState);
-                value = errorObject;
-                context.SetThrow(value);
-                return true;
+                    context.RealmState));
             }
 
             value = slot.Value;

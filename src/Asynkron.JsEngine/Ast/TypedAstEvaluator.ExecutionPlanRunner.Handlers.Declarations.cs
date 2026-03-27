@@ -396,11 +396,9 @@ public static partial class TypedAstEvaluator
                             context.RealmState);
                     }
 
-                    if (bindingValue.TryGetObject<IJsObjectLike>(out _))
-                    {
-                        throw new NotSupportedException(
-                            "Explicit resource management is not implemented for object resources.");
-                    }
+                    // Register the resource for disposal when this scope exits
+                    var isAwaitUsing = instruction.VarKind == VariableKind.AwaitUsing;
+                    environment.RegisterDisposable(bindingValue, isAwaitUsing, context.RealmState!);
                 }
 
                 var mode = instruction.VarKind switch

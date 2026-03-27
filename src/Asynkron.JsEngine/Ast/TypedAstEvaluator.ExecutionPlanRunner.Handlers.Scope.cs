@@ -288,6 +288,17 @@ public static partial class TypedAstEvaluator
             if (shouldPop)
             {
                 var envToPop = environment;
+
+                // Dispose 'using' resources before leaving scope (LIFO order)
+                if (envToPop.HasDisposableResources)
+                {
+                    var disposeError = envToPop.DisposeResources();
+                    if (disposeError is not null)
+                    {
+                        throw disposeError;
+                    }
+                }
+
                 environment = environment.Enclosing!;
 
                 // Only return to pool if the environment was rented from pool

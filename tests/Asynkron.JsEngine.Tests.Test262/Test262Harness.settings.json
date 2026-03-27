@@ -7,8 +7,7 @@
     "tail-call-optimization",
     "import-defer",
     "source-phase-imports",
-    "import-attributes",
-    "explicit-resource-management"
+    "import-attributes"
   ],
   "ExcludedFlags": [
 

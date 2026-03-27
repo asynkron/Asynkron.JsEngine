@@ -8,6 +8,7 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -37,6 +38,12 @@ public sealed class JsEnvironment : IRentable
 
     private bool _isDefaultDerivedConstructor;
     private HashSet<Symbol>? _simpleCatchParameters;
+
+    /// <summary>
+    /// Tracks disposable resources registered by 'using' declarations in this scope.
+    /// Resources are disposed in LIFO order when the scope exits.
+    /// </summary>
+    private List<DisposableStackRecord>? _disposableResources;
 
     /// <summary>
     /// Slot-based storage for variable access. Each slot contains name, value, and flags.
@@ -4449,6 +4456,93 @@ public sealed class JsEnvironment : IRentable
         targetEnv = resolvedEnv;
         slots = resolvedSlots;
         return true;
+    }
+
+    #endregion
+
+    #region Explicit Resource Management (using declarations)
+
+    /// <summary>
+    /// Register a disposable resource from a 'using' declaration.
+    /// The dispose method is looked up immediately and stored for LIFO invocation on scope exit.
+    /// </summary>
+    internal void RegisterDisposable(JsValue value, bool preferAsync, RealmState realm)
+    {
+        if (value.IsNull || value.IsUndefined)
+        {
+            return; // null/undefined using declarations are no-ops per spec
+        }
+
+        var disposeMethod = DisposableStackHelper.GetDisposeMethod(value, preferAsync, realm);
+        if (disposeMethod is null)
+        {
+            return;
+        }
+
+        _disposableResources ??= [];
+        _disposableResources.Add(new DisposableStackRecord(disposeMethod, value, []));
+    }
+
+    /// <summary>
+    /// Returns true if this environment has any disposable resources registered.
+    /// </summary>
+    internal bool HasDisposableResources => _disposableResources is { Count: > 0 };
+
+    /// <summary>
+    /// Dispose all registered resources in LIFO order.
+    /// If a pending error exists and disposal also throws, wraps in SuppressedError.
+    /// Returns the error to throw (if any).
+    /// </summary>
+    internal ThrowSignal? DisposeResources(ThrowSignal? pendingError = null)
+    {
+        if (_disposableResources is null || _disposableResources.Count == 0)
+        {
+            return pendingError;
+        }
+
+        var currentError = pendingError;
+
+        // Dispose in LIFO order
+        for (var i = _disposableResources.Count - 1; i >= 0; i--)
+        {
+            try
+            {
+                _disposableResources[i].Invoke();
+            }
+            catch (ThrowSignal disposeError)
+            {
+                if (currentError is null)
+                {
+                    currentError = disposeError;
+                }
+                else
+                {
+                    // Wrap: SuppressedError(newError, previousError)
+                    currentError = CreateSuppressedError(disposeError, currentError);
+                }
+            }
+        }
+
+        _disposableResources.Clear();
+        return currentError;
+    }
+
+    private static ThrowSignal CreateSuppressedError(ThrowSignal newError, ThrowSignal suppressedError)
+    {
+        // Create a SuppressedError object with .error and .suppressed properties
+        var errorObj = new JsObject();
+        errorObj.DefineProperty("_errorData",
+            new PropertyDescriptor { Value = JsValue.True, Writable = false, Enumerable = false, Configurable = false });
+        errorObj.DefineProperty("name",
+            new PropertyDescriptor { Value = (JsValue)"SuppressedError", Writable = true, Enumerable = false, Configurable = true });
+        errorObj.DefineProperty("message",
+            new PropertyDescriptor { Value = (JsValue)"", Writable = true, Enumerable = false, Configurable = true });
+        errorObj.DefineProperty("error",
+            new PropertyDescriptor { Value = newError.ThrownValue, Writable = true, Enumerable = false, Configurable = true });
+        errorObj.DefineProperty("suppressed",
+            new PropertyDescriptor { Value = suppressedError.ThrownValue, Writable = true, Enumerable = false, Configurable = true });
+
+        return new ThrowSignal(JsValue.FromObjectUnsafe(errorObj));
     }
 
     #endregion

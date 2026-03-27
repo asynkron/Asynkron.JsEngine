@@ -203,6 +203,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         SetGlobal("EvalError", EvalErrorConstructor.CreateConstructor(RealmState));
         SetGlobal("URIError", UriErrorConstructor.CreateConstructor(RealmState));
         SetGlobal("AggregateError", AggregateErrorConstructor.CreateConstructor(RealmState));
+        SetGlobal("SuppressedError", SuppressedErrorConstructor.CreateConstructor(RealmState));
 
         // Finalize the %ThrowTypeError% intrinsic - set its prototype to Function.prototype
         // and freeze it now that all dependencies are available.

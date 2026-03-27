@@ -8,11 +8,6 @@
     "import-defer",
     "source-phase-imports",
     "import-attributes",
-    "annexB-legacy-octal",
-    "annexB-octal-escape",
-    "annexB-block-function",
-    "annexB-function-declarations-in-if-statement-clauses",
-    "legacy-regexp",
     "explicit-resource-management"
   ],
   "ExcludedFlags": [

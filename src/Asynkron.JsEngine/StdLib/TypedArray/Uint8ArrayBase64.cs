@@ -20,18 +20,27 @@ internal static class Uint8ArrayBase64
     private const string Base64Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     private const string Base64UrlAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
+    // Captured during Register for CreateUint8Array to set prototype
+    private static IJsPropertyAccessor? _uint8ArrayPrototype;
+
     /// <summary>
     /// Register base64/hex methods on the Uint8Array constructor and prototype.
     /// </summary>
     public static void Register(HostFunction constructor, RealmState realm)
     {
+        // Capture prototype reference for CreateUint8Array
+        if (constructor.TryGetProperty("prototype", out var protoVal) &&
+            protoVal.TryGetObject<IJsPropertyAccessor>(out var protoObj))
+        {
+            _uint8ArrayPrototype = protoObj;
+        }
+
         // Static methods on constructor
         AddMethod(constructor, "fromBase64", (_, args) => FromBase64(args, realm), 1, realm);
         AddMethod(constructor, "fromHex", (_, args) => FromHex(args, realm), 1, realm);
 
         // Instance methods on prototype
-        if (constructor.TryGetProperty("prototype", out var protoVal) &&
-            protoVal.TryGetObject<JsObject>(out var prototype))
+        if (protoVal.TryGetObject<JsObject>(out var prototype))
         {
             AddMethod(prototype, "toBase64", (thisVal, args) => ToBase64(thisVal, args, realm), 0, realm);
             AddMethod(prototype, "toHex", (thisVal, _) => ToHex(thisVal, realm), 0, realm);
@@ -40,7 +49,7 @@ internal static class Uint8ArrayBase64
         }
     }
 
-    private static void AddMethod(IJsPropertyAccessor target, string name, JsHostHandler handler,
+    private static void AddMethod(IPropertyDefinitionHost target, string name, JsHostHandler handler,
         int length, RealmState realm)
     {
         var fn = new HostFunction(handler, realm, false);
@@ -52,7 +61,11 @@ internal static class Uint8ArrayBase64
         {
             Value = JsValue.FromDouble(length), Writable = false, Enumerable = false, Configurable = true
         });
-        target.SetHostedProperty(name, fn, realm);
+        // Per spec: writable: true, enumerable: false, configurable: true
+        target.TryDefineProperty(name, new PropertyDescriptor
+        {
+            Value = (JsValue)fn, Writable = true, Enumerable = false, Configurable = true
+        });
     }
 
     private static JsValue FromBase64(IReadOnlyList<JsValue> args, RealmState realm)
@@ -75,12 +88,7 @@ internal static class Uint8ArrayBase64
         var (bytes, _) = DecodeBase64(str, alphabet, lastChunkHandling, realm);
 
         // Step 4: Create Uint8Array from decoded bytes
-        var result = JsUint8Array.FromLength(bytes.Length);
-        for (var i = 0; i < bytes.Length; i++)
-        {
-            result.SetElement(i, bytes[i]);
-        }
-
+        var result = CreateUint8Array(bytes, realm);
         return (JsValue)result;
     }
 
@@ -101,12 +109,7 @@ internal static class Uint8ArrayBase64
         }
 
         var bytes = DecodeHex(str, realm);
-        var result = JsUint8Array.FromLength(bytes.Length);
-        for (var i = 0; i < bytes.Length; i++)
-        {
-            result.SetElement(i, bytes[i]);
-        }
-
+        var result = CreateUint8Array(bytes, realm);
         return (JsValue)result;
     }
 
@@ -229,6 +232,23 @@ internal static class Uint8ArrayBase64
     }
 
     // ==================== Helpers ====================
+
+    private static JsUint8Array CreateUint8Array(byte[] bytes, RealmState realm)
+    {
+        var result = JsUint8Array.FromLength(bytes.Length, realm);
+        for (var i = 0; i < bytes.Length; i++)
+        {
+            result.SetElement(i, bytes[i]);
+        }
+
+        // Set prototype to Uint8Array.prototype so Object.getPrototypeOf works
+        if (_uint8ArrayPrototype is not null)
+        {
+            result.SetPrototype(_uint8ArrayPrototype);
+        }
+
+        return result;
+    }
 
     private static byte[] GetBytes(JsUint8Array typedArray)
     {

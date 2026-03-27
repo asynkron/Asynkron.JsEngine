@@ -157,7 +157,8 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
         for (var i = 0; i < rawItems.Count; i++)
         {
             result.Append(JsOps.ToJsString(rawItems[i]));
-            if (i + 1 < args.Count)
+            // Per spec: substitutions are limited to literalSegments - 1
+            if (i + 1 < literalSegments && i + 1 < args.Count)
             {
                 result.Append(JsOps.ToJsString(args[i + 1]));
             }

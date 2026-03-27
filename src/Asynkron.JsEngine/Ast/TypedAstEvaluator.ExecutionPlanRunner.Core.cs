@@ -32,7 +32,8 @@ public static partial class TypedAstEvaluator
             JsEnvironment? lexicalThisEnvironment = null,
             IJsEnvironmentAwareCallable? superConstructor = null,
             IJsPropertyAccessor? superPrototype = null,
-            EvaluationContext? evaluationContext = null)
+            EvaluationContext? evaluationContext = null,
+            RealmState? derivedClassErrorRealm = null)
         {
             _function = function;
             _closure = closure;
@@ -41,6 +42,7 @@ public static partial class TypedAstEvaluator
             _newTarget = newTarget;
             _callable = callable;
             _realmState = realmState;
+            _derivedClassErrorRealm = derivedClassErrorRealm ?? realmState;
             _hasFunctionNameEnvironment = hasFunctionNameEnvironment;
             _homeObject = homeObject;
             _privateNameScope = privateNameScope;
@@ -91,6 +93,7 @@ public static partial class TypedAstEvaluator
             _thisValue = context.RealmState.Engine?.GlobalObject is { } go
                 ? new JsValue(go)
                 : JsValue.Undefined;
+            _derivedClassErrorRealm = _realmState;
             _isStrict = environment.IsStrict;
             _isAsync = false; // Scripts run via RunScript are synchronous
             _isGenerator = false; // Scripts are not generators
@@ -252,7 +255,7 @@ public static partial class TypedAstEvaluator
                     throw new ThrowSignal(StandardLibrary.CreateTypeError(
                         "Derived constructors may only return object or undefined",
                         _context,
-                        _realmState));
+                        _derivedClassErrorRealm));
                 }
 
                 if (_executionEnvironment is null ||
@@ -263,7 +266,7 @@ public static partial class TypedAstEvaluator
                     throw new ThrowSignal(StandardLibrary.CreateReferenceError(
                         "ReferenceError: this is not defined - must call super() in derived class constructor",
                         _context,
-                        _realmState));
+                        _derivedClassErrorRealm));
                 }
 
                 return derivedThis;

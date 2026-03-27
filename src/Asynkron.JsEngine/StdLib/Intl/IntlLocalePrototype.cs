@@ -311,14 +311,21 @@ public sealed partial class IntlLocalePrototype
     internal static bool TryBuildLocaleIdentifier(JsObject candidate, out string identifier)
     {
         identifier = string.Empty;
-        if (!candidate.TryGetProperty(BrandKey, out var marker) || !marker.TryGetBoolean(out var isBranded) ||
-            !isBranded)
+        if (!candidate.TryGetProperty(TagSlot, out var baseTagValue) || !baseTagValue.TryGetString(out var tag) ||
+            string.IsNullOrWhiteSpace(tag))
         {
             return false;
         }
 
-        if (!candidate.TryGetProperty(TagSlot, out var baseTagValue) || !baseTagValue.TryGetString(out var tag) ||
-            string.IsNullOrWhiteSpace(tag))
+        if (candidate.TryGetProperty(BrandKey, out var marker) && marker.TryGetBoolean(out var isBranded) &&
+            isBranded)
+        {
+            identifier = tag;
+            return true;
+        }
+
+        if (!candidate.TryGetProperty(LanguageSlot, out var languageValue) || !languageValue.TryGetString(out var language) ||
+            string.IsNullOrWhiteSpace(language))
         {
             return false;
         }

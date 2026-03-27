@@ -73,9 +73,8 @@ public sealed partial class IntlLocaleConstructor(IJsObjectLike prototype, Realm
 
         InitializeLocaleSlots(instance, canonicalTag, Realm);
 
-        var optionsArg = args.GetArgument(1);
-        if (StandardLibrary.TryGetObject(optionsArg, Realm, out var optionsAccessor) &&
-            optionsAccessor is IJsPropertyAccessor options)
+        var options = IntlOptionHelpers.GetOptionsObject(args.GetArgument(1), Realm, "Locale");
+        if (options is not null)
         {
             ApplyOptions(instance, options);
         }
@@ -132,6 +131,12 @@ public sealed partial class IntlLocaleConstructor(IJsObjectLike prototype, Realm
                 regionOption.Length == 2 ? regionOption.ToUpperInvariant() : regionOption);
         }
 
+        if (TryGetVariantsOption(options, out var localeVariants))
+        {
+            variants.Clear();
+            variants.AddRange(localeVariants);
+        }
+
         if (TryGetStringOption(options, "calendar", out var calendarOption))
         {
             // Intl.Locale accepts any structurally valid BCP47 calendar subtag
@@ -143,16 +148,6 @@ public sealed partial class IntlLocaleConstructor(IJsObjectLike prototype, Realm
             SetKeyword(keywords, "ca", canonicalCalendar);
         }
 
-        if (TryGetStringOption(options, "numberingSystem", out var numberingSystemOption))
-        {
-            if (!IntlUtilities.TryNormalizeNumberingSystem(numberingSystemOption, out var canonicalNumbering))
-            {
-                throw StandardLibrary.ThrowRangeError("Invalid Intl.Locale numberingSystem option", realm: Realm);
-            }
-
-            SetKeyword(keywords, "nu", canonicalNumbering);
-        }
-
         if (TryGetStringOption(options, "collation", out var collationOption))
         {
             var normalized = collationOption.ToLowerInvariant();
@@ -162,6 +157,11 @@ public sealed partial class IntlLocaleConstructor(IJsObjectLike prototype, Realm
             }
 
             SetKeyword(keywords, "co", normalized);
+        }
+
+        if (TryGetBooleanOption(options, "numeric", out var numericOption))
+        {
+            SetKeyword(keywords, "kn", numericOption ? "true" : "false");
         }
 
         if (TryGetStringOption(options, "hourCycle", out var hourCycleOption))
@@ -186,9 +186,14 @@ public sealed partial class IntlLocaleConstructor(IJsObjectLike prototype, Realm
             SetKeyword(keywords, "kf", normalized);
         }
 
-        if (TryGetBooleanOption(options, "numeric", out var numericOption))
+        if (TryGetStringOption(options, "numberingSystem", out var numberingSystemOption))
         {
-            SetKeyword(keywords, "kn", numericOption ? "true" : "false");
+            if (!IntlUtilities.TryNormalizeNumberingSystem(numberingSystemOption, out var canonicalNumbering))
+            {
+                throw StandardLibrary.ThrowRangeError("Invalid Intl.Locale numberingSystem option", realm: Realm);
+            }
+
+            SetKeyword(keywords, "nu", canonicalNumbering);
         }
 
         if (TryGetFirstDayOfWeekOption(options, out var firstDayOfWeek))
@@ -246,6 +251,71 @@ public sealed partial class IntlLocaleConstructor(IJsObjectLike prototype, Realm
 
         value = StandardLibrary.JsValueToString(rawValue, Realm);
         return true;
+    }
+
+    private bool TryGetVariantsOption(IJsPropertyAccessor options, out List<string> variants)
+    {
+        if (!options.TryGetProperty("variants", out var rawValue))
+        {
+            variants = [];
+            return false;
+        }
+
+        if (rawValue.IsUndefined)
+        {
+            variants = [];
+            return false;
+        }
+
+        var raw = StandardLibrary.JsValueToString(rawValue, Realm);
+        var parts = raw.Split('-', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+        {
+            throw StandardLibrary.ThrowRangeError("Invalid Intl.Locale variants option", realm: Realm);
+        }
+
+        var normalized = string.Join('-', parts.Select(static part => part.ToLowerInvariant()));
+        if (!normalized.All(static ch => char.IsLetterOrDigit(ch) || ch == '-'))
+        {
+            throw StandardLibrary.ThrowRangeError("Invalid Intl.Locale variants option", realm: Realm);
+        }
+
+        foreach (var part in normalized.Split('-', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (!IsValidVariantSubtag(part))
+            {
+                throw StandardLibrary.ThrowRangeError("Invalid Intl.Locale variants option", realm: Realm);
+            }
+        }
+
+        var canonical = IntlUtilities.CanonicalizeLocale($"und-{normalized}", Realm);
+        (_, _, _, variants) = ParseBaseName(ExtractBaseName(canonical));
+        if (variants.Count == 0)
+        {
+            throw StandardLibrary.ThrowRangeError("Invalid Intl.Locale variants option", realm: Realm);
+        }
+
+        return true;
+    }
+
+    private static bool IsValidVariantSubtag(string candidate)
+    {
+        if (candidate.Length == 4)
+        {
+            if (!char.IsDigit(candidate[0]))
+            {
+                return false;
+            }
+
+            return candidate.All(static ch => char.IsLetterOrDigit(ch));
+        }
+
+        if (candidate.Length is < 5 or > 8)
+        {
+            return false;
+        }
+
+        return candidate.All(static ch => char.IsLetterOrDigit(ch));
     }
 
     private static bool TryGetBooleanOption(IJsPropertyAccessor options, string property, out bool value)

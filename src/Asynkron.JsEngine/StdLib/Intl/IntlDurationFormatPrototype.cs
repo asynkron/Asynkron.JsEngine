@@ -1,7 +1,9 @@
 #region
 
 using System.Globalization;
+using System.Numerics;
 using System.Text;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
@@ -104,10 +106,6 @@ public sealed partial class IntlDurationFormatPrototype
         {
             CreateDataPropertyOrThrow(obj, "fractionalDigits", fdValue, Realm, operation);
         }
-        else
-        {
-            CreateDataPropertyOrThrow(obj, "fractionalDigits", JsValue.Undefined, Realm, operation);
-        }
 
         return new JsValue(obj);
     }
@@ -143,6 +141,22 @@ public sealed partial class IntlDurationFormatPrototype
         if (!durationArg.TryGetObject<IJsPropertyAccessor>(out var durationObj))
         {
             throw ThrowTypeError("Duration must be an object", realm: Realm);
+        }
+
+        if (durationObj.TryGetProperty("[[TemporalDuration]]", out var temporalDurationSlot) &&
+            temporalDurationSlot.TryGetObject<JsTemporalDuration>(out var temporalDuration))
+        {
+            return new DurationRecord(
+                temporalDuration.Years,
+                temporalDuration.Months,
+                temporalDuration.Weeks,
+                temporalDuration.Days,
+                temporalDuration.Hours,
+                temporalDuration.Minutes,
+                temporalDuration.Seconds,
+                temporalDuration.Milliseconds,
+                temporalDuration.Microseconds,
+                temporalDuration.Nanoseconds);
         }
 
         // Read all unit properties
@@ -234,6 +248,33 @@ public sealed partial class IntlDurationFormatPrototype
             throw ThrowRangeError("Duration months value out of range", realm: Realm);
         if (Math.Abs(weeks) >= limit)
             throw ThrowRangeError("Duration weeks value out of range", realm: Realm);
+
+        if (double.IsNaN(days) || double.IsInfinity(days) ||
+            double.IsNaN(hours) || double.IsInfinity(hours) ||
+            double.IsNaN(minutes) || double.IsInfinity(minutes) ||
+            double.IsNaN(seconds) || double.IsInfinity(seconds) ||
+            double.IsNaN(milliseconds) || double.IsInfinity(milliseconds) ||
+            double.IsNaN(microseconds) || double.IsInfinity(microseconds) ||
+            double.IsNaN(nanoseconds) || double.IsInfinity(nanoseconds))
+        {
+            throw ThrowRangeError("Duration time value out of range", realm: Realm);
+        }
+
+        var normalizedNanoseconds =
+            (BigInteger)days * 86_400 * 1_000_000_000 +
+            (BigInteger)hours * 3_600 * 1_000_000_000 +
+            (BigInteger)minutes * 60 * 1_000_000_000 +
+            (BigInteger)seconds * 1_000_000_000 +
+            (BigInteger)milliseconds * 1_000_000 +
+            (BigInteger)microseconds * 1_000 +
+            (BigInteger)nanoseconds;
+
+        var maxTimeDuration = BigInteger.Pow(2, 53) * 1_000_000_000;
+
+        if (BigInteger.Abs(normalizedNanoseconds) >= maxTimeDuration)
+        {
+            throw ThrowRangeError("Duration time value out of range", realm: Realm);
+        }
     }
 
     private DurationRecord ParseDurationString(string input)
@@ -290,30 +331,37 @@ public sealed partial class IntlDurationFormatPrototype
             i++;
             hasAnyUnit = true;
 
-            if (!inTimePart)
-            {
-                switch (unit)
+                if (!inTimePart)
                 {
-                    case 'Y': years = num; break;
-                    case 'M': months = num; break;
-                    case 'W': weeks = num; break;
+                    switch (unit)
+                    {
+                        case 'Y': years = num; break;
+                        case 'M': months = num; break;
+                        case 'W': weeks = num; break;
                     case 'D': days = num; break;
                     default:
                         throw ThrowRangeError($"Invalid duration string: '{input}'", realm: Realm);
                 }
-            }
-            else
-            {
-                switch (unit)
+                }
+                else
                 {
-                    case 'H': hours = num; break;
-                    case 'M': minutes = num; break;
-                    case 'S': seconds = num; break;
-                    default:
-                        throw ThrowRangeError($"Invalid duration string: '{input}'", realm: Realm);
+                    switch (unit)
+                    {
+                        case 'H': hours = num; break;
+                        case 'M': minutes = num; break;
+                        case 'S':
+                            ParseSecondsComponent(numStr, negative, out var wholeSeconds, out var msPart, out var usPart,
+                                out var nsPart);
+                            seconds = wholeSeconds;
+                            milliseconds = msPart;
+                            microseconds = usPart;
+                            nanoseconds = nsPart;
+                            break;
+                        default:
+                            throw ThrowRangeError($"Invalid duration string: '{input}'", realm: Realm);
+                    }
                 }
             }
-        }
 
         if (!hasAnyUnit)
         {
@@ -325,6 +373,48 @@ public sealed partial class IntlDurationFormatPrototype
 
         return new DurationRecord(years, months, weeks, days, hours, minutes, seconds,
             milliseconds, microseconds, nanoseconds);
+    }
+
+    private static void ParseSecondsComponent(string input, bool negative, out double seconds, out double ms, out double us,
+        out double ns)
+    {
+        seconds = 0;
+        ms = 0;
+        us = 0;
+        ns = 0;
+
+        var normalized = negative && input.StartsWith("-", StringComparison.Ordinal) ? input[1..] : input;
+        var split = normalized.Split('.', 2, StringSplitOptions.None);
+        if (!double.TryParse(split[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var secValue))
+        {
+            return;
+        }
+
+        seconds = negative ? -secValue : secValue;
+
+        if (split.Length == 1)
+        {
+            return;
+        }
+
+        var fraction = split[1];
+        var nsDigits = (fraction + "000000000")[..9];
+        var msStr = nsDigits[..3];
+        var usStr = nsDigits[3..6];
+        var nsStr = nsDigits[6..9];
+
+        if (double.TryParse(msStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out var msParsed))
+        {
+            ms = negative ? -msParsed : msParsed;
+        }
+        if (double.TryParse(usStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out var usParsed))
+        {
+            us = negative ? -usParsed : usParsed;
+        }
+        if (double.TryParse(nsStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out var nsParsed))
+        {
+            ns = negative ? -nsParsed : nsParsed;
+        }
     }
 
     #endregion
@@ -384,7 +474,7 @@ public sealed partial class IntlDurationFormatPrototype
 
     private List<DurationPart> PartitionDurationFormatPattern(DurationRecord duration, ResolvedDurationOptions opts)
     {
-        var locale = "en"; // Tests only use "en"
+        var locale = string.IsNullOrWhiteSpace(opts.Locale) ? "en" : opts.Locale;
         const string timeSeparator = ":";
 
         var values = new[]
@@ -439,6 +529,11 @@ public sealed partial class IntlDurationFormatPrototype
                                   duration.Nanoseconds != 0;
             }
 
+            if (opts.Style != "digital" && style is not "numeric" and not "2-digit" && display == "auto")
+            {
+                displayRequired = true;
+            }
+
             // Treat -0 as 0 for display/auto comparison but preserve sign for formatting
             var valueIsZero = value == 0; // -0 == 0 is true in C#
 
@@ -480,9 +575,8 @@ public sealed partial class IntlDurationFormatPrototype
                 // Format the value
                 if (style is not "numeric" and not "2-digit")
                 {
-                    // Non-numeric: format as "{number} {unit}" using Intl.NumberFormat style:unit
-                    var formatted = FormatUnitValue(value, singularUnit, style, locale, signDisplayNever, done, maxFrac, minFrac);
-                    var unitParts = ParseUnitFormatParts(formatted, singularUnit);
+                    // Non-numeric: preserve Intl.NumberFormat-provided parts instead of reparsing the string
+                    var unitParts = FormatUnitParts(value, singularUnit, style, locale, signDisplayNever, done, maxFrac, minFrac);
                     list.AddRange(unitParts);
                 }
                 else
@@ -579,32 +673,55 @@ public sealed partial class IntlDurationFormatPrototype
 
     #region Number Formatting
 
-    private static string FormatUnitValue(double value, string unit, string unitDisplay,
+    private static List<DurationPart> FormatUnitParts(double value, string unit, string unitDisplay,
         string locale, bool signDisplayNever, bool fractional, int maxFrac, int minFrac)
     {
-        // This replicates: new Intl.NumberFormat(locale, {style:"unit", unit, unitDisplay, signDisplay, ...}).format(value)
-        var culture = CultureInfo.GetCultureInfo("en-US");
-
-        // Format the number
-        string numStr;
-        if (fractional)
+        var slots = new IntlNumberFormatInternalSlots
         {
-            numStr = FormatFractionalNumber(value, maxFrac, minFrac);
-        }
-        else
+            Locale = locale,
+            NumberingSystem = "latn",
+            Style = "unit",
+            Unit = unit,
+            UnitDisplay = unitDisplay,
+            MinimumIntegerDigits = 1,
+            MinimumFractionDigits = fractional ? minFrac : 0,
+            MaximumFractionDigits = fractional ? maxFrac : 0,
+            UseGrouping = "auto",
+            Notation = "standard",
+            SignDisplay = signDisplayNever ? "never" : "auto",
+            RoundingIncrement = 1,
+            RoundingMode = "trunc",
+            RoundingPriority = "auto",
+            TrailingZeroDisplay = "auto",
+            RoundingType = "fractionDigits",
+            Culture = IntlUtilities.ResolveCulture(locale)
+        };
+
+        var result = IntlNumberFormatter.FormatDouble(value, slots);
+        var formatterParts = result.Parts;
+        if (formatterParts is null || formatterParts.Count == 0)
         {
-            numStr = FormatIntegerForUnit(value);
+            return [new DurationPart("literal", result.Formatted)];
         }
 
-        if (signDisplayNever && numStr.Length > 0 && numStr[0] == '-')
+        var parts = new List<DurationPart>(formatterParts.Count);
+        foreach (var part in formatterParts)
         {
-            numStr = numStr[1..]; // strip negative sign
+            if (part.Type == "literal")
+            {
+                parts.Add(new DurationPart("literal", part.Value));
+            }
+            else if (part.Type == "unit")
+            {
+                parts.Add(new DurationPart("unit", part.Value, unit));
+            }
+            else
+            {
+                parts.Add(new DurationPart(part.Type, part.Value, unit));
+            }
         }
 
-        // Get unit display string
-        var unitStr = GetUnitDisplayString(Math.Abs(value), unit, unitDisplay);
-
-        return numStr + unitStr;
+        return parts;
     }
 
     private static string FormatIntegerForUnit(double value)
@@ -737,18 +854,101 @@ public sealed partial class IntlDurationFormatPrototype
     /// Replicates: Intl.NumberFormat("en", {style:"unit", unit, unitDisplay}).format(value)
     /// but returns only the suffix part (space + unit name).
     /// </summary>
-    private static string GetUnitDisplayString(double absValue, string unit, string displayStyle)
+    private static string GetUnitDisplayString(double absValue, string unit, string displayStyle, string locale)
     {
         var isOne = absValue == 1;
+        var lang = ExtractLanguageTag(locale);
 
         return displayStyle switch
         {
-            "long" => GetLongUnitDisplay(unit, isOne),
-            "short" => GetShortUnitDisplay(unit, isOne),
-            "narrow" => GetNarrowUnitDisplay(unit, isOne),
-            _ => GetShortUnitDisplay(unit, isOne)
+            "long" => lang switch
+            {
+                "es" => GetLongUnitDisplayEs(unit, isOne),
+                _ => GetLongUnitDisplay(unit, isOne),
+            },
+            "short" => lang switch
+            {
+                "es" => GetShortUnitDisplayEs(unit, isOne),
+                _ => GetShortUnitDisplay(unit, isOne),
+            },
+            "narrow" => lang switch
+            {
+                "es" => GetNarrowUnitDisplayEs(unit, isOne),
+                _ => GetNarrowUnitDisplay(unit, isOne),
+            },
+            _ => lang switch
+            {
+                "es" => GetShortUnitDisplayEs(unit, isOne),
+                _ => GetShortUnitDisplay(unit, isOne),
+            },
         };
     }
+
+    private static string ExtractLanguageTag(string locale)
+    {
+        if (string.IsNullOrWhiteSpace(locale))
+        {
+            return "en";
+        }
+
+        var idx = locale.IndexOfAny(new[] { '-', '_' });
+        return idx < 0 ? locale : locale[..idx];
+    }
+
+    private static string GetLongUnitDisplayEs(string unit, bool isOne) => (unit, isOne) switch
+    {
+        ("year", true) => " año",
+        ("year", false) => " años",
+        ("month", true) => " mes",
+        ("month", false) => " meses",
+        ("week", true) => " semana",
+        ("week", false) => " semanas",
+        ("day", true) => " día",
+        ("day", false) => " días",
+        ("hour", true) => " hora",
+        ("hour", false) => " horas",
+        ("minute", true) => " minuto",
+        ("minute", false) => " minutos",
+        ("second", true) => " segundo",
+        ("second", false) => " segundos",
+        ("millisecond", true) => " milisegundo",
+        ("millisecond", false) => " milisegundos",
+        ("microsecond", true) => " microsegundo",
+        ("microsecond", false) => " microsegundos",
+        ("nanosecond", true) => " nanosegundo",
+        ("nanosecond", false) => " nanosegundos",
+        _ => $" {unit}s"
+    };
+
+    private static string GetShortUnitDisplayEs(string unit, bool isOne) => (unit, isOne) switch
+    {
+        ("year", _) => " a",
+        ("month", _) => " mes",
+        ("week", _) => " sem",
+        ("day", _) => " día",
+        ("hour", _) => " h",
+        ("minute", _) => " min",
+        ("second", _) => " s",
+        ("millisecond", _) => " ms",
+        ("microsecond", _) => " μs",
+        ("nanosecond", _) => " ns",
+        _ => $" {unit}"
+    };
+
+    private static string GetNarrowUnitDisplayEs(string unit, bool isOne) => (unit, isOne) switch
+    {
+        ("year", _) => "a",
+        ("month", _) => "m",
+        ("week", _) => "s",
+        ("day", _) => "d",
+        ("hour", _) => "h",
+        ("minute", _) => "m",
+        ("second", _) => "s",
+        ("millisecond", _) => "ms",
+        ("microsecond", _) => "μs",
+        ("nanosecond", _) => "ns",
+        _ => unit[..1]
+    };
 
     private static string GetLongUnitDisplay(string unit, bool isOne) => (unit, isOne) switch
     {
@@ -929,36 +1129,22 @@ public sealed partial class IntlDurationFormatPrototype
             return [.. groups[0]];
         }
 
-        // Format using ListFormat patterns for en locale, type: "unit"
-        // short: "A, B, C" (comma-separated)
-        // long: "A, B, C, and D" → but for type:"unit" in en: "A, B, C, D" (no "and")
-        // narrow: "A B C" (space-separated)
+        var listParts = IntlListFormatPrototype.FormatListToParts(strings, "unit", listStyle, locale);
         var result = new List<DurationPart>();
-
-        for (var i = 0; i < groups.Count; i++)
+        var elementIndex = 0;
+        foreach (var (type, value) in listParts)
         {
-            if (i > 0)
+            if (type == "element")
             {
-                var separator = GetListSeparator(listStyle, i, groups.Count);
-                result.Add(new DurationPart("literal", separator));
+                result.AddRange(groups[elementIndex++]);
             }
-            result.AddRange(groups[i]);
+            else if (!string.IsNullOrEmpty(value))
+            {
+                result.Add(new DurationPart("literal", value));
+            }
         }
 
         return result;
-    }
-
-    private static string GetListSeparator(string listStyle, int index, int total)
-    {
-        // For en locale with type: "unit":
-        // long: ", " between all items (no "and" for unit type in en)
-        // short: ", " between all items
-        // narrow: " " between all items
-        return listStyle switch
-        {
-            "narrow" => " ",
-            _ => ", " // long and short both use ", " for unit type in en
-        };
     }
 
     #endregion

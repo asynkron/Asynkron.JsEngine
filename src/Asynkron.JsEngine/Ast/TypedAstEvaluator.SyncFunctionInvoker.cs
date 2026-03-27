@@ -658,7 +658,7 @@ public static partial class TypedAstEvaluator
             JsValue newTarget)
         {
             var context = RealmState.RentContext(pushScope: false);
-            var constructErrorRealm = callingContext?.RealmState ?? context.RealmState;
+            var constructErrorRealm = callingContext?.RealmState ?? RealmState;
             context.AllowIdentifierCache = _allowIdentifierCache;
             RealmState.Logger?.LogInformation(
                 "InvokeWithContext enter func={Function} isAsync={IsAsync} wasAsync={WasAsync}",
@@ -699,7 +699,7 @@ public static partial class TypedAstEvaluator
             {
                 var error = StandardLibrary.CreateTypeError(
                     "Class constructor cannot be invoked without 'new'",
-                    callingContext ?? context,
+                    context,
                     RealmState);
                 throw new ThrowSignal(error);
             }
@@ -812,7 +812,8 @@ public static partial class TypedAstEvaluator
                             _lexicalThisEnvironment,
                             _superConstructor,
                             _superPrototype,
-                            context);
+                            context,
+                            derivedClassErrorRealm: constructErrorRealm);
 
                         var runnerContext = runner.EnsureEvaluationContext();
 
@@ -837,7 +838,22 @@ public static partial class TypedAstEvaluator
                             }
                         }
 
-                        return runner.RunSync();
+                        try
+                        {
+                            return runner.RunSync();
+                        }
+                        catch (ThrowSignal signal) when (callingContext is not null && IsClassConstructor && _isDerivedClassConstructor)
+                        {
+                            var normalized = NormalizeDerivedClassRealmError(signal, callingContext);
+                            if (!normalized.IsUndefined)
+                            {
+                                callingContext.SetThrow(normalized);
+                                return normalized;
+                            }
+
+                            callingContext.SetThrow(signal.ThrownValue);
+                            return signal.ThrownValue;
+                        }
                     }
                     catch (ThrowSignal signal) when (callingContext is not null)
                     {
@@ -2439,6 +2455,49 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 }
             }
         }
+    }
+
+    private static JsValue NormalizeDerivedClassRealmError(ThrowSignal signal, EvaluationContext callingContext)
+    {
+        if (!signal.ThrownValue.TryGetObject<JsObject>(out var errorObject))
+        {
+            return JsValue.Undefined;
+        }
+
+        if (!errorObject.TryGetProperty("name", out var nameValue) ||
+            !nameValue.TryGetString(out var errorName))
+        {
+            return JsValue.Undefined;
+        }
+
+        if (!errorObject.TryGetProperty("message", out var messageValue) ||
+            !messageValue.TryGetString(out var message))
+        {
+            return JsValue.Undefined;
+        }
+
+        if (errorName == "TypeError" &&
+            message == "Derived constructors may only return object or undefined")
+        {
+            return StandardLibrary.CreateTypeError(
+                message,
+                callingContext,
+                callingContext.RealmState);
+        }
+
+        if (errorName == "ReferenceError" &&
+            (message.Contains("must call super() in derived class constructor", StringComparison.Ordinal) ||
+             message.Contains("this is not defined", StringComparison.Ordinal) ||
+             message.Contains("uninitialized", StringComparison.Ordinal) ||
+             callingContext.RealmState != errorObject.RealmState))
+        {
+            return StandardLibrary.CreateReferenceError(
+                message,
+                callingContext,
+                callingContext.RealmState);
+        }
+
+        return JsValue.Undefined;
     }
 
     private static JsObject CreateConstructedThis(JsValue newTarget, RealmState realmState)

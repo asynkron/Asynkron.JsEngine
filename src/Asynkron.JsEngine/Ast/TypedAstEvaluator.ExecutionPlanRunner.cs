@@ -82,6 +82,7 @@ public static partial class TypedAstEvaluator
         private readonly ExecutionPlan? _plan;
         private readonly PrivateNameScope? _privateNameScope;
         private readonly RealmState _realmState;
+        private readonly RealmState _derivedClassErrorRealm;
         private readonly IJsEnvironmentAwareCallable? _superConstructor;
         private readonly IJsPropertyAccessor? _superPrototype;
         private readonly JsValue _thisValue;

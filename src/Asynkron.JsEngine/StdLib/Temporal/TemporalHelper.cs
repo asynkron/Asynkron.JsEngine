@@ -979,6 +979,7 @@ public static class TemporalHelper
         AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, args) =>
         {
             // Per spec: Temporal.Duration.prototype.toLocaleString delegates to Intl.DurationFormat
+            var duration = GetDuration(thisValue);
             var localeArg = args.GetArgument(0);
             var optionsArg = args.GetArgument(1);
 
@@ -994,7 +995,6 @@ public static class TemporalHelper
             }
 
             // Fallback: ISO 8601 string
-            var duration = GetDuration(thisValue);
             return new JsValue(duration.ToString());
         });
 

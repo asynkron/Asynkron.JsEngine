@@ -136,6 +136,10 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
                 case ' ':
                     sb.Append("\\x20");
                     break;
+                case '\u0085':
+                case '\u00A0':
+                    AppendHexEscape(sb, c);
+                    break;
                 case '\t':
                     sb.Append("\\t");
                     break;
@@ -181,17 +185,15 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
             return c is ',' or '-' or '=' or '<' or '>' or '#' or '&' or '!' or '%' or ':' or ';' or '@' or '~' or '\'' or '"' or '`';
         }
 
-        static bool RequiresUnicodeEscape(char c)
-        {
-            return c <= 0x1F ||
-                   c == 0x7F ||
-                   char.IsSurrogate(c) ||
-                   c == 0xFEFF ||
-                   c == 0x0085 ||
-                   c == 0x00A0 ||
-                   c == 0x1680 ||
-                   c is >= '\u2000' and <= '\u200A' ||
-                   c == '\u2028' ||
+                static bool RequiresUnicodeEscape(char c)
+                {
+                    return c <= 0x1F ||
+                           c == 0x7F ||
+                           char.IsSurrogate(c) ||
+                           c == 0xFEFF ||
+                           c == 0x1680 ||
+                           c is >= '\u2000' and <= '\u200A' ||
+                           c == '\u2028' ||
                    c == '\u2029' ||
                    c == '\u202F' ||
                    c == '\u205F' ||

@@ -353,6 +353,52 @@ public sealed partial class ObjectPrototype
         return realm?.ObjectPrototype;
     }
 
+    private static bool TryGetPrototype(object? candidate, out IJsObjectLike? prototype)
+    {
+        prototype = null;
+
+        switch (candidate)
+        {
+            case JsProxy proxy:
+                {
+                    var proxyProto = proxy.GetPrototypeWithTrap();
+                    if (proxyProto is null)
+                    {
+                        return false;
+                    }
+
+                    prototype = proxyProto as IJsObjectLike;
+                    return prototype is not null;
+                }
+            case IJsObjectLike { Prototype: { } protoObj }:
+                prototype = protoObj;
+                return true;
+            case IPrototypeAccessorProvider { PrototypeAccessor: { } protoAccessor }:
+                {
+                    prototype = protoAccessor as IJsObjectLike;
+                    if (prototype is not null)
+                    {
+                        return true;
+                    }
+
+                    break;
+                }
+        }
+
+        if (candidate is not JsObject jsObj || !jsObj.TryGetProperty("__proto__", out var protoProp))
+        {
+            return false;
+        }
+
+        if (!protoProp.TryGetObject<IJsObjectLike>(out var protoFromProp))
+        {
+            return false;
+        }
+
+        prototype = protoFromProp;
+        return true;
+    }
+
     /// <summary>
     /// Object.prototype.__defineGetter__(name, getter) — Annex B
     /// Defines a getter for the specified property.
@@ -365,12 +411,12 @@ public sealed partial class ObjectPrototype
             throw ThrowTypeError("__defineGetter__ called on null or undefined", realm: Realm);
         }
 
-        var propertyName = JsOps.ToPropertyName(args.GetArgument(0));
         var getter = args.GetArgument(1);
         if (!getter.TryGetCallable(out var getterCallable))
         {
             throw ThrowTypeError("__defineGetter__ getter must be callable", realm: Realm);
         }
+        var propertyName = JsOps.ToPropertyName(args.GetArgument(0));
 
         var desc = new PropertyDescriptor
         {
@@ -378,10 +424,7 @@ public sealed partial class ObjectPrototype
             Enumerable = true,
             Configurable = true
         };
-        if (obj is IPropertyDefinitionHost definable)
-        {
-            definable.TryDefineProperty(propertyName, desc);
-        }
+        ObjectHelper.TryDefinePropertyOnTarget(obj, propertyName, desc, Realm, throwOnFailure: true);
         return JsValue.Undefined;
     }
 
@@ -397,12 +440,12 @@ public sealed partial class ObjectPrototype
             throw ThrowTypeError("__defineSetter__ called on null or undefined", realm: Realm);
         }
 
-        var propertyName = JsOps.ToPropertyName(args.GetArgument(0));
         var setter = args.GetArgument(1);
         if (!setter.TryGetCallable(out var setterCallable))
         {
             throw ThrowTypeError("__defineSetter__ setter must be callable", realm: Realm);
         }
+        var propertyName = JsOps.ToPropertyName(args.GetArgument(0));
 
         var desc = new PropertyDescriptor
         {
@@ -410,10 +453,7 @@ public sealed partial class ObjectPrototype
             Enumerable = true,
             Configurable = true
         };
-        if (obj is IPropertyDefinitionHost definable)
-        {
-            definable.TryDefineProperty(propertyName, desc);
-        }
+        ObjectHelper.TryDefinePropertyOnTarget(obj, propertyName, desc, Realm, throwOnFailure: true);
         return JsValue.Undefined;
     }
 
@@ -431,21 +471,29 @@ public sealed partial class ObjectPrototype
             return JsValue.Undefined;
         }
 
-        var cursor = obj;
+        object? cursor = obj;
         while (cursor is not null)
         {
-            var desc = cursor.GetOwnPropertyDescriptor(propertyName);
-            if (desc is not null)
+            if (cursor is IJsPropertyAccessor accessor)
             {
-                if (!desc.IsAccessorDescriptor)
+                var desc = accessor.GetOwnPropertyDescriptor(propertyName);
+                if (desc is not null)
                 {
-                    return JsValue.Undefined;
-                }
+                    if (!desc.IsAccessorDescriptor)
+                    {
+                        return JsValue.Undefined;
+                    }
 
-                return desc.Get is null ? JsValue.Undefined : JsValue.FromObjectUnsafe(desc.Get);
+                    return desc.Get is null ? JsValue.Undefined : JsValue.FromObjectUnsafe(desc.Get);
+                }
             }
 
-            cursor = cursor.Prototype;
+            if (!TryGetPrototype(cursor, out var prototype))
+            {
+                break;
+            }
+
+            cursor = prototype;
         }
 
         return JsValue.Undefined;
@@ -465,21 +513,29 @@ public sealed partial class ObjectPrototype
             return JsValue.Undefined;
         }
 
-        var cursor = obj;
+        object? cursor = obj;
         while (cursor is not null)
         {
-            var desc = cursor.GetOwnPropertyDescriptor(propertyName);
-            if (desc is not null)
+            if (cursor is IJsPropertyAccessor accessor)
             {
-                if (!desc.IsAccessorDescriptor)
+                var desc = accessor.GetOwnPropertyDescriptor(propertyName);
+                if (desc is not null)
                 {
-                    return JsValue.Undefined;
-                }
+                    if (!desc.IsAccessorDescriptor)
+                    {
+                        return JsValue.Undefined;
+                    }
 
-                return desc.Set is null ? JsValue.Undefined : JsValue.FromObjectUnsafe(desc.Set);
+                    return desc.Set is null ? JsValue.Undefined : JsValue.FromObjectUnsafe(desc.Set);
+                }
             }
 
-            cursor = cursor.Prototype;
+            if (!TryGetPrototype(cursor, out var prototype))
+            {
+                break;
+            }
+
+            cursor = prototype;
         }
 
         return JsValue.Undefined;

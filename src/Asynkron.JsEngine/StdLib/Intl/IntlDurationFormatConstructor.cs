@@ -119,8 +119,8 @@ public sealed partial class IntlDurationFormatConstructor(IJsObjectLike prototyp
         {
             if (baseStyle == "digital")
             {
-                // For digital: non-time units get "short", time units get their digitalBase
-                style = unit is "hours" or "minutes" or "seconds"
+                // For digital: time-like units get their digital base, sub-second units are numeric as well
+                style = unit is "hours" or "minutes" or "seconds" or "milliseconds" or "microseconds" or "nanoseconds"
                     ? digitalBase
                     : "short";
             }

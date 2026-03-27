@@ -1877,12 +1877,12 @@ public static partial class TypedAstEvaluator
                 return baseIndex + 1;
             }
 
-            if (callable is SyncFunctionInvoker { IsClassConstructor: true })
+            if (callable is SyncFunctionInvoker { IsClassConstructor: true } classConstructor)
             {
                 var error = StandardLibrary.CreateTypeError(
                     "Class constructor cannot be invoked without 'new'",
                     context,
-                    context.RealmState);
+                    classConstructor.RealmState);
                 context.SetThrow(error);
                 stack[baseIndex] = JsValue.Undefined;
                 stackFlags[baseIndex] = false;

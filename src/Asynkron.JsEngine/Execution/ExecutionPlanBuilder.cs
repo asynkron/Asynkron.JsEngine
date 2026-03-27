@@ -1092,7 +1092,13 @@ internal sealed partial class ExecutionPlanBuilder
             builder.Add(declaration);
         }
 
-        builder.AddRange(clause.Body.Statements);
+        // ES2024 14.15.2 CatchClauseEvaluation: the catch parameter scope and the catch
+        // block body scope must be separate environments. The parameter destructuring is
+        // in the outer scope, and the body statements are in a nested scope. This ensures
+        // that closures created during parameter destructuring see the enclosing scope's
+        // bindings, not any same-named let/const declarations in the body.
+        var innerBody = new BlockStatement(clause.Body.Source, clause.Body.Statements, clause.Body.IsStrict);
+        builder.Add(innerBody);
 
         // IMPORTANT: Create a NEW BlockStatement instead of using `with`.
         // Using `with` would copy the cached HoistPlan from the original catch body,

@@ -1142,13 +1142,44 @@ public static partial class TypedAstEvaluator
             UpdateComputedPropertyExpressionOp update,
             EvaluationContext context)
         {
-            var currentValue = GetProgramComputedPropertyValue(
-                target,
-                targetWasShortCircuited: false,
-                propertyKey,
-                new GetComputedPropertyExpressionOp(),
-                context,
-                out _);
+            if (target.IsNullOrUndefined)
+            {
+                var error = StandardLibrary.CreateTypeError(
+                    "Cannot read properties of null or undefined",
+                    context,
+                    context.RealmState);
+                context.SetThrow(error);
+                return JsValue.Undefined;
+            }
+
+            // ES spec: ToPropertyKey must be called exactly once for update expressions.
+            // Convert the property key to a string/symbol once and reuse it for both get and set.
+            var resolvedName = JsOps.GetRequiredPropertyName(propertyKey, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
+            // Use the resolved name to get the current value
+            var currentValue = JsValue.Undefined;
+            if (target.TryGetObject<IJsPropertyAccessor>(out var accessor))
+            {
+                if (!accessor.TryGetProperty(resolvedName, out currentValue))
+                {
+                    currentValue = JsValue.Undefined;
+                }
+            }
+            else
+            {
+                // For primitives, use the standard property lookup with the already-resolved string
+                currentValue = GetProgramComputedPropertyValue(
+                    target,
+                    targetWasShortCircuited: false,
+                    new JsValue(resolvedName),
+                    new GetComputedPropertyExpressionOp(),
+                    context,
+                    out _);
+            }
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;
@@ -1160,12 +1191,14 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            ApplyProgramComputedPropertyAssignment(
+            // Use the resolved name to set the new value (no second ToPropertyKey call)
+            var handle = PropertyHandle.Resolve(
                 target,
-                propertyKey,
-                new SetComputedPropertyExpressionOp(AllowNameInference: false),
-                newValue,
-                context);
+                resolvedName,
+                context,
+                context.CurrentScope.IsStrict,
+                allowPrivate: false);
+            handle.SetValue(newValue);
 
             return update.IsPrefix ? newValue : oldNumericValue;
         }

@@ -60,6 +60,23 @@ public sealed class JsRegExp
     private const string EcmaWordClass = "[A-Za-z0-9_]";
     private const string EcmaNonWordClass = "[^A-Za-z0-9_]";
 
+    // Unicode ignoreCase \w includes U+017F (LATIN SMALL LETTER LONG S) and U+212A (KELVIN SIGN)
+    // per ES spec GetWordCharacters: Canonicalize maps these to 's' and 'K' respectively.
+    private const string EcmaWordClassUnicodeIgnoreCase = "[A-Za-z0-9_\u017F\u212A]";
+    private const string EcmaNonWordClassUnicodeIgnoreCase = "[^A-Za-z0-9_\u017F\u212A]";
+
+    // Word boundary using expanded word chars for unicode ignoreCase.
+    private const string EcmaWordBoundaryUnicodeIgnoreCase =
+        "(?:(?<=[A-Za-z0-9_\u017F\u212A])(?![A-Za-z0-9_\u017F\u212A])|(?<![A-Za-z0-9_\u017F\u212A])(?=[A-Za-z0-9_\u017F\u212A]))";
+    private const string EcmaNonWordBoundaryUnicodeIgnoreCase =
+        "(?:(?<=[A-Za-z0-9_\u017F\u212A])(?=[A-Za-z0-9_\u017F\u212A])|(?<![A-Za-z0-9_\u017F\u212A])(?![A-Za-z0-9_\u017F\u212A]))";
+
+    // ECMAScript word boundary using only ASCII word chars (for unicode mode where .NET's \b is too broad).
+    private const string EcmaWordBoundary =
+        "(?:(?<=[A-Za-z0-9_])(?![A-Za-z0-9_])|(?<![A-Za-z0-9_])(?=[A-Za-z0-9_]))";
+    private const string EcmaNonWordBoundary =
+        "(?:(?<=[A-Za-z0-9_])(?=[A-Za-z0-9_])|(?<![A-Za-z0-9_])(?![A-Za-z0-9_]))";
+
     // ECMAScript \d = [0-9] (ASCII only).
     // .NET \d without ECMAScript flag matches Unicode digits which is too broad.
     private const string EcmaDigitClass = "[0-9]";
@@ -993,12 +1010,13 @@ public sealed class JsRegExp
         // Track named groups that are currently open (not yet closed) for self-reference detection.
         var openGroupNames = new Stack<string?>();
         var groupDepth = 0;
-        // Track modifier group state for (?s:...) and (?m:...) modifier groups.
-        // Each entry represents the effective dotAll/multiline state at that group depth.
+        // Track modifier group state for (?s:...), (?m:...), (?i:...) modifier groups.
         var modifierDotAllStack = new Stack<bool>();
         var modifierMultilineStack = new Stack<bool>();
+        var modifierIgnoreCaseStack = new Stack<bool>();
         var effectiveDotAll = dotAll;
         var effectiveMultiline = multiline;
+        var effectiveIgnoreCase = ignoreCase;
 
         for (var i = 0; i < pattern.Length; i++)
         {
@@ -1237,9 +1255,10 @@ public sealed class JsRegExp
                 }
 
                 var next = pattern[i + 1];
-                // Replace \s, \S, \w, \W, \d, \D with ECMAScript-accurate definitions.
+                // Replace \s, \S, \w, \W, \d, \D, \b, \B with ECMAScript-accurate definitions.
                 if (!inCharClass)
                 {
+                    var useUnicodeIgnoreCaseWord = effectiveIgnoreCase && hasUnicodeFlag;
                     switch (next)
                     {
                         case 's':
@@ -1251,13 +1270,29 @@ public sealed class JsRegExp
                             i++;
                             continue;
                         case 'w':
-                            builder.Append(EcmaWordClass);
+                            builder.Append(useUnicodeIgnoreCaseWord ? EcmaWordClassUnicodeIgnoreCase : EcmaWordClass);
                             i++;
                             continue;
                         case 'W':
-                            builder.Append(UnicodeEcmaNonWordPattern);
+                            builder.Append(useUnicodeIgnoreCaseWord ? EcmaNonWordClassUnicodeIgnoreCase : UnicodeEcmaNonWordPattern);
                             i++;
                             continue;
+                        case 'b':
+                            if (hasUnicodeFlag)
+                            {
+                                builder.Append(useUnicodeIgnoreCaseWord ? EcmaWordBoundaryUnicodeIgnoreCase : EcmaWordBoundary);
+                                i++;
+                                continue;
+                            }
+                            break;
+                        case 'B':
+                            if (hasUnicodeFlag)
+                            {
+                                builder.Append(useUnicodeIgnoreCaseWord ? EcmaNonWordBoundaryUnicodeIgnoreCase : EcmaNonWordBoundary);
+                                i++;
+                                continue;
+                            }
+                            break;
                         case 'd':
                             builder.Append(EcmaDigitClass);
                             i++;
@@ -1314,7 +1349,7 @@ public sealed class JsRegExp
 
             if (c == '[' && hasUnicodeFlag)
             {
-                var normalized = NormalizeUnicodeCharacterClass(pattern, ref i);
+                var normalized = NormalizeUnicodeCharacterClass(pattern, ref i, effectiveIgnoreCase);
                 builder.Append(normalized);
                 continue;
             }
@@ -1363,29 +1398,25 @@ public sealed class JsRegExp
                 continue;
             }
 
-            // Modifier groups: (?s:...), (?m:...), (?-s:...), (?sm:...), (?s-m:...), etc.
+            // Modifier groups: (?s:...), (?m:...), (?i:...), (?-s:...), (?sm:...), etc.
             if (!inCharClass && c == '(' && i + 1 < pattern.Length && pattern[i + 1] == '?' &&
-                TryParseModifierGroup(pattern, i, out var modEnd, out var enableS, out var disableS, out var enableM, out var disableM))
+                TryParseModifierGroup(pattern, i, out var modEnd, out var enableS, out var disableS, out var enableM, out var disableM, out var enableI, out var disableI))
             {
                 groupDepth++;
                 openGroupNames.Push(null);
                 modifierDotAllStack.Push(effectiveDotAll);
                 modifierMultilineStack.Push(effectiveMultiline);
+                modifierIgnoreCaseStack.Push(effectiveIgnoreCase);
 
-                // Compute new effective dotAll for this group
-                if (enableS)
-                    effectiveDotAll = true;
-                else if (disableS)
-                    effectiveDotAll = false;
+                if (enableS) effectiveDotAll = true;
+                else if (disableS) effectiveDotAll = false;
 
-                // Compute new effective multiline for this group
-                if (enableM)
-                    effectiveMultiline = true;
-                else if (disableM)
-                    effectiveMultiline = false;
+                if (enableM) effectiveMultiline = true;
+                else if (disableM) effectiveMultiline = false;
 
-                // Emit as .NET non-capturing group with modifier flags
-                // .NET supports (?s:...) and (?m:...) natively for ^/$ handling
+                if (enableI) effectiveIgnoreCase = true;
+                else if (disableI) effectiveIgnoreCase = false;
+
                 builder.Append(pattern, i, modEnd - i + 1);
                 i = modEnd;
                 continue;
@@ -1410,6 +1441,7 @@ public sealed class JsRegExp
                 openGroupNames.Push(groupKind);
                 modifierDotAllStack.Push(effectiveDotAll);
                 modifierMultilineStack.Push(effectiveMultiline);
+                modifierIgnoreCaseStack.Push(effectiveIgnoreCase);
             }
 
             if (!inCharClass && c == ')' && groupDepth > 0)
@@ -1424,13 +1456,11 @@ public sealed class JsRegExp
 
                 // Restore modifier state from parent group
                 if (modifierDotAllStack.Count > 0)
-                {
                     effectiveDotAll = modifierDotAllStack.Pop();
-                }
                 if (modifierMultilineStack.Count > 0)
-                {
                     effectiveMultiline = modifierMultilineStack.Pop();
-                }
+                if (modifierIgnoreCaseStack.Count > 0)
+                    effectiveIgnoreCase = modifierIgnoreCaseStack.Pop();
 
                 // In unicode mode, quantifiers on lookahead/negative lookahead are forbidden
                 // Annex B allows (?=.)*  in non-unicode mode, but not here.
@@ -1786,9 +1816,9 @@ public sealed class JsRegExp
                 continue;
             }
 
-            // Modifier groups: (?s:...), (?m:...), (?-s:...), (?sm:...), etc.
+            // Modifier groups: (?s:...), (?m:...), (?i:...), (?-s:...), (?sm:...), etc.
             if (!inCharClass && c == '(' && i + 1 < pattern.Length && pattern[i + 1] == '?' &&
-                TryParseModifierGroup(pattern, i, out var modEnd, out var enableS, out var disableS, out var enableM, out var disableM))
+                TryParseModifierGroup(pattern, i, out var modEnd, out var enableS, out var disableS, out var enableM, out var disableM, out _, out _))
             {
                 groupDepth++;
                 openGroupStack.Push(0); // non-capturing
@@ -2117,12 +2147,15 @@ public sealed class JsRegExp
     /// - Invalid flag characters: (?I:...), (?S:...)
     /// </summary>
     private static bool TryParseModifierGroup(string pattern, int i, out int endIndex,
-        out bool enableS, out bool disableS, out bool enableM, out bool disableM)
+        out bool enableS, out bool disableS, out bool enableM, out bool disableM,
+        out bool enableI, out bool disableI)
     {
         enableS = false;
         disableS = false;
         enableM = false;
         disableM = false;
+        enableI = false;
+        disableI = false;
         endIndex = i;
 
         // Must start with (?
@@ -2194,6 +2227,8 @@ public sealed class JsRegExp
                 disableS = removeFlags.Contains('s');
                 enableM = addFlags.Contains('m');
                 disableM = removeFlags.Contains('m');
+                enableI = addFlags.Contains('i');
+                disableI = removeFlags.Contains('i');
                 endIndex = pos;
                 return true;
             }
@@ -3520,7 +3555,7 @@ public sealed class JsRegExp
         builder.Append(')');
     }
 
-    private static string NormalizeUnicodeCharacterClass(string pattern, ref int index)
+    private static string NormalizeUnicodeCharacterClass(string pattern, ref int index, bool unicodeIgnoreCase = false)
     {
         var start = index + 1;
         if (start >= pattern.Length)
@@ -3635,6 +3670,13 @@ public sealed class JsRegExp
                         bmpRanges.Add((s, 0xFFFF));
                         astralRanges.Add((0x10000, e));
                     }
+                }
+
+                // When unicode ignoreCase is active, \w includes U+017F and U+212A
+                if (unicodeIgnoreCase && escapeChar == 'w')
+                {
+                    bmpRanges.Add((0x017F, 0x017F));
+                    bmpRanges.Add((0x212A, 0x212A));
                 }
 
                 cursor += 2;

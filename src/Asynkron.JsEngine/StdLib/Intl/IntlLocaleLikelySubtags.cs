@@ -27,10 +27,10 @@ internal static class IntlLocaleLikelySubtags
     {
         var baseName = IntlLocaleConstructor.ExtractBaseName(locale);
         var extension = locale.Length > baseName.Length ? locale[baseName.Length..] : string.Empty;
-        var (_, _, _, variants) = IntlLocaleConstructor.ParseBaseName(baseName);
+        var (language, script, region, variants) = IntlLocaleConstructor.ParseBaseName(baseName);
         var variantSuffix = IntlLocaleConstructor.BuildVariantSuffix(variants);
 
-        var maximized = AddLikelySubtags(baseName);
+        var maximized = AddLikelySubtags(IntlLocaleConstructor.BuildBaseTag(language, script, region));
         var maximizedBase = IntlLocaleConstructor.ExtractBaseName(maximized);
         var (languageMax, scriptMax, regionMax, _) = IntlLocaleConstructor.ParseBaseName(maximizedBase);
 
@@ -38,7 +38,10 @@ internal static class IntlLocaleLikelySubtags
         {
             var trialMaximized = AddLikelySubtags(trial);
             var trialBase = IntlLocaleConstructor.ExtractBaseName(trialMaximized);
-            if (string.Equals(trialBase, maximizedBase, StringComparison.Ordinal))
+            var (languageTrial, scriptTrial, regionTrial, _) = IntlLocaleConstructor.ParseBaseName(trialBase);
+            if (string.Equals(languageTrial, languageMax, StringComparison.Ordinal) &&
+                string.Equals(scriptTrial ?? string.Empty, scriptMax ?? string.Empty, StringComparison.Ordinal) &&
+                string.Equals(regionTrial ?? string.Empty, regionMax ?? string.Empty, StringComparison.Ordinal))
             {
                 return trial + variantSuffix + extension;
             }

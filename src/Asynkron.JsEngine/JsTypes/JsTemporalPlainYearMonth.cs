@@ -23,13 +23,18 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
         Month = month;
         Calendar = calendar;
         // Reference day is used internally for calendar calculations
-        ReferenceDay = referenceDay ?? 1;
+        ReferenceDay = referenceDay ?? GetDefaultReferenceDay(calendar);
     }
 
     public int Year { get; }
     public int Month { get; }
     public string Calendar { get; }
     internal int ReferenceDay { get; }
+
+    private static int GetDefaultReferenceDay(string calendar)
+    {
+        return 1;
+    }
 
     /// <summary>
     ///     The month code (e.g., "M01" for January).
@@ -254,12 +259,13 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
     /// </summary>
     public override string ToString()
     {
-        var result = FormatYear() + $"-{Month:D2}";
-        if (!string.Equals(Calendar, "iso8601", StringComparison.Ordinal))
+        if (string.Equals(Calendar, "iso8601", StringComparison.Ordinal))
         {
-            result += $"-{ReferenceDay:D2}[u-ca={Calendar}]";
+            return FormatYear() + $"-{Month:D2}";
         }
-        return result;
+
+        var isoDate = ToIsoDateForCalendar();
+        return $"{isoDate:yyyy-MM-dd}[u-ca={Calendar}]";
     }
 
     /// <summary>
@@ -269,7 +275,30 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
     public string ToStringWithCalendar(bool critical = false)
     {
         var prefix = critical ? "!" : "";
-        return FormatYear() + $"-{Month:D2}-{ReferenceDay:D2}[{prefix}u-ca={Calendar}]";
+        if (string.Equals(Calendar, "iso8601", StringComparison.Ordinal))
+        {
+            return FormatYear() + $"-{Month:D2}-{ReferenceDay:D2}[{prefix}u-ca={Calendar}]";
+        }
+
+        var isoDate = ToIsoDateForCalendar();
+        return $"{isoDate:yyyy-MM-dd}[{prefix}u-ca={Calendar}]";
+    }
+
+    private DateTime ToIsoDateForCalendar()
+    {
+        return ToGregorianDate(Calendar, Year, Month, ReferenceDay);
+    }
+
+    internal static DateTime ToGregorianDate(string calendar, int year, int month, int day)
+    {
+        if (string.Equals(calendar, "hebrew", StringComparison.Ordinal))
+        {
+            var hebrewCalendar = new HebrewCalendar();
+            var hebrewEra = hebrewCalendar.Eras[0];
+            return hebrewCalendar.ToDateTime(year, month, day, 0, 0, 0, 0, hebrewEra);
+        }
+
+        return new DateTime(year, month, day, new GregorianCalendar());
     }
 
     private string FormatYear()

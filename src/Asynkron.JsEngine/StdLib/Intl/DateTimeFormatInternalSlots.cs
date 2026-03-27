@@ -16,6 +16,7 @@ internal sealed class DateTimeFormatInternalSlots
 
     public string Locale { get; init; } = CultureInfo.CurrentCulture.Name;
     public string TimeZone { get; init; } = TimeZoneInfo.Utc.Id;
+    public string? DisplayTimeZone { get; init; }
     public string Calendar { get; init; } = "gregory";
     public string NumberingSystem { get; init; } = "latn";
     public string HourCycle { get; init; } = "h23";

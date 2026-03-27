@@ -3779,7 +3779,11 @@ public sealed class JsRegExp
         // performance on large strings (1M+ code points in Test262 property escape tests).
         var effectiveRanges = negate ? ComplementCodePointRanges(ranges) : ranges;
 
-        // Split into BMP and astral ranges
+        // Split into BMP and astral ranges.
+        // Some properties such as Any, Assigned, and Surrogate intentionally include
+        // surrogate code points. In those cases we must preserve the surrogate BMP
+        // range instead of stripping it out as if it were invalid scalar data.
+        var includeSurrogates = !negate && RangesCoverSurrogates(ranges);
         var bmpRanges = new List<(int Start, int End)>();
         var astralRanges = new List<(int Start, int End)>();
 
@@ -3787,8 +3791,12 @@ public sealed class JsRegExp
         {
             if (end <= 0xFFFF)
             {
+                if (includeSurrogates)
+                {
+                    bmpRanges.Add((start, end));
+                }
                 // Entirely BMP — but exclude surrogates (0xD800-0xDFFF) from the range
-                if (start <= 0xD7FF && end >= 0xD800)
+                else if (start <= 0xD7FF && end >= 0xD800)
                 {
                     // Range spans into surrogates
                     if (start <= 0xD7FF)
@@ -3813,10 +3821,17 @@ public sealed class JsRegExp
             else
             {
                 // Spans BMP and astral
-                if (start <= 0xD7FF)
-                    bmpRanges.Add((start, 0xD7FF));
-                if (0xE000 <= 0xFFFF)
-                    bmpRanges.Add((Math.Max(start, 0xE000), 0xFFFF));
+                if (includeSurrogates)
+                {
+                    bmpRanges.Add((start, 0xFFFF));
+                }
+                else
+                {
+                    if (start <= 0xD7FF)
+                        bmpRanges.Add((start, 0xD7FF));
+                    if (0xE000 <= 0xFFFF)
+                        bmpRanges.Add((Math.Max(start, 0xE000), 0xFFFF));
+                }
                 astralRanges.Add((0x10000, end));
             }
         }

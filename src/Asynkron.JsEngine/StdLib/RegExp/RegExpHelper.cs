@@ -293,9 +293,10 @@ public static class RegExpHelper
         RegExpStatics EnsureRegExpReceiver(JsValue receiver)
         {
             if (receiver.TryGetObject<HostFunction>(out var receiverFunction) &&
-                ReferenceEquals(constructor, receiverFunction))
+                receiverFunction.RealmState is { } receiverRealm &&
+                ReferenceEquals(receiverFunction, receiverRealm.RegExpConstructor))
             {
-                return realm.RegExpStatics;
+                return receiverRealm.RegExpStatics;
             }
 
             throw ThrowTypeError("RegExp method called on incompatible receiver", realm: realm);

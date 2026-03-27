@@ -137,17 +137,6 @@ public sealed partial class IntlLocaleConstructor(IJsObjectLike prototype, Realm
             variants.AddRange(localeVariants);
         }
 
-        if (TryGetStringOption(options, "calendar", out var calendarOption))
-        {
-            // Intl.Locale accepts any structurally valid BCP47 calendar subtag
-            if (!IntlUtilities.TryNormalizeCalendarPermissive(calendarOption, out var canonicalCalendar))
-            {
-                throw StandardLibrary.ThrowRangeError("Invalid Intl.Locale calendar option", realm: Realm);
-            }
-
-            SetKeyword(keywords, "ca", canonicalCalendar);
-        }
-
         if (TryGetStringOption(options, "collation", out var collationOption))
         {
             var normalized = collationOption.ToLowerInvariant();
@@ -157,11 +146,6 @@ public sealed partial class IntlLocaleConstructor(IJsObjectLike prototype, Realm
             }
 
             SetKeyword(keywords, "co", normalized);
-        }
-
-        if (TryGetBooleanOption(options, "numeric", out var numericOption))
-        {
-            SetKeyword(keywords, "kn", numericOption ? "true" : "false");
         }
 
         if (TryGetStringOption(options, "hourCycle", out var hourCycleOption))
@@ -186,6 +170,11 @@ public sealed partial class IntlLocaleConstructor(IJsObjectLike prototype, Realm
             SetKeyword(keywords, "kf", normalized);
         }
 
+        if (TryGetBooleanOption(options, "numeric", out var numericOption))
+        {
+            SetKeyword(keywords, "kn", numericOption ? "true" : "false");
+        }
+
         if (TryGetStringOption(options, "numberingSystem", out var numberingSystemOption))
         {
             if (!IntlUtilities.TryNormalizeNumberingSystem(numberingSystemOption, out var canonicalNumbering))
@@ -196,15 +185,29 @@ public sealed partial class IntlLocaleConstructor(IJsObjectLike prototype, Realm
             SetKeyword(keywords, "nu", canonicalNumbering);
         }
 
+        if (TryGetStringOption(options, "calendar", out var calendarOption))
+        {
+            var canonicalLocale = IntlUtilities.CanonicalizeLocale($"und-u-ca-{calendarOption}", Realm);
+            var canonicalKeywords = IntlUtilities.ParseUnicodeExtensionKeywords(canonicalLocale);
+            if (!canonicalKeywords.TryGetValue("ca", out var canonicalValues) || canonicalValues.Count == 0)
+            {
+                throw StandardLibrary.ThrowRangeError("Invalid Intl.Locale calendar option", realm: Realm);
+            }
+
+            SetKeyword(keywords, "ca", string.Join('-', canonicalValues));
+        }
+
         if (TryGetFirstDayOfWeekOption(options, out var firstDayOfWeek))
         {
             SetKeyword(keywords, "fw", firstDayOfWeek);
         }
 
-        var canonicalTag = IntlUtilities.ApplyUnicodeLocaleOverrides(
-            IntlLocalePrototype.BuildBaseName(locale),
-            keywords);
-        locale.SetProperty(IntlLocalePrototype.TagSlot, canonicalTag);
+        var canonicalTag = IntlUtilities.CanonicalizeLocale(
+            IntlUtilities.ApplyUnicodeLocaleOverrides(
+                IntlLocalePrototype.BuildBaseName(locale),
+                keywords),
+            Realm);
+        InitializeLocaleSlots(locale, canonicalTag, Realm);
     }
 
     internal static void DefineInternalSlot(JsObject target, string slot, object? value)

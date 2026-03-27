@@ -221,6 +221,11 @@ internal static partial class IntlUtilities
             throw StandardLibrary.ThrowTypeError("Intl.DateTimeFormat timeZone option must be a string", realm: realm);
         }
 
+        if (TryResolveTimeZoneId(tzString))
+        {
+            return tzString;
+        }
+
         if (TryCanonicalizeTimeZone(tzString, out var canonical))
         {
             return canonical;
@@ -232,6 +237,19 @@ internal static partial class IntlUtilities
         }
 
         throw StandardLibrary.ThrowRangeError($"Unsupported timeZone '{tzString}'", realm: realm);
+    }
+
+    private static bool TryResolveTimeZoneId(string timeZoneId)
+    {
+        try
+        {
+            _ = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public static bool TryNormalizeCalendar(string calendar, out string canonical)
@@ -1342,7 +1360,7 @@ internal static partial class IntlUtilities
             {
                 output.Add(key);
                 var value = keywords[key];
-                if (!string.IsNullOrEmpty(value))
+                if (!string.IsNullOrEmpty(value) && !string.Equals(value, "true", StringComparison.Ordinal))
                 {
                     output.AddRange(value.Split('-'));
                 }
@@ -1358,7 +1376,10 @@ internal static partial class IntlUtilities
                 foreach (var kvp in ordered)
                 {
                     output.Add(kvp.Key);
-                    output.AddRange(kvp.Value.Split('-'));
+                    if (!string.Equals(kvp.Value, "true", StringComparison.Ordinal))
+                    {
+                        output.AddRange(kvp.Value.Split('-'));
+                    }
                 }
             }
         }

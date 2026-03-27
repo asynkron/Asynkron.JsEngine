@@ -487,6 +487,7 @@ public sealed partial class IntlDurationFormatPrototype
         var result = new List<List<DurationPart>>();
         var needSeparator = false;
         var displayNegativeSign = true;
+        var previousDisplayedStyle = (string?)null;
 
         for (var i = 0; i < UnitNames.Length; i++)
         {
@@ -495,25 +496,34 @@ public sealed partial class IntlDurationFormatPrototype
             var value = values[i];
             var style = opts.UnitStyles[i];
             var display = opts.UnitDisplays[i];
+            string? fractionalValueText = null;
 
             // Numeric seconds/milliseconds/microseconds combined with sub-second units (fractional)
             var done = false;
             int maxFrac = opts.FractionalDigits ?? 9;
             int minFrac = opts.FractionalDigits ?? 0;
 
-            if (unit is "seconds" or "milliseconds" or "microseconds")
+            if (unit == "seconds" && opts.Style == "digital" &&
+                (duration.Milliseconds != 0 || duration.Microseconds != 0 || duration.Nanoseconds != 0))
+            {
+                fractionalValueText = DurationToFractional(duration, 9);
+                value = double.Parse(fractionalValueText, CultureInfo.InvariantCulture);
+                done = true;
+            }
+            else if (unit is "seconds" or "milliseconds" or "microseconds")
             {
                 // Check if next unit has "numeric" style
                 var nextIdx = i + 1;
                 if (nextIdx < UnitNames.Length && opts.UnitStyles[nextIdx] == "numeric")
                 {
                     // Combine sub-second values into fractional
-                    value = unit switch
+                    fractionalValueText = unit switch
                     {
                         "seconds" => DurationToFractional(duration, 9),
                         "milliseconds" => DurationToFractional(duration, 6),
                         _ => DurationToFractional(duration, 3) // microseconds
                     };
+                    value = double.Parse(fractionalValueText, CultureInfo.InvariantCulture);
                     done = true;
                 }
             }
@@ -529,13 +539,35 @@ public sealed partial class IntlDurationFormatPrototype
                                   duration.Nanoseconds != 0;
             }
 
-            if (opts.Style != "digital" && style is not "numeric" and not "2-digit" && display == "auto")
+            var remainingHasDisplayableUnit = false;
+            for (var lookahead = i + 1; lookahead < UnitNames.Length; lookahead++)
+            {
+                if (values[lookahead] != 0 || opts.UnitDisplays[lookahead] != "auto")
+                {
+                    remainingHasDisplayableUnit = true;
+                    break;
+                }
+            }
+
+            if (style is not "numeric" and not "2-digit" &&
+                previousDisplayedStyle is not null &&
+                previousDisplayedStyle != style &&
+                remainingHasDisplayableUnit)
             {
                 displayRequired = true;
             }
 
             // Treat -0 as 0 for display/auto comparison but preserve sign for formatting
             var valueIsZero = value == 0; // -0 == 0 is true in C#
+            if (!displayRequired && valueIsZero && display == "auto" && displayNegativeSign)
+            {
+                var hasNegativeValue = values.Any(v => v < 0);
+                var hasNonZeroValue = values.Any(v => v != 0);
+                if (hasNegativeValue && hasNonZeroValue && remainingHasDisplayableUnit)
+                {
+                    displayRequired = true;
+                }
+            }
 
             if (!valueIsZero || display != "auto" || displayRequired)
             {
@@ -549,11 +581,9 @@ public sealed partial class IntlDurationFormatPrototype
                     // display as -0
                     if (valueIsZero)
                     {
-                        var isNegative = values.Any(v => v < 0);
-                        if (isNegative)
-                        {
-                            value = NegativeZero();
-                        }
+                        var hasNegativeValue = values.Any(v => v < 0);
+                        var hasNonZeroValue = values.Any(v => v != 0);
+                        value = hasNegativeValue && hasNonZeroValue ? NegativeZero() : 0.0;
                     }
                 }
                 else
@@ -573,7 +603,23 @@ public sealed partial class IntlDurationFormatPrototype
                 }
 
                 // Format the value
-                if (style is not "numeric" and not "2-digit")
+                if (done)
+                {
+                    // Fractional seconds: use numeric formatting so we stay aligned with the
+                    // NumberFormat-derived expectations used by the Test262 helper.
+                    var formatted = FormatFractionalNumber(value, maxFrac, minFrac);
+                    if (signDisplayNever && formatted.StartsWith("-", StringComparison.Ordinal))
+                    {
+                        formatted = formatted[1..];
+                    }
+                    else if (signDisplayNever && double.IsNegative(value))
+                    {
+                        formatted = formatted.TrimStart('-');
+                    }
+                    var numParts = ParseNumericParts(formatted, singularUnit);
+                    list.AddRange(numParts);
+                }
+                else if (style is not "numeric" and not "2-digit")
                 {
                     // Non-numeric: preserve Intl.NumberFormat-provided parts instead of reparsing the string
                     var unitParts = FormatUnitParts(value, singularUnit, style, locale, signDisplayNever, done, maxFrac, minFrac);
@@ -582,20 +628,9 @@ public sealed partial class IntlDurationFormatPrototype
                 else
                 {
                     // Numeric/2-digit: plain number with no grouping
-                    if (done)
-                    {
-                        // Fractional seconds
-                        var formatted = FormatFractionalNumeric(value, signDisplayNever,
-                            style == "2-digit", maxFrac, minFrac, locale);
-                        var numParts = ParseNumericParts(formatted, singularUnit);
-                        list.AddRange(numParts);
-                    }
-                    else
-                    {
-                        var formatted = FormatPlainNumeric(value, signDisplayNever, style == "2-digit");
-                        var numParts = ParseNumericParts(formatted, singularUnit);
-                        list.AddRange(numParts);
-                    }
+                    var formatted = FormatPlainNumeric(value, signDisplayNever, style == "2-digit");
+                    var numParts = ParseNumericParts(formatted, singularUnit);
+                    list.AddRange(numParts);
                 }
 
                 if (!needSeparator)
@@ -606,6 +641,7 @@ public sealed partial class IntlDurationFormatPrototype
                     }
 
                     result.Add(list);
+                    previousDisplayedStyle = style;
                 }
             }
 
@@ -620,7 +656,7 @@ public sealed partial class IntlDurationFormatPrototype
         return JoinWithListFormat(result, listStyle, locale);
     }
 
-    private static double DurationToFractional(DurationRecord duration, int exponent)
+    private static string DurationToFractional(DurationRecord duration, int exponent)
     {
         var seconds = duration.Seconds;
         var milliseconds = duration.Milliseconds;
@@ -631,11 +667,11 @@ public sealed partial class IntlDurationFormatPrototype
         switch (exponent)
         {
             case 9 when milliseconds == 0 && microseconds == 0 && nanoseconds == 0:
-                return seconds;
+                return seconds.ToString(CultureInfo.InvariantCulture);
             case 6 when microseconds == 0 && nanoseconds == 0:
-                return milliseconds;
+                return milliseconds.ToString(CultureInfo.InvariantCulture);
             case 3 when nanoseconds == 0:
-                return microseconds;
+                return microseconds.ToString(CultureInfo.InvariantCulture);
         }
 
         // Compute total nanoseconds using decimal to avoid precision loss
@@ -660,8 +696,7 @@ public sealed partial class IntlDurationFormatPrototype
 
         // Format as "q.r" with r padded to exponent digits
         var rStr = ((long)r).ToString(CultureInfo.InvariantCulture).PadLeft(exponent, '0');
-        var resultStr = $"{q}.{rStr}";
-        return double.Parse(resultStr, CultureInfo.InvariantCulture);
+        return q.ToString(CultureInfo.InvariantCulture) + "." + rStr;
     }
 
     private static double NegativeZero()
@@ -709,7 +744,7 @@ public sealed partial class IntlDurationFormatPrototype
         {
             if (part.Type == "literal")
             {
-                parts.Add(new DurationPart("literal", part.Value));
+                parts.Add(new DurationPart("literal", part.Value, unit));
             }
             else if (part.Type == "unit")
             {
@@ -801,28 +836,31 @@ public sealed partial class IntlDurationFormatPrototype
         return result;
     }
 
-    private static string FormatFractionalNumeric(double value, bool signDisplayNever,
+    private static string FormatFractionalNumeric(string valueText, bool signDisplayNever,
         bool twoDigit, int maxFrac, int minFrac, string locale)
     {
-        var absValue = Math.Abs(value);
-        var intPart = (long)Math.Truncate(absValue);
+        var negative = valueText.StartsWith("-", StringComparison.Ordinal);
+        var unsignedText = negative ? valueText[1..] : valueText;
+        var dotIndex = unsignedText.IndexOf('.');
+        var intPartText = dotIndex >= 0 ? unsignedText[..dotIndex] : unsignedText;
+        var fracPartText = dotIndex >= 0 ? unsignedText[(dotIndex + 1)..] : string.Empty;
 
         var sb = new StringBuilder();
-        if (!signDisplayNever && (value < 0 || double.IsNegative(value)))
+        if (!signDisplayNever && negative)
         {
             sb.Append('-');
         }
 
         var intStr = twoDigit
-            ? intPart.ToString(CultureInfo.InvariantCulture).PadLeft(2, '0')
-            : intPart.ToString(CultureInfo.InvariantCulture);
+            ? intPartText.PadLeft(2, '0')
+            : intPartText;
         sb.Append(intStr);
 
         // Fractional part with truncation
         if (maxFrac > 0 || minFrac > 0)
         {
-            var fracStr = GetTruncatedFractionDigits(absValue, Math.Max(maxFrac, minFrac));
-            if (maxFrac < fracStr.Length)
+            var fracStr = fracPartText;
+            if (fracStr.Length > maxFrac)
             {
                 fracStr = fracStr[..maxFrac];
             }
@@ -845,7 +883,6 @@ public sealed partial class IntlDurationFormatPrototype
                 sb.Append(new string('0', minFrac));
             }
         }
-
         return sb.ToString();
     }
 

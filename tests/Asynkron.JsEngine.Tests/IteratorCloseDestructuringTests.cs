@@ -150,6 +150,192 @@ public sealed class IteratorCloseDestructuringTests(ITestOutputHelper output) : 
         Assert.Equal(0d, strictObj["unreachable"]);
     }
 
+    /// <summary>
+    /// Reproduces the hang when generator.return() is called while the generator is
+    /// suspended at a yield inside a computed property of a destructuring target,
+    /// and the iterator's return() method throws.
+    /// Pattern: [ {}[yield] ] = vals with iterator.return() that throws.
+    /// </summary>
+    [Fact(Timeout = 5000)]
+    public async Task DestructuringComputedYield_ReturnWithThrowingIteratorClose_DoesNotHang()
+    {
+        await using var engine = CreateEngine();
+        var ex = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate(
+            """
+            var iterator = {
+              next() { return { done: false, value: undefined }; },
+              return() { throw new Error("close error"); }
+            };
+            var iterable = {};
+            iterable[Symbol.iterator] = function() { return iterator; };
+
+            function* g() {
+                var result;
+                var vals = iterable;
+                result = [ {}[yield] ] = vals;
+            }
+            var iter = g();
+            iter.next();
+            iter.return();
+            """));
+
+        // The error from iterator.return() should propagate
+        Assert.Contains("close error", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Same pattern but where iterator.return() does NOT throw -- should complete normally.
+    /// </summary>
+    [Fact(Timeout = 5000)]
+    public async Task DestructuringComputedYield_ReturnWithNonThrowingIteratorClose_CompletesNormally()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(
+            """
+            var returnCount = 0;
+            var iterator = {
+              next() { return { done: false, value: undefined }; },
+              return() { returnCount++; return { done: true, value: undefined }; }
+            };
+            var iterable = {};
+            iterable[Symbol.iterator] = function() { return iterator; };
+
+            function* g() {
+                var result;
+                var vals = iterable;
+                result = [ {}[yield] ] = vals;
+            }
+            var iter = g();
+            iter.next();
+            var r = iter.return(42);
+            returnCount;
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    /// <summary>
+    /// Generator parameter destructuring with elision pattern -- tests class dstr pattern.
+    /// This is the pattern found in Test262 Statements_class_dstr tests.
+    /// </summary>
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorParameterDestructuring_Elision_DoesNotHang()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(
+            """
+            var first = 0;
+            var second = 0;
+            function* g() {
+              first += 1;
+              yield;
+              second += 1;
+            }
+
+            var callCount = 0;
+            class C {
+              *method([,]) {
+                callCount = callCount + 1;
+              }
+            }
+
+            new C().method(g()).next();
+            ({ callCount, first, second });
+            """);
+
+        Output.WriteLine($"Result: {result}");
+    }
+
+    /// <summary>
+    /// Generator method with parameter destructuring using a generator as iterable.
+    /// This is the pattern used in class/dstr Test262 tests (async generator method with [x] param).
+    /// The async generator method destructures its argument, which closes the iterator when done.
+    /// </summary>
+    [Fact(Timeout = 5000)]
+    public async Task AsyncGeneratorMethod_ParameterDestructuring_IteratorClose()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(
+            """
+            var doneCallCount = 0;
+            var iter = {};
+            iter[Symbol.iterator] = function() {
+              return {
+                next: function() {
+                  return { value: null, done: false };
+                },
+                return: function() {
+                  doneCallCount += 1;
+                  return {};
+                }
+              };
+            };
+
+            var callCount = 0;
+            class C {
+              async *method([x]) {
+                callCount = callCount + 1;
+              }
+            }
+
+            var p = new C().method(iter).next();
+            // Since it's async, we need to await
+            await p;
+            ({ callCount, doneCallCount });
+            """);
+
+        Output.WriteLine($"Result: {result}");
+    }
+
+    /// <summary>
+    /// Tests that for-of loop inside a generator correctly handles return()
+    /// during destructuring. This is the core pattern that causes infinite loops.
+    /// </summary>
+    [Fact(Timeout = 5000)]
+    public async Task ForOfInsideGenerator_ReturnDuringIteration_DoesNotHang()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(
+            """
+            var returnCalled = false;
+            function* g() {
+                for (var x of [1, 2, 3]) {
+                    yield x;
+                }
+            }
+            var iter = g();
+            iter.next();       // yields 1
+            var r = iter.return(42);  // should close iterator and return {value: 42, done: true}
+            r.value;
+            """);
+
+        Assert.Equal(42d, result);
+    }
+
+    /// <summary>
+    /// For-of destructuring inside generator with return() called while suspended.
+    /// Pattern: for ([x] of iterable) { yield x; }
+    /// </summary>
+    [Fact(Timeout = 5000)]
+    public async Task ForOfDestructuringInsideGenerator_ReturnDuringYield_DoesNotHang()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(
+            """
+            function* g() {
+                for (var [x] of [[1], [2], [3]]) {
+                    yield x;
+                }
+            }
+            var iter = g();
+            iter.next();       // yields 1
+            var r = iter.return(42);  // should return
+            r.value;
+            """);
+
+        Assert.Equal(42d, result);
+    }
+
     [Fact(Timeout = 2000)]
     public async Task Test262StyleHarness_CatchesIteratorCloseTypeError()
     {

@@ -135,6 +135,13 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
         // Step 29: timeZone
         var timeZoneValue = options is null ? JsValue.Undefined : GetOption(options, "timeZone");
         var timeZone = IntlUtilities.NormalizeTimeZone(timeZoneValue, Realm);
+        string? displayTimeZone = null;
+        if (options is not null && options.TryGetProperty("__temporalDisplayTimeZone", out var displayTimeZoneValue) &&
+            displayTimeZoneValue.TryGetString(out var displayTimeZoneString) &&
+            !string.IsNullOrWhiteSpace(displayTimeZoneString))
+        {
+            displayTimeZone = displayTimeZoneString;
+        }
 
         // Step 36: Read components in table order
         var components = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -221,6 +228,7 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
             DateStyle = dateStyle,
             TimeStyle = timeStyle,
             Hour12 = resolvedHour12,
+            DisplayTimeZone = displayTimeZone,
             Components = components
         };
     }

@@ -83,6 +83,11 @@ public sealed partial class IntlLocalePrototype
     {
         var locale = ValidateLocaleReceiver(thisValue);
         var variants = GetLocaleVariants(locale);
+        if (variants.Count == 0)
+        {
+            return JsValue.Undefined;
+        }
+
         var result = new JsArray(Realm);
         foreach (var variant in variants)
         {
@@ -132,7 +137,7 @@ public sealed partial class IntlLocalePrototype
             return string.Equals(keyword, "true", StringComparison.Ordinal);
         }
 
-        return JsValue.Undefined;
+        return false;
     }
 
     [JsHostGetter("firstDayOfWeek", DisplayName = "get firstDayOfWeek")]

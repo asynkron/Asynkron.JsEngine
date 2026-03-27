@@ -353,6 +353,32 @@ public sealed partial class IntlDateTimeFormatPrototype
         return slots;
     }
 
+    internal static JsValue FormatFromTemporal(JsValue thisValue, JsValue value, RealmState realm,
+        string? displayTimeZoneId = null)
+    {
+        var slots = GetInternalSlots(thisValue, realm);
+        return FormatChecked(value, slots, realm, displayTimeZoneId);
+    }
+
+    internal static string GetCalendarForTemporal(JsValue thisValue, RealmState realm)
+    {
+        return GetInternalSlots(thisValue, realm).Calendar;
+    }
+
+    private static DateTimeFormatInternalSlots GetInternalSlots(JsValue thisValue, RealmState realm)
+    {
+        var obj = thisValue.EnsureBrand(BrandKey, realm,
+            "Intl.DateTimeFormat method called on incompatible receiver");
+        if (!obj.TryGetProperty(SlotsKey, out var slotValue) ||
+            !slotValue.TryGetObject<DateTimeFormatInternalSlots>(out var slots))
+        {
+            throw ThrowTypeError("Intl.DateTimeFormat method called on incompatible receiver",
+                realm: realm);
+        }
+
+        return slots;
+    }
+
     private static JsObject CreateRangePart(string type, string value, string? source = null)
     {
         var obj = new JsObject();
@@ -627,7 +653,8 @@ public sealed partial class IntlDateTimeFormatPrototype
         return (string)FormatEpoch(epochMs, slots).ObjectValue!;
     }
 
-    private static JsValue FormatChecked(JsValue value, DateTimeFormatInternalSlots slots, RealmState realm)
+    private static JsValue FormatChecked(JsValue value, DateTimeFormatInternalSlots slots, RealmState realm,
+        string? displayTimeZoneId = null)
     {
         var epochMilliseconds = ToEpochMilliseconds(value);
         if (double.IsNaN(epochMilliseconds))
@@ -635,10 +662,11 @@ public sealed partial class IntlDateTimeFormatPrototype
             throw ThrowRangeError("Invalid time value", realm: realm);
         }
 
-        return FormatEpoch(epochMilliseconds, slots);
+        return FormatEpoch(epochMilliseconds, slots, displayTimeZoneId);
     }
 
-    private static JsValue FormatEpoch(double epochMilliseconds, DateTimeFormatInternalSlots slots)
+    private static JsValue FormatEpoch(double epochMilliseconds, DateTimeFormatInternalSlots slots,
+        string? displayTimeZoneId = null)
     {
         var dto = ToDateTimeOffset(epochMilliseconds, slots.TimeZone);
         var culture = IntlUtilities.ResolveCulture(slots.Locale);
@@ -648,12 +676,12 @@ public sealed partial class IntlDateTimeFormatPrototype
         // Style-based formatting
         if (slots.DateStyle is not null || slots.TimeStyle is not null)
         {
-            result = FormatWithStyles(dto, slots, culture);
+            result = FormatWithStyles(dto, slots, culture, displayTimeZoneId);
         }
         // Component-based formatting
         else if (slots.Components.Count > 0)
         {
-            result = FormatWithComponents(dto, slots, culture);
+            result = FormatWithComponents(dto, slots, culture, displayTimeZoneId);
         }
         else
         {
@@ -667,25 +695,21 @@ public sealed partial class IntlDateTimeFormatPrototype
         return new JsValue(result);
     }
 
-    private static string FormatWithStyles(DateTimeOffset dto, DateTimeFormatInternalSlots slots, CultureInfo culture)
+    private static string FormatWithStyles(DateTimeOffset dto, DateTimeFormatInternalSlots slots, CultureInfo culture,
+        string? displayTimeZoneId)
     {
-        var datePart = slots.DateStyle switch
-        {
-            "full" => dto.ToString("dddd, MMMM d, yyyy", culture),
-            "long" => dto.ToString("MMMM d, yyyy", culture),
-            "medium" => dto.ToString("MMM d, yyyy", culture),
-            "short" => dto.ToString("M/d/yy", culture),
-            _ => null
-        };
+        var datePart = slots.Calendar.StartsWith("islamic", StringComparison.OrdinalIgnoreCase)
+            ? FormatIslamicDatePart(dto, slots.DateStyle)
+            : FormatGregorianDatePart(dto, slots.DateStyle, ApplyCalendarToCulture(culture, slots.Calendar));
 
         var timePart = slots.TimeStyle switch
         {
             "full" or "long" => FormatTime(dto, slots, culture, includeSeconds: true, includeTimeZone: true,
-                longTimeZone: slots.TimeStyle is "full"),
+                longTimeZone: slots.TimeStyle is "full", displayTimeZoneId),
             "medium" => FormatTime(dto, slots, culture, includeSeconds: true, includeTimeZone: false,
-                longTimeZone: false),
+                longTimeZone: false, displayTimeZoneId),
             "short" => FormatTime(dto, slots, culture, includeSeconds: false, includeTimeZone: false,
-                longTimeZone: false),
+                longTimeZone: false, displayTimeZoneId),
             _ => null
         };
 
@@ -697,8 +721,71 @@ public sealed partial class IntlDateTimeFormatPrototype
         return datePart ?? timePart ?? dto.ToString("f", culture);
     }
 
+    private static string? FormatGregorianDatePart(DateTimeOffset dto, string? dateStyle, CultureInfo culture)
+    {
+        return dateStyle switch
+        {
+            "full" => dto.ToString("dddd, MMMM d, yyyy", culture),
+            "long" => dto.ToString("MMMM d, yyyy", culture),
+            "medium" => dto.ToString("MMM d, yyyy", culture),
+            "short" => dto.ToString("M/d/yy", culture),
+            _ => null
+        };
+    }
+
+    private static string? FormatIslamicDatePart(DateTimeOffset dto, string? dateStyle)
+    {
+        if (dateStyle is null)
+        {
+            return null;
+        }
+
+        var calendar = new HijriCalendar();
+        var dateTime = dto.DateTime;
+        var year = calendar.GetYear(dateTime);
+        var month = calendar.GetMonth(dateTime);
+        var day = calendar.GetDayOfMonth(dateTime);
+        var monthNames = new[]
+        {
+            "Muharram", "Safar", "Rabi I", "Rabi II", "Jumada I", "Jumada II",
+            "Rajab", "Sha'ban", "Ramadan", "Shawwal", "Dhu al-Qadah", "Dhu al-Hijjah"
+        };
+        var monthName = month >= 1 && month <= monthNames.Length ? monthNames[month - 1] : month.ToString(CultureInfo.InvariantCulture);
+        var weekday = dateTime.ToString("dddd", CultureInfo.InvariantCulture);
+
+        return dateStyle switch
+        {
+            "full" => $"{weekday}, {monthName} {day}, {year}",
+            "long" => $"{monthName} {day}, {year}",
+            "medium" => $"{monthName[..Math.Min(3, monthName.Length)]} {day}, {year}",
+            "short" => $"{month}/{day}/{year % 100:00}",
+            _ => null
+        };
+    }
+
+    private static CultureInfo ApplyCalendarToCulture(CultureInfo culture, string calendar)
+    {
+        if (!calendar.StartsWith("islamic", StringComparison.OrdinalIgnoreCase))
+        {
+            return culture;
+        }
+
+        try
+        {
+            var clone = (CultureInfo)culture.Clone();
+            var format = (DateTimeFormatInfo)clone.DateTimeFormat.Clone();
+            format.Calendar = new HijriCalendar();
+            clone.DateTimeFormat = format;
+            return clone;
+        }
+        catch
+        {
+            return culture;
+        }
+    }
+
     private static string FormatTime(DateTimeOffset dto, DateTimeFormatInternalSlots slots, CultureInfo culture,
-        bool includeSeconds, bool includeTimeZone, bool longTimeZone)
+        bool includeSeconds, bool includeTimeZone, bool longTimeZone, string? displayTimeZoneId)
     {
         var sb = new StringBuilder();
         var use12 = slots.HourCycle is "h11" or "h12";
@@ -744,14 +831,15 @@ public sealed partial class IntlDateTimeFormatPrototype
         if (includeTimeZone)
         {
             sb.Append(' ');
-            sb.Append(GetTimeZoneDisplay(slots.TimeZone, dto, longTimeZone));
+            sb.Append(GetTimeZoneDisplay(slots.DisplayTimeZone ?? displayTimeZoneId ?? slots.TimeZone, dto,
+                longTimeZone));
         }
 
         return sb.ToString();
     }
 
     private static string FormatWithComponents(DateTimeOffset dto, DateTimeFormatInternalSlots slots,
-        CultureInfo culture)
+        CultureInfo culture, string? displayTimeZoneId)
     {
         var sb = new StringBuilder();
         var components = slots.Components;
@@ -860,7 +948,8 @@ public sealed partial class IntlDateTimeFormatPrototype
         if (components.TryGetValue("timeZoneName", out var tzName))
         {
             AppendSeparator(sb, ref addedSomething);
-            sb.Append(GetTimeZoneDisplay(slots.TimeZone, dto, tzName is "long"));
+            sb.Append(GetTimeZoneDisplay(slots.DisplayTimeZone ?? displayTimeZoneId ?? slots.TimeZone, dto,
+                tzName is "long"));
         }
 
         return sb.ToString();
@@ -1247,7 +1336,20 @@ public sealed partial class IntlDateTimeFormatPrototype
             var tz = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
             if (longForm)
             {
-                return tz.IsDaylightSavingTime(dto) ? tz.DaylightName : tz.StandardName;
+                var longName = tz.IsDaylightSavingTime(dto) ? tz.DaylightName : tz.StandardName;
+                if (!string.IsNullOrWhiteSpace(longName) &&
+                    !longName.StartsWith("GMT", StringComparison.OrdinalIgnoreCase))
+                {
+                    return longName;
+                }
+
+                var ianaLongName = GetIanaTimeZoneLongName(timeZoneId, dto, tz);
+                if (ianaLongName is not null)
+                {
+                    return ianaLongName;
+                }
+
+                return longName;
             }
 
             var offset = tz.GetUtcOffset(dto);
@@ -1257,6 +1359,16 @@ public sealed partial class IntlDateTimeFormatPrototype
         {
             return timeZoneId;
         }
+    }
+
+    private static string? GetIanaTimeZoneLongName(string timeZoneId, DateTimeOffset dto, TimeZoneInfo tz)
+    {
+        return timeZoneId switch
+        {
+            "Europe/Vienna" or "Europe/Berlin" or "Europe/Paris" or "Europe/Prague" or "Europe/Rome" =>
+                tz.IsDaylightSavingTime(dto) ? "Central European Summer Time" : "Central European Standard Time",
+            _ => null
+        };
     }
 
     private JsArray FormatToPartsInternal(DateTimeOffset dto, DateTimeFormatInternalSlots slots, CultureInfo culture)

@@ -5195,7 +5195,12 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                             throw new ThrowSignal(error);
                         }
 
-                        var result = callable.Invoke(evaluatedArgs, thisValue);
+                        var result = TypedAstEvaluator.InvokeCallableJsValue(
+                            callable,
+                            evaluatedArgs,
+                            thisValue,
+                            env.RealmState?.CreateContext(pushScope: false),
+                            env);
                         continuation(result);
                     }
                     catch (ThrowSignal signal)

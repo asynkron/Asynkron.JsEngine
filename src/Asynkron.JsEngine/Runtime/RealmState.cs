@@ -77,6 +77,7 @@ public sealed class RealmState
     public HostFunction? ReferenceErrorConstructor { get; set; }
     public HostFunction? URIErrorConstructor { get; set; }
     public JsObject? ReferenceErrorPrototype { get; set; }
+    public JsObject? SuppressedErrorPrototype { get; set; }
     public JsObject? BooleanPrototype { get; set; }
     public JsObject? NumberPrototype { get; set; }
     public JsObject? StringPrototype { get; set; }
@@ -101,6 +102,7 @@ public sealed class RealmState
     public HostFunction? AsyncDisposableStackConstructor { get; set; }
     public JsObject? TypedArrayPrototype { get; set; }
     public HostFunction? TypedArrayConstructor { get; set; }
+    public IJsPropertyAccessor? Uint8ArrayPrototype { get; set; }
     public JsObject? ArrayBufferPrototype { get; set; }
     public HostFunction? ArrayBufferConstructor { get; set; }
     public JsObject? SharedArrayBufferPrototype { get; set; }

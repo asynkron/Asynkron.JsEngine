@@ -82,7 +82,6 @@ public sealed partial class DisposableStackPrototype : JsPrototype
         return result.AsJsValue;
     }
 
-    /* FLAKY */
     [JsHostMethod("dispose", Length = 0d)]
     public JsValue Dispose(JsValue thisValue)
     {
@@ -93,9 +92,29 @@ public sealed partial class DisposableStackPrototype : JsPrototype
         }
 
         stack.MarkDisposed();
+        ThrowSignal? currentError = null;
         while (stack.TryPopRecord(out var record))
         {
-            record.Invoke();
+            try
+            {
+                record.Invoke();
+            }
+            catch (ThrowSignal disposeError)
+            {
+                if (currentError is null)
+                {
+                    currentError = disposeError;
+                }
+                else
+                {
+                    currentError = JsEnvironment.CreateSuppressedError(disposeError, currentError, Realm);
+                }
+            }
+        }
+
+        if (currentError is not null)
+        {
+            throw currentError;
         }
 
         return JsValue.Undefined;

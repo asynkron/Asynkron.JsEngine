@@ -187,6 +187,9 @@ public abstract class ErrorConstructorBase(IJsObjectLike prototype, RealmState r
             case "URIError":
                 Realm.URIErrorConstructor = constructor;
                 break;
+            case "SuppressedError":
+                Realm.SuppressedErrorPrototype = Prototype as JsObject;
+                break;
         }
     }
 }

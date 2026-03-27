@@ -4518,7 +4518,7 @@ public sealed class JsEnvironment : IRentable
                 else
                 {
                     // Wrap: SuppressedError(newError, previousError)
-                    currentError = CreateSuppressedError(disposeError, currentError);
+                    currentError = CreateSuppressedError(disposeError, currentError, RealmState);
                 }
             }
         }
@@ -4527,20 +4527,24 @@ public sealed class JsEnvironment : IRentable
         return currentError;
     }
 
-    private static ThrowSignal CreateSuppressedError(ThrowSignal newError, ThrowSignal suppressedError)
+    internal static ThrowSignal CreateSuppressedError(ThrowSignal newError, ThrowSignal suppressedError, RealmState? realm)
     {
-        // Create a SuppressedError object with .error and .suppressed properties
-        var errorObj = new JsObject();
+        var errorObj = new JsObject { RealmState = realm };
+
+        // Set prototype to SuppressedError.prototype for instanceof checks
+        if (realm?.SuppressedErrorPrototype is not null)
+        {
+            errorObj.SetPrototype(realm.SuppressedErrorPrototype);
+        }
+
         errorObj.DefineProperty("_errorData",
             new PropertyDescriptor { Value = JsValue.True, Writable = false, Enumerable = false, Configurable = false });
-        errorObj.DefineProperty("name",
-            new PropertyDescriptor { Value = (JsValue)"SuppressedError", Writable = true, Enumerable = false, Configurable = true });
-        errorObj.DefineProperty("message",
-            new PropertyDescriptor { Value = (JsValue)"", Writable = true, Enumerable = false, Configurable = true });
         errorObj.DefineProperty("error",
             new PropertyDescriptor { Value = newError.ThrownValue, Writable = true, Enumerable = false, Configurable = true });
         errorObj.DefineProperty("suppressed",
             new PropertyDescriptor { Value = suppressedError.ThrownValue, Writable = true, Enumerable = false, Configurable = true });
+        errorObj.DefineProperty("message",
+            new PropertyDescriptor { Value = (JsValue)"", Writable = true, Enumerable = false, Configurable = true });
 
         return new ThrowSignal(JsValue.FromObjectUnsafe(errorObj));
     }

@@ -112,8 +112,16 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
         if (s.Length == 0) return "";
 
         var sb = new System.Text.StringBuilder(s.Length + 8);
-        foreach (var c in s)
+        for (var i = 0; i < s.Length; i++)
         {
+            var c = s[i];
+
+            if (i == 0 && IsAsciiLetterOrDigit(c))
+            {
+                AppendHexEscape(sb, c);
+                continue;
+            }
+
             switch (c)
             {
                 // SyntaxCharacter :: one of ^ $ \ . * + ? ( ) [ ] { } |
@@ -121,10 +129,12 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
                     sb.Append('\\');
                     sb.Append(c);
                     break;
-                // WhiteSpace, LineTerminator, and other control characters → unicode escape
-                case '/' or '-':
+                case '/':
                     sb.Append('\\');
                     sb.Append(c);
+                    break;
+                case ' ':
+                    sb.Append("\\x20");
                     break;
                 case '\t':
                     sb.Append("\\t");
@@ -142,10 +152,13 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
                     sb.Append("\\v");
                     break;
                 default:
-                    if (c <= 0x1F || c == 0x7F || (c >= 0x2028 && c <= 0x2029) || c == 0xFEFF || c == 0x00A0)
+                    if (IsOtherPunctuator(c))
                     {
-                        sb.Append("\\u");
-                        sb.Append(((int)c).ToString("x4", System.Globalization.CultureInfo.InvariantCulture));
+                        AppendHexEscape(sb, c);
+                    }
+                    else if (RequiresUnicodeEscape(c))
+                    {
+                        AppendUnicodeEscape(sb, c);
                     }
                     else
                     {
@@ -157,6 +170,45 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
         }
 
         return sb.ToString();
+
+        static bool IsAsciiLetterOrDigit(char c)
+        {
+            return c is >= '0' and <= '9' or >= 'A' and <= 'Z' or >= 'a' and <= 'z';
+        }
+
+        static bool IsOtherPunctuator(char c)
+        {
+            return c is ',' or '-' or '=' or '<' or '>' or '#' or '&' or '!' or '%' or ':' or ';' or '@' or '~' or '\'' or '"' or '`';
+        }
+
+        static bool RequiresUnicodeEscape(char c)
+        {
+            return c <= 0x1F ||
+                   c == 0x7F ||
+                   char.IsSurrogate(c) ||
+                   c == 0xFEFF ||
+                   c == 0x0085 ||
+                   c == 0x00A0 ||
+                   c == 0x1680 ||
+                   c is >= '\u2000' and <= '\u200A' ||
+                   c == '\u2028' ||
+                   c == '\u2029' ||
+                   c == '\u202F' ||
+                   c == '\u205F' ||
+                   c == '\u3000';
+        }
+
+        static void AppendHexEscape(System.Text.StringBuilder sb, char c)
+        {
+            sb.Append("\\x");
+            sb.Append(((int)c).ToString("x2", System.Globalization.CultureInfo.InvariantCulture));
+        }
+
+        static void AppendUnicodeEscape(System.Text.StringBuilder sb, char c)
+        {
+            sb.Append("\\u");
+            sb.Append(((int)c).ToString("x4", System.Globalization.CultureInfo.InvariantCulture));
+        }
     }
 
     [JsConstructorSymbolGetter("species")]

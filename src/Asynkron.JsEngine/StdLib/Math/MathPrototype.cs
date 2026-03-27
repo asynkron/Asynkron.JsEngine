@@ -506,10 +506,18 @@ public sealed partial class MathPrototype
         var hasNaN = false;
         var posInf = false;
         var negInf = false;
+        var sawFiniteNonZero = false;
+        var sawNegativeZero = false;
+        var sawPositiveZero = false;
 
         MapSetIterationHelper.Iterate(items, Realm, "Math.sumPrecise", value =>
         {
-            var n = JsOps.ToNumber(value);
+            if (!value.IsNumber)
+            {
+                throw ThrowTypeError("Math.sumPrecise requires Number values", realm: Realm);
+            }
+
+            var n = value.NumberValue;
 
             if (double.IsNaN(n))
             {
@@ -525,6 +533,22 @@ public sealed partial class MathPrototype
             }
             else
             {
+                if (n == 0d)
+                {
+                    if (double.IsNegative(n))
+                    {
+                        sawNegativeZero = true;
+                    }
+                    else
+                    {
+                        sawPositiveZero = true;
+                    }
+                }
+                else
+                {
+                    sawFiniteNonZero = true;
+                }
+
                 // Kahan summation
                 var y = n - compensation;
                 var t = sum + y;
@@ -538,6 +562,7 @@ public sealed partial class MathPrototype
         if (posInf && negInf) return JsValue.NaN;
         if (posInf) return JsValue.PositiveInfinity;
         if (negInf) return JsValue.NegativeInfinity;
+        if (sum == 0d && !sawFiniteNonZero && sawNegativeZero && !sawPositiveZero) return JsValue.FromDouble(-0d);
 
         return JsValue.FromDouble(sum);
     }

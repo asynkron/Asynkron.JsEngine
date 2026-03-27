@@ -49,7 +49,7 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
             JsValue key;
             JsValue value;
 
-            if (entry.TryGetObject<JsArray>(out var pair))
+            if (entry.TryGetObject<JsArray>(out var pair) && !pair.HasCustomIndexedProperties)
             {
                 key = pair.GetElement(0);
                 value = pair.GetElement(1);

@@ -2341,15 +2341,18 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                 continue;
             }
 
-            var descriptor = GetOwnPropertyDescriptor(key);
-            if (descriptor is null)
+            if (!includeNonEnumerable)
             {
-                continue;
-            }
+                var descriptor = GetOwnPropertyDescriptor(key);
+                if (descriptor is null)
+                {
+                    continue;
+                }
 
-            if (!includeNonEnumerable && descriptor is { HasEnumerable: true, Enumerable: false })
-            {
-                continue;
+                if (descriptor is { HasEnumerable: true, Enumerable: false })
+                {
+                    continue;
+                }
             }
 
             if (IsArrayIndexString(key, out var index))

@@ -225,4 +225,47 @@ public sealed class MathMethodsTests(ITestOutputHelper output) : InternalTestBas
         "))!;
         Assert.True(result);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task Math_SumPrecise_Preserves_NegativeZero_When_All_Inputs_Are_NegativeZero()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                           Object.is(1 / Math.sumPrecise([-0, -0, -0]), -Infinity);
+
+                                       """);
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Math_SumPrecise_Uses_PositiveZero_When_Zero_Signs_Are_Mixed()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                           Object.is(1 / Math.sumPrecise([0, -0]), Infinity);
+
+                                       """);
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Math_SumPrecise_Rejects_NonNumber_Values()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                           (() => {
+                                               try {
+                                                   Math.sumPrecise([1, "2"]);
+                                                   return false;
+                                               } catch (e) {
+                                                   return e instanceof TypeError && e.message.includes("requires Number values");
+                                               }
+                                           })();
+
+                                       """);
+        Assert.True((bool)result!);
+    }
 }

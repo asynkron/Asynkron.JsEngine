@@ -109,7 +109,7 @@ public sealed partial class MapPrototype
     public JsValue GetOrInsertComputed(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireInstance(thisValue);
-        var key = args.GetArgument(0);
+        var key = CanonicalizeKey(args.GetArgument(0));
         var callbackfn = args.GetArgument(1);
         if (map.Has(key))
         {
@@ -124,6 +124,13 @@ public sealed partial class MapPrototype
         var value = callable.Invoke([key], JsValue.Undefined);
         map.Set(key, value);
         return value;
+    }
+
+    private static JsValue CanonicalizeKey(JsValue key)
+    {
+        return key.IsNumber && key.NumberValue == 0d
+            ? JsValue.Zero
+            : key;
     }
 
     [JsHostGetter("size")]

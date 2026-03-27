@@ -32,7 +32,7 @@ public sealed partial class FunctionPrototype
 
         if (isCallable)
         {
-            return new JsValue("function() { [native code] }");
+            return new JsValue("function () { [native code] }");
         }
 
         var realm = thisValue.TryGetObject<ICallableMetadata>(out var callableMetadata)

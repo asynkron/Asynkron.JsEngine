@@ -251,16 +251,11 @@ public static class TemporalHelper
     /// </summary>
     private static string ParseTemporalCalendarString(string str)
     {
-        // Look for calendar annotation [u-ca=xxx]
-        var annotationStart = str.IndexOf("[u-ca=", StringComparison.Ordinal);
-        if (annotationStart >= 0)
+        // Calendar arguments must not be ISO strings carrying calendar annotations.
+        if (str.IndexOf("[u-ca=", StringComparison.Ordinal) >= 0 ||
+            str.IndexOf("[!u-ca=", StringComparison.Ordinal) >= 0)
         {
-            var valueStart = annotationStart + 6; // length of "[u-ca="
-            var end = str.IndexOf(']', valueStart);
-            if (end > valueStart)
-            {
-                return str.Substring(valueStart, end - valueStart);
-            }
+            throw StandardLibrary.ThrowRangeError($"invalid calendar identifier: '{str}'");
         }
 
         // No calendar annotation — validate as ISO-like string and default to "iso8601"
@@ -5629,12 +5624,6 @@ public static class TemporalHelper
                 else
                     return (years, months, weeks, 0);
 
-                // Validate end boundary (spec NudgeToCalendarUnit step 6):
-                // r2 = r1 + increment * sign; base + r2 days must be in valid ISO range
-                var r1Days = totalDays / (long)roundingIncrement * roundingIncrement;
-                var r2Days = r1Days + roundingIncrement * daySign;
-                ValidateRoundedDayResult((long)weekBoundaryEpoch + r2Days);
-
                 // Include time remainder for fractional day
                 if (timeDiffNanos != 0)
                 {
@@ -9120,24 +9109,12 @@ public static class TemporalHelper
         if (ValidCalendarIds.Contains(lowered))
             return lowered;
 
-        // Try to parse as ISO string and extract calendar
-        // If the string contains [u-ca=...], extract the calendar
+        // Calendar arguments must not be ISO strings carrying calendar annotations.
         var ucaIdx = calStr.IndexOf("[u-ca=", StringComparison.Ordinal);
         if (ucaIdx < 0) ucaIdx = calStr.IndexOf("[!u-ca=", StringComparison.Ordinal);
         if (ucaIdx >= 0)
         {
-            var eqIdx = calStr.IndexOf('=', ucaIdx);
-            var closeIdx = calStr.IndexOf(']', eqIdx);
-            if (eqIdx >= 0 && closeIdx > eqIdx)
-            {
-                var embeddedCal = calStr[(eqIdx + 1)..closeIdx];
-                var embeddedLowered = AsciiLowercase(embeddedCal);
-                if (CalendarAliases.TryGetValue(embeddedLowered, out var embeddedCanonical))
-                    embeddedLowered = embeddedCanonical;
-                if (ValidCalendarIds.Contains(embeddedLowered))
-                    return embeddedLowered;
-                throw StandardLibrary.ThrowRangeError($"Unsupported calendar: {embeddedCal}", realm: realm);
-            }
+            throw StandardLibrary.ThrowRangeError($"Invalid calendar string: {calStr}", realm: realm);
         }
 
         // Validate it's a valid ISO string (date, datetime, year-month, month-day formats)

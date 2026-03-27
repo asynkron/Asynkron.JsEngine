@@ -335,4 +335,50 @@ public sealed class MapTests(ITestOutputHelper output) : InternalTestBase(output
                                        """);
         Assert.Equal("object", result);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task Map_GetOrInsertComputed_Canonicalizes_NegativeZero_For_Callback_And_Stored_Key()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                           (() => {
+                                               const map = new Map();
+                                               let seen;
+                                               const value = map.getOrInsertComputed(-0, (key) => {
+                                                   seen = key;
+                                                   return "inserted";
+                                               });
+
+                                               const storedKey = Array.from(map.keys())[0];
+                                               return value === "inserted"
+                                                   && Object.is(1 / seen, Infinity)
+                                                   && Object.is(1 / storedKey, Infinity)
+                                                   && map.size === 1;
+                                           })();
+
+                                       """);
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Map_GetOrInsertComputed_Reuses_Existing_Zero_Key_Without_Callback()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                           (() => {
+                                               const map = new Map([[0, "existing"]]);
+                                               let called = 0;
+                                               const value = map.getOrInsertComputed(-0, () => {
+                                                   called++;
+                                                   return "new";
+                                               });
+
+                                               return value === "existing" && called === 0 && map.size === 1;
+                                           })();
+
+                                       """);
+        Assert.True((bool)result!);
+    }
 }

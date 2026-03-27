@@ -237,14 +237,14 @@ public static class RegExpHelper
     {
         var inputDescriptor = new PropertyDescriptor
         {
-            Get = new HostFunction((_, _) =>
+            Get = new HostFunction((thisValue, _) =>
             {
-                var statics = EnsureRegExpReceiver();
+                var statics = EnsureRegExpReceiver(thisValue);
                 return new JsValue(statics.Input);
             }, isConstructor: false),
-            Set = new HostFunction((_, args) =>
+            Set = new HostFunction((thisValue, args) =>
             {
-                var statics = EnsureRegExpReceiver();
+                var statics = EnsureRegExpReceiver(thisValue);
                 var value = args.GetArgument(0);
                 statics.Input = JsOps.ToPropertyName(value) ?? string.Empty;
                 return JsValue.Undefined;
@@ -279,9 +279,10 @@ public static class RegExpHelper
         var multilineDescriptor = new PropertyDescriptor
         {
             Get = new HostFunction((thisValue, _) =>
-                !ReferenceEquals(thisValue.ObjectValue, realm.RegExpConstructor)
-                    ? throw ThrowTypeError("RegExp method called on incompatible receiver", realm: realm)
-                    : JsValue.False, isConstructor: false),
+            {
+                EnsureRegExpReceiver(thisValue);
+                return JsValue.False;
+            }, isConstructor: false),
             Set = null,
             Enumerable = false,
             Configurable = true
@@ -289,18 +290,24 @@ public static class RegExpHelper
         constructor.DefineProperty("multiline", multilineDescriptor);
         return;
 
-        RegExpStatics EnsureRegExpReceiver()
+        RegExpStatics EnsureRegExpReceiver(JsValue receiver)
         {
-            return realm.RegExpStatics;
+            if (receiver.TryGetObject<HostFunction>(out var receiverFunction) &&
+                ReferenceEquals(constructor, receiverFunction))
+            {
+                return realm.RegExpStatics;
+            }
+
+            throw ThrowTypeError("RegExp method called on incompatible receiver", realm: realm);
         }
 
         PropertyDescriptor MakeAccessor(Func<RegExpStatics, string> getter)
         {
             return new PropertyDescriptor
             {
-                Get = new HostFunction((_, _) =>
+                Get = new HostFunction((thisValue, _) =>
                 {
-                    var statics = EnsureRegExpReceiver();
+                    var statics = EnsureRegExpReceiver(thisValue);
                     return new JsValue(getter(statics));
                 }, isConstructor: false),
                 Set = null,

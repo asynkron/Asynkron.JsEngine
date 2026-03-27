@@ -3,6 +3,7 @@
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.StdLib.TypedArray;
 using Microsoft.Extensions.Logging;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
@@ -518,7 +519,7 @@ public static class TypedArrayHelper
 
     public static HostFunction CreateUint8ArrayConstructor(RealmState realm)
     {
-        return CreateTypedArrayConstructor(
+        var constructor = CreateTypedArrayConstructor(
             JsUint8Array.FromLength,
             JsUint8Array.FromArray,
             (buffer, offset, length, isLengthTracking, _) =>
@@ -526,6 +527,11 @@ public static class TypedArrayHelper
             JsUint8Array.BYTES_PER_ELEMENT,
             "Uint8Array",
             realm);
+
+        // Register base64/hex methods (ES2025 uint8array-base64 proposal)
+        Uint8ArrayBase64.Register(constructor, realm);
+
+        return constructor;
     }
 
     public static HostFunction CreateUint8ClampedArrayConstructor(RealmState realm)

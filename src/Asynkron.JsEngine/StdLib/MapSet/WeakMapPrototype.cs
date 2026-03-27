@@ -58,16 +58,18 @@ public sealed partial class WeakMapPrototype
     public JsValue GetOrInsertComputed(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireInstance(thisValue);
-        var key = args.GetArgument(0);
         var callbackfn = args.GetArgument(1);
-        if (map.Has(key))
-        {
-            return map.Get(key);
-        }
 
+        // Per spec step 3: validate callable BEFORE checking if key exists
         if (!callbackfn.TryGetCallable(out var callable))
         {
             throw StandardLibrary.ThrowTypeError("WeakMap.prototype.getOrInsertComputed callback must be callable", realm: Realm);
+        }
+
+        var key = args.GetArgument(0);
+        if (map.Has(key))
+        {
+            return map.Get(key);
         }
 
         var value = callable.Invoke([key], JsValue.Undefined);

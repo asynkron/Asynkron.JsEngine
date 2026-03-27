@@ -334,10 +334,14 @@ public static partial class TypedAstEvaluator
 
                     // Already inside a finally block. Per ES spec: when an abrupt completion occurs
                     // inside a finally block, the new completion replaces the pending one.
-                    // The caller decides how to proceed based on the instruction type:
-                    // - StoreResumeValue (generator resumption): continues executing finally
-                    // - Return/Throw statement: should terminate finally immediately
+                    // Jump to EndFinally to exit the finally block — continuing to execute
+                    // remaining finally instructions would re-enter call loops and hang.
                     frame.PendingCompletion = PendingCompletion.FromAbrupt(kind, value);
+                    if (frame.EndFinallyIndex >= 0)
+                    {
+                        _programCounter = frame.EndFinallyIndex;
+                    }
+
                     return true;
                 }
 

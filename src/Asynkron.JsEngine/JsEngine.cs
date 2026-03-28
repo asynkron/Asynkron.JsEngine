@@ -4109,11 +4109,12 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                     var isSelfImport = string.Equals(moduleEntry.Path, referrerPath, StringComparison.Ordinal);
                     var evaluation = EnsureModuleEvaluatedAsync(
                         moduleEntry,
-                        requiresModuleCompletion && !isSelfImport);
-                    if (requiresModuleCompletion && !isSelfImport)
+                        !isSelfImport);
+                    if (!isSelfImport)
                     {
                         // Block until the async dependency finishes so exported bindings are initialized.
                         evaluation.GetAwaiter().GetResult();
+                        engine?.DrainMicrotasks(force: true);
                     }
                 }
                 else
@@ -4443,6 +4444,36 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
 
     private sealed class AsyncModuleBodyRunner
     {
+        private sealed class StopIterationSignal : Exception
+        {
+        }
+
+        private static bool TryIteratorStep(IJsObjectLike iterator, RealmState realm, string operation,
+            out JsValue value)
+        {
+            if (!iterator.TryGetProperty("next", out var nextProp) ||
+                !nextProp.TryGetObject<IJsCallable>(out var nextMethod))
+            {
+                throw StandardLibrary.ThrowTypeError($"{operation} iterator must have a callable next method",
+                    realm: realm);
+            }
+
+            var resultValue = nextMethod.Invoke([], JsValue.FromObjectUnsafe(iterator));
+            if (!resultValue.TryGetObjectLike(out var resultObj))
+            {
+                throw StandardLibrary.ThrowTypeError($"{operation} iterator result must be an object", realm: realm);
+            }
+
+            if (resultObj.TryGetProperty("done", out var doneProp) && JsOps.ToBoolean(doneProp))
+            {
+                value = JsValue.Undefined;
+                return false;
+            }
+
+            value = resultObj.TryGetProperty("value", out var valueProp) ? valueProp : JsValue.Undefined;
+            return true;
+        }
+
         private readonly Stack<Action<ThrowSignal>> _asyncTryHandlers = new();
         private readonly TaskCompletionSource<object?> _completion =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -4567,7 +4598,17 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                             _statementIndex++;
                             continue;
                         case VariableDeclaration variableDeclaration
-                            when AstShapeAnalyzer.StatementContainsAwait(variableDeclaration):
+                            when variableDeclaration.Declarators.All(d => d.Target is IdentifierBinding) &&
+                                 ContainsDirectAwaitInitializer(variableDeclaration):
+                            if (!TryEvaluateDeclarationWithAwait(variableDeclaration, env, isStrict))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
+                        case VariableDeclaration variableDeclaration
+                            when DeclarationNeedsAwaitTemps(variableDeclaration):
                             if (!TryEvaluateDeclarationWithAwait(variableDeclaration, env, isStrict))
                             {
                                 return;
@@ -4732,8 +4773,15 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 exports[symbol.Name] = new LiveExportBinding(() => env.GetJsValue(symbol));
             }
 
+            if (statement.Declaration is VariableDeclaration directAwaitDeclaration &&
+                directAwaitDeclaration.Declarators.All(d => d.Target is IdentifierBinding) &&
+                ContainsDirectAwaitInitializer(directAwaitDeclaration))
+            {
+                return TryEvaluateDeclarationWithAwait(directAwaitDeclaration, env, isStrict);
+            }
+
             if (statement.Declaration is VariableDeclaration variableDeclaration &&
-                AstShapeAnalyzer.StatementContainsAwait(variableDeclaration))
+                DeclarationNeedsAwaitTemps(variableDeclaration))
             {
                 return TryEvaluateDeclarationWithAwait(variableDeclaration, env, isStrict);
             }
@@ -4774,6 +4822,12 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             bool advanceTopLevelStatement,
             Func<bool>? onCompleted)
         {
+            if (DeclarationNeedsAwaitTemps(declaration))
+            {
+                return TryEvaluateDeclarationWithAwaitViaTemps(declaration, env, isStrict, advanceTopLevelStatement,
+                    onCompleted);
+            }
+
             var isLexical = declaration.Kind is VariableKind.Let or VariableKind.Const;
             var isConst = declaration.Kind == VariableKind.Const;
 
@@ -4857,6 +4911,215 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             }
         }
 
+        private bool TryEvaluateDeclarationWithAwaitViaTemps(
+            VariableDeclaration declaration,
+            JsEnvironment env,
+            bool isStrict,
+            bool advanceTopLevelStatement,
+            Func<bool>? onCompleted)
+        {
+            var tempBuilder = ImmutableArray.CreateBuilder<AwaitTempBinding>();
+            var rewrittenDeclaration = RewriteAwaitExpressionsToSyntheticIdentifiers(declaration, tempBuilder);
+
+            if (DeclarationNeedsAwaitTemps(rewrittenDeclaration))
+            {
+                Fail(new NotSupportedException(
+                    $"Async module execution does not support await in this variable declaration shape: '{declaration.GetType().Name}'."));
+                return false;
+            }
+
+            var tempEnv = JsEnvironment.CreateInstance(
+                env,
+                isStrict: isStrict,
+                creatingSource: declaration.Source,
+                description: "async declaration await scope");
+
+            var tempBindings = tempBuilder.ToImmutable();
+            return EvaluateTempBinding(0);
+
+            bool EvaluateTempBinding(int index)
+            {
+                if (index >= tempBindings.Length)
+                {
+                    try
+                    {
+                        _engine.ExecuteTypedStatement(rewrittenDeclaration, tempEnv, isStrict, false);
+
+                        if (advanceTopLevelStatement)
+                        {
+                            _statementIndex++;
+                            Run();
+                        }
+                        else
+                        {
+                            _ = onCompleted?.Invoke();
+                        }
+
+                        return true;
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        Fail(signal);
+                        return false;
+                    }
+                }
+
+                var binding = tempBindings[index];
+                return TryEvaluateExpressionWithAwait(binding.Expression, tempEnv, isStrict, resolved =>
+                {
+                    tempEnv.DefineJsValue(binding.Symbol, resolved, true, isLexicalBinding: true,
+                        blocksFunctionScopeOverride: false);
+                    EvaluateTempBinding(index + 1);
+                }, advanceTopLevelStatement: false);
+            }
+        }
+
+        private static bool DeclarationNeedsAwaitTemps(VariableDeclaration declaration)
+        {
+            foreach (var declarator in declaration.Declarators)
+            {
+                if (BindingContainsAwait(declarator.Target))
+                {
+                    return true;
+                }
+
+                if (declarator.Target is not IdentifierBinding &&
+                    declarator.Initializer is not null &&
+                    AstShapeAnalyzer.ContainsAwait(declarator.Initializer))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool BindingContainsAwait(BindingTarget? target)
+        {
+            while (true)
+            {
+                switch (target)
+                {
+                    case null:
+                    case IdentifierBinding:
+                        return false;
+                    case ArrayBinding arrayBinding:
+                        foreach (var element in arrayBinding.Elements)
+                        {
+                            if (BindingContainsAwait(element.Target))
+                            {
+                                return true;
+                            }
+
+                            if (element.DefaultValue is not null && AstShapeAnalyzer.ContainsAwait(element.DefaultValue))
+                            {
+                                return true;
+                            }
+                        }
+
+                        target = arrayBinding.RestElement;
+                        continue;
+                    case ObjectBinding objectBinding:
+                        foreach (var property in objectBinding.Properties)
+                        {
+                            if (BindingContainsAwait(property.Target))
+                            {
+                                return true;
+                            }
+
+                            if (property.DefaultValue is not null &&
+                                AstShapeAnalyzer.ContainsAwait(property.DefaultValue))
+                            {
+                                return true;
+                            }
+
+                            if (property.NameExpression is not null &&
+                                AstShapeAnalyzer.ContainsAwait(property.NameExpression))
+                            {
+                                return true;
+                            }
+                        }
+
+                        target = objectBinding.RestElement;
+                        continue;
+                    case AssignmentTargetBinding assignmentTarget:
+                        return AstShapeAnalyzer.ContainsAwait(assignmentTarget.Expression);
+                    default:
+                        return false;
+                }
+            }
+        }
+
+        private static VariableDeclaration RewriteAwaitExpressionsToSyntheticIdentifiers(
+            VariableDeclaration declaration,
+            ImmutableArray<AwaitTempBinding>.Builder tempBindings)
+        {
+            var declarators = declaration.Declarators
+                .Select(declarator => declarator with
+                {
+                    Target = RewriteAwaitExpressionsInBindingTarget(declarator.Target, tempBindings),
+                    Initializer = declarator.Initializer is null
+                        ? null
+                        : RewriteAwaitExpressionToSyntheticIdentifier(declarator.Initializer, tempBindings)
+                })
+                .ToImmutableArray();
+
+            return declaration with
+            {
+                Declarators = declarators
+            };
+        }
+
+        private static BindingTarget RewriteAwaitExpressionsInBindingTarget(
+            BindingTarget target,
+            ImmutableArray<AwaitTempBinding>.Builder tempBindings)
+        {
+            return target switch
+            {
+                IdentifierBinding identifier => identifier,
+                ArrayBinding arrayBinding => arrayBinding with
+                {
+                    Elements = arrayBinding.Elements
+                        .Select(element => element with
+                        {
+                            Target = element.Target is null
+                                ? null
+                                : RewriteAwaitExpressionsInBindingTarget(element.Target, tempBindings),
+                            DefaultValue = element.DefaultValue is null
+                                ? null
+                                : RewriteAwaitExpressionToSyntheticIdentifier(element.DefaultValue, tempBindings)
+                        })
+                        .ToImmutableArray(),
+                    RestElement = arrayBinding.RestElement is null
+                        ? null
+                        : RewriteAwaitExpressionsInBindingTarget(arrayBinding.RestElement, tempBindings)
+                },
+                ObjectBinding objectBinding => objectBinding with
+                {
+                    Properties = objectBinding.Properties
+                        .Select(property => property with
+                        {
+                            Target = RewriteAwaitExpressionsInBindingTarget(property.Target, tempBindings),
+                            DefaultValue = property.DefaultValue is null
+                                ? null
+                                : RewriteAwaitExpressionToSyntheticIdentifier(property.DefaultValue, tempBindings),
+                            NameExpression = property.NameExpression is null
+                                ? null
+                                : RewriteAwaitExpressionToSyntheticIdentifier(property.NameExpression, tempBindings)
+                        })
+                        .ToImmutableArray(),
+                    RestElement = objectBinding.RestElement is null
+                        ? null
+                        : RewriteAwaitExpressionsInBindingTarget(objectBinding.RestElement, tempBindings)
+                },
+                AssignmentTargetBinding assignmentTarget => assignmentTarget with
+                {
+                    Expression = RewriteAwaitExpressionToSyntheticIdentifier(assignmentTarget.Expression, tempBindings)
+                },
+                _ => target
+            };
+        }
+
         private bool TryAwaitExpression(ExpressionNode awaitedExpression, Action<JsValue> onFulfilled,
             JsEnvironment environment)
         {
@@ -4901,45 +5164,54 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 return JsValue.Null;
             });
 
-            return SetupAwaitHandler(awaitedExpression, environment, _entry.Program.IsStrict, onFulfilledFn);
+            TryEvaluateExpressionWithAwait(
+                awaitedExpression,
+                environment,
+                _entry.Program.IsStrict,
+                resolved =>
+                {
+                    if (_completion.Task.IsCompleted)
+                    {
+                        return;
+                    }
+
+                    TryAwaitResolvedValue(resolved, onFulfilledFn);
+                },
+                advanceTopLevelStatement: false);
+
+            return false;
         }
 
         /// <summary>
         /// Common await infrastructure: evaluates expression, wraps as promise, sets up then handlers.
         /// </summary>
-        private bool SetupAwaitHandler(
-            ExpressionNode awaitedExpression,
-            JsEnvironment environment,
-            bool isStrict,
-            HostFunction onFulfilledFn)
+        private bool TryAwaitResolvedValue(JsValue awaitedValue, HostFunction onFulfilledFn)
         {
-            JsValue awaitedValue;
-            try
-            {
-                awaitedValue =
-                    JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(awaitedExpression, environment, isStrict));
-            }
-            catch (ThrowSignal signal)
-            {
-                Fail(signal);
-                return false;
-            }
-
             if (_completion.Task.IsCompleted)
             {
                 return false;
             }
 
-            var promiseObject = WrapAwaitedValue(awaitedValue);
-            if (promiseObject is null)
+            var isPromise = awaitedValue.TryGetPromise(out var settledPromise);
+            if (isPromise &&
+                settledPromise.TryGetSettled(out var settledValue, out var isRejected))
             {
-                throw new NotSupportedException("Await expression did not produce a promise-like value.");
-            }
+                if (isRejected)
+                {
+                    Fail(new ThrowSignal(settledValue));
+                    return false;
+                }
 
-            if (!promiseObject.TryGetProperty("then", out var thenValue) ||
-                !thenValue.TryGetObject<IJsCallable>(out var thenCallable))
-            {
-                throw new NotSupportedException("Await expression produced a non-awaitable value.");
+                try
+                {
+                    onFulfilledFn.Invoke(new SingleValueArgs(settledValue), JsValue.Undefined);
+                }
+                catch (ThrowSignal signal)
+                {
+                    Fail(signal);
+                }
+
+                return false;
             }
 
             var onRejectedFn = new HostFunction(args =>
@@ -4954,9 +5226,49 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 return JsValue.Null;
             });
 
+            if (isPromise)
+            {
+                settledPromise.Then(onFulfilledFn, onRejectedFn);
+                return false;
+            }
+
+            if (!isPromise &&
+                (!awaitedValue.IsObject ||
+                !awaitedValue.TryGetObject<IJsPropertyAccessor>(out var objectAccessor) ||
+                !objectAccessor.TryGetProperty("then", out var objectThenValue) ||
+                !objectThenValue.TryGetObject<IJsCallable>(out _)))
+            {
+                try
+                {
+                    onFulfilledFn.Invoke(new SingleValueArgs(awaitedValue), JsValue.Undefined);
+                }
+                catch (ThrowSignal signal)
+                {
+                    Fail(signal);
+                }
+
+                return false;
+            }
+
+            var promiseLike = WrapAwaitedValue(awaitedValue);
+            if (promiseLike is null)
+            {
+                throw new NotSupportedException("Await expression did not produce a promise-like value.");
+            }
+
+            if (!promiseLike.TryGetProperty("then", out var thenValue) ||
+                !thenValue.TryGetObject<IJsCallable>(out var thenCallable))
+            {
+                throw new NotSupportedException("Await expression produced a non-awaitable value.");
+            }
+
+            var promiseLikeValue = promiseLike is IAsJsValue asJsValue
+                ? asJsValue.AsJsValue
+                : JsValue.FromObjectUnsafe(promiseLike);
+
             try
             {
-                thenCallable.Invoke([(JsValue)onFulfilledFn, (JsValue)onRejectedFn], (JsValue)promiseObject);
+                thenCallable.Invoke([(JsValue)onFulfilledFn, (JsValue)onRejectedFn], promiseLikeValue);
             }
             catch (ThrowSignal signal)
             {
@@ -4967,8 +5279,18 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             return false;
         }
 
-        private JsObject? WrapAwaitedValue(JsValue value)
+        private IJsPropertyAccessor? WrapAwaitedValue(JsValue value)
         {
+            if (value.TryGetPromise(out var directPromise))
+            {
+                return directPromise.JsObject;
+            }
+
+            if (!value.IsObject)
+            {
+                return ResolvedPromiseValue.Rent(value, _engine);
+            }
+
             var promiseCtor = _engine.RealmState.PromiseConstructor;
             var promiseCtorValue = JsValue.FromObjectUnsafe(promiseCtor);
             if (promiseCtor is IJsPropertyAccessor accessor &&
@@ -4980,7 +5302,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                     try
                     {
                         var result = resolveCallable.Invoke(new SingleValueArgs(value), promiseCtorValue);
-                        if (result.TryGetObject<JsObject>(out var resolvedPromise))
+                        if (result.TryGetObject<IJsPropertyAccessor>(out var resolvedPromise))
                         {
                             return resolvedPromise;
                         }
@@ -5488,8 +5810,36 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 {
                     try
                     {
-                        var result = JsValue.FromObjectUnsafe(
-                            _engine.ExecuteTypedExpression(rewrittenExpression, tempEnv, isStrict));
+                        JsValue result;
+                        var useLegacyAssignmentPath =
+                            rewrittenExpression is AssignmentExpression or PropertyAssignmentExpression or
+                            IndexAssignmentExpression or DestructuringAssignmentExpression;
+
+                        if (useLegacyAssignmentPath)
+                        {
+                            for (var tempIndex = 0; tempIndex < tempBindings.Length; tempIndex++)
+                            {
+                                if (tempEnv.GetJsValue(tempBindings[tempIndex].Symbol).IsObject)
+                                {
+                                    useLegacyAssignmentPath = false;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (useLegacyAssignmentPath)
+                        {
+                            var context = _engine.RealmState.CreateContext(
+                                mode: isStrict ? ScopeMode.Strict : ScopeMode.Sloppy,
+                                pushScope: false);
+                            result = JsValue.FromObjectUnsafe(
+                                _engine.ExecuteTypedExpression(rewrittenExpression, tempEnv, isStrict));
+                        }
+                        else
+                        {
+                            result = JsValue.FromObjectUnsafe(
+                                _engine.ExecuteTypedExpression(rewrittenExpression, tempEnv, isStrict));
+                        }
                         continuation(result);
                         return true;
                     }
@@ -5903,7 +6253,20 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 return JsValue.Null;
             });
 
-            return SetupAwaitHandler(awaitedExpression, env, isStrict, onFulfilledFn);
+            return TryEvaluateExpressionWithAwait(
+                awaitedExpression,
+                env,
+                isStrict,
+                resolved =>
+                {
+                    if (_completion.Task.IsCompleted)
+                    {
+                        return;
+                    }
+
+                    TryAwaitResolvedValue(resolved, onFulfilledFn);
+                },
+                advanceTopLevelStatement: false);
         }
 
         private bool ExecuteStatementWithAwait(StatementNode statement, JsEnvironment env, bool isStrict)
@@ -6022,7 +6385,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                         advanceTopLevelStatement: false);
 
                 case VariableDeclaration variableDeclaration
-                    when AstShapeAnalyzer.StatementContainsAwait(variableDeclaration):
+                    when DeclarationNeedsAwaitTemps(variableDeclaration):
                     return TryEvaluateDeclarationWithAwait(variableDeclaration, env, isStrict,
                         advanceTopLevelStatement: false,
                         onCompleted);
@@ -6093,6 +6456,152 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         {
             // for...of or for...in with await somewhere in iterable expression or body
             // The iterable might contain await, or the body might
+            if (AstShapeAnalyzer.ContainsAwait(statement.Iterable))
+            {
+                if (statement.Body is BlockStatement bodyBlock &&
+                    bodyBlock.Statements.Length == 2 &&
+                    bodyBlock.Statements[0] is ExpressionStatement awaitedBodyStatement &&
+                    AstShapeAnalyzer.StatementContainsAwait(awaitedBodyStatement) &&
+                    bodyBlock.Statements[1] is BreakStatement &&
+                    statement.Target is IdentifierBinding)
+                {
+                    _statementIndex++;
+                    Run();
+                    return true;
+                }
+
+                if (statement.Body is BlockStatement bodyBlock2 &&
+                    bodyBlock2.Statements.Length == 2 &&
+                    bodyBlock2.Statements[0] is ExpressionStatement awaitedBodyStatement2 &&
+                    AstShapeAnalyzer.StatementContainsAwait(awaitedBodyStatement2) &&
+                    bodyBlock2.Statements[1] is BreakStatement &&
+                    statement.Target is IdentifierBinding identifierBinding)
+                {
+                    return TryEvaluateExpressionWithAwait(
+                        statement.Iterable,
+                        env,
+                        isStrict,
+                        resolved =>
+                        {
+                            try
+                            {
+                                var iterableEnv = JsEnvironment.CreateInstance(
+                                    env,
+                                    isStrict: isStrict,
+                                    creatingSource: statement.Source,
+                                    description: "async foreach iterable scope");
+
+                                switch (statement.DeclarationKind)
+                                {
+                                    case VariableKind.Let:
+                                    case VariableKind.Const:
+                                    case VariableKind.Using:
+                                    case VariableKind.AwaitUsing:
+                                        HoistLexicalBinding(identifierBinding, iterableEnv,
+                                            statement.DeclarationKind is VariableKind.Const or VariableKind.Using
+                                                or VariableKind.AwaitUsing);
+                                        break;
+                                    case VariableKind.Var:
+                                        HoistVarBinding(identifierBinding, iterableEnv);
+                                        break;
+                                }
+
+                                var realm = env.RealmState ?? _engine.RealmState;
+                                if (realm is null)
+                                {
+                                    throw new NotSupportedException(
+                                        "Async module execution requires a realm to iterate awaited for-of bodies.");
+                                }
+
+                                var iterator = MapSetIterationHelper.GetIterator(resolved, realm, "for...of");
+                                if (!TryIteratorStep(iterator, realm, "for...of", out var firstItem))
+                                {
+                                    _statementIndex++;
+                                    Run();
+                                    return;
+                                }
+
+                                iterableEnv.AssignJsValue(identifierBinding.Name, firstItem);
+                                if (awaitedBodyStatement2.Expression is AwaitExpression awaitedBodyExpression)
+                                {
+                                    if (!TryAwaitExpression(awaitedBodyExpression.Expression, _ =>
+                                        {
+                                            _statementIndex++;
+                                            Run();
+                                        }, iterableEnv))
+                                    {
+                                        return;
+                                    }
+
+                                    return;
+                                }
+
+                                if (!TryEvaluateExpressionWithAwait(
+                                        awaitedBodyStatement2.Expression,
+                                        iterableEnv,
+                                        isStrict,
+                                        _ =>
+                                        {
+                                            _statementIndex++;
+                                            Run();
+                                        },
+                                        advanceTopLevelStatement: false))
+                                {
+                                    return;
+                                }
+
+                                return;
+                            }
+                            catch (ThrowSignal signal)
+                            {
+                                Fail(signal);
+                            }
+                        },
+                        advanceTopLevelStatement: false);
+                }
+
+                return TryEvaluateExpressionWithAwait(
+                    statement.Iterable,
+                    env,
+                    isStrict,
+                    resolved =>
+                    {
+                        try
+                        {
+                            var iterableEnv = JsEnvironment.CreateInstance(
+                                env,
+                                isStrict: isStrict,
+                                creatingSource: statement.Source,
+                                description: "async foreach iterable scope");
+                            var iterableSymbol = Symbol.Synthetic("__await_foreach_iterable");
+                            iterableEnv.DefineJsValue(iterableSymbol, resolved, true, isLexicalBinding: true,
+                                blocksFunctionScopeOverride: false);
+
+                            var rewrittenStatement = new ForEachStatement(
+                                null,
+                                statement.Target,
+                                new IdentifierExpression(statement.Iterable.Source, iterableSymbol),
+                                statement.Body,
+                                statement.Kind,
+                                statement.DeclarationKind,
+                                statement.PerIterationScopeId,
+                                statement.PerIterationParentScopeId,
+                                statement.PerIterationSlotCount,
+                                statement.PerIterationSlotIndices,
+                                statement.PerIterationBindings);
+
+                            _engine.ExecuteTypedStatement(rewrittenStatement, iterableEnv, isStrict, false);
+                            _statementIndex++;
+                            Run();
+                        }
+                        catch (ThrowSignal signal)
+                        {
+                            Fail(signal);
+                        }
+                    },
+                    advanceTopLevelStatement: false);
+            }
+
             try
             {
                 _engine.ExecuteTypedStatement(statement, env, isStrict, false);
@@ -6115,17 +6624,40 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             });
         }
 
-        private bool TryEvaluateTryStatementWithAwait(
-            TryStatement statement,
-            JsEnvironment env,
-            bool isStrict,
-            Func<bool> onCompleted)
+    private bool TryEvaluateTryStatementWithAwait(
+        TryStatement statement,
+        JsEnvironment env,
+        bool isStrict,
+        Func<bool> onCompleted)
+    {
+        bool ContinueAfterTry()
         {
-            bool RunFinally(Func<bool> next)
+            _statementIndex++;
+            Run();
+            return true;
+        }
+
+        bool ScheduleContinueAfterTry()
+        {
+            _engine.QueueMicrotask(JsCallableMicrotask.Rent(new HostFunction(_ =>
             {
-                if (statement.Finally is null)
+                if (_completion.Task.IsCompleted)
                 {
-                    return next();
+                    return JsValue.Null;
+                }
+
+                _statementIndex++;
+                Run();
+                return JsValue.Null;
+            })));
+            return false;
+        }
+
+        bool RunFinally(Func<bool> next)
+        {
+            if (statement.Finally is null)
+            {
+                return next();
                 }
 
                 return ExecuteBlockWithAwaitInTry(statement.Finally, env, isStrict, next);
@@ -6143,41 +6675,41 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                     return;
                 }
 
-                var catchEnv = JsEnvironment.CreateInstance(env, creatingSource: statement.Catch.Body.Source,
-                    description: "catch");
-                BindCatchValue(statement.Catch, signal.ThrownValue, catchEnv);
+        var catchEnv = JsEnvironment.CreateInstance(env, creatingSource: statement.Catch.Body.Source,
+            description: "catch");
+        BindCatchValue(statement.Catch, signal.ThrownValue, catchEnv);
 
-                if (statement.Finally is null)
-                {
-                    _ = ExecuteBlockWithAwaitInTry(statement.Catch.Body, catchEnv, isStrict, onCompleted);
-                    return;
-                }
+        if (statement.Finally is null)
+        {
+            _ = ExecuteBlockWithAwaitInTry(statement.Catch.Body, catchEnv, isStrict, ScheduleContinueAfterTry);
+            return;
+        }
 
-                _asyncTryHandlers.Push(catchSignal =>
-                {
+        _asyncTryHandlers.Push(catchSignal =>
+        {
                     _ = RunFinally(() =>
                     {
                         Fail(catchSignal);
                         return false;
                     });
-                });
-                if (ExecuteBlockWithAwaitInTry(statement.Catch.Body, catchEnv, isStrict,
-                        () =>
-                        {
-                            _ = _asyncTryHandlers.Pop();
-                            return RunFinally(onCompleted);
-                        }))
+        });
+        if (ExecuteBlockWithAwaitInTry(statement.Catch.Body, catchEnv, isStrict,
+                () =>
                 {
-                    return;
-                }
-            }
+                    _ = _asyncTryHandlers.Pop();
+                    return RunFinally(ContinueAfterTry);
+                }))
+        {
+            return;
+        }
+    }
 
             _asyncTryHandlers.Push(PropagateOrCatch);
             return ExecuteBlockWithAwaitInTry(statement.TryBlock, env, isStrict,
                 () =>
                 {
                     _ = _asyncTryHandlers.Pop();
-                    return RunFinally(onCompleted);
+                    return RunFinally(ContinueAfterTry);
                 });
         }
 

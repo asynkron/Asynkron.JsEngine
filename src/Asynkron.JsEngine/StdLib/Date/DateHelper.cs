@@ -1291,12 +1291,12 @@ public static class DateHelper
         JsObject options;
         if (optionsArg.IsUndefined)
         {
-            options = new JsObject(realm.ObjectPrototype);
+            options = new JsObject();
         }
         else if (optionsArg.TryGetObject<JsObject>(out var obj))
         {
             // Copy properties to a new object to avoid mutating the caller's object
-            options = new JsObject(realm.ObjectPrototype);
+            options = new JsObject();
             foreach (var key in obj.GetOwnPropertyKeysInOrder(includeSymbols: false))
             {
                 if (obj.TryGetProperty(key, out var val))
@@ -1307,7 +1307,7 @@ public static class DateHelper
         }
         else
         {
-            options = new JsObject(realm.ObjectPrototype);
+            options = new JsObject();
         }
 
         var needDefaults = true;

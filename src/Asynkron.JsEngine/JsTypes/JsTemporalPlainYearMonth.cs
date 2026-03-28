@@ -36,6 +36,57 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
         return 1;
     }
 
+    private static int GetReferenceDay(string calendar, int year, int month)
+    {
+        if (string.Equals(calendar, "iso8601", StringComparison.Ordinal) ||
+            string.Equals(calendar, "gregory", StringComparison.Ordinal) ||
+            string.Equals(calendar, "japanese", StringComparison.Ordinal) ||
+            string.Equals(calendar, "buddhist", StringComparison.Ordinal) ||
+            string.Equals(calendar, "roc", StringComparison.Ordinal))
+        {
+            return IsoCalendarHelpers.DaysInMonth(year is >= 1 and <= 9999 ? year : 2000, month);
+        }
+
+        if (string.Equals(calendar, "hebrew", StringComparison.Ordinal))
+        {
+            var hebrewCalendar = new HebrewCalendar();
+            return hebrewCalendar.GetDaysInMonth(year, month, hebrewCalendar.Eras[0]);
+        }
+
+        if (string.Equals(calendar, "chinese", StringComparison.Ordinal))
+        {
+            var chineseCalendar = new ChineseLunisolarCalendar();
+            return chineseCalendar.GetDaysInMonth(year, month, chineseCalendar.Eras[0]);
+        }
+
+        if (string.Equals(calendar, "dangi", StringComparison.Ordinal))
+        {
+            var dangiCalendar = new KoreanLunisolarCalendar();
+            return dangiCalendar.GetDaysInMonth(year, month, dangiCalendar.Eras[0]);
+        }
+
+        if (string.Equals(calendar, "islamic-civil", StringComparison.Ordinal) ||
+            string.Equals(calendar, "islamic-tbla", StringComparison.Ordinal))
+        {
+            var islamicCalendar = new HijriCalendar();
+            return islamicCalendar.GetDaysInMonth(year, month, islamicCalendar.Eras[0]);
+        }
+
+        if (string.Equals(calendar, "islamic-umalqura", StringComparison.Ordinal))
+        {
+            var islamicCalendar = new UmAlQuraCalendar();
+            return islamicCalendar.GetDaysInMonth(year, month, islamicCalendar.Eras[0]);
+        }
+
+        if (string.Equals(calendar, "persian", StringComparison.Ordinal))
+        {
+            var persianCalendar = new PersianCalendar();
+            return persianCalendar.GetDaysInMonth(year, month, persianCalendar.Eras[0]);
+        }
+
+        return 1;
+    }
+
     /// <summary>
     ///     The month code (e.g., "M01" for January).
     /// </summary>
@@ -107,7 +158,7 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
                     if (int.TryParse(yearStr, CultureInfo.InvariantCulture, out var year) &&
                         int.TryParse(monthStr, CultureInfo.InvariantCulture, out var month))
                     {
-                        return new JsTemporalPlainYearMonth(sign * year, month, calendar);
+                        return new JsTemporalPlainYearMonth(sign * year, month, calendar, GetReferenceDay(calendar, sign * year, month));
                     }
                 }
                 else
@@ -118,7 +169,7 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
                     if (int.TryParse(yearStr, CultureInfo.InvariantCulture, out var year) &&
                         int.TryParse(monthStr, CultureInfo.InvariantCulture, out var month))
                     {
-                        return new JsTemporalPlainYearMonth(sign * year, month, calendar);
+                        return new JsTemporalPlainYearMonth(sign * year, month, calendar, GetReferenceDay(calendar, sign * year, month));
                     }
                 }
             }
@@ -134,7 +185,7 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
         var stdYear = int.Parse(parts[0], CultureInfo.InvariantCulture);
         var stdMonth = int.Parse(parts[1], CultureInfo.InvariantCulture);
 
-        return new JsTemporalPlainYearMonth(stdYear, stdMonth, calendar);
+        return new JsTemporalPlainYearMonth(stdYear, stdMonth, calendar, GetReferenceDay(calendar, stdYear, stdMonth));
     }
 
     /// <summary>
@@ -296,6 +347,42 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
             var hebrewCalendar = new HebrewCalendar();
             var hebrewEra = hebrewCalendar.Eras[0];
             return hebrewCalendar.ToDateTime(year, month, day, 0, 0, 0, 0, hebrewEra);
+        }
+
+        if (string.Equals(calendar, "chinese", StringComparison.Ordinal))
+        {
+            var chineseCalendar = new ChineseLunisolarCalendar();
+            var chineseEra = chineseCalendar.Eras[0];
+            return chineseCalendar.ToDateTime(year, month, day, 0, 0, 0, 0, chineseEra);
+        }
+
+        if (string.Equals(calendar, "dangi", StringComparison.Ordinal))
+        {
+            var dangiCalendar = new KoreanLunisolarCalendar();
+            var dangiEra = dangiCalendar.Eras[0];
+            return dangiCalendar.ToDateTime(year, month, day, 0, 0, 0, 0, dangiEra);
+        }
+
+        if (string.Equals(calendar, "islamic-civil", StringComparison.Ordinal) ||
+            string.Equals(calendar, "islamic-tbla", StringComparison.Ordinal))
+        {
+            var islamicCalendar = new HijriCalendar();
+            var islamicEra = islamicCalendar.Eras[0];
+            return islamicCalendar.ToDateTime(year, month, day, 0, 0, 0, 0, islamicEra);
+        }
+
+        if (string.Equals(calendar, "islamic-umalqura", StringComparison.Ordinal))
+        {
+            var islamicCalendar = new UmAlQuraCalendar();
+            var islamicEra = islamicCalendar.Eras[0];
+            return islamicCalendar.ToDateTime(year, month, day, 0, 0, 0, 0, islamicEra);
+        }
+
+        if (string.Equals(calendar, "persian", StringComparison.Ordinal))
+        {
+            var persianCalendar = new PersianCalendar();
+            var persianEra = persianCalendar.Eras[0];
+            return persianCalendar.ToDateTime(year, month, day, 0, 0, 0, 0, persianEra);
         }
 
         return new DateTime(year, month, day, new GregorianCalendar());

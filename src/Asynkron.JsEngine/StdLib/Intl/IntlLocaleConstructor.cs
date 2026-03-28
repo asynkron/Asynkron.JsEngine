@@ -68,6 +68,11 @@ public sealed partial class IntlLocaleConstructor(IJsObjectLike prototype, Realm
     {
         var instance = PrepareThisObject(thisValue);
         var tagValue = args.GetArgument(0);
+        if (!tagValue.IsString && !tagValue.IsObject)
+        {
+            throw ThrowTypeError("Intl.Locale tag must be a string or object", realm: Realm);
+        }
+
         var tag = StandardLibrary.JsValueToString(tagValue, Realm);
         var canonicalTag = IntlUtilities.CanonicalizeLocale(tag, Realm);
 

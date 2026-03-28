@@ -3760,6 +3760,11 @@ public sealed class JsRegExp
 
     private static string BuildPropertyEscapePatternCore(string propertyExpression, bool negate)
     {
+        if (TryBuildStringPropertyEscapePattern(propertyExpression, negate, out var stringPattern))
+        {
+            return stringPattern;
+        }
+
         var ranges = UnicodePropertyData.Resolve(propertyExpression);
         if (ranges is null)
         {
@@ -3767,6 +3772,11 @@ public sealed class JsRegExp
                 $"Invalid regular expression: invalid unicode property escape \\{(negate ? 'P' : 'p')}{{{propertyExpression}}}.");
         }
 
+        return BuildResolvedPropertyEscapePattern(ranges, negate);
+    }
+
+    private static string BuildResolvedPropertyEscapePattern((int Start, int End)[] ranges, bool negate)
+    {
         if (ranges.Length == 0)
         {
             // Empty property — matches nothing (or everything if negated)
@@ -3882,6 +3892,154 @@ public sealed class JsRegExp
 
         sb.Append(')');
         return sb.ToString();
+    }
+
+    private static bool TryBuildStringPropertyEscapePattern(string propertyExpression, bool negate, out string pattern)
+    {
+        pattern = string.Empty;
+
+        if (negate)
+        {
+            return false;
+        }
+
+        string BuildAlternation(params string[] alternatives)
+        {
+            var sb = new StringBuilder();
+            sb.Append("(?:");
+            for (var i = 0; i < alternatives.Length; i++)
+            {
+                if (i > 0)
+                {
+                    sb.Append('|');
+                }
+
+                sb.Append(alternatives[i]);
+            }
+
+            sb.Append(')');
+            return sb.ToString();
+        }
+
+        string BuildCodePointSequence(params int[] codePoints)
+        {
+            var sb = new StringBuilder();
+            sb.Append("(?:");
+            foreach (var cp in codePoints)
+            {
+                AppendCodePoint(sb, cp, false, false, true);
+            }
+
+            sb.Append(')');
+            return sb.ToString();
+        }
+
+        string BuildEmojiZWJSequencePattern()
+        {
+            var pict = BuildPropertyEscapePattern("Extended_Pictographic", false);
+            var modifier = BuildPropertyEscapePattern("Emoji_Modifier", false);
+            var element = $"(?:{pict}(?:\\uFE0F)?(?:{modifier})?)";
+            return $"(?:{element}(?:\\u200D{element})+)";
+        }
+
+        string BuildResolvedStringPropertyPattern(string propertyName)
+        {
+            var ranges = UnicodePropertyData.Resolve(propertyName);
+            if (ranges is null)
+            {
+                throw new ParseException(
+                    $"Invalid regular expression: invalid unicode property escape \\p{{{propertyName}}}.");
+            }
+
+            return BuildResolvedPropertyEscapePattern(ranges, negate: false);
+        }
+
+        static (int Start, int End)[] SubtractRanges((int Start, int End)[] minuend, (int Start, int End)[] subtrahend)
+        {
+            if (minuend.Length == 0)
+            {
+                return [];
+            }
+
+            if (subtrahend.Length == 0)
+            {
+                return minuend;
+            }
+
+            var result = new List<(int Start, int End)>();
+            var j = 0;
+
+            foreach (var (start, end) in minuend)
+            {
+                var currentStart = start;
+
+                while (j < subtrahend.Length && subtrahend[j].End < currentStart)
+                {
+                    j++;
+                }
+
+                var k = j;
+                while (k < subtrahend.Length && subtrahend[k].Start <= end)
+                {
+                    var (otherStart, otherEnd) = subtrahend[k];
+                    if (otherStart > currentStart)
+                    {
+                        result.Add((currentStart, Math.Min(end, otherStart - 1)));
+                    }
+
+                    if (otherEnd >= end)
+                    {
+                        currentStart = end + 1;
+                        break;
+                    }
+
+                    currentStart = Math.Max(currentStart, otherEnd + 1);
+                    k++;
+                }
+
+                if (currentStart <= end)
+                {
+                    result.Add((currentStart, end));
+                }
+            }
+
+            return [.. result];
+        }
+
+        string BuildBasicEmojiPattern()
+        {
+            var basicEmoji = UnicodePropertyData.Resolve("Basic_Emoji") ?? [];
+            var emojiPresentation = UnicodePropertyData.Resolve("Emoji_Presentation") ?? [];
+            var textDefaultEmoji = SubtractRanges(basicEmoji, emojiPresentation);
+            var emojiPresentationPattern = BuildResolvedPropertyEscapePattern(emojiPresentation, negate: false);
+            var textDefaultPattern = BuildResolvedPropertyEscapePattern(textDefaultEmoji, negate: false);
+            return BuildAlternation(
+                emojiPresentationPattern,
+                $"{textDefaultPattern}\\uFE0F");
+        }
+
+        pattern = propertyExpression switch
+        {
+            "Basic_Emoji" => BuildBasicEmojiPattern(),
+            "Emoji_Keycap_Sequence" => @"(?:[0-9#*]\uFE0F?\u20E3)",
+            "RGI_Emoji_Flag_Sequence" => $"(?:{BuildPropertyEscapePattern("Regional_Indicator", false)}{{2}})",
+            "RGI_Emoji_Modifier_Sequence" => $"(?:{BuildPropertyEscapePattern("Emoji_Modifier_Base", false)}\\uFE0F?{BuildPropertyEscapePattern("Emoji_Modifier", false)})",
+            "RGI_Emoji_Tag_Sequence" => BuildAlternation(
+                BuildCodePointSequence(0x1F3F4, 0xE0067, 0xE0062, 0xE0065, 0xE006E, 0xE0067, 0xE007F),
+                BuildCodePointSequence(0x1F3F4, 0xE0067, 0xE0062, 0xE0073, 0xE0063, 0xE0074, 0xE007F),
+                BuildCodePointSequence(0x1F3F4, 0xE0067, 0xE0062, 0xE0077, 0xE006C, 0xE0073, 0xE007F)),
+            "RGI_Emoji_ZWJ_Sequence" => BuildEmojiZWJSequencePattern(),
+            "RGI_Emoji" => BuildAlternation(
+                BuildPropertyEscapePattern("Basic_Emoji", false),
+                BuildPropertyEscapePattern("Emoji_Keycap_Sequence", false),
+                BuildPropertyEscapePattern("RGI_Emoji_Flag_Sequence", false),
+                BuildPropertyEscapePattern("RGI_Emoji_Modifier_Sequence", false),
+                BuildPropertyEscapePattern("RGI_Emoji_Tag_Sequence", false),
+                BuildPropertyEscapePattern("RGI_Emoji_ZWJ_Sequence", false)),
+            _ => string.Empty
+        };
+
+        return !string.IsNullOrEmpty(pattern);
     }
 
     /// <summary>

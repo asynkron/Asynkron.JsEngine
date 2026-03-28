@@ -107,6 +107,11 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
             return;
         }
 
+        if (value.TryGetObject<JsPromise>(out var directPromise))
+        {
+            value = JsValue.FromObjectUnsafe(directPromise.JsObject);
+        }
+
         // Check if value is a thenable (has a callable 'then' property)
         // Per ES spec 25.4.1.3.2 step 9: Let then be Get(resolution, "then").
         // If then is an abrupt completion (e.g. poisoned getter), reject the promise.

@@ -624,14 +624,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     [MethodImpl(JsEngineConstants.Inlining)]
     public bool TryGetPromise([NotNullWhen(true)] out JsPromise? value)
     {
-        if (Kind == JsValueKind.Object && ObjectValue is JsPromise promise)
-        {
-            value = promise;
-            return true;
-        }
-
-        value = null;
-        return false;
+        return JsPromise.TryGetInternalPromise(this, out value);
     }
 
     /// <summary>

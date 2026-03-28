@@ -12,19 +12,44 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay>, IComparable<JsTemporalPlainMonthDay>
 {
-    public JsTemporalPlainMonthDay(int month, int day, string calendar = "iso8601", int? referenceYear = null)
+    private readonly string? _monthCode;
+    private readonly int _referenceMonth;
+    private readonly int _referenceDay;
+
+    public JsTemporalPlainMonthDay(int month, int day, string calendar = "iso8601", int? referenceYear = null,
+        string? monthCode = null, int? referenceMonth = null, int? referenceDay = null)
     {
-        if (month is < 1 or > 12)
+        if (month < 1)
         {
-            throw new ArgumentOutOfRangeException(nameof(month), "Month must be 1-12");
+            throw new ArgumentOutOfRangeException(nameof(month), "Month must be positive");
         }
 
-        // Validate day based on month — use safe year for DaysInMonth (handles extended years)
-        var yearForValidation = referenceYear is >= 1 and <= 9999 ? referenceYear.Value : 2000;
-        var maxDay = IsoCalendarHelpers.DaysInMonth(yearForValidation, month);
-        if (day < 1 || day > maxDay)
+        if (string.Equals(calendar, "iso8601", StringComparison.Ordinal))
         {
-            throw new ArgumentOutOfRangeException(nameof(day), $"Day must be 1-{maxDay} for month {month}");
+            if (month > 12)
+            {
+                throw new ArgumentOutOfRangeException(nameof(month), "Month must be 1-12");
+            }
+
+            // Validate day based on month — use safe year for DaysInMonth (handles extended years)
+            var yearForValidation = referenceYear is >= 1 and <= 9999 ? referenceYear.Value : 2000;
+            var maxDay = IsoCalendarHelpers.DaysInMonth(yearForValidation, month);
+            if (day < 1 || day > maxDay)
+            {
+                throw new ArgumentOutOfRangeException(nameof(day), $"Day must be 1-{maxDay} for month {month}");
+            }
+        }
+        else
+        {
+            if (month > 13)
+            {
+                throw new ArgumentOutOfRangeException(nameof(month), "Month must be 1-13 for non-ISO calendars");
+            }
+
+            if (day is < 1 or > 31)
+            {
+                throw new ArgumentOutOfRangeException(nameof(day), "Day must be 1-31 for non-ISO calendars");
+            }
         }
 
         Month = month;
@@ -32,6 +57,9 @@ public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay
         Calendar = calendar;
         // Reference year is used internally for calendar calculations
         ReferenceYear = referenceYear ?? 1972; // 1972 is a leap year
+        _monthCode = monthCode;
+        _referenceMonth = referenceMonth ?? month;
+        _referenceDay = referenceDay ?? day;
     }
 
     public int Month { get; }
@@ -42,7 +70,7 @@ public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay
     /// <summary>
     ///     The month code (e.g., "M01" for January).
     /// </summary>
-    public string MonthCode => $"M{Month:D2}";
+    public string MonthCode => _monthCode ?? $"M{Month:D2}";
 
     /// <summary>
     ///     Creates a PlainMonthDay from an ISO 8601 string.
@@ -123,6 +151,9 @@ public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay
 
         return Month == other.Month && Day == other.Day &&
                ReferenceYear == other.ReferenceYear &&
+               _referenceMonth == other._referenceMonth &&
+               _referenceDay == other._referenceDay &&
+               string.Equals(_monthCode, other._monthCode, StringComparison.Ordinal) &&
                string.Equals(Calendar, other.Calendar, StringComparison.Ordinal);
     }
 
@@ -133,7 +164,7 @@ public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay
 
     public override int GetHashCode()
     {
-        return HashCode.Combine(Month, Day, ReferenceYear, Calendar);
+        return HashCode.Combine(Month, Day, ReferenceYear, _referenceMonth, _referenceDay, _monthCode, Calendar);
     }
 
     /// <summary>
@@ -154,7 +185,7 @@ public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay
         // The leading -- IS REQUIRED. Internal tests verify "--12-25".
         if (!string.Equals(Calendar, "iso8601", StringComparison.Ordinal))
         {
-            return FormatYear(ReferenceYear) + $"-{Month:D2}-{Day:D2}[u-ca={Calendar}]";
+            return FormatYear(ReferenceYear) + $"-{_referenceMonth:D2}-{_referenceDay:D2}[u-ca={Calendar}]";
         }
         return $"--{Month:D2}-{Day:D2}";
     }
@@ -166,7 +197,7 @@ public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay
     public string ToStringWithCalendar(bool critical = false)
     {
         var prefix = critical ? "!" : "";
-        return FormatYear(ReferenceYear) + $"-{Month:D2}-{Day:D2}[{prefix}u-ca={Calendar}]";
+        return FormatYear(ReferenceYear) + $"-{_referenceMonth:D2}-{_referenceDay:D2}[{prefix}u-ca={Calendar}]";
     }
 
     private static string FormatYear(int year)

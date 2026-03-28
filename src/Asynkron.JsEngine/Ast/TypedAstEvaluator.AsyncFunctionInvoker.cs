@@ -30,6 +30,7 @@ public static partial class TypedAstEvaluator
         PrivateNameScope? privateNameScope,
         ImmutableArray<PrivateNameScope> capturedPrivateNameScopes)
     {
+        private readonly RealmState _realmState = realmState;
         private ExecutionPlanRunner? _inner;
 
         /// <summary>
@@ -99,9 +100,11 @@ public static partial class TypedAstEvaluator
             IJsCallable resolve,
             IJsCallable reject)
         {
+            Console.Error.WriteLine($"[AsyncFunctionInvoker] DriveToCompletion mode={mode} argType={argument.ObjectValue?.GetType().Name ?? argument.Kind.ToString()}");
             try
             {
                 var step = _inner!.ExecuteAsyncStep(mode, argument);
+                Console.Error.WriteLine($"[AsyncFunctionInvoker] Step kind={step.Kind} pendingType={step.PendingPromise.ObjectValue?.GetType().Name ?? step.PendingPromise.Kind.ToString()}");
 
                 switch (step.Kind)
                 {
@@ -144,6 +147,7 @@ public static partial class TypedAstEvaluator
             IJsCallable resolve,
             IJsCallable reject)
         {
+            Console.Error.WriteLine($"[AsyncFunctionInvoker] HandlePendingStep pendingType={step.PendingPromise.ObjectValue?.GetType().Name ?? step.PendingPromise.Kind.ToString()}");
             if (!TryGetPendingThenMethod(step, reject, out var thenCallable))
             {
                 return;
@@ -195,6 +199,8 @@ public static partial class TypedAstEvaluator
                 var mode = isRejection
                     ? ExecutionPlanRunner.ResumeMode.Throw
                     : ExecutionPlanRunner.ResumeMode.Next;
+
+                Console.Error.WriteLine($"[AsyncFunctionInvoker] ResumeCallback mode={mode} valueType={value.ObjectValue?.GetType().Name ?? value.Kind.ToString()}");
 
                 try
                 {

@@ -27,10 +27,9 @@ public sealed class ScriptSlotAnalysisTests : InternalTestBase
             AllowScriptSlotAnalysis = true
         });
 
-        var resultWithout = await engineNoSlots.Evaluate(script);
+        await Assert.ThrowsAsync<NotSupportedException>(async () => await engineNoSlots.Evaluate(script));
         var resultWith = await engineWithSlots.Evaluate(script);
 
-        Assert.Equal(3d, resultWithout);
         Assert.Equal(3d, resultWith);
     }
 

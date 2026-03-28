@@ -424,6 +424,9 @@ public static partial class TypedAstEvaluator
                 isLexicallyStrict, hasFunctionNameEnvironment, isConstructorFunction)
         };
 
+        System.Console.WriteLine(
+            $"[FunctionExpressionExtensions] callable={callable.GetType().Name} func={functionExpression.Name?.Name ?? "<anonymous>"} isAsync={functionExpression.IsAsync} wasAsync={functionExpression.WasAsync} isGenerator={functionExpression.IsGenerator}");
+
         var capturedPrivateScopes = context.CapturePrivateNameScopes();
         switch (callable)
         {

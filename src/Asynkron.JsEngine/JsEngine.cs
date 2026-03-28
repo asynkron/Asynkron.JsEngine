@@ -646,6 +646,19 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         }
     }
 
+    internal void DrainEventLoopUntilIdle(CancellationToken cancellationToken = default)
+    {
+        var combinedToken = CreateEvaluationCancellationToken(cancellationToken, out var timeoutCts);
+        try
+        {
+            DrainEventLoopAsync(combinedToken).GetAwaiter().GetResult();
+        }
+        finally
+        {
+            timeoutCts?.Dispose();
+        }
+    }
+
     private bool IsEventLoopDrained()
     {
         var hasActiveTimers = Interlocked.CompareExchange(ref _activeTimerCount, 0, 0) > 0;
@@ -2432,6 +2445,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 {
                     if (!cts.Token.IsCancellationRequested)
                     {
+                        System.Console.WriteLine($"[JsEngine] setTimeout firing timerId={timerId} delay={delay}");
                         callback.Invoke([], JsValue.Undefined);
                     }
                 }
@@ -2458,17 +2472,31 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         IJsCallable callback,
         CancellationTokenSource cts)
     {
+        var callbackScheduled = false;
         try
         {
             await Task.Delay(delay, cts.Token).ConfigureAwait(false);
 
             if (!cts.Token.IsCancellationRequested)
             {
+                callbackScheduled = true;
                 ScheduleTask(() =>
                 {
-                    if (!cts.Token.IsCancellationRequested)
+                    try
                     {
-                        callback.Invoke([], JsValue.Undefined);
+                        if (!cts.Token.IsCancellationRequested)
+                        {
+                            System.Console.WriteLine($"[JsEngine] setTimeout firing timerId={timerId} delay={delay}");
+                            callback.Invoke([], JsValue.Undefined);
+                        }
+                    }
+                    finally
+                    {
+                        if (_timers.TryRemove(timerId, out _))
+                        {
+                            Interlocked.Decrement(ref _activeTimerCount);
+                            TrySignalDrainComplete();
+                        }
                     }
                 });
             }
@@ -2479,7 +2507,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         }
         finally
         {
-            if (_timers.TryRemove(timerId, out _))
+            if (!callbackScheduled && _timers.TryRemove(timerId, out _))
             {
                 Interlocked.Decrement(ref _activeTimerCount);
                 TrySignalDrainComplete();
@@ -6253,7 +6281,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 return JsValue.Null;
             });
 
-            return TryEvaluateExpressionWithAwait(
+            _ = TryEvaluateExpressionWithAwait(
                 awaitedExpression,
                 env,
                 isStrict,
@@ -6267,6 +6295,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                     TryAwaitResolvedValue(resolved, onFulfilledFn);
                 },
                 advanceTopLevelStatement: false);
+            return false;
         }
 
         private bool ExecuteStatementWithAwait(StatementNode statement, JsEnvironment env, bool isStrict)
@@ -6735,16 +6764,144 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
 
         private bool TryEvaluateForStatementWithAwait(ForStatement statement, JsEnvironment env, bool isStrict)
         {
-            // Regular for loop with await in init/condition/increment/body
-            try
+            if (statement.Initializer is not null)
             {
-                _engine.ExecuteTypedStatement(statement, env, isStrict, false);
-                return true;
+                if (AstShapeAnalyzer.StatementContainsAwait(statement.Initializer))
+                {
+                    if (!ExecuteStatementWithAwait(statement.Initializer, env, isStrict))
+                    {
+                        return false;
+                    }
+                }
+                else
+                {
+                    try
+                    {
+                        _engine.ExecuteTypedStatement(statement.Initializer, env, isStrict, false);
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        Fail(signal);
+                        return false;
+                    }
+                }
             }
-            catch (ThrowSignal signal)
+
+            return EvaluateCondition();
+
+            bool EvaluateCondition()
             {
-                Fail(signal);
-                return false;
+                if (statement.Condition is null)
+                {
+                    return ExecuteBody();
+                }
+
+                if (AstShapeAnalyzer.ContainsAwait(statement.Condition))
+                {
+                    _ = TryEvaluateExpressionWithAwait(
+                        statement.Condition,
+                        env,
+                        isStrict,
+                        resolved =>
+                        {
+                            if (_completion.Task.IsCompleted)
+                            {
+                                return;
+                            }
+
+                            if (!resolved.IsTruthy)
+                            {
+                                _statementIndex++;
+                                Run();
+                                return;
+                            }
+
+                            _ = ExecuteBody();
+                        },
+                        advanceTopLevelStatement: false);
+                    return false;
+                }
+
+                try
+                {
+                    var conditionValue =
+                        JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(statement.Condition, env, isStrict));
+                    if (!conditionValue.IsTruthy)
+                    {
+                        _statementIndex++;
+                        Run();
+                        return false;
+                    }
+                }
+                catch (ThrowSignal signal)
+                {
+                    Fail(signal);
+                    return false;
+                }
+
+                return ExecuteBody();
+            }
+
+            bool ExecuteBody()
+            {
+                if (!ExecuteStatementWithAwait(statement.Body, env, isStrict))
+                {
+                    return false;
+                }
+
+                if (_breakSignaled)
+                {
+                    _breakSignaled = false;
+                    _statementIndex++;
+                    Run();
+                    return false;
+                }
+
+                if (_continueSignaled)
+                {
+                    _continueSignaled = false;
+                }
+
+                return ExecuteIncrement();
+            }
+
+            bool ExecuteIncrement()
+            {
+                if (statement.Increment is null)
+                {
+                    return EvaluateCondition();
+                }
+
+                if (AstShapeAnalyzer.ContainsAwait(statement.Increment))
+                {
+                    _ = TryEvaluateExpressionWithAwait(
+                        statement.Increment,
+                        env,
+                        isStrict,
+                        _ =>
+                        {
+                            if (_completion.Task.IsCompleted)
+                            {
+                                return;
+                            }
+
+                            _ = EvaluateCondition();
+                        },
+                        advanceTopLevelStatement: false);
+                    return false;
+                }
+
+                try
+                {
+                    _ = JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(statement.Increment, env, isStrict));
+                }
+                catch (ThrowSignal signal)
+                {
+                    Fail(signal);
+                    return false;
+                }
+
+                return EvaluateCondition();
             }
         }
     }

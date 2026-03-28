@@ -197,7 +197,8 @@ public static partial class TypedAstEvaluator
             candidate,
             context,
             out resolvedValue,
-            context.DrainAwaitMicrotasks);
+            context.DrainAwaitMicrotasks,
+            blockUntilSettled: true);
     }
 
     private static IEnumerable<JsValue> EnumeratePropertyKeys(JsValue value)

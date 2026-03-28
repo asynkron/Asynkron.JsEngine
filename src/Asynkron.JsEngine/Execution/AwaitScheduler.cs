@@ -1,6 +1,7 @@
 #region
 
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 #endregion
 
@@ -98,7 +99,8 @@ internal static class AwaitScheduler
         JsValue candidate,
         EvaluationContext context,
         out JsValue resolvedValue,
-        bool drainMicrotasks = true)
+        bool drainMicrotasks = true,
+        bool blockUntilSettled = false)
     {
         resolvedValue = candidate;
 
@@ -108,7 +110,8 @@ internal static class AwaitScheduler
             // Check for direct JsPromise (without JsObject wrapper)
             if (candidate.ObjectValue is JsPromise directPromise)
             {
-                return HandleDirectPromise(directPromise, context, out resolvedValue, drainMicrotasks);
+                return HandleDirectPromise(directPromise, context, out resolvedValue, drainMicrotasks,
+                    blockUntilSettled);
             }
 
             return true;
@@ -233,8 +236,32 @@ internal static class AwaitScheduler
             {
                 // Promise is still pending - return false to signal caller should yield
                 // Don't block! Let the caller handle suspension/resumption
-                ReturnState(awaitState);
-                return false;
+                if (!blockUntilSettled)
+                {
+                    ReturnState(awaitState);
+                    return false;
+                }
+
+                engine?.DrainEventLoopUntilIdle();
+                if (Volatile.Read(ref awaitState.Completed) == 0)
+                {
+                    if (TryGetSettledValueFast(resolvedValue, out var blockingSettled, out var blockingRejected))
+                    {
+                        ReturnState(awaitState);
+                        if (blockingRejected)
+                        {
+                            context.SetThrow(blockingSettled);
+                            resolvedValue = JsValue.Undefined;
+                            return false;
+                        }
+
+                        resolvedValue = blockingSettled;
+                        return true;
+                    }
+
+                    ReturnState(awaitState);
+                    return false;
+                }
             }
 
             var fulfilled = awaitState.Fulfilled;
@@ -257,7 +284,7 @@ internal static class AwaitScheduler
     }
 
     private static bool HandleDirectPromise(JsPromise promise, EvaluationContext context,
-        out JsValue resolvedValue, bool drainMicrotasks)
+        out JsValue resolvedValue, bool drainMicrotasks, bool blockUntilSettled)
     {
         var engine = context.RealmState.Engine;
 
@@ -298,7 +325,7 @@ internal static class AwaitScheduler
 
         // Need to wait via JsObject wrapper
         resolvedValue = new JsValue(promise.JsObject);
-        return TryAwaitPromiseSync(resolvedValue, context, out resolvedValue, drainMicrotasks);
+        return TryAwaitPromiseSync(resolvedValue, context, out resolvedValue, drainMicrotasks, blockUntilSettled);
     }
 
     public static bool TryResolvePromiseOrYield(JsValue candidate, bool asyncStepMode, ref JsValue pendingPromise,

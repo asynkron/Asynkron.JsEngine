@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Reflection;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution.Instructions;
 
 #endregion
@@ -254,6 +255,12 @@ internal sealed partial class ExecutionPlanBuilder
             switch (Instructions[i])
             {
                 case EvaluateAndDiscardInstruction { Expression: not null, ExpressionProgram: null } evaluateInstruction:
+                    if (AstShapeAnalyzer.ContainsAwait(evaluateInstruction.Expression) ||
+                        AstShapeAnalyzer.ContainsYield(evaluateInstruction.Expression))
+                    {
+                        break;
+                    }
+
                     if (!TryCompileExpressionProgram(evaluateInstruction.Expression, out var evaluateProgram, out var evaluateFailure))
                     {
                         return FailExpressionProgram(
@@ -474,6 +481,12 @@ internal sealed partial class ExecutionPlanBuilder
 
                     if (updatedBindingInstruction.Initializer is not null && updatedBindingInstruction.InitializerProgram is null)
                     {
+                        if (AstShapeAnalyzer.ContainsAwait(updatedBindingInstruction.Initializer) ||
+                            AstShapeAnalyzer.ContainsYield(updatedBindingInstruction.Initializer))
+                        {
+                            break;
+                        }
+
                         if (!TryCompileExpressionProgram(updatedBindingInstruction.Initializer, out var bindingInitializerProgram, out var bindingInitializerFailure))
                         {
                             return FailExpressionProgram(
@@ -518,7 +531,6 @@ internal sealed partial class ExecutionPlanBuilder
             {
                 switch (Instructions[instructionIndex])
                 {
-                    case EvaluateAndDiscardInstruction { Expression: not null }:
                     case AssignmentSlotInstruction { ValueExpression: not null }:
                     case LogicalCompoundAssignmentSlotInstruction { RhsExpression: not null }:
                     case CompoundAssignmentSlotInstruction { RhsExpression: not null }:
@@ -528,8 +540,13 @@ internal sealed partial class ExecutionPlanBuilder
                     case IteratorInitInstruction { IterableExpression: not null }:
                     case ForInInitInstruction { ObjectExpression: not null }:
                     case EnterWithInstruction { ObjectExpression: not null }:
+                    case EvaluateAndDiscardInstruction { Expression: not null } evaluateInstruction
+                        when !(AstShapeAnalyzer.ContainsAwait(evaluateInstruction.Expression) ||
+                               AstShapeAnalyzer.ContainsYield(evaluateInstruction.Expression)):
                     case ArrayDestructuringInitInstruction { SourceExpression: not null }:
-                    case BindingVariableDeclarationInstruction { Initializer: not null }:
+                    case BindingVariableDeclarationInstruction { Initializer: not null } bindingInstruction
+                        when !(AstShapeAnalyzer.ContainsAwait(bindingInstruction.Initializer) ||
+                               AstShapeAnalyzer.ContainsYield(bindingInstruction.Initializer)):
                         _failureCode ??= ExecutionPlanFailureCode.AstPayloadLeak;
                         _failureReason ??=
                             $"Execution plan published with an AST payload leak at instruction [{instructionIndex}] ({Instructions[instructionIndex].Kind}).";

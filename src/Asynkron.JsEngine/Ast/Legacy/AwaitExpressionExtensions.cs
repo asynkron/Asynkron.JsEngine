@@ -61,11 +61,22 @@ public static partial class TypedAstEvaluator
             awaitedValue = wrappedPromise is not null ? new JsValue(wrappedPromise) : awaitedValue;
         }
 
-        AwaitScheduler.TryAwaitPromiseSync(
+        var completed = AwaitScheduler.TryAwaitPromiseSync(
             awaitedValue,
             context,
             out var resolvedValue,
-            context.DrainAwaitMicrotasks);
+            context.DrainAwaitMicrotasks,
+            blockUntilSettled: true);
+
+        if (!completed)
+        {
+            if (!context.IsThrow)
+            {
+                throw new InvalidOperationException("Legacy await did not settle synchronously.");
+            }
+
+            return JsValue.Undefined;
+        }
 
         return resolvedValue;
     }

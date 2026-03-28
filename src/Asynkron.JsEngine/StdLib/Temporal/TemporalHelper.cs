@@ -3726,7 +3726,7 @@ public static class TemporalHelper
                     return WrapPlainYearMonth(
                         new JsTemporalPlainYearMonth(
                             plainDate.Year, plainDate.Month, zdt.Calendar,
-                            GetTemporalReferenceISODay(zdt.Calendar, plainDate.Year, plainDate.Month, realm)),
+                            GetTemporalReferenceISODay(zdt.Calendar, plainDate.Year, plainDate.Month, null, realm)),
                         realm, prototype);
                 }
             }
@@ -8830,7 +8830,7 @@ public static class TemporalHelper
         }
 
         RejectISOYearMonthRange(year, month, realm);
-        return new JsTemporalPlainYearMonth(year, month, calendar, GetTemporalReferenceISODay(calendar, year, month, realm));
+        return new JsTemporalPlainYearMonth(year, month, calendar, GetTemporalReferenceISODay(calendar, year, month, null, realm));
     }
 
     private static bool CalendarUsesEras(string calendar)
@@ -8869,39 +8869,17 @@ public static class TemporalHelper
         throw StandardLibrary.ThrowTypeError("Property bag for PlainYearMonth must have 'year'", realm: realm);
     }
 
-    private static int GetTemporalReferenceISODay(string calendar, int year, int month, RealmState realm)
+    private static int GetTemporalReferenceISODay(string calendar, int year, int month, string? monthCode, RealmState realm)
     {
-        if (string.Equals(calendar, "iso8601", StringComparison.Ordinal) ||
-            string.Equals(calendar, "gregory", StringComparison.Ordinal) ||
-            string.Equals(calendar, "japanese", StringComparison.Ordinal) ||
-            string.Equals(calendar, "buddhist", StringComparison.Ordinal) ||
-            string.Equals(calendar, "roc", StringComparison.Ordinal))
-        {
-            if (string.Equals(calendar, "iso8601", StringComparison.Ordinal))
-                return 1;
+        var resolvedMonthCode = monthCode ?? $"M{month:D2}";
 
-            return IsoCalendarHelpers.DaysInMonth(year is >= 1 and <= 9999 ? year : 2000, month);
-        }
+        if (TryFindLatestReferenceIsoDate(calendar, resolvedMonthCode, 1, out var referenceDate))
+            return referenceDate.Day;
 
-        if (string.Equals(calendar, "coptic", StringComparison.Ordinal) ||
-            string.Equals(calendar, "ethioaa", StringComparison.Ordinal) ||
-            string.Equals(calendar, "ethiopic", StringComparison.Ordinal))
-        {
-            return month == 13 ? (Math.Abs(year) % 4 == 3 ? 6 : 5) : 30;
-        }
+        if (string.Equals(calendar, "iso8601", StringComparison.Ordinal))
+            return 1;
 
-        if (string.Equals(calendar, "indian", StringComparison.Ordinal))
-        {
-            return month == 1 ? 31 : 30;
-        }
-
-        if (TryCreateBclCalendar(calendar, out var bclCalendar))
-        {
-            var bclMonth = ResolveBclMonthFromMonthCode($"M{month:D2}", bclCalendar, year, realm);
-            return bclCalendar.GetDaysInMonth(year, bclMonth, bclCalendar.Eras[0]);
-        }
-
-        throw StandardLibrary.ThrowRangeError($"Month M{month:D2} is out of range for calendar {calendar}", realm: realm);
+        throw StandardLibrary.ThrowRangeError($"Month {resolvedMonthCode} is out of range for calendar {calendar}", realm: realm);
     }
 
     /// <summary>
@@ -11850,14 +11828,14 @@ public static class TemporalHelper
                 RejectISOYearMonthRange(ymResult.Value.year, ymResult.Value.month, realm);
                 return new JsTemporalPlainYearMonth(
                     ymResult.Value.year, ymResult.Value.month, calendar,
-                    GetTemporalReferenceISODay(calendar, ymResult.Value.year, ymResult.Value.month, realm));
+                    GetTemporalReferenceISODay(calendar, ymResult.Value.year, ymResult.Value.month, null, realm));
             }
 
             // Full date (YYYY-MM-DD) — extract year+month, discard day per spec
             // Use ParseDatePartNoRangeCheck: day is discarded, only year+month range matters
             var (year, month, _) = ParseDatePartNoRangeCheck(baseStr, str, realm);
             RejectISOYearMonthRange(year, month, realm);
-            return new JsTemporalPlainYearMonth(year, month, calendar, GetTemporalReferenceISODay(calendar, year, month, realm));
+            return new JsTemporalPlainYearMonth(year, month, calendar, GetTemporalReferenceISODay(calendar, year, month, null, realm));
         }
 
         // 2. Non-string primitives → TypeError

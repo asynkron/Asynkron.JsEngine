@@ -216,7 +216,7 @@ public static partial class TypedAstEvaluator
                 return resolved;
             }
 
-            if (!AsyncStateRef.PendingPromise.TryGetPropertyAccessor(out _))
+            if (!HasPendingPromise())
             {
                 return resolved;
             }
@@ -285,6 +285,13 @@ public static partial class TypedAstEvaluator
             // resolvedObj is already JsValue from the scheduler
             resolvedValue = resolvedObj;
             return result;
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private bool HasPendingPromise()
+        {
+            return JsPromise.TryGetInternalPromise(AsyncStateRef.PendingPromise, out _) ||
+                   AsyncStateRef.PendingPromise.TryGetPropertyAccessor(out _);
         }
 
         private bool TryHandlePendingAwait(EvaluationContext context, out JsValue result,
@@ -428,7 +435,7 @@ public static partial class TypedAstEvaluator
             out JsValue suspendResult)
         {
             if (AsyncStateRef.AsyncStepMode &&
-                AsyncStateRef.PendingPromise.TryGetPropertyAccessor(out _))
+                HasPendingPromise())
             {
                 driverState.AwaitingValue = true;
                 var iterState = driverState.AsJsValue;
@@ -789,7 +796,7 @@ public static partial class TypedAstEvaluator
                         if (!TryResolvePromiseOrYield(nextResult, context, out var awaitedNext))
                         {
                             if (AsyncStateRef.AsyncStepMode &&
-                                AsyncStateRef.PendingPromise.TryGetPropertyAccessor(out _))
+                                HasPendingPromise())
                             {
                                 driverState.AwaitingNextResult = true;
                                 // Use JsVariable for scope-correct access

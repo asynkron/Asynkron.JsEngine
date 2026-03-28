@@ -90,6 +90,13 @@ internal static partial class IntlUtilities
             return seen;
         }
 
+        if (locales.TryGetObject<JsObject>(out var localeObjectCandidate) &&
+            IntlLocalePrototype.TryBuildLocaleIdentifier(localeObjectCandidate, out var localeIdentifier))
+        {
+            AppendCanonicalLocale(seen, localeIdentifier, realm);
+            return seen;
+        }
+
         if (!StandardLibrary.TryGetObject(locales, realm, out var localeObject))
         {
             throw StandardLibrary.ThrowTypeError("Intl locale list must be object-like", realm: realm);
@@ -304,7 +311,34 @@ internal static partial class IntlUtilities
     public static bool TryNormalizeNumberingSystem(string? numberingSystem, out string canonical)
     {
         canonical = numberingSystem?.Trim().ToLowerInvariant() ?? string.Empty;
-        return NumberingSystemSet.Contains(canonical);
+        return NumberingSystemSet.Contains(canonical) || IsUnicodeTypeSequence(canonical);
+    }
+
+    internal static bool IsUnicodeTypeSequence(string value)
+    {
+        var parts = value.Split('-', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+        {
+            return false;
+        }
+
+        foreach (var part in parts)
+        {
+            if (part.Length is < 3 or > 8)
+            {
+                return false;
+            }
+
+            foreach (var ch in part)
+            {
+                if (!char.IsLetterOrDigit(ch))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     public static bool TryGetCanonicalCurrency(string? code, out string canonical)
@@ -859,6 +893,11 @@ internal static partial class IntlUtilities
             variants.Remove("hepburn");
         }
 
+        if (TryResolveRegularGrandfatheredAlias(ref language, variants))
+        {
+            variants.Sort(StringComparer.Ordinal);
+        }
+
         var extensions = new List<string>();
         while (i < subtags.Length && !string.Equals(subtags[i], "x", StringComparison.Ordinal))
         {
@@ -1288,7 +1327,7 @@ internal static partial class IntlUtilities
         }
 
         var filteredOverrides = overrides
-            .Where(static kvp => !string.IsNullOrWhiteSpace(kvp.Value))
+            .Where(static kvp => kvp.Key == "fw" || !string.IsNullOrWhiteSpace(kvp.Value))
             .ToDictionary(static kvp => kvp.Key, static kvp => kvp.Value, StringComparer.Ordinal);
 
         if (filteredOverrides.Count == 0)
@@ -1360,6 +1399,11 @@ internal static partial class IntlUtilities
             {
                 output.Add(key);
                 var value = keywords[key];
+                if (string.Equals(key, "fw", StringComparison.Ordinal) && string.IsNullOrEmpty(value))
+                {
+                    continue;
+                }
+
                 if (!string.IsNullOrEmpty(value) && !string.Equals(value, "true", StringComparison.Ordinal))
                 {
                     output.AddRange(value.Split('-'));
@@ -1376,6 +1420,11 @@ internal static partial class IntlUtilities
                 foreach (var kvp in ordered)
                 {
                     output.Add(kvp.Key);
+                    if (string.Equals(kvp.Key, "fw", StringComparison.Ordinal) && string.IsNullOrEmpty(kvp.Value))
+                    {
+                        continue;
+                    }
+
                     if (!string.Equals(kvp.Value, "true", StringComparison.Ordinal))
                     {
                         output.AddRange(kvp.Value.Split('-'));
@@ -1385,6 +1434,38 @@ internal static partial class IntlUtilities
         }
 
         return string.Join('-', output);
+    }
+
+    private static bool TryResolveRegularGrandfatheredAlias(ref string language, ICollection<string> variants)
+    {
+        var currentVariants = variants as List<string> ?? variants.ToList();
+        for (var i = 0; i < currentVariants.Count; i++)
+        {
+            var candidate = language + "-" + currentVariants[i];
+            if (!IntlLocaleData.TagMappings.TryGetValue(candidate, out var replacement))
+            {
+                continue;
+            }
+
+            language = replacement;
+            if (variants is List<string> variantList)
+            {
+                variantList.RemoveAt(i);
+            }
+            else
+            {
+                currentVariants.RemoveAt(i);
+                variants.Clear();
+                foreach (var item in currentVariants)
+                {
+                    variants.Add(item);
+                }
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     private static string ResolveLocaleEntry(JsValue candidate, RealmState realm)

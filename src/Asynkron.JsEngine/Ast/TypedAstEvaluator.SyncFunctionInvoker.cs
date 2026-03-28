@@ -706,11 +706,14 @@ public static partial class TypedAstEvaluator
 
             // Async functions use the generator IR executor for non-blocking await
             // This routes async functions through ExecutionPlanRunner with _asyncStepMode=true
-            if (IsAsyncFunction && !IsClassConstructor)
+            if (IsAsyncLike && !IsClassConstructor)
             {
                 RealmState.ReturnContext(context);
                 try
                 {
+                    RealmState.Logger?.LogInformation(
+                        "[SyncFunctionInvoker] Routing async-like function {Function} to AsyncFunctionInvoker",
+                        _function.Name?.Name ?? "<anonymous>");
                     var executor = new AsyncFunctionInvoker(
                         _function,
                         _closure,
@@ -1496,6 +1499,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                         IsAsyncFunction,
                         _wasAsyncFunction,
                         completionValue.Kind);
+                    System.Console.WriteLine(
+                        $"[SyncFunctionInvoker] Async completion func={_function.Name?.Name ?? "<anonymous>"} isAsync={IsAsyncFunction} wasAsync={_wasAsyncFunction} completionKind={completionValue.Kind} shouldStop={context.ShouldStopEvaluation} isReturn={context.IsReturn} isThrow={context.IsThrow}");
                     var resolvedResult = CreateResolvedPromise(completionValue, executionEnvironment);
                     return resolvedResult;
                 }

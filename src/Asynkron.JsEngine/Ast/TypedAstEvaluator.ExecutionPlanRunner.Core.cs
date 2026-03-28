@@ -332,7 +332,7 @@ public static partial class TypedAstEvaluator
             {
                 var result = ExecutePlan(mode, resumeValue);
 
-                if (AsyncStateRef.PendingPromise.TryGetPropertyAccessor(out _))
+                if (HasPendingPromise())
                 {
                     return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Pending, JsValue.Undefined, false,
                         AsyncStateRef.PendingPromise);

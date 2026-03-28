@@ -174,12 +174,18 @@ public static partial class TypedAstEvaluator
             IJsCallable resolve,
             IJsCallable reject)
         {
+            var (onFulfilled, onRejected) = AsyncResumeCallback.Rent(this, resolve, reject);
+            if (JsPromise.TryGetInternalPromise(step.PendingPromise, out var pendingPromise))
+            {
+                pendingPromise.Then(onFulfilled, onRejected);
+                return;
+            }
+
             if (!TryGetPendingThenMethod(step, reject, out var thenCallable))
             {
                 return;
             }
 
-            var (onFulfilled, onRejected) = AsyncResumeCallback.Rent(this, resolve, reject);
             AsyncInvokeWithTwoArgs(
                 thenCallable,
                 JsValue.FromObjectUnsafe(onFulfilled),

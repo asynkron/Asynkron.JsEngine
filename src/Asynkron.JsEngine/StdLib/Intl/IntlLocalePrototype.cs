@@ -88,13 +88,7 @@ public sealed partial class IntlLocalePrototype
             return JsValue.Undefined;
         }
 
-        var result = new JsArray(Realm);
-        foreach (var variant in variants)
-        {
-            result.Push(variant);
-        }
-
-        return JsValue.FromJsArray(result);
+        return string.Join('-', variants);
     }
 
     [JsHostGetter("calendar", DisplayName = "get calendar")]
@@ -124,7 +118,14 @@ public sealed partial class IntlLocalePrototype
     [JsHostGetter("caseFirst", DisplayName = "get caseFirst")]
     private JsValue GetCaseFirst(JsValue thisValue)
     {
-        return GetKeywordValue(thisValue, "kf");
+        var locale = ValidateLocaleReceiver(thisValue);
+        var value = GetKeyword(locale, "kf");
+        if (string.IsNullOrEmpty(value))
+        {
+            return JsValue.Undefined;
+        }
+
+        return string.Equals(value, "true", StringComparison.Ordinal) ? string.Empty : value;
     }
 
     [JsHostGetter("numeric", DisplayName = "get numeric")]

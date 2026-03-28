@@ -3,6 +3,7 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
 using Asynkron.JsEngine.Runtime;
+using Microsoft.Extensions.Logging;
 
 #endregion
 
@@ -100,11 +101,14 @@ public static partial class TypedAstEvaluator
             IJsCallable resolve,
             IJsCallable reject)
         {
-            Console.Error.WriteLine($"[AsyncFunctionInvoker] DriveToCompletion mode={mode} argType={argument.ObjectValue?.GetType().Name ?? argument.Kind.ToString()}");
+            _realmState.Logger?.LogInformation(
+                "[AsyncFunctionInvoker] DriveToCompletion mode={Mode} argKind={Kind}",
+                mode,
+                argument.Kind);
+            System.Console.WriteLine($"[AsyncFunctionInvoker] DriveToCompletion mode={mode} argKind={argument.Kind}");
             try
             {
                 var step = _inner!.ExecuteAsyncStep(mode, argument);
-                Console.Error.WriteLine($"[AsyncFunctionInvoker] Step kind={step.Kind} pendingType={step.PendingPromise.ObjectValue?.GetType().Name ?? step.PendingPromise.Kind.ToString()}");
 
                 switch (step.Kind)
                 {
@@ -147,13 +151,18 @@ public static partial class TypedAstEvaluator
             IJsCallable resolve,
             IJsCallable reject)
         {
-            Console.Error.WriteLine($"[AsyncFunctionInvoker] HandlePendingStep pendingType={step.PendingPromise.ObjectValue?.GetType().Name ?? step.PendingPromise.Kind.ToString()}");
+            var (onFulfilled, onRejected) = AsyncResumeCallback.Rent(this, resolve, reject);
+            if (JsPromise.TryGetInternalPromise(step.PendingPromise, out var pendingPromise))
+            {
+                pendingPromise.Then(onFulfilled, onRejected);
+                return;
+            }
+
             if (!TryGetPendingThenMethod(step, reject, out var thenCallable))
             {
                 return;
             }
 
-            var (onFulfilled, onRejected) = AsyncResumeCallback.Rent(this, resolve, reject);
             AsyncInvokeWithTwoArgs(
                 thenCallable,
                 JsValue.FromObjectUnsafe(onFulfilled),
@@ -189,6 +198,12 @@ public static partial class TypedAstEvaluator
                 var isRejection = _isRejection;
                 var sibling = _sibling;
 
+                _executor!._realmState.Logger?.LogInformation(
+                    "[AsyncFunctionInvoker] ResumeCallback isRejection={IsRejection} argKind={Kind}",
+                    isRejection,
+                    args.Count > 0 ? args[0].Kind.ToString() : "none");
+                System.Console.WriteLine($"[AsyncFunctionInvoker] ResumeCallback isRejection={isRejection} argKind={(args.Count > 0 ? args[0].Kind.ToString() : "none")}");
+
                 // Clear state before execution
                 _executor = null;
                 _resolve = null;
@@ -199,8 +214,6 @@ public static partial class TypedAstEvaluator
                 var mode = isRejection
                     ? ExecutionPlanRunner.ResumeMode.Throw
                     : ExecutionPlanRunner.ResumeMode.Next;
-
-                Console.Error.WriteLine($"[AsyncFunctionInvoker] ResumeCallback mode={mode} valueType={value.ObjectValue?.GetType().Name ?? value.Kind.ToString()}");
 
                 try
                 {

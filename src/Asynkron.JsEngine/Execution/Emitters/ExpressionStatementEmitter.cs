@@ -148,8 +148,7 @@ internal static class ExpressionStatementEmitter
             {
                 IsCompoundAssignment: false,
                 IsImmutableTarget: false
-            } assignment &&
-            !AstShapeAnalyzer.ContainsAwait(assignment))
+            } assignment)
         {
             entryIndex = ctx.Append(new AssignmentSlotInstruction(
                 nextIndex,
@@ -171,7 +170,6 @@ internal static class ExpressionStatementEmitter
                 IsCompoundAssignment: true,
                 Value: BinaryExpression logicalBinary
             } logicalCompoundAssign &&
-            !AstShapeAnalyzer.ContainsAwait(logicalCompoundAssign) &&
             logicalBinary.Operator is
                 BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr or BinaryOperator.NullishCoalescing)
         {
@@ -191,7 +189,6 @@ internal static class ExpressionStatementEmitter
                 IsCompoundAssignment: true,
                 Value: BinaryExpression arithmeticBinary
             } compoundAssign &&
-            !AstShapeAnalyzer.ContainsAwait(compoundAssign) &&
             arithmeticBinary.Operator is
                 BinaryOperator.Add or BinaryOperator.Subtract or
                 BinaryOperator.Multiply or BinaryOperator.Divide or

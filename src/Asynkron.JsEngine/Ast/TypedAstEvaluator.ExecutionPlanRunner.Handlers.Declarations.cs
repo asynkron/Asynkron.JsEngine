@@ -241,10 +241,18 @@ public static partial class TypedAstEvaluator
             var instruction = Unsafe.As<SimpleVariableDeclarationInstruction>(instr);
             var hasInitializer = instruction.Initializer is not null || instruction.InitializerProgram is not null;
             var isAnonymousFunctionDefinition = instruction.AllowNameInference;
+            var isLexicalDeclaration = instruction.VarKind != VariableKind.Var;
+            var isConstDeclaration = instruction.VarKind == VariableKind.Const;
 
             using var functionNameHint = isAnonymousFunctionDefinition
                 ? context.EnterFunctionNameHint(instruction.TargetSymbol)
                 : null;
+
+            if (isLexicalDeclaration && hasInitializer)
+            {
+                environment.DefineJsValue(instruction.TargetSymbol, JsValue.Uninitialized,
+                    isConstDeclaration, isLexicalBinding: true, blocksFunctionScopeOverride: true);
+            }
 
             var varValue = instruction.InitializerProgram is { } initializerProgram
                 ? runner.EvaluateExpressionProgram(initializerProgram, environment, context)
@@ -285,8 +293,13 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                var isConst = instruction.VarKind == VariableKind.Const;
-                // Compiled out when TRACE_IR_EXECUTION not defined
+                environment.DefineJsValue(instruction.TargetSymbol, varValue,
+                    isConstDeclaration, isLexicalBinding: true, blocksFunctionScopeOverride: true);
+            }
+
+            // Compiled out when TRACE_IR_EXECUTION not defined
+            if (instruction.VarKind != VariableKind.Var)
+            {
                 ExecutionPlanPrinter.TraceDefine(
                     runner._realmState.Logger,
                     instruction.VarKind.ToString(),
@@ -295,8 +308,6 @@ public static partial class TypedAstEvaluator
                     environment.Depth,
                     environment.ScopeId,
                     environment.GetHashCode());
-                environment.DefineJsValue(instruction.TargetSymbol, varValue,
-                    isConst, isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
             runner._programCounter = instruction.Next;

@@ -294,7 +294,7 @@ public static class RegExpHelper
         {
             if (receiver.TryGetObject<HostFunction>(out var receiverFunction) &&
                 receiverFunction.RealmState is { } receiverRealm &&
-                ReferenceEquals(receiverFunction, receiverRealm.RegExpConstructor))
+                ReferenceEquals(receiverFunction, constructor))
             {
                 return receiverRealm.RegExpStatics;
             }

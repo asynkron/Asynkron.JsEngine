@@ -7541,6 +7541,116 @@ internal static class UnicodePropertyData
     /// \p{scx=Latn}, \p{ASCII}, \p{Alphabetic}, etc.
     /// </summary>
     /// <returns>Array of (Start, End) ranges, or null if property not found.</returns>
+    private static (int Start, int End)[]? ComputedScriptExtensionsCommonRanges;
+    private static (int Start, int End)[]? ComputedScriptExtensionsInheritedRanges;
+
+    private static (int Start, int End)[] GetSpecialScriptExtensionRanges(string scriptName)
+    {
+        if (scriptName == "Common")
+        {
+            return ComputedScriptExtensionsCommonRanges ??= BuildSpecialScriptExtensionRanges(scriptName);
+        }
+
+        return ComputedScriptExtensionsInheritedRanges ??= BuildSpecialScriptExtensionRanges(scriptName);
+    }
+
+    private static (int Start, int End)[] BuildSpecialScriptExtensionRanges(string scriptName)
+    {
+        var baseRanges = ScriptRanges[scriptName];
+        var exclusions = new List<(int Start, int End)>();
+
+        foreach (var entry in ScriptExtensionRanges)
+        {
+            if (entry.Key.Equals(scriptName, StringComparison.OrdinalIgnoreCase) ||
+                entry.Key.Equals("Common", StringComparison.OrdinalIgnoreCase) ||
+                entry.Key.Equals("Inherited", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            exclusions.AddRange(entry.Value);
+        }
+
+        return SubtractRanges(baseRanges, MergeRanges(exclusions));
+    }
+
+    private static (int Start, int End)[] MergeRanges(List<(int Start, int End)> ranges)
+    {
+        if (ranges.Count == 0)
+        {
+            return [];
+        }
+
+        ranges.Sort(static (left, right) => left.Start.CompareTo(right.Start));
+        var mergedRanges = new List<(int Start, int End)>(ranges.Count);
+
+        foreach (var range in ranges)
+        {
+            if (mergedRanges.Count == 0)
+            {
+                mergedRanges.Add(range);
+                continue;
+            }
+
+            var last = mergedRanges[^1];
+            if (range.Start <= last.End + 1)
+            {
+                mergedRanges[^1] = (last.Start, Math.Max(last.End, range.End));
+                continue;
+            }
+
+            mergedRanges.Add(range);
+        }
+
+        return [.. mergedRanges];
+    }
+
+    private static (int Start, int End)[] SubtractRanges((int Start, int End)[] source, (int Start, int End)[] exclusions)
+    {
+        if (source.Length == 0 || exclusions.Length == 0)
+        {
+            return source;
+        }
+
+        var result = new List<(int Start, int End)>();
+        var exclusionIndex = 0;
+
+        foreach (var (sourceStart, sourceEnd) in source)
+        {
+            var currentStart = sourceStart;
+
+            while (exclusionIndex < exclusions.Length && exclusions[exclusionIndex].End < currentStart)
+            {
+                exclusionIndex++;
+            }
+
+            var scanIndex = exclusionIndex;
+            while (scanIndex < exclusions.Length && exclusions[scanIndex].Start <= sourceEnd)
+            {
+                var exclusion = exclusions[scanIndex];
+                if (exclusion.Start > currentStart)
+                {
+                    result.Add((currentStart, Math.Min(sourceEnd, exclusion.Start - 1)));
+                }
+
+                currentStart = Math.Max(currentStart, exclusion.End + 1);
+                if (currentStart > sourceEnd)
+                {
+                    break;
+                }
+
+                scanIndex++;
+            }
+
+            if (currentStart <= sourceEnd)
+            {
+                result.Add((currentStart, sourceEnd));
+            }
+        }
+
+        return [.. result];
+    }
+
     public static (int Start, int End)[]? Resolve(string propertyExpression)
     {
         // Check for key=value syntax: General_Category=Lu, gc=Lu, Script=Latin, etc.
@@ -7574,6 +7684,8 @@ internal static class UnicodePropertyData
                 // Resolve script alias
                 if (ScriptAliases.TryGetValue(value, out var canonical))
                     value = canonical;
+                if (value is "Common" or "Inherited")
+                    return GetSpecialScriptExtensionRanges(value);
                 // Unknown/Zzzz has no assigned code points — return empty ranges
                 if (value is "Unknown")
                     return [];

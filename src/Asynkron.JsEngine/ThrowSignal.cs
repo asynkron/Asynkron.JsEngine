@@ -48,6 +48,16 @@ public sealed class ThrowSignal : Exception
             return $"Unhandled JavaScript throw: \"{str}\"";
         }
 
+        if (thrownValue.TryUnwrap<Ast.JsSymbol>(out var symbol))
+        {
+            return $"Unhandled JavaScript throw: {symbol}";
+        }
+
+        if (thrownValue.IsSymbol)
+        {
+            return $"Unhandled JavaScript throw: {thrownValue.ObjectValue?.ToString() ?? "symbol"}";
+        }
+
         if (thrownValue.TryGetObject<JsObject>(out var jsObj))
         {
             // Try to get error message or name from the object

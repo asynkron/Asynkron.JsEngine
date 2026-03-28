@@ -167,11 +167,8 @@ public static partial class TypedAstEvaluator
             switch (target)
             {
                 case IdentifierBinding id:
-                    if (!environment.HasBinding(id.Name))
-                    {
-                        environment.DefineJsValue(id.Name, JsValue.Uninitialized, isConst: isConst,
+                    environment.DefineJsValue(id.Name, JsValue.Uninitialized, isConst: isConst,
 isLexicalBinding: true, blocksFunctionScopeOverride: true);
-                    }
 
                     break;
                 case ArrayBinding arrayBinding:

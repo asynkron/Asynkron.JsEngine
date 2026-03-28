@@ -114,9 +114,13 @@ public static partial class TypedAstEvaluator
             {
                 allowReuseIterationEnvironment = false;
             }
+            var isExistingIterationEnvironment =
+                environment.Enclosing != null &&
+                environment.Description is "scope" or "loop-scope";
             var isSubsequentIteration =
                 hasIterationBindings &&
-                ((instruction.ScopeId >= 0 && environment.ScopeId == instruction.ScopeId) ||
+                ((instruction.ScopeId >= 0 && isExistingIterationEnvironment &&
+                  environment.ScopeId == instruction.ScopeId) ||
                  (instruction.ScopeId < 0 && environment.Description == "scope" && environment.Enclosing != null));
 
             if (isSubsequentIteration &&

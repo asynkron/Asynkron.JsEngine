@@ -30,17 +30,15 @@ public sealed class SourceReferenceInExceptionsTests(ITestOutputHelper output) :
     [Fact(Timeout = 2000)]
     public async Task Exception_InvalidOperandIncrement_ValidatesWithoutException()
     {
-        // ++++x is actually valid (it's ++, then ++x)
-        // This test just verifies no exception is thrown
+        // ++++x is invalid JavaScript. Engines such as Node reject it with
+        // "Invalid left-hand side expression in prefix operation".
         var source = @"
         let x = 5;
         let result = ++++x;
         ";
 
         await using var engine = CreateEngine();
-        var result = await engine.Evaluate(source);
-        // This should work fine
-        Assert.NotNull(result);
+        await Assert.ThrowsAnyAsync<Exception>(async () => await engine.Evaluate(source));
     }
 
     [Fact(Timeout = 2000)]

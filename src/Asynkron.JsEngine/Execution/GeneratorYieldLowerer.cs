@@ -1743,6 +1743,7 @@ internal static class GeneratorYieldLowerer
                 [new VariableDeclarator(null, iteratorDoneSymbol, new LiteralExpression(null, JsValue.False))]));
 
             var tryStatements = ImmutableArray.CreateBuilder<StatementNode>();
+            var yieldedDefaultSeen = false;
 
             // Step 2: Process each element
             foreach (var element in arrayBinding.Elements)
@@ -1764,6 +1765,12 @@ internal static class GeneratorYieldLowerer
                     return false;
                 }
 
+                var elementVarKind = varKind;
+                if (yieldedDefaultSeen && varKind is not null && elementTarget is IdentifierBinding)
+                {
+                    elementVarKind = VariableKind.Var;
+                }
+
                 var valSymbol = CreateResumeIdentifier();
                 EmitIteratorNextValue(
                     iterSymbol,
@@ -1775,12 +1782,17 @@ internal static class GeneratorYieldLowerer
                 if (!TryLowerBindingTargetWithOptionalDefault(
                         elementTarget,
                         element.DefaultValue,
-                        varKind,
+                        elementVarKind,
                         valSymbol,
                         tryStatements,
                         isStrict))
                 {
                     return false;
+                }
+
+                if (element.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(element.DefaultValue))
+                {
+                    yieldedDefaultSeen = true;
                 }
             }
 
@@ -2130,11 +2142,13 @@ internal static class GeneratorYieldLowerer
             }
 
             // Has yield in default: use if statement
-            // let targetName;
-            // Note: Always use Let for uninitialized temporaries (const x; is invalid JS)
+            // var targetName;
+            // A yielded default needs a resumable binding that survives suspension
+            // without hitting TDZ on resume. The concrete declaration kind is not
+            // externally observable in these lowered generator cases.
             statements.Add(new VariableDeclaration(
                 null,
-                VariableKind.Let,
+                VariableKind.Var,
                 [new VariableDeclarator(null, identifierBinding, null)]));
 
             // if (__val === undefined) { targetName = yield expr; } else { targetName = __val; }
@@ -2654,12 +2668,29 @@ internal static class GeneratorYieldLowerer
             ImmutableArray<StatementNode>.Builder statements,
             bool isStrict)
         {
-            // Handle yields in the default expression by extracting them
+            // Lower nested yields in the default branch, but hoist their temp bindings
+            // to the surrounding scope first so resumption can still see them.
             var defaultPrefixStatements = ImmutableArray.CreateBuilder<StatementNode>();
             var changed = false;
             var rewrittenDefault = RewriteExpressionForComplexYields(defaultValue, defaultPrefixStatements, ref changed);
 
-            // Build the consequent (then) branch
+            foreach (var prefixStatement in defaultPrefixStatements)
+            {
+                if (prefixStatement is not VariableDeclaration
+                    {
+                        Kind: VariableKind.Var,
+                        Declarators: [{ Target: IdentifierBinding identifierBinding, Initializer: YieldExpression }]
+                    })
+                {
+                    continue;
+                }
+
+                statements.Add(new VariableDeclaration(
+                    null,
+                    VariableKind.Var,
+                    [new VariableDeclarator(null, identifierBinding, null)]));
+            }
+
             var consequentStatements = ImmutableArray.CreateBuilder<StatementNode>();
             consequentStatements.AddRange(defaultPrefixStatements);
             consequentStatements.Add(new ExpressionStatement(

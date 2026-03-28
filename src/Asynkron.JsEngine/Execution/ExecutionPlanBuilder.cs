@@ -277,6 +277,12 @@ internal sealed partial class ExecutionPlanBuilder
                     break;
 
                 case AssignmentSlotInstruction { ValueExpression: not null, ValueProgram: null } assignmentInstruction:
+                    if (AstShapeAnalyzer.ContainsAwait(assignmentInstruction.ValueExpression) ||
+                        AstShapeAnalyzer.ContainsYield(assignmentInstruction.ValueExpression))
+                    {
+                        break;
+                    }
+
                     if (!TryCompileExpressionProgram(assignmentInstruction.ValueExpression, out var assignmentProgram, out var assignmentFailure))
                     {
                         return FailExpressionProgram(
@@ -293,6 +299,12 @@ internal sealed partial class ExecutionPlanBuilder
                     break;
 
                 case LogicalCompoundAssignmentSlotInstruction { RhsExpression: not null, RhsProgram: null } logicalInstruction:
+                    if (AstShapeAnalyzer.ContainsAwait(logicalInstruction.RhsExpression) ||
+                        AstShapeAnalyzer.ContainsYield(logicalInstruction.RhsExpression))
+                    {
+                        break;
+                    }
+
                     if (!TryCompileExpressionProgram(logicalInstruction.RhsExpression, out var logicalProgram, out var logicalFailure))
                     {
                         return FailExpressionProgram(
@@ -309,6 +321,12 @@ internal sealed partial class ExecutionPlanBuilder
                     break;
 
                 case CompoundAssignmentSlotInstruction { RhsExpression: not null, RhsProgram: null } compoundInstruction:
+                    if (AstShapeAnalyzer.ContainsAwait(compoundInstruction.RhsExpression) ||
+                        AstShapeAnalyzer.ContainsYield(compoundInstruction.RhsExpression))
+                    {
+                        break;
+                    }
+
                     if (!TryCompileExpressionProgram(compoundInstruction.RhsExpression, out var compoundProgram, out var compoundFailure))
                     {
                         return FailExpressionProgram(
@@ -531,9 +549,15 @@ internal sealed partial class ExecutionPlanBuilder
             {
                 switch (Instructions[instructionIndex])
                 {
-                    case AssignmentSlotInstruction { ValueExpression: not null }:
-                    case LogicalCompoundAssignmentSlotInstruction { RhsExpression: not null }:
-                    case CompoundAssignmentSlotInstruction { RhsExpression: not null }:
+                    case AssignmentSlotInstruction { ValueExpression: not null } assignmentInstruction
+                        when !(AstShapeAnalyzer.ContainsAwait(assignmentInstruction.ValueExpression) ||
+                               AstShapeAnalyzer.ContainsYield(assignmentInstruction.ValueExpression)):
+                    case LogicalCompoundAssignmentSlotInstruction { RhsExpression: not null } logicalInstruction
+                        when !(AstShapeAnalyzer.ContainsAwait(logicalInstruction.RhsExpression) ||
+                               AstShapeAnalyzer.ContainsYield(logicalInstruction.RhsExpression)):
+                    case CompoundAssignmentSlotInstruction { RhsExpression: not null } compoundInstruction
+                        when !(AstShapeAnalyzer.ContainsAwait(compoundInstruction.RhsExpression) ||
+                               AstShapeAnalyzer.ContainsYield(compoundInstruction.RhsExpression)):
                     case SimpleVariableDeclarationInstruction { Initializer: not null }:
                     case YieldInstruction { YieldExpression: not null }:
                     case YieldStarInstruction { IterableExpression: not null }:

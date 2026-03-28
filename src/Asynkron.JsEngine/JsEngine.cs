@@ -5220,7 +5220,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 return false;
             }
 
-            var isPromise = awaitedValue.TryGetPromise(out var settledPromise);
+            var isPromise = JsPromise.TryGetInternalPromise(awaitedValue, out var settledPromise);
             if (isPromise &&
                 settledPromise.TryGetSettled(out var settledValue, out var isRejected))
             {
@@ -5264,7 +5264,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 (!awaitedValue.IsObject ||
                 !awaitedValue.TryGetObject<IJsPropertyAccessor>(out var objectAccessor) ||
                 !objectAccessor.TryGetProperty("then", out var objectThenValue) ||
-                !objectThenValue.TryGetObject<IJsCallable>(out _)))
+                !objectThenValue.TryGetCallable(out _)))
             {
                 try
                 {
@@ -5309,7 +5309,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
 
         private IJsPropertyAccessor? WrapAwaitedValue(JsValue value)
         {
-            if (value.TryGetPromise(out var directPromise))
+            if (JsPromise.TryGetInternalPromise(value, out var directPromise) && directPromise is not null)
             {
                 return directPromise.JsObject;
             }
@@ -5884,7 +5884,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                     tempEnv.DefineJsValue(binding.Symbol, resolved, true, isLexicalBinding: true,
                         blocksFunctionScopeOverride: false);
                     EvaluateTempBinding(index + 1);
-                }, advanceTopLevelStatement);
+                }, advanceTopLevelStatement: false);
             }
         }
 
@@ -6414,6 +6414,13 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                         advanceTopLevelStatement: false);
 
                 case VariableDeclaration variableDeclaration
+                    when variableDeclaration.Declarators.All(d => d.Target is IdentifierBinding) &&
+                         ContainsDirectAwaitInitializer(variableDeclaration):
+                    return TryEvaluateDeclarationWithAwait(variableDeclaration, env, isStrict,
+                        advanceTopLevelStatement: false,
+                        onCompleted);
+
+                case VariableDeclaration variableDeclaration
                     when DeclarationNeedsAwaitTemps(variableDeclaration):
                     return TryEvaluateDeclarationWithAwait(variableDeclaration, env, isStrict,
                         advanceTopLevelStatement: false,
@@ -6659,24 +6666,18 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         bool isStrict,
         Func<bool> onCompleted)
     {
-        bool ContinueAfterTry()
-        {
-            _statementIndex++;
-            Run();
-            return true;
-        }
+        bool ContinueAfterTry() => onCompleted();
 
         bool ScheduleContinueAfterTry()
         {
-            _engine.QueueMicrotask(JsCallableMicrotask.Rent(new HostFunction(_ =>
+            _engine.QueueMicrotask(JsCallableMicrotask.Rent(new HostFunction(_args =>
             {
                 if (_completion.Task.IsCompleted)
                 {
                     return JsValue.Null;
                 }
 
-                _statementIndex++;
-                Run();
+                onCompleted();
                 return JsValue.Null;
             })));
             return false;
@@ -6744,6 +6745,13 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
 
         private static void BindCatchValue(CatchClause catchClause, JsValue thrownValue, JsEnvironment catchEnv)
         {
+            if (thrownValue.TryGetObject<JsObject>(out var boxedObject) &&
+                boxedObject.TryGetProperty("__value__", out var boxedPrimitive) &&
+                boxedPrimitive.TryUnwrap<JsSymbol>(out var boxedSymbol))
+            {
+                thrownValue = JsValue.FromObjectUnsafe(boxedSymbol);
+            }
+
             if (catchClause.Binding is null)
             {
                 return;

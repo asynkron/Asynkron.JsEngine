@@ -582,7 +582,7 @@ public sealed class JsRegExp
                     continue; // Already processed this duplicate group
                 }
 
-                var value = ResolveDuplicateGroupValue(regex, renamedNames, captureValues);
+                var value = ResolveDuplicateGroupValue(match, renamedNames);
                 groups.DefineProperty(originalName, new PropertyDescriptor
                 {
                     Value = value, Writable = true, Enumerable = true, Configurable = true
@@ -606,15 +606,34 @@ public sealed class JsRegExp
     /// <summary>
     /// For duplicate named groups, finds the value of whichever renamed group actually matched.
     /// </summary>
-    private static JsValue ResolveDuplicateGroupValue(Regex regex, string[] renamedNames, JsValue[] values)
+    private static JsValue ResolveDuplicateGroupValue(Match match, string[] renamedNames)
     {
-        foreach (var renamedName in renamedNames)
+        for (var i = renamedNames.Length - 1; i >= 0; i--)
         {
-            var num = regex.GroupNumberFromName(renamedName);
-            if (num >= 0 && num < values.Length && values[num] != JsValue.Undefined)
+            var group = match.Groups[renamedNames[i]];
+            if (group.Success)
             {
-                return values[num];
+                return new JsValue(group.Value);
             }
+        }
+
+        return JsValue.Undefined;
+    }
+
+    private JsValue ResolveDuplicateGroupIndicesValue(Match match, string[] renamedNames)
+    {
+        for (var i = renamedNames.Length - 1; i >= 0; i--)
+        {
+            var group = match.Groups[renamedNames[i]];
+            if (!group.Success)
+            {
+                continue;
+            }
+
+            var pair = new JsArray(RealmState);
+            pair.Push((double)group.Index);
+            pair.Push((double)(group.Index + group.Length));
+            return JsValue.FromJsArray(pair);
         }
 
         return JsValue.Undefined;
@@ -711,7 +730,7 @@ public sealed class JsRegExp
                     continue;
                 }
 
-                var value = ResolveDuplicateGroupValue(regex, renamedNames, indexValues);
+                var value = ResolveDuplicateGroupIndicesValue(match, renamedNames);
                 groups.DefineProperty(originalName, new PropertyDescriptor
                 {
                     Value = value, Writable = true, Enumerable = true, Configurable = true
@@ -3557,6 +3576,11 @@ public sealed class JsRegExp
 
     private static string NormalizeUnicodeCharacterClass(string pattern, ref int index, bool unicodeIgnoreCase = false)
     {
+        if (TryNormalizeSimpleUnicodeSetDifference(pattern, ref index, unicodeIgnoreCase, out var setDifferencePattern))
+        {
+            return setDifferencePattern;
+        }
+
         var start = index + 1;
         if (start >= pattern.Length)
         {
@@ -3892,6 +3916,175 @@ public sealed class JsRegExp
 
         sb.Append(')');
         return sb.ToString();
+    }
+
+    private static bool TryNormalizeSimpleUnicodeSetDifference(string pattern, ref int index, bool unicodeIgnoreCase, out string normalized)
+    {
+        normalized = string.Empty;
+
+        var outerStart = index;
+        if (outerStart + 6 >= pattern.Length || pattern[outerStart + 1] != '[')
+        {
+            return false;
+        }
+
+        var innerClose = FindSimpleClassClose(pattern, outerStart + 1);
+        if (innerClose < 0 ||
+            innerClose + 3 >= pattern.Length ||
+            pattern[innerClose + 1] != '-' ||
+            pattern[innerClose + 2] != '-' ||
+            pattern[innerClose + 3] != '\\' ||
+            innerClose + 4 >= pattern.Length)
+        {
+            return false;
+        }
+
+        var rhsEscape = pattern[innerClose + 4];
+        if (rhsEscape is not ('d' or 'D' or 'w' or 'W' or 's' or 'S'))
+        {
+            return false;
+        }
+
+        var outerClose = innerClose + 5;
+        if (outerClose >= pattern.Length || pattern[outerClose] != ']')
+        {
+            return false;
+        }
+
+        var innerClass = pattern.Substring(outerStart + 1, innerClose - outerStart);
+        var lhsRanges = ParseNormalizedBmpClassRanges(innerClass, unicodeIgnoreCase);
+        var rhsRanges = GetCharacterClassEscapeRanges(rhsEscape)
+            .Where(static r => r.End <= 0xFFFF)
+            .Select(static r => (r.Start, r.End))
+            .ToArray();
+
+        var effectiveRanges = SubtractBmpRanges(lhsRanges, rhsRanges);
+        normalized = effectiveRanges.Length == 0
+            ? @"[^\s\S]"
+            : $"[{BuildBmpClassContent([.. effectiveRanges])}]";
+        index = outerClose;
+        return true;
+    }
+
+    private static int FindSimpleClassClose(string pattern, int startBracketIndex)
+    {
+        for (var i = startBracketIndex + 1; i < pattern.Length; i++)
+        {
+            if (pattern[i] == '\\')
+            {
+                i++;
+                continue;
+            }
+
+            if (pattern[i] == ']')
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private static (int Start, int End)[] SubtractBmpRanges((int Start, int End)[] minuend, (int Start, int End)[] subtrahend)
+    {
+        if (minuend.Length == 0)
+        {
+            return [];
+        }
+
+        if (subtrahend.Length == 0)
+        {
+            return minuend;
+        }
+
+        var result = new List<(int Start, int End)>();
+        var j = 0;
+
+        foreach (var (start, end) in minuend)
+        {
+            var currentStart = start;
+
+            while (j < subtrahend.Length && subtrahend[j].End < currentStart)
+            {
+                j++;
+            }
+
+            var k = j;
+            while (k < subtrahend.Length && subtrahend[k].Start <= end)
+            {
+                var (otherStart, otherEnd) = subtrahend[k];
+                if (otherStart > currentStart)
+                {
+                    result.Add((currentStart, Math.Min(end, otherStart - 1)));
+                }
+
+                if (otherEnd >= end)
+                {
+                    currentStart = end + 1;
+                    break;
+                }
+
+                currentStart = Math.Max(currentStart, otherEnd + 1);
+                k++;
+            }
+
+            if (currentStart <= end)
+            {
+                result.Add((currentStart, end));
+            }
+        }
+
+        return [.. result];
+    }
+
+    private static (int Start, int End)[] ParseNormalizedBmpClassRanges(string normalizedClass, bool unicodeIgnoreCase)
+    {
+        if (normalizedClass.Length < 2 || normalizedClass[0] != '[' || normalizedClass[^1] != ']')
+        {
+            throw new ParseException("Invalid regular expression: invalid nested character class.");
+        }
+
+        var cursor = 1;
+        var end = normalizedClass.Length - 1;
+        var bmpRanges = new List<(int Start, int End)>();
+
+        while (cursor < end)
+        {
+            if (cursor + 1 < end &&
+                normalizedClass[cursor] == '\\' &&
+                normalizedClass[cursor + 1] is 'd' or 'D' or 'w' or 'W' or 's' or 'S')
+            {
+                var escapeChar = normalizedClass[cursor + 1];
+                foreach (var (s, e) in GetCharacterClassEscapeRanges(escapeChar))
+                {
+                    if (e <= 0xFFFF)
+                    {
+                        bmpRanges.Add((s, e));
+                    }
+                }
+
+                if (unicodeIgnoreCase && escapeChar == 'w')
+                {
+                    bmpRanges.Add((0x017F, 0x017F));
+                    bmpRanges.Add((0x212A, 0x212A));
+                }
+
+                cursor += 2;
+                continue;
+            }
+
+            var startCp = ParseClassCodePoint(normalizedClass, ref cursor);
+            var endCp = startCp;
+            if (cursor < end && normalizedClass[cursor] == '-' && cursor + 1 < end)
+            {
+                cursor++;
+                endCp = ParseClassCodePoint(normalizedClass, ref cursor);
+            }
+
+            bmpRanges.Add((startCp, endCp));
+        }
+
+        return [.. bmpRanges];
     }
 
     private static bool TryBuildStringPropertyEscapePattern(string propertyExpression, bool negate, out string pattern)
@@ -4550,6 +4743,8 @@ public sealed class JsRegExp
         {
             case '-':
                 return "\\-";
+            case '[':
+                return "\\[";
             case ']':
                 return "\\]";
             case '\\':

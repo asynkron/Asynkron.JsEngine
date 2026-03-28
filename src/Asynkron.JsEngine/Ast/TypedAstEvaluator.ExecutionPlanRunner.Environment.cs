@@ -144,12 +144,9 @@ public static partial class TypedAstEvaluator
             var lexicalDeclarationKinds = hoistPlan.LexicalDeclarationKinds;
             foreach (var lexicalName in topLevelLexicalNames)
             {
-                if (!executionEnvironment.HasBinding(lexicalName))
-                {
-                    var isConst = lexicalDeclarationKinds.TryGetValue(lexicalName, out var c) && c;
-                    executionEnvironment.DefineJsValue(lexicalName, JsValue.Uninitialized, isConst: isConst,
+                var isConst = lexicalDeclarationKinds.TryGetValue(lexicalName, out var c) && c;
+                executionEnvironment.DefineJsValue(lexicalName, JsValue.Uninitialized, isConst: isConst,
 isLexicalBinding: true, blocksFunctionScopeOverride: true);
-                }
             }
 
             // Store YieldResumeContext reference in the environment for yield expressions

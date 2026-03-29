@@ -8759,11 +8759,6 @@ internal static class UnicodePropertyData
                 if (ScriptAliases.TryGetValue(value, out var canonical))
                     value = canonical;
 
-                if (value is "Common" or "Inherited")
-                {
-                    return ScriptRanges.GetValueOrDefault(value);
-                }
-
                 if (value == "Unknown")
                 {
                     return GeneralCategoryRanges.GetValueOrDefault("Cn");

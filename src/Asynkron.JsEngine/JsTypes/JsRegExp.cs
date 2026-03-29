@@ -609,21 +609,35 @@ public sealed class JsRegExp
     /// </summary>
     private static JsValue ResolveDuplicateGroupValue(Match match, string[] renamedNames)
     {
-        for (var i = renamedNames.Length - 1; i >= 0; i--)
+        if (!TryResolveDuplicateGroupCapture(match, renamedNames, out var capture))
         {
-            var group = match.Groups[renamedNames[i]];
-            if (group.Captures.Count > 0)
-            {
-                return new JsValue(group.Captures[group.Captures.Count - 1].Value);
-            }
+            return JsValue.Undefined;
         }
 
-        return JsValue.Undefined;
+        return new JsValue(capture.Value);
     }
 
     private JsValue ResolveDuplicateGroupIndicesValue(Match match, string[] renamedNames)
     {
-        for (var i = renamedNames.Length - 1; i >= 0; i--)
+        if (!TryResolveDuplicateGroupCapture(match, renamedNames, out var capture))
+        {
+            return JsValue.Undefined;
+        }
+
+        var pair = new JsArray(RealmState);
+        pair.Push((double)capture.Index);
+        pair.Push((double)(capture.Index + capture.Length));
+        return JsValue.FromJsArray(pair);
+    }
+
+    private static bool TryResolveDuplicateGroupCapture(Match match, string[] renamedNames, out Capture capture)
+    {
+        capture = null!;
+        var found = false;
+        var selectedIndex = -1;
+        var selectedRenameIndex = -1;
+
+        for (var i = 0; i < renamedNames.Length; i++)
         {
             var group = match.Groups[renamedNames[i]];
             if (group.Captures.Count == 0)
@@ -631,14 +645,19 @@ public sealed class JsRegExp
                 continue;
             }
 
-            var capture = group.Captures[group.Captures.Count - 1];
-            var pair = new JsArray(RealmState);
-            pair.Push((double)capture.Index);
-            pair.Push((double)(capture.Index + capture.Length));
-            return JsValue.FromJsArray(pair);
+            var candidate = group.Captures[group.Captures.Count - 1];
+            if (!found ||
+                candidate.Index > selectedIndex ||
+                (candidate.Index == selectedIndex && i > selectedRenameIndex))
+            {
+                capture = candidate;
+                selectedIndex = candidate.Index;
+                selectedRenameIndex = i;
+                found = true;
+            }
         }
 
-        return JsValue.Undefined;
+        return found;
     }
 
     private JsArray BuildIndicesArray(Match match)
@@ -3982,6 +4001,8 @@ public sealed class JsRegExp
         return content.Contains("[", StringComparison.Ordinal) ||
                content.Contains("--", StringComparison.Ordinal) ||
                content.Contains("&&", StringComparison.Ordinal) ||
+               content.Contains(@"\p{", StringComparison.Ordinal) ||
+               content.Contains(@"\P{", StringComparison.Ordinal) ||
                content.Contains(@"\q{", StringComparison.Ordinal);
     }
 
@@ -4287,9 +4308,8 @@ public sealed class JsRegExp
         }
 
         var propertyExpr = content.Substring(cursor + 3, endBrace - (cursor + 3));
-        if (!negate && TryBuildStringPropertyEscapePattern(propertyExpr, false, out var stringPattern))
+        if (!negate && TryBuildStringPropertyEscapeElements(propertyExpr, out elements))
         {
-            elements.PatternStrings.Add(stringPattern);
             cursor = endBrace + 1;
             return true;
         }
@@ -4302,6 +4322,60 @@ public sealed class JsRegExp
 
         AddRanges(elements, negate ? ComplementCodePointRanges(ranges) : ranges);
         cursor = endBrace + 1;
+        return true;
+    }
+
+    private static bool TryBuildStringPropertyEscapeElements(string propertyExpression, out UnicodeSetElements elements)
+    {
+        elements = new UnicodeSetElements();
+
+        switch (propertyExpression)
+        {
+            case "Basic_Emoji":
+            {
+                var basicEmoji = UnicodePropertyData.Resolve("Basic_Emoji") ?? [];
+                var emojiPresentation = UnicodePropertyData.Resolve("Emoji_Presentation") ?? [];
+                var textDefaultEmoji = SubtractRanges(basicEmoji, emojiPresentation);
+
+                AddRanges(elements, emojiPresentation);
+
+                if (textDefaultEmoji.Length > 0)
+                {
+                    var textDefaultPattern = BuildResolvedPropertyEscapePattern(textDefaultEmoji, negate: false);
+                    elements.PatternStrings.Add($"(?:{textDefaultPattern}\\uFE0F)");
+                }
+
+                return true;
+            }
+            case "RGI_Emoji":
+            {
+                TryBuildStringPropertyEscapeElements("Basic_Emoji", out elements);
+
+                foreach (var propertyName in new[]
+                         {
+                             "Emoji_Keycap_Sequence",
+                             "RGI_Emoji_Flag_Sequence",
+                             "RGI_Emoji_Modifier_Sequence",
+                             "RGI_Emoji_Tag_Sequence",
+                             "RGI_Emoji_ZWJ_Sequence"
+                         })
+                {
+                    if (TryBuildStringPropertyEscapePattern(propertyName, false, out var pattern))
+                    {
+                        elements.PatternStrings.Add(pattern);
+                    }
+                }
+
+                return true;
+            }
+        }
+
+        if (!TryBuildStringPropertyEscapePattern(propertyExpression, false, out var stringPattern))
+        {
+            return false;
+        }
+
+        elements.PatternStrings.Add(stringPattern);
         return true;
     }
 
@@ -4324,6 +4398,30 @@ public sealed class JsRegExp
         return true;
     }
 
+    private static bool PatternMatchesLiteral(string pattern, string literal)
+    {
+        return Regex.IsMatch(literal, "\\A(?:" + pattern + ")\\z", RegexOptions.CultureInvariant);
+    }
+
+    private static bool TryGetSingleCodePoint(string literal, out int codePoint)
+    {
+        codePoint = 0;
+
+        if (literal.Length == 1)
+        {
+            codePoint = literal[0];
+            return true;
+        }
+
+        if (literal.Length == 2 && char.IsSurrogatePair(literal, 0))
+        {
+            codePoint = char.ConvertToUtf32(literal, 0);
+            return true;
+        }
+
+        return false;
+    }
+
     private static UnicodeSetElements UnionUnicodeSetElements(UnicodeSetElements left, UnicodeSetElements right)
     {
         var result = new UnicodeSetElements();
@@ -4342,13 +4440,9 @@ public sealed class JsRegExp
     {
         result = new UnicodeSetElements();
 
-        if (left.PatternStrings.Count > 0 || right.PatternStrings.Count > 0)
-        {
-            return false;
-        }
-
         AddBmpRanges(result, IntersectRanges(left.BmpRanges, right.BmpRanges));
         AddAstralRanges(result, IntersectRanges(left.AstralRanges, right.AstralRanges));
+        result.PatternStrings.UnionWith(left.PatternStrings.Intersect(right.PatternStrings, StringComparer.Ordinal));
 
         foreach (var literal in left.LiteralStrings)
         {
@@ -4358,7 +4452,13 @@ public sealed class JsRegExp
                 continue;
             }
 
-            if (literal.Length == 1 && ContainsCodePoint(right, literal[0]))
+            if (TryGetSingleCodePoint(literal, out var codePoint) && ContainsCodePoint(right, codePoint))
+            {
+                result.LiteralStrings.Add(literal);
+                continue;
+            }
+
+            if (right.PatternStrings.Any(pattern => PatternMatchesLiteral(pattern, literal)))
             {
                 result.LiteralStrings.Add(literal);
             }
@@ -4366,7 +4466,13 @@ public sealed class JsRegExp
 
         foreach (var literal in right.LiteralStrings)
         {
-            if (literal.Length == 1 && ContainsCodePoint(left, literal[0]))
+            if (TryGetSingleCodePoint(literal, out var codePoint) && ContainsCodePoint(left, codePoint))
+            {
+                result.LiteralStrings.Add(literal);
+                continue;
+            }
+
+            if (left.PatternStrings.Any(pattern => PatternMatchesLiteral(pattern, literal)))
             {
                 result.LiteralStrings.Add(literal);
             }
@@ -4379,22 +4485,15 @@ public sealed class JsRegExp
     {
         result = new UnicodeSetElements();
 
-        if (right.PatternStrings.Count > 0)
-        {
-            if (left.PatternStrings.Count > 0)
-            {
-                return false;
-            }
-
-            AddBmpRanges(result, left.BmpRanges);
-            AddAstralRanges(result, left.AstralRanges);
-            result.LiteralStrings.UnionWith(left.LiteralStrings);
-            return true;
-        }
-
         AddBmpRanges(result, SubtractRanges(left.BmpRanges, right.BmpRanges));
         AddAstralRanges(result, SubtractRanges(left.AstralRanges, right.AstralRanges));
-        result.PatternStrings.UnionWith(left.PatternStrings);
+        foreach (var pattern in left.PatternStrings)
+        {
+            if (!right.PatternStrings.Contains(pattern))
+            {
+                result.PatternStrings.Add(pattern);
+            }
+        }
 
         foreach (var literal in left.LiteralStrings)
         {
@@ -4403,7 +4502,12 @@ public sealed class JsRegExp
                 continue;
             }
 
-            if (literal.Length == 1 && ContainsCodePoint(right, literal[0]))
+            if (TryGetSingleCodePoint(literal, out var codePoint) && ContainsCodePoint(right, codePoint))
+            {
+                continue;
+            }
+
+            if (right.PatternStrings.Any(pattern => PatternMatchesLiteral(pattern, literal)))
             {
                 continue;
             }

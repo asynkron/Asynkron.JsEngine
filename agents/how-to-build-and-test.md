@@ -75,3 +75,10 @@ dotnet run --project examples/Demo
 dotnet run --project examples/PromiseDemo
 dotnet run --project examples/NpmPackageDemo
 ```
+
+## Test262 regression session
+- Source list: `tests/Asynkron.JsEngine.Tests.Test262/current-regressions.filter.txt`
+- Runner: `./tools/run-test262-regressions.sh`
+- This pack is intentionally Test262-only and excludes non-Test262 regressions such as `Asynkron.JsEngine.Tests.Array_indexOf_OnlyCallsHasPropertyOnPrototypeAfterLengthZeroed`.
+- Smaller subsystem packs live under `tests/Asynkron.JsEngine.Tests.Test262/regression-packs/`.
+- Examples: `./tools/run-test262-regressions.sh full`, `./tools/run-test262-regressions.sh temporal`, `./tools/run-test262-regressions.sh regexp`, `./tools/run-test262-regressions.sh proxy`.

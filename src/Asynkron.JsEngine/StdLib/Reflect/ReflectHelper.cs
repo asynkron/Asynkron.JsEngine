@@ -156,8 +156,11 @@ public static class ReflectHelper
         if ((realm.ArrayConstructor is not null && ReferenceEquals(target, realm.ArrayConstructor)) ||
             (realm.ArrayConstructor is not null && ReferenceEquals(newTarget, realm.ArrayConstructor)))
         {
+            TryGetRealmInfo(newTarget, out var newTargetRealmState, out _);
             var instanceRealm = proto is JsObject { RealmState: { } protoRealm }
                 ? protoRealm
+                : newTargetRealmState is { } proxiedRealm
+                    ? proxiedRealm
                 : newTarget switch
                 {
                     HostFunction { RealmState: { } hostRealm } => hostRealm,
@@ -844,7 +847,8 @@ public static class ReflectHelper
             throw ThrowTypeError("Cannot perform operation on a revoked Proxy", realm: realm);
         }
 
-        if (!handler.TryGetProperty(trapName, out var trapValue))
+        var handlerJsValue = JsValue.FromObjectUnsafe(handler);
+        if (!handler.TryGetProperty(trapName, handlerJsValue, out var trapValue))
         {
             return null;
         }
@@ -860,7 +864,6 @@ public static class ReflectHelper
         }
 
         var targetJsValue = JsValue.FromObjectUnsafe(proxy.Target);
-        var handlerJsValue = JsValue.FromObjectUnsafe(handler);
         var args = new[] { targetJsValue };
         return trap.Invoke(args, handlerJsValue);
     }

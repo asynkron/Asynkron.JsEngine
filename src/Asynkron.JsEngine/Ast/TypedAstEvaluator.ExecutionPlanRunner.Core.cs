@@ -125,7 +125,16 @@ public static partial class TypedAstEvaluator
             if (environment.LayoutId == plan.LayoutId && plan.LayoutId > 0)
             {
                 var strictRunner = new ExecutionPlanRunner(plan, environment, context, slotOffset: 0);
-                return strictRunner.RunScriptInternal();
+                var previousContext = EvaluationContext.Current;
+                EvaluationContext.Current = context;
+                try
+                {
+                    return strictRunner.RunScriptInternal();
+                }
+                finally
+                {
+                    EvaluationContext.Current = previousContext;
+                }
             }
 
             // Capture existing slot count before InitializeSlots appends new slots.
@@ -146,7 +155,16 @@ public static partial class TypedAstEvaluator
             }
 
             var globalRunner = new ExecutionPlanRunner(plan, environment, context, existingSlotCount);
-            return globalRunner.RunScriptInternal();
+            var previousEvaluationContext = EvaluationContext.Current;
+            EvaluationContext.Current = context;
+            try
+            {
+                return globalRunner.RunScriptInternal();
+            }
+            finally
+            {
+                EvaluationContext.Current = previousEvaluationContext;
+            }
         }
 
         /// <summary>
@@ -155,28 +173,38 @@ public static partial class TypedAstEvaluator
         /// </summary>
         private JsValue RunScriptInternal()
         {
-            // Run the plan - for scripts this completes immediately (no yield/async)
-            // The completion value is tracked in _scriptCompletionValue during execution
-            var result = ExecutePlan(ResumeMode.Next, JsValue.Undefined);
-
-            // ExecutePlan returns an iterator result {value, done} for generators.
-            // For script execution with explicit return statements, extract the return value.
-            if (result.TryGetObject<IteratorResultObject>(out var iteratorResult))
+            var executionEnvironment = EnsureExecutionEnvironment();
+            var previousEnvironment = JsEnvironment.Current;
+            JsEnvironment.Current = executionEnvironment;
+            try
             {
-                iteratorResult.TryGetProperty("value", out var returnValue);
-                // If there was an explicit return, use that value
-                // Otherwise fall back to tracked completion value
-                return returnValue.IsUndefined ? GetFinalCompletionValue() : returnValue;
-            }
+                // Run the plan - for scripts this completes immediately (no yield/async)
+                // The completion value is tracked in _scriptCompletionValue during execution
+                var result = ExecutePlan(ResumeMode.Next, JsValue.Undefined);
 
-            if (result.TryGetObject<JsObject>(out var jsObject) &&
-                jsObject.TryGetProperty("value", out var jsValue))
+                // ExecutePlan returns an iterator result {value, done} for generators.
+                // For script execution with explicit return statements, extract the return value.
+                if (result.TryGetObject<IteratorResultObject>(out var iteratorResult))
+                {
+                    iteratorResult.TryGetProperty("value", out var returnValue);
+                    // If there was an explicit return, use that value
+                    // Otherwise fall back to tracked completion value
+                    return returnValue.IsUndefined ? GetFinalCompletionValue() : returnValue;
+                }
+
+                if (result.TryGetObject<JsObject>(out var jsObject) &&
+                    jsObject.TryGetProperty("value", out var jsValue))
+                {
+                    return jsValue.IsUndefined ? GetFinalCompletionValue() : jsValue;
+                }
+
+                // No iterator result wrapper - use tracked completion value
+                return GetFinalCompletionValue();
+            }
+            finally
             {
-                return jsValue.IsUndefined ? GetFinalCompletionValue() : jsValue;
+                JsEnvironment.Current = previousEnvironment;
             }
-
-            // No iterator result wrapper - use tracked completion value
-            return GetFinalCompletionValue();
         }
 
         /// <summary>
@@ -215,33 +243,38 @@ public static partial class TypedAstEvaluator
         /// </summary>
         public JsValue RunSync()
         {
-            // Run the plan - for sync functions this completes immediately
-            var result = ExecutePlan(ResumeMode.Next, JsValue.Undefined);
+            var executionEnvironment = EnsureExecutionEnvironment();
+            var previousEnvironment = JsEnvironment.Current;
+            JsEnvironment.Current = executionEnvironment;
+            try
+            {
+                // Run the plan - for sync functions this completes immediately
+                var result = ExecutePlan(ResumeMode.Next, JsValue.Undefined);
 
-            // ExecutePlan returns an iterator result {value, done} for generators.
-            // For sync execution, extract the raw value.
-            // Handle both IteratorResultObject (lightweight) and JsObject (full) cases.
-            JsValue returnValue;
-            if (result.TryGetObject<IteratorResultObject>(out var iteratorResult))
-            {
-                iteratorResult.TryGetProperty("value", out returnValue);
-            }
-            else if (result.TryGetObject<JsObject>(out var jsObject) &&
-                     jsObject.TryGetProperty("value", out var jsValue))
-            {
-                returnValue = jsValue;
-            }
-            else
-            {
-                // If no iterator result (shouldn't happen), return as-is
-                returnValue = result;
-            }
+                // ExecutePlan returns an iterator result {value, done} for generators.
+                // For sync execution, extract the raw value.
+                // Handle both IteratorResultObject (lightweight) and JsObject (full) cases.
+                JsValue returnValue;
+                if (result.TryGetObject<IteratorResultObject>(out var iteratorResult))
+                {
+                    iteratorResult.TryGetProperty("value", out returnValue);
+                }
+                else if (result.TryGetObject<JsObject>(out var jsObject) &&
+                         jsObject.TryGetProperty("value", out var jsValue))
+                {
+                    returnValue = jsValue;
+                }
+                else
+                {
+                    // If no iterator result (shouldn't happen), return as-is
+                    returnValue = result;
+                }
 
-            // For class constructors, apply ES spec [[Construct]] semantics.
-            if (_callable is not SyncFunctionInvoker syncInvoker || !syncInvoker.IsClassConstructor)
-            {
-                return returnValue;
-            }
+                // For class constructors, apply ES spec [[Construct]] semantics.
+                if (_callable is not SyncFunctionInvoker syncInvoker || !syncInvoker.IsClassConstructor)
+                {
+                    return returnValue;
+                }
 
             if (returnValue.IsObject)
             {
@@ -279,7 +312,12 @@ public static partial class TypedAstEvaluator
                 return thisValue;
             }
 
-            return returnValue;
+                return returnValue;
+            }
+            finally
+            {
+                JsEnvironment.Current = previousEnvironment;
+            }
         }
 
         private JsValue Next(JsValue value)

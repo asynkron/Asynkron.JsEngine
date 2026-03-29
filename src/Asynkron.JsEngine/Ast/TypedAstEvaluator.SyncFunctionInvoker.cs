@@ -690,8 +690,10 @@ public static partial class TypedAstEvaluator
             // Save and restore the caller chain so recursive/nested calls work correctly.
             var previousCaller = _currentCaller;
             var previouslyExecuting = t_currentlyExecuting;
+            var previousEvaluationContext = EvaluationContext.Current;
             _currentCaller = t_currentlyExecuting;
             t_currentlyExecuting = this;
+            EvaluationContext.Current = context;
             try
             {
 
@@ -1028,6 +1030,8 @@ public static partial class TypedAstEvaluator
                     context.MarkThisUninitialized();
                 }
 
+                functionEnvironment._thisValue = boundThis;
+                functionEnvironment._hasThisValue = true;
                 functionEnvironment.DefineJsValue(Symbol.This, boundThis);
 
                 // Store a reference to the original environment that owns the `this` binding.
@@ -1159,6 +1163,8 @@ public static partial class TypedAstEvaluator
                 var thisJsValue = ReferenceEquals(initialThisValue, Symbol.Undefined)
                     ? JsValue.Undefined
                     : JsValue.FromObjectUnsafe(initialThisValue);
+                functionEnvironment._thisValue = thisJsValue;
+                functionEnvironment._hasThisValue = true;
                 functionEnvironment.DefineJsValue(Symbol.This, thisJsValue);
 
                 if (IsClassConstructor && initialThisValue is JsObject ctorThis)
@@ -1340,8 +1346,17 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                         }
                     }
 
-                    _ = _function.Body.EvaluateBlockJsValue(executionEnvironment,
-                        context);
+                    var previousEnvironment = JsEnvironment.Current;
+                    JsEnvironment.Current = executionEnvironment;
+                    try
+                    {
+                        _ = _function.Body.EvaluateBlockJsValue(executionEnvironment,
+                            context);
+                    }
+                    finally
+                    {
+                        JsEnvironment.Current = previousEnvironment;
+                    }
 
                     if (context.IsThrow)
                     {
@@ -1535,6 +1550,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             finally
             {
                 // Restore Function.caller tracking (Annex B).
+                EvaluationContext.Current = previousEvaluationContext;
                 _currentCaller = previousCaller;
                 t_currentlyExecuting = previouslyExecuting;
             }
@@ -2134,7 +2150,19 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             EvaluationContext context,
             EvaluationContext callingContext)
         {
-            _ = _function.Body.EvaluateBlockJsValue(functionEnvironment, context);
+            var previousContext = EvaluationContext.Current;
+            var previousEnvironment = JsEnvironment.Current;
+            EvaluationContext.Current = context;
+            JsEnvironment.Current = functionEnvironment;
+            try
+            {
+                _ = _function.Body.EvaluateBlockJsValue(functionEnvironment, context);
+            }
+            finally
+            {
+                EvaluationContext.Current = previousContext;
+                JsEnvironment.Current = previousEnvironment;
+            }
 
             JsValue result;
             if (context.IsThrow)
@@ -2281,7 +2309,16 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 }
             }
 
-            _ = _function.Body.EvaluateBlockJsValue(reuseEnvironment, callingContext);
+            var previousEnvironment = JsEnvironment.Current;
+            JsEnvironment.Current = reuseEnvironment;
+            try
+            {
+                _ = _function.Body.EvaluateBlockJsValue(reuseEnvironment, callingContext);
+            }
+            finally
+            {
+                JsEnvironment.Current = previousEnvironment;
+            }
 
             JsValue result;
             if (callingContext.IsThrow)
@@ -2410,6 +2447,10 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     isLexicalBinding: false);
             }
 
+            var previousContext = EvaluationContext.Current;
+            var previousEnvironment = JsEnvironment.Current;
+            EvaluationContext.Current = context;
+            JsEnvironment.Current = functionEnvironment;
             try
             {
                 _ = _function.Body.EvaluateBlockJsValue(functionEnvironment, context);
@@ -2450,6 +2491,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
             finally
             {
+                EvaluationContext.Current = previousContext;
+                JsEnvironment.Current = previousEnvironment;
                 functionScopeFrame.Dispose();
                 // Return context to pool for reuse
                 RealmState.ReturnContext(context);

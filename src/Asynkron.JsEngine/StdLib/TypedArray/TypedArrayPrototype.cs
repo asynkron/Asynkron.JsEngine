@@ -1185,6 +1185,8 @@ public sealed partial class TypedArrayPrototype
             throw target.CreateOutOfBoundsTypeError();
         }
 
+        var initialTargetLength = target.Length;
+
         // Per spec step 15: Let src be ? ToObject(array).
         // ToObject(undefined) and ToObject(null) throw TypeError.
         if (source.IsUndefined || source.IsNull)
@@ -1200,7 +1202,7 @@ public sealed partial class TypedArrayPrototype
         {
             // Fast path for JsArray
             var srcLen = (int)sourceArray.Length;
-            if (offset + srcLen > target.Length)
+            if (offset + srcLen > initialTargetLength)
             {
                 throw ThrowRangeError("offset is out of bounds", realm: Realm);
             }
@@ -1222,7 +1224,7 @@ public sealed partial class TypedArrayPrototype
         // Handle array-like objects via IJsPropertyAccessor (ToObject path)
         if (source.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
-            return SetFromAccessor(target, accessor, source, offset);
+            return SetFromAccessor(target, accessor, source, offset, initialTargetLength);
         }
 
         // Primitive values: convert to object wrapper (ToObject)
@@ -1231,7 +1233,7 @@ public sealed partial class TypedArrayPrototype
         {
             var str = source.AsString() ?? string.Empty;
             var srcLen = str.Length;
-            if (offset + srcLen > target.Length)
+            if (offset + srcLen > initialTargetLength)
             {
                 throw ThrowRangeError("offset is out of bounds", realm: Realm);
             }
@@ -1259,7 +1261,8 @@ public sealed partial class TypedArrayPrototype
         return JsValue.Undefined;
     }
 
-    private JsValue SetFromAccessor(TypedArrayBase target, IJsPropertyAccessor accessor, JsValue source, int offset)
+    private JsValue SetFromAccessor(TypedArrayBase target, IJsPropertyAccessor accessor, JsValue source, int offset,
+        int initialTargetLength)
     {
         // 5. Let srcLength be ? LengthOfArrayLike(src).
         if (!accessor.TryGetProperty("length", source, out var lengthVal))
@@ -1279,7 +1282,7 @@ public sealed partial class TypedArrayPrototype
             : (int)Math.Min(srcLenNumber, int.MaxValue);
 
         // 8. If srcLength + targetOffset > targetLength, throw a RangeError.
-        if (srcLen + offset > target.Length)
+        if (srcLen + offset > initialTargetLength)
         {
             throw ThrowRangeError("offset is out of bounds", realm: Realm);
         }
@@ -1361,6 +1364,10 @@ public sealed partial class TypedArrayPrototype
             ? ToIntegerOrInfinity(args[0], ctx)
             : 0d;
 
+        // Snapshot [[ByteOffset]] before evaluating `end`, because `end` coercion may
+        // detach or shrink the buffer. subarray uses the original internal byte offset.
+        var srcByteOffset = typedArray.RawByteOffset;
+
         // 6. Let relativeEnd be ? ToIntegerOrInfinity(end).
         var relativeEnd = args.Count > 1 && !args[1].IsUndefined
             ? ToIntegerOrInfinity(args[1], ctx)
@@ -1406,10 +1413,7 @@ public sealed partial class TypedArrayPrototype
         // 10. Let elementSize be the Element Size value specified in Table for constructorName.
         var elementSize = typedArray.BytesPerElement;
 
-        // 11. Let srcByteOffset be O.[[ByteOffset]].
-        var srcByteOffset = typedArray.ByteOffset;
-
-        // 12. Let beginByteOffset be srcByteOffset + beginIndex * elementSize.
+        // 11-12. Let beginByteOffset be srcByteOffset + beginIndex * elementSize.
         var beginByteOffset = srcByteOffset + beginIndex * elementSize;
 
         // 13-17. Use TypedArraySpeciesCreate or Subarray with proper prototype.

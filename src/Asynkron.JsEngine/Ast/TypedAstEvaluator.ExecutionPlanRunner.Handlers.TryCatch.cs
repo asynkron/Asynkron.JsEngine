@@ -195,7 +195,6 @@ public static partial class TypedAstEvaluator
             }
 
             var completedFrame = runner.TryCatchStateRef.TryStack.Pop();
-            runner.TryCatchStateRef.RestoredEnvironmentFromTry = completedFrame.EntryEnvironment;
             var pending = completedFrame.PendingCompletion;
 
             if (pending.Kind == AbruptKind.None)

@@ -25,15 +25,12 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     // ReSharper disable once ReplaceWithFieldKeyword
     private readonly JsValue _cachedJsValue;
     private readonly JsValue _targetJsValue;
-    private JsValue _handlerJsValue;
-
     public JsProxy(IJsObjectLike target, IJsObjectLike handler, RealmState? realm = null)
     {
         _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
         Target = target ?? throw new ArgumentNullException(nameof(target));
         _handler = handler ?? throw new ArgumentNullException(nameof(handler));
         _targetJsValue = ToJsObjectValue(Target);
-        _handlerJsValue = ToJsObjectValue(_handler);
         _realm = realm;
         _privateStorage.RealmState = realm;
         if (Target is JsObject { Prototype: not null } jsObject)
@@ -60,7 +57,6 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         set
         {
             _handler = value;
-            _handlerJsValue = value is null ? JsValue.Null : ToJsObjectValue(value);
         }
     }
 
@@ -72,9 +68,59 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     private static JsValue ToJsObjectValue(IJsObjectLike value)
     {
-        return value is IAsJsValue asJsValue
-            ? JsValue.FromObjectUnsafe(asJsValue)
-            : JsValue.FromObjectUnsafe(value);
+        return JsValue.FromObjectUnsafe((object)value);
+    }
+
+    private JsValue GetHandlerJsValue()
+    {
+        var handler = Handler ?? throw StandardLibrary.ThrowTypeError(
+            "Cannot perform operation on a revoked Proxy",
+            realm: ErrorRealm);
+        return ToJsObjectValue(handler);
+    }
+
+    private JsValue InvokeTrap(IJsCallable trap, IReadOnlyList<JsValue> arguments)
+    {
+        var thisValue = GetHandlerJsValue();
+        var currentContext = EvaluationContext.Current;
+        var currentEnvironment = JsEnvironment.Current;
+        IJsEnvironmentAwareCallable? envAware = null;
+        JsEnvironment? previousEnvironment = null;
+        if (currentEnvironment is not null && trap is IJsEnvironmentAwareCallable environmentAware)
+        {
+            envAware = environmentAware;
+            previousEnvironment = envAware.CallingJsEnvironment;
+            envAware.CallingJsEnvironment = currentEnvironment;
+        }
+
+        IEvaluationContextAwareCallable? contextAware = null;
+        if (currentContext is not null && trap is IEvaluationContextAwareCallable evaluationContextAware)
+        {
+            contextAware = evaluationContextAware;
+            contextAware.CallingContext = currentContext;
+        }
+
+        try
+        {
+            return trap switch
+            {
+                global::Asynkron.JsEngine.Ast.TypedAstEvaluator.SyncFunctionInvoker typed => typed.InvokeWithContext(arguments, thisValue, currentContext),
+                HostFunction host => host.InvokeWithContext(arguments, thisValue, currentContext),
+                _ => trap.Invoke(arguments, thisValue)
+            };
+        }
+        finally
+        {
+            if (envAware is not null)
+            {
+                envAware.CallingJsEnvironment = previousEnvironment;
+            }
+
+            if (contextAware is not null)
+            {
+                contextAware.CallingContext = null;
+            }
+        }
     }
 
     // --- [[IsExtensible]] with trap ---
@@ -84,7 +130,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         {
             if (TryGetTrap("isExtensible", out var trap))
             {
-                var trapResult = trap.Invoke(new SingleValueArgs(_targetJsValue), _handlerJsValue);
+                var trapResult = InvokeTrap(trap, new SingleValueArgs(_targetJsValue));
                 var booleanTrapResult = JsOps.ToBoolean(trapResult);
                 var targetIsExtensible = TargetIsExtensible();
                 if (booleanTrapResult != targetIsExtensible)
@@ -106,7 +152,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         if (TryGetTrap("preventExtensions", out var trap))
         {
-            var trapResult = trap.Invoke(new SingleValueArgs(_targetJsValue), _handlerJsValue);
+            var trapResult = InvokeTrap(trap, new SingleValueArgs(_targetJsValue));
             if (JsOps.ToBoolean(trapResult))
             {
                 // Invariant: if trap returns true, target must not be extensible
@@ -146,7 +192,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         {
             var argArray = JsValue.FromJsArray(new JsArray(arguments, CurrentOperationRealm));
             var args = new[] { _targetJsValue, thisValue, argArray };
-            return trap.Invoke(args, _handlerJsValue);
+            return InvokeTrap(trap, args);
         }
 
         return callableTarget.Invoke(arguments, thisValue);
@@ -162,7 +208,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         {
             var argArray = JsValue.FromJsArray(new JsArray(arguments, CurrentOperationRealm));
             var args = new[] { _targetJsValue, argArray, JsValue.FromObjectUnsafe(newTarget) };
-            var trapResult = trap.Invoke(args, _handlerJsValue);
+            var trapResult = InvokeTrap(trap, args);
 
             // Invariant: trap result must be an object
             if (!trapResult.IsObject)
@@ -217,7 +263,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             yield break;
         }
 
-        var trapResult = trap.Invoke(new SingleValueArgs(_targetJsValue), _handlerJsValue);
+        var trapResult = InvokeTrap(trap, new SingleValueArgs(_targetJsValue));
 
         // Step 8: CreateListFromArrayLike(trapResultArray, <<String, Symbol>>)
         // The result must be an object
@@ -414,7 +460,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 _targetJsValue, JsValue.FromObjectUnsafe(DecodePropertyKey(name)),
                 receiver.IsUndefined ? JsValue.FromJsProxy(this) : receiver
             };
-            value = trap.Invoke(args, _handlerJsValue);
+            value = InvokeTrap(trap, args);
 
             // Invariant checks per ES spec 10.5.8 step 13
             var targetDesc = Target.GetOwnPropertyDescriptor(name);
@@ -486,7 +532,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 _targetJsValue, JsValue.FromObjectUnsafe(DecodePropertyKey(name)), value,
                 effectiveReceiver
             };
-            var result = trap.Invoke(args, _handlerJsValue);
+            var result = InvokeTrap(trap, args);
             if (!JsOps.ToBoolean(result))
             {
                 return false;
@@ -537,7 +583,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 _targetJsValue, JsValue.FromObjectUnsafe(DecodePropertyKey(name)),
                 (JsValue)descriptorObject
             };
-            var result = trap.Invoke(args, _handlerJsValue);
+            var result = InvokeTrap(trap, args);
             if (!JsOps.ToBoolean(result))
             {
                 throw StandardLibrary.ThrowTypeError("Proxy 'defineProperty' trap returned a falsy value",
@@ -567,7 +613,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         if (TryGetTrap("getOwnPropertyDescriptor", out var trap))
         {
             var args = new[] { _targetJsValue, JsValue.FromObjectUnsafe(DecodePropertyKey(name)) };
-            var result = trap.Invoke(args, _handlerJsValue);
+            var result = InvokeTrap(trap, args);
 
             // Invariant: result must be Object or undefined
             if (!result.IsUndefined && !result.IsObject)
@@ -683,7 +729,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         if (TryGetTrap("setPrototypeOf", out var trap))
         {
             var args = new[] { _targetJsValue, JsValue.FromObjectUnsafe(candidate) };
-            var result = trap.Invoke(args, _handlerJsValue);
+            var result = InvokeTrap(trap, args);
             if (!JsOps.ToBoolean(result))
             {
                 throw StandardLibrary.ThrowTypeError("Proxy 'setPrototypeOf' trap returned a falsy value",
@@ -723,7 +769,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         if (TryGetTrap("deleteProperty", out var trap))
         {
             var args = new[] { _targetJsValue, JsValue.FromObjectUnsafe(DecodePropertyKey(name)) };
-            var result = trap.Invoke(args, _handlerJsValue);
+            var result = InvokeTrap(trap, args);
             var booleanTrapResult = JsOps.ToBoolean(result);
 
             if (booleanTrapResult)
@@ -783,7 +829,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 _targetJsValue, JsValue.FromObjectUnsafe(DecodePropertyKey(name)),
                 (JsValue)descriptorObject
             };
-            var result = trap.Invoke(args, _handlerJsValue);
+            var result = InvokeTrap(trap, args);
             if (!JsOps.ToBoolean(result))
             {
                 return false;
@@ -812,7 +858,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         if (TryGetTrap("has", out var trap))
         {
             var args = new[] { _targetJsValue, JsValue.FromObjectUnsafe(DecodePropertyKey(name)) };
-            var result = trap.Invoke(args, _handlerJsValue);
+            var result = InvokeTrap(trap, args);
             var booleanTrapResult = JsOps.ToBoolean(result);
 
             if (!booleanTrapResult)
@@ -877,7 +923,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         if (TryGetTrap("getPrototypeOf", out var trap))
         {
             var args = new[] { _targetJsValue };
-            var result = trap.Invoke(args, _handlerJsValue);
+            var result = InvokeTrap(trap, args);
 
             if (result.IsNull)
             {
@@ -1125,8 +1171,9 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         var handler = Handler ?? throw StandardLibrary.ThrowTypeError("Cannot perform operation on a revoked Proxy",
             realm: ErrorRealm);
+        var handlerJsValue = GetHandlerJsValue();
 
-        if (!handler.TryGetProperty(trapName, out var trapValueObj))
+        if (!handler.TryGetProperty(trapName, handlerJsValue, out var trapValueObj))
         {
             callable = null!;
             return false;

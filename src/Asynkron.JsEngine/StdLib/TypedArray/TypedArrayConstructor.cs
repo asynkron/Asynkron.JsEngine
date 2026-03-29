@@ -192,6 +192,8 @@ public sealed partial class TypedArrayConstructor(IJsObjectLike prototype, Realm
             throw ThrowTypeError("%TypedArray%.from: constructor did not return a typed array", realm: Realm);
         }
 
+        EnsureConstructedTypedArrayLength("%TypedArray%.from", typed, length);
+
         for (var i = 0; i < length; i++)
         {
             var value = values[i];
@@ -238,6 +240,8 @@ public sealed partial class TypedArrayConstructor(IJsObjectLike prototype, Realm
             throw ThrowTypeError("%TypedArray%.of: constructor did not return a typed array", realm: Realm);
         }
 
+        EnsureConstructedTypedArrayLength("%TypedArray%.of", typed, length);
+
         // 6. Let k be 0.
         // 7. Repeat, while k < len,
         for (var i = 0; i < length; i++)
@@ -247,5 +251,13 @@ public sealed partial class TypedArrayConstructor(IJsObjectLike prototype, Realm
 
         // 8. Return newObj.
         return taObj;
+    }
+
+    private void EnsureConstructedTypedArrayLength(string operation, TypedArrayBase typed, int requiredLength)
+    {
+        if (typed.IsDetachedOrOutOfBounds() || typed.Length < requiredLength)
+        {
+            throw ThrowTypeError($"{operation}: constructor returned a typed array with insufficient length", realm: Realm);
+        }
     }
 }

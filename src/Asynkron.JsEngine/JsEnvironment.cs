@@ -120,6 +120,15 @@ public sealed class JsEnvironment : IRentable
             isParameterEnvironment, isBodyEnvironment, treatAsGlobalFunctionScope, inheritStrictness);
     }
 
+    [ThreadStatic]
+    private static JsEnvironment? t_current;
+
+    internal static JsEnvironment? Current
+    {
+        get => t_current;
+        set => t_current = value;
+    }
+
     private static void ValidateScopeId(int scopeId)
     {
         if (scopeId == 0 && EngineFeatureFlags.ThrowOnZeroScopeId)
@@ -3119,6 +3128,11 @@ public sealed class JsEnvironment : IRentable
 
         while (prototypeAccessor is not null && depth++ < JsEngineConstants.MaxPrototypeChainDepth)
         {
+            if (prototypeAccessor is JsProxy prototypeProxy)
+            {
+                return prototypeProxy.HasProperty(name);
+            }
+
             if (prototypeAccessor is not JsObject protoObj)
             {
                 if (prototypeAccessor is IJsObjectLike objectLike)

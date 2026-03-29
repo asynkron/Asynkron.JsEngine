@@ -98,15 +98,6 @@ public static class TypedArrayHelper
                 Enumerable = false,
                 Configurable = false
             });
-        var toStringTagKey = SymbolKeys.ToStringTag;
-        prototype.DefineProperty(toStringTagKey,
-            new PropertyDescriptor
-            {
-                Value = constructorName,
-                Writable = false,
-                Enumerable = false,
-                Configurable = true
-            });
         constructor.DefineProperty("name",
             new PropertyDescriptor
             {
@@ -154,30 +145,10 @@ public static class TypedArrayHelper
 
         IJsPropertyAccessor ResolvePrototype(JsValue newTarget)
         {
-            if (newTarget.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
-                accessor.TryGetProperty("prototype", out var protoVal) &&
-                protoVal.TryGetObject<IJsPropertyAccessor>(out var protoObj))
+            if (newTarget.TryGetObject<IJsCallable>(out var callableNewTarget) &&
+                ResolveConstructPrototype(callableNewTarget, constructor, realm) is IJsPropertyAccessor resolvedProto)
             {
-                return protoObj;
-            }
-
-            if (!newTarget.IsNullish &&
-                TryGetRealmInfo(newTarget, out var newTargetRealmState, out var newTargetRealmObject))
-            {
-                var realmGlobal = newTargetRealmObject ?? newTargetRealmState?.Engine?.GlobalObject;
-                if (realmGlobal is not null &&
-                    realmGlobal.TryGetProperty(constructorName, out var realmCtor) &&
-                    realmCtor.TryGetObject<IJsPropertyAccessor>(out var realmCtorAccessor) &&
-                    realmCtorAccessor.TryGetProperty("prototype", out var realmProtoVal) &&
-                    realmProtoVal.TryGetObject<IJsPropertyAccessor>(out var realmProto))
-                {
-                    return realmProto;
-                }
-
-                if (newTargetRealmState?.TypedArrayPrototype is IJsPropertyAccessor typedProto)
-                {
-                    return typedProto;
-                }
+                return resolvedProto;
             }
 
             return prototype;

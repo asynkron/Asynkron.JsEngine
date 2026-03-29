@@ -21,6 +21,15 @@ public sealed class EvaluationContext(
     CancellationToken cancellationToken = default,
     ExecutionKind executionKind = ExecutionKind.Script) : IRentable
 {
+    [ThreadStatic]
+    private static EvaluationContext? t_current;
+
+    internal static EvaluationContext? Current
+    {
+        get => t_current;
+        set => t_current = value;
+    }
+
 #if DEBUG
     /// <summary>
     ///     When set to true, any AST evaluation during IR execution will throw an

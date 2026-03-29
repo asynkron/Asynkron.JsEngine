@@ -134,4 +134,280 @@ public class RegressionTests
         Assert.That(snapshot.Items[4].AsBoolean(), Is.True);
         Assert.That(snapshot.Items[5].AsBoolean(), Is.True);
     }
+
+    [Test]
+    public async Task ProxyPrototypeTrapsBindHandlerAsThis()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(
+            """
+            var target = {};
+            var hasThis;
+            var setThis;
+
+            var handler = {
+              has: function(t, prop) {
+                hasThis = this;
+                return prop in t;
+              },
+              set: function(t, prop, value, receiver) {
+                setThis = this;
+                return true;
+              }
+            };
+
+            var proxy = new Proxy(target, handler);
+            var array = new Array(1);
+            Object.setPrototypeOf(array, proxy);
+
+            0 in array;
+            array[0] = 1;
+
+            [
+              hasThis === handler,
+              hasThis === undefined,
+              hasThis === proxy,
+              hasThis === target,
+              typeof hasThis,
+              setThis === handler,
+              setThis === undefined,
+              setThis === proxy,
+              setThis === target,
+              typeof setThis
+            ];
+            """);
+
+        var values = result as JsArray ?? throw new AssertionException("Expected array result");
+        TestContext.WriteLine(
+            $"has=[handler:{values.Items[0]}, undefined:{values.Items[1]}, proxy:{values.Items[2]}, target:{values.Items[3]}, type:{values.Items[4]}] " +
+            $"set=[handler:{values.Items[5]}, undefined:{values.Items[6]}, proxy:{values.Items[7]}, target:{values.Items[8]}, type:{values.Items[9]}]");
+        Assert.That(values.Items[0].AsBoolean(), Is.True);
+        Assert.That(values.Items[5].AsBoolean(), Is.True);
+    }
+
+    [Test]
+    public async Task InternalSyncFunctionInvokerInvokeWithContext_PreservesExplicitReceiver()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(
+            """
+            var handler = {
+              trap: function() {
+                return this;
+              }
+            };
+
+            [handler, handler.trap];
+            """);
+
+        var values = result as JsArray ?? throw new AssertionException("Expected array result");
+        var handlerValue = values.Items[0];
+        var trapValue = values.Items[1];
+        var invoker = trapValue.ObjectValue as Asynkron.JsEngine.Ast.TypedAstEvaluator.SyncFunctionInvoker
+                      ?? throw new AssertionException("Expected SyncFunctionInvoker");
+
+        var invoked = invoker.InvokeWithContext([], handlerValue, null);
+        Assert.That(invoked.Kind, Is.EqualTo(JsValueKind.Object));
+        Assert.That(ReferenceEquals(invoked.ObjectValue, handlerValue.ObjectValue), Is.True);
+
+        var rebuiltHandlerValue = JsValue.FromObjectUnsafe(handlerValue.ObjectValue);
+        var rebuiltInvoked = invoker.InvokeWithContext([], rebuiltHandlerValue, null);
+        Assert.That(rebuiltInvoked.Kind, Is.EqualTo(JsValueKind.Object));
+        Assert.That(ReferenceEquals(rebuiltInvoked.ObjectValue, handlerValue.ObjectValue), Is.True);
+    }
+
+    [Test]
+    public async Task ProxyPrototypeTrapsAreActuallyInvoked()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(
+            """
+            var hasCalled = false;
+            var setCalled = false;
+
+            var handler = {
+              has: function() {
+                hasCalled = true;
+                return true;
+              },
+              set: function() {
+                setCalled = true;
+                return true;
+              }
+            };
+
+            var proxy = new Proxy({}, handler);
+            var array = new Array(1);
+            Object.setPrototypeOf(array, proxy);
+
+            var hasResult = 0 in array;
+            array[0] = 1;
+
+            [hasCalled, hasResult, setCalled];
+            """);
+
+        var values = result as JsArray ?? throw new AssertionException("Expected array result");
+        Assert.That(values.Items[0].AsBoolean(), Is.True);
+        Assert.That(values.Items[1].AsBoolean(), Is.True);
+        Assert.That(values.Items[2].AsBoolean(), Is.True);
+    }
+
+    [Test]
+    public async Task OrdinaryFunctionCall_BindsExplicitReceiver()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(
+            """
+            var handler = {};
+            var seen;
+
+            (function() {
+              seen = this;
+            }).call(handler);
+
+            seen === handler;
+            """);
+
+        Assert.That(result is bool boolean && boolean, Is.True);
+    }
+
+    [Test]
+    public async Task ObjectPropertyFunctionCall_BindsExplicitReceiver()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(
+            """
+            var handler = {
+              trap: function() {
+                return this;
+              }
+            };
+
+            var trap = handler.trap;
+            trap.call(handler) === handler;
+            """);
+
+        Assert.That(result is bool boolean && boolean, Is.True);
+    }
+
+    [Test]
+    public async Task DirectObjectPropertyFunctionCall_PreservesReceiverInScriptState()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(
+            """
+            var seen;
+            var handler = {
+              trap: function() {
+                seen = this;
+              }
+            };
+
+            handler.trap();
+            seen === handler;
+            """);
+
+        Assert.That(result is bool boolean && boolean, Is.True);
+    }
+
+    [Test]
+    public async Task HostSideInvokeOfObjectPropertyFunction_BindsExplicitReceiver()
+    {
+        var engine = new JsEngine();
+        var handler = await engine.Evaluate(
+            """
+            var handler = {
+              trap: function() {
+                return this === handler;
+              }
+            };
+
+            handler;
+            """) as JsObject ?? throw new AssertionException("Expected handler object");
+
+        Assert.That(handler.TryGetProperty("trap", out var trapValue), Is.True);
+        Assert.That(trapValue.TryGetObject<IJsCallable>(out var trap), Is.True);
+
+        var result = trap.Invoke(Array.Empty<JsValue>(), JsValue.FromObjectUnsafe((object)handler));
+        Assert.That(result.AsBoolean(), Is.True);
+    }
+
+    [Test]
+    public async Task HostSideInvokeOfObjectPropertyFunction_PreservesThisInScriptState()
+    {
+        var engine = new JsEngine();
+        var handler = await engine.Evaluate(
+            """
+            var seen;
+            var handler = {
+              trap: function() {
+                seen = this;
+              }
+            };
+
+            handler;
+            """) as JsObject ?? throw new AssertionException("Expected handler object");
+
+        Assert.That(handler.TryGetProperty("trap", out var trapValue), Is.True);
+        Assert.That(trapValue.TryGetObject<IJsCallable>(out var trap), Is.True);
+
+        _ = trap.Invoke(Array.Empty<JsValue>(), JsValue.FromObjectUnsafe((object)handler));
+
+        var result = await engine.Evaluate("seen === handler;");
+        Assert.That(result is bool boolean && boolean, Is.True);
+    }
+
+    [Test]
+    public async Task HostSideInvokeOfProxyHandlerTrap_BindsExplicitReceiver()
+    {
+        var engine = new JsEngine();
+        var proxy = await engine.Evaluate(
+            """
+            var target = {};
+            var handler = {
+              has: function(target, prop) {
+                return this === handler;
+              }
+            };
+
+            new Proxy(target, handler);
+            """) as JsProxy ?? throw new AssertionException("Expected proxy object");
+
+        var handler = proxy.Handler as JsObject ?? throw new AssertionException("Expected proxy handler object");
+        Assert.That(handler.TryGetProperty("has", JsValue.FromObjectUnsafe((object)handler), out var trapValue), Is.True);
+        Assert.That(trapValue.TryGetObject<IJsCallable>(out var trap), Is.True);
+
+        var result = trap.Invoke(
+            [JsValue.FromObjectUnsafe((object)proxy.Target), new JsValue("0")],
+            JsValue.FromObjectUnsafe((object)handler));
+
+        Assert.That(result.AsBoolean(), Is.True);
+    }
+
+    [Test]
+    public async Task ReflectConstruct_ProxiedNewTargetUsesTargetRealm()
+    {
+        await using var engine = Test262Test.CreateTest262Engine(logger: null, debugMode: false, useSnapshot: false);
+        var result = await engine.Evaluate(
+            """
+            var realm1 = $262.createRealm().global;
+            var realm2 = $262.createRealm().global;
+            var realm3 = $262.createRealm().global;
+
+            var newTarget = new realm1.Function();
+            newTarget.prototype = false;
+
+            var newTargetProxy = new realm2.Proxy(newTarget, {});
+            var array = Reflect.construct(realm3.Array, [], newTargetProxy);
+
+            [
+              array instanceof realm1.Array,
+              Object.getPrototypeOf(array) === realm1.Array.prototype
+            ];
+            """);
+
+        var values = result as JsArray ?? throw new AssertionException("Expected array result");
+        Assert.That(values.Items[0].AsBoolean(), Is.True);
+        Assert.That(values.Items[1].AsBoolean(), Is.True);
+    }
 }

@@ -162,6 +162,8 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         }
     }
 
+    internal int RawByteOffset => _byteOffset;
+
     /// <summary>
     ///     Gets the length in bytes of the typed array.
     /// </summary>

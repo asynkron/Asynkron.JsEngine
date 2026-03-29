@@ -65,7 +65,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     private void EnsureArrayPrototype()
     {
-        if (_properties.Prototype is not null)
+        if (_properties.PrototypeAccessor is not null || _properties.Prototype is not null)
         {
             return;
         }
@@ -797,16 +797,40 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         // If not found via Prototype (JsObject chain), traverse non-JsObject prototypes as well
         // (e.g., Array.prototype implemented as a typed prototype object).
-        var arrayPrototype = GetArrayPrototype();
-        if (prototypeSetter is null && arrayPrototype is not null)
+        var prototypeRoot = _properties.PrototypeAccessor ?? GetArrayPrototype();
+        if (prototypeSetter is null && prototypeRoot is not null)
         {
-            prototypeSetter = FindSetterInPrototypeChain(arrayPrototype, keyStr);
+            prototypeSetter = FindSetterInPrototypeChain(prototypeRoot, keyStr);
         }
 
         if (prototypeSetter is not null)
         {
             prototypeSetter.Invoke(new SingleValueArgs(value), JsValue.FromJsArray(this));
             return;
+        }
+
+        IJsPropertyAccessor? current = prototypeRoot;
+        var depth = 0;
+        while (current is not null && depth++ < JsEngineConstants.MaxPrototypeChainDepth)
+        {
+            if (current is JsProxy proxy)
+            {
+                proxy.SetProperty(keyStr, value, JsValue.FromJsArray(this));
+                return;
+            }
+
+            IJsPropertyAccessor? next = null;
+            if (current is IJsObjectLike objectLike)
+            {
+                next = objectLike.Prototype;
+            }
+
+            if (next is null && current is IPrototypeAccessorProvider provider)
+            {
+                next = provider.PrototypeAccessor;
+            }
+
+            current = next;
         }
 
         if (!IsExtensible && !HasOwnIndex(index))
@@ -828,6 +852,11 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             var depth = 0;
             while (current is not null && depth++ < JsEngineConstants.MaxPrototypeChainDepth)
             {
+                if (current is JsProxy)
+                {
+                    return null;
+                }
+
                 var descriptor = current.GetOwnPropertyDescriptor(propertyKey);
                 if (descriptor is { IsAccessorDescriptor: true, Set: not null })
                 {

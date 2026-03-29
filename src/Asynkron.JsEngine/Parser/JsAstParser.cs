@@ -922,7 +922,7 @@ public sealed class JsAstParser(
                     {
                         Consume(TokenType.LeftParen, "Expected '(' after getter name.");
                         Consume(TokenType.RightParen, "Expected ')' after getter parameters.");
-                        var body = ParseBlock();
+                        var body = ParseBlock(isFunctionBody: true);
                         var functionSource = CreateSourceReference(accessorToken);
                         var function = new FunctionExpression(functionSource ?? body.Source ?? CreateSourceReference(methodNameToken),
                             null,
@@ -936,7 +936,7 @@ public sealed class JsAstParser(
                         Consume(TokenType.LeftParen, "Expected '(' after setter name.");
                         var setterParameters = ParseSetterParameters();
                         Consume(TokenType.RightParen, "Expected ')' after setter parameter.");
-                        var body = ParseBlock();
+                        var body = ParseBlock(isFunctionBody: true);
                         var functionSource = CreateSourceReference(accessorToken);
                         var function = new FunctionExpression(functionSource ?? body.Source ?? CreateSourceReference(methodNameToken),
                             null,
@@ -1143,7 +1143,7 @@ public sealed class JsAstParser(
             using var _ = EnterFunctionContext(isAsync, isGenerator);
             var parameters = ParseParameterList();
             Consume(TokenType.RightParen, "Expected ')' after method parameters.");
-            var body = ParseBlock();
+            var body = ParseBlock(isFunctionBody: true);
             var sourceReference = CreateSourceReferenceFromStart(startSource) ?? body.Source;
             return new FunctionExpression(sourceReference, functionName, parameters, body, isAsync, isGenerator,
                 WasAsync: isAsync);
@@ -2933,7 +2933,7 @@ public sealed class JsAstParser(
                             using var _ = EnterFunctionContext(true, isAsyncGeneratorMethod);
                             var parameters = ParseParameterList();
                             Consume(TokenType.RightParen, "Expected ')' after method parameters.");
-                            var body = ParseBlock();
+                            var body = ParseBlock(isFunctionBody: true);
                             var asyncMethodSource = CreateSourceReference(asyncToken);
                             var asyncMethod = new FunctionExpression(asyncMethodSource ?? body.Source ?? asyncKeySource, null, parameters,
                                 body,
@@ -2954,7 +2954,7 @@ public sealed class JsAstParser(
                     var (getterKey, getterIsComputed, getterKeySource) = ParseObjectPropertyKey();
                     Consume(TokenType.LeftParen, "Expected '(' after getter name.");
                     Consume(TokenType.RightParen, "Expected ')' after getter parameters.");
-                    var body = ParseBlock();
+                    var body = ParseBlock(isFunctionBody: true);
                     var functionSource = CreateSourceReference(getterToken);
                     var function = new FunctionExpression(functionSource ?? body.Source ?? getterKeySource, null,
                         ImmutableArray<FunctionParameter>.Empty, body, false, false);
@@ -2970,7 +2970,7 @@ public sealed class JsAstParser(
                     Consume(TokenType.LeftParen, "Expected '(' after setter name.");
                     var setterParameters = ParseSetterParameters();
                     Consume(TokenType.RightParen, "Expected ')' after setter parameter.");
-                    var body = ParseBlock();
+                    var body = ParseBlock(isFunctionBody: true);
                     var functionSource = CreateSourceReference(setterToken);
                     var function = new FunctionExpression(functionSource ?? body.Source ?? setterKeySource, null,
                         setterParameters, body, false, false);
@@ -2992,7 +2992,7 @@ public sealed class JsAstParser(
                     using var _ = EnterFunctionContext(false, isGeneratorMethod);
                     var parameters = ParseParameterList();
                     Consume(TokenType.RightParen, "Expected ')' after method parameters.");
-                    var body = ParseBlock();
+                    var body = ParseBlock(isFunctionBody: true);
                     var methodSource = CreateSourceReferenceFromStart(generatorMethodSource ?? keySource);
                     method = new FunctionExpression(methodSource ?? body.Source, null, parameters, body, false, isGeneratorMethod);
                     kind = ObjectMemberKind.Method;

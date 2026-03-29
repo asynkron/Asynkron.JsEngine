@@ -306,14 +306,12 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
     private bool DefinePropertyInternal(string name, PropertyDescriptor descriptor, bool throwOnError)
     {
         var existingDescriptor = GetTrackedDescriptor(name);
-        var normalized = NormalizeDescriptor(name, descriptor, existingDescriptor);
+        var isIndexProperty = TryResolveIndex(name, out var index);
+        var normalized = isIndexProperty || string.Equals(name, "callee", StringComparison.Ordinal)
+            ? NormalizeDescriptor(name, descriptor, existingDescriptor)
+            : descriptor;
 
-        if (existingDescriptor is not null && !IsDescriptorCompatible(existingDescriptor, descriptor))
-        {
-            return FailDefine(throwOnError);
-        }
-
-        if (TryResolveIndex(name, out var index) &&
+        if (isIndexProperty &&
             _mappedEnabled &&
             index < _mappedParameters.Length &&
             _mappedParameters[index] is { } mappedSymbol)

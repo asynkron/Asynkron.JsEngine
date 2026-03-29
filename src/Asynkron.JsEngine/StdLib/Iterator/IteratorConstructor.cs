@@ -231,55 +231,25 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
     {
         alreadyIterator = false;
 
-        // Per spec GetIteratorFlattenable(obj, iterate-strings):
-        // If obj is not an Object, only strings are allowed
-        if (value.Kind != JsValueKind.Object)
+        if (value.Kind != JsValueKind.Object && !value.TryGetString(out _))
         {
-            if (!value.TryGetString(out _))
-            {
-                throw StandardLibrary.ThrowTypeError("Iterator.from requires an object or string", null, realm);
-            }
-
-            // Handle string primitives via realm's StringPrototype with receiver
-            var stringProto = realm?.StringPrototype;
-            if (stringProto is not null &&
-                stringProto.TryGetProperty(SymbolKeys.Iterator, value, out var strIterMethod) &&
-                strIterMethod.TryGetObject<IJsCallable>(out var strIterCallable))
-            {
-                var strResult = strIterCallable.Invoke([], value);
-                if (!strResult.TryGetObject<IJsObjectLike>(out var strIterObj))
-                {
-                    throw StandardLibrary.ThrowTypeError("Symbol.iterator must return an object", null, realm);
-                }
-
-                alreadyIterator = true;
-                return GetIteratorDirectStatic(strIterObj);
-            }
-
-            throw StandardLibrary.ThrowTypeError("Value is not iterable", null, realm);
+            throw StandardLibrary.ThrowTypeError("Iterator.from requires an object or string", null, realm);
         }
 
-        // Value is an object
-        if (!value.TryGetPropertyAccessor(out var accessor))
+        if (!StandardLibrary.TryGetObject(value, realm, out var accessor))
         {
-            throw StandardLibrary.ThrowTypeError("Iterator.from requires an object", null, realm);
+            throw StandardLibrary.ThrowTypeError("Iterator.from requires an object or string", null, realm);
         }
 
-        if (accessor.TryGetProperty(SymbolKeys.Iterator, out var iterMethod))
+        if (accessor.TryGetProperty(SymbolKeys.Iterator, value, out var iterMethod))
         {
-            if (iterMethod.IsNullOrUndefined)
+            if (!iterMethod.IsNullOrUndefined)
             {
-                alreadyIterator = true;
-                if (!value.TryGetObject<IJsObjectLike>(out var objLike))
+                if (!iterMethod.TryGetObject<IJsCallable>(out var iterCallable))
                 {
-                    throw StandardLibrary.ThrowTypeError("Iterator.from requires an object", null, realm);
+                    throw StandardLibrary.ThrowTypeError("Symbol.iterator is not a function", null, realm);
                 }
 
-                return GetIteratorDirectStatic(objLike);
-            }
-
-            if (iterMethod.TryGetObject<IJsCallable>(out var iterCallable))
-            {
                 var result = iterCallable.Invoke([], value);
                 if (!result.TryGetObject<IJsObjectLike>(out var iterObj))
                 {
@@ -290,16 +260,14 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
                 return GetIteratorDirectStatic(iterObj);
             }
 
-            throw StandardLibrary.ThrowTypeError("Symbol.iterator is not a function", null, realm);
+            if (value.Kind != JsValueKind.Object)
+            {
+                throw StandardLibrary.ThrowTypeError("Value is not iterable", null, realm);
+            }
         }
 
         alreadyIterator = true;
-        if (!value.TryGetObject<IJsObjectLike>(out var fallbackObj))
-        {
-            throw StandardLibrary.ThrowTypeError("Iterator.from requires an object", null, realm);
-        }
-
-        return GetIteratorDirectStatic(fallbackObj);
+        return GetIteratorDirectStatic(accessor);
     }
 
     /// <summary>

@@ -2121,6 +2121,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
             functionEnvironment._thisValue = boundThisValue;
             functionEnvironment._hasThisValue = true;
+            functionEnvironment.DefineJsValue(Symbol.This, boundThisValue);
         }
 
         /// <summary>

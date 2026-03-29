@@ -480,6 +480,14 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         // DefineProperty semantics must NOT invoke inherited setters on Array.prototype.
         // (Contrast with SetElement / SetProperty which intentionally does, per ES [[Set]] semantics.)
         // Keep the internal dense/sparse storage aligned with the newly defined property.
+        // Accessor descriptors replace indexed element storage entirely, so the dense/sparse
+        // element slot must be cleared or reads/deletes can observe stale data instead of the
+        // own accessor descriptor.
+        if (descriptor.IsAccessorDescriptor)
+        {
+            ClearStoredElement(index);
+        }
+
         // Only update element storage when a value is explicitly provided, so attribute-only
         // redefinitions don't accidentally overwrite existing values.
         if (!descriptor.IsAccessorDescriptor && descriptor.HasValue)
@@ -864,6 +872,17 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         _sparseItems ??= new Dictionary<uint, JsValue>();
         _sparseItems[index] = value;
         return false;
+    }
+
+    private void ClearStoredElement(uint index)
+    {
+        if (index < _items.Count)
+        {
+            _items[(int)index] = ArrayHole;
+            return;
+        }
+
+        _sparseItems?.Remove(index);
     }
 
     private void ApplyIntegrityLevelToIndexedProperties(bool freeze)

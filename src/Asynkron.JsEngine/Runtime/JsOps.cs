@@ -1991,17 +1991,6 @@ internal static class JsOps
     {
         if (target.TryGetObject<JsArray>(out var jsArray))
         {
-            // Fast path: numeric key on a dense array with no exotic descriptors.
-            // This is the overwhelmingly common case (arr[i] = value in loops).
-            // Skip all property descriptor machinery, prototype chain walks, and string conversions.
-            if (TryResolveArrayIndexJsValue(propertyKey, out var fastIndex, context)
-                && !jsArray.Properties.HasNumericDescriptorKeys()
-                && jsArray.IsExtensible)
-            {
-                jsArray.SetElementFast((uint)fastIndex, value);
-                return true;
-            }
-
             var propertyName = ToPropertyName(propertyKey, context);
             if (context?.IsThrow == true)
             {

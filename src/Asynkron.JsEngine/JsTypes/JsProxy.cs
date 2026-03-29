@@ -32,8 +32,8 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
         Target = target ?? throw new ArgumentNullException(nameof(target));
         _handler = handler ?? throw new ArgumentNullException(nameof(handler));
-        _targetJsValue = JsValue.FromObjectUnsafe(Target);
-        _handlerJsValue = JsValue.FromObjectUnsafe(_handler);
+        _targetJsValue = ToJsObjectValue(Target);
+        _handlerJsValue = ToJsObjectValue(_handler);
         _realm = realm;
         _privateStorage.RealmState = realm;
         if (Target is JsObject { Prototype: not null } jsObject)
@@ -60,7 +60,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         set
         {
             _handler = value;
-            _handlerJsValue = value is null ? JsValue.Null : JsValue.FromObjectUnsafe(value);
+            _handlerJsValue = value is null ? JsValue.Null : ToJsObjectValue(value);
         }
     }
 
@@ -69,6 +69,13 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     private RealmState? ErrorRealm => RealmState.Current ?? _realm;
     private RealmState? CurrentOperationRealm => RealmState.Current ?? _realm;
+
+    private static JsValue ToJsObjectValue(IJsObjectLike value)
+    {
+        return value is IAsJsValue asJsValue
+            ? JsValue.FromObjectUnsafe(asJsValue)
+            : JsValue.FromObjectUnsafe(value);
+    }
 
     // --- [[IsExtensible]] with trap ---
     public bool IsExtensible

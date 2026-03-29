@@ -8776,18 +8776,28 @@ public static class TemporalHelper
         if (accessor.TryGetProperty("calendar", out var calVal) && !calVal.IsUndefined)
             calendar = CanonicalizeCalendarId(ResolveTemporalCalendarId(calVal, realm));
 
+        var calendarUsesEras = CalendarUsesEras(calendar);
+
         // 2. era
-        var hasEra = accessor.TryGetProperty("era", out var eraVal) && !eraVal.IsUndefined;
+        var hasEra = false;
         string? era = null;
-        if (hasEra)
-            era = JsOps.ToJsString(eraVal);
+        if (calendarUsesEras)
+        {
+            hasEra = accessor.TryGetProperty("era", out var eraVal) && !eraVal.IsUndefined;
+            if (hasEra)
+                era = JsOps.ToJsString(eraVal);
+        }
 
         // 3. eraYear
-        var hasEraYear = accessor.TryGetProperty("eraYear", out var eraYearVal) && !eraYearVal.IsUndefined;
+        var hasEraYear = false;
         int eraYear = 0;
-        if (hasEraYear)
+        if (calendarUsesEras)
         {
-            eraYear = ToIntegerWithTruncation(eraYearVal, realm);
+            hasEraYear = accessor.TryGetProperty("eraYear", out var eraYearVal) && !eraYearVal.IsUndefined;
+            if (hasEraYear)
+            {
+                eraYear = ToIntegerWithTruncation(eraYearVal, realm);
+            }
         }
 
         // 4. month — eagerly convert to trigger valueOf for observable order
@@ -8822,7 +8832,7 @@ public static class TemporalHelper
             if (!hasEra || !hasEraYear)
                 throw StandardLibrary.ThrowTypeError("Property bag for PlainYearMonth must have both 'era' and 'eraYear'", realm: realm);
 
-            if (!CalendarUsesEras(calendar))
+            if (!calendarUsesEras)
                 throw StandardLibrary.ThrowTypeError("Property bag for PlainYearMonth must have 'year'", realm: realm);
 
             year = ResolveTemporalEraYear(calendar, era!, eraYear, realm);
@@ -9515,6 +9525,7 @@ public static class TemporalHelper
     {
         switch (calendar)
         {
+            case "iso8601":
             case "gregory":
             case "buddhist":
             case "japanese":

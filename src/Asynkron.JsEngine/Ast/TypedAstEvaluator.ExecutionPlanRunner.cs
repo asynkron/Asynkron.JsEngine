@@ -360,7 +360,7 @@ public static partial class TypedAstEvaluator
         /// </summary>
         private (SignalAction action, JsValue result) HandleContextSignals(
             EvaluationContext context,
-            JsEnvironment environment,
+            ref JsEnvironment environment,
             int nextInstructionIndex)
         {
             if (_isAsync && TryHandlePendingAwait(context, out var pendingResult, environment))
@@ -400,6 +400,58 @@ public static partial class TypedAstEvaluator
                     _programCounter = nextInstructionIndex;
                 }
 
+                return (SignalAction.Continue, default);
+            }
+
+            if (context.IsBreak)
+            {
+                var label = ((BreakCompletionSignal)context.CurrentSignal!).Label;
+                context.TryClearBreak(label);
+
+                var breakTarget = FindBreakableTarget(label, isBreak: true);
+                if (breakTarget < 0)
+                {
+                    throw new InvalidOperationException("Unable to resolve break target.");
+                }
+
+                if (HandleAbruptCompletion(AbruptKind.Break, breakTarget))
+                {
+                    if (_programCounter == _currentInstructionIndex)
+                    {
+                        _programCounter = nextInstructionIndex;
+                    }
+
+                    return (SignalAction.Continue, default);
+                }
+
+                MoveEnvironmentToControlTarget(ref environment, breakTarget);
+                _programCounter = breakTarget;
+                return (SignalAction.Continue, default);
+            }
+
+            if (context.IsContinue)
+            {
+                var label = ((ContinueCompletionSignal)context.CurrentSignal!).Label;
+                context.TryClearContinue(label);
+
+                var continueTarget = FindBreakableTarget(label, isBreak: false);
+                if (continueTarget < 0)
+                {
+                    throw new InvalidOperationException("Unable to resolve continue target.");
+                }
+
+                if (HandleAbruptCompletion(AbruptKind.Continue, continueTarget))
+                {
+                    if (_programCounter == _currentInstructionIndex)
+                    {
+                        _programCounter = nextInstructionIndex;
+                    }
+
+                    return (SignalAction.Continue, default);
+                }
+
+                MoveEnvironmentToControlTarget(ref environment, continueTarget);
+                _programCounter = continueTarget;
                 return (SignalAction.Continue, default);
             }
 

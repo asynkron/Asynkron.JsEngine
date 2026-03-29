@@ -191,6 +191,15 @@ public static class TypedArrayHelper
                 firstArg.GetType().Name,
                 newTarget.GetType().Name);
 
+            // Primitive Symbol/BigInt arguments must fail via ToIndex before any
+            // AllocateTypedArray / prototype-resolution work touches newTarget.
+            if (firstArg.TryUnwrap<JsSymbol>(out _) ||
+                firstArg.TryUnwrap<JsBigInt>(out _) ||
+                firstArg.ObjectValue is JsSymbol or JsBigInt)
+            {
+                _ = ToIndex(firstArg, realm);
+            }
+
             // Per spec: if Type(firstArg) is Object, handle as typed array / array / buffer / object
             if (firstArg.Kind == JsValueKind.Object)
             {
@@ -440,7 +449,12 @@ public static class TypedArrayHelper
 
             // 2. Let integerIndex be ? ToIntegerOrInfinity(value)
             // ToIntegerOrInfinity: ToNumber then truncate
-            var number = JsOps.ToNumber(value);
+            var context = realm.CreateContext(pushScope: false);
+            var number = JsOps.ToNumber(value, context);
+            if (context.IsThrow)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
             double integerIndex;
             if (double.IsNaN(number))
             {

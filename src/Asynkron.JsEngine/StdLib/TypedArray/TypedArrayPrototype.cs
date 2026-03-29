@@ -1408,6 +1408,7 @@ public sealed partial class TypedArrayPrototype
         }
 
         var newLength = Math.Max(endIndex - beginIndex, 0);
+        var lengthTrackingResult = typedArray.IsLengthTracking && (args.Count <= 1 || args[1].IsUndefined);
 
         // 9. Let constructorName be the String value of O.[[TypedArrayName]].
         // 10. Let elementSize be the Element Size value specified in Table for constructorName.
@@ -1418,16 +1419,18 @@ public sealed partial class TypedArrayPrototype
 
         // 13-17. Use TypedArraySpeciesCreate or Subarray with proper prototype.
         // Use SpeciesCreate to properly handle constructors and prototypes.
-        var result = SubarraySpeciesCreate(typedArray, buffer, beginByteOffset, newLength);
+        var result = SubarraySpeciesCreate(typedArray, buffer, beginByteOffset, lengthTrackingResult ? null : newLength);
 
         return JsValue.FromObjectUnsafe(result);
     }
 
     /// <summary>
     /// Creates a subarray via the species constructor pattern, properly preserving prototype chains.
-    /// Per spec: TypedArraySpeciesCreate for subarray passes (buffer, byteOffset, length).
+    /// Per spec: TypedArraySpeciesCreate for subarray passes either
+    /// (buffer, byteOffset) for length-tracking results or
+    /// (buffer, byteOffset, length) for fixed-length results.
     /// </summary>
-    private TypedArrayBase SubarraySpeciesCreate(TypedArrayBase exemplar, JsArrayBuffer buffer, int byteOffset, int length)
+    private TypedArrayBase SubarraySpeciesCreate(TypedArrayBase exemplar, JsArrayBuffer buffer, int byteOffset, int? length)
     {
         var constructorValue = JsValue.Undefined;
 
@@ -1455,7 +1458,7 @@ public sealed partial class TypedArrayPrototype
 
             if (speciesValue.IsNullOrUndefined)
             {
-                return CreateSubarrayDefault(exemplar, buffer, byteOffset, length);
+                speciesValue = constructorValue;
             }
 
             constructorValue = speciesValue;
@@ -1472,9 +1475,20 @@ public sealed partial class TypedArrayPrototype
         }
 
         // Call species constructor with (buffer, byteOffset, length)
-        var constructed = ReflectHelper.Construct(callable,
-            [JsValue.FromObjectUnsafe(buffer), JsValue.FromDouble(byteOffset), JsValue.FromDouble(length)],
-            callable, Realm);
+        var argumentsList = length.HasValue
+            ? new[]
+            {
+                JsValue.FromObjectUnsafe(buffer),
+                JsValue.FromDouble(byteOffset),
+                JsValue.FromDouble(length.Value)
+            }
+            : new[]
+            {
+                JsValue.FromObjectUnsafe(buffer),
+                JsValue.FromDouble(byteOffset)
+            };
+
+        var constructed = ReflectHelper.Construct(callable, argumentsList, callable, Realm);
 
         if (!constructed.TryGetObject<TypedArrayBase>(out var typedResult))
         {
@@ -1484,7 +1498,7 @@ public sealed partial class TypedArrayPrototype
         return typedResult;
     }
 
-    private static TypedArrayBase CreateSubarrayDefault(TypedArrayBase exemplar, JsArrayBuffer buffer, int byteOffset, int length)
+    private static TypedArrayBase CreateSubarrayDefault(TypedArrayBase exemplar, JsArrayBuffer buffer, int byteOffset, int? length)
     {
         // Per spec: TypedArray constructor step 11 — throw TypeError if buffer is detached.
         // This path bypasses the actual constructor, so we must check explicitly.
@@ -1495,7 +1509,7 @@ public sealed partial class TypedArrayPrototype
                 realm: buffer.RealmState);
         }
 
-        var result = exemplar.CreateSubarrayView(buffer, byteOffset, length);
+        var result = exemplar.CreateSubarrayView(buffer, byteOffset, length ?? 0);
         if (exemplar.Prototype is not null)
         {
             result.SetPrototype(exemplar.Prototype);

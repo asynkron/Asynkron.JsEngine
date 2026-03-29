@@ -313,10 +313,10 @@ public static partial class TypedAstEvaluator
                         value is int targetIndex &&
                         targetIndex == frame.LoopContinueTarget)
                     {
-                        // Pop this frame and continue - the continue will execute normally
-                        // without triggering the iterator close
-                        TryCatchStateRef.TryStack.Pop();
-                        continue;
+                        // Same-loop continue stays within the protected loop body.
+                        // Skip IteratorClose/finally handling, but keep the try frame active
+                        // for subsequent iterations and eventual loop exit.
+                        return false;
                     }
 
                     if (!frame.FinallyScheduled)

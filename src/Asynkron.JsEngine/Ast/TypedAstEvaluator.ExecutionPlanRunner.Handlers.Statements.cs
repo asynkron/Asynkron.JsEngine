@@ -30,7 +30,7 @@ public static partial class TypedAstEvaluator
                 runner._scriptCompletionValue = evaluatedValue;
             }
 
-            var (evalSignalAction, evalSignalResult) = runner.HandleContextSignals(context, environment, instruction.Next);
+            var (evalSignalAction, evalSignalResult) = runner.HandleContextSignals(context, ref environment, instruction.Next);
             switch (evalSignalAction)
             {
                 case SignalAction.Return:
@@ -65,7 +65,7 @@ public static partial class TypedAstEvaluator
                 runner._scriptCompletionValue = awaitedValue;
             }
 
-            var (signalAction, signalResult) = runner.HandleContextSignals(context, environment, instruction.Next);
+            var (signalAction, signalResult) = runner.HandleContextSignals(context, ref environment, instruction.Next);
             switch (signalAction)
             {
                 case SignalAction.Return:
@@ -108,7 +108,7 @@ public static partial class TypedAstEvaluator
                 nameTarget.EnsureHasName(instruction.TargetSymbol.Name);
             }
 
-            var (signalAction, signalResult) = runner.HandleContextSignals(context, environment, instruction.Next);
+            var (signalAction, signalResult) = runner.HandleContextSignals(context, ref environment, instruction.Next);
             switch (signalAction)
             {
                 case SignalAction.Return:

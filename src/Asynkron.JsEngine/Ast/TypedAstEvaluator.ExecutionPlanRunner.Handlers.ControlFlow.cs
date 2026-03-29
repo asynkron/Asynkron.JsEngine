@@ -93,7 +93,7 @@ public static partial class TypedAstEvaluator
         private static InstructionResult HandleAbruptControlJump(
             ExecutionPlanRunner runner,
             int targetIndex,
-            int targetScopeId,
+            int _,
             AbruptKind abruptKind,
             ref JsEnvironment environment,
             out JsValue returnValue)
@@ -113,23 +113,36 @@ public static partial class TypedAstEvaluator
                 return InstructionResult.Continue;
             }
 
-            if (targetScopeId >= 0)
-            {
-                var walkEnv = environment;
-                while (walkEnv.ScopeId != targetScopeId && walkEnv.Enclosing != null)
-                {
-                    walkEnv = walkEnv.Enclosing;
-                }
-
-                if (walkEnv.ScopeId == targetScopeId)
-                {
-                    environment = walkEnv;
-                }
-            }
+            runner.MoveEnvironmentToControlTarget(ref environment, targetIndex);
 
             runner._programCounter = targetIndex;
             returnValue = default;
             return InstructionResult.Continue;
+        }
+
+        private void MoveEnvironmentToControlTarget(ref JsEnvironment environment, int targetIndex)
+        {
+            if (targetIndex < 0 || _plan is null || targetIndex >= _plan.Instructions.Length)
+            {
+                return;
+            }
+
+            if (_plan.Instructions[targetIndex] is not PopEnvironmentInstruction popInstruction || popInstruction.ScopeId < 0)
+            {
+                return;
+            }
+
+            var targetScopeId = popInstruction.ScopeId;
+            var walkEnv = environment;
+            while (walkEnv.ScopeId != targetScopeId && walkEnv.Enclosing != null)
+            {
+                walkEnv = walkEnv.Enclosing;
+            }
+
+            if (walkEnv.ScopeId == targetScopeId)
+            {
+                environment = walkEnv;
+            }
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]

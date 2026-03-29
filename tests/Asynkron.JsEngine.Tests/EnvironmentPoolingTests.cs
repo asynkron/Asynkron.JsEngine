@@ -695,6 +695,63 @@ public sealed class EnvironmentPoolingTests(ITestOutputHelper output) : Internal
     }
 
     [Fact]
+    public async Task NestedForOfLoops_OuterBindingVisibleInInnermostBody()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            'use strict';
+            const rows = [];
+            for (let outer of [false, true]) {
+                for (let middle of [1, 2]) {
+                    for (let inner of [10, 20]) {
+                        const value = outer ? middle + inner : middle - inner;
+                        rows.push(String(value));
+                    }
+                }
+            }
+            rows.join(',');
+            """);
+
+        Assert.Equal("-9,-19,-8,-18,11,21,12,22", result);
+    }
+
+    [Fact]
+    public async Task NestedForOfLoops_ContinueDoesNotLoseOuterBinding()
+    {
+        await using var engine = CreateEngine();
+
+        var program = engine.ParseProgram("""
+            function testContinueScopes() {
+                'use strict';
+                const rows = [];
+                for (let outer of [false, true]) {
+                    for (let middle of [1, 2]) {
+                        for (let inner of [10, 20, 30]) {
+                            if (inner === 20) {
+                                continue;
+                            }
+                            const value = outer ? middle + inner : middle - inner;
+                            rows.push(String(value));
+                        }
+                    }
+                }
+                return rows.join(',');
+            }
+            """);
+
+        var funcDecl = Assert.IsType<Asynkron.JsEngine.Ast.FunctionDeclaration>(program.Body[0]);
+        var planOutput = Asynkron.JsEngine.Execution.ExecutionPlanDiagnostics.PrintPlan(funcDecl.Function);
+        output.WriteLine("=== Continue scope regression plan ===");
+        output.WriteLine(planOutput);
+
+        await engine.Evaluate(program);
+        var result = await engine.Evaluate("testContinueScopes()");
+
+        Assert.Equal("-9,-29,-8,-28,11,31,12,32", result);
+    }
+
+    [Fact]
     public async Task AsyncFunction_WithSyncForLoop_PoolsNormally()
     {
         // Sync for loop inside async function should pool normally

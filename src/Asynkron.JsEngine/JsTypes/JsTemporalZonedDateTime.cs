@@ -120,30 +120,77 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
 
         var sign = offsetId[0] == '-' ? -1 : 1;
         var offsetBody = offsetId[1..];
+        var parts = offsetBody.Split(':');
         var hours = 0;
         var minutes = 0;
         var seconds = 0;
+        long subSecondTicks = 0;
 
-        var parts = offsetBody.Split(':');
         if (parts.Length == 1)
         {
-            if (!int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out hours))
+            if (offsetBody.Length == 2)
+            {
+                if (!int.TryParse(offsetBody, NumberStyles.Integer, CultureInfo.InvariantCulture, out hours))
+                {
+                    return false;
+                }
+            }
+            else if (offsetBody.Length == 4)
+            {
+                if (!int.TryParse(offsetBody[..2], NumberStyles.Integer, CultureInfo.InvariantCulture, out hours) ||
+                    !int.TryParse(offsetBody[2..], NumberStyles.Integer, CultureInfo.InvariantCulture, out minutes))
+                {
+                    return false;
+                }
+            }
+            else
             {
                 return false;
             }
         }
         else
         {
-            // Per Temporal spec, offset time zone identifiers only support ±HH:MM (no seconds)
-            if (parts.Length != 2)
+            if (parts[0].Length != 2 ||
+                !int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out hours) ||
+                parts[1].Length != 2 ||
+                !int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out minutes))
             {
                 return false;
             }
 
-            if (!int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out hours) ||
-                !int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out minutes))
+            if (parts.Length > 2)
             {
-                return false;
+                var secondPart = parts[2];
+                var dotIndex = secondPart.IndexOf('.');
+                if (dotIndex >= 0)
+                {
+                    if (dotIndex != 2 ||
+                        !int.TryParse(secondPart[..dotIndex], NumberStyles.Integer, CultureInfo.InvariantCulture,
+                            out seconds))
+                    {
+                        return false;
+                    }
+
+                    var fraction = secondPart[(dotIndex + 1)..];
+                    if (fraction.Length == 0 || fraction.Length > 9)
+                    {
+                        return false;
+                    }
+
+                    fraction = fraction.PadRight(9, '0');
+                    if (!long.TryParse(fraction, NumberStyles.Integer, CultureInfo.InvariantCulture,
+                            out var subSecondNanos))
+                    {
+                        return false;
+                    }
+
+                    subSecondTicks = subSecondNanos / 100;
+                }
+                else if (secondPart.Length != 2 ||
+                         !int.TryParse(secondPart, NumberStyles.Integer, CultureInfo.InvariantCulture, out seconds))
+                {
+                    return false;
+                }
             }
         }
 
@@ -152,8 +199,8 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
             return false;
         }
 
-        var totalSeconds = sign * (hours * 3600 + minutes * 60 + seconds);
-        offset = TimeSpan.FromSeconds(totalSeconds);
+        var ticks = ((long)hours * 3600 + (long)minutes * 60 + seconds) * TimeSpan.TicksPerSecond + subSecondTicks;
+        offset = new TimeSpan(sign * ticks);
         return true;
     }
 

@@ -7001,25 +7001,8 @@ public static class TemporalHelper
 
     private static void ValidateTimezoneAnnotationOffset(ReadOnlySpan<char> content, RealmState realm)
     {
-        // Timezone annotation offsets must not have sub-minute precision
-        // Valid colon format: ±HH:MM (5 chars after sign)
-        // Valid compact format: ±HH (2 chars) or ±HHMM (4 chars)
-        // Invalid: anything with seconds (±HH:MM:SS or ±HHMMSS or with fractional)
-        var body = content[1..];
-        var colonCount = 0;
-        foreach (var c in body)
-        {
-            if (c == ':') colonCount++;
-        }
-        // Colon format: more than 1 colon means sub-minute (HH:MM:SS)
-        if (colonCount > 1)
-            throw StandardLibrary.ThrowRangeError("Timezone annotation offset must not have sub-minute precision", realm: realm);
-        // Compact format (no colons): more than 4 digits means sub-minute (HHMMSS)
-        if (colonCount == 0 && body.Length > 4)
-            throw StandardLibrary.ThrowRangeError("Timezone annotation offset must not have sub-minute precision", realm: realm);
-        // Compact with dot: HHMM.fff or similar
-        if (body.Contains('.'))
-            throw StandardLibrary.ThrowRangeError("Timezone annotation offset must not have sub-minute precision", realm: realm);
+        if (ParseOffsetToNanos(content.ToString()) is null)
+            throw StandardLibrary.ThrowRangeError("Invalid time zone annotation offset", realm: realm);
     }
 
     /// <summary>

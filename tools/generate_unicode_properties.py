@@ -505,6 +505,8 @@ def main():
     unicode_data_text = download_file(f"{BASE_URL}/UnicodeData.txt", "UnicodeData.txt")
     prop_list_text = download_file(f"{BASE_URL}/PropList.txt", "PropList.txt")
     derived_core_text = download_file(f"{BASE_URL}/DerivedCoreProperties.txt", "DerivedCoreProperties.txt")
+    derived_binary_text = download_file(f"{BASE_URL}/extracted/DerivedBinaryProperties.txt", "DerivedBinaryProperties.txt")
+    derived_normalization_text = download_file(f"{BASE_URL}/DerivedNormalizationProps.txt", "DerivedNormalizationProps.txt")
     scripts_text = download_file(f"{BASE_URL}/Scripts.txt", "Scripts.txt")
     script_ext_text = download_file(f"{BASE_URL}/ScriptExtensions.txt", "ScriptExtensions.txt")
     emoji_text = download_file(EMOJI_URL, "emoji-data.txt")
@@ -515,6 +517,8 @@ def main():
     gc_data = parse_unicode_data(unicode_data_text)
     prop_list = parse_ranges(prop_list_text)
     derived_core = parse_ranges(derived_core_text)
+    derived_binary = parse_ranges(derived_binary_text)
+    derived_normalization = parse_ranges(derived_normalization_text)
     script_data = parse_ranges(scripts_text)
     script_ext_raw = parse_script_extensions(script_ext_text)
     emoji_data = parse_ranges(emoji_text)
@@ -526,15 +530,23 @@ def main():
         binary_props[name] = ranges
     for name, ranges in derived_core.items():
         binary_props[name] = ranges
+    for name, ranges in derived_binary.items():
+        binary_props[name] = ranges
+    for name, ranges in derived_normalization.items():
+        binary_props[name] = ranges
     for name, ranges in emoji_data.items():
         binary_props[name] = ranges
 
     # Add the special "Any" and "Assigned" properties
     binary_props["Any"] = [(0x0000, 0x10FFFF)]
 
-    # "Assigned" = complement of General_Category=Cn (Unassigned)
-    cn_ranges = gc_data.get("Cn", [])
-    binary_props["Assigned"] = complement_ranges(cn_ranges)
+    # UnicodeData.txt lists assigned code points only; Cn gaps are implicit.
+    # Synthesize Cn from the complement of the listed categories so that the
+    # General_Category=C and binary Assigned properties both include unassigned
+    # code points correctly.
+    assigned_ranges = merge_ranges(sorted(rng for ranges in gc_data.values() for rng in ranges))
+    gc_data["Cn"] = complement_ranges(assigned_ranges)
+    binary_props["Assigned"] = assigned_ranges
 
     # "ASCII" property
     binary_props["ASCII"] = [(0x0000, 0x007F)]

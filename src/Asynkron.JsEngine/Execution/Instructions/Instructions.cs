@@ -458,7 +458,9 @@ internal sealed record ContinueInstruction(int TargetIndex, int TargetScopeId = 
 /// </remarks>
 internal sealed record ReturnInstruction(
     int Next,
-    ExpressionProgram? ReturnProgram = null)
+    ExpressionProgram? ReturnProgram = null,
+    Symbol? AwaitStateKey = null,
+    ExpressionProgram? AwaitedProgram = null)
     : ExecutionInstruction(InstructionKind.Return, Next)
 {
     // The AST payload has been removed; this stays null so AST-leak assertions remain explicit.

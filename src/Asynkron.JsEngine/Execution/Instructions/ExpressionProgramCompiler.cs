@@ -2214,8 +2214,7 @@ internal static class ExpressionProgramCompiler
 
     private static bool ShouldAllowAssignmentNameInference(AssignmentExpression expression)
     {
-        return IsAnonymousFunctionDefinitionForNameInference(expression.Value) &&
-               !IsParenthesizedIdentifierAssignment(expression);
+        return IsAnonymousFunctionDefinitionForNameInference(expression.Value);
     }
 
     private static bool TryGetStaticObjectPropertyName(object key, out string propertyName)

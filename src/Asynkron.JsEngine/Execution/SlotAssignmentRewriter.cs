@@ -434,6 +434,12 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             case YieldInstruction { YieldProgram: not null } yieldInstruction:
                 return yieldInstruction with { YieldProgram = RewriteExpressionProgram(yieldInstruction.YieldProgram!.Value) };
 
+            case ReturnInstruction { AwaitedProgram: not null } returnInstruction:
+                return returnInstruction with
+                {
+                    AwaitedProgram = RewriteExpressionProgram(returnInstruction.AwaitedProgram!.Value)
+                };
+
             case ReturnInstruction { ReturnProgram: not null } returnInstruction:
                 return returnInstruction with { ReturnProgram = RewriteExpressionProgram(returnInstruction.ReturnProgram!.Value) };
 

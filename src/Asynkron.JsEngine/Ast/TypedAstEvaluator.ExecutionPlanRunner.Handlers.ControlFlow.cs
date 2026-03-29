@@ -141,9 +141,11 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<ReturnInstruction>(instr);
-            var returnVal = instruction.ReturnProgram is { } returnProgram
-                ? runner.EvaluateExpressionProgram(returnProgram, environment, context)
-                : JsValue.Undefined;
+            var returnVal = instruction.AwaitedProgram is { } awaitedProgram
+                ? runner.EvaluateAwaitInGenerator(instruction.AwaitStateKey!, awaitedProgram, environment, context)
+                : instruction.ReturnProgram is { } returnProgram
+                    ? runner.EvaluateExpressionProgram(returnProgram, environment, context)
+                    : JsValue.Undefined;
 
             if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingReturnResult, environment))
             {

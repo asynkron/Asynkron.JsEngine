@@ -278,10 +278,11 @@ public sealed class IteratorCloseDestructuringTests(ITestOutputHelper output) : 
               }
             }
 
-            var p = new C().method(iter).next();
-            // Since it's async, we need to await
-            await p;
-            ({ callCount, doneCallCount });
+            var finalResult;
+            new C().method(iter).next().then(function() {
+              finalResult = ({ callCount, doneCallCount });
+            });
+            finalResult;
             """);
 
         Output.WriteLine($"Result: {result}");

@@ -113,7 +113,14 @@ public static partial class TypedAstEvaluator
             }
             else if (instruction.TargetSymbol is { } resumeSymbol)
             {
-                StoreSymbolValueJsValue(environment, resumeSymbol, resumePayload);
+                if (environment.HasBinding(resumeSymbol))
+                {
+                    environment.AssignJsValue(resumeSymbol, resumePayload);
+                }
+                else
+                {
+                    StoreSymbolValueJsValue(environment, resumeSymbol, resumePayload);
+                }
             }
 
             if (context.IsThrow)

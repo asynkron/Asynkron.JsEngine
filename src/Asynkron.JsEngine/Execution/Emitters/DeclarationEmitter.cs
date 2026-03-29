@@ -278,6 +278,22 @@ internal static class DeclarationEmitter
             return false;
         }
 
+        if (returnStatement.Expression is AwaitExpression awaitExpression)
+        {
+            if (!ExpressionProgramCompiler.TryCompile(awaitExpression.Expression, out var awaitedProgram, out var awaitFailure))
+            {
+                ctx.SetExpressionProgramFailure("ReturnInstruction", awaitExpression.Expression, awaitFailure);
+                entryIndex = -1;
+                return false;
+            }
+
+            entryIndex = ctx.Append(new ReturnInstruction(
+                nextIndex,
+                AwaitStateKey: ((IAstCacheable<Symbol>)awaitExpression).GetOrCreateCache(),
+                AwaitedProgram: awaitedProgram));
+            return true;
+        }
+
         ExpressionProgram? returnProgram = null;
         if (returnStatement.Expression is not null)
         {

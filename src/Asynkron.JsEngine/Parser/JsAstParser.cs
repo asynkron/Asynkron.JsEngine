@@ -3951,7 +3951,12 @@ public sealed class JsAstParser(
                     return false;
                 }
 
-                Consume(TokenType.Arrow, "Expected '=>' after async arrow parameters.");
+                if (!Match(TokenType.Arrow))
+                {
+                    _current = saved;
+                    return false;
+                }
+
                 arrowFunction = ParseArrowFunctionBody(parameters, true, asyncToken);
                 return true;
             }
@@ -3993,7 +3998,12 @@ public sealed class JsAstParser(
                 return false;
             }
 
-            Consume(TokenType.Arrow, "Expected '=>' after arrow parameters.");
+            if (!Match(TokenType.Arrow))
+            {
+                _current = saved;
+                return false;
+            }
+
             arrowFunction = ParseArrowFunctionBody(parameters, isAsync, startToken);
             return true;
         }

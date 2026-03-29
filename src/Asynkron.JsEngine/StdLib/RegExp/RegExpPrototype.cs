@@ -1028,6 +1028,10 @@ public sealed partial class RegExpPrototype
             if (Realm.RegExpConstructor is not null &&
                 ReferenceEquals(callable, Realm.RegExpConstructor))
             {
+                // Preserve the observable IsRegExp / @@match side effect that the built-in
+                // RegExp constructor performs before it reads the source from the receiver.
+                JsOps.TryGetPropertyValue(rx, SymbolKeys.Match, out _);
+
                 // Use the fast path: extract pattern from rx and construct with newFlags
                 var resolved = ResolveRegExpInstance(rx);
                 if (resolved is not null)

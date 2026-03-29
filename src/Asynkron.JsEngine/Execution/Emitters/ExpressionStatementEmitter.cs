@@ -234,8 +234,7 @@ internal static class ExpressionStatementEmitter
 
     private static bool ShouldAllowAssignmentNameInference(AssignmentExpression expression)
     {
-        return IsAnonymousFunctionDefinitionForNameInference(expression.Value) &&
-               !IsParenthesizedIdentifierAssignment(expression);
+        return IsAnonymousFunctionDefinitionForNameInference(expression.Value);
     }
 
     private static bool IsAnonymousFunctionDefinitionForNameInference(ExpressionNode? expression)

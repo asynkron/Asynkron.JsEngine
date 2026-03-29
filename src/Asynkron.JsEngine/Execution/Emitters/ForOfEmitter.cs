@@ -50,7 +50,8 @@ internal static class ForOfEmitter
 
         var bindingStatement = ctx.CreateIteratorBindingStatement(iteratorPlan, valueSymbol, valueSlotIndex);
 
-        var needsPerIterEnv = iteratorPlan.DeclarationKind is VariableKind.Let or VariableKind.Const
+        var needsPerIterEnv = iteratorPlan.DeclarationKind is (VariableKind.Let or VariableKind.Const
+            or VariableKind.Using or VariableKind.AwaitUsing)
             && !iteratorPlan.PerIterationBindings.IsDefaultOrEmpty;
 
         var config = new LoopSkeletonConfig
@@ -61,7 +62,7 @@ internal static class ForOfEmitter
             IterationScopeId = needsPerIterEnv ? iteratorPlan.IterationScopeId : -1,
             IterationSlotCount = iteratorPlan.IterationSlotCount,
             PerIterationSlotIndices = iteratorPlan.PerIterationSlotIndices,
-            CanReuseIterationEnvironment = iteratorPlan.CanReuseIterationEnvironment,
+            CanReuseIterationEnvironment = false,
             LexicalBindings = lexicalBindings,
             LoopScopeId = -1,
             ConditionAfterBody = false,

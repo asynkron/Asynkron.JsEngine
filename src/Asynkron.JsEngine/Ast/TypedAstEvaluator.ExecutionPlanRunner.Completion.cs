@@ -248,6 +248,7 @@ public static partial class TypedAstEvaluator
                 frame.FinallyScheduled = true;
                 frame.PendingCompletion = PendingCompletion.FromNormal(resumeTarget);
                 SaveCompletionValueForFinally(frame);
+                TryCatchStateRef.RestoredEnvironmentFromTry = frame.EntryEnvironment;
                 _programCounter = frame.FinallyIndex;
                 return;
             }

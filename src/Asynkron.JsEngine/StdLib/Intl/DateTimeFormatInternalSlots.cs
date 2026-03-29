@@ -23,5 +23,6 @@ internal sealed class DateTimeFormatInternalSlots
     public bool? Hour12 { get; init; }
     public string? DateStyle { get; init; }
     public string? TimeStyle { get; init; }
+    public bool UsesDateTimeDefaults { get; init; }
     public Dictionary<string, string> Components { get; init; } = new(StringComparer.Ordinal);
 }

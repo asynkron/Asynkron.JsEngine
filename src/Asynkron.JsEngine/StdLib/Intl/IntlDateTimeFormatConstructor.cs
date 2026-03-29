@@ -198,11 +198,13 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
 
         // Per spec: If dateStyle and timeStyle are both undefined and no components are set,
         // apply defaults. For "any"/"date" defaults, add year/month/day.
+        var usesDateTimeDefaults = false;
         if (dateStyle is null && timeStyle is null && !hasExplicitFormatComponents)
         {
             components["year"] = "numeric";
             components["month"] = "numeric";
             components["day"] = "numeric";
+            usesDateTimeDefaults = true;
         }
 
         // Build the resolved locale tag - strip all unicode extensions that aren't relevant
@@ -227,6 +229,7 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
             NumberingSystem = numberingSystem,
             DateStyle = dateStyle,
             TimeStyle = timeStyle,
+            UsesDateTimeDefaults = usesDateTimeDefaults,
             Hour12 = resolvedHour12,
             DisplayTimeZone = displayTimeZone,
             Components = components

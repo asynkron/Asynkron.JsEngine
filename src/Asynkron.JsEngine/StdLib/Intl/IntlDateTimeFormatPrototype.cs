@@ -16,6 +16,19 @@ public sealed partial class IntlDateTimeFormatPrototype
 {
     private const string BrandKey = "__dateTimeFormat__";
     private const string SlotsKey = "__dateTimeFormatSlots__";
+    private enum TemporalFormatterKind
+    {
+        PlainDateTime,
+        PlainDate,
+        PlainTime,
+        PlainYearMonth,
+        PlainMonthDay
+    }
+
+    private readonly record struct TemporalFormatterTarget(
+        TemporalFormatterKind Kind,
+        DateTimeOffset DateTime,
+        string Calendar);
 
     internal static void InitializeInternalSlots(JsObject instance, DateTimeFormatInternalSlots slots)
     {
@@ -36,6 +49,15 @@ public sealed partial class IntlDateTimeFormatPrototype
     {
         var slotData = ValidateReceiver(thisValue, out _);
         var dateValue = args.GetArgument(0);
+        if (TryGetTemporalFormatterTarget(dateValue, out var temporalTarget))
+        {
+            var effectiveSlots = GetEffectiveTemporalSlots(slotData, temporalTarget, Realm);
+            var temporalCulture = IntlUtilities.ResolveCulture(effectiveSlots.Locale);
+            var temporalParts = FormatToPartsInternal(temporalTarget.DateTime, effectiveSlots, temporalCulture);
+            TranslatePartsDigits(temporalParts, effectiveSlots.NumberingSystem);
+            return JsValue.FromJsArray(temporalParts);
+        }
+
         var epochMs = ToEpochMilliseconds(dateValue);
         if (double.IsNaN(epochMs))
         {
@@ -656,6 +678,12 @@ public sealed partial class IntlDateTimeFormatPrototype
     private static JsValue FormatChecked(JsValue value, DateTimeFormatInternalSlots slots, RealmState realm,
         string? displayTimeZoneId = null)
     {
+        if (TryGetTemporalFormatterTarget(value, out var temporalTarget))
+        {
+            var effectiveSlots = GetEffectiveTemporalSlots(slots, temporalTarget, realm);
+            return FormatResolvedDateTime(temporalTarget.DateTime, effectiveSlots, displayTimeZoneId: null);
+        }
+
         var epochMilliseconds = ToEpochMilliseconds(value);
         if (double.IsNaN(epochMilliseconds))
         {
@@ -669,6 +697,12 @@ public sealed partial class IntlDateTimeFormatPrototype
         string? displayTimeZoneId = null)
     {
         var dto = ToDateTimeOffset(epochMilliseconds, slots.TimeZone);
+        return FormatResolvedDateTime(dto, slots, displayTimeZoneId);
+    }
+
+    private static JsValue FormatResolvedDateTime(DateTimeOffset dto, DateTimeFormatInternalSlots slots,
+        string? displayTimeZoneId = null)
+    {
         var culture = IntlUtilities.ResolveCulture(slots.Locale);
 
         string result;
@@ -693,6 +727,304 @@ public sealed partial class IntlDateTimeFormatPrototype
         result = IntlUtilities.TranslateDigits(result, slots.NumberingSystem);
 
         return new JsValue(result);
+    }
+
+    private static bool TryGetTemporalFormatterTarget(JsValue value, out TemporalFormatterTarget target)
+    {
+        target = default;
+        if (value is not { Kind: JsValueKind.Object, ObjectValue: JsObject jsObject })
+        {
+            return false;
+        }
+
+        if (jsObject.TryGetProperty("[[TemporalPlainDateTime]]", out var pdtSlot) &&
+            pdtSlot.TryGetObject<JsTemporalPlainDateTime>(out var pdt))
+        {
+            target = new TemporalFormatterTarget(
+                TemporalFormatterKind.PlainDateTime,
+                new DateTimeOffset(pdt.Year, pdt.Month, pdt.Day, pdt.Hour, pdt.Minute, pdt.Second, pdt.Millisecond,
+                    TimeSpan.Zero),
+                pdt.Calendar);
+            return true;
+        }
+
+        if (jsObject.TryGetProperty("[[TemporalPlainDate]]", out var pdSlot) &&
+            pdSlot.TryGetObject<JsTemporalPlainDate>(out var pd))
+        {
+            target = new TemporalFormatterTarget(
+                TemporalFormatterKind.PlainDate,
+                new DateTimeOffset(pd.Year, pd.Month, pd.Day, 0, 0, 0, TimeSpan.Zero),
+                pd.Calendar);
+            return true;
+        }
+
+        if (jsObject.TryGetProperty("[[TemporalPlainTime]]", out var ptSlot) &&
+            ptSlot.TryGetObject<JsTemporalPlainTime>(out var pt))
+        {
+            target = new TemporalFormatterTarget(
+                TemporalFormatterKind.PlainTime,
+                new DateTimeOffset(1970, 1, 1, pt.Hour, pt.Minute, pt.Second, pt.Millisecond, TimeSpan.Zero),
+                "iso8601");
+            return true;
+        }
+
+        if (jsObject.TryGetProperty("[[TemporalPlainYearMonth]]", out var ymSlot) &&
+            ymSlot.TryGetObject<JsTemporalPlainYearMonth>(out var ym))
+        {
+            target = new TemporalFormatterTarget(
+                TemporalFormatterKind.PlainYearMonth,
+                new DateTimeOffset(ym.Year, ym.Month, Math.Clamp(ym.ReferenceDay, 1, 28), 0, 0, 0, TimeSpan.Zero),
+                ym.Calendar);
+            return true;
+        }
+
+        if (jsObject.TryGetProperty("[[TemporalPlainMonthDay]]", out var mdSlot) &&
+            mdSlot.TryGetObject<JsTemporalPlainMonthDay>(out var md))
+        {
+            target = new TemporalFormatterTarget(
+                TemporalFormatterKind.PlainMonthDay,
+                new DateTimeOffset(md.ReferenceYear, md.Month, md.Day, 0, 0, 0, TimeSpan.Zero),
+                md.Calendar);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static DateTimeFormatInternalSlots GetEffectiveTemporalSlots(DateTimeFormatInternalSlots slots,
+        TemporalFormatterTarget target, RealmState realm)
+    {
+        Dictionary<string, string> components;
+        string? dateStyle;
+        string? timeStyle;
+
+        if (slots.UsesDateTimeDefaults)
+        {
+            dateStyle = null;
+            timeStyle = null;
+            components = GetDefaultComponentsForTemporal(target.Kind);
+        }
+        else if (slots.DateStyle is not null || slots.TimeStyle is not null)
+        {
+            if (slots.DateStyle is not null && slots.TimeStyle is null &&
+                target.Kind is TemporalFormatterKind.PlainDateTime or TemporalFormatterKind.PlainDate)
+            {
+                dateStyle = slots.DateStyle;
+                timeStyle = null;
+                components = new Dictionary<string, string>(StringComparer.Ordinal);
+            }
+            else
+            {
+                dateStyle = null;
+                timeStyle = null;
+                components = GetStyleComponentsForTemporal(slots, target.Kind, realm);
+            }
+        }
+        else
+        {
+            components = FilterComponentsForTemporal(slots.Components, target.Kind);
+            if (components.Count == 0)
+            {
+                throw ThrowTypeError("Temporal object cannot be formatted with the provided options", realm: realm);
+            }
+
+            dateStyle = slots.DateStyle;
+            timeStyle = slots.TimeStyle;
+        }
+
+        return new DateTimeFormatInternalSlots
+        {
+            Locale = slots.Locale,
+            TimeZone = slots.TimeZone,
+            DisplayTimeZone = slots.DisplayTimeZone,
+            Calendar = target.Calendar,
+            NumberingSystem = slots.NumberingSystem,
+            HourCycle = slots.HourCycle,
+            Hour12 = slots.Hour12,
+            DateStyle = dateStyle,
+            TimeStyle = timeStyle,
+            UsesDateTimeDefaults = slots.UsesDateTimeDefaults,
+            Components = components
+        };
+    }
+
+    private static Dictionary<string, string> GetDefaultComponentsForTemporal(TemporalFormatterKind kind)
+    {
+        return kind switch
+        {
+            TemporalFormatterKind.PlainDateTime => new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["year"] = "numeric",
+                ["month"] = "numeric",
+                ["day"] = "numeric",
+                ["hour"] = "numeric",
+                ["minute"] = "numeric",
+                ["second"] = "numeric"
+            },
+            TemporalFormatterKind.PlainDate => new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["year"] = "numeric",
+                ["month"] = "numeric",
+                ["day"] = "numeric"
+            },
+            TemporalFormatterKind.PlainTime => new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["hour"] = "numeric",
+                ["minute"] = "numeric",
+                ["second"] = "numeric"
+            },
+            TemporalFormatterKind.PlainYearMonth => new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["year"] = "numeric",
+                ["month"] = "numeric"
+            },
+            _ => new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["month"] = "numeric",
+                ["day"] = "numeric"
+            }
+        };
+    }
+
+    private static Dictionary<string, string> GetStyleComponentsForTemporal(DateTimeFormatInternalSlots slots,
+        TemporalFormatterKind kind, RealmState realm)
+    {
+        var components = new Dictionary<string, string>(StringComparer.Ordinal);
+        var hasDate = kind is TemporalFormatterKind.PlainDateTime or TemporalFormatterKind.PlainDate
+            or TemporalFormatterKind.PlainYearMonth or TemporalFormatterKind.PlainMonthDay;
+        var hasTime = kind is TemporalFormatterKind.PlainDateTime or TemporalFormatterKind.PlainTime;
+
+        if (slots.DateStyle is not null && !hasDate)
+        {
+            throw ThrowTypeError("Temporal object cannot be formatted with dateStyle", realm: realm);
+        }
+
+        if (slots.TimeStyle is not null && !hasTime && slots.DateStyle is null)
+        {
+            throw ThrowTypeError("Temporal object cannot be formatted with timeStyle", realm: realm);
+        }
+
+        if (slots.DateStyle is not null)
+        {
+            foreach (var (key, value) in GetDateStyleComponents(slots.DateStyle, kind))
+            {
+                components[key] = value;
+            }
+        }
+
+        if (slots.TimeStyle is not null && hasTime)
+        {
+            foreach (var (key, value) in GetTimeStyleComponents(slots.TimeStyle))
+            {
+                components[key] = value;
+            }
+        }
+
+        if (components.Count == 0)
+        {
+            throw ThrowTypeError("Temporal object cannot be formatted with the provided style options", realm: realm);
+        }
+
+        return components;
+    }
+
+    private static IEnumerable<KeyValuePair<string, string>> GetDateStyleComponents(string dateStyle,
+        TemporalFormatterKind kind)
+    {
+        var includeYear = kind is not TemporalFormatterKind.PlainMonthDay;
+        var includeMonth = true;
+        var includeDay = kind is not TemporalFormatterKind.PlainYearMonth;
+        var includeWeekday = kind is TemporalFormatterKind.PlainDate or TemporalFormatterKind.PlainDateTime;
+
+        if (includeWeekday && dateStyle == "full")
+        {
+            yield return new KeyValuePair<string, string>("weekday", "long");
+        }
+
+        string monthWidth;
+        string? yearWidth = null;
+        switch (dateStyle)
+        {
+            case "full":
+            case "long":
+                monthWidth = "long";
+                yearWidth = "numeric";
+                break;
+            case "medium":
+                monthWidth = "short";
+                yearWidth = "numeric";
+                break;
+            default:
+                monthWidth = "numeric";
+                yearWidth = "2-digit";
+                break;
+        }
+
+        if (includeMonth)
+        {
+            yield return new KeyValuePair<string, string>("month", monthWidth);
+        }
+
+        if (includeDay)
+        {
+            yield return new KeyValuePair<string, string>("day", dateStyle == "short" ? "numeric" : "numeric");
+        }
+
+        if (includeYear && yearWidth is not null)
+        {
+            yield return new KeyValuePair<string, string>("year", yearWidth);
+        }
+    }
+
+    private static IEnumerable<KeyValuePair<string, string>> GetTimeStyleComponents(string timeStyle)
+    {
+        yield return new KeyValuePair<string, string>("hour", "numeric");
+        yield return new KeyValuePair<string, string>("minute", "2-digit");
+
+        if (timeStyle is "full" or "long" or "medium")
+        {
+            yield return new KeyValuePair<string, string>("second", "2-digit");
+        }
+    }
+
+    private static Dictionary<string, string> FilterComponentsForTemporal(Dictionary<string, string> components,
+        TemporalFormatterKind kind)
+    {
+        var allowed = kind switch
+        {
+            TemporalFormatterKind.PlainDateTime => new HashSet<string>(StringComparer.Ordinal)
+            {
+                "weekday", "era", "year", "month", "day", "dayPeriod", "hour", "minute", "second",
+                "fractionalSecondDigits"
+            },
+            TemporalFormatterKind.PlainDate => new HashSet<string>(StringComparer.Ordinal)
+            {
+                "weekday", "era", "year", "month", "day"
+            },
+            TemporalFormatterKind.PlainTime => new HashSet<string>(StringComparer.Ordinal)
+            {
+                "dayPeriod", "hour", "minute", "second", "fractionalSecondDigits"
+            },
+            TemporalFormatterKind.PlainYearMonth => new HashSet<string>(StringComparer.Ordinal)
+            {
+                "era", "year", "month"
+            },
+            _ => new HashSet<string>(StringComparer.Ordinal)
+            {
+                "month", "day"
+            }
+        };
+
+        var filtered = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (key, value) in components)
+        {
+            if (allowed.Contains(key))
+            {
+                filtered[key] = value;
+            }
+        }
+
+        return filtered;
     }
 
     private static string FormatWithStyles(DateTimeOffset dto, DateTimeFormatInternalSlots slots, CultureInfo culture,
@@ -865,11 +1197,19 @@ public sealed partial class IntlDateTimeFormatPrototype
 
         if (hasYear || hasMonth || hasDay)
         {
-            var (order, numericSep) = ParseLocaleDateOrder(culture);
-            var dateStr = FormatLocaleDateString(dto, culture, order, numericSep,
-                hasYear, year, hasMonth, month, hasDay, day);
             AppendSeparator(sb, ref addedSomething);
-            sb.Append(dateStr);
+            if (TryFormatChineseDate(dto, slots.Calendar, culture, hasYear, year, hasMonth, month, hasDay, day,
+                    out var chineseDate))
+            {
+                sb.Append(chineseDate);
+            }
+            else
+            {
+                var (order, numericSep) = ParseLocaleDateOrder(culture);
+                var dateStr = FormatLocaleDateString(dto, culture, order, numericSep,
+                    hasYear, year, hasMonth, month, hasDay, day);
+                sb.Append(dateStr);
+            }
         }
 
         // dayPeriod only
@@ -1415,8 +1755,15 @@ public sealed partial class IntlDateTimeFormatPrototype
 
         if (hasYear || hasMonth || hasDay)
         {
-            AppendLocaleDateParts(parts, ref addedSomething, dto, culture,
-                hasYear, year, hasMonth, month, hasDay, day);
+            if (TryAppendChineseDateParts(parts, ref addedSomething, dto, slots.Calendar, culture,
+                    hasYear, year, hasMonth, month, hasDay, day))
+            {
+            }
+            else
+            {
+                AppendLocaleDateParts(parts, ref addedSomething, dto, culture,
+                    hasYear, year, hasMonth, month, hasDay, day);
+            }
         }
 
         if (components.TryGetValue("dayPeriod", out var dayPeriod) && !components.ContainsKey("hour"))
@@ -1498,6 +1845,98 @@ public sealed partial class IntlDateTimeFormatPrototype
         }
 
         return parts;
+    }
+
+    private static bool TryFormatChineseDate(DateTimeOffset dto, string calendar, CultureInfo culture,
+        bool hasYear, string? yearWidth, bool hasMonth, string? monthWidth, bool hasDay, string? dayWidth,
+        out string formatted)
+    {
+        formatted = string.Empty;
+        if (!string.Equals(calendar, "chinese", StringComparison.OrdinalIgnoreCase) || !hasYear)
+        {
+            return false;
+        }
+
+        var sb = new StringBuilder();
+        var added = false;
+
+        if (hasMonth || hasDay)
+        {
+            var (order, numericSep) = ParseLocaleDateOrder(culture);
+            sb.Append(FormatLocaleDateString(dto, culture, order, numericSep,
+                hasYear: false, null, hasMonth, monthWidth, hasDay, dayWidth));
+            added = sb.Length > 0;
+        }
+
+        GetChineseYearParts(dto, out var relatedYear, out var yearName);
+        if (added)
+        {
+            sb.Append(", ");
+        }
+
+        if (yearWidth == "2-digit")
+        {
+            relatedYear = relatedYear[^2..];
+        }
+
+        sb.Append(relatedYear);
+        sb.Append(yearName);
+        sb.Append('年');
+        formatted = sb.ToString();
+        return true;
+    }
+
+    private bool TryAppendChineseDateParts(JsArray parts, ref bool addedSomething, DateTimeOffset dto, string calendar,
+        CultureInfo culture, bool hasYear, string? yearWidth, bool hasMonth, string? monthWidth, bool hasDay,
+        string? dayWidth)
+    {
+        if (!string.Equals(calendar, "chinese", StringComparison.OrdinalIgnoreCase) || !hasYear)
+        {
+            return false;
+        }
+
+        if (hasMonth || hasDay)
+        {
+            AppendLocaleDateParts(parts, ref addedSomething, dto, culture,
+                hasYear: false, null, hasMonth, monthWidth, hasDay, dayWidth);
+            AddSeparatorPart(parts, ref addedSomething);
+        }
+        else
+        {
+            AddSeparatorPart(parts, ref addedSomething);
+        }
+
+        GetChineseYearParts(dto, out var relatedYear, out var yearName);
+        if (yearWidth == "2-digit")
+        {
+            relatedYear = relatedYear[^2..];
+        }
+
+        parts.Push(CreateTypedPart("relatedYear", relatedYear));
+        parts.Push(CreateTypedPart("yearName", yearName));
+        parts.Push(CreateTypedPart("literal", "年"));
+        return true;
+    }
+
+    private static void GetChineseYearParts(DateTimeOffset dto, out string relatedYear, out string yearName)
+    {
+        relatedYear = dto.Year.ToString(CultureInfo.InvariantCulture);
+
+        try
+        {
+            var calendar = new ChineseLunisolarCalendar();
+            var sexagenaryYear = calendar.GetSexagenaryYear(dto.DateTime);
+            var stem = calendar.GetCelestialStem(sexagenaryYear);
+            var branch = calendar.GetTerrestrialBranch(sexagenaryYear);
+            var stems = new[] { "甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸" };
+            var branches = new[] { "子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥" };
+            yearName = stems[Math.Clamp(stem - 1, 0, stems.Length - 1)] +
+                       branches[Math.Clamp(branch - 1, 0, branches.Length - 1)];
+        }
+        catch
+        {
+            yearName = string.Empty;
+        }
     }
 
     private static void FormatStyleToParts(DateTimeOffset dto, DateTimeFormatInternalSlots slots, CultureInfo culture,

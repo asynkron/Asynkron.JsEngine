@@ -1,6 +1,7 @@
 #region
 
 using System.Globalization;
+using Asynkron.JsEngine.StdLib.Temporal;
 
 #endregion
 
@@ -371,7 +372,10 @@ public sealed class JsTemporalPlainDate(int year, int month, int day, string cal
         }
 
         return Year == other.Year && Month == other.Month && Day == other.Day &&
-               string.Equals(Calendar, other.Calendar, StringComparison.Ordinal);
+               string.Equals(
+                   TemporalHelper.CanonicalizeCalendarIdForComparison(Calendar),
+                   TemporalHelper.CanonicalizeCalendarIdForComparison(other.Calendar),
+                   StringComparison.Ordinal);
     }
 
     public override bool Equals(object? obj)

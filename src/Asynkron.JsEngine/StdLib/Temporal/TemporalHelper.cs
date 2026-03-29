@@ -344,8 +344,9 @@ public static class TemporalHelper
             expectedOffset = tz.GetUtcOffset(wallClock);
         }
 
-        // Compare: explicit offset must match expected (to the minute)
-        if (explicitOffset.Value != expectedOffset)
+        // Minute-precision string offsets may match a historical sub-minute zone offset after rounding.
+        // Second-precision string offsets must still match exactly.
+        if (!OffsetsMatchStringInput(beforeBrackets, explicitOffset.Value.Ticks * 100L, expectedOffset.Ticks * 100L))
         {
             throw StandardLibrary.ThrowRangeError(
                 $"UTC offset mismatch: string has {FormatOffset(explicitOffset.Value)} but time zone {tzId} has offset {FormatOffset(expectedOffset)}",
@@ -4197,33 +4198,14 @@ public static class TemporalHelper
     }
 
     /// <summary>
-    ///     Rejects UTC offset strings with sub-minute precision (seconds or fractional seconds).
-    ///     Valid: +HH:MM, +HHMM. Invalid: +HH:MM:SS, +HH:MM:SS.sss.
+    ///     Validates that an offset string is syntactically valid.
+    ///     Temporal permits sub-minute precision offsets, so seconds and fractional seconds are accepted.
     /// </summary>
     private static void RejectSubMinuteOffset(string offset, RealmState realm)
     {
-        // Strip the sign
-        var body = offset.TrimStart('+', '-');
-
-        // Check colon-separated format: HH:MM[:SS[.fff]]
-        if (body.Contains(':'))
+        if (ParseOffsetToNanos(offset) is null)
         {
-            var parts = body.Split(':');
-            if (parts.Length >= 3)
-            {
-                // Has seconds component — sub-minute precision
-                throw StandardLibrary.ThrowRangeError(
-                    $"UTC offset with sub-minute precision is not a valid time zone: {offset}", realm: realm);
-            }
-            return;
-        }
-
-        // Check compact format: HHMM[SS[fff]]
-        // Valid: 4 digits (HHMM). Invalid: 6+ digits (HHMMSS)
-        if (body.Length > 4)
-        {
-            throw StandardLibrary.ThrowRangeError(
-                $"UTC offset with sub-minute precision is not a valid time zone: {offset}", realm: realm);
+            throw StandardLibrary.ThrowRangeError($"Invalid UTC offset time zone: {offset}", realm: realm);
         }
     }
 
@@ -4278,18 +4260,24 @@ public static class TemporalHelper
     }
 
     /// <summary>
-    ///     Normalizes a UTC offset string to ±HH:MM format.
-    ///     Handles both +HH:MM and +HHMM input formats.
+    ///     Normalizes a UTC offset string to a colon-separated Temporal form.
+    ///     Handles +HH, +HHMM, +HHMMSS, and already-colonized offsets.
     /// </summary>
     private static string NormalizeUtcOffset(string offset)
     {
         var sign = offset[0]; // + or -
         var body = offset.Substring(1);
 
-        // Already in HH:MM format
+        // Already in colon-separated format (+HH:MM or +HH:MM:SS[.fraction])
         if (body.Contains(':'))
         {
             return offset;
+        }
+
+        // Compact HHMMSS format — insert colons
+        if (body.Length == 6)
+        {
+            return $"{sign}{body[..2]}:{body.Substring(2, 2)}:{body[4..]}";
         }
 
         // Compact HHMM format — insert colon
@@ -5051,8 +5039,9 @@ public static class TemporalHelper
 
         if (!string.Equals(zdt.Calendar, "iso8601", StringComparison.Ordinal))
         {
-            var resolvedCalendar = GetResolvedDateTimeFormatCalendar(dtfInstance, realm);
-            if (!string.Equals(resolvedCalendar, zdt.Calendar, StringComparison.Ordinal))
+            var resolvedCalendar = CanonicalizeCalendarId(GetResolvedDateTimeFormatCalendar(dtfInstance, realm));
+            var zonedDateTimeCalendar = CanonicalizeCalendarId(zdt.Calendar);
+            if (!string.Equals(resolvedCalendar, zonedDateTimeCalendar, StringComparison.Ordinal))
                 throw StandardLibrary.ThrowRangeError("Calendar must match locale calendar", realm: realm);
         }
 
@@ -5143,24 +5132,169 @@ public static class TemporalHelper
     {
         var localeArg = args.GetArgument(0);
         var optionsArg = args.GetArgument(1);
+        var formatOptions = BuildTemporalDateTimeFormatOptions(thisValue, optionsArg, realm);
+        var dtfCtor = IntlDateTimeFormatConstructor.CreateConstructor(realm);
+        var dtfInstance = dtfCtor.InvokeWithContext([localeArg, formatOptions], JsValue.Undefined, null, dtfCtor.AsJsValue);
 
-        try
+        if (TryGetTemporalCalendarId(thisValue, out var temporalCalendar) &&
+            !string.Equals(temporalCalendar, "iso8601", StringComparison.Ordinal))
         {
-            var dtfCtor = IntlDateTimeFormatConstructor.CreateConstructor(realm);
-            var dtfInstance = dtfCtor.InvokeWithContext([localeArg, optionsArg], JsValue.Undefined, null, dtfCtor.AsJsValue);
-            if (dtfInstance.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
-                accessor.TryGetProperty("format", out var formatVal) &&
-                formatVal.TryGetObject<IJsCallable>(out var formatFn))
+            var resolvedCalendar = CanonicalizeCalendarId(GetResolvedDateTimeFormatCalendar(dtfInstance, realm));
+            if (!string.Equals(resolvedCalendar, temporalCalendar, StringComparison.Ordinal))
+                throw StandardLibrary.ThrowRangeError("Calendar must match locale calendar", realm: realm);
+        }
+
+        return IntlDateTimeFormatPrototype.FormatFromTemporal(dtfInstance, thisValue, realm);
+    }
+
+    private static readonly string[] TemporalToLocaleStringOptionNames =
+    [
+        "localeMatcher", "calendar", "numberingSystem", "hour12", "hourCycle", "timeZone",
+        "weekday", "era", "year", "month", "day", "dayPeriod", "hour", "minute", "second",
+        "fractionalSecondDigits", "timeZoneName", "formatMatcher", "dateStyle", "timeStyle"
+    ];
+
+    private static readonly string[] TemporalToLocaleStringFormattingOptionNames =
+    [
+        "weekday", "era", "year", "month", "day", "dayPeriod", "hour", "minute", "second",
+        "fractionalSecondDigits", "timeZoneName"
+    ];
+
+    private static JsValue BuildTemporalDateTimeFormatOptions(JsValue thisValue, JsValue optionsArg, RealmState realm)
+    {
+        var formatOptions = new JsObject(realm.ObjectPrototype);
+        var hasDateStyle = false;
+        var hasTimeStyle = false;
+        var hasFormattingOption = false;
+
+        if (!optionsArg.IsUndefined && !optionsArg.IsNull && optionsArg.TryGetObject<IJsPropertyAccessor>(out var accessor))
+        {
+            foreach (var property in TemporalToLocaleStringOptionNames)
             {
-                return formatFn.Invoke(new SingleValueArgs(thisValue), dtfInstance);
+                if (!accessor.TryGetProperty(property, out var value) || value.IsUndefined)
+                    continue;
+
+                formatOptions.SetProperty(property, value);
+                hasDateStyle |= string.Equals(property, "dateStyle", StringComparison.Ordinal);
+                hasTimeStyle |= string.Equals(property, "timeStyle", StringComparison.Ordinal);
+                hasFormattingOption |= Array.IndexOf(TemporalToLocaleStringFormattingOptionNames, property) >= 0;
             }
         }
-        catch
+
+        if (!hasDateStyle && !hasTimeStyle && !hasFormattingOption)
         {
-            // Fallback on any error
+            ApplyTemporalDefaultFormatComponents(thisValue, formatOptions);
         }
 
-        return new JsValue(fallbackString);
+        return JsValue.FromObjectUnsafe(formatOptions);
+    }
+
+    private static void ApplyTemporalDefaultFormatComponents(JsValue thisValue, JsObject formatOptions)
+    {
+        if (HasTemporalSlot<JsTemporalPlainDate>(thisValue, TemporalPlainDateSlot))
+        {
+            formatOptions.SetProperty("year", "numeric");
+            formatOptions.SetProperty("month", "numeric");
+            formatOptions.SetProperty("day", "numeric");
+            return;
+        }
+
+        if (HasTemporalSlot<JsTemporalPlainTime>(thisValue, TemporalPlainTimeSlot))
+        {
+            formatOptions.SetProperty("hour", "numeric");
+            formatOptions.SetProperty("minute", "numeric");
+            formatOptions.SetProperty("second", "numeric");
+            return;
+        }
+
+        if (HasTemporalSlot<JsTemporalPlainYearMonth>(thisValue, TemporalPlainYearMonthSlot))
+        {
+            formatOptions.SetProperty("year", "numeric");
+            formatOptions.SetProperty("month", "numeric");
+            return;
+        }
+
+        if (HasTemporalSlot<JsTemporalPlainMonthDay>(thisValue, TemporalPlainMonthDaySlot))
+        {
+            formatOptions.SetProperty("month", "numeric");
+            formatOptions.SetProperty("day", "numeric");
+            return;
+        }
+
+        if (HasTemporalSlot<JsTemporalInstant>(thisValue, TemporalInstantSlot) ||
+            HasTemporalSlot<JsTemporalPlainDateTime>(thisValue, TemporalPlainDateTimeSlot))
+        {
+            formatOptions.SetProperty("year", "numeric");
+            formatOptions.SetProperty("month", "numeric");
+            formatOptions.SetProperty("day", "numeric");
+            formatOptions.SetProperty("hour", "numeric");
+            formatOptions.SetProperty("minute", "numeric");
+            formatOptions.SetProperty("second", "numeric");
+        }
+    }
+
+    private static bool TryGetTemporalCalendarId(JsValue thisValue, out string calendarId)
+    {
+        if (TryGetTemporalSlot(thisValue, TemporalPlainDateSlot, out JsTemporalPlainDate plainDate))
+        {
+            calendarId = CanonicalizeCalendarId(plainDate.Calendar);
+            return true;
+        }
+
+        if (TryGetTemporalSlot(thisValue, TemporalPlainDateTimeSlot, out JsTemporalPlainDateTime plainDateTime))
+        {
+            calendarId = CanonicalizeCalendarId(plainDateTime.Calendar);
+            return true;
+        }
+
+        if (TryGetTemporalSlot(thisValue, TemporalPlainYearMonthSlot, out JsTemporalPlainYearMonth plainYearMonth))
+        {
+            calendarId = CanonicalizeCalendarId(plainYearMonth.Calendar);
+            return true;
+        }
+
+        if (TryGetTemporalSlot(thisValue, TemporalPlainMonthDaySlot, out JsTemporalPlainMonthDay plainMonthDay))
+        {
+            calendarId = CanonicalizeCalendarId(plainMonthDay.Calendar);
+            return true;
+        }
+
+        if (TryGetTemporalSlot(thisValue, TemporalZonedDateTimeSlot, out JsTemporalZonedDateTime zonedDateTime))
+        {
+            calendarId = CanonicalizeCalendarId(zonedDateTime.Calendar);
+            return true;
+        }
+
+        calendarId = string.Empty;
+        return false;
+    }
+
+    private static bool HasTemporalSlot<T>(JsValue value, string slotName) where T : class
+    {
+        return TryGetTemporalSlot(value, slotName, out T _);
+    }
+
+    private static bool TryGetTemporalSlot<T>(JsValue value, string slotName, out T typedValue) where T : class
+    {
+        if (value.TryGetObject<JsObject>(out var obj) &&
+            obj.TryGetProperty(slotName, out var slot) &&
+            slot.TryGetObject<T>(out typedValue))
+        {
+            return true;
+        }
+
+        typedValue = null!;
+        return false;
+    }
+
+    internal static string CanonicalizeCalendarIdForComparison(string calendarId)
+    {
+        return CanonicalizeCalendarId(calendarId);
+    }
+
+    internal static string CanonicalizeTimeZoneIdForComparison(string timeZoneId)
+    {
+        return CanonicalizeTimeZoneId(timeZoneId);
     }
 
     private static JsValue WrapInstant(JsTemporalInstant instant, RealmState realm, JsObject? prototype = null)
@@ -8466,6 +8600,60 @@ public static class TemporalHelper
 
         return sign * ((long)hours * 3_600_000_000_000L + (long)minutes * 60_000_000_000L +
                         (long)seconds * 1_000_000_000L + subSecondNanos);
+    }
+
+    private static bool OffsetsMatchStringInput(string dateTimeString, long parsedOffsetNanos, long timeZoneOffsetNanos)
+    {
+        var offsetString = ExtractOffsetStringFromDateTimeString(dateTimeString);
+        if (offsetString is null)
+            return parsedOffsetNanos == timeZoneOffsetNanos;
+
+        if (OffsetHasSubMinutePrecision(offsetString))
+            return parsedOffsetNanos == timeZoneOffsetNanos;
+
+        return RoundOffsetNanosecondsToMinute(timeZoneOffsetNanos) == parsedOffsetNanos;
+    }
+
+    private static string? ExtractOffsetStringFromDateTimeString(string dateTimeString)
+    {
+        var tIdx = dateTimeString.IndexOf('T');
+        if (tIdx < 0)
+            tIdx = dateTimeString.IndexOf('t');
+        if (tIdx < 0)
+            return null;
+
+        var timePart = dateTimeString[(tIdx + 1)..];
+        for (var i = timePart.Length - 1; i >= 1; i--)
+        {
+            if ((timePart[i] == '+' || timePart[i] == '-') &&
+                i + 1 < timePart.Length && char.IsDigit(timePart[i + 1]))
+            {
+                return timePart[i..];
+            }
+        }
+
+        return null;
+    }
+
+    private static bool OffsetHasSubMinutePrecision(string offsetString)
+    {
+        var body = offsetString.TrimStart('+', '-');
+        if (body.Contains(':'))
+            return body.Split(':').Length >= 3;
+
+        return body.Length > 4;
+    }
+
+    private static long RoundOffsetNanosecondsToMinute(long offsetNanos)
+    {
+        const long minuteNanos = 60_000_000_000L;
+        if (offsetNanos == 0)
+            return 0;
+
+        var sign = offsetNanos < 0 ? -1L : 1L;
+        var abs = Math.Abs(offsetNanos);
+        var rounded = ((abs + minuteNanos / 2) / minuteNanos) * minuteNanos;
+        return sign * rounded;
     }
 
     private static JsTemporalDuration ToTemporalDuration(JsValue value, RealmState realm)
@@ -11783,7 +11971,7 @@ public static class TemporalHelper
                 if (string.Equals(offsetOption, "reject", StringComparison.Ordinal))
                 {
                     // Reject if offset doesn't match timezone
-                    if (stringOffsetNanos != tzOffsetNanos)
+                    if (!OffsetsMatchStringInput(baseStr, stringOffsetNanos, tzOffsetNanos))
                         throw StandardLibrary.ThrowRangeError("Offset does not match the time zone", realm: realm);
                     return new JsTemporalZonedDateTime(parsed, timeZoneId, calendar);
                 }
@@ -11797,7 +11985,7 @@ public static class TemporalHelper
                 if (string.Equals(offsetOption, "prefer", StringComparison.Ordinal))
                 {
                     // Use offset if it matches, otherwise use wall time
-                    if (stringOffsetNanos == tzOffsetNanos)
+                    if (OffsetsMatchStringInput(baseStr, stringOffsetNanos, tzOffsetNanos))
                         return new JsTemporalZonedDateTime(parsed, timeZoneId, calendar);
                     // Fall through to wall time calculation
                 }

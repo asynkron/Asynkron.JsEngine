@@ -2,6 +2,7 @@
 
 using System.Globalization;
 using System.Numerics;
+using Asynkron.JsEngine.StdLib.Temporal;
 
 #endregion
 
@@ -818,7 +819,15 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
             return false;
         }
 
-        return Instant.Equals(other.Instant) && string.Equals(TimeZoneId, other.TimeZoneId, StringComparison.Ordinal);
+        return Instant.Equals(other.Instant) &&
+               string.Equals(
+                   TemporalHelper.CanonicalizeTimeZoneIdForComparison(TimeZoneId),
+                   TemporalHelper.CanonicalizeTimeZoneIdForComparison(other.TimeZoneId),
+                   StringComparison.Ordinal) &&
+               string.Equals(
+                   TemporalHelper.CanonicalizeCalendarIdForComparison(Calendar),
+                   TemporalHelper.CanonicalizeCalendarIdForComparison(other.Calendar),
+                   StringComparison.Ordinal);
     }
 
     public override bool Equals(object? obj)

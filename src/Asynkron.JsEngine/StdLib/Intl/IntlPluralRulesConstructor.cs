@@ -1,5 +1,6 @@
 #region
 
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.IntlHelper;
@@ -14,6 +15,8 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 public sealed partial class IntlPluralRulesConstructor(IJsObjectLike prototype, RealmState realm)
     : JsConstructor(prototype, realm)
 {
+    private HostFunction? _constructor;
+
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var localesArg = args.GetArgument(0);
@@ -106,7 +109,20 @@ public sealed partial class IntlPluralRulesConstructor(IJsObjectLike prototype, 
             roundingType = "significantDigits";
         }
 
-        var instance = PrepareThisObject(thisValue);
+        JsObject instance;
+        if (thisValue.IsObject && thisValue.AsObject() is JsObject provided)
+        {
+            instance = provided;
+            if (instance.IsConstructing)
+            {
+                ApplyPrototype(instance, _constructor!);
+            }
+        }
+        else
+        {
+            instance = PrepareThisObject(thisValue);
+        }
+
         IntlPluralRulesPrototype.InitializeInternalSlots(instance, resolvedLocale, type, notation,
             minimumIntegerDigits, resolvedMinFrac, resolvedMaxFrac,
             resolvedMinSig, resolvedMaxSig, roundingMode, roundingType,
@@ -116,7 +132,34 @@ public sealed partial class IntlPluralRulesConstructor(IJsObjectLike prototype, 
 
     protected override void ConfigureConstructor(HostFunction constructor)
     {
+        _constructor = constructor;
+
+        constructor.SetInvokeWithContext((args, thisValue, _, newTarget) =>
+        {
+            if (newTarget.IsUndefined)
+            {
+                throw ThrowTypeError("Intl.PluralRules constructor requires 'new'", realm: Realm);
+            }
+
+            var target = _constructor!;
+            var newTargetCallable = newTarget.IsObject ? newTarget.AsObject<IJsCallable>() : null;
+            return ConstructWithNewTarget(args, newTargetCallable ?? target, target);
+        });
+
         IntlHelper.ConfigureSupportedLocalesOf(constructor, Realm);
+    }
+
+    private JsValue ConstructWithNewTarget(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor)
+    {
+        var proto = Asynkron.JsEngine.StdLib.ReflectHelper.ResolveConstructPrototype(newTarget, targetCtor, Realm) ??
+                    Prototype;
+        var instance = PrepareThisObject(JsValue.Undefined, false);
+        if (instance.Prototype is null)
+        {
+            instance.SetPrototype(proto);
+        }
+
+        return ConstructInstance(new JsValue(instance), args);
     }
 
     private int GetDigitOption(IJsPropertyAccessor? options, string property, int minimum, int maximum, int fallback)

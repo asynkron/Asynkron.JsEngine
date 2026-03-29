@@ -187,7 +187,14 @@ public sealed partial class IntlLocalePrototype
             result.Push(preferred);
         }
 
-        result.Push("default");
+        foreach (var collation in IntlCollatorConstructor.GetSupportedValues())
+        {
+            if (!string.Equals(preferred, collation, StringComparison.Ordinal))
+            {
+                result.Push(collation);
+            }
+        }
+
         return JsValue.FromJsArray(result);
     }
 
@@ -300,7 +307,7 @@ public sealed partial class IntlLocalePrototype
     private JsValue MaximizeLocale(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
-        var tag = GetCanonicalTag(locale);
+        var tag = IntlUtilities.CanonicalizeLocale(GetCanonicalTag(locale), Realm);
         var maximized = IntlLocaleLikelySubtags.AddLikelySubtags(tag);
         return (JsValue)IntlLocaleConstructor.CreateLocaleFromCanonical(maximized, Realm, locale.Prototype);
     }
@@ -309,7 +316,7 @@ public sealed partial class IntlLocalePrototype
     private JsValue MinimizeLocale(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
-        var tag = GetCanonicalTag(locale);
+        var tag = IntlUtilities.CanonicalizeLocale(GetCanonicalTag(locale), Realm);
         var minimized = IntlLocaleLikelySubtags.RemoveLikelySubtags(tag);
         return (JsValue)IntlLocaleConstructor.CreateLocaleFromCanonical(minimized, Realm, locale.Prototype);
     }
@@ -501,7 +508,7 @@ public sealed partial class IntlLocalePrototype
             return region;
         }
 
-        var canonical = GetCanonicalTag(locale);
+        var canonical = IntlUtilities.CanonicalizeLocale(GetCanonicalTag(locale), Realm);
         var maximized = IntlLocaleLikelySubtags.AddLikelySubtags(canonical);
         var (_, _, resolvedRegion, _) =
             IntlLocaleConstructor.ParseBaseName(IntlLocaleConstructor.ExtractBaseName(maximized));

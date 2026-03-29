@@ -104,8 +104,10 @@ public sealed partial class IntlDateTimeFormatPrototype
             throw ThrowRangeError("Invalid end date value", realm: Realm);
         }
 
-        var startFormatted = FormatDateTimeOffset(startMs, slotData);
-        var endFormatted = FormatDateTimeOffset(endMs, slotData);
+        ValidateTemporalRangeKinds(startDate, endDate, Realm);
+
+        var startFormatted = FormatDateTimeOffset(startMs, slotData, slotData.DisplayTimeZone);
+        var endFormatted = FormatDateTimeOffset(endMs, slotData, slotData.DisplayTimeZone);
 
         // If both format to the same string, return single formatted value (no range)
         if (string.Equals(startFormatted, endFormatted, StringComparison.Ordinal))
@@ -165,8 +167,10 @@ public sealed partial class IntlDateTimeFormatPrototype
             throw ThrowRangeError("Invalid end date value", realm: Realm);
         }
 
-        var startFormatted = FormatDateTimeOffset(startMs, slotData);
-        var endFormatted = FormatDateTimeOffset(endMs, slotData);
+        ValidateTemporalRangeKinds(startDate, endDate, Realm);
+
+        var startFormatted = FormatDateTimeOffset(startMs, slotData, slotData.DisplayTimeZone);
+        var endFormatted = FormatDateTimeOffset(endMs, slotData, slotData.DisplayTimeZone);
 
         var culture = IntlUtilities.ResolveCulture(slotData.Locale);
 
@@ -670,9 +674,10 @@ public sealed partial class IntlDateTimeFormatPrototype
             new PropertyDescriptor { Value = string.Empty, Writable = false, Enumerable = false, Configurable = true });
     }
 
-    private static string FormatDateTimeOffset(double epochMs, DateTimeFormatInternalSlots slots)
+    private static string FormatDateTimeOffset(double epochMs, DateTimeFormatInternalSlots slots,
+        string? displayTimeZoneId = null)
     {
-        return (string)FormatEpoch(epochMs, slots).ObjectValue!;
+        return (string)FormatEpoch(epochMs, slots, displayTimeZoneId).ObjectValue!;
     }
 
     private static JsValue FormatChecked(JsValue value, DateTimeFormatInternalSlots slots, RealmState realm,
@@ -681,7 +686,7 @@ public sealed partial class IntlDateTimeFormatPrototype
         if (TryGetTemporalFormatterTarget(value, out var temporalTarget))
         {
             var effectiveSlots = GetEffectiveTemporalSlots(slots, temporalTarget, realm);
-            return FormatResolvedDateTime(temporalTarget.DateTime, effectiveSlots, displayTimeZoneId: null);
+            return FormatResolvedDateTime(temporalTarget.DateTime, effectiveSlots, displayTimeZoneId);
         }
 
         var epochMilliseconds = ToEpochMilliseconds(value);
@@ -789,6 +794,20 @@ public sealed partial class IntlDateTimeFormatPrototype
         }
 
         return false;
+    }
+
+    private static void ValidateTemporalRangeKinds(JsValue startValue, JsValue endValue, RealmState realm)
+    {
+        if (!TryGetTemporalFormatterTarget(startValue, out var startTarget) ||
+            !TryGetTemporalFormatterTarget(endValue, out var endTarget))
+        {
+            return;
+        }
+
+        if (startTarget.Kind != endTarget.Kind)
+        {
+            throw ThrowTypeError("Temporal objects passed to formatRange must be the same type", realm: realm);
+        }
     }
 
     private static DateTimeFormatInternalSlots GetEffectiveTemporalSlots(DateTimeFormatInternalSlots slots,

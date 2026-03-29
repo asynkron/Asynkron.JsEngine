@@ -528,15 +528,21 @@ public sealed partial class IntlDurationFormatPrototype
                 }
             }
 
-            // Display zero numeric minutes when seconds will be displayed
+            // Display zero numeric minutes only when the chain is actually clock-like.
+            // Digital style needs the minute slot even when the leading hour is omitted,
+            // but numeric/short mixed styles should not force an extra zero minute.
             var displayRequired = false;
-            if (unit == "minutes" && needSeparator)
+            if (unit == "minutes")
             {
-                displayRequired = opts.UnitDisplays[6] == "always" || // secondsDisplay
-                                  duration.Seconds != 0 ||
-                                  duration.Milliseconds != 0 ||
-                                  duration.Microseconds != 0 ||
-                                  duration.Nanoseconds != 0;
+                var lowerUnitsDisplayable = opts.UnitDisplays[6] == "always" || // secondsDisplay
+                                            duration.Seconds != 0 ||
+                                            duration.Milliseconds != 0 ||
+                                            duration.Microseconds != 0 ||
+                                            duration.Nanoseconds != 0;
+
+                displayRequired = opts.Style == "digital"
+                    ? lowerUnitsDisplayable
+                    : needSeparator && lowerUnitsDisplayable;
             }
 
             var remainingHasDisplayableUnit = false;
@@ -559,7 +565,8 @@ public sealed partial class IntlDurationFormatPrototype
 
             // Treat -0 as 0 for display/auto comparison but preserve sign for formatting
             var valueIsZero = value == 0; // -0 == 0 is true in C#
-            if (!displayRequired && valueIsZero && display == "auto" && displayNegativeSign)
+            if (!displayRequired && valueIsZero && display == "auto" && displayNegativeSign &&
+                style is "numeric" or "2-digit")
             {
                 var hasNegativeValue = values.Any(v => v < 0);
                 var hasNonZeroValue = values.Any(v => v != 0);
@@ -608,9 +615,9 @@ public sealed partial class IntlDurationFormatPrototype
                     // Fractional seconds: use numeric formatting so we stay aligned with the
                     // NumberFormat-derived expectations used by the Test262 helper.
                     var formatted = fractionalValueText is not null
-                        ? FormatFractionalNumeric(fractionalValueText, signDisplayNever, style == "2-digit",
+                        ? FormatFractionalNumeric(fractionalValueText, signDisplayNever, true,
                             maxFrac, minFrac, locale)
-                        : FormatFractionalNumber(value, maxFrac, minFrac);
+                        : FormatPlainNumeric(value, signDisplayNever, true);
                     if (signDisplayNever && formatted.StartsWith("-", StringComparison.Ordinal))
                     {
                         formatted = formatted[1..];
@@ -766,7 +773,7 @@ public sealed partial class IntlDurationFormatPrototype
     {
         // Integer formatting without grouping for unit-style NumberFormat
         var absValue = Math.Abs(value);
-        var intValue = (long)absValue;
+        var intValue = decimal.Truncate((decimal)absValue);
         var result = intValue.ToString(CultureInfo.InvariantCulture);
         if (value < 0 || double.IsNegative(value))
         {
@@ -779,8 +786,8 @@ public sealed partial class IntlDurationFormatPrototype
     {
         // Format with truncation rounding
         var absValue = Math.Abs(value);
-        var intPart = (long)Math.Truncate(absValue);
-        var fracPart = absValue - intPart;
+        var absDecimal = (decimal)absValue;
+        var intPart = decimal.Truncate(absDecimal);
 
         var result = new StringBuilder();
         if (value < 0 || double.IsNegative(value))
@@ -792,7 +799,7 @@ public sealed partial class IntlDurationFormatPrototype
         if (maxFrac > 0)
         {
             // Get fractional digits by truncation
-            var fracStr = GetTruncatedFractionDigits(absValue, maxFrac);
+            var fracStr = GetTruncatedFractionDigits(absDecimal, maxFrac);
             // Trim trailing zeros down to minFrac
             var trimmed = fracStr.TrimEnd('0');
             if (trimmed.Length < minFrac)
@@ -814,12 +821,17 @@ public sealed partial class IntlDurationFormatPrototype
         return result.ToString();
     }
 
-    private static string GetTruncatedFractionDigits(double absValue, int digits)
+    private static string GetTruncatedFractionDigits(decimal absValue, int digits)
     {
-        var multiplier = Math.Pow(10, digits);
-        var truncated = Math.Truncate(absValue * multiplier);
-        var intPart = (long)Math.Truncate(absValue);
-        var fracInt = (long)(truncated - intPart * multiplier);
+        var multiplier = 1m;
+        for (var i = 0; i < digits; i++)
+        {
+            multiplier *= 10m;
+        }
+
+        var truncated = decimal.Truncate(absValue * multiplier);
+        var intPart = decimal.Truncate(absValue);
+        var fracInt = truncated - intPart * multiplier;
         return fracInt.ToString(CultureInfo.InvariantCulture).PadLeft(digits, '0');
     }
 
@@ -827,7 +839,7 @@ public sealed partial class IntlDurationFormatPrototype
     {
         // Plain numeric format with no grouping
         var absValue = Math.Abs(value);
-        var intValue = (long)absValue;
+        var intValue = decimal.Truncate((decimal)absValue);
         var result = twoDigit
             ? intValue.ToString(CultureInfo.InvariantCulture).PadLeft(2, '0')
             : intValue.ToString(CultureInfo.InvariantCulture);
@@ -933,6 +945,16 @@ public sealed partial class IntlDurationFormatPrototype
 
         var idx = locale.IndexOfAny(new[] { '-', '_' });
         return idx < 0 ? locale : locale[..idx];
+    }
+
+    private static string GetNumericUnitDisplayStyle(string style)
+    {
+        return style switch
+        {
+            "long" => "long",
+            "narrow" => "narrow",
+            _ => "short"
+        };
     }
 
     private static string GetLongUnitDisplayEs(string unit, bool isOne) => (unit, isOne) switch

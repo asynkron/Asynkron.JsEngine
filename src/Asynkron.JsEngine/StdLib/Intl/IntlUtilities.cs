@@ -521,7 +521,7 @@ internal static partial class IntlUtilities
         return key switch
         {
             "calendar" => CalendarValues,
-            "collation" => EmptyValues,
+            "collation" => IntlCollatorConstructor.GetSupportedValues(),
             "currency" => CurrencyValues.Value,
             "numberingSystem" => NumberingSystemValues,
             "timeZone" => GetTimeZoneValues(realm),
@@ -701,9 +701,11 @@ internal static partial class IntlUtilities
     {
         // Etc/GMT variants → UTC
         { "Etc/GMT", "UTC" },
+        { "Etc/UTC", "UTC" },
         { "Etc/GMT+0", "UTC" },
         { "Etc/GMT-0", "UTC" },
         { "Etc/GMT0", "UTC" },
+        { "Etc/Greenwich", "UTC" },
         { "Etc/UCT", "UTC" },
         { "Etc/Universal", "UTC" },
         { "Etc/Zulu", "UTC" },
@@ -711,6 +713,7 @@ internal static partial class IntlUtilities
         { "GMT+0", "UTC" },
         { "GMT-0", "UTC" },
         { "GMT0", "UTC" },
+        { "Greenwich", "UTC" },
         { "UCT", "UTC" },
         { "Universal", "UTC" },
         { "Zulu", "UTC" },
@@ -1031,7 +1034,15 @@ internal static partial class IntlUtilities
                     j++;
                 }
 
-                extension = JoinSubtags(subtags, extensionStart, j);
+                var attributes = new List<string>(Math.Max(0, j - extensionStart - 1));
+                for (var k = extensionStart + 1; k < j; k++)
+                {
+                    attributes.Add(subtags[k].ToLowerInvariant());
+                }
+
+                attributes.Sort(StringComparer.Ordinal);
+
+                var keywords = new SortedDictionary<string, string>(StringComparer.Ordinal);
 
                 while (j < i)
                 {
@@ -1042,14 +1053,25 @@ internal static partial class IntlUtilities
                         j++;
                     }
 
-                    var attributeKey = subtags[keyStart];
-                    var value = JoinSubtags(subtags, keyStart + 1, j);
+                    var attributeKey = subtags[keyStart].ToLowerInvariant();
+                    var value = JoinSubtags(subtags, keyStart + 1, j).ToLowerInvariant();
                     if (IntlLocaleData.UnicodeMappings.TryGetValue(attributeKey, out var unicodeMap) &&
                         unicodeMap.TryGetValue(value, out var mappedValue))
                     {
                         value = mappedValue;
                     }
 
+                    keywords[attributeKey] = value;
+                }
+
+                extension = "u";
+                foreach (var attribute in attributes)
+                {
+                    extension += "-" + attribute;
+                }
+
+                foreach (var (attributeKey, value) in keywords)
+                {
                     extension += "-" + attributeKey;
                     if (!string.IsNullOrEmpty(value) && !string.Equals(value, "true", StringComparison.Ordinal))
                     {

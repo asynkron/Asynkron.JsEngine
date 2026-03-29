@@ -1,5 +1,6 @@
 #region
 
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.IntlHelper;
@@ -14,6 +15,8 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 public sealed partial class IntlListFormatConstructor(IJsObjectLike prototype, RealmState realm)
     : JsConstructor(prototype, realm)
 {
+    private HostFunction? _constructor;
+
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return ConstructCore(thisValue, args);
@@ -21,6 +24,8 @@ public sealed partial class IntlListFormatConstructor(IJsObjectLike prototype, R
 
     protected override void ConfigureConstructor(HostFunction constructor)
     {
+        _constructor = constructor;
+
         // Override invoke handler to check NewTarget (for calls without new)
         constructor.SetInvokeWithContext((args, thisValue, _, newTarget) =>
         {
@@ -30,7 +35,9 @@ public sealed partial class IntlListFormatConstructor(IJsObjectLike prototype, R
                 throw ThrowTypeError("Intl.ListFormat constructor requires 'new'", realm: Realm);
             }
 
-            return ConstructCore(thisValue, args);
+            var target = _constructor!;
+            var newTargetCallable = newTarget.IsObject ? newTarget.AsObject<IJsCallable>() : null;
+            return ConstructWithNewTarget(args, newTargetCallable ?? target, target);
         });
 
         IntlHelper.ConfigureSupportedLocalesOf(constructor, Realm);
@@ -51,8 +58,34 @@ public sealed partial class IntlListFormatConstructor(IJsObjectLike prototype, R
         var style = IntlOptionHelpers.GetStringOption(options, "style", Realm, "ListFormat",
             ["long", "short", "narrow"], "long");
 
-        var instance = PrepareThisObject(thisValue);
+        JsObject instance;
+        if (thisValue.IsObject && thisValue.AsObject() is JsObject provided)
+        {
+            instance = provided;
+            if (instance.IsConstructing)
+            {
+                ApplyPrototype(instance, _constructor!);
+            }
+        }
+        else
+        {
+            instance = PrepareThisObject(thisValue);
+        }
+
         IntlListFormatPrototype.InitializeInternalSlots(instance, resolvedLocale, type, style);
         return new JsValue(instance);
+    }
+
+    private JsValue ConstructWithNewTarget(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor)
+    {
+        var proto = Asynkron.JsEngine.StdLib.ReflectHelper.ResolveConstructPrototype(newTarget, targetCtor, Realm) ??
+                    Prototype;
+        var instance = PrepareThisObject(JsValue.Undefined, false);
+        if (instance.Prototype is null)
+        {
+            instance.SetPrototype(proto);
+        }
+
+        return ConstructCore(new JsValue(instance), args);
     }
 }

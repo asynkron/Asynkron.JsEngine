@@ -1,5 +1,6 @@
 #region
 
+using System.Linq;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.IntlHelper;
@@ -30,6 +31,13 @@ public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, Rea
         "zhuyin",
         "emoji"
     };
+    private static readonly IReadOnlyList<string> SupportedValues =
+        SupportedCollations
+            .Where(static x => !string.Equals(x, "default", StringComparison.Ordinal))
+            .OrderBy(static x => x, StringComparer.Ordinal)
+            .ToArray();
+
+    internal static IReadOnlyList<string> GetSupportedValues() => SupportedValues;
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {

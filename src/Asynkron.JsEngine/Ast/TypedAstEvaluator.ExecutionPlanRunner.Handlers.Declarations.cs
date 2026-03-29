@@ -40,10 +40,12 @@ public static partial class TypedAstEvaluator
                 var isAtVarEnvironment = ReferenceEquals(varEnvironment, environment) ||
                                          environment.IsEvalDeclarationEnvironment;
 
+                var hasExistingFunctionScopedBinding = false;
                 var isHoistedUndefinedBinding = false;
                 if (isAtVarEnvironment && !ctx.CurrentScope.IsStrict &&
                     varEnvironment.HasFunctionScopedBinding(funcDecl.Name))
                 {
+                    hasExistingFunctionScopedBinding = true;
                     var existingValue = varEnvironment.GetBindingValueDirect(funcDecl.Name);
                     if (existingValue.IsUndefined)
                     {
@@ -55,8 +57,19 @@ public static partial class TypedAstEvaluator
                 {
                     if (!isHoistedUndefinedBinding)
                     {
+                        if (hasExistingFunctionScopedBinding &&
+                            !environment.IsAnnexBBlocked(funcDecl.Name))
+                        {
+                            varEnvironment.AssignJsValue(funcDecl.Name, fnValueJs);
+
+                            if (varEnvironment.IsGlobalFunctionScope)
+                            {
+                                var globalThis = varEnvironment.GetRootGlobalObject();
+                                globalThis?.SetProperty(funcDecl.Name.Name, fnValueJs);
+                            }
+                        }
                         // Function-scoped declarations were initialized during entry/instantiation.
-                        // Runtime evaluation is a no-op unless we are filling a hoisted undefined binding.
+                        // Runtime evaluation is otherwise a no-op unless we are filling a hoisted undefined binding.
                     }
                     else if (!environment.IsAnnexBBlocked(funcDecl.Name))
                     {

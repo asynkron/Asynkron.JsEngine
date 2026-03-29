@@ -1040,7 +1040,7 @@ public static class ReflectHelper
     private static bool IsIntlConstructor(string ctorName)
     {
         return ctorName is "Locale" or "DurationFormat" or "Collator" or "DateTimeFormat" or "NumberFormat" or
-            "RelativeTimeFormat" or "DisplayNames";
+            "RelativeTimeFormat" or "DisplayNames" or "ListFormat" or "PluralRules" or "Segmenter";
     }
 
     private static JsObject? ResolveRealmIntlObject(RealmState? realmState, JsObject? realmObject)

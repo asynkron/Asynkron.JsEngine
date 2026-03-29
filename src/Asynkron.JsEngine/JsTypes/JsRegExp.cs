@@ -100,6 +100,13 @@ public sealed class JsRegExp
     private const string UnicodeEcmaNonDigitPattern =
         "(?:[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]|[^0-9\uD800-\uDFFF])";
 
+    private static readonly (int Start, int End)[] BasicEmojiKeycapBaseRanges =
+    [
+        (0x0023, 0x0023),
+        (0x002A, 0x002A),
+        (0x0030, 0x0039)
+    ];
+
     private readonly string _normalizedPattern;
     private readonly RegexOptions _regexOptions;
 
@@ -3032,29 +3039,15 @@ public sealed class JsRegExp
     /// </summary>
     private static string InsertQuantifierResets(string pattern, Dictionary<string, string[]> duplicateGroupNames)
     {
-        // Build the reset sequence: (?>(?<-n1>)?(?<-n2>)?...)
-        var resetBuilder = new StringBuilder("(?>", 64);
-        foreach (var names in duplicateGroupNames.Values)
-        {
-            foreach (var name in names)
-            {
-                resetBuilder.Append("(?<-");
-                resetBuilder.Append(name);
-                resetBuilder.Append(">)?");
-            }
-        }
-
-        resetBuilder.Append(')');
-        var resetStr = resetBuilder.ToString();
-
         // Phase 1: Walk pattern to determine which groups contain duplicate captures.
-        // For each group, record: open position, depth, and whether it contains duplicates.
+        // For each group, record the duplicate captures in its descendant alternatives so
+        // resets only clear captures relevant to that group, not unrelated siblings.
         // Use index into a list as the group ID.
         var groupOpenPositions = new List<int>(); // index = group ID, value = position of char AFTER opener
         var groupContainsDup = new List<bool>(); // index = group ID
         var groupParent = new List<int>(); // index = group ID, value = parent group ID (-1 for top level)
+        var groupResetNames = new List<HashSet<string>?>();
         var groupStack = new Stack<int>(); // stack of group IDs
-        var topLevelAlternatives = new List<int>(); // positions of | at top level (no enclosing group)
 
         var i = 0;
         var escaped = false;
@@ -3124,6 +3117,7 @@ public sealed class JsRegExp
                                 groupOpenPositions.Add(contentStart);
                                 groupContainsDup.Add(false); // The named group itself doesn't need reset
                                 groupParent.Add(parentId);
+                                groupResetNames.Add(null);
                                 groupStack.Push(groupId);
 
                                 // Mark all ancestor groups as containing duplicates
@@ -3131,6 +3125,8 @@ public sealed class JsRegExp
                                 while (ancestor >= 0)
                                 {
                                     groupContainsDup[ancestor] = true;
+                                    (groupResetNames[ancestor] ??= new HashSet<string>(StringComparer.Ordinal))
+                                        .Add(name);
                                     ancestor = groupParent[ancestor];
                                 }
 
@@ -3153,6 +3149,7 @@ public sealed class JsRegExp
                 groupOpenPositions.Add(contentStart);
                 groupContainsDup.Add(false);
                 groupParent.Add(parentId);
+                groupResetNames.Add(null);
                 groupStack.Push(groupId);
                 i++;
                 continue;
@@ -3257,22 +3254,126 @@ public sealed class JsRegExp
             return pattern;
         }
 
+        var resetStrings = new string?[groupOpenPositions.Count];
+        for (var groupId = 0; groupId < groupResetNames.Count; groupId++)
+        {
+            var names = groupResetNames[groupId];
+            if (names is null || names.Count == 0)
+            {
+                continue;
+            }
+
+            var resetBuilder = new StringBuilder("(?>", 16 + (names.Count * 12));
+            foreach (var name in names.OrderBy(static n => n, StringComparer.Ordinal))
+            {
+                resetBuilder.Append("(?<-");
+                resetBuilder.Append(name);
+                resetBuilder.Append(">)?");
+            }
+
+            resetBuilder.Append(')');
+            resetStrings[groupId] = resetBuilder.ToString();
+        }
+
+        var insertsByPosition = new Dictionary<int, string>();
+        groupStack.Clear();
+        i = 0;
+        escaped = false;
+        inCharClass = false;
+        groupIndex = 0;
+
+        while (i < pattern.Length)
+        {
+            var c = pattern[i];
+
+            if (escaped)
+            {
+                escaped = false;
+                i++;
+                continue;
+            }
+
+            if (c == '\\')
+            {
+                escaped = true;
+                i++;
+                continue;
+            }
+
+            if (c == '[' && !inCharClass)
+            {
+                inCharClass = true;
+                i++;
+                continue;
+            }
+
+            if (c == ']' && inCharClass)
+            {
+                inCharClass = false;
+                i++;
+                continue;
+            }
+
+            if (inCharClass)
+            {
+                i++;
+                continue;
+            }
+
+            if (c == '(')
+            {
+                if (groupIndex < groupOpenPositions.Count)
+                {
+                    var contentStart = groupOpenPositions[groupIndex];
+                    if (groupContainsDup[groupIndex] && resetStrings[groupIndex] is { } reset)
+                    {
+                        insertsByPosition[contentStart] = reset;
+                    }
+
+                    groupStack.Push(groupIndex);
+                    groupIndex++;
+                }
+
+                i++;
+                continue;
+            }
+
+            if (c == ')' && groupStack.Count > 0)
+            {
+                groupStack.Pop();
+                i++;
+                continue;
+            }
+
+            if (c == '|' && groupStack.Count > 0)
+            {
+                var currentGroup = groupStack.Peek();
+                if (groupContainsDup[currentGroup] && resetStrings[currentGroup] is { } reset)
+                {
+                    insertsByPosition[i + 1] = reset;
+                }
+            }
+
+            i++;
+        }
+
         // Phase 3: Build the new pattern with resets inserted
-        var result = new StringBuilder(pattern.Length + (insertPositions.Count * resetStr.Length));
+        var averageInsertLength = resetStrings.Where(static s => s is not null).Select(static s => s!.Length).DefaultIfEmpty().Average();
+        var result = new StringBuilder(pattern.Length + (int)(insertsByPosition.Count * averageInsertLength));
         for (i = 0; i < pattern.Length; i++)
         {
-            if (insertPositions.Contains(i))
+            if (insertsByPosition.TryGetValue(i, out var reset))
             {
-                result.Append(resetStr);
+                result.Append(reset);
             }
 
             result.Append(pattern[i]);
         }
 
         // Check if we need to insert at the very end (unlikely but handle it)
-        if (insertPositions.Contains(pattern.Length))
+        if (insertsByPosition.TryGetValue(pattern.Length, out var trailingReset))
         {
-            result.Append(resetStr);
+            result.Append(trailingReset);
         }
 
         return result.ToString();
@@ -3327,6 +3428,72 @@ public sealed class JsRegExp
         }
 
         return dotNetName;
+    }
+
+    private static (int Start, int End)[] GetBasicEmojiTextDefaultRanges()
+    {
+        var emoji = UnicodePropertyData.Resolve("Emoji") ?? [];
+        var emojiPresentation = UnicodePropertyData.Resolve("Emoji_Presentation") ?? [];
+        var emojiComponent = UnicodePropertyData.Resolve("Emoji_Component") ?? [];
+        var regionalIndicator = UnicodePropertyData.Resolve("Regional_Indicator") ?? [];
+
+        var textDefaultEmoji = SubtractRangesStatic(emoji, emojiPresentation);
+        textDefaultEmoji = SubtractRangesStatic(textDefaultEmoji, emojiComponent);
+        textDefaultEmoji = SubtractRangesStatic(textDefaultEmoji, regionalIndicator);
+        textDefaultEmoji = SubtractRangesStatic(textDefaultEmoji, BasicEmojiKeycapBaseRanges);
+        return textDefaultEmoji;
+    }
+
+    private static (int Start, int End)[] SubtractRangesStatic((int Start, int End)[] minuend, (int Start, int End)[] subtrahend)
+    {
+        if (minuend.Length == 0)
+        {
+            return [];
+        }
+
+        if (subtrahend.Length == 0)
+        {
+            return minuend;
+        }
+
+        var result = new List<(int Start, int End)>();
+        var j = 0;
+
+        foreach (var (start, end) in minuend)
+        {
+            var currentStart = start;
+
+            while (j < subtrahend.Length && subtrahend[j].End < currentStart)
+            {
+                j++;
+            }
+
+            var k = j;
+            while (k < subtrahend.Length && subtrahend[k].Start <= end)
+            {
+                var (otherStart, otherEnd) = subtrahend[k];
+                if (otherStart > currentStart)
+                {
+                    result.Add((currentStart, Math.Min(end, otherStart - 1)));
+                }
+
+                if (otherEnd >= end)
+                {
+                    currentStart = end + 1;
+                    break;
+                }
+
+                currentStart = Math.Max(currentStart, otherEnd + 1);
+                k++;
+            }
+
+            if (currentStart <= end)
+            {
+                result.Add((currentStart, end));
+            }
+        }
+
+        return [.. result];
     }
 
     private static bool ContainsLoneSurrogate(string value)
@@ -4333,9 +4500,8 @@ public sealed class JsRegExp
         {
             case "Basic_Emoji":
             {
-                var basicEmoji = UnicodePropertyData.Resolve("Basic_Emoji") ?? [];
                 var emojiPresentation = UnicodePropertyData.Resolve("Emoji_Presentation") ?? [];
-                var textDefaultEmoji = SubtractRanges(basicEmoji, emojiPresentation);
+                var textDefaultEmoji = GetBasicEmojiTextDefaultRanges();
 
                 AddRanges(elements, emojiPresentation);
 
@@ -4349,8 +4515,6 @@ public sealed class JsRegExp
             }
             case "RGI_Emoji":
             {
-                TryBuildStringPropertyEscapeElements("Basic_Emoji", out elements);
-
                 foreach (var propertyName in new[]
                          {
                              "Emoji_Keycap_Sequence",
@@ -4364,6 +4528,14 @@ public sealed class JsRegExp
                     {
                         elements.PatternStrings.Add(pattern);
                     }
+                }
+
+                if (TryBuildStringPropertyEscapeElements("Basic_Emoji", out var basicEmojiElements))
+                {
+                    elements.BmpRanges.AddRange(basicEmojiElements.BmpRanges);
+                    elements.AstralRanges.AddRange(basicEmojiElements.AstralRanges);
+                    elements.LiteralStrings.UnionWith(basicEmojiElements.LiteralStrings);
+                    elements.PatternStrings.UnionWith(basicEmojiElements.PatternStrings);
                 }
 
                 return true;
@@ -5007,9 +5179,8 @@ public sealed class JsRegExp
 
         string BuildBasicEmojiPattern()
         {
-            var basicEmoji = UnicodePropertyData.Resolve("Basic_Emoji") ?? [];
             var emojiPresentation = UnicodePropertyData.Resolve("Emoji_Presentation") ?? [];
-            var textDefaultEmoji = SubtractRanges(basicEmoji, emojiPresentation);
+            var textDefaultEmoji = GetBasicEmojiTextDefaultRanges();
             var emojiPresentationPattern = BuildResolvedPropertyEscapePattern(emojiPresentation, negate: false);
             var textDefaultPattern = BuildResolvedPropertyEscapePattern(textDefaultEmoji, negate: false);
             return BuildAlternation(
@@ -5029,12 +5200,12 @@ public sealed class JsRegExp
                 BuildCodePointSequence(0x1F3F4, 0xE0067, 0xE0062, 0xE0077, 0xE006C, 0xE0073, 0xE007F)),
             "RGI_Emoji_ZWJ_Sequence" => BuildEmojiZWJSequencePattern(),
             "RGI_Emoji" => BuildAlternation(
-                BuildPropertyEscapePattern("Basic_Emoji", false),
                 BuildPropertyEscapePattern("Emoji_Keycap_Sequence", false),
                 BuildPropertyEscapePattern("RGI_Emoji_Flag_Sequence", false),
                 BuildPropertyEscapePattern("RGI_Emoji_Modifier_Sequence", false),
                 BuildPropertyEscapePattern("RGI_Emoji_Tag_Sequence", false),
-                BuildPropertyEscapePattern("RGI_Emoji_ZWJ_Sequence", false)),
+                BuildPropertyEscapePattern("RGI_Emoji_ZWJ_Sequence", false),
+                BuildPropertyEscapePattern("Basic_Emoji", false)),
             _ => string.Empty
         };
 

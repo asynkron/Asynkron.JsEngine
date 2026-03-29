@@ -38,7 +38,8 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
         _ = IntlOptionHelpers.GetStringOption(options, "localeMatcher", Realm, "NumberFormat",
             ["lookup", "best fit"], "best fit");
         var numberingSystem = ResolveNumberingSystem(options);
-        var culture = IntlUtilities.ResolveCulture(locale);
+        var (resolvedNumberingSystem, finalLocale) = ResolveNumberingSystemAndLocale(numberingSystem, locale);
+        var culture = IntlUtilities.ResolveCulture(finalLocale);
 
         // Step 3-8: SetNumberFormatUnitOptions (always reads all, regardless of style)
         var style = ResolveStyle(options);
@@ -124,8 +125,8 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
 
         return new IntlNumberFormatInternalSlots
         {
-            Locale = locale,
-            NumberingSystem = numberingSystem,
+            Locale = finalLocale,
+            NumberingSystem = resolvedNumberingSystem,
             Style = style,
             Currency = string.Equals(style, "currency", StringComparison.Ordinal) ? currency : null,
             CurrencyDisplay = currencyDisplay,
@@ -148,6 +149,39 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
             RoundingType = digits.RoundingType,
             Culture = culture
         };
+    }
+
+    private static (string NumberingSystem, string Locale) ResolveNumberingSystemAndLocale(
+        string? optionNu,
+        string resolvedLocale)
+    {
+        var unicodeKeywords = IntlUtilities.ParseUnicodeExtensionKeywords(resolvedLocale);
+        string? extensionNu = null;
+        if (unicodeKeywords.TryGetValue("nu", out var nuValues) && nuValues.Count > 0)
+        {
+            extensionNu = nuValues[0];
+        }
+
+        var baseLocale = IntlUtilities.RemoveUnicodeExtensions(resolvedLocale);
+
+        if (optionNu is not null && IntlUtilities.TryNormalizeSupportedNumberingSystem(optionNu, out var canonicalOption))
+        {
+            if (extensionNu is not null &&
+                string.Equals(canonicalOption, extensionNu, StringComparison.Ordinal))
+            {
+                return (canonicalOption, resolvedLocale);
+            }
+
+            return (canonicalOption, baseLocale);
+        }
+
+        if (extensionNu is not null &&
+            IntlUtilities.TryNormalizeSupportedNumberingSystem(extensionNu, out var validExtNu))
+        {
+            return (validExtNu, resolvedLocale);
+        }
+
+        return ("latn", baseLocale);
     }
 
     private string ResolveStyle(IJsPropertyAccessor? options)

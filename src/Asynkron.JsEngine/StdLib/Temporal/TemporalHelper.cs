@@ -190,15 +190,15 @@ public static class TemporalHelper
             if (calendarArg.TryGetObject<JsObject>(out var obj))
             {
                 if (obj.TryGetProperty(TemporalPlainDateSlot, out var slot) && slot.TryGetObject<JsTemporalPlainDate>(out var pd))
-                    return pd.Calendar;
+                    return CanonicalizeCalendarId(pd.Calendar);
                 if (obj.TryGetProperty(TemporalPlainDateTimeSlot, out slot) && slot.TryGetObject<JsTemporalPlainDateTime>(out var pdt))
-                    return pdt.Calendar;
+                    return CanonicalizeCalendarId(pdt.Calendar);
                 if (obj.TryGetProperty(TemporalPlainMonthDaySlot, out slot) && slot.TryGetObject<JsTemporalPlainMonthDay>(out var pmd))
-                    return pmd.Calendar;
+                    return CanonicalizeCalendarId(pmd.Calendar);
                 if (obj.TryGetProperty(TemporalPlainYearMonthSlot, out slot) && slot.TryGetObject<JsTemporalPlainYearMonth>(out var pym))
-                    return pym.Calendar;
+                    return CanonicalizeCalendarId(pym.Calendar);
                 if (obj.TryGetProperty(TemporalZonedDateTimeSlot, out slot) && slot.TryGetObject<JsTemporalZonedDateTime>(out var zdt))
-                    return zdt.Calendar;
+                    return CanonicalizeCalendarId(zdt.Calendar);
             }
 
             throw StandardLibrary.ThrowTypeError(
@@ -213,7 +213,7 @@ public static class TemporalHelper
         if (CalendarAliases.TryGetValue(lowered, out var canonical))
             lowered = canonical;
         if (ValidCalendarIds.Contains(lowered))
-            return lowered;
+            return CanonicalizeCalendarId(lowered);
         // Not a bare calendar name — parse as ISO string to extract calendar annotation
         var parsed = ParseTemporalCalendarString(id);
         return ValidateCalendarId(parsed);
@@ -2787,7 +2787,7 @@ public static class TemporalHelper
             else
             {
                 // Named timezone — need to compute offset at the rounded instant
-                var roundedZdtForOffset = new JsTemporalZonedDateTime(new JsTemporalInstant(rounded), zdt.TimeZoneId, zdt.Calendar);
+                var roundedZdtForOffset = new JsTemporalZonedDateTime(new JsTemporalInstant(rounded), zdt.TimeZoneId, CanonicalizeCalendarId(zdt.Calendar));
                 offsetNanos = roundedZdtForOffset.OffsetNanoseconds;
             }
 
@@ -2858,7 +2858,7 @@ public static class TemporalHelper
         {
             var zdt = GetZonedDateTime(thisValue);
             var pdt = ZonedDateTimeToPlainDateTime(zdt);
-            return WrapPlainDate(new JsTemporalPlainDate(pdt.Year, pdt.Month, pdt.Day, pdt.Calendar), realm, prototypes.PlainDatePrototype);
+            return WrapPlainDate(new JsTemporalPlainDate(pdt.Year, pdt.Month, pdt.Day, CanonicalizeCalendarId(pdt.Calendar)), realm, prototypes.PlainDatePrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "toPlainTime", 0, (thisValue, _) =>
@@ -2933,7 +2933,7 @@ public static class TemporalHelper
             if (options.SmallestUnit == "day")
             {
                 var roundedInstant = RoundZonedDateTimeToDay(zdt, options, realm);
-                var roundedZdtDay = new JsTemporalZonedDateTime(roundedInstant, zdt.TimeZoneId, zdt.Calendar);
+                var roundedZdtDay = new JsTemporalZonedDateTime(roundedInstant, zdt.TimeZoneId, CanonicalizeCalendarId(zdt.Calendar));
                 return WrapZonedDateTime(roundedZdtDay, realm, prototype);
             }
 
@@ -2953,7 +2953,7 @@ public static class TemporalHelper
             var roundedZdt = new JsTemporalZonedDateTime(
                 JsTemporalInstant.FromEpochNanoseconds(roundedInstantNanoseconds),
                 zdt.TimeZoneId,
-                zdt.Calendar);
+                CanonicalizeCalendarId(zdt.Calendar));
             return WrapZonedDateTime(roundedZdt, realm, prototype);
         });
 
@@ -3071,10 +3071,10 @@ public static class TemporalHelper
                     throw StandardLibrary.ThrowRangeError("ZonedDateTime is out of representable range", realm: realm);
                 }
                 var newInstant = JsTemporalInstant.FromEpochNanoseconds(utcEpochNanos);
-                return WrapZonedDateTime(new JsTemporalZonedDateTime(newInstant, zdt.TimeZoneId, zdt.Calendar), realm, prototype);
+                return WrapZonedDateTime(new JsTemporalZonedDateTime(newInstant, zdt.TimeZoneId, CanonicalizeCalendarId(zdt.Calendar)), realm, prototype);
             }
 
-            var newZdt = new JsTemporalZonedDateTime(year, month, day, hour, minute, second, millisecond, microsecond, nanosecond, zdt.TimeZoneId, zdt.Calendar);
+            var newZdt = new JsTemporalZonedDateTime(year, month, day, hour, minute, second, millisecond, microsecond, nanosecond, zdt.TimeZoneId, CanonicalizeCalendarId(zdt.Calendar));
             var newEpochNs = newZdt.Instant.EpochNanoseconds;
             if (newEpochNs < InstantMinEpochNanoseconds || newEpochNs > InstantMaxEpochNanoseconds)
             {
@@ -3097,7 +3097,7 @@ public static class TemporalHelper
             var epochNs = GetStartOfDayInstant(year, month, day,
                 zdt.TimeZone, zdt.FixedOffset, realm);
             var instant = JsTemporalInstant.FromEpochNanoseconds(epochNs);
-            var startOfDayZdt = new JsTemporalZonedDateTime(instant, zdt.TimeZoneId, zdt.Calendar);
+            var startOfDayZdt = new JsTemporalZonedDateTime(instant, zdt.TimeZoneId, CanonicalizeCalendarId(zdt.Calendar));
             return WrapZonedDateTime(startOfDayZdt, realm, prototype);
         });
 
@@ -3209,7 +3209,7 @@ public static class TemporalHelper
                     {
                         var transNs = new System.Numerics.BigInteger(nextTransition.Value.ToUnixTimeMilliseconds()) * 1_000_000;
                         var transInstant = new JsTemporalInstant(transNs);
-                        var transZdt = new JsTemporalZonedDateTime(transInstant, timeZoneId, zdt.Calendar);
+                        var transZdt = new JsTemporalZonedDateTime(transInstant, timeZoneId, CanonicalizeCalendarId(zdt.Calendar));
                         return WrapZonedDateTime(transZdt, realm, prototype);
                     }
                 }
@@ -3246,7 +3246,7 @@ public static class TemporalHelper
                     {
                         var transNs = new System.Numerics.BigInteger(prevTransition.Value.ToUnixTimeMilliseconds()) * 1_000_000;
                         var transInstant = new JsTemporalInstant(transNs);
-                        var transZdt = new JsTemporalZonedDateTime(transInstant, timeZoneId, zdt.Calendar);
+                        var transZdt = new JsTemporalZonedDateTime(transInstant, timeZoneId, CanonicalizeCalendarId(zdt.Calendar));
                         return WrapZonedDateTime(transZdt, realm, prototype);
                     }
                 }
@@ -3271,7 +3271,7 @@ public static class TemporalHelper
                     zdt.TimeZone, zdt.FixedOffset, realm);
                 var instant = JsTemporalInstant.FromEpochNanoseconds(epochNs);
                 return WrapZonedDateTime(
-                    new JsTemporalZonedDateTime(instant, zdt.TimeZoneId, zdt.Calendar),
+                    new JsTemporalZonedDateTime(instant, zdt.TimeZoneId, CanonicalizeCalendarId(zdt.Calendar)),
                     realm, prototype);
             }
 
@@ -3280,7 +3280,7 @@ public static class TemporalHelper
                 year, month, day,
                 time.Hour, time.Minute, time.Second,
                 time.Millisecond, time.Microsecond, time.Nanosecond,
-                zdt.TimeZoneId, zdt.Calendar);
+                zdt.TimeZoneId, CanonicalizeCalendarId(zdt.Calendar));
             var newEpochNs = newZdt.Instant.EpochNanoseconds;
             if (newEpochNs < InstantMinEpochNanoseconds || newEpochNs > InstantMaxEpochNanoseconds)
             {
@@ -3702,13 +3702,13 @@ public static class TemporalHelper
                 {
                     var resolvedOpts = ValidateOptionsObject(options, realm, "Temporal.PlainYearMonth.from");
                     GetTemporalOverflowOption(resolvedOpts, realm);
-                    return WrapPlainYearMonth(new JsTemporalPlainYearMonth(pd.Year, pd.Month, pd.Calendar), realm, prototype);
+                    return WrapPlainYearMonth(new JsTemporalPlainYearMonth(pd.Year, pd.Month, CanonicalizeCalendarId(pd.Calendar)), realm, prototype);
                 }
                 if (fromObj2.TryGetProperty(TemporalPlainDateTimeSlot, out var pdtSlot) && pdtSlot.TryGetObject<JsTemporalPlainDateTime>(out var pdt))
                 {
                     var resolvedOpts = ValidateOptionsObject(options, realm, "Temporal.PlainYearMonth.from");
                     GetTemporalOverflowOption(resolvedOpts, realm);
-                    return WrapPlainYearMonth(new JsTemporalPlainYearMonth(pdt.Year, pdt.Month, pdt.Calendar), realm, prototype);
+                    return WrapPlainYearMonth(new JsTemporalPlainYearMonth(pdt.Year, pdt.Month, CanonicalizeCalendarId(pdt.Calendar)), realm, prototype);
                 }
                 if (fromObj2.TryGetProperty(TemporalZonedDateTimeSlot, out var zdtSlot) && zdtSlot.TryGetObject<JsTemporalZonedDateTime>(out var zdt))
                 {
@@ -3717,8 +3717,8 @@ public static class TemporalHelper
                     var plainDate = zdt.ToPlainDate();
                     return WrapPlainYearMonth(
                         new JsTemporalPlainYearMonth(
-                            plainDate.Year, plainDate.Month, zdt.Calendar,
-                            GetTemporalReferenceISODay(zdt.Calendar, plainDate.Year, plainDate.Month, plainDate.Day, null, realm)),
+                            plainDate.Year, plainDate.Month, CanonicalizeCalendarId(zdt.Calendar),
+                            GetTemporalReferenceISODay(CanonicalizeCalendarId(zdt.Calendar), plainDate.Year, plainDate.Month, plainDate.Day, null, realm)),
                         realm, prototype);
                 }
             }
@@ -4001,13 +4001,13 @@ public static class TemporalHelper
                 {
                     var resolvedOpts = ValidateOptionsObject(options, realm, "Temporal.PlainMonthDay.from");
                     GetTemporalOverflowOption(resolvedOpts, realm);
-                    return WrapPlainMonthDay(new JsTemporalPlainMonthDay(pd.Month, pd.Day, pd.Calendar), realm, prototype);
+                    return WrapPlainMonthDay(new JsTemporalPlainMonthDay(pd.Month, pd.Day, CanonicalizeCalendarId(pd.Calendar)), realm, prototype);
                 }
                 if (fromObj2.TryGetProperty(TemporalPlainDateTimeSlot, out var pdtSlot) && pdtSlot.TryGetObject<JsTemporalPlainDateTime>(out var pdt))
                 {
                     var resolvedOpts = ValidateOptionsObject(options, realm, "Temporal.PlainMonthDay.from");
                     GetTemporalOverflowOption(resolvedOpts, realm);
-                    return WrapPlainMonthDay(new JsTemporalPlainMonthDay(pdt.Month, pdt.Day, pdt.Calendar), realm, prototype);
+                    return WrapPlainMonthDay(new JsTemporalPlainMonthDay(pdt.Month, pdt.Day, CanonicalizeCalendarId(pdt.Calendar)), realm, prototype);
                 }
             }
 
@@ -4306,22 +4306,12 @@ public static class TemporalHelper
             throw StandardLibrary.ThrowRangeError("Invalid time zone identifier", realm: realm);
         }
 
-        // Try to find the timezone — will throw if invalid
-        try
+        if (ParseOffsetToNanos(id) is not null)
         {
-            var tz = FindTimeZone(id);
-            // For offset timezones, normalize format (+0000 → +00:00)
-            if (id.Length >= 2 && (id[0] == '+' || id[0] == '-') && char.IsDigit(id[1]))
-                return NormalizeUtcOffset(id);
-            if (string.Equals(id, "UTC", StringComparison.OrdinalIgnoreCase))
-                return "UTC";
-            // Return the system's canonical IANA ID
-            return tz.HasIanaId ? tz.Id : id;
+            return NormalizeUtcOffset(id);
         }
-        catch (TimeZoneNotFoundException)
-        {
-            throw StandardLibrary.ThrowRangeError($"Invalid time zone identifier: {id}", realm: realm);
-        }
+
+        return IntlUtilities.NormalizeTimeZone(JsValue.FromString(id), realm);
     }
 
     /// <summary>
@@ -8474,7 +8464,7 @@ public static class TemporalHelper
         return new JsTemporalZonedDateTime(
             JsTemporalInstant.FromEpochNanoseconds(resultInstantNanoseconds),
             zdt.TimeZoneId,
-            zdt.Calendar);
+            CanonicalizeCalendarId(zdt.Calendar));
     }
 
     /// <summary>
@@ -10157,17 +10147,17 @@ public static class TemporalHelper
         if (calVal.TryGetObject<JsObject>(out var obj))
         {
             if (obj.TryGetProperty(TemporalPlainDateSlot, out var pdSlot) && pdSlot.TryGetObject<JsTemporalPlainDate>(out var pd))
-                return pd.Calendar;
+                return CanonicalizeCalendarId(pd.Calendar);
             if (obj.TryGetProperty(TemporalPlainDateTimeSlot, out var pdtSlot) && pdtSlot.TryGetObject<JsTemporalPlainDateTime>(out var pdt))
-                return pdt.Calendar;
+                return CanonicalizeCalendarId(pdt.Calendar);
             if (obj.TryGetProperty(TemporalPlainTimeSlot, out _))
                 return "iso8601"; // PlainTime always uses iso8601
             if (obj.TryGetProperty(TemporalZonedDateTimeSlot, out var zdtSlot) && zdtSlot.TryGetObject<JsTemporalZonedDateTime>(out var zdt))
-                return zdt.Calendar;
+                return CanonicalizeCalendarId(zdt.Calendar);
             if (obj.TryGetProperty(TemporalPlainYearMonthSlot, out var pymSlot) && pymSlot.TryGetObject<JsTemporalPlainYearMonth>(out var pym))
-                return pym.Calendar;
+                return CanonicalizeCalendarId(pym.Calendar);
             if (obj.TryGetProperty(TemporalPlainMonthDaySlot, out var pmdSlot) && pmdSlot.TryGetObject<JsTemporalPlainMonthDay>(out var pmd))
-                return pmd.Calendar;
+                return CanonicalizeCalendarId(pmd.Calendar);
 
             // Non-Temporal objects → TypeError
             throw StandardLibrary.ThrowTypeError("Calendar must be a string", realm: realm);
@@ -10183,13 +10173,13 @@ public static class TemporalHelper
         if (CalendarAliases.TryGetValue(lowered, out var canonical))
             lowered = canonical;
         if (ValidCalendarIds.Contains(lowered))
-            return lowered;
+            return CanonicalizeCalendarId(lowered);
 
         var bracketIdx = calStr.IndexOf('[');
         var baseStr = bracketIdx >= 0 ? calStr[..bracketIdx] : calStr;
         ParseAndValidateAnnotations(calStr, realm);
         if (LooksLikeISOCalendarString(baseStr))
-            return ValidateCalendarAnnotation(calStr, realm) ?? "iso8601";
+            return CanonicalizeCalendarId(ValidateCalendarAnnotation(calStr, realm) ?? "iso8601");
 
         throw StandardLibrary.ThrowRangeError($"Invalid calendar string: {calStr}", realm: realm);
     }
@@ -12203,16 +12193,16 @@ public static class TemporalHelper
             if (obj.TryGetProperty(TemporalPlainYearMonthSlot, out var slot) && slot.TryGetObject<JsTemporalPlainYearMonth>(out var yearMonth))
                 return yearMonth;
             if (obj.TryGetProperty(TemporalPlainDateSlot, out var pdSlot) && pdSlot.TryGetObject<JsTemporalPlainDate>(out var pd))
-                return new JsTemporalPlainYearMonth(pd.Year, pd.Month, pd.Calendar,
-                    GetTemporalReferenceISODay(pd.Calendar, pd.Year, pd.Month, pd.Day, null, realm));
+                return new JsTemporalPlainYearMonth(pd.Year, pd.Month, CanonicalizeCalendarId(pd.Calendar),
+                    GetTemporalReferenceISODay(CanonicalizeCalendarId(pd.Calendar), pd.Year, pd.Month, pd.Day, null, realm));
             if (obj.TryGetProperty(TemporalPlainDateTimeSlot, out var pdtSlot) && pdtSlot.TryGetObject<JsTemporalPlainDateTime>(out var pdt))
-                return new JsTemporalPlainYearMonth(pdt.Year, pdt.Month, pdt.Calendar,
-                    GetTemporalReferenceISODay(pdt.Calendar, pdt.Year, pdt.Month, pdt.Day, null, realm));
+                return new JsTemporalPlainYearMonth(pdt.Year, pdt.Month, CanonicalizeCalendarId(pdt.Calendar),
+                    GetTemporalReferenceISODay(CanonicalizeCalendarId(pdt.Calendar), pdt.Year, pdt.Month, pdt.Day, null, realm));
             if (obj.TryGetProperty(TemporalZonedDateTimeSlot, out var zdtSlot) && zdtSlot.TryGetObject<JsTemporalZonedDateTime>(out var zdt))
             {
                 var plainDate = zdt.ToPlainDate();
-                return new JsTemporalPlainYearMonth(plainDate.Year, plainDate.Month, zdt.Calendar,
-                    GetTemporalReferenceISODay(zdt.Calendar, plainDate.Year, plainDate.Month, plainDate.Day, null, realm));
+                return new JsTemporalPlainYearMonth(plainDate.Year, plainDate.Month, CanonicalizeCalendarId(zdt.Calendar),
+                    GetTemporalReferenceISODay(CanonicalizeCalendarId(zdt.Calendar), plainDate.Year, plainDate.Month, plainDate.Day, null, realm));
             }
         }
 
@@ -12352,9 +12342,9 @@ public static class TemporalHelper
             if (obj.TryGetProperty(TemporalPlainMonthDaySlot, out var slot) && slot.TryGetObject<JsTemporalPlainMonthDay>(out var monthDay))
                 return monthDay;
             if (obj.TryGetProperty(TemporalPlainDateSlot, out var pdSlot) && pdSlot.TryGetObject<JsTemporalPlainDate>(out var pd))
-                return new JsTemporalPlainMonthDay(pd.Month, pd.Day, pd.Calendar);
+                return new JsTemporalPlainMonthDay(pd.Month, pd.Day, CanonicalizeCalendarId(pd.Calendar));
             if (obj.TryGetProperty(TemporalPlainDateTimeSlot, out var pdtSlot) && pdtSlot.TryGetObject<JsTemporalPlainDateTime>(out var pdt))
-                return new JsTemporalPlainMonthDay(pdt.Month, pdt.Day, pdt.Calendar);
+                return new JsTemporalPlainMonthDay(pdt.Month, pdt.Day, CanonicalizeCalendarId(pdt.Calendar));
         }
 
         // 4. Property bag — uses ReadPlainMonthDayFields for correct alphabetical order
@@ -13105,7 +13095,7 @@ public static class TemporalHelper
             var offsetNanos = (long)zdt.FixedOffset!.Value.TotalMilliseconds * 1_000_000;
             var (year, month, day, hour, minute, second, ms, us, ns) =
                 EpochNanosToComponents(zdt.Instant.EpochNanoseconds, offsetNanos);
-            return new JsTemporalPlainDateTime(year, month, day, hour, minute, second, ms, us, ns, zdt.Calendar);
+            return new JsTemporalPlainDateTime(year, month, day, hour, minute, second, ms, us, ns, CanonicalizeCalendarId(zdt.Calendar));
         }
     }
 

@@ -134,7 +134,8 @@ public sealed class JsRegExp
         ValidateFlags(Flags);
         var hasUnicodeFlag = Flags.Contains('u', StringComparison.Ordinal) ||
                              Flags.Contains('v', StringComparison.Ordinal);
-        var normalized = NormalizePattern(pattern, hasUnicodeFlag, IgnoreCase, DotAll, Multiline);
+        var hasUnicodeSetsFlag = Flags.Contains('v', StringComparison.Ordinal);
+        var normalized = NormalizePattern(pattern, hasUnicodeFlag, hasUnicodeSetsFlag, IgnoreCase, DotAll, Multiline);
         var sanitized = SanitizeGroupNamesForDotNet(normalized, out var nameMapping);
         var renamed = RenameDuplicateGroups(sanitized, ref nameMapping, out _duplicateGroupNames);
         _normalizedPattern = _duplicateGroupNames is not null
@@ -611,9 +612,9 @@ public sealed class JsRegExp
         for (var i = renamedNames.Length - 1; i >= 0; i--)
         {
             var group = match.Groups[renamedNames[i]];
-            if (group.Success)
+            if (group.Captures.Count > 0)
             {
-                return new JsValue(group.Value);
+                return new JsValue(group.Captures[group.Captures.Count - 1].Value);
             }
         }
 
@@ -625,14 +626,15 @@ public sealed class JsRegExp
         for (var i = renamedNames.Length - 1; i >= 0; i--)
         {
             var group = match.Groups[renamedNames[i]];
-            if (!group.Success)
+            if (group.Captures.Count == 0)
             {
                 continue;
             }
 
+            var capture = group.Captures[group.Captures.Count - 1];
             var pair = new JsArray(RealmState);
-            pair.Push((double)group.Index);
-            pair.Push((double)(group.Index + group.Length));
+            pair.Push((double)capture.Index);
+            pair.Push((double)(capture.Index + capture.Length));
             return JsValue.FromJsArray(pair);
         }
 
@@ -1006,7 +1008,7 @@ public sealed class JsRegExp
         return map;
     }
 
-    private static string NormalizePattern(string pattern, bool hasUnicodeFlag, bool ignoreCase, bool dotAll, bool multiline)
+    private static string NormalizePattern(string pattern, bool hasUnicodeFlag, bool hasUnicodeSetsFlag, bool ignoreCase, bool dotAll, bool multiline)
     {
         if (!hasUnicodeFlag)
         {
@@ -1285,7 +1287,7 @@ public sealed class JsRegExp
                             i++;
                             continue;
                         case 'S':
-                            builder.Append(UnicodeEcmaNonWhitespacePattern);
+                            builder.Append(hasUnicodeFlag ? UnicodeEcmaNonWhitespacePattern : EcmaNonWhitespaceClass);
                             i++;
                             continue;
                         case 'w':
@@ -1293,7 +1295,11 @@ public sealed class JsRegExp
                             i++;
                             continue;
                         case 'W':
-                            builder.Append(useUnicodeIgnoreCaseWord ? EcmaNonWordClassUnicodeIgnoreCase : UnicodeEcmaNonWordPattern);
+                            builder.Append(hasUnicodeFlag
+                                ? (useUnicodeIgnoreCaseWord
+                                    ? EcmaNonWordClassUnicodeIgnoreCase
+                                    : UnicodeEcmaNonWordPattern)
+                                : EcmaNonWordClass);
                             i++;
                             continue;
                         case 'b':
@@ -1317,7 +1323,7 @@ public sealed class JsRegExp
                             i++;
                             continue;
                         case 'D':
-                            builder.Append(UnicodeEcmaNonDigitPattern);
+                            builder.Append(hasUnicodeFlag ? UnicodeEcmaNonDigitPattern : EcmaNonDigitClass);
                             i++;
                             continue;
                     }
@@ -1368,7 +1374,7 @@ public sealed class JsRegExp
 
             if (c == '[' && hasUnicodeFlag)
             {
-                var normalized = NormalizeUnicodeCharacterClass(pattern, ref i, effectiveIgnoreCase);
+                var normalized = NormalizeUnicodeCharacterClass(pattern, ref i, effectiveIgnoreCase, hasUnicodeSetsFlag);
                 builder.Append(normalized);
                 continue;
             }
@@ -3574,8 +3580,14 @@ public sealed class JsRegExp
         builder.Append(')');
     }
 
-    private static string NormalizeUnicodeCharacterClass(string pattern, ref int index, bool unicodeIgnoreCase = false)
+    private static string NormalizeUnicodeCharacterClass(string pattern, ref int index, bool unicodeIgnoreCase = false, bool hasUnicodeSetsFlag = false)
     {
+        if (hasUnicodeSetsFlag &&
+            TryNormalizeUnicodeSetExpression(pattern, ref index, unicodeIgnoreCase, out var unicodeSetPattern))
+        {
+            return unicodeSetPattern;
+        }
+
         if (TryNormalizeSimpleUnicodeSetDifference(pattern, ref index, unicodeIgnoreCase, out var setDifferencePattern))
         {
             return setDifferencePattern;
@@ -3916,6 +3928,696 @@ public sealed class JsRegExp
 
         sb.Append(')');
         return sb.ToString();
+    }
+
+    private sealed class UnicodeSetElements
+    {
+        public List<(int Start, int End)> BmpRanges { get; } = [];
+        public List<(int Start, int End)> AstralRanges { get; } = [];
+        public HashSet<string> LiteralStrings { get; } = new(StringComparer.Ordinal);
+        public HashSet<string> PatternStrings { get; } = new(StringComparer.Ordinal);
+    }
+
+    private enum UnicodeSetOperator
+    {
+        Union,
+        Intersection,
+        Difference
+    }
+
+    private static bool TryNormalizeUnicodeSetExpression(string pattern, ref int index, bool unicodeIgnoreCase, out string normalized)
+    {
+        normalized = string.Empty;
+
+        var outerStart = index;
+        if (outerStart >= pattern.Length || pattern[outerStart] != '[')
+        {
+            return false;
+        }
+
+        var outerClose = FindUnicodeSetClassClose(pattern, outerStart);
+        if (outerClose < 0)
+        {
+            return false;
+        }
+
+        var content = pattern.Substring(outerStart + 1, outerClose - outerStart - 1);
+        if (!LooksLikeUnicodeSetExpression(content))
+        {
+            return false;
+        }
+
+        if (!TryParseUnicodeSetExpression(content, unicodeIgnoreCase, out var elements))
+        {
+            return false;
+        }
+
+        normalized = BuildUnicodeSetPattern(elements);
+        index = outerClose;
+        return true;
+    }
+
+    private static bool LooksLikeUnicodeSetExpression(string content)
+    {
+        return content.Contains("[", StringComparison.Ordinal) ||
+               content.Contains("--", StringComparison.Ordinal) ||
+               content.Contains("&&", StringComparison.Ordinal) ||
+               content.Contains(@"\q{", StringComparison.Ordinal);
+    }
+
+    private static int FindUnicodeSetClassClose(string pattern, int openBracketIndex)
+    {
+        var bracketDepth = 0;
+
+        for (var i = openBracketIndex; i < pattern.Length; i++)
+        {
+            var ch = pattern[i];
+            if (ch == '\\')
+            {
+                if (i + 2 < pattern.Length && pattern[i + 1] == 'q' && pattern[i + 2] == '{')
+                {
+                    i += 3;
+                    while (i < pattern.Length && pattern[i] != '}')
+                    {
+                        if (pattern[i] == '\\' && i + 1 < pattern.Length)
+                        {
+                            i++;
+                        }
+
+                        i++;
+                    }
+
+                    continue;
+                }
+
+                i++;
+                continue;
+            }
+
+            if (ch == '[')
+            {
+                bracketDepth++;
+                continue;
+            }
+
+            if (ch == ']')
+            {
+                bracketDepth--;
+                if (bracketDepth == 0)
+                {
+                    return i;
+                }
+            }
+        }
+
+        return -1;
+    }
+
+    private static bool TryParseUnicodeSetExpression(string content, bool unicodeIgnoreCase, out UnicodeSetElements elements)
+    {
+        elements = new UnicodeSetElements();
+        var cursor = 0;
+        if (!TryParseUnicodeSetTerm(content, ref cursor, unicodeIgnoreCase, out elements))
+        {
+            return false;
+        }
+
+        while (cursor < content.Length)
+        {
+            var op = UnicodeSetOperator.Union;
+            if (cursor + 1 < content.Length && content[cursor] == '&' && content[cursor + 1] == '&')
+            {
+                op = UnicodeSetOperator.Intersection;
+                cursor += 2;
+            }
+            else if (cursor + 1 < content.Length && content[cursor] == '-' && content[cursor + 1] == '-')
+            {
+                op = UnicodeSetOperator.Difference;
+                cursor += 2;
+            }
+
+            if (!TryParseUnicodeSetTerm(content, ref cursor, unicodeIgnoreCase, out var rhs))
+            {
+                return false;
+            }
+
+            switch (op)
+            {
+                case UnicodeSetOperator.Union:
+                    elements = UnionUnicodeSetElements(elements, rhs);
+                    break;
+                case UnicodeSetOperator.Intersection:
+                    if (!TryIntersectUnicodeSetElements(elements, rhs, out elements))
+                    {
+                        return false;
+                    }
+
+                    break;
+                case UnicodeSetOperator.Difference:
+                    if (!TrySubtractUnicodeSetElements(elements, rhs, out elements))
+                    {
+                        return false;
+                    }
+
+                    break;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryParseUnicodeSetTerm(string content, ref int cursor, bool unicodeIgnoreCase, out UnicodeSetElements elements)
+    {
+        elements = new UnicodeSetElements();
+        if (cursor >= content.Length)
+        {
+            return false;
+        }
+
+        if (content[cursor] == '[')
+        {
+            var close = FindUnicodeSetClassClose(content, cursor);
+            if (close < 0)
+            {
+                return false;
+            }
+
+            var nestedContent = content.Substring(cursor + 1, close - cursor - 1);
+            cursor = close + 1;
+
+            if (LooksLikeUnicodeSetExpression(nestedContent))
+            {
+                return TryParseUnicodeSetExpression(nestedContent, unicodeIgnoreCase, out elements);
+            }
+
+            return TryParseSimpleUnicodeSetClass(nestedContent, unicodeIgnoreCase, out elements);
+        }
+
+        if (content[cursor] == '\\')
+        {
+            if (cursor + 2 < content.Length && content[cursor + 1] == 'q' && content[cursor + 2] == '{')
+            {
+                return TryParseUnicodeSetStringLiteral(content, ref cursor, out elements);
+            }
+
+            if (cursor + 1 < content.Length && content[cursor + 1] is 'p' or 'P')
+            {
+                return TryParseUnicodeSetPropertyEscape(content, ref cursor, out elements);
+            }
+
+            if (cursor + 1 < content.Length && content[cursor + 1] is 'd' or 'D' or 'w' or 'W' or 's' or 'S')
+            {
+                AddRanges(elements, GetCharacterClassEscapeRanges(content[cursor + 1]));
+                cursor += 2;
+                return true;
+            }
+        }
+
+        return TryParseUnicodeSetLiteralCharacter(content, ref cursor, out elements);
+    }
+
+    private static bool TryParseSimpleUnicodeSetClass(string content, bool unicodeIgnoreCase, out UnicodeSetElements elements)
+    {
+        elements = new UnicodeSetElements();
+        var wrapped = "[" + content + "]";
+        AddBmpRanges(elements, ParseNormalizedBmpClassRanges(wrapped, unicodeIgnoreCase));
+        return true;
+    }
+
+    private static bool TryParseUnicodeSetStringLiteral(string content, ref int cursor, out UnicodeSetElements elements)
+    {
+        elements = new UnicodeSetElements();
+        var start = cursor + 3;
+        var end = start;
+        while (end < content.Length && content[end] != '}')
+        {
+            if (content[end] == '\\' && end + 1 < content.Length)
+            {
+                end++;
+            }
+
+            end++;
+        }
+
+        if (end >= content.Length)
+        {
+            return false;
+        }
+
+        var inner = content.Substring(start, end - start);
+        foreach (var literal in ParseUnicodeSetStringAlternatives(inner))
+        {
+            elements.LiteralStrings.Add(literal);
+        }
+
+        cursor = end + 1;
+        return true;
+    }
+
+    private static List<string> ParseUnicodeSetStringAlternatives(string content)
+    {
+        var result = new List<string>();
+        var builder = new StringBuilder();
+
+        for (var i = 0; i < content.Length; i++)
+        {
+            var ch = content[i];
+            if (ch == '|')
+            {
+                result.Add(builder.ToString());
+                builder.Clear();
+                continue;
+            }
+
+            if (ch != '\\')
+            {
+                builder.Append(ch);
+                continue;
+            }
+
+            if (i + 1 >= content.Length)
+            {
+                throw new ParseException("Invalid regular expression: invalid string set escape.");
+            }
+
+            var next = content[++i];
+            switch (next)
+            {
+                case 'u' when i + 1 < content.Length && content[i + 1] == '{':
+                {
+                    var endBrace = content.IndexOf('}', i + 2);
+                    if (endBrace == -1)
+                    {
+                        throw new ParseException("Invalid regular expression: invalid string set escape.");
+                    }
+
+                    var hex = content.Substring(i + 2, endBrace - (i + 2));
+                    var cp = int.Parse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                    builder.Append(char.ConvertFromUtf32(cp));
+                    i = endBrace;
+                    break;
+                }
+                case 'u':
+                {
+                    if (i + 4 > content.Length)
+                    {
+                        throw new ParseException("Invalid regular expression: invalid string set escape.");
+                    }
+
+                    var hex = content.Substring(i + 1, 4);
+                    var cp = int.Parse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                    builder.Append((char)cp);
+                    i += 4;
+                    break;
+                }
+                case 'x':
+                {
+                    if (i + 2 > content.Length)
+                    {
+                        throw new ParseException("Invalid regular expression: invalid string set escape.");
+                    }
+
+                    var hex = content.Substring(i + 1, 2);
+                    var cp = int.Parse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                    builder.Append((char)cp);
+                    i += 2;
+                    break;
+                }
+                case 'n':
+                    builder.Append('\n');
+                    break;
+                case 'r':
+                    builder.Append('\r');
+                    break;
+                case 't':
+                    builder.Append('\t');
+                    break;
+                case 'f':
+                    builder.Append('\f');
+                    break;
+                case 'v':
+                    builder.Append('\v');
+                    break;
+                case '0':
+                    builder.Append('\0');
+                    break;
+                default:
+                    builder.Append(next);
+                    break;
+            }
+        }
+
+        result.Add(builder.ToString());
+        return result;
+    }
+
+    private static bool TryParseUnicodeSetPropertyEscape(string content, ref int cursor, out UnicodeSetElements elements)
+    {
+        elements = new UnicodeSetElements();
+        var negate = content[cursor + 1] == 'P';
+        if (cursor + 2 >= content.Length || content[cursor + 2] != '{')
+        {
+            return false;
+        }
+
+        var endBrace = content.IndexOf('}', cursor + 3);
+        if (endBrace == -1)
+        {
+            return false;
+        }
+
+        var propertyExpr = content.Substring(cursor + 3, endBrace - (cursor + 3));
+        if (!negate && TryBuildStringPropertyEscapePattern(propertyExpr, false, out var stringPattern))
+        {
+            elements.PatternStrings.Add(stringPattern);
+            cursor = endBrace + 1;
+            return true;
+        }
+
+        var ranges = UnicodePropertyData.Resolve(propertyExpr);
+        if (ranges is null)
+        {
+            return false;
+        }
+
+        AddRanges(elements, negate ? ComplementCodePointRanges(ranges) : ranges);
+        cursor = endBrace + 1;
+        return true;
+    }
+
+    private static bool TryParseUnicodeSetLiteralCharacter(string content, ref int cursor, out UnicodeSetElements elements)
+    {
+        elements = new UnicodeSetElements();
+        var token = "[" + content.Substring(cursor) + "]";
+        var innerCursor = 1;
+        var cp = ParseClassCodePoint(token, ref innerCursor);
+        if (cp > 0xFFFF)
+        {
+            elements.AstralRanges.Add((cp, cp));
+        }
+        else
+        {
+            elements.BmpRanges.Add((cp, cp));
+        }
+
+        cursor += innerCursor - 1;
+        return true;
+    }
+
+    private static UnicodeSetElements UnionUnicodeSetElements(UnicodeSetElements left, UnicodeSetElements right)
+    {
+        var result = new UnicodeSetElements();
+        AddBmpRanges(result, left.BmpRanges);
+        AddBmpRanges(result, right.BmpRanges);
+        AddAstralRanges(result, left.AstralRanges);
+        AddAstralRanges(result, right.AstralRanges);
+        result.LiteralStrings.UnionWith(left.LiteralStrings);
+        result.LiteralStrings.UnionWith(right.LiteralStrings);
+        result.PatternStrings.UnionWith(left.PatternStrings);
+        result.PatternStrings.UnionWith(right.PatternStrings);
+        return result;
+    }
+
+    private static bool TryIntersectUnicodeSetElements(UnicodeSetElements left, UnicodeSetElements right, out UnicodeSetElements result)
+    {
+        result = new UnicodeSetElements();
+
+        if (left.PatternStrings.Count > 0 || right.PatternStrings.Count > 0)
+        {
+            return false;
+        }
+
+        AddBmpRanges(result, IntersectRanges(left.BmpRanges, right.BmpRanges));
+        AddAstralRanges(result, IntersectRanges(left.AstralRanges, right.AstralRanges));
+
+        foreach (var literal in left.LiteralStrings)
+        {
+            if (right.LiteralStrings.Contains(literal))
+            {
+                result.LiteralStrings.Add(literal);
+                continue;
+            }
+
+            if (literal.Length == 1 && ContainsCodePoint(right, literal[0]))
+            {
+                result.LiteralStrings.Add(literal);
+            }
+        }
+
+        foreach (var literal in right.LiteralStrings)
+        {
+            if (literal.Length == 1 && ContainsCodePoint(left, literal[0]))
+            {
+                result.LiteralStrings.Add(literal);
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TrySubtractUnicodeSetElements(UnicodeSetElements left, UnicodeSetElements right, out UnicodeSetElements result)
+    {
+        result = new UnicodeSetElements();
+
+        if (right.PatternStrings.Count > 0)
+        {
+            if (left.PatternStrings.Count > 0)
+            {
+                return false;
+            }
+
+            AddBmpRanges(result, left.BmpRanges);
+            AddAstralRanges(result, left.AstralRanges);
+            result.LiteralStrings.UnionWith(left.LiteralStrings);
+            return true;
+        }
+
+        AddBmpRanges(result, SubtractRanges(left.BmpRanges, right.BmpRanges));
+        AddAstralRanges(result, SubtractRanges(left.AstralRanges, right.AstralRanges));
+        result.PatternStrings.UnionWith(left.PatternStrings);
+
+        foreach (var literal in left.LiteralStrings)
+        {
+            if (right.LiteralStrings.Contains(literal))
+            {
+                continue;
+            }
+
+            if (literal.Length == 1 && ContainsCodePoint(right, literal[0]))
+            {
+                continue;
+            }
+
+            result.LiteralStrings.Add(literal);
+        }
+
+        return true;
+    }
+
+    private static bool ContainsCodePoint(UnicodeSetElements elements, int codePoint)
+    {
+        foreach (var (start, end) in elements.BmpRanges)
+        {
+            if (codePoint >= start && codePoint <= end)
+            {
+                return true;
+            }
+        }
+
+        foreach (var (start, end) in elements.AstralRanges)
+        {
+            if (codePoint >= start && codePoint <= end)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static (int Start, int End)[] IntersectRanges(List<(int Start, int End)> left, List<(int Start, int End)> right)
+    {
+        if (left.Count == 0 || right.Count == 0)
+        {
+            return [];
+        }
+
+        var normalizedLeft = NormalizeRanges(left);
+        var normalizedRight = NormalizeRanges(right);
+        var result = new List<(int Start, int End)>();
+        var i = 0;
+        var j = 0;
+
+        while (i < normalizedLeft.Length && j < normalizedRight.Length)
+        {
+            var (leftStart, leftEnd) = normalizedLeft[i];
+            var (rightStart, rightEnd) = normalizedRight[j];
+            var start = Math.Max(leftStart, rightStart);
+            var end = Math.Min(leftEnd, rightEnd);
+            if (start <= end)
+            {
+                result.Add((start, end));
+            }
+
+            if (leftEnd < rightEnd)
+            {
+                i++;
+            }
+            else
+            {
+                j++;
+            }
+        }
+
+        return [.. result];
+    }
+
+    private static (int Start, int End)[] SubtractRanges(List<(int Start, int End)> minuend, List<(int Start, int End)> subtrahend)
+    {
+        return SubtractRanges(NormalizeRanges(minuend), NormalizeRanges(subtrahend));
+    }
+
+    private static (int Start, int End)[] SubtractRanges((int Start, int End)[] minuend, (int Start, int End)[] subtrahend)
+    {
+        if (minuend.Length == 0)
+        {
+            return [];
+        }
+
+        if (subtrahend.Length == 0)
+        {
+            return minuend;
+        }
+
+        var result = new List<(int Start, int End)>();
+        var j = 0;
+
+        foreach (var (start, end) in minuend)
+        {
+            var currentStart = start;
+
+            while (j < subtrahend.Length && subtrahend[j].End < currentStart)
+            {
+                j++;
+            }
+
+            var k = j;
+            while (k < subtrahend.Length && subtrahend[k].Start <= end)
+            {
+                var (otherStart, otherEnd) = subtrahend[k];
+                if (otherStart > currentStart)
+                {
+                    result.Add((currentStart, Math.Min(end, otherStart - 1)));
+                }
+
+                if (otherEnd >= end)
+                {
+                    currentStart = end + 1;
+                    break;
+                }
+
+                currentStart = Math.Max(currentStart, otherEnd + 1);
+                k++;
+            }
+
+            if (currentStart <= end)
+            {
+                result.Add((currentStart, end));
+            }
+        }
+
+        return [.. result];
+    }
+
+    private static (int Start, int End)[] NormalizeRanges(List<(int Start, int End)> ranges)
+    {
+        if (ranges.Count == 0)
+        {
+            return [];
+        }
+
+        var ordered = ranges.OrderBy(static r => r.Start).ThenBy(static r => r.End).ToArray();
+        var result = new List<(int Start, int End)> { ordered[0] };
+
+        for (var i = 1; i < ordered.Length; i++)
+        {
+            var current = ordered[i];
+            var last = result[^1];
+            if (current.Start <= last.End + 1)
+            {
+                result[^1] = (last.Start, Math.Max(last.End, current.End));
+            }
+            else
+            {
+                result.Add(current);
+            }
+        }
+
+        return [.. result];
+    }
+
+    private static string BuildUnicodeSetPattern(UnicodeSetElements elements)
+    {
+        var alternatives = new List<string>();
+        foreach (var literal in elements.LiteralStrings.OrderByDescending(static s => s.Length).ThenBy(static s => s, StringComparer.Ordinal))
+        {
+            alternatives.Add(Regex.Escape(literal));
+        }
+
+        alternatives.AddRange(elements.PatternStrings.OrderBy(static s => s, StringComparer.Ordinal));
+
+        var charPattern = BuildUnicodeClassPattern(
+            negate: false,
+            [.. NormalizeRanges(elements.BmpRanges).ToList()],
+            [.. NormalizeRanges(elements.AstralRanges).ToList()]);
+
+        if (!string.IsNullOrEmpty(charPattern) && charPattern != "[]")
+        {
+            alternatives.Add(charPattern);
+        }
+
+        return alternatives.Count switch
+        {
+            0 => @"[^\s\S]",
+            1 => alternatives[0],
+            _ => "(?:" + string.Join("|", alternatives) + ")"
+        };
+    }
+
+    private static void AddRanges(UnicodeSetElements elements, (int Start, int End)[] ranges)
+    {
+        foreach (var (start, end) in ranges)
+        {
+            if (end <= 0xFFFF)
+            {
+                elements.BmpRanges.Add((start, end));
+            }
+            else if (start > 0xFFFF)
+            {
+                elements.AstralRanges.Add((start, end));
+            }
+            else
+            {
+                elements.BmpRanges.Add((start, 0xFFFF));
+                elements.AstralRanges.Add((0x10000, end));
+            }
+        }
+    }
+
+    private static void AddBmpRanges(UnicodeSetElements elements, IEnumerable<(int Start, int End)> ranges)
+    {
+        foreach (var range in ranges)
+        {
+            elements.BmpRanges.Add(range);
+        }
+    }
+
+    private static void AddAstralRanges(UnicodeSetElements elements, IEnumerable<(int Start, int End)> ranges)
+    {
+        foreach (var range in ranges)
+        {
+            elements.AstralRanges.Add(range);
+        }
     }
 
     private static bool TryNormalizeSimpleUnicodeSetDifference(string pattern, ref int index, bool unicodeIgnoreCase, out string normalized)

@@ -20,6 +20,10 @@ internal static partial class IntlUtilities
     ];
 
     private static readonly HashSet<string> CalendarSet = new(CalendarValues, StringComparer.Ordinal);
+    private static readonly Dictionary<string, string> CalendarAliases = new(StringComparer.Ordinal)
+    {
+        ["islamicc"] = "islamic-civil"
+    };
     private static readonly Lazy<string[]> CurrencyValues = new(BuildSupportedCurrencies);
 
     private static readonly string[] NumberingSystemValues =
@@ -228,14 +232,19 @@ internal static partial class IntlUtilities
             throw StandardLibrary.ThrowTypeError("Intl.DateTimeFormat timeZone option must be a string", realm: realm);
         }
 
-        if (TryResolveTimeZoneId(tzString))
+        if (TryNormalizeTimeZoneOffset(tzString, out var normalizedOffset))
         {
-            return tzString;
+            return normalizedOffset;
         }
 
         if (TryCanonicalizeTimeZone(tzString, out var canonical))
         {
             return canonical;
+        }
+
+        if (TryResolveTimeZoneId(tzString, out var resolvedTimeZoneId))
+        {
+            return CanonicalizeTimeZoneId(resolvedTimeZoneId);
         }
 
         if (string.Equals(tzString, realm.Options.TimeZone.Id, StringComparison.OrdinalIgnoreCase))
@@ -246,15 +255,100 @@ internal static partial class IntlUtilities
         throw StandardLibrary.ThrowRangeError($"Unsupported timeZone '{tzString}'", realm: realm);
     }
 
-    private static bool TryResolveTimeZoneId(string timeZoneId)
+    private static bool TryNormalizeTimeZoneOffset(string timeZoneId, out string normalized)
+    {
+        normalized = string.Empty;
+        if (string.IsNullOrEmpty(timeZoneId) || (timeZoneId[0] != '+' && timeZoneId[0] != '-'))
+        {
+            return false;
+        }
+
+        var sign = timeZoneId[0];
+        var rest = timeZoneId.AsSpan(1);
+        int hours;
+        int minutes;
+
+        if (rest.Length == 2 &&
+            int.TryParse(rest, NumberStyles.None, CultureInfo.InvariantCulture, out hours))
+        {
+            minutes = 0;
+        }
+        else if (rest.Length == 4 &&
+                 int.TryParse(rest[..2], NumberStyles.None, CultureInfo.InvariantCulture, out hours) &&
+                 int.TryParse(rest[2..], NumberStyles.None, CultureInfo.InvariantCulture, out minutes))
+        {
+        }
+        else if (rest.Length == 5 &&
+                 rest[2] == ':' &&
+                 int.TryParse(rest[..2], NumberStyles.None, CultureInfo.InvariantCulture, out hours) &&
+                 int.TryParse(rest[3..], NumberStyles.None, CultureInfo.InvariantCulture, out minutes))
+        {
+        }
+        else
+        {
+            return false;
+        }
+
+        if (hours > 23 || minutes > 59)
+        {
+            return false;
+        }
+
+        if (hours == 0 && minutes == 0)
+        {
+            sign = '+';
+        }
+
+        normalized = string.Create(
+            6,
+            (sign, hours, minutes),
+            static (span, state) =>
+            {
+                span[0] = state.sign;
+                span[1] = (char)('0' + (state.hours / 10));
+                span[2] = (char)('0' + (state.hours % 10));
+                span[3] = ':';
+                span[4] = (char)('0' + (state.minutes / 10));
+                span[5] = (char)('0' + (state.minutes % 10));
+            });
+        return true;
+    }
+
+    internal static bool TryResolveTimeZoneId(string timeZoneId, out string resolvedTimeZoneId)
     {
         try
         {
-            _ = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+            resolvedTimeZoneId = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId).Id;
             return true;
         }
         catch
         {
+            var normalized = CanonicalizeTimeZoneId(timeZoneId);
+            if (!string.Equals(normalized, timeZoneId, StringComparison.Ordinal))
+            {
+                try
+                {
+                    resolvedTimeZoneId = TimeZoneInfo.FindSystemTimeZoneById(normalized).Id;
+                    return true;
+                }
+                catch
+                {
+                }
+            }
+
+            if (TimeZoneAliases.TryGetValue(normalized, out var aliasTarget))
+            {
+                try
+                {
+                    resolvedTimeZoneId = TimeZoneInfo.FindSystemTimeZoneById(aliasTarget).Id;
+                    return true;
+                }
+                catch
+                {
+                }
+            }
+
+            resolvedTimeZoneId = string.Empty;
             return false;
         }
     }
@@ -262,6 +356,10 @@ internal static partial class IntlUtilities
     public static bool TryNormalizeCalendar(string calendar, out string canonical)
     {
         canonical = calendar?.Trim().ToLowerInvariant() ?? string.Empty;
+        if (CalendarAliases.TryGetValue(canonical, out var alias))
+        {
+            canonical = alias;
+        }
         return CalendarSet.Contains(canonical);
     }
 
@@ -312,6 +410,12 @@ internal static partial class IntlUtilities
     {
         canonical = numberingSystem?.Trim().ToLowerInvariant() ?? string.Empty;
         return NumberingSystemSet.Contains(canonical) || IsUnicodeTypeSequence(canonical);
+    }
+
+    public static bool TryNormalizeSupportedNumberingSystem(string? numberingSystem, out string canonical)
+    {
+        canonical = numberingSystem?.Trim().ToLowerInvariant() ?? string.Empty;
+        return NumberingSystemSet.Contains(canonical);
     }
 
     internal static bool IsUnicodeTypeSequence(string value)
@@ -538,6 +642,11 @@ internal static partial class IntlUtilities
             AddZone(etcZone);
         }
 
+        foreach (var alias in TimeZoneAliases.Keys)
+        {
+            AddAlias(alias);
+        }
+
         return new TimeZoneRegistry(zones.ToArray(), members, lookup);
 
         void AddZone(string? id)
@@ -553,6 +662,18 @@ internal static partial class IntlUtilities
                 members.Add(canonical);
             }
 
+            lookup[canonical] = canonical;
+            lookup[id] = canonical;
+        }
+
+        void AddAlias(string? id)
+        {
+            if (string.IsNullOrEmpty(id))
+            {
+                return;
+            }
+
+            var canonical = CanonicalizeTimeZoneId(id);
             lookup[canonical] = canonical;
             lookup[id] = canonical;
         }
@@ -753,15 +874,7 @@ internal static partial class IntlUtilities
             return "UTC";
         }
 
-        var normalized = id.Replace(' ', '_');
-
-        // Check IANA alias map for deprecated/alternative timezone names
-        if (TimeZoneAliases.TryGetValue(normalized, out var canonical))
-        {
-            return canonical;
-        }
-
-        return normalized;
+        return id.Replace(' ', '_');
     }
 
     private static bool IsStructurallyValidLanguageTag(string locale)

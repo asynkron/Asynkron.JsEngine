@@ -187,10 +187,9 @@ public sealed partial class IntlDurationFormatConstructor(IJsObjectLike prototyp
             throw ThrowRangeError($"Invalid numbering system '{numberingSystem}'", realm: Realm);
         }
 
-        // Normalize if possible, otherwise keep the well-formed value as-is
-        return IntlUtilities.TryNormalizeNumberingSystem(numberingSystem, out var canonical)
+        return IntlUtilities.TryNormalizeSupportedNumberingSystem(numberingSystem, out var canonical)
             ? canonical
-            : numberingSystem;
+            : null;
     }
 
     private static (string NumberingSystem, string Locale) ResolveNumberingSystemAndLocale(
@@ -208,7 +207,7 @@ public sealed partial class IntlDurationFormatConstructor(IJsObjectLike prototyp
         var baseLocale = IntlUtilities.RemoveUnicodeExtensions(resolvedLocale);
 
         // Resolution: option > unicode extension > default
-        if (optionNu is not null && IntlUtilities.TryNormalizeNumberingSystem(optionNu, out var canonicalOption))
+        if (optionNu is not null && IntlUtilities.TryNormalizeSupportedNumberingSystem(optionNu, out var canonicalOption))
         {
             if (extensionNu is not null &&
                 string.Equals(canonicalOption, extensionNu, StringComparison.Ordinal))
@@ -220,7 +219,7 @@ public sealed partial class IntlDurationFormatConstructor(IJsObjectLike prototyp
         }
 
         if (extensionNu is not null &&
-            IntlUtilities.TryNormalizeNumberingSystem(extensionNu, out var validExtNu))
+            IntlUtilities.TryNormalizeSupportedNumberingSystem(extensionNu, out var validExtNu))
         {
             return (validExtNu, resolvedLocale);
         }

@@ -75,7 +75,7 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
         else if (unicodeKeywords.TryGetValue("nu", out var nuValues) && nuValues.Count > 0)
         {
             var extNu = string.Join("-", nuValues);
-            numberingSystem = IntlUtilities.TryNormalizeNumberingSystem(extNu, out var canonical) &&
+            numberingSystem = IntlUtilities.TryNormalizeSupportedNumberingSystem(extNu, out var canonical) &&
                               !IsNumberingSystemAlias(canonical)
                 ? canonical
                 : "latn";
@@ -274,7 +274,7 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
         }
 
         // If structurally valid but not a recognized numbering system, return null (fall through)
-        return IntlUtilities.TryNormalizeNumberingSystem(system, out var canonical) ? canonical : null;
+        return IntlUtilities.TryNormalizeSupportedNumberingSystem(system, out var canonical) ? canonical : null;
     }
 
     private string? ReadStyleOption(IJsPropertyAccessor? options, string propertyName)
@@ -488,7 +488,7 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
         if (unicodeKeywords.TryGetValue("nu", out var nuExtValues) && nuExtValues.Count > 0)
         {
             var extNu = string.Join("-", nuExtValues);
-            if (IntlUtilities.TryNormalizeNumberingSystem(extNu, out var normalizedExtNu) &&
+            if (IntlUtilities.TryNormalizeSupportedNumberingSystem(extNu, out var normalizedExtNu) &&
                 !IsNumberingSystemAlias(normalizedExtNu) &&
                 string.Equals(normalizedExtNu, numberingSystem, StringComparison.Ordinal))
             {

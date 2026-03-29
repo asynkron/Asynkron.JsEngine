@@ -607,7 +607,10 @@ public sealed partial class IntlDurationFormatPrototype
                 {
                     // Fractional seconds: use numeric formatting so we stay aligned with the
                     // NumberFormat-derived expectations used by the Test262 helper.
-                    var formatted = FormatFractionalNumber(value, maxFrac, minFrac);
+                    var formatted = fractionalValueText is not null
+                        ? FormatFractionalNumeric(fractionalValueText, signDisplayNever, style == "2-digit",
+                            maxFrac, minFrac, locale)
+                        : FormatFractionalNumber(value, maxFrac, minFrac);
                     if (signDisplayNever && formatted.StartsWith("-", StringComparison.Ordinal))
                     {
                         formatted = formatted[1..];

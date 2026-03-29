@@ -82,10 +82,9 @@ public sealed partial class IntlRelativeTimeFormatConstructor(IJsObjectLike prot
             throw ThrowRangeError($"Invalid numbering system '{numberingSystem}'", realm: Realm);
         }
 
-        // Normalize if possible, otherwise keep the well-formed value as-is
-        return IntlUtilities.TryNormalizeNumberingSystem(numberingSystem, out var canonical)
+        return IntlUtilities.TryNormalizeSupportedNumberingSystem(numberingSystem, out var canonical)
             ? canonical
-            : numberingSystem;
+            : null;
     }
 
     private static (string NumberingSystem, string Locale) ResolveNumberingSystemAndLocale(
@@ -104,7 +103,7 @@ public sealed partial class IntlRelativeTimeFormatConstructor(IJsObjectLike prot
 
         // Resolution: option > unicode extension > default
         // Only use a numbering system if it's actually recognized/supported
-        if (optionNu is not null && IntlUtilities.TryNormalizeNumberingSystem(optionNu, out var canonicalOption))
+        if (optionNu is not null && IntlUtilities.TryNormalizeSupportedNumberingSystem(optionNu, out var canonicalOption))
         {
             // Option value wins. If it matches the extension, keep extension in locale.
             if (extensionNu is not null &&
@@ -118,7 +117,7 @@ public sealed partial class IntlRelativeTimeFormatConstructor(IJsObjectLike prot
         }
 
         if (extensionNu is not null &&
-            IntlUtilities.TryNormalizeNumberingSystem(extensionNu, out var validExtNu))
+            IntlUtilities.TryNormalizeSupportedNumberingSystem(extensionNu, out var validExtNu))
         {
             // Unicode extension is valid: keep extension in locale
             return (validExtNu, resolvedLocale);

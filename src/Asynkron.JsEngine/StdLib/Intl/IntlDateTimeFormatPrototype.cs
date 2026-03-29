@@ -1333,7 +1333,12 @@ public sealed partial class IntlDateTimeFormatPrototype
 
         try
         {
-            var tz = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+            if (!IntlUtilities.TryResolveTimeZoneId(timeZoneId, out var resolvedTimeZoneId))
+            {
+                return timeZoneId;
+            }
+
+            var tz = TimeZoneInfo.FindSystemTimeZoneById(resolvedTimeZoneId);
             if (longForm)
             {
                 var longName = tz.IsDaylightSavingTime(dto) ? tz.DaylightName : tz.StandardName;
@@ -1720,7 +1725,12 @@ public sealed partial class IntlDateTimeFormatPrototype
 
         try
         {
-            var tz = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+            if (!IntlUtilities.TryResolveTimeZoneId(timeZoneId, out var resolvedTimeZoneId))
+            {
+                return dto;
+            }
+
+            var tz = TimeZoneInfo.FindSystemTimeZoneById(resolvedTimeZoneId);
             return TimeZoneInfo.ConvertTime(dto, tz);
         }
         catch

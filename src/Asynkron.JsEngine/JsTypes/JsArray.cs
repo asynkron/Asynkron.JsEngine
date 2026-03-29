@@ -61,6 +61,22 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         SetupIterator();
     }
 
+    private IJsObjectLike? GetArrayPrototype() => _arrayPrototype ?? RealmState?.ArrayPrototype;
+
+    private void EnsureArrayPrototype()
+    {
+        if (_properties.Prototype is not null)
+        {
+            return;
+        }
+
+        var arrayPrototype = GetArrayPrototype();
+        if (arrayPrototype is not null)
+        {
+            _properties.SetPrototype(arrayPrototype);
+        }
+    }
+
     /// <inheritdoc />
     public ref readonly JsValue AsJsValue => ref _cachedJsValue;
 
@@ -147,12 +163,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         get
         {
-            if (_properties.Prototype is null &&
-                _properties is IPrototypeAccessorProvider { PrototypeAccessor: null } &&
-                _arrayPrototype is not null)
-            {
-                _properties.SetPrototype(_arrayPrototype);
-            }
+            EnsureArrayPrototype();
 
             return _properties.Prototype;
         }
@@ -164,6 +175,8 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     public bool TryGetProperty(string name, out JsValue value)
     {
+        EnsureArrayPrototype();
+
         if (string.Equals(name, "length", StringComparison.Ordinal))
         {
             value = (double)_length;
@@ -194,6 +207,8 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
+        EnsureArrayPrototype();
+
         if (string.Equals(name, "length", StringComparison.Ordinal))
         {
             value = (double)_length;
@@ -229,6 +244,8 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
     {
+        EnsureArrayPrototype();
+
         if (string.Equals(name, "length", StringComparison.Ordinal))
         {
             // Fast path is only valid when the receiver is this array.
@@ -308,6 +325,8 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
     {
+        EnsureArrayPrototype();
+
         // First check if there's an explicit descriptor in _properties (e.g., for frozen/sealed arrays or custom descriptors)
         var explicitDescriptor = _properties.GetOwnPropertyDescriptor(name);
         if (explicitDescriptor is not null)
@@ -390,6 +409,8 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     public bool Delete(string name)
     {
+        EnsureArrayPrototype();
+
         if (!TryParseArrayIndex(name, out var index))
         {
             return DeleteProperty(name);
@@ -412,6 +433,8 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
     {
+        EnsureArrayPrototype();
+
         if (string.Equals(name, "length", StringComparison.Ordinal))
         {
             return DefineLength(descriptor, null, false);
@@ -472,7 +495,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     }
 
     public IJsPropertyAccessor? PrototypeAccessor =>
-        _properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
+        _properties.PrototypeAccessor ?? GetArrayPrototype();
 
     private static bool IsArrayHole(JsValue value)
     {
@@ -760,15 +783,16 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         var keyStr = index.ToString(CultureInfo.InvariantCulture);
 
         // Check the prototype chain for an inherited setter.
-        // Note: _arrayPrototype may be a JsArray (not JsObject), so we need to handle both cases.
-        // First try _properties.GetSetter which walks JsObject prototypes
+        // Note: the array prototype may be resolved lazily, so always use the live lookup.
+        // First try _properties.GetSetter which walks JsObject prototypes.
         var prototypeSetter = _properties.GetSetter(keyStr);
 
         // If not found via Prototype (JsObject chain), traverse non-JsObject prototypes as well
         // (e.g., Array.prototype implemented as a typed prototype object).
-        if (prototypeSetter is null && _arrayPrototype is not null)
+        var arrayPrototype = GetArrayPrototype();
+        if (prototypeSetter is null && arrayPrototype is not null)
         {
-            prototypeSetter = FindSetterInPrototypeChain(_arrayPrototype, keyStr);
+            prototypeSetter = FindSetterInPrototypeChain(arrayPrototype, keyStr);
         }
 
         if (prototypeSetter is not null)
@@ -1282,7 +1306,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     private void SetupIterator()
     {
-        if (_arrayPrototype is not null)
+        if (GetArrayPrototype() is not null)
         {
             // Delegate to Array.prototype's @@iterator so all arrays share the same iterator function.
             return;

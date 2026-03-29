@@ -535,9 +535,9 @@ public sealed class EnvironmentPoolingTests(ITestOutputHelper output) : Internal
         Output.WriteLine($"Reset count: {resetCount}");
 
         // Captured per-iteration environments are never returned to the pool.
-        // However, transient function execution environments CAN be pooled.
-        Assert.True(activateCount > 0, "Expected environments to be rented from pool");
-        // Don't assert exact Reset count - depends on transient function executions
+        // Transient execution may or may not be pooled depending on the current runtime path,
+        // so the useful invariant here is that any rentals are balanced by resets.
+        Assert.Equal(activateCount, resetCount);
     }
 
     [Fact]

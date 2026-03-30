@@ -1,0 +1,18 @@
+# Test262 regression pack: annexb
+# Source umbrella list: tests/Asynkron.JsEngine.Tests.Test262/current-regressions.filter.txt
+# Filters: 15
+FullyQualifiedName~BuiltIns_RegExp_legacyAccessors_index&FullyQualifiedName~this-cross-realm-constructor.js
+FullyQualifiedName~BuiltIns_RegExp_legacyAccessors_input&FullyQualifiedName~this-cross-realm-constructor.js
+FullyQualifiedName~BuiltIns_RegExp_legacyAccessors_lastMatch&FullyQualifiedName~this-cross-realm-constructor.js
+FullyQualifiedName~BuiltIns_RegExp_legacyAccessors_lastParen&FullyQualifiedName~this-cross-realm-constructor.js
+FullyQualifiedName~BuiltIns_RegExp_legacyAccessors_leftContext&FullyQualifiedName~this-cross-realm-constructor.js
+FullyQualifiedName~BuiltIns_RegExp_legacyAccessors_rightContext&FullyQualifiedName~this-cross-realm-constructor.js
+FullyQualifiedName~BuiltIns_RegExp_prototype_Symbol_split&FullyQualifiedName~Symbol.match-getter-recompiles-source.js
+FullyQualifiedName~Language_functionCode&FullyQualifiedName~block-decl-func-existing-fn-update.js
+FullyQualifiedName~Language_functionCode&FullyQualifiedName~if-decl-else-decl-a-func-existing-fn-update.js
+FullyQualifiedName~Language_functionCode&FullyQualifiedName~if-decl-else-decl-b-func-existing-fn-update.js
+FullyQualifiedName~Language_functionCode&FullyQualifiedName~if-decl-else-stmt-func-existing-fn-update.js
+FullyQualifiedName~Language_functionCode&FullyQualifiedName~if-decl-no-else-func-existing-fn-update.js
+FullyQualifiedName~Language_functionCode&FullyQualifiedName~if-stmt-else-decl-func-existing-fn-update.js
+FullyQualifiedName~Language_functionCode&FullyQualifiedName~switch-case-func-existing-fn-update.js
+FullyQualifiedName~Language_functionCode&FullyQualifiedName~switch-dflt-func-existing-fn-update.js

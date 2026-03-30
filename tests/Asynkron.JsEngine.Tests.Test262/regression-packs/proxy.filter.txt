@@ -1,0 +1,6 @@
+# Test262 regression pack: proxy
+# Source umbrella list: tests/Asynkron.JsEngine.Tests.Test262/current-regressions.filter.txt
+# Filters: 3
+FullyQualifiedName~Proxy&FullyQualifiedName~get-fn-realm.js
+FullyQualifiedName~Proxy_has&FullyQualifiedName~call-in-prototype-index.js
+FullyQualifiedName~Proxy_set&FullyQualifiedName~call-parameters-prototype-index.js

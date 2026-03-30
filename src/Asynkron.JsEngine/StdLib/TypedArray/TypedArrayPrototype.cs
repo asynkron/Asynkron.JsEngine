@@ -1458,7 +1458,9 @@ public sealed partial class TypedArrayPrototype
 
             if (speciesValue.IsNullOrUndefined)
             {
-                speciesValue = constructorValue;
+                // Per spec SpeciesConstructor step 6: if @@species is undefined or null,
+                // return the default constructor (the exemplar's original TypedArray ctor).
+                return CreateSubarrayDefault(exemplar, buffer, byteOffset, length);
             }
 
             constructorValue = speciesValue;

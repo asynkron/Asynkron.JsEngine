@@ -206,17 +206,10 @@ public static class TemporalHelper
         }
 
         // Step 2-4: String handling
-        // Spec: ParseTemporalCalendarString accepts both bare calendar names AND ISO date strings.
-        // Try bare calendar name first (fast path), then parse as ISO string.
+        // Per spec, the calendar parameter must be a bare calendar identifier (e.g. "iso8601").
+        // ISO date strings with calendar annotations are NOT valid here.
         var id = calendarArg.AsString();
-        var lowered = AsciiLowercase(id);
-        if (CalendarAliases.TryGetValue(lowered, out var canonical))
-            lowered = canonical;
-        if (ValidCalendarIds.Contains(lowered))
-            return CanonicalizeCalendarId(lowered);
-        // Not a bare calendar name — parse as ISO string to extract calendar annotation
-        var parsed = ParseTemporalCalendarString(id);
-        return ValidateCalendarId(parsed);
+        return ValidateCalendarId(id);
     }
 
     /// <summary>

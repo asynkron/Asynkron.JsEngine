@@ -37,12 +37,12 @@ public sealed partial class IntlPluralRulesConstructor(IJsObjectLike prototype, 
         var hasMinSig = TryGetDigitOption(options, "minimumSignificantDigits", 1, 21, out var minimumSignificantDigits);
         var hasMaxSig = TryGetDigitOption(options, "maximumSignificantDigits", 1, 21, out var maximumSignificantDigits);
 
+        var roundingIncrement = GetDigitOption(options, "roundingIncrement", 1, 5000, 1);
         var roundingMode = IntlOptionHelpers.GetStringOption(options, "roundingMode", Realm, "PluralRules",
             ["ceil", "floor", "expand", "trunc", "halfCeil", "halfFloor", "halfExpand", "halfTrunc", "halfEven"],
             "halfExpand");
         var roundingPriority = IntlOptionHelpers.GetStringOption(options, "roundingPriority", Realm, "PluralRules",
             ["auto", "morePrecision", "lessPrecision"], "auto");
-        var roundingIncrement = GetDigitOption(options, "roundingIncrement", 1, 5000, 1);
         var trailingZeroDisplay = IntlOptionHelpers.GetStringOption(options, "trailingZeroDisplay", Realm,
             "PluralRules", ["auto", "stripIfInteger"], "auto");
 
@@ -101,12 +101,10 @@ public sealed partial class IntlPluralRulesConstructor(IJsObjectLike prototype, 
         }
         else
         {
-            // Defaults for PluralRules: significantDigits 1..21
+            // Defaults for PluralRules per spec: fractionDigits 0..3
             resolvedMinFrac = 0;
-            resolvedMaxFrac = 0;
-            resolvedMinSig = 1;
-            resolvedMaxSig = 21;
-            roundingType = "significantDigits";
+            resolvedMaxFrac = 3;
+            roundingType = "fractionDigits";
         }
 
         JsObject instance;

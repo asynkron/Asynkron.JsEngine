@@ -496,7 +496,6 @@ public sealed partial class IntlDurationFormatPrototype
             var value = values[i];
             var style = opts.UnitStyles[i];
             var display = opts.UnitDisplays[i];
-            string? fractionalValueText = null;
 
             // Numeric seconds/milliseconds/microseconds combined with sub-second units (fractional)
             var done = false;
@@ -506,8 +505,13 @@ public sealed partial class IntlDurationFormatPrototype
             if (unit == "seconds" && opts.Style == "digital" &&
                 (duration.Milliseconds != 0 || duration.Microseconds != 0 || duration.Nanoseconds != 0))
             {
-                fractionalValueText = DurationToFractional(duration, 9);
-                value = double.Parse(fractionalValueText, CultureInfo.InvariantCulture);
+                // Use double arithmetic to match JavaScript's Number precision.
+                // String intermediary via DurationToFractional can produce values that don't
+                // round-trip through double the same way as JS's value + ms/1e3 + us/1e6 + ns/1e9.
+                value = duration.Seconds
+                    + duration.Milliseconds / 1e3
+                    + duration.Microseconds / 1e6
+                    + duration.Nanoseconds / 1e9;
                 done = true;
             }
             else if (unit is "seconds" or "milliseconds" or "microseconds")
@@ -516,14 +520,14 @@ public sealed partial class IntlDurationFormatPrototype
                 var nextIdx = i + 1;
                 if (nextIdx < UnitNames.Length && opts.UnitStyles[nextIdx] == "numeric")
                 {
-                    // Combine sub-second values into fractional
-                    fractionalValueText = unit switch
+                    // Combine sub-second values into fractional using double arithmetic
+                    // to match JavaScript's Number precision.
+                    value = unit switch
                     {
-                        "seconds" => DurationToFractional(duration, 9),
-                        "milliseconds" => DurationToFractional(duration, 6),
-                        _ => DurationToFractional(duration, 3) // microseconds
+                        "seconds" => duration.Seconds + duration.Milliseconds / 1e3 + duration.Microseconds / 1e6 + duration.Nanoseconds / 1e9,
+                        "milliseconds" => duration.Milliseconds + duration.Microseconds / 1e3 + duration.Nanoseconds / 1e6,
+                        _ => duration.Microseconds + duration.Nanoseconds / 1e3 // microseconds
                     };
-                    value = double.Parse(fractionalValueText, CultureInfo.InvariantCulture);
                     done = true;
                 }
             }
@@ -565,16 +569,6 @@ public sealed partial class IntlDurationFormatPrototype
 
             // Treat -0 as 0 for display/auto comparison but preserve sign for formatting
             var valueIsZero = value == 0; // -0 == 0 is true in C#
-            if (!displayRequired && valueIsZero && display == "auto" && displayNegativeSign &&
-                style is "numeric" or "2-digit")
-            {
-                var hasNegativeValue = values.Any(v => v < 0);
-                var hasNonZeroValue = values.Any(v => v != 0);
-                if (hasNegativeValue && hasNonZeroValue && remainingHasDisplayableUnit)
-                {
-                    displayRequired = true;
-                }
-            }
 
             if (!valueIsZero || display != "auto" || displayRequired)
             {
@@ -612,22 +606,41 @@ public sealed partial class IntlDurationFormatPrototype
                 // Format the value
                 if (done)
                 {
-                    // Fractional seconds: use numeric formatting so we stay aligned with the
-                    // NumberFormat-derived expectations used by the Test262 helper.
-                    var formatted = fractionalValueText is not null
-                        ? FormatFractionalNumeric(fractionalValueText, signDisplayNever, true,
-                            maxFrac, minFrac, locale)
-                        : FormatPlainNumeric(value, signDisplayNever, true);
-                    if (signDisplayNever && formatted.StartsWith("-", StringComparison.Ordinal))
+                    if (style is not "numeric" and not "2-digit")
                     {
-                        formatted = formatted[1..];
+                        // Non-numeric fractional (e.g., "short" milliseconds with numeric microseconds):
+                        // use FormatUnitParts to include the unit label (e.g. "ms").
+                        var unitParts = FormatUnitParts(value, singularUnit, style, locale, signDisplayNever, true, maxFrac, minFrac);
+                        list.AddRange(unitParts);
                     }
-                    else if (signDisplayNever && double.IsNegative(value))
+                    else
                     {
-                        formatted = formatted.TrimStart('-');
+                        // Numeric/2-digit fractional: format using IntlNumberFormatter to match
+                        // the same code path as Intl.NumberFormat (which the test harness uses).
+                        var isTwoDigit = style == "2-digit";
+                        var numSlots = new IntlNumberFormatInternalSlots
+                        {
+                            Locale = locale,
+                            NumberingSystem = "latn",
+                            Style = "decimal",
+                            MinimumIntegerDigits = isTwoDigit ? 2 : 1,
+                            MinimumFractionDigits = minFrac,
+                            MaximumFractionDigits = maxFrac,
+                            UseGrouping = "false",
+                            Notation = "standard",
+                            SignDisplay = signDisplayNever ? "never" : "auto",
+                            RoundingIncrement = 1,
+                            RoundingMode = "trunc",
+                            RoundingPriority = "auto",
+                            TrailingZeroDisplay = "auto",
+                            RoundingType = "fractionDigits",
+                            Culture = IntlUtilities.ResolveCulture(locale)
+                        };
+                        var fmtResult = IntlNumberFormatter.FormatDouble(value, numSlots);
+                        var formatted = fmtResult.Formatted;
+                        var numParts = ParseNumericParts(formatted, singularUnit);
+                        list.AddRange(numParts);
                     }
-                    var numParts = ParseNumericParts(formatted, singularUnit);
-                    list.AddRange(numParts);
                 }
                 else if (style is not "numeric" and not "2-digit")
                 {
@@ -664,49 +677,6 @@ public sealed partial class IntlDurationFormatPrototype
         // Join with ListFormat
         var listStyle = opts.Style == "digital" ? "short" : opts.Style;
         return JoinWithListFormat(result, listStyle, locale);
-    }
-
-    private static string DurationToFractional(DurationRecord duration, int exponent)
-    {
-        var seconds = duration.Seconds;
-        var milliseconds = duration.Milliseconds;
-        var microseconds = duration.Microseconds;
-        var nanoseconds = duration.Nanoseconds;
-
-        // Directly return when no sub-seconds present
-        switch (exponent)
-        {
-            case 9 when milliseconds == 0 && microseconds == 0 && nanoseconds == 0:
-                return seconds.ToString(CultureInfo.InvariantCulture);
-            case 6 when microseconds == 0 && nanoseconds == 0:
-                return milliseconds.ToString(CultureInfo.InvariantCulture);
-            case 3 when nanoseconds == 0:
-                return microseconds.ToString(CultureInfo.InvariantCulture);
-        }
-
-        // Compute total nanoseconds using decimal to avoid precision loss
-        var ns = (decimal)nanoseconds;
-        switch (exponent)
-        {
-            case 9:
-                ns += (decimal)seconds * 1_000_000_000m;
-                goto case 6;
-            case 6:
-                ns += (decimal)milliseconds * 1_000_000m;
-                goto case 3;
-            case 3:
-                ns += (decimal)microseconds * 1_000m;
-                break;
-        }
-
-        var e = (decimal)Math.Pow(10, exponent);
-        var q = decimal.Truncate(ns / e);
-        var r = ns % e;
-        if (r < 0) r = -r;
-
-        // Format as "q.r" with r padded to exponent digits
-        var rStr = ((long)r).ToString(CultureInfo.InvariantCulture).PadLeft(exponent, '0');
-        return q.ToString(CultureInfo.InvariantCulture) + "." + rStr;
     }
 
     private static double NegativeZero()
@@ -849,56 +819,6 @@ public sealed partial class IntlDurationFormatPrototype
             result = "-" + result;
         }
         return result;
-    }
-
-    private static string FormatFractionalNumeric(string valueText, bool signDisplayNever,
-        bool twoDigit, int maxFrac, int minFrac, string locale)
-    {
-        var negative = valueText.StartsWith("-", StringComparison.Ordinal);
-        var unsignedText = negative ? valueText[1..] : valueText;
-        var dotIndex = unsignedText.IndexOf('.');
-        var intPartText = dotIndex >= 0 ? unsignedText[..dotIndex] : unsignedText;
-        var fracPartText = dotIndex >= 0 ? unsignedText[(dotIndex + 1)..] : string.Empty;
-
-        var sb = new StringBuilder();
-        if (!signDisplayNever && negative)
-        {
-            sb.Append('-');
-        }
-
-        var intStr = twoDigit
-            ? intPartText.PadLeft(2, '0')
-            : intPartText;
-        sb.Append(intStr);
-
-        // Fractional part with truncation
-        if (maxFrac > 0 || minFrac > 0)
-        {
-            var fracStr = fracPartText;
-            if (fracStr.Length > maxFrac)
-            {
-                fracStr = fracStr[..maxFrac];
-            }
-
-            // Trim trailing zeros to minFrac
-            var trimmed = fracStr.TrimEnd('0');
-            if (trimmed.Length < minFrac)
-            {
-                trimmed = trimmed.PadRight(minFrac, '0');
-            }
-
-            if (trimmed.Length > 0)
-            {
-                sb.Append('.');
-                sb.Append(trimmed);
-            }
-            else if (minFrac > 0)
-            {
-                sb.Append('.');
-                sb.Append(new string('0', minFrac));
-            }
-        }
-        return sb.ToString();
     }
 
     /// <summary>

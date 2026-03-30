@@ -176,12 +176,35 @@ public sealed partial class IntlNumberFormatPrototype
         }
 
         var slots = GetSlots(nf);
+        IntlNumberFormatResult result;
         if (numericValue.IsBigInt)
         {
-            return IntlNumberFormatter.FormatBigInteger(numericValue.AsBigInt().Value, slots);
+            result = IntlNumberFormatter.FormatBigInteger(numericValue.AsBigInt().Value, slots);
+        }
+        else
+        {
+            result = IntlNumberFormatter.FormatDouble(numericValue.NumberValue, slots);
         }
 
-        return IntlNumberFormatter.FormatDouble(numericValue.NumberValue, slots);
+        // Apply numbering system digit transliteration
+        if (!string.Equals(slots.NumberingSystem, "latn", StringComparison.Ordinal))
+        {
+            result.Formatted = IntlUtilities.TranslateDigits(result.Formatted, slots.NumberingSystem);
+            if (result.Parts is not null)
+            {
+                for (var i = 0; i < result.Parts.Count; i++)
+                {
+                    var part = result.Parts[i];
+                    var translated = IntlUtilities.TranslateDigits(part.Value, slots.NumberingSystem);
+                    if (!ReferenceEquals(translated, part.Value))
+                    {
+                        result.Parts[i] = part with { Value = translated };
+                    }
+                }
+            }
+        }
+
+        return result;
     }
 
     private JsObject CreateNumberFormatResolvedOptions(JsObject nf)

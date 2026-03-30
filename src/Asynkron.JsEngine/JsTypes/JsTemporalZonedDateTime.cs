@@ -51,7 +51,7 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
             var localDateTime = new DateTime(
                 Math.Clamp(year, 1, 9999), month, day,
                 hour, minute, second, millisecond, microsecond);
-            offset = TimeZone.GetUtcOffset(localDateTime);
+            offset = Asynkron.JsEngine.StdLib.Temporal.TemporalHistoricalTimeZoneOffsets.GetUtcOffset(TimeZoneId, TimeZone, localDateTime);
         }
 
         // Compute epoch nanoseconds with full nanosecond precision
@@ -213,24 +213,26 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
     /// <summary>
     ///     Gets the wall-clock datetime in the timezone.
     /// </summary>
-    private DateTimeOffset LocalDateTimeOffset
+    private DateTime LocalDateTime
     {
         get
         {
-            var utc = Instant.ToDateTimeOffset();
-            return FixedOffset.HasValue ? utc.ToOffset(FixedOffset.Value) : TimeZoneInfo.ConvertTime(utc, TimeZone);
+            var instant = Instant.ToDateTimeOffset();
+            var offset = FixedOffset
+                ?? Asynkron.JsEngine.StdLib.Temporal.TemporalHistoricalTimeZoneOffsets.GetUtcOffset(TimeZone, instant);
+            return DateTime.SpecifyKind(instant.UtcDateTime + offset, DateTimeKind.Unspecified);
         }
     }
 
     // Date/time components in wall-clock time
-    public int Year => LocalDateTimeOffset.Year;
-    public int Month => LocalDateTimeOffset.Month;
-    public int Day => LocalDateTimeOffset.Day;
-    public int Hour => LocalDateTimeOffset.Hour;
-    public int Minute => LocalDateTimeOffset.Minute;
-    public int Second => LocalDateTimeOffset.Second;
-    public int Millisecond => LocalDateTimeOffset.Millisecond;
-    public int Microsecond => LocalDateTimeOffset.Microsecond;
+    public int Year => LocalDateTime.Year;
+    public int Month => LocalDateTime.Month;
+    public int Day => LocalDateTime.Day;
+    public int Hour => LocalDateTime.Hour;
+    public int Minute => LocalDateTime.Minute;
+    public int Second => LocalDateTime.Second;
+    public int Millisecond => LocalDateTime.Millisecond;
+    public int Microsecond => LocalDateTime.Microsecond;
 
     /// <summary>
     ///     Nanoseconds component (0-999). Note: .NET doesn't track nanoseconds, so we derive from Instant.
@@ -259,7 +261,7 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
     {
         get
         {
-            var dow = LocalDateTimeOffset.DayOfWeek;
+            var dow = LocalDateTime.DayOfWeek;
             return dow == System.DayOfWeek.Sunday ? 7 : (int)dow;
         }
     }
@@ -267,7 +269,7 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
     /// <summary>
     ///     The day of the year (1-366).
     /// </summary>
-    public int DayOfYear => LocalDateTimeOffset.DayOfYear;
+    public int DayOfYear => LocalDateTime.DayOfYear;
 
     /// <summary>
     ///     The ISO 8601 week number.
@@ -276,8 +278,7 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
     {
         get
         {
-            var dt = LocalDateTimeOffset.DateTime;
-            return ISOWeek.GetWeekOfYear(dt);
+            return ISOWeek.GetWeekOfYear(LocalDateTime);
         }
     }
 
@@ -288,8 +289,7 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
     {
         get
         {
-            var dt = LocalDateTimeOffset.DateTime;
-            return ISOWeek.GetYear(dt);
+            return ISOWeek.GetYear(LocalDateTime);
         }
     }
 
@@ -315,7 +315,10 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
     {
         get
         {
-            var offset = FixedOffset ?? TimeZone.GetUtcOffset(LocalDateTimeOffset.DateTime);
+            var offset = FixedOffset
+                ?? Asynkron.JsEngine.StdLib.Temporal.TemporalHistoricalTimeZoneOffsets.GetUtcOffset(
+                    TimeZone,
+                    Instant.ToDateTimeOffset());
             return (long)offset.TotalMilliseconds * 1_000_000;
         }
     }
@@ -327,10 +330,11 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
     {
         get
         {
-            var offset = FixedOffset ?? TimeZone.GetUtcOffset(LocalDateTimeOffset.DateTime);
-            var sign = offset >= TimeSpan.Zero ? "+" : "-";
-            var absOffset = offset.Duration();
-            return $"{sign}{absOffset.Hours:D2}:{absOffset.Minutes:D2}";
+            var offset = FixedOffset
+                ?? Asynkron.JsEngine.StdLib.Temporal.TemporalHistoricalTimeZoneOffsets.GetUtcOffset(
+                    TimeZone,
+                    Instant.ToDateTimeOffset());
+            return Asynkron.JsEngine.StdLib.Temporal.TemporalHistoricalTimeZoneOffsets.FormatOffset(offset);
         }
     }
 
@@ -401,7 +405,7 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
                 {
                     // Use the parsed instant as approximate local time to determine offset
                     var approxLocal = parsed.ToDateTimeOffset().DateTime;
-                    tzOffset = tz.GetUtcOffset(approxLocal);
+                    tzOffset = Asynkron.JsEngine.StdLib.Temporal.TemporalHistoricalTimeZoneOffsets.GetUtcOffset(tz, approxLocal);
                 }
                 var offsetNanosTz = tzOffset.Ticks * 100L;
                 parsed = JsTemporalInstant.FromEpochNanoseconds(parsed.EpochNanoseconds - offsetNanosTz);
@@ -718,7 +722,8 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
         var sign = offsetStr[0] == '-' ? -1L : 1L;
         var body = offsetStr[1..];
         var parts = body.Split(':');
-        int hours, minutes = 0;
+        int hours, minutes = 0, seconds = 0;
+        long subSecondNanos = 0;
 
         if (parts.Length == 1)
         {
@@ -737,9 +742,34 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
         {
             hours = int.Parse(parts[0], CultureInfo.InvariantCulture);
             minutes = int.Parse(parts[1], CultureInfo.InvariantCulture);
+
+            if (parts.Length > 2)
+            {
+                var secStr = parts[2];
+                var dotIdx = secStr.IndexOf('.');
+                if (dotIdx >= 0)
+                {
+                    seconds = int.Parse(secStr[..dotIdx], CultureInfo.InvariantCulture);
+                    var frac = secStr[(dotIdx + 1)..];
+                    frac = frac.PadRight(9, '0');
+                    if (frac.Length > 9)
+                    {
+                        frac = frac[..9];
+                    }
+
+                    subSecondNanos = long.Parse(frac, CultureInfo.InvariantCulture);
+                }
+                else
+                {
+                    seconds = int.Parse(secStr, CultureInfo.InvariantCulture);
+                }
+            }
         }
 
-        return sign * ((long)hours * 3_600_000_000_000L + (long)minutes * 60_000_000_000L);
+        return sign * ((long)hours * 3_600_000_000_000L
+            + (long)minutes * 60_000_000_000L
+            + (long)seconds * 1_000_000_000L
+            + subSecondNanos);
     }
 
     /// <summary>
@@ -987,7 +1017,9 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
 
         try
         {
-            return TimeZone.GetUtcOffset(LocalDateTimeOffset.DateTime);
+            return Asynkron.JsEngine.StdLib.Temporal.TemporalHistoricalTimeZoneOffsets.GetUtcOffset(
+                TimeZone,
+                Instant.ToDateTimeOffset());
         }
         catch (OverflowException)
         {

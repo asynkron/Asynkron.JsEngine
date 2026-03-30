@@ -5978,6 +5978,15 @@ public static class TemporalHelper
         RealmState realm)
     {
         var other = ToTemporalPlainDate(otherArg, realm);
+
+        // Per spec: throw RangeError if calendars don't match
+        if (!string.Equals(
+                CanonicalizeCalendarIdForComparison(date.Calendar),
+                CanonicalizeCalendarIdForComparison(other.Calendar),
+                StringComparison.Ordinal))
+            throw StandardLibrary.ThrowRangeError(
+                $"Cannot compute difference between dates with different calendars: '{date.Calendar}' and '{other.Calendar}'", realm: realm);
+
         var settings = GetDifferenceSettings(operation, options, realm,
             $"Temporal.PlainDate.prototype.{operation}",
             DateUnits, "day", "day");
@@ -6013,6 +6022,15 @@ public static class TemporalHelper
         RealmState realm)
     {
         var other = ToTemporalPlainDateTime(otherArg, realm);
+
+        // Per spec: throw RangeError if calendars don't match
+        if (!string.Equals(
+                CanonicalizeCalendarIdForComparison(dt.Calendar),
+                CanonicalizeCalendarIdForComparison(other.Calendar),
+                StringComparison.Ordinal))
+            throw StandardLibrary.ThrowRangeError(
+                $"Cannot compute difference between date-times with different calendars: '{dt.Calendar}' and '{other.Calendar}'", realm: realm);
+
         var settings = GetDifferenceSettings(operation, options, realm,
             $"Temporal.PlainDateTime.prototype.{operation}",
             DateTimeUnits, "nanosecond", "day");

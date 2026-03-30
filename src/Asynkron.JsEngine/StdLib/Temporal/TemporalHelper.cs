@@ -8571,11 +8571,38 @@ public static class TemporalHelper
         int hour, int minute, int second, int millisecond, int microsecond, int nanosecond,
         RealmState? realm = null)
     {
-        // Per spec ISODateTimeWithinLimits: abs(epochDays) > 10^8 + 1
-        // The +1 gives headroom for time components within the boundary day
+        // Per spec ISODateTimeWithinLimits:
+        //   ns = MakeDay(y,m,d) × nsPerDay + MakeTime(h,min,s,ms) × 10^6 + µs × 10^3 + ns
+        //   valid iff ns > nsMinInstant - nsPerDay AND ns < nsMaxInstant + nsPerDay
+        // The boundary epoch days are ±100,000,001.
+        // For days well outside the boundary, reject immediately.
+        // For boundary days, also check the time-of-day nanoseconds.
         var epochDays = IsoCalendarHelpers.DateToEpochDays(year, month, day);
-        if (Math.Abs(epochDays) > 100_000_001)
+        var absEpochDays = Math.Abs(epochDays);
+        if (absEpochDays > 100_000_001)
             throw StandardLibrary.ThrowRangeError("Resulting PlainDateTime is out of representable range", realm: realm);
+
+        // At the exact boundary day, check time-of-day
+        if (absEpochDays == 100_000_001)
+        {
+            var timeNs = (long)hour * 3_600_000_000_000L + (long)minute * 60_000_000_000L +
+                         (long)second * 1_000_000_000L + (long)millisecond * 1_000_000L +
+                         (long)microsecond * 1_000L + nanosecond;
+
+            if (epochDays < 0 && timeNs == 0)
+            {
+                // Negative boundary: -271821-04-19T00:00:00.000000000 is out of range;
+                // -271821-04-19T00:00:00.000000001 (timeNs > 0) is valid.
+                throw StandardLibrary.ThrowRangeError("Resulting PlainDateTime is out of representable range", realm: realm);
+            }
+
+            if (epochDays > 0)
+            {
+                // Positive boundary: day 100,000,001 is always out of range regardless of time.
+                // Max valid is day 100,000,000 (275760-09-13) with any time.
+                throw StandardLibrary.ThrowRangeError("Resulting PlainDateTime is out of representable range", realm: realm);
+            }
+        }
     }
 
     private static int DaysInMonth(int year, int month)

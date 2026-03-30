@@ -20,7 +20,7 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var (_, resolvedLocale) = ResolveIntlLocales(args.GetArgument(0), Realm);
-        var options = IntlOptionHelpers.GetOptionsObject(args.GetArgument(1), Realm, "NumberFormat");
+        var options = IntlOptionHelpers.GetOptionsObject(args.GetArgument(1), Realm, "NumberFormat", useToObject: true);
         var slots = CreateInternalSlots(resolvedLocale, options);
         var instance = PrepareThisObject(thisValue);
         IntlNumberFormatPrototype.InitializeInternalSlots(instance, slots);

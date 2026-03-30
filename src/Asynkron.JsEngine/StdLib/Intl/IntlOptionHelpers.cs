@@ -12,11 +12,17 @@ internal static class IntlOptionHelpers
     /// <summary>
     /// JsValue overload that avoids boxing.
     /// </summary>
-    public static IJsPropertyAccessor? GetOptionsObject(JsValue optionsArg, RealmState realm, string typeName)
+    public static IJsPropertyAccessor? GetOptionsObject(JsValue optionsArg, RealmState realm, string typeName,
+        bool useToObject = false)
     {
         if (optionsArg.Kind == JsValueKind.Undefined)
         {
             return null;
+        }
+
+        if (optionsArg.Kind == JsValueKind.Null)
+        {
+            throw StandardLibrary.ThrowTypeError($"Intl.{typeName} options must be an object", realm: realm);
         }
 
         if (optionsArg.TryGetObject<IJsPropertyAccessor>(out var accessor))
@@ -24,8 +30,15 @@ internal static class IntlOptionHelpers
             return accessor;
         }
 
+        // Some constructors (e.g., NumberFormat, DateTimeFormat) use ToObject(options)
+        // which wraps primitives. Others (e.g., ListFormat) use GetOptionsObject which
+        // throws TypeError for non-objects.
+        if (useToObject)
+        {
+            return StandardLibrary.ToObjectPropertyAccessor(optionsArg, $"Intl.{typeName}", realm);
+        }
+
         // Per spec GetOptionsObject: if Type(options) is not Object, throw TypeError.
-        // null, boolean, number, string, symbol, bigint are all rejected.
         throw StandardLibrary.ThrowTypeError($"Intl.{typeName} options must be an object", realm: realm);
     }
 

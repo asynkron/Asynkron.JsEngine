@@ -22,7 +22,9 @@ public sealed partial class IntlDateTimeFormatPrototype
         PlainDate,
         PlainTime,
         PlainYearMonth,
-        PlainMonthDay
+        PlainMonthDay,
+        Instant,
+        ZonedDateTime
     }
 
     private readonly record struct TemporalFormatterTarget(
@@ -49,7 +51,7 @@ public sealed partial class IntlDateTimeFormatPrototype
     {
         var slotData = ValidateReceiver(thisValue, out _);
         var dateValue = args.GetArgument(0);
-        if (TryGetTemporalFormatterTarget(dateValue, out var temporalTarget))
+        if (TryGetTemporalFormatterTargetForFormat(dateValue, out var temporalTarget))
         {
             var effectiveSlots = GetEffectiveTemporalSlots(slotData, temporalTarget, Realm);
             var temporalCulture = IntlUtilities.ResolveCulture(effectiveSlots.Locale);
@@ -683,7 +685,7 @@ public sealed partial class IntlDateTimeFormatPrototype
     private static JsValue FormatChecked(JsValue value, DateTimeFormatInternalSlots slots, RealmState realm,
         string? displayTimeZoneId = null)
     {
-        if (TryGetTemporalFormatterTarget(value, out var temporalTarget))
+        if (TryGetTemporalFormatterTargetForFormat(value, out var temporalTarget))
         {
             var effectiveSlots = GetEffectiveTemporalSlots(slots, temporalTarget, realm);
             return FormatResolvedDateTime(temporalTarget.DateTime, effectiveSlots, displayTimeZoneId);
@@ -793,18 +795,50 @@ public sealed partial class IntlDateTimeFormatPrototype
             return true;
         }
 
+        // Instant and ZonedDateTime are recognized as Temporal types for range type-checking,
+        // but they format via the regular epoch-milliseconds path (not the temporal component path).
+        if (jsObject.TryGetProperty("[[TemporalInstant]]", out _))
+        {
+            target = new TemporalFormatterTarget(TemporalFormatterKind.Instant, default, "iso8601");
+            return true;
+        }
+
+        if (jsObject.TryGetProperty("[[TemporalZonedDateTime]]", out var zdtSlot) &&
+            zdtSlot.TryGetObject<JsTemporalZonedDateTime>(out var zdt))
+        {
+            target = new TemporalFormatterTarget(TemporalFormatterKind.ZonedDateTime, default, zdt.Calendar);
+            return true;
+        }
+
         return false;
+    }
+
+    /// <summary>
+    /// Returns true if the value is a Temporal type that should go through the
+    /// temporal-specific formatting path (PlainDate/Time/DateTime/YearMonth/MonthDay).
+    /// Instant and ZonedDateTime format via the regular epoch-ms path.
+    /// </summary>
+    private static bool TryGetTemporalFormatterTargetForFormat(JsValue value, out TemporalFormatterTarget target)
+    {
+        if (!TryGetTemporalFormatterTarget(value, out target))
+            return false;
+        // Instant and ZonedDateTime use the regular (non-temporal) formatting path
+        return target.Kind is not TemporalFormatterKind.Instant and not TemporalFormatterKind.ZonedDateTime;
     }
 
     private static void ValidateTemporalRangeKinds(JsValue startValue, JsValue endValue, RealmState realm)
     {
-        if (!TryGetTemporalFormatterTarget(startValue, out var startTarget) ||
-            !TryGetTemporalFormatterTarget(endValue, out var endTarget))
+        var startIsTemporal = TryGetTemporalFormatterTarget(startValue, out var startTarget);
+        var endIsTemporal = TryGetTemporalFormatterTarget(endValue, out var endTarget);
+
+        // Per spec: if one is Temporal and the other is not (Date), throw TypeError
+        if (startIsTemporal != endIsTemporal)
         {
-            return;
+            throw ThrowTypeError("Temporal objects passed to formatRange must be the same type", realm: realm);
         }
 
-        if (startTarget.Kind != endTarget.Kind)
+        // If both are Temporal, they must be the same kind
+        if (startIsTemporal && startTarget.Kind != endTarget.Kind)
         {
             throw ThrowTypeError("Temporal objects passed to formatRange must be the same type", realm: realm);
         }
@@ -897,6 +931,17 @@ public sealed partial class IntlDateTimeFormatPrototype
                 ["year"] = "numeric",
                 ["month"] = "numeric"
             },
+            TemporalFormatterKind.Instant or TemporalFormatterKind.ZonedDateTime =>
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["year"] = "numeric",
+                    ["month"] = "numeric",
+                    ["day"] = "numeric",
+                    ["hour"] = "numeric",
+                    ["minute"] = "numeric",
+                    ["second"] = "numeric",
+                    ["timeZoneName"] = "short"
+                },
             _ => new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 ["month"] = "numeric",
@@ -910,10 +955,14 @@ public sealed partial class IntlDateTimeFormatPrototype
     {
         var components = new Dictionary<string, string>(StringComparer.Ordinal);
         var hasDate = kind is TemporalFormatterKind.PlainDateTime or TemporalFormatterKind.PlainDate
-            or TemporalFormatterKind.PlainYearMonth or TemporalFormatterKind.PlainMonthDay;
-        var hasTime = kind is TemporalFormatterKind.PlainDateTime or TemporalFormatterKind.PlainTime;
+            or TemporalFormatterKind.PlainYearMonth or TemporalFormatterKind.PlainMonthDay
+            or TemporalFormatterKind.Instant or TemporalFormatterKind.ZonedDateTime;
+        var hasTime = kind is TemporalFormatterKind.PlainDateTime or TemporalFormatterKind.PlainTime
+            or TemporalFormatterKind.Instant or TemporalFormatterKind.ZonedDateTime;
 
-        if (slots.DateStyle is not null && !hasDate)
+        // Per spec: dateStyle without timeStyle on time-only type → TypeError.
+        // But dateStyle WITH timeStyle on PlainTime → dateStyle is ignored.
+        if (slots.DateStyle is not null && !hasDate && slots.TimeStyle is null)
         {
             throw ThrowTypeError("Temporal object cannot be formatted with dateStyle", realm: realm);
         }
@@ -923,7 +972,8 @@ public sealed partial class IntlDateTimeFormatPrototype
             throw ThrowTypeError("Temporal object cannot be formatted with timeStyle", realm: realm);
         }
 
-        if (slots.DateStyle is not null)
+        // Only add date components if the Temporal type has date fields
+        if (slots.DateStyle is not null && hasDate)
         {
             foreach (var (key, value) in GetDateStyleComponents(slots.DateStyle, kind))
             {

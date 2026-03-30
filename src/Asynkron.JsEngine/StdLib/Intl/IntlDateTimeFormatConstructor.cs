@@ -38,7 +38,7 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
         var (_, resolvedLocale) = ResolveIntlLocales(localesArg, Realm);
 
         // Per spec: Let options be ? ToObject(options) — use GetOptionsObject for proper ToObject
-        var options = IntlOptionHelpers.GetOptionsObject(optionsArg, Realm, "DateTimeFormat");
+        var options = IntlOptionHelpers.GetOptionsObject(optionsArg, Realm, "DateTimeFormat", useToObject: true);
 
         // Step 4: localeMatcher
         var localeMatcher = IntlOptionHelpers.GetStringOption(options, "localeMatcher", Realm,

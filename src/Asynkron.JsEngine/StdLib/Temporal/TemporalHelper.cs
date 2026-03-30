@@ -206,15 +206,36 @@ public static class TemporalHelper
         }
 
         // Step 2-4: String handling
-        // Per spec, the calendar parameter must be a bare calendar identifier (e.g. "iso8601").
-        // ISO date strings with calendar annotations are NOT valid here.
+        // Try bare calendar name first (fast path), then parse as ISO string.
         var id = calendarArg.AsString();
-        return ValidateCalendarId(id);
+        var lowered = AsciiLowercase(id);
+        if (CalendarAliases.TryGetValue(lowered, out var canonical))
+            lowered = canonical;
+        if (ValidCalendarIds.Contains(lowered))
+            return CanonicalizeCalendarId(lowered);
+        // Not a bare calendar name — parse as ISO string to extract calendar annotation
+        var parsed = ParseTemporalCalendarString(id);
+        return ValidateCalendarId(parsed);
+    }
+
+    /// <summary>
+    /// Strict calendar validation for constructors only.
+    /// Per spec, constructor calendar parameter must be a bare calendar ID.
+    /// ISO date strings with calendar annotations are NOT accepted.
+    /// </summary>
+    private static string ValidateCalendarIdStrict(JsValue calendarArg)
+    {
+        if (!calendarArg.IsString)
+        {
+            throw StandardLibrary.ThrowTypeError("Calendar must be a string");
+        }
+
+        return ValidateCalendarId(calendarArg.AsString());
     }
 
     /// <summary>
     /// Validates and canonicalizes a calendar identifier string.
-    /// If not a known calendar ID, tries to parse as ISO string to extract calendar annotation.
+    /// If not a known calendar ID, throws RangeError.
     /// </summary>
     private static string ValidateCalendarId(string id)
     {
@@ -1819,7 +1840,7 @@ public static class TemporalHelper
             var month = ToIntegerWithRangeCheck(args.GetArgument(1), "month", realm);
             var day = ToIntegerWithRangeCheck(args.GetArgument(2), "day", realm);
             var calendarArg = args.Count > 3 ? args[3] : JsValue.Undefined;
-            var calendar = calendarArg.IsUndefined ? "iso8601" : ToTemporalCalendarIdentifier(calendarArg);
+            var calendar = calendarArg.IsUndefined ? "iso8601" : ValidateCalendarIdStrict(calendarArg);
 
             RejectISODate(year, month, day, realm);
             var date = new JsTemporalPlainDate(year, month, day, calendar);
@@ -2634,7 +2655,7 @@ public static class TemporalHelper
             var microsecond = ToIntegerOrDefault(args, 7, "microsecond", realm);
             var nanosecond = ToIntegerOrDefault(args, 8, "nanosecond", realm);
             var calendarArg = args.Count > 9 ? args[9] : JsValue.Undefined;
-            var calendar = calendarArg.IsUndefined ? "iso8601" : ToTemporalCalendarIdentifier(calendarArg);
+            var calendar = calendarArg.IsUndefined ? "iso8601" : ValidateCalendarIdStrict(calendarArg);
 
             RejectISODate(year, month, day, realm);
             RejectTemporalTimeRange(hour, minute, second, millisecond, microsecond, nanosecond, realm);
@@ -3325,7 +3346,7 @@ public static class TemporalHelper
             // Per spec: constructor uses ParseTemporalTimeZoneString which only accepts
             // TimeZoneIdentifier, NOT ISO datetime strings
             var timeZoneId = ToTemporalTimeZoneSlotStrict(timeZoneArg, realm);
-            var calendar = calendarArg.IsUndefined ? "iso8601" : ToTemporalCalendarIdentifier(calendarArg);
+            var calendar = calendarArg.IsUndefined ? "iso8601" : ValidateCalendarIdStrict(calendarArg);
 
             JsTemporalInstant instant;
             if (epochNanoseconds.TryGetBigInt(out var bigInt))
@@ -3615,7 +3636,7 @@ public static class TemporalHelper
             var year = ToIntegerWithTruncation(args.GetArgument(0), realm);
             var month = ToIntegerWithTruncation(args.GetArgument(1), realm);
             var calendarArg = args.Count > 2 ? args[2] : JsValue.Undefined;
-            var calendar = calendarArg.IsUndefined ? "iso8601" : ToTemporalCalendarIdentifier(calendarArg);
+            var calendar = calendarArg.IsUndefined ? "iso8601" : ValidateCalendarIdStrict(calendarArg);
             // 4th arg is referenceISODay per spec
             var refDayArg = args.Count > 3 ? args[3] : JsValue.Undefined;
             int? refDay = refDayArg.IsUndefined ? null : ToIntegerWithTruncation(refDayArg, realm);
@@ -3926,7 +3947,7 @@ public static class TemporalHelper
             var month = ToIntegerWithTruncation(args.GetArgument(0), realm);
             var day = ToIntegerWithTruncation(args.GetArgument(1), realm);
             var calendarArg = args.Count > 2 ? args[2] : JsValue.Undefined;
-            var calendar = calendarArg.IsUndefined ? "iso8601" : ToTemporalCalendarIdentifier(calendarArg);
+            var calendar = calendarArg.IsUndefined ? "iso8601" : ValidateCalendarIdStrict(calendarArg);
             // 4th arg is referenceISOYear per spec
             var refYearArg = args.Count > 3 ? args[3] : JsValue.Undefined;
             int? refYear = refYearArg.IsUndefined ? null : ToIntegerWithTruncation(refYearArg, realm);

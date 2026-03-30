@@ -2638,6 +2638,7 @@ public static class TemporalHelper
 
             RejectISODate(year, month, day, realm);
             RejectTemporalTimeRange(hour, minute, second, millisecond, microsecond, nanosecond, realm);
+            RejectISODateTimeRange(year, month, day, hour, minute, second, millisecond, microsecond, nanosecond, realm);
             var dt = new JsTemporalPlainDateTime(year, month, day, hour, minute, second,
                 millisecond, microsecond, nanosecond, calendar);
             return ApplyNewTargetPrototype(WrapPlainDateTime(dt, realm, prototype), newTarget, ctor, prototype);
@@ -8904,20 +8905,25 @@ public static class TemporalHelper
             throw StandardLibrary.ThrowTypeError("Property bag for PlainDate must have 'day'", realm: realm);
         var day = ToIntegerWithTruncation(dayVal, realm);
 
-        // 3. era
-        var hasEra = accessor.TryGetProperty("era", out var eraVal) && !eraVal.IsUndefined;
+        // 3-4. era/eraYear: only read for non-ISO calendars (ISO calendar ignores them per spec).
+        var isIso = string.Equals(calendar, "iso8601", StringComparison.Ordinal);
+        var hasEra = false;
+        var hasEraYear = false;
         string? era = null;
-        if (hasEra)
-            era = JsOps.ToJsString(eraVal);
-
-        // 4. eraYear
-        var hasEraYear = accessor.TryGetProperty("eraYear", out var eraYearVal) && !eraYearVal.IsUndefined;
         int eraYear = 0;
-        if (hasEraYear)
-            eraYear = ToIntegerWithTruncation(eraYearVal, realm);
+        if (!isIso)
+        {
+            hasEra = accessor.TryGetProperty("era", out var eraVal) && !eraVal.IsUndefined;
+            if (hasEra)
+                era = JsOps.ToJsString(eraVal);
 
-        if (hasEra != hasEraYear)
-            throw StandardLibrary.ThrowTypeError("Property bag for PlainDate must have both 'era' and 'eraYear'", realm: realm);
+            hasEraYear = accessor.TryGetProperty("eraYear", out var eraYearVal) && !eraYearVal.IsUndefined;
+            if (hasEraYear)
+                eraYear = ToIntegerWithTruncation(eraYearVal, realm);
+
+            if (hasEra != hasEraYear)
+                throw StandardLibrary.ThrowTypeError("Property bag for PlainDate must have both 'era' and 'eraYear'", realm: realm);
+        }
 
         // 5. month — eagerly convert to trigger valueOf for observable order
         accessor.TryGetProperty("month", out var monthVal);
@@ -12350,18 +12356,31 @@ public static class TemporalHelper
             if (baseStr.Length > 0 && (baseStr[0] == '+' || baseStr[0] == '-'))
                 startIdx = 1;
             var tIdx = FindDateTimeSeparator(baseStr[startIdx..]);
-            if (tIdx >= 0)
+            var hasTimePart = tIdx >= 0;
+            if (hasTimePart)
                 baseStr = baseStr[..(tIdx + startIdx)];
 
             // Try to parse as YYYY-MM (no day) first, then fall back to full YYYY-MM-DD
             var ymResult = TryParseYearMonth(baseStr, str, realm);
             if (ymResult.HasValue)
             {
+                // Per spec: year-month-only strings must use ISO calendar.
+                // Non-ISO calendar annotations on YYYY-MM format are rejected.
+                if (!string.Equals(calendar, "iso8601", StringComparison.Ordinal))
+                    throw StandardLibrary.ThrowRangeError(
+                        $"Non-ISO calendar '{calendar}' is not valid for year-month-only strings", realm: realm);
+
                 RejectISOYearMonthRange(ymResult.Value.year, ymResult.Value.month, realm);
                 return new JsTemporalPlainYearMonth(
                     ymResult.Value.year, ymResult.Value.month, calendar,
                     GetTemporalReferenceISODay(calendar, ymResult.Value.year, ymResult.Value.month, 1, null, realm));
             }
+
+            // Full date (YYYY-MM-DD) without time: reject UTC offsets.
+            // Offsets are only valid when a time component is present.
+            if (!hasTimePart && DateOnlyStringHasOffset(baseStr))
+                throw StandardLibrary.ThrowRangeError(
+                    "UTC offset not valid without time component in PlainYearMonth string", realm: realm);
 
             // Full date (YYYY-MM-DD) — extract year+month, discard day per spec
             // Use ParseDatePartNoRangeCheck: day is discarded, only year+month range matters

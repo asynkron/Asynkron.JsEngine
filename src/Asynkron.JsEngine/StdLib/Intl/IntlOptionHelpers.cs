@@ -19,19 +19,14 @@ internal static class IntlOptionHelpers
             return null;
         }
 
-        if (optionsArg.Kind == JsValueKind.Null)
-        {
-            throw StandardLibrary.ThrowTypeError($"Intl.{typeName} options must be an object", realm: realm);
-        }
-
         if (optionsArg.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
             return accessor;
         }
 
-        // Per spec: Let options be ? ToObject(options).
-        // ToObject wraps primitives (boolean, number, string, symbol) in their wrapper objects.
-        return StandardLibrary.ToObjectPropertyAccessor(optionsArg, $"Intl.{typeName}", realm);
+        // Per spec GetOptionsObject: if Type(options) is not Object, throw TypeError.
+        // null, boolean, number, string, symbol, bigint are all rejected.
+        throw StandardLibrary.ThrowTypeError($"Intl.{typeName} options must be an object", realm: realm);
     }
 
     public static string GetStringOption(

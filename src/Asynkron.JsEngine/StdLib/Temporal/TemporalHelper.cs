@@ -6527,7 +6527,7 @@ public static class TemporalHelper
             throw StandardLibrary.ThrowRangeError("Temporal.PlainDateTime is out of range", realm: realm);
         }
 
-        return FromEpochNanoseconds(rounded);
+        return FromEpochNanoseconds(rounded, dateTime.Calendar);
     }
 
     private static JsTemporalInstant RoundZonedDateTimeToDay(
@@ -6825,7 +6825,7 @@ public static class TemporalHelper
         return (BigInteger)dayNumber * NanosecondsPerDay + timeNanoseconds;
     }
 
-    private static JsTemporalPlainDateTime FromEpochNanoseconds(BigInteger epochNanoseconds)
+    private static JsTemporalPlainDateTime FromEpochNanoseconds(BigInteger epochNanoseconds, string calendar = "iso8601")
     {
         var dayNumber = DivRemFloor(epochNanoseconds, new BigInteger(NanosecondsPerDay), out var remainder);
         var (year, month, day) = DayNumberToIsoDate((long)dayNumber);
@@ -6833,7 +6833,8 @@ public static class TemporalHelper
         return new JsTemporalPlainDateTime(
             year, month, day,
             time.Hour, time.Minute, time.Second,
-            time.Millisecond, time.Microsecond, time.Nanosecond);
+            time.Millisecond, time.Microsecond, time.Nanosecond,
+            calendar);
     }
 
     private static long IsoToDayNumber(int year, int month, int day)
@@ -9059,6 +9060,12 @@ public static class TemporalHelper
         if (day < 1)
             throw StandardLibrary.ThrowRangeError($"Day {day} is out of range", realm: realm);
 
+        // For non-ISO calendars, convert calendar-specific year/month/day to ISO
+        if (!string.Equals(calendar, "iso8601", StringComparison.Ordinal))
+        {
+            return CalendarDateToIsoPlainDate(year, month, day, calendar, overflow, realm);
+        }
+
         if (overflow == "reject")
         {
             if (month > 12)
@@ -9079,6 +9086,85 @@ public static class TemporalHelper
         RejectISODate(year, month, day, realm);
 
         return new JsTemporalPlainDate(year, month, day, calendar);
+    }
+
+    /// <summary>
+    /// Converts a non-ISO calendar date (year/month/day in that calendar) to an ISO PlainDate.
+    /// Uses .NET BCL calendars for the conversion.
+    /// </summary>
+    private static JsTemporalPlainDate CalendarDateToIsoPlainDate(
+        int year, int month, int day, string calendar, string overflow, RealmState realm)
+    {
+        // Gregory is the same as ISO for positive years
+        if (string.Equals(calendar, "gregory", StringComparison.Ordinal))
+        {
+            // For gregory, year/month/day from property bag are Gregorian values (same as ISO for year > 0)
+            if (overflow == "reject")
+            {
+                if (month > 12)
+                    throw StandardLibrary.ThrowRangeError($"Month {month} is out of range", realm: realm);
+                var maxDay = IsoCalendarHelpers.DaysInMonth(year is >= 1 and <= 9999 ? year : 2000, month);
+                if (day > maxDay)
+                    throw StandardLibrary.ThrowRangeError($"Day {day} is out of range for month {month}", realm: realm);
+            }
+            else
+            {
+                month = Math.Min(month, 12);
+                var maxDay = IsoCalendarHelpers.DaysInMonth(year is >= 1 and <= 9999 ? year : 2000, month);
+                day = Math.Min(day, maxDay);
+            }
+
+            RejectISODate(year, month, day, realm);
+            return new JsTemporalPlainDate(year, month, day, calendar);
+        }
+
+        // Try to use .NET BCL calendar for conversion
+        if (!TryCreateBclCalendar(calendar, out var bclCal))
+        {
+            // Unsupported calendar — treat values as ISO (best effort)
+            if (overflow == "reject")
+            {
+                if (month > 12)
+                    throw StandardLibrary.ThrowRangeError($"Month {month} is out of range", realm: realm);
+            }
+            else
+            {
+                month = Math.Min(month, 12);
+            }
+
+            RejectISODate(year, month, day, realm);
+            return new JsTemporalPlainDate(year, month, day, calendar);
+        }
+
+        // Convert calendar date → ISO date via .NET calendar
+        try
+        {
+            if (overflow != "reject")
+            {
+                // Constrain: clamp month and day to valid ranges for this calendar
+                var maxMonths = bclCal.GetMonthsInYear(year);
+                month = Math.Clamp(month, 1, maxMonths);
+                var maxDays = bclCal.GetDaysInMonth(year, month);
+                day = Math.Clamp(day, 1, maxDays);
+            }
+
+            var dt = bclCal.ToDateTime(year, month, day, 0, 0, 0, 0);
+            var isoYear = dt.Year;
+            var isoMonth = dt.Month;
+            var isoDay = dt.Day;
+
+            RejectISODate(isoYear, isoMonth, isoDay, realm);
+            return new JsTemporalPlainDate(isoYear, isoMonth, isoDay, calendar);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            if (overflow == "reject")
+                throw StandardLibrary.ThrowRangeError(
+                    $"Date year={year} month={month} day={day} is out of range for calendar '{calendar}'", realm: realm);
+
+            // Constrain failed — use epoch day 1 as fallback
+            return new JsTemporalPlainDate(1970, 1, 1, calendar);
+        }
     }
 
     /// <summary>
@@ -9205,6 +9291,37 @@ public static class TemporalHelper
     {
         if (month < 1)
             throw StandardLibrary.ThrowRangeError($"Month {month} is out of range", realm: realm);
+
+        // For non-ISO calendars, convert calendar year/month to ISO
+        if (!string.Equals(calendar, "iso8601", StringComparison.Ordinal) &&
+            !string.Equals(calendar, "gregory", StringComparison.Ordinal))
+        {
+            if (TryCreateBclCalendar(calendar, out var bclCal))
+            {
+                try
+                {
+                    if (overflow != "reject")
+                    {
+                        var maxMonths = bclCal.GetMonthsInYear(year);
+                        month = Math.Clamp(month, 1, maxMonths);
+                    }
+
+                    // Convert calendar first-of-month to ISO
+                    var dt = bclCal.ToDateTime(year, month, 1, 0, 0, 0, 0);
+                    var isoYr = dt.Year;
+                    var isoMo = dt.Month;
+                    var isoRefDay = dt.Day;
+                    RejectISOYearMonthRange(isoYr, isoMo, realm);
+                    return new JsTemporalPlainYearMonth(isoYr, isoMo, calendar, isoRefDay);
+                }
+                catch (ArgumentOutOfRangeException)
+                {
+                    if (overflow == "reject")
+                        throw StandardLibrary.ThrowRangeError(
+                            $"YearMonth year={year} month={month} is out of range for calendar '{calendar}'", realm: realm);
+                }
+            }
+        }
 
         if (string.Equals(overflow, "reject", StringComparison.Ordinal))
         {
@@ -9904,7 +10021,9 @@ public static class TemporalHelper
             "hebrew" => new HebrewCalendar(),
             "chinese" => new ChineseLunisolarCalendar(),
             "dangi" => new KoreanLunisolarCalendar(),
-            "islamic-civil" or "islamic-tbla" => new HijriCalendar(),
+            // ECMAScript "islamic-civil" uses tabular Islamic calendar;
+            // .NET HijriCalendar needs HijriAdjustment = -1 to match.
+            "islamic-civil" or "islamic-tbla" => new HijriCalendar { HijriAdjustment = -1 },
             "islamic-umalqura" => new UmAlQuraCalendar(),
             "persian" => new PersianCalendar(),
             _ => null
@@ -11349,6 +11468,35 @@ public static class TemporalHelper
             throw StandardLibrary.ThrowRangeError($"Month {month} is out of range", realm: realm);
         if (day < 1)
             throw StandardLibrary.ThrowRangeError($"Day {day} is out of range", realm: realm);
+
+        // For non-ISO calendars, convert calendar date → ISO date
+        if (!string.Equals(calendar, "iso8601", StringComparison.Ordinal))
+        {
+            var isoDate = CalendarDateToIsoPlainDate(year, month, day, calendar, overflow, realm);
+            year = isoDate.Year;
+            month = isoDate.Month;
+            day = isoDate.Day;
+            // Time components still need constraining
+            if (overflow != "reject")
+            {
+                hour = Math.Clamp(hour, 0, 23);
+                minute = Math.Clamp(minute, 0, 59);
+                second = Math.Clamp(second, 0, 59);
+                millisecond = Math.Clamp(millisecond, 0, 999);
+                microsecond = Math.Clamp(microsecond, 0, 999);
+                nanosecond = Math.Clamp(nanosecond, 0, 999);
+            }
+            else
+            {
+                RejectISOTime(hour, minute, second, millisecond, microsecond, nanosecond, realm);
+            }
+
+            RejectISODateTimeRange(year, month, day,
+                hour, minute, second, millisecond, microsecond, nanosecond, realm);
+
+            return new JsTemporalPlainDateTime(year, month, day,
+                hour, minute, second, millisecond, microsecond, nanosecond, calendar);
+        }
 
         if (string.Equals(overflow, "reject", StringComparison.Ordinal))
         {
@@ -13330,7 +13478,7 @@ public static class TemporalHelper
             throw StandardLibrary.ThrowRangeError("Temporal.PlainDateTime is out of range", realm: realm);
         }
 
-        return (FromEpochNanoseconds(rounded), precision.FractionalDigits);
+        return (FromEpochNanoseconds(rounded, dt.Calendar), precision.FractionalDigits);
     }
 
     /// <summary>

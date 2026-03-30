@@ -55,23 +55,7 @@ public static partial class TypedAstEvaluator
 
                 if (isAtVarEnvironment)
                 {
-                    if (!isHoistedUndefinedBinding)
-                    {
-                        if (hasExistingFunctionScopedBinding &&
-                            !environment.IsAnnexBBlocked(funcDecl.Name))
-                        {
-                            varEnvironment.AssignJsValue(funcDecl.Name, fnValueJs);
-
-                            if (varEnvironment.IsGlobalFunctionScope)
-                            {
-                                var globalThis = varEnvironment.GetRootGlobalObject();
-                                globalThis?.SetProperty(funcDecl.Name.Name, fnValueJs);
-                            }
-                        }
-                        // Function-scoped declarations were initialized during entry/instantiation.
-                        // Runtime evaluation is otherwise a no-op unless we are filling a hoisted undefined binding.
-                    }
-                    else if (!environment.IsAnnexBBlocked(funcDecl.Name))
+                    if (isHoistedUndefinedBinding && !environment.IsAnnexBBlocked(funcDecl.Name))
                     {
                         varEnvironment.AssignJsValue(funcDecl.Name, fnValueJs);
 
@@ -81,6 +65,9 @@ public static partial class TypedAstEvaluator
                             globalThis?.SetProperty(funcDecl.Name.Name, fnValueJs);
                         }
                     }
+                    // Function-scoped declarations were initialized during entry/instantiation.
+                    // Runtime evaluation is a no-op unless we are filling a hoisted undefined
+                    // binding for an Annex B branch-scoped function.
                 }
                 else
                 {

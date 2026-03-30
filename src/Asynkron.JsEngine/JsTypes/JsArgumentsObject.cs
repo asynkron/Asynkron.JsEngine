@@ -375,6 +375,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
     private void WithSuppressedObserver(Action action)
     {
+        var wasSuppressed = _suppressObserver;
         try
         {
             _suppressObserver = true;
@@ -382,7 +383,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         }
         finally
         {
-            _suppressObserver = false;
+            _suppressObserver = wasSuppressed;
         }
     }
 

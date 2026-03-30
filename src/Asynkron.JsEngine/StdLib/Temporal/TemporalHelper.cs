@@ -647,7 +647,8 @@ public static class TemporalHelper
         var plainDateISOFn = CreateFunction(realm, "plainDateISO", 0, (_, args) =>
         {
             var tzId = ResolveNowTimeZone(args, realm);
-            var date = JsTemporalPlainDate.Today(FindTimeZone(tzId));
+            var now2 = GetCurrentDateTimeInTimeZone(tzId);
+            var date = new JsTemporalPlainDate(now2.Year, now2.Month, now2.Day, "iso8601");
             return WrapPlainDate(date, realm, prototypes.PlainDatePrototype);
         });
         now.DefineProperty("plainDateISO",
@@ -657,8 +658,7 @@ public static class TemporalHelper
         var plainTimeISOFn = CreateFunction(realm, "plainTimeISO", 0, (_, args) =>
         {
             var tzId = ResolveNowTimeZone(args, realm);
-            var tz = FindTimeZone(tzId);
-            var now2 = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, tz);
+            var now2 = GetCurrentDateTimeInTimeZone(tzId);
             var time = new JsTemporalPlainTime(now2.Hour, now2.Minute, now2.Second, now2.Millisecond, now2.Microsecond, 0);
             return WrapPlainTime(time, realm, prototypes.PlainTimePrototype);
         });
@@ -669,8 +669,7 @@ public static class TemporalHelper
         var plainDateTimeISOFn = CreateFunction(realm, "plainDateTimeISO", 0, (_, args) =>
         {
             var tzId = ResolveNowTimeZone(args, realm);
-            var tz = FindTimeZone(tzId);
-            var now2 = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, tz);
+            var now2 = GetCurrentDateTimeInTimeZone(tzId);
             var dt = new JsTemporalPlainDateTime(now2.Year, now2.Month, now2.Day,
                 now2.Hour, now2.Minute, now2.Second, now2.Millisecond, now2.Microsecond, 0);
             return WrapPlainDateTime(dt, realm, prototypes.PlainDateTimePrototype);
@@ -3207,7 +3206,7 @@ public static class TemporalHelper
 
                     if (nextTransition.HasValue)
                     {
-                        var transNs = new System.Numerics.BigInteger(nextTransition.Value.ToUnixTimeMilliseconds()) * 1_000_000;
+                        var transNs = new JsTemporalInstant(nextTransition.Value).EpochNanoseconds;
                         var transInstant = new JsTemporalInstant(transNs);
                         var transZdt = new JsTemporalZonedDateTime(transInstant, timeZoneId, CanonicalizeCalendarId(zdt.Calendar));
                         return WrapZonedDateTime(transZdt, realm, prototype);
@@ -3244,7 +3243,7 @@ public static class TemporalHelper
 
                     if (prevTransition.HasValue)
                     {
-                        var transNs = new System.Numerics.BigInteger(prevTransition.Value.ToUnixTimeMilliseconds()) * 1_000_000;
+                        var transNs = new JsTemporalInstant(prevTransition.Value).EpochNanoseconds;
                         var transInstant = new JsTemporalInstant(transNs);
                         var transZdt = new JsTemporalZonedDateTime(transInstant, timeZoneId, CanonicalizeCalendarId(zdt.Calendar));
                         return WrapZonedDateTime(transZdt, realm, prototype);
@@ -4058,6 +4057,18 @@ public static class TemporalHelper
         return tzStr;
     }
 
+    private static DateTimeOffset GetCurrentDateTimeInTimeZone(string timeZoneId)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var tz = JsTemporalZonedDateTime.ResolveTimeZone(timeZoneId, out var fixedOffset);
+        if (fixedOffset.HasValue)
+        {
+            return now.ToOffset(fixedOffset.Value);
+        }
+
+        return TimeZoneInfo.ConvertTime(now, tz);
+    }
+
     /// <summary>
     ///     Validates a JsValue as a timezone argument, type-checks it, parses ISO datetime strings,
     ///     and returns a canonicalized timezone identifier.
@@ -4073,14 +4084,12 @@ public static class TemporalHelper
         var input = value.AsString();
         var tzStr = ToTemporalTimeZoneIdentifier(input, realm);
 
-        // For UTC offset strings (e.g. "+05:30", "-23:59"), preserve the parsed string directly.
-        // FindTimeZone returns TimeZoneInfo.Utc as placeholder for offsets > ±14 hours,
-        // which would lose the original offset information.
+        // Time-zone identifier strings reject sub-minute offsets even though other Temporal
+        // offset-accepting operations may permit them. Preserve valid minute-precision offsets
+        // directly without round-tripping through TimeZoneInfo.
         if (tzStr.Length >= 3 && (tzStr[0] == '+' || tzStr[0] == '-') && char.IsDigit(tzStr[1]))
         {
-            // Validate it's a real offset by calling FindTimeZone (throws if invalid)
-            FindTimeZone(tzStr);
-            // Return the normalized offset string, not the TimeZoneInfo ID
+            RejectSubMinuteOffset(tzStr, realm);
             return NormalizeUtcOffset(tzStr);
         }
 
@@ -4198,12 +4207,18 @@ public static class TemporalHelper
     }
 
     /// <summary>
-    ///     Validates that an offset string is syntactically valid.
-    ///     Temporal permits sub-minute precision offsets, so seconds and fractional seconds are accepted.
+    ///     Validates that a time-zone identifier offset string is syntactically valid and does not
+    ///     use sub-minute precision. Temporal offset properties may allow second/fractional precision,
+    ///     but time-zone identifier strings do not.
     /// </summary>
     private static void RejectSubMinuteOffset(string offset, RealmState realm)
     {
         if (ParseOffsetToNanos(offset) is null)
+        {
+            throw StandardLibrary.ThrowRangeError($"Invalid UTC offset time zone: {offset}", realm: realm);
+        }
+
+        if (OffsetHasSubMinutePrecision(offset))
         {
             throw StandardLibrary.ThrowRangeError($"Invalid UTC offset time zone: {offset}", realm: realm);
         }
@@ -4248,8 +4263,9 @@ public static class TemporalHelper
                 transitionDate = transitionDate.Date.Add(transition.TimeOfDay.TimeOfDay);
             }
 
-            // Convert from local wall-clock time to UTC
-            var utcOffset = tz.GetUtcOffset(transitionDate.AddSeconds(-1));
+            // Convert from local wall-clock time to UTC, sampling just before the transition
+            // with tick precision so sub-second transition boundaries are not flattened.
+            var utcOffset = tz.GetUtcOffset(transitionDate.AddTicks(-1));
             var utcTime = new DateTimeOffset(transitionDate, utcOffset);
             return utcTime.ToUniversalTime();
         }
@@ -6116,6 +6132,22 @@ public static class TemporalHelper
             $"Temporal.ZonedDateTime.prototype.{operation}",
             DateTimeUnits, "nanosecond", "hour");
 
+        if (!string.Equals(
+                CanonicalizeCalendarIdForComparison(zdt.Calendar),
+                CanonicalizeCalendarIdForComparison(other.Calendar),
+                StringComparison.Ordinal))
+        {
+            throw StandardLibrary.ThrowRangeError("calendar mismatch", realm: realm);
+        }
+
+        if (!string.Equals(
+                CanonicalizeTimeZoneIdForComparison(zdt.TimeZoneId),
+                CanonicalizeTimeZoneIdForComparison(other.TimeZoneId),
+                StringComparison.Ordinal))
+        {
+            throw StandardLibrary.ThrowRangeError("time zone mismatch", realm: realm);
+        }
+
         var isSince = string.Equals(operation, "since", StringComparison.Ordinal);
 
         // Always compute this→other, negate at end for "since"
@@ -6682,18 +6714,43 @@ public static class TemporalHelper
         }
 
         var candidate = localDateTime;
-        for (var i = 0; i < 86_400; i++)
+        if (timeZone.IsInvalidTime(candidate))
         {
-            if (!timeZone.IsInvalidTime(candidate))
+            var searchStart = candidate.Ticks;
+            long searchEnd;
+            try
             {
-                var offset = ResolveTimeZoneOffset(candidate, timeZone, fixedOffset);
-                return ToEpochNanoseconds(candidate, offset);
+                searchEnd = candidate.AddDays(1).Ticks;
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
             }
 
-            candidate = candidate.AddSeconds(1);
+            while (searchStart < searchEnd)
+            {
+                var mid = searchStart + ((searchEnd - searchStart) / 2);
+                var midPoint = new DateTime(mid, DateTimeKind.Unspecified);
+                if (timeZone.IsInvalidTime(midPoint))
+                {
+                    searchStart = mid + 1;
+                }
+                else
+                {
+                    searchEnd = mid;
+                }
+            }
+
+            if (searchStart >= searchEnd && timeZone.IsInvalidTime(new DateTime(searchStart, DateTimeKind.Unspecified)))
+            {
+                throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
+            }
+
+            candidate = new DateTime(searchStart, DateTimeKind.Unspecified);
         }
 
-        throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
+        var resolvedOffset = ResolveTimeZoneOffset(candidate, timeZone, fixedOffset);
+        return ToEpochNanoseconds(candidate, resolvedOffset);
     }
 
     private static TimeSpan ResolveTimeZoneOffset(DateTime localDateTime, TimeZoneInfo timeZone, TimeSpan? fixedOffset)
@@ -9836,7 +9893,7 @@ public static class TemporalHelper
         IJsPropertyAccessor accessor, JsValue options, RealmState realm, JsObject prototype)
     {
         // Per spec, read ALL properties in alphabetical order for observable behavior:
-        // calendar, day, hour, microsecond, millisecond, minute, month, monthCode,
+        // calendar, day, era, eraYear, hour, microsecond, millisecond, minute, month, monthCode,
         // nanosecond, offset, second, timeZone, year
 
         // 1. calendar
@@ -9849,26 +9906,45 @@ public static class TemporalHelper
             throw StandardLibrary.ThrowTypeError("Property bag for ZonedDateTime must have 'day'", realm: realm);
         var day = ToIntegerWithTruncation(dayVal, realm);
 
-        // 3. hour
+        // 3. era / eraYear are only relevant for era-capable calendars.
+        var hasEra = false;
+        var hasEraYear = false;
+        string? era = null;
+        int eraYear = 0;
+        if (CalendarUsesEras(calendarId))
+        {
+            hasEra = accessor.TryGetProperty("era", out var eraVal) && !eraVal.IsUndefined;
+            if (hasEra)
+                era = JsOps.ToJsString(eraVal);
+
+            hasEraYear = accessor.TryGetProperty("eraYear", out var eraYearVal) && !eraYearVal.IsUndefined;
+            if (hasEraYear)
+                eraYear = ToIntegerWithTruncation(eraYearVal, realm);
+
+            if (hasEra != hasEraYear)
+                throw StandardLibrary.ThrowTypeError("Property bag for ZonedDateTime must have both 'era' and 'eraYear'", realm: realm);
+        }
+
+        // 4. hour
         var hour = GetOptionalIntProperty(accessor, "hour", realm);
 
-        // 4. microsecond
+        // 5. microsecond
         var microsecond = GetOptionalIntProperty(accessor, "microsecond", realm);
 
-        // 5. millisecond
+        // 6. millisecond
         var millisecond = GetOptionalIntProperty(accessor, "millisecond", realm);
 
-        // 6. minute
+        // 7. minute
         var minute = GetOptionalIntProperty(accessor, "minute", realm);
 
-        // 7. month — eagerly convert to trigger valueOf for observable order
+        // 8. month — eagerly convert to trigger valueOf for observable order
         accessor.TryGetProperty("month", out var monthVal);
         var hasMonth = !monthVal.IsUndefined;
         int monthInt = 0;
         if (hasMonth)
             monthInt = ToIntegerWithTruncation(monthVal, realm);
 
-        // 8. monthCode
+        // 9. monthCode
         accessor.TryGetProperty("monthCode", out var monthCodeVal);
         var hasMonthCode = !monthCodeVal.IsUndefined;
         string? monthCodeStr = null;
@@ -9878,10 +9954,10 @@ public static class TemporalHelper
             ValidateMonthCodeSyntax(monthCodeStr, realm);
         }
 
-        // 9. nanosecond
+        // 10. nanosecond
         var nanosecond = GetOptionalIntProperty(accessor, "nanosecond", realm);
 
-        // 10. offset (must be a string, or object that can be coerced to string)
+        // 11. offset (must be a string, or object that can be coerced to string)
         accessor.TryGetProperty("offset", out var offsetPropertyVal);
         string? offsetStr = null;
         long? offsetNanos = null;
@@ -9897,18 +9973,54 @@ public static class TemporalHelper
             offsetNanos = ParseOffsetString(offsetStr, realm);
         }
 
-        // 11. second
+        // 12. second
         var second = GetOptionalIntProperty(accessor, "second", realm);
 
-        // 12. timeZone (required)
+        // 13. timeZone (required)
         if (!accessor.TryGetProperty("timeZone", out var tzVal) || tzVal.IsUndefined)
             throw StandardLibrary.ThrowTypeError("Property bag for ZonedDateTime must have 'timeZone'", realm: realm);
         var timeZoneId = ToTemporalTimeZoneIdentifier(tzVal, realm);
 
-        // 13. year (required)
+        // 14. year (required unless era/eraYear are present for an era-aware calendar)
+        int year;
         if (!accessor.TryGetProperty("year", out var yearVal) || yearVal.IsUndefined)
-            throw StandardLibrary.ThrowTypeError("Property bag for ZonedDateTime must have 'year'", realm: realm);
-        var year = ToIntegerWithTruncation(yearVal, realm);
+        {
+            if (hasEra || hasEraYear)
+            {
+                if (!hasEra || !hasEraYear)
+                    throw StandardLibrary.ThrowTypeError("Property bag for ZonedDateTime must have both 'era' and 'eraYear'", realm: realm);
+
+                if (!CalendarUsesEras(calendarId))
+                    throw StandardLibrary.ThrowTypeError("Property bag for ZonedDateTime must have 'year'", realm: realm);
+
+                var yearFromEra = ResolveTemporalEraYear(calendarId, era!, eraYear, realm);
+
+                if (!hasMonth && !hasMonthCode)
+                    throw StandardLibrary.ThrowTypeError("Property bag for ZonedDateTime must have 'month' or 'monthCode'", realm: realm);
+
+                int monthFromEra;
+                if (hasMonthCode)
+                {
+                    monthFromEra = ResolveISOMonthCode(monthCodeStr!, realm);
+                    if (hasMonth && monthInt != monthFromEra)
+                        throw StandardLibrary.ThrowRangeError("month and monthCode must agree", realm: realm);
+                }
+                else
+                {
+                    monthFromEra = monthInt;
+                }
+
+                year = yearFromEra;
+            }
+            else
+            {
+                throw StandardLibrary.ThrowTypeError("Property bag for ZonedDateTime must have 'year'", realm: realm);
+            }
+        }
+        else
+        {
+            year = ToIntegerWithTruncation(yearVal, realm);
+        }
 
         // Resolve month from month/monthCode
         if (!hasMonth && !hasMonthCode)
@@ -11889,8 +12001,9 @@ public static class TemporalHelper
             if (timeZoneId == null)
                 throw StandardLibrary.ThrowRangeError("ZonedDateTime requires a time zone annotation in brackets", realm: realm);
 
-            // Canonicalize the timezone ID (case-insensitive, offset normalization)
-            timeZoneId = CanonicalizeTimeZoneId(timeZoneId);
+            // Validate the time zone identifier while preserving the Temporal string-path behavior
+            // for named zones more closely than the broader comparison canonicalizer.
+            timeZoneId = ValidateTimeZoneIdentifier(timeZoneId, realm);
 
             // Get the base string (before annotations)
             var bracketIdx = str.IndexOf('[');

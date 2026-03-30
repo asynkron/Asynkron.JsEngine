@@ -84,6 +84,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         var thisValue = GetHandlerJsValue();
         var currentContext = EvaluationContext.Current;
         var currentEnvironment = JsEnvironment.Current;
+        var hadThrowBeforeInvoke = currentContext?.IsThrow == true;
         IJsEnvironmentAwareCallable? envAware = null;
         JsEnvironment? previousEnvironment = null;
         if (currentEnvironment is not null && trap is IJsEnvironmentAwareCallable environmentAware)
@@ -102,12 +103,19 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         try
         {
-            return trap switch
+            var result = trap switch
             {
                 global::Asynkron.JsEngine.Ast.TypedAstEvaluator.SyncFunctionInvoker typed => typed.InvokeWithContext(arguments, thisValue, currentContext),
                 HostFunction host => host.InvokeWithContext(arguments, thisValue, currentContext),
                 _ => trap.Invoke(arguments, thisValue)
             };
+
+            if (!hadThrowBeforeInvoke && currentContext?.IsThrow == true)
+            {
+                throw new ThrowSignal(currentContext.FlowValue);
+            }
+
+            return result;
         }
         finally
         {

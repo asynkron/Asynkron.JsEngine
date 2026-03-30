@@ -787,6 +787,8 @@ internal static partial class IntlUtilities
         { "ROK", "Asia/Seoul" },
         { "Singapore", "Asia/Singapore" },
         { "Asia/Calcutta", "Asia/Kolkata" },
+        { "Asia/Ujung_Pandang", "Asia/Makassar" },
+        { "Asia/Ulan_Bator", "Asia/Ulaanbaatar" },
         { "Asia/Saigon", "Asia/Ho_Chi_Minh" },
         { "Asia/Katmandu", "Asia/Kathmandu" },
         { "Asia/Thimbu", "Asia/Thimphu" },

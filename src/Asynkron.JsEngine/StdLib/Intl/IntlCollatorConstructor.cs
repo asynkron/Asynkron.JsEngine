@@ -26,7 +26,7 @@ public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, Rea
         "gb2312",
         "pinyin",
         "reformed",
-        "traditional",
+        "trad",
         "unihan",
         "zhuyin",
         "emoji"
@@ -399,7 +399,7 @@ public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, Rea
             "pinyin" => string.Equals(language, "zh", StringComparison.Ordinal),
             "reformed" => string.Equals(language, "sv", StringComparison.Ordinal),
             "stroke" => string.Equals(language, "zh", StringComparison.Ordinal),
-            "traditional" => string.Equals(language, "zh", StringComparison.Ordinal),
+            "trad" => string.Equals(language, "zh", StringComparison.Ordinal),
             "unihan" => string.Equals(language, "zh", StringComparison.Ordinal),
             "zhuyin" => string.Equals(language, "zh", StringComparison.Ordinal),
             // Collations commonly available across multiple locales.

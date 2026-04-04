@@ -95,7 +95,7 @@ public sealed class SlotOptimizationTests : IAsyncLifetime
         var rhsProgram = compoundInstr.RhsProgram ?? throw new InvalidOperationException("Expected compound assignment RHS program.");
 
         var rhsLoad = rhsProgram.Operations
-            .Select(static op => op.ToLegacyExpressionOp())
+            .Select(op => op.ToLegacyExpressionOp(rhsProgram))
             .OfType<LoadIdentifierExpressionOp>()
             .FirstOrDefault(op => op.Name.Name == "i");
         Assert.NotNull(rhsLoad);
@@ -359,7 +359,7 @@ public sealed class SlotOptimizationTests : IAsyncLifetime
     {
         Assert.True(program is not null, "Expected an expression program.");
         var loadIdentifier = program.Value.Operations
-            .Select(static op => op.ToLegacyExpressionOp())
+            .Select(op => op.ToLegacyExpressionOp(program.Value))
             .OfType<LoadIdentifierExpressionOp>()
             .FirstOrDefault(op => op.Name.Name == expectedName);
         Assert.NotNull(loadIdentifier);
@@ -419,7 +419,7 @@ public sealed class SlotOptimizationTests : IAsyncLifetime
         List<IdentifierSlotInfo> result,
         string? nameFilter)
     {
-        foreach (var identifier in program.Operations.Select(static op => op.ToLegacyExpressionOp()).OfType<LoadIdentifierExpressionOp>())
+        foreach (var identifier in program.ToLegacyExpressionOps().OfType<LoadIdentifierExpressionOp>())
         {
             if (nameFilter is null || identifier.Name.Name == nameFilter)
             {

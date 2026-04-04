@@ -6,12 +6,19 @@ namespace Asynkron.JsEngine.Execution.Instructions;
 
 internal static class ExpressionOpTestBridge
 {
-    public static ExpressionOp ToLegacyExpressionOp(this PackedExpressionOp operation)
+    public static IEnumerable<ExpressionOp> ToLegacyExpressionOps(this ExpressionProgram program)
     {
+        return program.Operations.Select(op => op.ToLegacyExpressionOp(program));
+    }
+
+    public static ExpressionOp ToLegacyExpressionOp(this PackedExpressionOp operation, ExpressionProgram program)
+    {
+        var stringConstants = program.StringConstants.AsSpan();
+
         return operation.Kind switch
         {
             ExpressionOpKind.LoadLiteral => new LoadLiteralExpressionOp(operation.LiteralValue),
-            ExpressionOpKind.LoadRegexLiteral => new LoadRegexLiteralExpressionOp(operation.Pattern, operation.RegexFlags),
+            ExpressionOpKind.LoadRegexLiteral => new LoadRegexLiteralExpressionOp(operation.GetString(stringConstants), operation.RegexFlags),
             ExpressionOpKind.LoadFunctionLiteral => new LoadFunctionLiteralExpressionOp(operation.Function, operation.IsConstructorFunction),
             ExpressionOpKind.LoadClassLiteral => new LoadClassLiteralExpressionOp(operation.Class),
             ExpressionOpKind.LoadTemplateObject => new LoadTemplateObjectExpressionOp(operation.TemplateDescriptor),
@@ -24,9 +31,9 @@ internal static class ExpressionOpTestBridge
             ExpressionOpKind.RotateTopThreeRight => new RotateTopThreeRightExpressionOp(),
             ExpressionOpKind.LoadThis => new LoadThisExpressionOp(),
             ExpressionOpKind.LoadNewTarget => new LoadNewTargetExpressionOp(),
-            ExpressionOpKind.LoadNamedCallTarget => new LoadNamedCallTargetExpressionOp(operation.Text),
+            ExpressionOpKind.LoadNamedCallTarget => new LoadNamedCallTargetExpressionOp(operation.GetString(stringConstants)),
             ExpressionOpKind.LoadComputedCallTarget => new LoadComputedCallTargetExpressionOp(),
-            ExpressionOpKind.LoadNamedSuperCallTarget => new LoadNamedSuperCallTargetExpressionOp(operation.Text),
+            ExpressionOpKind.LoadNamedSuperCallTarget => new LoadNamedSuperCallTargetExpressionOp(operation.GetString(stringConstants)),
             ExpressionOpKind.LoadComputedSuperCallTarget => new LoadComputedSuperCallTargetExpressionOp(),
             ExpressionOpKind.EnsureSuperReference => new EnsureSuperReferenceExpressionOp(),
             ExpressionOpKind.CreateArray => new CreateArrayExpressionOp(),
@@ -36,30 +43,30 @@ internal static class ExpressionOpTestBridge
             ExpressionOpKind.CreateObject => new CreateObjectExpressionOp(),
             ExpressionOpKind.RequireObjectCoercible => new RequireObjectCoercibleExpressionOp(operation.Depth),
             ExpressionOpKind.ResolvePropertyKey => new ResolvePropertyKeyExpressionOp(),
-            ExpressionOpKind.DefineObjectProperty => new DefineObjectPropertyExpressionOp(operation.Text, operation.IsPrototypeMutation, operation.AllowNameInference),
+            ExpressionOpKind.DefineObjectProperty => new DefineObjectPropertyExpressionOp(operation.GetString(stringConstants), operation.IsPrototypeMutation, operation.AllowNameInference),
             ExpressionOpKind.DefineComputedObjectProperty => new DefineComputedObjectPropertyExpressionOp(operation.AllowNameInference),
-            ExpressionOpKind.DefineObjectMethod => new DefineObjectMethodExpressionOp(operation.Text),
+            ExpressionOpKind.DefineObjectMethod => new DefineObjectMethodExpressionOp(operation.GetString(stringConstants)),
             ExpressionOpKind.DefineComputedObjectMethod => new DefineComputedObjectMethodExpressionOp(),
-            ExpressionOpKind.DefineObjectAccessor => new DefineObjectAccessorExpressionOp(operation.Text, operation.AccessorKind),
+            ExpressionOpKind.DefineObjectAccessor => new DefineObjectAccessorExpressionOp(operation.GetString(stringConstants), operation.AccessorKind),
             ExpressionOpKind.DefineComputedObjectAccessor => new DefineComputedObjectAccessorExpressionOp(operation.AccessorKind),
             ExpressionOpKind.ObjectSpread => new ObjectSpreadExpressionOp(),
-            ExpressionOpKind.GetNamedProperty => new GetNamedPropertyExpressionOp(operation.Text, operation.IsOptional, operation.ShortCircuitOnNullishTarget),
+            ExpressionOpKind.GetNamedProperty => new GetNamedPropertyExpressionOp(operation.GetString(stringConstants), operation.IsOptional, operation.ShortCircuitOnNullishTarget),
             ExpressionOpKind.GetComputedProperty => new GetComputedPropertyExpressionOp(operation.ShortCircuitOnNullishTarget),
-            ExpressionOpKind.GetNamedSuperProperty => new GetNamedSuperPropertyExpressionOp(operation.Text),
+            ExpressionOpKind.GetNamedSuperProperty => new GetNamedSuperPropertyExpressionOp(operation.GetString(stringConstants)),
             ExpressionOpKind.GetComputedSuperProperty => new GetComputedSuperPropertyExpressionOp(),
-            ExpressionOpKind.SetNamedProperty => new SetNamedPropertyExpressionOp(operation.Text, operation.AllowNameInference),
+            ExpressionOpKind.SetNamedProperty => new SetNamedPropertyExpressionOp(operation.GetString(stringConstants), operation.AllowNameInference),
             ExpressionOpKind.SetComputedProperty => new SetComputedPropertyExpressionOp(operation.AllowNameInference),
-            ExpressionOpKind.SetNamedSuperProperty => new SetNamedSuperPropertyExpressionOp(operation.Text, operation.AllowNameInference),
+            ExpressionOpKind.SetNamedSuperProperty => new SetNamedSuperPropertyExpressionOp(operation.GetString(stringConstants), operation.AllowNameInference),
             ExpressionOpKind.SetComputedSuperProperty => new SetComputedSuperPropertyExpressionOp(operation.AllowNameInference),
             ExpressionOpKind.UpdateIdentifier => new UpdateIdentifierExpressionOp(operation.Name, operation.ScopeId, operation.SlotIndex, operation.FlatSlotId, operation.IsIncrement, operation.IsPrefix, operation.IsArguments),
-            ExpressionOpKind.UpdateNamedProperty => new UpdateNamedPropertyExpressionOp(operation.Text, operation.IsIncrement, operation.IsPrefix),
+            ExpressionOpKind.UpdateNamedProperty => new UpdateNamedPropertyExpressionOp(operation.GetString(stringConstants), operation.IsIncrement, operation.IsPrefix),
             ExpressionOpKind.UpdateComputedProperty => new UpdateComputedPropertyExpressionOp(operation.IsIncrement, operation.IsPrefix),
-            ExpressionOpKind.UpdateNamedSuperProperty => new UpdateNamedSuperPropertyExpressionOp(operation.Text, operation.IsIncrement, operation.IsPrefix),
+            ExpressionOpKind.UpdateNamedSuperProperty => new UpdateNamedSuperPropertyExpressionOp(operation.GetString(stringConstants), operation.IsIncrement, operation.IsPrefix),
             ExpressionOpKind.UpdateComputedSuperProperty => new UpdateComputedSuperPropertyExpressionOp(operation.IsIncrement, operation.IsPrefix),
             ExpressionOpKind.TypeOf => new TypeOfExpressionOp(),
             ExpressionOpKind.TypeOfIdentifier => new TypeOfIdentifierExpressionOp(operation.Name, operation.ScopeId, operation.SlotIndex, operation.FlatSlotId, operation.IsArguments),
             ExpressionOpKind.DeleteIdentifier => new DeleteIdentifierExpressionOp(operation.Name),
-            ExpressionOpKind.DeleteNamedProperty => new DeleteNamedPropertyExpressionOp(operation.Text),
+            ExpressionOpKind.DeleteNamedProperty => new DeleteNamedPropertyExpressionOp(operation.GetString(stringConstants)),
             ExpressionOpKind.DeleteComputedProperty => new DeleteComputedPropertyExpressionOp(),
             ExpressionOpKind.UnaryPlus => new UnaryPlusExpressionOp(),
             ExpressionOpKind.UnaryMinus => new UnaryMinusExpressionOp(),
@@ -68,8 +75,8 @@ internal static class ExpressionOpTestBridge
             ExpressionOpKind.ToString => new ToStringExpressionOp(),
             ExpressionOpKind.UnaryLogicalNot => new UnaryLogicalNotExpressionOp(),
             ExpressionOpKind.Binary => new BinaryExpressionOp(operation.Operator),
-            ExpressionOpKind.PrivateFieldIn => new PrivateFieldInExpressionOp(operation.Text),
-            ExpressionOpKind.ThrowReferenceError => new ThrowReferenceErrorExpressionOp(operation.Text),
+            ExpressionOpKind.PrivateFieldIn => new PrivateFieldInExpressionOp(operation.GetString(stringConstants)),
+            ExpressionOpKind.ThrowReferenceError => new ThrowReferenceErrorExpressionOp(operation.GetString(stringConstants)),
             ExpressionOpKind.Pop => new PopExpressionOp(),
             ExpressionOpKind.Jump => new JumpExpressionOp(operation.Target),
             ExpressionOpKind.JumpIfNullish => new JumpIfNullishExpressionOp(operation.Target, operation.ReplaceWithUndefined),

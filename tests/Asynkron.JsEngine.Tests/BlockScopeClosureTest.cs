@@ -132,7 +132,7 @@ public sealed class BlockScopeClosureTest(ITestOutputHelper output) : InternalTe
                                         if (innerInstr is ReturnInstruction { ReturnProgram: { } returnProgram })
                                         {
                                             var retId = returnProgram.Operations
-                                                .Select(static op => op.ToLegacyExpressionOp())
+                                                .Select(op => op.ToLegacyExpressionOp(returnProgram))
                                                 .OfType<LoadIdentifierExpressionOp>()
                                                 .FirstOrDefault();
                                             if (retId is not null)

@@ -63,7 +63,7 @@ public sealed class SlotStampingPlanTests : IAsyncLifetime
 
         var branch = planValue.Instructions.OfType<BranchInstruction>().First();
         var leftId = Assert.IsType<LoadIdentifierExpressionOp>(
-            branch.ConditionProgram.Operations[0].ToLegacyExpressionOp());
+            branch.ConditionProgram.Operations[0].ToLegacyExpressionOp(branch.ConditionProgram));
 
         Assert.Equal(loopScope.ScopeId, leftId.ScopeId);
         Assert.Equal(iEntry.Value, leftId.SlotIndex);
@@ -100,7 +100,7 @@ public sealed class SlotStampingPlanTests : IAsyncLifetime
         foreach (var branch in planValue.Instructions.OfType<BranchInstruction>())
         {
             var id = branch.ConditionProgram.Operations
-                .Select(static op => op.ToLegacyExpressionOp())
+                .Select(op => op.ToLegacyExpressionOp(branch.ConditionProgram))
                 .OfType<LoadIdentifierExpressionOp>()
                 .FirstOrDefault();
             if (id is null || !pushByScope.TryGetValue(id.ScopeId, out var push))

@@ -564,7 +564,9 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             builder.Add(rewritten);
         }
 
-        return changed ? new ExpressionProgram(builder.MoveToImmutable()) : program;
+        return changed
+            ? new ExpressionProgram(builder.MoveToImmutable(), program.StringConstants)
+            : program;
     }
 
     private PackedExpressionOp RewriteExpressionOp(PackedExpressionOp operation)

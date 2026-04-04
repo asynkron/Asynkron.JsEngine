@@ -180,6 +180,7 @@ public static partial class TypedAstEvaluator
             }
 
             var operations = program.Operations.AsSpan();
+            var stringConstants = program.StringConstants.AsSpan();
             var operationCount = operations.Length;
             var stackSize = Math.Max(program.MaxStackDepth, 1);
             AcquireExpressionBuffers(
@@ -211,7 +212,7 @@ public static partial class TypedAstEvaluator
                             {
                                 stack[stackIndex++] = new JsValue(
                                     StdLib.RegExpHelper.CreateRegExpLiteral(
-                                        operation.Pattern,
+                                        operation.GetString(stringConstants),
                                         operation.RegexFlags,
                                         context.RealmState));
                                 stackFlags[stackIndex - 1] = false;
@@ -350,7 +351,7 @@ public static partial class TypedAstEvaluator
                                 var callee = GetProgramNamedPropertyValue(
                                     target,
                                     stackFlags[stackIndex - 1],
-                                    operation.Text,
+                                    operation.GetString(stringConstants),
                                     isOptional: false,
                                     context,
                                     out var calleeWasShortCircuited);
@@ -379,7 +380,7 @@ public static partial class TypedAstEvaluator
                         case ExpressionOpKind.LoadNamedSuperCallTarget:
                             {
                                 LoadProgramNamedSuperCallTarget(
-                                    operation.Text,
+                                    operation.GetString(stringConstants),
                                     environment,
                                     context,
                                     out var receiver,
@@ -509,7 +510,11 @@ public static partial class TypedAstEvaluator
                                         "Object property expression op requires an object receiver.");
                                 }
 
-                                DefineObjectLiteralProperty(targetObject, operation, propertyValue);
+                                DefineObjectLiteralProperty(
+                                    targetObject,
+                                    operation.GetString(stringConstants),
+                                    operation,
+                                    propertyValue);
                                 programCounter++;
                                 break;
                             }
@@ -543,7 +548,10 @@ public static partial class TypedAstEvaluator
                                         "Object method expression op requires an object receiver.");
                                 }
 
-                                DefineObjectLiteralMethod(targetObject, operation.Text, methodValue);
+                                DefineObjectLiteralMethod(
+                                    targetObject,
+                                    operation.GetString(stringConstants),
+                                    methodValue);
                                 programCounter++;
                                 break;
                             }
@@ -578,7 +586,7 @@ public static partial class TypedAstEvaluator
 
                                 DefineObjectLiteralAccessor(
                                     targetObject,
-                                    operation.Text,
+                                    operation.GetString(stringConstants),
                                     operation.AccessorKind,
                                     accessorValue);
                                 programCounter++;
@@ -624,7 +632,7 @@ public static partial class TypedAstEvaluator
                                 stack[stackIndex - 1] = GetProgramNamedPropertyValue(
                                     stack[stackIndex - 1],
                                     stackFlags[stackIndex - 1],
-                                    operation.Text,
+                                    operation.GetString(stringConstants),
                                     operation.IsOptional,
                                     context,
                                     out stackFlags[stackIndex - 1]);
@@ -649,7 +657,7 @@ public static partial class TypedAstEvaluator
                         case ExpressionOpKind.GetNamedSuperProperty:
                             {
                                 stack[stackIndex++] = GetProgramNamedSuperPropertyValue(
-                                    operation.Text,
+                                    operation.GetString(stringConstants),
                                     environment,
                                     context);
                                 stackFlags[stackIndex - 1] = false;
@@ -675,7 +683,7 @@ public static partial class TypedAstEvaluator
                                 var target = stack[stackIndex - 1];
                                 ApplyProgramNamedPropertyAssignment(
                                     target,
-                                    operation.Text,
+                                    operation.GetString(stringConstants),
                                     operation.AllowNameInference,
                                     propertyValue,
                                     context);
@@ -706,7 +714,7 @@ public static partial class TypedAstEvaluator
                             {
                                 var propertyValue = stack[stackIndex - 1];
                                 stack[stackIndex - 1] = ApplyProgramNamedSuperPropertyAssignment(
-                                    operation.Text,
+                                    operation.GetString(stringConstants),
                                     operation.AllowNameInference,
                                     propertyValue,
                                     environment,
@@ -746,6 +754,7 @@ public static partial class TypedAstEvaluator
                             {
                                 stack[stackIndex - 1] = ExecuteProgramNamedPropertyUpdate(
                                     stack[stackIndex - 1],
+                                    operation.GetString(stringConstants),
                                     operation,
                                     context);
                                 stackFlags[stackIndex - 1] = false;
@@ -770,6 +779,7 @@ public static partial class TypedAstEvaluator
                         case ExpressionOpKind.UpdateNamedSuperProperty:
                             {
                                 stack[stackIndex++] = ExecuteProgramNamedSuperPropertyUpdate(
+                                    operation.GetString(stringConstants),
                                     operation,
                                     environment,
                                     context);
@@ -825,7 +835,7 @@ public static partial class TypedAstEvaluator
                             {
                                 stack[stackIndex - 1] = ExecuteProgramDeleteNamedProperty(
                                     stack[stackIndex - 1],
-                                    operation,
+                                    operation.GetString(stringConstants),
                                     context)
                                     ? JsValue.True
                                     : JsValue.False;
@@ -924,7 +934,7 @@ public static partial class TypedAstEvaluator
                                     return JsValue.Undefined;
                                 }
 
-                                var lexeme = $"#{operation.Text}";
+                                var lexeme = $"#{operation.GetString(stringConstants)}";
                                 var resolvedKey = context.ResolvePrivateNameKey(lexeme);
                                 var found = false;
                                 if (resolvedKey is not null)
@@ -948,7 +958,7 @@ public static partial class TypedAstEvaluator
                         case ExpressionOpKind.ThrowReferenceError:
                             {
                                 throw StandardLibrary.ThrowReferenceError(
-                                    operation.Text, context, context.RealmState);
+                                    operation.GetString(stringConstants), context, context.RealmState);
                             }
 
                         case ExpressionOpKind.Pop:
@@ -1275,13 +1285,14 @@ public static partial class TypedAstEvaluator
 
         private static JsValue ExecuteProgramNamedPropertyUpdate(
             JsValue target,
+            string propertyName,
             PackedExpressionOp update,
             EvaluationContext context)
         {
             var currentValue = GetProgramNamedPropertyValue(
                 target,
                 targetWasShortCircuited: false,
-                update.Text,
+                propertyName,
                 isOptional: false,
                 context,
                 out _);
@@ -1298,7 +1309,7 @@ public static partial class TypedAstEvaluator
 
             ApplyProgramNamedPropertyAssignment(
                 target,
-                update.Text,
+                propertyName,
                 allowNameInference: false,
                 newValue,
                 context);
@@ -1373,11 +1384,12 @@ public static partial class TypedAstEvaluator
         }
 
         private JsValue ExecuteProgramNamedSuperPropertyUpdate(
+            string propertyName,
             PackedExpressionOp update,
             JsEnvironment environment,
             EvaluationContext context)
         {
-            var currentValue = GetProgramNamedSuperPropertyValue(update.Text, environment, context);
+            var currentValue = GetProgramNamedSuperPropertyValue(propertyName, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;
@@ -1390,7 +1402,7 @@ public static partial class TypedAstEvaluator
             }
 
             ApplyProgramNamedSuperPropertyAssignment(
-                update.Text,
+                propertyName,
                 allowNameInference: false,
                 newValue,
                 environment,
@@ -1474,12 +1486,12 @@ public static partial class TypedAstEvaluator
 
         private static bool ExecuteProgramDeleteNamedProperty(
             JsValue target,
-            PackedExpressionOp propertyOp,
+            string propertyName,
             EvaluationContext context)
         {
             var handle = PropertyHandle.Resolve(
                 target,
-                propertyOp.Text,
+                propertyName,
                 context,
                 context.CurrentScope.IsStrict);
             return handle.Delete();
@@ -1534,6 +1546,7 @@ public static partial class TypedAstEvaluator
 
         private static void DefineObjectLiteralProperty(
             JsObject targetObject,
+            string propertyName,
             PackedExpressionOp defineProperty,
             JsValue propertyValue)
         {
@@ -1553,10 +1566,10 @@ public static partial class TypedAstEvaluator
 
             if (defineProperty.AllowNameInference)
             {
-                ApplyObjectLiteralAnonymousFunctionName(propertyValue, defineProperty.Text);
+                ApplyObjectLiteralAnonymousFunctionName(propertyValue, propertyName);
             }
 
-            targetObject.DefineProperty(defineProperty.Text,
+            targetObject.DefineProperty(propertyName,
                 new PropertyDescriptor
                 {
                     JsValue = propertyValue,

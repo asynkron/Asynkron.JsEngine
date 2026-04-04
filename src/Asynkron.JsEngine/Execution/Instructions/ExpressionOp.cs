@@ -79,15 +79,20 @@ internal enum ExpressionOpKind : byte
 
 internal readonly record struct ExpressionProgram
 {
-    public ExpressionProgram(ImmutableArray<PackedExpressionOp> operations)
+    public ExpressionProgram(
+        ImmutableArray<PackedExpressionOp> operations,
+        ImmutableArray<string> stringConstants = default)
     {
         Operations = operations;
+        StringConstants = stringConstants.IsDefault ? ImmutableArray<string>.Empty : stringConstants;
         MaxStackDepth = ComputeMaxStackDepth(operations);
     }
 
     public static ExpressionProgram Empty { get; } = new(ImmutableArray<PackedExpressionOp>.Empty);
 
     public ImmutableArray<PackedExpressionOp> Operations { get; init; }
+
+    public ImmutableArray<string> StringConstants { get; init; }
 
     public int MaxStackDepth { get; init; }
 
@@ -295,7 +300,7 @@ internal readonly struct PackedExpressionOp
 
     public JsValue LiteralValue => _value;
 
-    public string Pattern => (string)_data!;
+    public int StringConstantIndex => _int0;
 
     public string RegexFlags => DecodeRegexFlags(_flags);
 
@@ -309,8 +314,6 @@ internal readonly struct PackedExpressionOp
 
     public BindingTargetProgram TargetProgram => (BindingTargetProgram)_data!;
 
-    public string Text => (string)_data!;
-
     public int ScopeId => _int0;
 
     public int SlotIndex => _int1;
@@ -323,7 +326,9 @@ internal readonly struct PackedExpressionOp
 
     public int ArgumentCount => _int0;
 
-    public ObjectAccessorKind AccessorKind => (ObjectAccessorKind)_int0;
+    public ObjectAccessorKind AccessorKind => (_flags & Flag0) != 0
+        ? ObjectAccessorKind.Setter
+        : ObjectAccessorKind.Getter;
 
     public BinaryOperator Operator => (BinaryOperator)_int0;
 
@@ -357,16 +362,21 @@ internal readonly struct PackedExpressionOp
         ? spreadMask
         : default;
 
+    public string GetString(ReadOnlySpan<string> stringConstants)
+    {
+        return stringConstants[_int0];
+    }
+
     public static PackedExpressionOp LoadLiteral(JsValue Value)
     {
         return new PackedExpressionOp(ExpressionOpKind.LoadLiteral, value: Value);
     }
 
-    public static PackedExpressionOp LoadRegexLiteral(string Pattern, string Flags)
+    public static PackedExpressionOp LoadRegexLiteral(int PatternIndex, string Flags)
     {
         return new PackedExpressionOp(
             ExpressionOpKind.LoadRegexLiteral,
-            data: Pattern,
+            int0: PatternIndex,
             flags: EncodeRegexFlags(Flags));
     }
 
@@ -427,14 +437,14 @@ internal readonly struct PackedExpressionOp
         return new PackedExpressionOp(ExpressionOpKind.ApplyBindingTarget, data: TargetProgram);
     }
 
-    public static PackedExpressionOp LoadNamedCallTarget(string PropertyName)
+    public static PackedExpressionOp LoadNamedCallTarget(int propertyNameIndex)
     {
-        return new PackedExpressionOp(ExpressionOpKind.LoadNamedCallTarget, data: PropertyName);
+        return new PackedExpressionOp(ExpressionOpKind.LoadNamedCallTarget, int0: propertyNameIndex);
     }
 
-    public static PackedExpressionOp LoadNamedSuperCallTarget(string PropertyName)
+    public static PackedExpressionOp LoadNamedSuperCallTarget(int propertyNameIndex)
     {
-        return new PackedExpressionOp(ExpressionOpKind.LoadNamedSuperCallTarget, data: PropertyName);
+        return new PackedExpressionOp(ExpressionOpKind.LoadNamedSuperCallTarget, int0: propertyNameIndex);
     }
 
     public static PackedExpressionOp RequireObjectCoercible(int Depth = 0)
@@ -448,13 +458,13 @@ internal readonly struct PackedExpressionOp
     }
 
     public static PackedExpressionOp DefineObjectProperty(
-        string PropertyName,
+        int propertyNameIndex,
         bool IsPrototypeMutation = false,
         bool AllowNameInference = false)
     {
         return new PackedExpressionOp(
             ExpressionOpKind.DefineObjectProperty,
-            data: PropertyName,
+            int0: propertyNameIndex,
             flags: (byte)((IsPrototypeMutation ? Flag0 : 0) |
                           (AllowNameInference ? Flag1 : 0)));
     }
@@ -466,17 +476,17 @@ internal readonly struct PackedExpressionOp
             flags: AllowNameInference ? Flag0 : (byte)0);
     }
 
-    public static PackedExpressionOp DefineObjectMethod(string PropertyName)
+    public static PackedExpressionOp DefineObjectMethod(int propertyNameIndex)
     {
-        return new PackedExpressionOp(ExpressionOpKind.DefineObjectMethod, data: PropertyName);
+        return new PackedExpressionOp(ExpressionOpKind.DefineObjectMethod, int0: propertyNameIndex);
     }
 
-    public static PackedExpressionOp DefineObjectAccessor(string PropertyName, ObjectAccessorKind AccessorKind)
+    public static PackedExpressionOp DefineObjectAccessor(int propertyNameIndex, ObjectAccessorKind AccessorKind)
     {
         return new PackedExpressionOp(
             ExpressionOpKind.DefineObjectAccessor,
-            data: PropertyName,
-            int0: (int)AccessorKind);
+            int0: propertyNameIndex,
+            flags: AccessorKind == ObjectAccessorKind.Setter ? Flag0 : (byte)0);
     }
 
     public static PackedExpressionOp DefineComputedObjectAccessor(ObjectAccessorKind AccessorKind)
@@ -487,13 +497,13 @@ internal readonly struct PackedExpressionOp
     }
 
     public static PackedExpressionOp GetNamedProperty(
-        string PropertyName,
+        int propertyNameIndex,
         bool IsOptional = false,
         bool ShortCircuitOnNullishTarget = false)
     {
         return new PackedExpressionOp(
             ExpressionOpKind.GetNamedProperty,
-            data: PropertyName,
+            int0: propertyNameIndex,
             flags: (byte)((IsOptional ? Flag0 : 0) |
                           (ShortCircuitOnNullishTarget ? Flag1 : 0)));
     }
@@ -505,18 +515,18 @@ internal readonly struct PackedExpressionOp
             : GetComputedPropertyDefault;
     }
 
-    public static PackedExpressionOp GetNamedSuperProperty(string PropertyName)
+    public static PackedExpressionOp GetNamedSuperProperty(int propertyNameIndex)
     {
-        return new PackedExpressionOp(ExpressionOpKind.GetNamedSuperProperty, data: PropertyName);
+        return new PackedExpressionOp(ExpressionOpKind.GetNamedSuperProperty, int0: propertyNameIndex);
     }
 
     public static PackedExpressionOp SetNamedProperty(
-        string PropertyName,
+        int propertyNameIndex,
         bool AllowNameInference = true)
     {
         return new PackedExpressionOp(
             ExpressionOpKind.SetNamedProperty,
-            data: PropertyName,
+            int0: propertyNameIndex,
             flags: AllowNameInference ? Flag0 : (byte)0);
     }
 
@@ -528,12 +538,12 @@ internal readonly struct PackedExpressionOp
     }
 
     public static PackedExpressionOp SetNamedSuperProperty(
-        string PropertyName,
+        int propertyNameIndex,
         bool AllowNameInference = true)
     {
         return new PackedExpressionOp(
             ExpressionOpKind.SetNamedSuperProperty,
-            data: PropertyName,
+            int0: propertyNameIndex,
             flags: AllowNameInference ? Flag0 : (byte)0);
     }
 
@@ -565,13 +575,13 @@ internal readonly struct PackedExpressionOp
     }
 
     public static PackedExpressionOp UpdateNamedProperty(
-        string PropertyName,
+        int propertyNameIndex,
         bool IsIncrement = true,
         bool IsPrefix = true)
     {
         return new PackedExpressionOp(
             ExpressionOpKind.UpdateNamedProperty,
-            data: PropertyName,
+            int0: propertyNameIndex,
             flags: (byte)((IsIncrement ? Flag0 : 0) |
                           (IsPrefix ? Flag1 : 0)));
     }
@@ -587,13 +597,13 @@ internal readonly struct PackedExpressionOp
     }
 
     public static PackedExpressionOp UpdateNamedSuperProperty(
-        string PropertyName,
+        int propertyNameIndex,
         bool IsIncrement = true,
         bool IsPrefix = true)
     {
         return new PackedExpressionOp(
             ExpressionOpKind.UpdateNamedSuperProperty,
-            data: PropertyName,
+            int0: propertyNameIndex,
             flags: (byte)((IsIncrement ? Flag0 : 0) |
                           (IsPrefix ? Flag1 : 0)));
     }
@@ -629,9 +639,9 @@ internal readonly struct PackedExpressionOp
         return new PackedExpressionOp(ExpressionOpKind.DeleteIdentifier, data: Name);
     }
 
-    public static PackedExpressionOp DeleteNamedProperty(string PropertyName)
+    public static PackedExpressionOp DeleteNamedProperty(int propertyNameIndex)
     {
-        return new PackedExpressionOp(ExpressionOpKind.DeleteNamedProperty, data: PropertyName);
+        return new PackedExpressionOp(ExpressionOpKind.DeleteNamedProperty, int0: propertyNameIndex);
     }
 
     public static PackedExpressionOp Binary(BinaryOperator Operator)
@@ -639,14 +649,14 @@ internal readonly struct PackedExpressionOp
         return new PackedExpressionOp(ExpressionOpKind.Binary, int0: (int)Operator);
     }
 
-    public static PackedExpressionOp PrivateFieldIn(string PrivateName)
+    public static PackedExpressionOp PrivateFieldIn(int privateNameIndex)
     {
-        return new PackedExpressionOp(ExpressionOpKind.PrivateFieldIn, data: PrivateName);
+        return new PackedExpressionOp(ExpressionOpKind.PrivateFieldIn, int0: privateNameIndex);
     }
 
-    public static PackedExpressionOp ThrowReferenceError(string Message)
+    public static PackedExpressionOp ThrowReferenceError(int messageIndex)
     {
-        return new PackedExpressionOp(ExpressionOpKind.ThrowReferenceError, data: Message);
+        return new PackedExpressionOp(ExpressionOpKind.ThrowReferenceError, int0: messageIndex);
     }
 
     public static PackedExpressionOp Jump(int Target)

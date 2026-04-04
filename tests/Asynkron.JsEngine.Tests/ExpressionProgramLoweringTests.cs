@@ -640,7 +640,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
 
         var instruction = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
         Assert.Null(instruction.Expression);
-        var operations = instruction.ExpressionProgram.Operations.Select(static op => op.ToLegacyExpressionOp()).ToArray();
+        var operations = instruction.ExpressionProgram.ToLegacyExpressionOps().ToArray();
         var loadSuperCallTargetIndex = Array.FindIndex(operations, op => op is LoadNamedSuperCallTargetExpressionOp);
         var innerCallIndex = Array.FindIndex(operations, op => op is CallExpressionOp);
         var outerSuperConstructIndex = Array.FindIndex(operations, op => op is SuperConstructExpressionOp);
@@ -665,7 +665,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
 
         var instruction = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
         Assert.Null(instruction.Expression);
-        var operations = instruction.ExpressionProgram.Operations.Select(static op => op.ToLegacyExpressionOp()).ToArray();
+        var operations = instruction.ExpressionProgram.ToLegacyExpressionOps().ToArray();
         var ensureIndex = Array.FindIndex(operations, op => op is EnsureSuperReferenceExpressionOp);
         var innerSuperConstructIndex = Array.FindIndex(operations, op => op is SuperConstructExpressionOp);
         var computedReadIndex = Array.FindIndex(operations, op => op is GetComputedSuperPropertyExpressionOp);
@@ -1147,7 +1147,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         AssertProgramContains<JumpIfShortCircuitedExpressionOp>(instruction.ReturnProgram);
         Assert.Equal(
             2,
-            instruction.ReturnProgram!.Value.Operations.Select(static op => op.ToLegacyExpressionOp()).OfType<CallExpressionOp>().Count());
+            instruction.ReturnProgram!.Value.ToLegacyExpressionOps().OfType<CallExpressionOp>().Count());
     }
 
     [Fact]
@@ -1783,7 +1783,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         Assert.Null(instruction.Initializer);
         Assert.Equal(
             2,
-            instruction.InitializerProgram!.Value.Operations.Select(static op => op.ToLegacyExpressionOp()).OfType<DefineObjectAccessorExpressionOp>().Count());
+            instruction.InitializerProgram!.Value.ToLegacyExpressionOps().OfType<DefineObjectAccessorExpressionOp>().Count());
     }
 
     [Fact]
@@ -1916,7 +1916,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     {
         Assert.NotNull(program);
         var match = program.Value.Operations
-            .Select(static op => op.ToLegacyExpressionOp())
+            .Select(op => op.ToLegacyExpressionOp(program.Value))
             .OfType<TOp>()
             .FirstOrDefault(op => predicate is null || predicate(op));
         Assert.NotNull(match);

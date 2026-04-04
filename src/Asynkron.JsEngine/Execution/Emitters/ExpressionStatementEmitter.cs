@@ -43,16 +43,10 @@ internal static class ExpressionStatementEmitter
         // - Yields in assignment target expressions (e.g., [ {}[ yield ] ] = x)
         if (EmitContext.ExpressionContainsDestructuringWithYieldAnywhere(expressionStatement.Expression))
         {
-            // AST fallback: expression statement with yield in destructuring
-            // Reason: Conditional yield semantics in destructuring defaults/targets
-            // Tracking: #398, #416 (IR-only execution epic)
-            var suppressCompletionFallback =
-                ctx.SuppressCompletionValue || expressionStatement.SuppressCompletionValue;
-            entryIndex = ctx.Append(new SuspendingEvaluateAndDiscardInstruction(
-                nextIndex,
-                expressionStatement.Expression,
-                suppressCompletionFallback));
-            return true;
+            entryIndex = -1;
+            ctx.SetFailureReason(
+                "Expression statement contains destructuring with unlowered yield - this should have been handled by GeneratorYieldLowerer.");
+            return false;
         }
 
         var expressionShape = AstShapeAnalyzer.AnalyzeExpression(expressionStatement.Expression);
@@ -305,12 +299,10 @@ internal static class ExpressionStatementEmitter
 
         if (AstShapeAnalyzer.ContainsAwait(expressionStatement.Expression))
         {
-            entryIndex =
-                ctx.Append(new SuspendingEvaluateAndDiscardInstruction(
-                    nextIndex,
-                    expressionStatement.Expression,
-                    suppressCompletion));
-            return true;
+            entryIndex = -1;
+            ctx.SetFailureReason(
+                "Expression statement contains unlowered await - this should have been handled by GeneratorYieldLowerer.");
+            return false;
         }
 
         if (!ExpressionProgramCompiler.TryCompile(expressionStatement.Expression, out var expressionProgram, out var expressionFailure))

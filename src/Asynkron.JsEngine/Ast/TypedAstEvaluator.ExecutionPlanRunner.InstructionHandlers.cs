@@ -28,7 +28,6 @@ public static partial class TypedAstEvaluator
             var handlers = new InstructionHandler[Enum.GetValues<InstructionKind>().Length];
             handlers[(int)InstructionKind.Throw] = HandleThrow;
             handlers[(int)InstructionKind.EvaluateAndDiscard] = HandleEvaluateAndDiscard;
-            handlers[(int)InstructionKind.SuspendingEvaluateAndDiscard] = HandleSuspendingEvaluateAndDiscard;
             handlers[(int)InstructionKind.AwaitAndDiscard] = HandleAwaitAndDiscard;
             handlers[(int)InstructionKind.IncrementSlot] = HandleIncrementSlot;
             handlers[(int)InstructionKind.AssignmentSlot] = HandleAssignmentSlot;

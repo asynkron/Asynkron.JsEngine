@@ -9,7 +9,6 @@ internal enum InstructionKind : byte
 {
     Throw,
     EvaluateAndDiscard,
-    SuspendingEvaluateAndDiscard,
     AwaitAndDiscard,
     IncrementSlot,
     AssignmentSlot,

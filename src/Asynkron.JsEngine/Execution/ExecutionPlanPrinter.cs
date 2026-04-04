@@ -139,9 +139,6 @@ internal static class ExecutionPlanPrinter
             EvaluateAndDiscardInstruction discard =>
                 $"EVAL_DISCARD {FormatExpression(null, discard.ExpressionProgram)} → [{discard.Next}]",
 
-            SuspendingEvaluateAndDiscardInstruction suspendingDiscard =>
-                $"EVAL_DISCARD {FormatExpression(suspendingDiscard.Expression, null)} → [{suspendingDiscard.Next}]",
-
             AwaitAndDiscardInstruction awaitDiscard =>
                 $"AWAIT_DISCARD {FormatExpression(null, awaitDiscard.AwaitedProgram)} → [{awaitDiscard.Next}]",
 

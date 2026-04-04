@@ -42,37 +42,6 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
-        private static InstructionResult HandleSuspendingEvaluateAndDiscard(
-            ExecutionPlanRunner runner,
-            ExecutionInstruction instr,
-            ref JsEnvironment environment,
-            EvaluationContext context,
-            out JsValue returnValue)
-        {
-            var instruction = Unsafe.As<SuspendingEvaluateAndDiscardInstruction>(instr);
-            var evaluatedValue = ProfileEvaluateExpression(instruction.Expression, environment, context);
-
-            if (runner._isScriptMode && !instruction.SuppressCompletionValue)
-            {
-                runner._scriptCompletionValue = evaluatedValue;
-            }
-
-            var (evalSignalAction, evalSignalResult) = runner.HandleContextSignals(context, ref environment, instruction.Next);
-            switch (evalSignalAction)
-            {
-                case SignalAction.Return:
-                    returnValue = evalSignalResult;
-                    return InstructionResult.Return;
-                case SignalAction.Continue:
-                    returnValue = default;
-                    return InstructionResult.Continue;
-            }
-
-            runner._programCounter = instruction.Next;
-            returnValue = default;
-            return InstructionResult.Continue;
-        }
-
         private static InstructionResult HandleAwaitAndDiscard(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,

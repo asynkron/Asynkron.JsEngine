@@ -320,12 +320,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     ExpressionProgram = RewriteExpressionProgram(eval.ExpressionProgram)
                 };
 
-            case SuspendingEvaluateAndDiscardInstruction suspendingEval:
-                return suspendingEval with
-                {
-                    Expression = Rewrite(suspendingEval.Expression)
-                };
-
             case AwaitAndDiscardInstruction awaitDiscard:
                 return awaitDiscard with { AwaitedProgram = RewriteExpressionProgram(awaitDiscard.AwaitedProgram) };
 

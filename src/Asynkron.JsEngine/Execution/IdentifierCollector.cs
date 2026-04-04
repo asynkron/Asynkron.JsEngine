@@ -338,10 +338,6 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 VisitExpressionProgram(eval.ExpressionProgram);
                 return;
 
-            case SuspendingEvaluateAndDiscardInstruction suspendingEval:
-                Visit(suspendingEval.Expression);
-                return;
-
             case AwaitAndDiscardInstruction awaitDiscard:
                 VisitExpressionProgram(awaitDiscard.AwaitedProgram);
                 return;

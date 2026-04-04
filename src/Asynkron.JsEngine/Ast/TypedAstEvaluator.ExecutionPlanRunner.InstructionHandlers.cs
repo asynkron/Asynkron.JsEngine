@@ -64,7 +64,6 @@ public static partial class TypedAstEvaluator
             handlers[(int)InstructionKind.Continue] = HandleContinue;
             handlers[(int)InstructionKind.Return] = HandleReturn;
             handlers[(int)InstructionKind.EnterWith] = HandleEnterWith;
-            handlers[(int)InstructionKind.SuspendingEnterWith] = HandleSuspendingEnterWith;
             handlers[(int)InstructionKind.LeaveWith] = HandleLeaveWith;
             handlers[(int)InstructionKind.IteratorClose] = HandleIteratorClose;
             handlers[(int)InstructionKind.SetCompletionValue] = HandleSetCompletionValue;

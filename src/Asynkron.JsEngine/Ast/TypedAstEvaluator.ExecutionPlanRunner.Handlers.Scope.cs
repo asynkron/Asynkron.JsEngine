@@ -58,42 +58,6 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
-        [MethodImpl(JsEngineConstants.Inlining)]
-        private static InstructionResult HandleSuspendingEnterWith(
-            ExecutionPlanRunner runner,
-            ExecutionInstruction instr,
-            ref JsEnvironment environment,
-            EvaluationContext context,
-            out JsValue returnValue)
-        {
-            var instruction = Unsafe.As<SuspendingEnterWithInstruction>(instr);
-            var objValueJs = instruction.ObjectExpression.EvaluateExpression(environment, context);
-
-            if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingWithResult, environment))
-            {
-                returnValue = pendingWithResult;
-                return InstructionResult.Return;
-            }
-
-            if (context.IsThrow)
-            {
-                return HandleEnterWithThrowSlow(runner, context, out returnValue);
-            }
-
-            if (TryConvertToWithBindingObject(objValueJs, context, out var withObject))
-            {
-                var withEnv = JsEnvironment.CreateInstance(environment, false, context.CurrentScope.IsStrict,
-                    instruction.ObjectSource ?? instruction.ObjectExpression.Source, "with", withObject);
-                StoreSymbolValue(runner._executionEnvironment!, instruction.WithScopeSlot, withEnv);
-                runner.WithStateRef.ActiveWithScopes.Push(instruction.WithScopeSlot);
-                environment = withEnv;
-            }
-
-            runner._programCounter = instruction.Next;
-            returnValue = default;
-            return InstructionResult.Continue;
-        }
-
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static InstructionResult HandleEnterWithThrowSlow(
             ExecutionPlanRunner runner,

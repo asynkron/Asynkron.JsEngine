@@ -208,6 +208,13 @@ internal static class GeneratorYieldLowerer
                     continue;
                 }
 
+                if (TryRewriteYieldingWith(statement, out var withRewrite))
+                {
+                    builder.AddRange(withRewrite);
+                    changed = true;
+                    continue;
+                }
+
                 if (TryRewriteAssignmentToDestructuringWithYield(statement, isStrict, out var assignmentDestructuringRewrite))
                 {
                     builder.AddRange(assignmentDestructuringRewrite);
@@ -572,6 +579,35 @@ internal static class GeneratorYieldLowerer
             }
 
             replacement = prefixStatements.Add(statement with { Object = rewrittenObject });
+            return true;
+        }
+
+        private bool TryRewriteYieldingWith(
+            StatementNode statement,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            replacement = default;
+
+            if (statement is not WithStatement withStatement ||
+                !AstShapeAnalyzer.ContainsYield(withStatement.Object))
+            {
+                return false;
+            }
+
+            var prefixStatements = ImmutableArray.CreateBuilder<StatementNode>();
+            var changed = false;
+            var rewrittenObject = RewriteExpressionForComplexYields(
+                withStatement.Object,
+                prefixStatements,
+                ref changed);
+
+            if (!changed)
+            {
+                return false;
+            }
+
+            prefixStatements.Add(withStatement with { Object = rewrittenObject });
+            replacement = prefixStatements.ToImmutable();
             return true;
         }
 

@@ -45,7 +45,6 @@ internal enum InstructionKind : byte
     Continue,
     Return,
     EnterWith,
-    SuspendingEnterWith,
     LeaveWith,
     SetCompletionValue,
     CompoundAssignmentSlot,

@@ -255,9 +255,6 @@ internal static class ExecutionPlanPrinter
             EnterWithInstruction enterWith =>
                 $"ENTER_WITH {FormatExpression(null, enterWith.AwaitedProgram ?? enterWith.ObjectProgram)} → [{enterWith.Next}]",
 
-            SuspendingEnterWithInstruction suspendingEnterWith =>
-                $"ENTER_WITH {FormatExpression(suspendingEnterWith.ObjectExpression, null)} → [{suspendingEnterWith.Next}]",
-
             LeaveWithInstruction leaveWith =>
                 $"LEAVE_WITH → [{leaveWith.Next}]",
 

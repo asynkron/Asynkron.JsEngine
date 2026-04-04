@@ -1076,6 +1076,43 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 5000)]
+    public async Task GeneratorWithYieldingObject_ReusesEnterWithInstruction()
+    {
+        await using var engine = CreateEngine();
+
+        var program = engine.ParseProgram("""
+            function* readWith() {
+                with (yield { marker: "request" }) {
+                    return answer;
+                }
+            }
+            """);
+
+        await engine.Evaluate(program);
+        var result = await engine.Evaluate("""
+            let iter = readWith();
+            let first = iter.next();
+            let second = iter.next({ answer: 42 });
+            [first.value.marker, first.done, second.value, second.done].join(",");
+            """);
+
+        Assert.Equal("request,false,42,true", result.ToString());
+
+        var funcDecl = Assert.IsType<FunctionDeclaration>(program.Body[0]);
+        var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        var instruction = Assert.Single(
+            cache.Plan.Instructions.OfType<EnterWithInstruction>(),
+            i => i.ObjectProgram is not null);
+        var objectProgram = instruction.ObjectProgram ?? throw new InvalidOperationException("Expected lowered with object program.");
+        Assert.Contains(
+            objectProgram.Operations.OfType<LoadIdentifierExpressionOp>(),
+            op => op.Name.Name!.StartsWith("__yield_lower_resume", StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task SequenceExpression_ReusesDedicatedStatementInstructions()
     {
         await using var engine = CreateEngine();

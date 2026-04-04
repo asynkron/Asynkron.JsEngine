@@ -591,12 +591,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                         : null
                 };
 
-            case SuspendingEnterWithInstruction suspendingEnterWith:
-                return suspendingEnterWith with
-                {
-                    ObjectExpression = Rewrite(suspendingEnterWith.ObjectExpression)
-                };
-
             case YieldStarInstruction { AwaitedProgram: not null } yieldStar:
                 return yieldStar with
                 {

@@ -438,10 +438,6 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 VisitExpressionProgram(enterWith.AwaitedProgram ?? enterWith.ObjectProgram!.Value);
                 return;
 
-            case SuspendingEnterWithInstruction suspendingEnterWith:
-                Visit(suspendingEnterWith.ObjectExpression);
-                return;
-
             case YieldStarInstruction { AwaitedProgram: not null } yieldStar:
                 VisitExpressionProgram(yieldStar.AwaitedProgram.Value);
                 return;

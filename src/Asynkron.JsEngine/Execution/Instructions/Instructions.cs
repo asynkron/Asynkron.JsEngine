@@ -584,17 +584,6 @@ internal sealed record EnterWithInstruction(
     : ExecutionInstruction(InstructionKind.EnterWith, Next);
 
 /// <summary>
-///     Marks the beginning of a <c>with</c> statement whose object expression still requires AST evaluation because
-///     it contains suspension points.
-/// </summary>
-internal sealed record SuspendingEnterWithInstruction(
-    Symbol WithScopeSlot,
-    int Next,
-    ExpressionNode ObjectExpression,
-    SourceReference? ObjectSource = null)
-    : ExecutionInstruction(InstructionKind.SuspendingEnterWith, Next);
-
-/// <summary>
 ///     Marks the end of a <c>with</c> statement. Pops the with-environment from the scope chain.
 /// </summary>
 internal sealed record LeaveWithInstruction(Symbol WithScopeSlot, int Next)

@@ -851,9 +851,23 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         AssertProgramContains<LoadIdentifierExpressionOp>(
             instruction.ObjectProgram,
             op => op.Name.Name!.StartsWith("__yield_lower_", StringComparison.Ordinal));
-        Assert.DoesNotContain(
-            plan.Instructions,
-            static i => i.Kind == InstructionKind.SuspendingEnterWith);
+    }
+
+    [Fact]
+    public async Task EnterWithInstruction_YieldingObject_RewritesOffSuspendingInstruction()
+    {
+        var plan = await GetFunctionPlan("""
+            function* readWith(scopeObj) {
+                with (yield scopeObj) {
+                    return answer;
+                }
+            }
+            """, "readWith");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<EnterWithInstruction>(), i => i.ObjectProgram is not null);
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            instruction.ObjectProgram,
+            op => op.Name.Name!.StartsWith("__yield_lower_resume", StringComparison.Ordinal));
     }
 
     [Fact]

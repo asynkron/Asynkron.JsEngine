@@ -270,9 +270,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         AssertProgramContains<LoadIdentifierExpressionOp>(
             instruction.ValueProgram,
             op => op.Name.Name!.StartsWith("__yield_lower_resume", StringComparison.Ordinal));
-        Assert.DoesNotContain(
-            plan.Instructions,
-            static instruction => instruction.Kind == InstructionKind.SuspendingAssignmentSlot);
+        Assert.DoesNotContain(plan.Instructions.OfType<EvaluateAndDiscardInstruction>(), _ => true);
     }
 
     [Fact]
@@ -308,9 +306,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         Assert.Contains(
             plan.Instructions.OfType<BranchInstruction>(),
             _ => true);
-        Assert.DoesNotContain(
-            plan.Instructions,
-            static instruction => instruction.Kind == InstructionKind.SuspendingLogicalCompoundAssignmentSlot);
+        Assert.DoesNotContain(plan.Instructions.OfType<EvaluateAndDiscardInstruction>(), _ => true);
     }
 
     [Fact]
@@ -347,9 +343,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         AssertProgramContains<LoadIdentifierExpressionOp>(
             instruction.ValueProgram,
             op => op.Name.Name!.StartsWith("__yield_lower_resume", StringComparison.Ordinal));
-        Assert.DoesNotContain(
-            plan.Instructions,
-            static instruction => instruction.Kind == InstructionKind.SuspendingCompoundAssignmentSlot);
+        Assert.DoesNotContain(plan.Instructions.OfType<EvaluateAndDiscardInstruction>(), _ => true);
     }
 
     [Fact]
@@ -1803,11 +1797,53 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         var cache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
         Assert.True(cache.Succeeded, $"Script plan should build. Failure: {cache.FailureReason}");
 
-        var assignment = Assert.Single(cache.Plan!.Instructions.OfType<EvaluateAndDiscardInstruction>());
-        Assert.Null(assignment.Expression);
-        AssertProgramContains<StoreIdentifierExpressionOp>(
-            assignment.ExpressionProgram,
-            op => op.Name.Name == "value");
+        var assignment = Assert.Single(cache.Plan!.Instructions.OfType<AssignmentSlotInstruction>());
+        Assert.Null(assignment.ValueExpression);
+        AssertProgramContains<LoadLiteralExpressionOp>(
+            assignment.ValueProgram,
+            op => op.Value.IsNumber && op.Value.NumberValue == 2.0);
+    }
+
+    [Fact]
+    public async Task ScriptExpressionStatement_MutableIdentifierAssignment_UsesAssignmentSlotInstruction()
+    {
+        var program = _engine.ParseProgram("""
+            let value = 1;
+            value = 2;
+            """);
+
+        await _engine.Evaluate(program);
+
+        var cache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Script plan should build. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        var assignment = Assert.Single(cache.Plan.Instructions.OfType<AssignmentSlotInstruction>());
+        Assert.Null(assignment.ValueExpression);
+        AssertProgramContains<LoadLiteralExpressionOp>(
+            assignment.ValueProgram,
+            op => op.Value.IsNumber && op.Value.NumberValue == 2.0);
+    }
+
+    [Fact]
+    public async Task ScriptExpressionStatement_MutableLogicalCompoundAssignment_UsesLogicalAssignmentInstruction()
+    {
+        var program = _engine.ParseProgram("""
+            let value = 0;
+            value ||= 2;
+            """);
+
+        await _engine.Evaluate(program);
+
+        var cache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Script plan should build. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        var assignment = Assert.Single(cache.Plan.Instructions.OfType<LogicalCompoundAssignmentSlotInstruction>());
+        Assert.Null(assignment.RhsExpression);
+        AssertProgramContains<LoadLiteralExpressionOp>(
+            assignment.RhsProgram,
+            op => op.Value.IsNumber && op.Value.NumberValue == 2.0);
     }
 
     [Fact]

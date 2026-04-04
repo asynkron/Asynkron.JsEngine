@@ -746,9 +746,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         Assert.Contains(
             awaitedProgram.Operations.OfType<LoadIdentifierExpressionOp>(),
             op => op.Name.Name == "Promise");
-        Assert.DoesNotContain(
-            cache.Plan.Instructions,
-            i => i.Kind == InstructionKind.SuspendingAssignmentSlot);
+        Assert.DoesNotContain(cache.Plan.Instructions.OfType<EvaluateAndDiscardInstruction>(), _ => true);
     }
 
     [Fact(Timeout = 5000)]
@@ -962,9 +960,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         Assert.Contains(
             awaitedProgram.Operations.OfType<LoadIdentifierExpressionOp>(),
             op => op.Name.Name == "Promise");
-        Assert.DoesNotContain(
-            cache.Plan.Instructions,
-            i => i.Kind == InstructionKind.SuspendingLogicalCompoundAssignmentSlot);
+        Assert.DoesNotContain(cache.Plan.Instructions.OfType<EvaluateAndDiscardInstruction>(), _ => true);
     }
 
     [Fact(Timeout = 5000)]

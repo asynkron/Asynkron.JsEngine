@@ -32,11 +32,8 @@ public static partial class TypedAstEvaluator
             handlers[(int)InstructionKind.AwaitAndDiscard] = HandleAwaitAndDiscard;
             handlers[(int)InstructionKind.IncrementSlot] = HandleIncrementSlot;
             handlers[(int)InstructionKind.AssignmentSlot] = HandleAssignmentSlot;
-            handlers[(int)InstructionKind.SuspendingAssignmentSlot] = HandleSuspendingAssignmentSlot;
             handlers[(int)InstructionKind.LogicalCompoundAssignmentSlot] = HandleLogicalCompoundAssignmentSlot;
-            handlers[(int)InstructionKind.SuspendingLogicalCompoundAssignmentSlot] = HandleSuspendingLogicalCompoundAssignmentSlot;
             handlers[(int)InstructionKind.CompoundAssignmentSlot] = HandleCompoundAssignmentSlot;
-            handlers[(int)InstructionKind.SuspendingCompoundAssignmentSlot] = HandleSuspendingCompoundAssignmentSlot;
             handlers[(int)InstructionKind.FunctionDeclaration] = HandleFunctionDeclaration;
             handlers[(int)InstructionKind.ClassDeclaration] = HandleClassDeclaration;
             handlers[(int)InstructionKind.SimpleVariableDeclaration] = HandleSimpleVariableDeclaration;

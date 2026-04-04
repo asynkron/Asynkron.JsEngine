@@ -107,17 +107,6 @@ internal sealed record AssignmentSlotInstruction(
     public ExpressionNode? ValueExpression => null;
 }
 
-internal sealed record SuspendingAssignmentSlotInstruction(
-    int Next,
-    Symbol TargetSymbol,
-    ExpressionNode ValueExpression,
-    bool SuppressCompletionValue = false,
-    bool AllowNameInference = true,
-    int ScopeId = -1,
-    int SlotIndex = -1,
-    int FlatSlotId = -1)
-    : ExecutionInstruction(InstructionKind.SuspendingAssignmentSlot, Next);
-
 /// <summary>
 ///     Performs a logical compound assignment on an identifier slot (e.g., x ||= y).
 ///     The runner preserves short-circuit semantics and only evaluates the RHS when needed.
@@ -138,18 +127,6 @@ internal sealed record LogicalCompoundAssignmentSlotInstruction(
 {
     public ExpressionNode? RhsExpression => null;
 }
-
-internal sealed record SuspendingLogicalCompoundAssignmentSlotInstruction(
-    int Next,
-    Symbol TargetSymbol,
-    BinaryOperator Operator,
-    ExpressionNode RhsExpression,
-    bool SuppressCompletionValue = false,
-    bool AllowNameInference = true,
-    int ScopeId = -1,
-    int SlotIndex = -1,
-    int FlatSlotId = -1)
-    : ExecutionInstruction(InstructionKind.SuspendingLogicalCompoundAssignmentSlot, Next);
 
 /// <summary>
 ///     Performs a compound assignment operation directly on an identifier slot (e.g., s += i).
@@ -186,17 +163,6 @@ internal sealed record CompoundAssignmentSlotInstruction(
 {
     public ExpressionNode? RhsExpression => null;
 }
-
-internal sealed record SuspendingCompoundAssignmentSlotInstruction(
-    int Next,
-    Symbol TargetSymbol,
-    BinaryOperator Operator,
-    ExpressionNode RhsExpression,
-    bool SuppressCompletionValue = false,
-    int ScopeId = -1,
-    int SlotIndex = -1,
-    int FlatSlotId = -1)
-    : ExecutionInstruction(InstructionKind.SuspendingCompoundAssignmentSlot, Next);
 
 internal readonly record struct FunctionDeclarationDescriptor(Symbol Name, FunctionExpression Function);
 

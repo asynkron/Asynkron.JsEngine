@@ -148,14 +148,8 @@ internal static class ExecutionPlanPrinter
             AssignmentSlotInstruction assign =>
                 $"ASSIGN {assign.TargetSymbol.Name} = {FormatExpression(null, assign.AwaitedProgram ?? assign.ValueProgram)} → [{assign.Next}]",
 
-            SuspendingAssignmentSlotInstruction suspendingAssign =>
-                $"ASSIGN {suspendingAssign.TargetSymbol.Name} = {FormatExpression(suspendingAssign.ValueExpression, null)} → [{suspendingAssign.Next}]",
-
             LogicalCompoundAssignmentSlotInstruction logicalCompound =>
                 $"ASSIGN_LOGICAL {logicalCompound.TargetSymbol.Name} {FormatBinaryOperator(logicalCompound.Operator)}= {FormatExpression(null, logicalCompound.AwaitedProgram ?? logicalCompound.RhsProgram)} → [{logicalCompound.Next}]",
-
-            SuspendingLogicalCompoundAssignmentSlotInstruction suspendingLogicalCompound =>
-                $"ASSIGN_LOGICAL {suspendingLogicalCompound.TargetSymbol.Name} {FormatBinaryOperator(suspendingLogicalCompound.Operator)}= {FormatExpression(suspendingLogicalCompound.RhsExpression, null)} → [{suspendingLogicalCompound.Next}]",
 
             SimpleVariableDeclarationInstruction varDecl =>
                 $"VAR {varDecl.VarKind} {varDecl.TargetSymbol.Name}" +
@@ -277,9 +271,6 @@ internal static class ExecutionPlanPrinter
 
             CompoundAssignmentSlotInstruction compound =>
                 $"COMPOUND {compound.TargetSymbol.Name} {compound.Operator}= {FormatExpression(null, compound.AwaitedProgram ?? compound.RhsProgram)} → [{compound.Next}]",
-
-            SuspendingCompoundAssignmentSlotInstruction suspendingCompound =>
-                $"COMPOUND {suspendingCompound.TargetSymbol.Name} {suspendingCompound.Operator}= {FormatExpression(suspendingCompound.RhsExpression, null)} → [{suspendingCompound.Next}]",
 
             _ => instruction.ToString() ?? "<?>"
         };

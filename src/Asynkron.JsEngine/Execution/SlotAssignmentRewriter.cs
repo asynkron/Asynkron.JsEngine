@@ -359,29 +359,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     };
                 }
 
-            case SuspendingAssignmentSlotInstruction suspendingAssign:
-                {
-                    var rewrittenValue = Rewrite(suspendingAssign.ValueExpression);
-                    if (TryResolve(suspendingAssign.TargetSymbol, out var assignmentResolution))
-                    {
-                        var assignmentFlatSlotId = GetOrCreateFlatSlotId(
-                            assignmentResolution.scopeId,
-                            assignmentResolution.slotIndex);
-                        return suspendingAssign with
-                        {
-                            ValueExpression = rewrittenValue,
-                            ScopeId = assignmentResolution.scopeId,
-                            SlotIndex = assignmentResolution.slotIndex,
-                            FlatSlotId = assignmentFlatSlotId
-                        };
-                    }
-
-                    return suspendingAssign with
-                    {
-                        ValueExpression = rewrittenValue
-                    };
-                }
-
             case LogicalCompoundAssignmentSlotInstruction logicalCompound:
                 {
                     var rewrittenProgram = logicalCompound.RhsProgram is { } logicalRhsProgram
@@ -409,29 +386,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     {
                         RhsProgram = rewrittenProgram,
                         AwaitedProgram = rewrittenAwaitedProgram
-                    };
-                }
-
-            case SuspendingLogicalCompoundAssignmentSlotInstruction suspendingLogicalCompound:
-                {
-                    var rewrittenRhs = Rewrite(suspendingLogicalCompound.RhsExpression);
-                    if (TryResolve(suspendingLogicalCompound.TargetSymbol, out var logicalResolution))
-                    {
-                        var logicalFlatSlotId = GetOrCreateFlatSlotId(
-                            logicalResolution.scopeId,
-                            logicalResolution.slotIndex);
-                        return suspendingLogicalCompound with
-                        {
-                            RhsExpression = rewrittenRhs,
-                            ScopeId = logicalResolution.scopeId,
-                            SlotIndex = logicalResolution.slotIndex,
-                            FlatSlotId = logicalFlatSlotId
-                        };
-                    }
-
-                    return suspendingLogicalCompound with
-                    {
-                        RhsExpression = rewrittenRhs
                     };
                 }
 
@@ -468,30 +422,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                         RhsProgram = rewrittenProgram,
                         AwaitedProgram = rewrittenAwaitedProgram,
                         RhsFlatSlotId = rhsFlatSlotId
-                    };
-                }
-
-            case SuspendingCompoundAssignmentSlotInstruction suspendingCompoundAssign:
-                {
-                    var rewrittenRhs = Rewrite(suspendingCompoundAssign.RhsExpression);
-
-                    if (TryResolve(suspendingCompoundAssign.TargetSymbol, out var compoundResolution))
-                    {
-                        var compoundFlatSlotId = GetOrCreateFlatSlotId(
-                            compoundResolution.scopeId,
-                            compoundResolution.slotIndex);
-                        return suspendingCompoundAssign with
-                        {
-                            RhsExpression = rewrittenRhs,
-                            ScopeId = compoundResolution.scopeId,
-                            SlotIndex = compoundResolution.slotIndex,
-                            FlatSlotId = compoundFlatSlotId
-                        };
-                    }
-
-                    return suspendingCompoundAssign with
-                    {
-                        RhsExpression = rewrittenRhs
                     };
                 }
 

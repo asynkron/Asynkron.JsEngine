@@ -350,16 +350,8 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 VisitExpressionProgram(assign.AwaitedProgram ?? assign.ValueProgram!.Value);
                 return;
 
-            case SuspendingAssignmentSlotInstruction suspendingAssign:
-                Visit(suspendingAssign.ValueExpression);
-                return;
-
             case LogicalCompoundAssignmentSlotInstruction logicalCompound:
                 VisitExpressionProgram(logicalCompound.AwaitedProgram ?? logicalCompound.RhsProgram!.Value);
-                return;
-
-            case SuspendingLogicalCompoundAssignmentSlotInstruction suspendingLogicalCompound:
-                Visit(suspendingLogicalCompound.RhsExpression);
                 return;
 
             case YieldInstruction { AwaitedProgram: not null } yield:
@@ -428,10 +420,6 @@ internal sealed class ScopeSlotCollector : AstVisitor
 
             case CompoundAssignmentSlotInstruction compoundAssign:
                 VisitExpressionProgram(compoundAssign.AwaitedProgram ?? compoundAssign.RhsProgram!.Value);
-                return;
-
-            case SuspendingCompoundAssignmentSlotInstruction suspendingCompoundAssign:
-                Visit(suspendingCompoundAssign.RhsExpression);
                 return;
 
             case EnterWithInstruction enterWith:

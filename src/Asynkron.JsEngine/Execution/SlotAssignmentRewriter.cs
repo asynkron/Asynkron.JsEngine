@@ -556,12 +556,14 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         }
 
         var objectConstants = program.ObjectConstants.AsSpan();
+        var identifierConstants = program.IdentifierConstants.AsSpan();
         var objectPool = new ExpressionProgramObjectPoolBuilder(program.ObjectConstants);
+        var identifierPool = new ExpressionProgramIdentifierPoolBuilder(program.IdentifierConstants);
         var changed = false;
         var builder = ImmutableArray.CreateBuilder<PackedExpressionOp>(program.Operations.Length);
         foreach (var operation in program.Operations)
         {
-            var rewritten = RewriteExpressionOp(operation, objectConstants, objectPool);
+            var rewritten = RewriteExpressionOp(operation, objectConstants, identifierConstants, objectPool, identifierPool);
             changed |= !operation.Equals(rewritten);
             builder.Add(rewritten);
         }
@@ -571,6 +573,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                 builder.MoveToImmutable(),
                 program.StringConstants,
                 objectPool.Build(),
+                identifierPool.Build(),
                 program.SpreadMaskConstants)
             : program;
     }
@@ -578,33 +581,34 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     private PackedExpressionOp RewriteExpressionOp(
         PackedExpressionOp operation,
         ReadOnlySpan<object> objectConstants,
-        ExpressionProgramObjectPoolBuilder objectPool)
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ExpressionProgramObjectPoolBuilder objectPool,
+        ExpressionProgramIdentifierPoolBuilder identifierPool)
     {
         switch (operation.Kind)
         {
-            case ExpressionOpKind.LoadIdentifier when TryResolve(operation.Name, out var loadResolution):
-                return operation.WithIdentifierResolution(
-                    loadResolution.scopeId,
-                    loadResolution.slotIndex,
-                    GetOrCreateFlatSlotId(loadResolution.scopeId, loadResolution.slotIndex));
+            case ExpressionOpKind.LoadIdentifier:
+            case ExpressionOpKind.StoreIdentifier:
+            case ExpressionOpKind.UpdateIdentifier:
+            case ExpressionOpKind.TypeOfIdentifier:
+                {
+                    var identifier = operation.GetIdentifier(identifierConstants);
+                    if (!TryResolve(identifier.Name, out var resolution))
+                    {
+                        return operation;
+                    }
 
-            case ExpressionOpKind.StoreIdentifier when TryResolve(operation.Name, out var storeResolution):
-                return operation.WithIdentifierResolution(
-                    storeResolution.scopeId,
-                    storeResolution.slotIndex,
-                    GetOrCreateFlatSlotId(storeResolution.scopeId, storeResolution.slotIndex));
+                    var rewrittenIdentifier = identifier with
+                    {
+                        ScopeId = resolution.scopeId,
+                        SlotIndex = resolution.slotIndex,
+                        FlatSlotId = GetOrCreateFlatSlotId(resolution.scopeId, resolution.slotIndex)
+                    };
 
-            case ExpressionOpKind.UpdateIdentifier when TryResolve(operation.Name, out var updateResolution):
-                return operation.WithIdentifierResolution(
-                    updateResolution.scopeId,
-                    updateResolution.slotIndex,
-                    GetOrCreateFlatSlotId(updateResolution.scopeId, updateResolution.slotIndex));
-
-            case ExpressionOpKind.TypeOfIdentifier when TryResolve(operation.Name, out var typeofResolution):
-                return operation.WithIdentifierResolution(
-                    typeofResolution.scopeId,
-                    typeofResolution.slotIndex,
-                    GetOrCreateFlatSlotId(typeofResolution.scopeId, typeofResolution.slotIndex));
+                    return rewrittenIdentifier.Equals(identifier)
+                        ? operation
+                        : operation.WithIdentifierConstant(identifierPool.InternIdentifier(rewrittenIdentifier));
+                }
 
             case ExpressionOpKind.ApplyBindingTarget:
                 {
@@ -821,9 +825,10 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     private static int TryGetFlatSlotId(ExpressionProgram program)
     {
         if (program.Operations.Length == 1 &&
-            program.Operations[0] is { Kind: ExpressionOpKind.LoadIdentifier, FlatSlotId: >= 0 } loadIdentifier)
+            program.Operations[0].Kind == ExpressionOpKind.LoadIdentifier)
         {
-            return loadIdentifier.FlatSlotId;
+            var identifier = program.Operations[0].GetIdentifier(program.IdentifierConstants.AsSpan());
+            return identifier.FlatSlotId;
         }
 
         return -1;
@@ -1034,6 +1039,40 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         public ImmutableArray<object> Build()
         {
             return _objects.Count == 0 ? ImmutableArray<object>.Empty : [.. _objects];
+        }
+    }
+
+    private sealed class ExpressionProgramIdentifierPoolBuilder
+    {
+        private readonly List<IdentifierOperand> _identifiers;
+        private readonly Dictionary<IdentifierOperand, int> _indices;
+
+        public ExpressionProgramIdentifierPoolBuilder(ImmutableArray<IdentifierOperand> existingIdentifiers)
+        {
+            _identifiers = existingIdentifiers.IsDefaultOrEmpty ? [] : [.. existingIdentifiers];
+            _indices = new Dictionary<IdentifierOperand, int>(_identifiers.Count);
+            for (var i = 0; i < _identifiers.Count; i++)
+            {
+                _indices[_identifiers[i]] = i;
+            }
+        }
+
+        public int InternIdentifier(IdentifierOperand value)
+        {
+            if (_indices.TryGetValue(value, out var existingIndex))
+            {
+                return existingIndex;
+            }
+
+            var index = _identifiers.Count;
+            _identifiers.Add(value);
+            _indices[value] = index;
+            return index;
+        }
+
+        public ImmutableArray<IdentifierOperand> Build()
+        {
+            return _identifiers.Count == 0 ? ImmutableArray<IdentifierOperand>.Empty : [.. _identifiers];
         }
     }
 }

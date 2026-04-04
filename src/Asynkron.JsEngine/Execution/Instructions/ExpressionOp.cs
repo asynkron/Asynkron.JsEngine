@@ -83,11 +83,13 @@ internal readonly record struct ExpressionProgram
         ImmutableArray<PackedExpressionOp> operations,
         ImmutableArray<string> stringConstants = default,
         ImmutableArray<object> objectConstants = default,
+        ImmutableArray<IdentifierOperand> identifierConstants = default,
         ImmutableArray<ImmutableArray<bool>> spreadMaskConstants = default)
     {
         Operations = operations;
         StringConstants = stringConstants.IsDefault ? ImmutableArray<string>.Empty : stringConstants;
         ObjectConstants = objectConstants.IsDefault ? ImmutableArray<object>.Empty : objectConstants;
+        IdentifierConstants = identifierConstants.IsDefault ? ImmutableArray<IdentifierOperand>.Empty : identifierConstants;
         SpreadMaskConstants = spreadMaskConstants.IsDefault ? ImmutableArray<ImmutableArray<bool>>.Empty : spreadMaskConstants;
         MaxStackDepth = ComputeMaxStackDepth(operations);
     }
@@ -99,6 +101,8 @@ internal readonly record struct ExpressionProgram
     public ImmutableArray<string> StringConstants { get; init; }
 
     public ImmutableArray<object> ObjectConstants { get; init; }
+
+    public ImmutableArray<IdentifierOperand> IdentifierConstants { get; init; }
 
     public ImmutableArray<ImmutableArray<bool>> SpreadMaskConstants { get; init; }
 
@@ -228,6 +232,12 @@ internal sealed class TaggedTemplateDescriptor
     public ImmutableArray<JsValue> RawStrings { get; }
 }
 
+internal readonly record struct IdentifierOperand(
+    Symbol Name,
+    int ScopeId = -1,
+    int SlotIndex = -1,
+    int FlatSlotId = -1);
+
 internal readonly struct PackedExpressionOp
 {
     private const byte Flag0 = 1 << 0;
@@ -279,7 +289,6 @@ internal readonly struct PackedExpressionOp
     private static readonly PackedExpressionOp SetComputedSuperPropertyDefault = new(ExpressionOpKind.SetComputedSuperProperty, flags: Flag0);
     private static readonly PackedExpressionOp SetComputedSuperPropertyNoInference = new(ExpressionOpKind.SetComputedSuperProperty);
 
-    private readonly object? _data;
     private readonly JsValue _value;
     private readonly int _int0;
     private readonly int _int1;
@@ -288,7 +297,6 @@ internal readonly struct PackedExpressionOp
 
     private PackedExpressionOp(
         ExpressionOpKind kind,
-        object? data = null,
         JsValue value = default,
         int int0 = 0,
         int int1 = 0,
@@ -296,7 +304,6 @@ internal readonly struct PackedExpressionOp
         byte flags = 0)
     {
         Kind = kind;
-        _data = data;
         _value = value;
         _int0 = int0;
         _int1 = int1;
@@ -311,14 +318,6 @@ internal readonly struct PackedExpressionOp
     public int StringConstantIndex => _int0;
 
     public string RegexFlags => DecodeRegexFlags(_flags);
-
-    public Symbol Name => (Symbol)_data!;
-
-    public int ScopeId => _int0;
-
-    public int SlotIndex => _int1;
-
-    public int FlatSlotId => _int2;
 
     public int Depth => _int0;
 
@@ -371,6 +370,11 @@ internal readonly struct PackedExpressionOp
         return (T)objectConstants[_int1];
     }
 
+    public IdentifierOperand GetIdentifier(ReadOnlySpan<IdentifierOperand> identifierConstants)
+    {
+        return identifierConstants[_int0];
+    }
+
     public ImmutableArray<bool> GetSpreadMask(ReadOnlySpan<ImmutableArray<bool>> spreadMaskConstants)
     {
         return SpreadMaskConstantIndex < 0
@@ -407,18 +411,12 @@ internal readonly struct PackedExpressionOp
     }
 
     public static PackedExpressionOp LoadIdentifier(
-        Symbol Name,
-        int ScopeId = -1,
-        int SlotIndex = -1,
-        int FlatSlotId = -1,
+        int identifierConstantIndex,
         bool IsArguments = false)
     {
         return new PackedExpressionOp(
             ExpressionOpKind.LoadIdentifier,
-            data: Name,
-            int0: ScopeId,
-            int1: SlotIndex,
-            int2: FlatSlotId,
+            int0: identifierConstantIndex,
             flags: IsArguments ? Flag0 : (byte)0);
     }
 
@@ -428,18 +426,12 @@ internal readonly struct PackedExpressionOp
     }
 
     public static PackedExpressionOp StoreIdentifier(
-        Symbol Name,
-        int ScopeId = -1,
-        int SlotIndex = -1,
-        int FlatSlotId = -1,
+        int identifierConstantIndex,
         bool AllowNameInference = true)
     {
         return new PackedExpressionOp(
             ExpressionOpKind.StoreIdentifier,
-            data: Name,
-            int0: ScopeId,
-            int1: SlotIndex,
-            int2: FlatSlotId,
+            int0: identifierConstantIndex,
             flags: AllowNameInference ? Flag0 : (byte)0);
     }
 
@@ -566,20 +558,14 @@ internal readonly struct PackedExpressionOp
     }
 
     public static PackedExpressionOp UpdateIdentifier(
-        Symbol Name,
-        int ScopeId = -1,
-        int SlotIndex = -1,
-        int FlatSlotId = -1,
+        int identifierConstantIndex,
         bool IsIncrement = true,
         bool IsPrefix = true,
         bool IsArguments = false)
     {
         return new PackedExpressionOp(
             ExpressionOpKind.UpdateIdentifier,
-            data: Name,
-            int0: ScopeId,
-            int1: SlotIndex,
-            int2: FlatSlotId,
+            int0: identifierConstantIndex,
             flags: (byte)((IsIncrement ? Flag0 : 0) |
                           (IsPrefix ? Flag1 : 0) |
                           (IsArguments ? Flag2 : 0)));
@@ -630,24 +616,18 @@ internal readonly struct PackedExpressionOp
     }
 
     public static PackedExpressionOp TypeOfIdentifier(
-        Symbol Name,
-        int ScopeId = -1,
-        int SlotIndex = -1,
-        int FlatSlotId = -1,
+        int identifierConstantIndex,
         bool IsArguments = false)
     {
         return new PackedExpressionOp(
             ExpressionOpKind.TypeOfIdentifier,
-            data: Name,
-            int0: ScopeId,
-            int1: SlotIndex,
-            int2: FlatSlotId,
+            int0: identifierConstantIndex,
             flags: IsArguments ? Flag0 : (byte)0);
     }
 
-    public static PackedExpressionOp DeleteIdentifier(Symbol Name)
+    public static PackedExpressionOp DeleteIdentifier(int identifierConstantIndex)
     {
-        return new PackedExpressionOp(ExpressionOpKind.DeleteIdentifier, data: Name);
+        return new PackedExpressionOp(ExpressionOpKind.DeleteIdentifier, int0: identifierConstantIndex);
     }
 
     public static PackedExpressionOp DeleteNamedProperty(int propertyNameIndex)
@@ -739,14 +719,14 @@ internal readonly struct PackedExpressionOp
             int1: SpreadMaskConstantIndex + 1);
     }
 
-    public PackedExpressionOp WithIdentifierResolution(int scopeId, int slotIndex, int flatSlotId)
+    public PackedExpressionOp WithIdentifierConstant(int identifierConstantIndex)
     {
-        return new PackedExpressionOp(Kind, _data, _value, scopeId, slotIndex, flatSlotId, _flags);
+        return new PackedExpressionOp(Kind, _value, identifierConstantIndex, _int1, _int2, _flags);
     }
 
     public PackedExpressionOp WithObjectConstant(int objectConstantIndex)
     {
-        return new PackedExpressionOp(Kind, _data, _value, _int0, objectConstantIndex, _int2, _flags);
+        return new PackedExpressionOp(Kind, _value, _int0, objectConstantIndex, _int2, _flags);
     }
 
     private static byte EncodeRegexFlags(string flags)

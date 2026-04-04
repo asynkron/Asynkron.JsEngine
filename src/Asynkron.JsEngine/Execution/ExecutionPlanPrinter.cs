@@ -314,6 +314,7 @@ internal static class ExecutionPlanPrinter
                 op,
                 program.StringConstants,
                 program.ObjectConstants,
+                program.IdentifierConstants,
                 program.SpreadMaskConstants)));
     }
 
@@ -321,10 +322,12 @@ internal static class ExecutionPlanPrinter
         PackedExpressionOp op,
         ImmutableArray<string> stringConstants,
         ImmutableArray<object> objectConstants,
+        ImmutableArray<IdentifierOperand> identifierConstants,
         ImmutableArray<ImmutableArray<bool>> spreadMaskConstants)
     {
         var stringConstantSpan = stringConstants.AsSpan();
         var objectConstantSpan = objectConstants.AsSpan();
+        var identifierConstantSpan = identifierConstants.AsSpan();
         var spreadMaskConstantSpan = spreadMaskConstants.AsSpan();
         return op.Kind switch
         {
@@ -333,8 +336,8 @@ internal static class ExecutionPlanPrinter
             ExpressionOpKind.LoadFunctionLiteral => op.GetObject<FunctionExpression>(objectConstantSpan).Name is { } functionName ? $"fn:{functionName.Name}" : "fn",
             ExpressionOpKind.LoadClassLiteral => op.GetObject<ClassExpression>(objectConstantSpan).Name is { } className ? $"class:{className.Name}" : "class",
             ExpressionOpKind.LoadTemplateObject => "template",
-            ExpressionOpKind.LoadIdentifier => op.Name.Name,
-            ExpressionOpKind.StoreIdentifier => $"store.{op.Name.Name}",
+            ExpressionOpKind.LoadIdentifier => op.GetIdentifier(identifierConstantSpan).Name.Name,
+            ExpressionOpKind.StoreIdentifier => $"store.{op.GetIdentifier(identifierConstantSpan).Name.Name}",
             ExpressionOpKind.ApplyBindingTarget => $"bind.{op.GetObject<BindingTargetProgram>(objectConstantSpan)}",
             ExpressionOpKind.DuplicateTop => "dup",
             ExpressionOpKind.DuplicateTopTwo => "dup2",
@@ -374,8 +377,8 @@ internal static class ExecutionPlanPrinter
             ExpressionOpKind.SetNamedSuperProperty => $"super.set.{op.GetString(stringConstantSpan)}",
             ExpressionOpKind.SetComputedSuperProperty => "super.set[]",
             ExpressionOpKind.UpdateIdentifier => op.IsPrefix
-                ? $"{(op.IsIncrement ? "++" : "--")}{op.Name.Name}"
-                : $"{op.Name.Name}{(op.IsIncrement ? "++" : "--")}",
+                ? $"{(op.IsIncrement ? "++" : "--")}{op.GetIdentifier(identifierConstantSpan).Name.Name}"
+                : $"{op.GetIdentifier(identifierConstantSpan).Name.Name}{(op.IsIncrement ? "++" : "--")}",
             ExpressionOpKind.UpdateNamedProperty => op.IsPrefix
                 ? $"{(op.IsIncrement ? "++" : "--")}.{op.GetString(stringConstantSpan)}"
                 : $".{op.GetString(stringConstantSpan)}{(op.IsIncrement ? "++" : "--")}",
@@ -389,8 +392,8 @@ internal static class ExecutionPlanPrinter
                 ? $"{(op.IsIncrement ? "++" : "--")}super[]"
                 : $"super[]{(op.IsIncrement ? "++" : "--")}",
             ExpressionOpKind.TypeOf => "typeof",
-            ExpressionOpKind.TypeOfIdentifier => $"typeof {op.Name.Name}",
-            ExpressionOpKind.DeleteIdentifier => $"delete {op.Name.Name}",
+            ExpressionOpKind.TypeOfIdentifier => $"typeof {op.GetIdentifier(identifierConstantSpan).Name.Name}",
+            ExpressionOpKind.DeleteIdentifier => $"delete {op.GetIdentifier(identifierConstantSpan).Name.Name}",
             ExpressionOpKind.DeleteNamedProperty => $"delete .{op.GetString(stringConstantSpan)}",
             ExpressionOpKind.DeleteComputedProperty => "delete []",
             ExpressionOpKind.UnaryPlus => "+",

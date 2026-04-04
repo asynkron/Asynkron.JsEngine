@@ -182,6 +182,7 @@ public static partial class TypedAstEvaluator
             var operations = program.Operations.AsSpan();
             var stringConstants = program.StringConstants.AsSpan();
             var objectConstants = program.ObjectConstants.AsSpan();
+            var identifierConstants = program.IdentifierConstants.AsSpan();
             var spreadMaskConstants = program.SpreadMaskConstants.AsSpan();
             var operationCount = operations.Length;
             var stackSize = Math.Max(program.MaxStackDepth, 1);
@@ -259,10 +260,11 @@ public static partial class TypedAstEvaluator
 
                         case ExpressionOpKind.LoadIdentifier:
                             {
+                                var identifier = operation.GetIdentifier(identifierConstants);
                                 stack[stackIndex++] = EvaluateProgramIdentifier(
-                                    operation.Name,
-                                    operation.ScopeId,
-                                    operation.SlotIndex,
+                                    identifier.Name,
+                                    identifier.ScopeId,
+                                    identifier.SlotIndex,
                                     operation.IsArguments,
                                     environment,
                                     context);
@@ -273,11 +275,12 @@ public static partial class TypedAstEvaluator
 
                         case ExpressionOpKind.StoreIdentifier:
                             {
+                                var identifier = operation.GetIdentifier(identifierConstants);
                                 ApplyProgramIdentifierAssignment(
-                                    operation.Name,
-                                    operation.ScopeId,
-                                    operation.SlotIndex,
-                                    operation.FlatSlotId,
+                                    identifier.Name,
+                                    identifier.ScopeId,
+                                    identifier.SlotIndex,
+                                    identifier.FlatSlotId,
                                     operation.AllowNameInference,
                                     stack[stackIndex - 1],
                                     environment,
@@ -749,6 +752,7 @@ public static partial class TypedAstEvaluator
                             {
                                 stack[stackIndex++] = ExecuteProgramIdentifierUpdate(
                                     operation,
+                                    identifierConstants,
                                     environment,
                                     context);
                                 stackFlags[stackIndex - 1] = false;
@@ -817,6 +821,7 @@ public static partial class TypedAstEvaluator
                             {
                                 stack[stackIndex++] = ExecuteProgramTypeOfIdentifier(
                                     operation,
+                                    identifierConstants,
                                     environment,
                                     context);
                                 stackFlags[stackIndex - 1] = false;
@@ -828,6 +833,7 @@ public static partial class TypedAstEvaluator
                             {
                                 stack[stackIndex++] = ExecuteProgramDeleteIdentifier(
                                     operation,
+                                    identifierConstants,
                                     environment,
                                     context)
                                     ? JsValue.True
@@ -1258,13 +1264,15 @@ public static partial class TypedAstEvaluator
 
         private JsValue ExecuteProgramIdentifierUpdate(
             PackedExpressionOp update,
+            ReadOnlySpan<IdentifierOperand> identifierConstants,
             JsEnvironment environment,
             EvaluationContext context)
         {
+            var identifier = update.GetIdentifier(identifierConstants);
             var currentValue = EvaluateProgramIdentifier(
-                update.Name,
-                update.ScopeId,
-                update.SlotIndex,
+                identifier.Name,
+                identifier.ScopeId,
+                identifier.SlotIndex,
                 update.IsArguments,
                 environment,
                 context);
@@ -1280,10 +1288,10 @@ public static partial class TypedAstEvaluator
             }
 
             ApplyProgramIdentifierAssignment(
-                update.Name,
-                update.ScopeId,
-                update.SlotIndex,
-                update.FlatSlotId,
+                identifier.Name,
+                identifier.ScopeId,
+                identifier.SlotIndex,
+                identifier.FlatSlotId,
                 allowNameInference: false,
                 newValue,
                 environment,
@@ -1450,14 +1458,16 @@ public static partial class TypedAstEvaluator
 
         private JsValue ExecuteProgramTypeOfIdentifier(
             PackedExpressionOp identifier,
+            ReadOnlySpan<IdentifierOperand> identifierConstants,
             JsEnvironment environment,
             EvaluationContext context)
         {
-            var hasBinding = environment.HasBinding(identifier.Name);
+            var operand = identifier.GetIdentifier(identifierConstants);
+            var hasBinding = environment.HasBinding(operand.Name);
             var operandValue = EvaluateProgramIdentifier(
-                identifier.Name,
-                identifier.ScopeId,
-                identifier.SlotIndex,
+                operand.Name,
+                operand.ScopeId,
+                operand.SlotIndex,
                 identifier.IsArguments,
                 environment,
                 context);
@@ -1478,6 +1488,7 @@ public static partial class TypedAstEvaluator
 
         private static bool ExecuteProgramDeleteIdentifier(
             PackedExpressionOp identifier,
+            ReadOnlySpan<IdentifierOperand> identifierConstants,
             JsEnvironment environment,
             EvaluationContext context)
         {
@@ -1489,7 +1500,7 @@ public static partial class TypedAstEvaluator
                     context.RealmState);
             }
 
-            var outcome = environment.DeleteBinding(identifier.Name);
+            var outcome = environment.DeleteBinding(identifier.GetIdentifier(identifierConstants).Name);
             return outcome is DeleteBindingResult.Deleted or DeleteBindingResult.NotFound;
         }
 

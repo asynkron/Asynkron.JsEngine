@@ -15,6 +15,7 @@ internal static class ExpressionProgramCompiler
                 [PackedExpressionOp.EnsureSuperReference],
                 program.StringConstants,
                 program.ObjectConstants,
+                program.IdentifierConstants,
                 program.SpreadMaskConstants);
         }
 
@@ -25,6 +26,7 @@ internal static class ExpressionProgramCompiler
             builder.MoveToImmutable(),
             program.StringConstants,
             program.ObjectConstants,
+            program.IdentifierConstants,
             program.SpreadMaskConstants);
     }
 
@@ -120,10 +122,11 @@ internal static class ExpressionProgramCompiler
 
             case IdentifierExpression identifier:
                 builder.Add(PackedExpressionOp.LoadIdentifier(
-                    identifier.Name,
-                    identifier.ScopeId,
-                    identifier.SlotIndex,
-                    identifier.FlatSlotId,
+                    builder.InternIdentifier(new IdentifierOperand(
+                        identifier.Name,
+                        identifier.ScopeId,
+                        identifier.SlotIndex,
+                        identifier.FlatSlotId)),
                     ReferenceEquals(identifier.Name, Symbol.Arguments)));
                 failureReason = null;
                 return true;
@@ -305,10 +308,11 @@ internal static class ExpressionProgramCompiler
                 if (expression.Operand is IdentifierExpression identifierForTypeOf)
                 {
                     builder.Add(PackedExpressionOp.TypeOfIdentifier(
-                        identifierForTypeOf.Name,
-                        identifierForTypeOf.ScopeId,
-                        identifierForTypeOf.SlotIndex,
-                        identifierForTypeOf.FlatSlotId,
+                        builder.InternIdentifier(new IdentifierOperand(
+                            identifierForTypeOf.Name,
+                            identifierForTypeOf.ScopeId,
+                            identifierForTypeOf.SlotIndex,
+                            identifierForTypeOf.FlatSlotId)),
                         IsArguments: ReferenceEquals(identifierForTypeOf.Name, Symbol.Arguments)));
                     failureReason = null;
                     return true;
@@ -327,7 +331,8 @@ internal static class ExpressionProgramCompiler
                 switch (expression.Operand)
                 {
                     case IdentifierExpression identifierForDelete:
-                        builder.Add(PackedExpressionOp.DeleteIdentifier(identifierForDelete.Name));
+                        builder.Add(PackedExpressionOp.DeleteIdentifier(
+                            builder.InternIdentifier(new IdentifierOperand(identifierForDelete.Name))));
                         failureReason = null;
                         return true;
 
@@ -446,10 +451,11 @@ internal static class ExpressionProgramCompiler
                 if (expression.Operand is IdentifierExpression identifier)
                 {
                     builder.Add(PackedExpressionOp.UpdateIdentifier(
-                        identifier.Name,
-                        identifier.ScopeId,
-                        identifier.SlotIndex,
-                        identifier.FlatSlotId,
+                        builder.InternIdentifier(new IdentifierOperand(
+                            identifier.Name,
+                            identifier.ScopeId,
+                            identifier.SlotIndex,
+                            identifier.FlatSlotId)),
                         IsIncrement: expression.Operator == UnaryOperator.Increment,
                         IsPrefix: expression.IsPrefix,
                         IsArguments: ReferenceEquals(identifier.Name, Symbol.Arguments)));
@@ -741,10 +747,11 @@ internal static class ExpressionProgramCompiler
         }
 
         builder.Add(PackedExpressionOp.StoreIdentifier(
-            expression.Target,
-            expression.ScopeId,
-            expression.SlotIndex,
-            expression.FlatSlotId,
+            builder.InternIdentifier(new IdentifierOperand(
+                expression.Target,
+                expression.ScopeId,
+                expression.SlotIndex,
+                expression.FlatSlotId)),
             AllowNameInference: ShouldAllowAssignmentNameInference(expression)));
         failureReason = null;
         return true;
@@ -762,16 +769,18 @@ internal static class ExpressionProgramCompiler
         }
 
         var storeOp = PackedExpressionOp.StoreIdentifier(
-            expression.Target,
-            expression.ScopeId,
-            expression.SlotIndex,
-            expression.FlatSlotId,
+            builder.InternIdentifier(new IdentifierOperand(
+                expression.Target,
+                expression.ScopeId,
+                expression.SlotIndex,
+                expression.FlatSlotId)),
             AllowNameInference: ShouldAllowAssignmentNameInference(expression));
         var loadOp = PackedExpressionOp.LoadIdentifier(
-            expression.Target,
-            expression.ScopeId,
-            expression.SlotIndex,
-            expression.FlatSlotId,
+            builder.InternIdentifier(new IdentifierOperand(
+                expression.Target,
+                expression.ScopeId,
+                expression.SlotIndex,
+                expression.FlatSlotId)),
             ReferenceEquals(expression.Target, Symbol.Arguments));
 
         // For logical compound assignments (&&=, ||=, ??=), the assignment value
@@ -779,10 +788,11 @@ internal static class ExpressionProgramCompiler
         // the actual RHS (binary.Right), not the whole BinaryExpression. Create a
         // separate store op that checks binary.Right for anonymous function defs.
         var logicalStoreOp = PackedExpressionOp.StoreIdentifier(
-            expression.Target,
-            expression.ScopeId,
-            expression.SlotIndex,
-            expression.FlatSlotId,
+            builder.InternIdentifier(new IdentifierOperand(
+                expression.Target,
+                expression.ScopeId,
+                expression.SlotIndex,
+                expression.FlatSlotId)),
             AllowNameInference: IsAnonymousFunctionDefinitionForNameInference(binary.Right) &&
                                 !IsParenthesizedIdentifierAssignment(expression));
 
@@ -2294,6 +2304,8 @@ internal static class ExpressionProgramCompiler
         private readonly Dictionary<string, int> _stringConstantMap = new(StringComparer.Ordinal);
         private readonly List<object> _objectConstants = [];
         private readonly Dictionary<object, int> _objectConstantMap = new(ReferenceEqualityComparer<object>.Instance);
+        private readonly List<IdentifierOperand> _identifierConstants = [];
+        private readonly Dictionary<IdentifierOperand, int> _identifierConstantMap = [];
         private readonly List<ImmutableArray<bool>> _spreadMaskConstants = [];
         private readonly Dictionary<ImmutableArray<bool>, int> _spreadMaskConstantMap = [];
 
@@ -2337,6 +2349,19 @@ internal static class ExpressionProgramCompiler
             return index;
         }
 
+        public int InternIdentifier(IdentifierOperand value)
+        {
+            if (_identifierConstantMap.TryGetValue(value, out var existingIndex))
+            {
+                return existingIndex;
+            }
+
+            var index = _identifierConstants.Count;
+            _identifierConstants.Add(value);
+            _identifierConstantMap[value] = index;
+            return index;
+        }
+
         public int InternSpreadMask(ImmutableArray<bool> value)
         {
             if (_spreadMaskConstantMap.TryGetValue(value, out var existingIndex))
@@ -2356,6 +2381,7 @@ internal static class ExpressionProgramCompiler
                 [.. _operations],
                 _stringConstants.Count == 0 ? ImmutableArray<string>.Empty : [.. _stringConstants],
                 _objectConstants.Count == 0 ? ImmutableArray<object>.Empty : [.. _objectConstants],
+                _identifierConstants.Count == 0 ? ImmutableArray<IdentifierOperand>.Empty : [.. _identifierConstants],
                 _spreadMaskConstants.Count == 0 ? ImmutableArray<ImmutableArray<bool>>.Empty : [.. _spreadMaskConstants]);
         }
     }

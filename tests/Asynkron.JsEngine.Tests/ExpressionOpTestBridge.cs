@@ -49,13 +49,13 @@ internal readonly record struct ExpressionOpView(PackedExpressionOp Operation, E
 
     public TaggedTemplateDescriptor Descriptor => Operation.GetObject<TaggedTemplateDescriptor>(ObjectConstants);
 
-    public Symbol Name => Operation.Name;
+    public Symbol Name => Identifier.Name;
 
-    public int ScopeId => Operation.ScopeId;
+    public int ScopeId => Identifier.ScopeId;
 
-    public int SlotIndex => Operation.SlotIndex;
+    public int SlotIndex => Identifier.SlotIndex;
 
-    public int FlatSlotId => Operation.FlatSlotId;
+    public int FlatSlotId => Identifier.FlatSlotId;
 
     public bool IsArguments => Operation.IsArguments;
 
@@ -96,6 +96,8 @@ internal readonly record struct ExpressionOpView(PackedExpressionOp Operation, E
     private ReadOnlySpan<string> StringConstants => Program.StringConstants.AsSpan();
 
     private ReadOnlySpan<object> ObjectConstants => Program.ObjectConstants.AsSpan();
+
+    private IdentifierOperand Identifier => Operation.GetIdentifier(Program.IdentifierConstants.AsSpan());
 }
 
 internal interface IExpressionOpMarker

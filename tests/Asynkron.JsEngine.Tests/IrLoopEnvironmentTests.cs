@@ -744,7 +744,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         Assert.NotNull(instruction.AwaitStateKey);
         var awaitedProgram = instruction.AwaitedProgram ?? throw new InvalidOperationException("Expected awaited assignment program.");
         Assert.Contains(
-            awaitedProgram.ToLegacyExpressionOps().OfType<LoadIdentifierExpressionOp>(),
+            awaitedProgram.GetOps(ExpressionOpKind.LoadIdentifier),
             op => op.Name.Name == "Promise");
         Assert.DoesNotContain(cache.Plan.Instructions.OfType<EvaluateAndDiscardInstruction>(), _ => true);
     }
@@ -824,7 +824,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         Assert.NotNull(instruction.AwaitStateKey);
         var awaitedProgram = instruction.AwaitedProgram ?? throw new InvalidOperationException("Expected awaited throw program.");
         Assert.Contains(
-            awaitedProgram.ToLegacyExpressionOps().OfType<LoadIdentifierExpressionOp>(),
+            awaitedProgram.GetOps(ExpressionOpKind.LoadIdentifier),
             op => op.Name.Name == "Promise");
     }
 
@@ -958,7 +958,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         Assert.NotNull(instruction.AwaitStateKey);
         var awaitedProgram = instruction.AwaitedProgram ?? throw new InvalidOperationException("Expected awaited logical assignment program.");
         Assert.Contains(
-            awaitedProgram.ToLegacyExpressionOps().OfType<LoadIdentifierExpressionOp>(),
+            awaitedProgram.GetOps(ExpressionOpKind.LoadIdentifier),
             op => op.Name.Name == "Promise");
         Assert.DoesNotContain(cache.Plan.Instructions.OfType<EvaluateAndDiscardInstruction>(), _ => true);
     }
@@ -1104,7 +1104,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
             i => i.ObjectProgram is not null);
         var objectProgram = instruction.ObjectProgram ?? throw new InvalidOperationException("Expected lowered with object program.");
         Assert.Contains(
-            objectProgram.ToLegacyExpressionOps().OfType<LoadIdentifierExpressionOp>(),
+            objectProgram.GetOps(ExpressionOpKind.LoadIdentifier),
             op => op.Name.Name!.StartsWith("__yield_lower_resume", StringComparison.Ordinal));
     }
 

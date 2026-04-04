@@ -102,11 +102,9 @@ public sealed class SlotOptimizationTestBomb : IAsyncLifetime
         Assert.Equal("s", compoundInstr.TargetSymbol.Name);
         var rhsProgram = compoundInstr.RhsProgram ?? throw new InvalidOperationException("Expected compound assignment RHS program.");
 
-        var rhsLoad = rhsProgram.Operations
-            .Select(op => op.ToLegacyExpressionOp(rhsProgram))
-            .OfType<LoadIdentifierExpressionOp>()
+        var rhsLoad = rhsProgram.GetOps(ExpressionOpKind.LoadIdentifier)
             .FirstOrDefault(op => op.Name.Name == "i");
-        Assert.NotNull(rhsLoad);
+        Assert.Equal(ExpressionOpKind.LoadIdentifier, rhsLoad.Kind);
         AssertIdentifierHasSlot(rhsLoad, cache.Plan, requireNonRootScope: true);
 
         AssertSymbolHasSlot(compoundInstr.TargetSymbol, cache.Plan);
@@ -351,14 +349,12 @@ public sealed class SlotOptimizationTestBomb : IAsyncLifetime
         Assert.Equal(45.0, result);
     }
 
-    private static LoadIdentifierExpressionOp GetFirstLoadIdentifier(ExpressionProgram? program, string expectedName)
+    private static ExpressionOpView GetFirstLoadIdentifier(ExpressionProgram? program, string expectedName)
     {
         Assert.True(program is not null, "Expected an expression program.");
-        var loadIdentifier = program.Value.Operations
-            .Select(op => op.ToLegacyExpressionOp(program.Value))
-            .OfType<LoadIdentifierExpressionOp>()
+        var loadIdentifier = program.Value.GetOps(ExpressionOpKind.LoadIdentifier)
             .FirstOrDefault(op => op.Name.Name == expectedName);
-        Assert.NotNull(loadIdentifier);
+        Assert.Equal(ExpressionOpKind.LoadIdentifier, loadIdentifier.Kind);
         return loadIdentifier;
     }
 
@@ -415,7 +411,7 @@ public sealed class SlotOptimizationTestBomb : IAsyncLifetime
         List<IdentifierSlotInfo> result,
         string? nameFilter)
     {
-        foreach (var identifier in program.ToLegacyExpressionOps().OfType<LoadIdentifierExpressionOp>())
+        foreach (var identifier in program.GetOps(ExpressionOpKind.LoadIdentifier))
         {
             if (nameFilter is null || identifier.Name.Name == nameFilter)
             {
@@ -424,7 +420,7 @@ public sealed class SlotOptimizationTestBomb : IAsyncLifetime
         }
     }
 
-    private static void AssertIdentifierHasSlot(LoadIdentifierExpressionOp id, ExecutionPlan plan, bool requireNonRootScope = false)
+    private static void AssertIdentifierHasSlot(ExpressionOpView id, ExecutionPlan plan, bool requireNonRootScope = false)
     {
         Assert.True(id.SlotIndex >= 0, $"Identifier '{id.Name.Name}' should have SlotIndex >= 0");
         Assert.True(id.ScopeId >= 0, $"Identifier '{id.Name.Name}' should have ScopeId >= 0");

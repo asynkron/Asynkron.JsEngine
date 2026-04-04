@@ -428,6 +428,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
             return;
         }
 
+        var objectConstants = program.ObjectConstants.AsSpan();
         foreach (var op in program.Operations)
         {
             switch (op.Kind)
@@ -441,15 +442,15 @@ internal sealed class ScopeSlotCollector : AstVisitor
                     break;
 
                 case ExpressionOpKind.ApplyBindingTarget:
-                    VisitBindingTargetProgram(op.TargetProgram);
+                    VisitBindingTargetProgram(op.GetObject<BindingTargetProgram>(objectConstants));
                     break;
 
                 case ExpressionOpKind.LoadFunctionLiteral:
-                    Visit(op.Function);
+                    Visit(op.GetObject<FunctionExpression>(objectConstants));
                     break;
 
                 case ExpressionOpKind.LoadClassLiteral:
-                    Visit(op.Class);
+                    Visit(op.GetObject<ClassExpression>(objectConstants));
                     break;
             }
         }

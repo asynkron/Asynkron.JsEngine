@@ -181,6 +181,8 @@ public static partial class TypedAstEvaluator
 
             var operations = program.Operations.AsSpan();
             var stringConstants = program.StringConstants.AsSpan();
+            var objectConstants = program.ObjectConstants.AsSpan();
+            var spreadMaskConstants = program.SpreadMaskConstants.AsSpan();
             var operationCount = operations.Length;
             var stackSize = Math.Max(program.MaxStackDepth, 1);
             AcquireExpressionBuffers(
@@ -222,8 +224,9 @@ public static partial class TypedAstEvaluator
 
                         case ExpressionOpKind.LoadFunctionLiteral:
                             {
+                                var function = operation.GetObject<FunctionExpression>(objectConstants);
                                 stack[stackIndex++] = JsValue.FromObjectUnsafe(
-                                    operation.Function.CreateFunctionValue(
+                                    function.CreateFunctionValue(
                                         environment,
                                         context,
                                         operation.IsConstructorFunction));
@@ -234,10 +237,11 @@ public static partial class TypedAstEvaluator
 
                         case ExpressionOpKind.LoadClassLiteral:
                             {
-                                stack[stackIndex++] = operation.Class.Definition.CreateClassValue(
+                                var classExpression = operation.GetObject<ClassExpression>(objectConstants);
+                                stack[stackIndex++] = classExpression.Definition.CreateClassValue(
                                     environment,
                                     context,
-                                    operation.Class.Name ?? context.CurrentFunctionNameHint);
+                                    classExpression.Name ?? context.CurrentFunctionNameHint);
                                 stackFlags[stackIndex - 1] = false;
                                 programCounter++;
                                 break;
@@ -245,8 +249,9 @@ public static partial class TypedAstEvaluator
 
                         case ExpressionOpKind.LoadTemplateObject:
                             {
+                                var templateDescriptor = operation.GetObject<TaggedTemplateDescriptor>(objectConstants);
                                 stack[stackIndex++] = JsValue.FromJsArray(
-                                    GetOrCreateProgramTemplateObject(operation.TemplateDescriptor, context));
+                                    GetOrCreateProgramTemplateObject(templateDescriptor, context));
                                 stackFlags[stackIndex - 1] = false;
                                 programCounter++;
                                 break;
@@ -285,8 +290,9 @@ public static partial class TypedAstEvaluator
                         case ExpressionOpKind.ApplyBindingTarget:
                             {
                                 stackIndex--;
+                                var targetProgram = operation.GetObject<BindingTargetProgram>(objectConstants);
                                 ApplyBindingTargetProgram(
-                                    operation.TargetProgram,
+                                    targetProgram,
                                     stack[stackIndex],
                                     environment,
                                     context,
@@ -1030,6 +1036,7 @@ public static partial class TypedAstEvaluator
                                     stack,
                                     stackFlags,
                                     stackIndex,
+                                    spreadMaskConstants,
                                     environment,
                                     context);
                                 programCounter++;
@@ -1043,6 +1050,7 @@ public static partial class TypedAstEvaluator
                                     stack,
                                     stackFlags,
                                     stackIndex,
+                                    spreadMaskConstants,
                                     environment,
                                     context);
                                 programCounter++;
@@ -1056,6 +1064,7 @@ public static partial class TypedAstEvaluator
                                     stack,
                                     stackFlags,
                                     stackIndex,
+                                    spreadMaskConstants,
                                     context);
                                 programCounter++;
                                 break;
@@ -2072,6 +2081,7 @@ public static partial class TypedAstEvaluator
             Span<JsValue> stack,
             Span<bool> stackFlags,
             int stackIndex,
+            ReadOnlySpan<ImmutableArray<bool>> spreadMaskConstants,
             JsEnvironment environment,
             EvaluationContext context)
         {
@@ -2137,7 +2147,7 @@ public static partial class TypedAstEvaluator
                 IReadOnlyList<JsValue> arguments;
                 arguments = MaterializeProgramArguments(
                     call.ArgumentCount,
-                    call.SpreadMask,
+                    call.GetSpreadMask(spreadMaskConstants),
                     stack,
                     calleeIndex + 1,
                     context,
@@ -2202,6 +2212,7 @@ public static partial class TypedAstEvaluator
             Span<JsValue> stack,
             Span<bool> stackFlags,
             int stackIndex,
+            ReadOnlySpan<ImmutableArray<bool>> spreadMaskConstants,
             EvaluationContext context)
         {
             var constructorIndex = stackIndex - construct.ArgumentCount - 1;
@@ -2226,7 +2237,7 @@ public static partial class TypedAstEvaluator
             {
                 var arguments = MaterializeProgramArguments(
                     construct.ArgumentCount,
-                    construct.SpreadMask,
+                    construct.GetSpreadMask(spreadMaskConstants),
                     stack,
                     constructorIndex + 1,
                     context,
@@ -2261,6 +2272,7 @@ public static partial class TypedAstEvaluator
             Span<JsValue> stack,
             Span<bool> stackFlags,
             int stackIndex,
+            ReadOnlySpan<ImmutableArray<bool>> spreadMaskConstants,
             JsEnvironment environment,
             EvaluationContext context)
         {
@@ -2319,7 +2331,7 @@ public static partial class TypedAstEvaluator
 
                 var arguments = MaterializeProgramArguments(
                     superConstruct.ArgumentCount,
-                    superConstruct.SpreadMask,
+                    superConstruct.GetSpreadMask(spreadMaskConstants),
                     stack,
                     baseIndex,
                     context,

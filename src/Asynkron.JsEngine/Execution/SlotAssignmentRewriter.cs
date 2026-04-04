@@ -555,21 +555,30 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             return program;
         }
 
+        var objectConstants = program.ObjectConstants.AsSpan();
+        var objectPool = new ExpressionProgramObjectPoolBuilder(program.ObjectConstants);
         var changed = false;
         var builder = ImmutableArray.CreateBuilder<PackedExpressionOp>(program.Operations.Length);
         foreach (var operation in program.Operations)
         {
-            var rewritten = RewriteExpressionOp(operation);
+            var rewritten = RewriteExpressionOp(operation, objectConstants, objectPool);
             changed |= !operation.Equals(rewritten);
             builder.Add(rewritten);
         }
 
         return changed
-            ? new ExpressionProgram(builder.MoveToImmutable(), program.StringConstants)
+            ? new ExpressionProgram(
+                builder.MoveToImmutable(),
+                program.StringConstants,
+                objectPool.Build(),
+                program.SpreadMaskConstants)
             : program;
     }
 
-    private PackedExpressionOp RewriteExpressionOp(PackedExpressionOp operation)
+    private PackedExpressionOp RewriteExpressionOp(
+        PackedExpressionOp operation,
+        ReadOnlySpan<object> objectConstants,
+        ExpressionProgramObjectPoolBuilder objectPool)
     {
         switch (operation.Kind)
         {
@@ -598,13 +607,31 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     GetOrCreateFlatSlotId(typeofResolution.scopeId, typeofResolution.slotIndex));
 
             case ExpressionOpKind.ApplyBindingTarget:
-                return operation.WithBindingTargetProgram(RewriteBindingTargetProgram(operation.TargetProgram));
+                {
+                    var targetProgram = operation.GetObject<BindingTargetProgram>(objectConstants);
+                    var rewrittenTargetProgram = RewriteBindingTargetProgram(targetProgram);
+                    return ReferenceEquals(targetProgram, rewrittenTargetProgram)
+                        ? operation
+                        : operation.WithObjectConstant(objectPool.InternObject(rewrittenTargetProgram));
+                }
 
             case ExpressionOpKind.LoadFunctionLiteral:
-                return operation.WithFunction((FunctionExpression)Rewrite(operation.Function));
+                {
+                    var function = operation.GetObject<FunctionExpression>(objectConstants);
+                    var rewrittenFunction = (FunctionExpression)Rewrite(function);
+                    return ReferenceEquals(function, rewrittenFunction)
+                        ? operation
+                        : operation.WithObjectConstant(objectPool.InternObject(rewrittenFunction));
+                }
 
             case ExpressionOpKind.LoadClassLiteral:
-                return operation.WithClass((ClassExpression)Rewrite(operation.Class));
+                {
+                    var classExpression = operation.GetObject<ClassExpression>(objectConstants);
+                    var rewrittenClassExpression = (ClassExpression)Rewrite(classExpression);
+                    return ReferenceEquals(classExpression, rewrittenClassExpression)
+                        ? operation
+                        : operation.WithObjectConstant(objectPool.InternObject(rewrittenClassExpression));
+                }
 
             default:
                 return operation;
@@ -973,5 +1000,40 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         _scopeIdRemap[scopeId] = mappedId;
         _reverseScopeIdRemap[mappedId] = scopeId;
         return mappedId;
+    }
+
+    private sealed class ExpressionProgramObjectPoolBuilder
+    {
+        private readonly List<object> _objects;
+        private readonly Dictionary<object, int> _indices;
+
+        public ExpressionProgramObjectPoolBuilder(ImmutableArray<object> existingObjects)
+        {
+            _objects = existingObjects.IsDefaultOrEmpty ? [] : [.. existingObjects];
+            _indices = new Dictionary<object, int>(ReferenceEqualityComparer<object>.Instance);
+            for (var i = 0; i < _objects.Count; i++)
+            {
+                _indices[_objects[i]] = i;
+            }
+        }
+
+        public int InternObject<T>(T value)
+            where T : class
+        {
+            if (_indices.TryGetValue(value, out var existingIndex))
+            {
+                return existingIndex;
+            }
+
+            var index = _objects.Count;
+            _objects.Add(value);
+            _indices[value] = index;
+            return index;
+        }
+
+        public ImmutableArray<object> Build()
+        {
+            return _objects.Count == 0 ? ImmutableArray<object>.Empty : [.. _objects];
+        }
     }
 }

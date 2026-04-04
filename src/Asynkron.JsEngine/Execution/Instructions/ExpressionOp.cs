@@ -81,10 +81,14 @@ internal readonly record struct ExpressionProgram
 {
     public ExpressionProgram(
         ImmutableArray<PackedExpressionOp> operations,
-        ImmutableArray<string> stringConstants = default)
+        ImmutableArray<string> stringConstants = default,
+        ImmutableArray<object> objectConstants = default,
+        ImmutableArray<ImmutableArray<bool>> spreadMaskConstants = default)
     {
         Operations = operations;
         StringConstants = stringConstants.IsDefault ? ImmutableArray<string>.Empty : stringConstants;
+        ObjectConstants = objectConstants.IsDefault ? ImmutableArray<object>.Empty : objectConstants;
+        SpreadMaskConstants = spreadMaskConstants.IsDefault ? ImmutableArray<ImmutableArray<bool>>.Empty : spreadMaskConstants;
         MaxStackDepth = ComputeMaxStackDepth(operations);
     }
 
@@ -93,6 +97,10 @@ internal readonly record struct ExpressionProgram
     public ImmutableArray<PackedExpressionOp> Operations { get; init; }
 
     public ImmutableArray<string> StringConstants { get; init; }
+
+    public ImmutableArray<object> ObjectConstants { get; init; }
+
+    public ImmutableArray<ImmutableArray<bool>> SpreadMaskConstants { get; init; }
 
     public int MaxStackDepth { get; init; }
 
@@ -304,15 +312,7 @@ internal readonly struct PackedExpressionOp
 
     public string RegexFlags => DecodeRegexFlags(_flags);
 
-    public FunctionExpression Function => (FunctionExpression)_data!;
-
-    public ClassExpression Class => (ClassExpression)_data!;
-
-    public TaggedTemplateDescriptor TemplateDescriptor => (TaggedTemplateDescriptor)_data!;
-
     public Symbol Name => (Symbol)_data!;
-
-    public BindingTargetProgram TargetProgram => (BindingTargetProgram)_data!;
 
     public int ScopeId => _int0;
 
@@ -358,13 +358,24 @@ internal readonly struct PackedExpressionOp
 
     public bool ReplaceWithUndefined => (_flags & Flag1) != 0;
 
-    public ImmutableArray<bool> SpreadMask => _data is ImmutableArray<bool> spreadMask
-        ? spreadMask
-        : default;
+    public int SpreadMaskConstantIndex => _int1 - 1;
 
     public string GetString(ReadOnlySpan<string> stringConstants)
     {
         return stringConstants[_int0];
+    }
+
+    public T GetObject<T>(ReadOnlySpan<object> objectConstants)
+        where T : class
+    {
+        return (T)objectConstants[_int1];
+    }
+
+    public ImmutableArray<bool> GetSpreadMask(ReadOnlySpan<ImmutableArray<bool>> spreadMaskConstants)
+    {
+        return SpreadMaskConstantIndex < 0
+            ? default
+            : spreadMaskConstants[SpreadMaskConstantIndex];
     }
 
     public static PackedExpressionOp LoadLiteral(JsValue Value)
@@ -381,18 +392,18 @@ internal readonly struct PackedExpressionOp
     }
 
     public static PackedExpressionOp LoadFunctionLiteral(
-        FunctionExpression Function,
+        int functionIndex,
         bool IsConstructorFunction = true)
     {
         return new PackedExpressionOp(
             ExpressionOpKind.LoadFunctionLiteral,
-            data: Function,
+            int1: functionIndex,
             flags: IsConstructorFunction ? Flag0 : (byte)0);
     }
 
-    public static PackedExpressionOp LoadClassLiteral(ClassExpression Class)
+    public static PackedExpressionOp LoadClassLiteral(int classIndex)
     {
-        return new PackedExpressionOp(ExpressionOpKind.LoadClassLiteral, data: Class);
+        return new PackedExpressionOp(ExpressionOpKind.LoadClassLiteral, int1: classIndex);
     }
 
     public static PackedExpressionOp LoadIdentifier(
@@ -411,9 +422,9 @@ internal readonly struct PackedExpressionOp
             flags: IsArguments ? Flag0 : (byte)0);
     }
 
-    public static PackedExpressionOp LoadTemplateObject(TaggedTemplateDescriptor Descriptor)
+    public static PackedExpressionOp LoadTemplateObject(int descriptorIndex)
     {
-        return new PackedExpressionOp(ExpressionOpKind.LoadTemplateObject, data: Descriptor);
+        return new PackedExpressionOp(ExpressionOpKind.LoadTemplateObject, int1: descriptorIndex);
     }
 
     public static PackedExpressionOp StoreIdentifier(
@@ -432,9 +443,9 @@ internal readonly struct PackedExpressionOp
             flags: AllowNameInference ? Flag0 : (byte)0);
     }
 
-    public static PackedExpressionOp ApplyBindingTarget(BindingTargetProgram TargetProgram)
+    public static PackedExpressionOp ApplyBindingTarget(int targetProgramIndex)
     {
-        return new PackedExpressionOp(ExpressionOpKind.ApplyBindingTarget, data: TargetProgram);
+        return new PackedExpressionOp(ExpressionOpKind.ApplyBindingTarget, int1: targetProgramIndex);
     }
 
     public static PackedExpressionOp LoadNamedCallTarget(int propertyNameIndex)
@@ -696,36 +707,36 @@ internal readonly struct PackedExpressionOp
 
     public static PackedExpressionOp SuperConstruct(
         int ArgumentCount,
-        ImmutableArray<bool> SpreadMask = default)
+        int SpreadMaskConstantIndex = -1)
     {
         return new PackedExpressionOp(
             ExpressionOpKind.SuperConstruct,
-            data: SpreadMask.IsDefaultOrEmpty ? null : SpreadMask,
-            int0: ArgumentCount);
+            int0: ArgumentCount,
+            int1: SpreadMaskConstantIndex + 1);
     }
 
     public static PackedExpressionOp Call(
         int ArgumentCount,
         bool HasExplicitThis = false,
         bool IsDirectEval = false,
-        ImmutableArray<bool> SpreadMask = default)
+        int SpreadMaskConstantIndex = -1)
     {
         return new PackedExpressionOp(
             ExpressionOpKind.Call,
-            data: SpreadMask.IsDefaultOrEmpty ? null : SpreadMask,
             int0: ArgumentCount,
+            int1: SpreadMaskConstantIndex + 1,
             flags: (byte)((HasExplicitThis ? Flag0 : 0) |
                           (IsDirectEval ? Flag1 : 0)));
     }
 
     public static PackedExpressionOp Construct(
         int ArgumentCount,
-        ImmutableArray<bool> SpreadMask = default)
+        int SpreadMaskConstantIndex = -1)
     {
         return new PackedExpressionOp(
             ExpressionOpKind.Construct,
-            data: SpreadMask.IsDefaultOrEmpty ? null : SpreadMask,
-            int0: ArgumentCount);
+            int0: ArgumentCount,
+            int1: SpreadMaskConstantIndex + 1);
     }
 
     public PackedExpressionOp WithIdentifierResolution(int scopeId, int slotIndex, int flatSlotId)
@@ -733,19 +744,9 @@ internal readonly struct PackedExpressionOp
         return new PackedExpressionOp(Kind, _data, _value, scopeId, slotIndex, flatSlotId, _flags);
     }
 
-    public PackedExpressionOp WithBindingTargetProgram(BindingTargetProgram targetProgram)
+    public PackedExpressionOp WithObjectConstant(int objectConstantIndex)
     {
-        return new PackedExpressionOp(Kind, targetProgram, _value, _int0, _int1, _int2, _flags);
-    }
-
-    public PackedExpressionOp WithFunction(FunctionExpression function)
-    {
-        return new PackedExpressionOp(Kind, function, _value, _int0, _int1, _int2, _flags);
-    }
-
-    public PackedExpressionOp WithClass(ClassExpression classExpression)
-    {
-        return new PackedExpressionOp(Kind, classExpression, _value, _int0, _int1, _int2, _flags);
+        return new PackedExpressionOp(Kind, _data, _value, _int0, objectConstantIndex, _int2, _flags);
     }
 
     private static byte EncodeRegexFlags(string flags)

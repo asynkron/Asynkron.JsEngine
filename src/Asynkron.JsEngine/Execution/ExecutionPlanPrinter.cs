@@ -308,30 +308,43 @@ internal static class ExecutionPlanPrinter
             return "<empty>";
         }
 
-        return string.Join(" ", program.Operations.Select(op => FormatExpressionOp(op, program.StringConstants)));
+        return string.Join(
+            " ",
+            program.Operations.Select(op => FormatExpressionOp(
+                op,
+                program.StringConstants,
+                program.ObjectConstants,
+                program.SpreadMaskConstants)));
     }
 
-    private static string FormatExpressionOp(PackedExpressionOp op, ImmutableArray<string> stringConstants)
+    private static string FormatExpressionOp(
+        PackedExpressionOp op,
+        ImmutableArray<string> stringConstants,
+        ImmutableArray<object> objectConstants,
+        ImmutableArray<ImmutableArray<bool>> spreadMaskConstants)
     {
+        var stringConstantSpan = stringConstants.AsSpan();
+        var objectConstantSpan = objectConstants.AsSpan();
+        var spreadMaskConstantSpan = spreadMaskConstants.AsSpan();
         return op.Kind switch
         {
             ExpressionOpKind.LoadLiteral => op.LiteralValue.ToString() ?? "null",
-            ExpressionOpKind.LoadRegexLiteral => $"/{op.GetString(stringConstants.AsSpan())}/{op.RegexFlags}",
-            ExpressionOpKind.LoadFunctionLiteral => op.Function.Name is { } functionName ? $"fn:{functionName.Name}" : "fn",
-            ExpressionOpKind.LoadClassLiteral => op.Class.Name is { } className ? $"class:{className.Name}" : "class",
+            ExpressionOpKind.LoadRegexLiteral => $"/{op.GetString(stringConstantSpan)}/{op.RegexFlags}",
+            ExpressionOpKind.LoadFunctionLiteral => op.GetObject<FunctionExpression>(objectConstantSpan).Name is { } functionName ? $"fn:{functionName.Name}" : "fn",
+            ExpressionOpKind.LoadClassLiteral => op.GetObject<ClassExpression>(objectConstantSpan).Name is { } className ? $"class:{className.Name}" : "class",
             ExpressionOpKind.LoadTemplateObject => "template",
             ExpressionOpKind.LoadIdentifier => op.Name.Name,
             ExpressionOpKind.StoreIdentifier => $"store.{op.Name.Name}",
-            ExpressionOpKind.ApplyBindingTarget => $"bind.{op.TargetProgram}",
+            ExpressionOpKind.ApplyBindingTarget => $"bind.{op.GetObject<BindingTargetProgram>(objectConstantSpan)}",
             ExpressionOpKind.DuplicateTop => "dup",
             ExpressionOpKind.DuplicateTopTwo => "dup2",
             ExpressionOpKind.SwapTopTwo => "swap",
             ExpressionOpKind.RotateTopThreeRight => "rot3r",
             ExpressionOpKind.LoadThis => "this",
             ExpressionOpKind.LoadNewTarget => "new.target",
-            ExpressionOpKind.LoadNamedCallTarget => $"call.{op.GetString(stringConstants.AsSpan())}",
+            ExpressionOpKind.LoadNamedCallTarget => $"call.{op.GetString(stringConstantSpan)}",
             ExpressionOpKind.LoadComputedCallTarget => "call[]",
-            ExpressionOpKind.LoadNamedSuperCallTarget => $"super.call.{op.GetString(stringConstants.AsSpan())}",
+            ExpressionOpKind.LoadNamedSuperCallTarget => $"super.call.{op.GetString(stringConstantSpan)}",
             ExpressionOpKind.LoadComputedSuperCallTarget => "super.call[]",
             ExpressionOpKind.EnsureSuperReference => "super.this",
             ExpressionOpKind.CreateArray => "arr[]",
@@ -341,44 +354,44 @@ internal static class ExecutionPlanPrinter
             ExpressionOpKind.CreateObject => "obj{}",
             ExpressionOpKind.RequireObjectCoercible => $"require_obj[{op.Depth}]",
             ExpressionOpKind.ResolvePropertyKey => "propkey",
-            ExpressionOpKind.DefineObjectProperty => $"obj.{op.GetString(stringConstants.AsSpan())}",
+            ExpressionOpKind.DefineObjectProperty => $"obj.{op.GetString(stringConstantSpan)}",
             ExpressionOpKind.DefineComputedObjectProperty => "obj[]",
-            ExpressionOpKind.DefineObjectMethod => $"obj.method:{op.GetString(stringConstants.AsSpan())}",
+            ExpressionOpKind.DefineObjectMethod => $"obj.method:{op.GetString(stringConstantSpan)}",
             ExpressionOpKind.DefineComputedObjectMethod => "obj.method[]",
             ExpressionOpKind.DefineObjectAccessor => op.AccessorKind == ObjectAccessorKind.Getter
-                ? $"obj.get:{op.GetString(stringConstants.AsSpan())}"
-                : $"obj.set:{op.GetString(stringConstants.AsSpan())}",
+                ? $"obj.get:{op.GetString(stringConstantSpan)}"
+                : $"obj.set:{op.GetString(stringConstantSpan)}",
             ExpressionOpKind.DefineComputedObjectAccessor => op.AccessorKind == ObjectAccessorKind.Getter
                 ? "obj.get[]"
                 : "obj.set[]",
             ExpressionOpKind.ObjectSpread => "obj.spread",
-            ExpressionOpKind.GetNamedProperty => $".{op.GetString(stringConstants.AsSpan())}",
+            ExpressionOpKind.GetNamedProperty => $".{op.GetString(stringConstantSpan)}",
             ExpressionOpKind.GetComputedProperty => "[]",
-            ExpressionOpKind.GetNamedSuperProperty => $"super.{op.GetString(stringConstants.AsSpan())}",
+            ExpressionOpKind.GetNamedSuperProperty => $"super.{op.GetString(stringConstantSpan)}",
             ExpressionOpKind.GetComputedSuperProperty => "super[]",
-            ExpressionOpKind.SetNamedProperty => $"set.{op.GetString(stringConstants.AsSpan())}",
+            ExpressionOpKind.SetNamedProperty => $"set.{op.GetString(stringConstantSpan)}",
             ExpressionOpKind.SetComputedProperty => "set[]",
-            ExpressionOpKind.SetNamedSuperProperty => $"super.set.{op.GetString(stringConstants.AsSpan())}",
+            ExpressionOpKind.SetNamedSuperProperty => $"super.set.{op.GetString(stringConstantSpan)}",
             ExpressionOpKind.SetComputedSuperProperty => "super.set[]",
             ExpressionOpKind.UpdateIdentifier => op.IsPrefix
                 ? $"{(op.IsIncrement ? "++" : "--")}{op.Name.Name}"
                 : $"{op.Name.Name}{(op.IsIncrement ? "++" : "--")}",
             ExpressionOpKind.UpdateNamedProperty => op.IsPrefix
-                ? $"{(op.IsIncrement ? "++" : "--")}.{op.GetString(stringConstants.AsSpan())}"
-                : $".{op.GetString(stringConstants.AsSpan())}{(op.IsIncrement ? "++" : "--")}",
+                ? $"{(op.IsIncrement ? "++" : "--")}.{op.GetString(stringConstantSpan)}"
+                : $".{op.GetString(stringConstantSpan)}{(op.IsIncrement ? "++" : "--")}",
             ExpressionOpKind.UpdateComputedProperty => op.IsPrefix
                 ? $"{(op.IsIncrement ? "++" : "--")}[]"
                 : $"[]{(op.IsIncrement ? "++" : "--")}",
             ExpressionOpKind.UpdateNamedSuperProperty => op.IsPrefix
-                ? $"{(op.IsIncrement ? "++" : "--")}super.{op.GetString(stringConstants.AsSpan())}"
-                : $"super.{op.GetString(stringConstants.AsSpan())}{(op.IsIncrement ? "++" : "--")}",
+                ? $"{(op.IsIncrement ? "++" : "--")}super.{op.GetString(stringConstantSpan)}"
+                : $"super.{op.GetString(stringConstantSpan)}{(op.IsIncrement ? "++" : "--")}",
             ExpressionOpKind.UpdateComputedSuperProperty => op.IsPrefix
                 ? $"{(op.IsIncrement ? "++" : "--")}super[]"
                 : $"super[]{(op.IsIncrement ? "++" : "--")}",
             ExpressionOpKind.TypeOf => "typeof",
             ExpressionOpKind.TypeOfIdentifier => $"typeof {op.Name.Name}",
             ExpressionOpKind.DeleteIdentifier => $"delete {op.Name.Name}",
-            ExpressionOpKind.DeleteNamedProperty => $"delete .{op.GetString(stringConstants.AsSpan())}",
+            ExpressionOpKind.DeleteNamedProperty => $"delete .{op.GetString(stringConstantSpan)}",
             ExpressionOpKind.DeleteComputedProperty => "delete []",
             ExpressionOpKind.UnaryPlus => "+",
             ExpressionOpKind.UnaryMinus => "-",
@@ -387,8 +400,8 @@ internal static class ExecutionPlanPrinter
             ExpressionOpKind.ToString => "str",
             ExpressionOpKind.UnaryLogicalNot => "!",
             ExpressionOpKind.Binary => FormatBinaryOperator(op.Operator),
-            ExpressionOpKind.PrivateFieldIn => $"#{op.GetString(stringConstants.AsSpan())} in",
-            ExpressionOpKind.ThrowReferenceError => $"throw.ref:{op.GetString(stringConstants.AsSpan())}",
+            ExpressionOpKind.PrivateFieldIn => $"#{op.GetString(stringConstantSpan)} in",
+            ExpressionOpKind.ThrowReferenceError => $"throw.ref:{op.GetString(stringConstantSpan)}",
             ExpressionOpKind.Pop => "pop",
             ExpressionOpKind.Jump => $"jmp:{op.Target}",
             ExpressionOpKind.JumpIfNullish => $"jmpN:{op.Target}",
@@ -396,13 +409,13 @@ internal static class ExecutionPlanPrinter
             ExpressionOpKind.JumpIfTrue => $"jmpT:{op.Target}",
             ExpressionOpKind.JumpIfFalse => $"jmpF:{op.Target}",
             ExpressionOpKind.JumpIfNotNullish => $"jmpNN:{op.Target}",
-            ExpressionOpKind.SuperConstruct => op.SpreadMask.IsDefaultOrEmpty
+            ExpressionOpKind.SuperConstruct => op.GetSpreadMask(spreadMaskConstantSpan).IsDefaultOrEmpty
                 ? $"super/{op.ArgumentCount}"
                 : $"super*/{op.ArgumentCount}",
-            ExpressionOpKind.Call => op.SpreadMask.IsDefaultOrEmpty
+            ExpressionOpKind.Call => op.GetSpreadMask(spreadMaskConstantSpan).IsDefaultOrEmpty
                 ? $"call/{op.ArgumentCount}"
                 : $"call*/{op.ArgumentCount}",
-            ExpressionOpKind.Construct => op.SpreadMask.IsDefaultOrEmpty
+            ExpressionOpKind.Construct => op.GetSpreadMask(spreadMaskConstantSpan).IsDefaultOrEmpty
                 ? $"new/{op.ArgumentCount}"
                 : $"new*/{op.ArgumentCount}",
             _ => op.Kind.ToString()

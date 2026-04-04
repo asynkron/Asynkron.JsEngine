@@ -13,13 +13,19 @@ internal static class ExpressionProgramCompiler
         {
             return new ExpressionProgram(
                 [PackedExpressionOp.EnsureSuperReference],
-                program.StringConstants);
+                program.StringConstants,
+                program.ObjectConstants,
+                program.SpreadMaskConstants);
         }
 
         var builder = ImmutableArray.CreateBuilder<PackedExpressionOp>(program.Operations.Length + 1);
         builder.Add(PackedExpressionOp.EnsureSuperReference);
         builder.AddRange(program.Operations);
-        return new ExpressionProgram(builder.MoveToImmutable(), program.StringConstants);
+        return new ExpressionProgram(
+            builder.MoveToImmutable(),
+            program.StringConstants,
+            program.ObjectConstants,
+            program.SpreadMaskConstants);
     }
 
     public static bool TryCompile(
@@ -138,12 +144,12 @@ internal static class ExpressionProgramCompiler
                 return true;
 
             case FunctionExpression function:
-                builder.Add(PackedExpressionOp.LoadFunctionLiteral(function));
+                builder.Add(PackedExpressionOp.LoadFunctionLiteral(builder.InternObject(function)));
                 failureReason = null;
                 return true;
 
             case ClassExpression classExpression:
-                builder.Add(PackedExpressionOp.LoadClassLiteral(classExpression));
+                builder.Add(PackedExpressionOp.LoadClassLiteral(builder.InternObject(classExpression)));
                 failureReason = null;
                 return true;
 
@@ -488,7 +494,7 @@ internal static class ExpressionProgramCompiler
         }
 
         builder.Add(PackedExpressionOp.DuplicateTop);
-        builder.Add(PackedExpressionOp.ApplyBindingTarget(targetProgram));
+        builder.Add(PackedExpressionOp.ApplyBindingTarget(builder.InternObject(targetProgram)));
         failureReason = null;
         return true;
     }
@@ -667,8 +673,8 @@ internal static class ExpressionProgramCompiler
             builder.Add(PackedExpressionOp.SuperConstruct(
                 expression.Arguments.Length,
                 spreadMaskBuilder is not null
-                    ? ImmutableArray.CreateRange(spreadMaskBuilder)
-                    : default));
+                    ? builder.InternSpreadMask(ImmutableArray.CreateRange(spreadMaskBuilder))
+                    : -1));
         }
         else
         {
@@ -676,9 +682,9 @@ internal static class ExpressionProgramCompiler
                 expression.Arguments.Length,
                 HasExplicitThis: hasExplicitThis,
                 IsDirectEval: isDirectEval,
-                SpreadMask: spreadMaskBuilder is not null
-                    ? ImmutableArray.CreateRange(spreadMaskBuilder)
-                    : default));
+                SpreadMaskConstantIndex: spreadMaskBuilder is not null
+                    ? builder.InternSpreadMask(ImmutableArray.CreateRange(spreadMaskBuilder))
+                    : -1));
         }
 
         if (callNullishJumpIndex >= 0)
@@ -891,9 +897,9 @@ internal static class ExpressionProgramCompiler
 
         builder.Add(PackedExpressionOp.Construct(
             expression.Arguments.Length,
-            SpreadMask: spreadMaskBuilder is not null
-                ? ImmutableArray.CreateRange(spreadMaskBuilder)
-                : default));
+            SpreadMaskConstantIndex: spreadMaskBuilder is not null
+                ? builder.InternSpreadMask(ImmutableArray.CreateRange(spreadMaskBuilder))
+                : -1));
         failureReason = null;
         return true;
     }
@@ -1098,7 +1104,7 @@ internal static class ExpressionProgramCompiler
             return false;
         }
 
-        builder.Add(PackedExpressionOp.LoadTemplateObject(descriptor));
+        builder.Add(PackedExpressionOp.LoadTemplateObject(builder.InternObject(descriptor)));
 
         foreach (var templateExpression in expression.Expressions)
         {
@@ -2065,7 +2071,9 @@ internal static class ExpressionProgramCompiler
                             return false;
                         }
 
-                        builder.Add(PackedExpressionOp.LoadFunctionLiteral(member.Function, IsConstructorFunction: false));
+                        builder.Add(PackedExpressionOp.LoadFunctionLiteral(
+                            builder.InternObject(member.Function),
+                            IsConstructorFunction: false));
                         builder.Add(PackedExpressionOp.DefineObjectMethod(builder.InternString(methodName)));
                         break;
                     }
@@ -2082,7 +2090,9 @@ internal static class ExpressionProgramCompiler
                     }
 
                     builder.Add(PackedExpressionOp.ResolvePropertyKey);
-                    builder.Add(PackedExpressionOp.LoadFunctionLiteral(member.Function, IsConstructorFunction: false));
+                    builder.Add(PackedExpressionOp.LoadFunctionLiteral(
+                        builder.InternObject(member.Function),
+                        IsConstructorFunction: false));
                     builder.Add(PackedExpressionOp.DefineComputedObjectMethod);
                     break;
 
@@ -2106,7 +2116,9 @@ internal static class ExpressionProgramCompiler
                             return false;
                         }
 
-                        builder.Add(PackedExpressionOp.LoadFunctionLiteral(member.Function, IsConstructorFunction: false));
+                        builder.Add(PackedExpressionOp.LoadFunctionLiteral(
+                            builder.InternObject(member.Function),
+                            IsConstructorFunction: false));
                         builder.Add(PackedExpressionOp.DefineObjectAccessor(
                             builder.InternString(accessorName),
                             accessorKind));
@@ -2125,7 +2137,9 @@ internal static class ExpressionProgramCompiler
                     }
 
                     builder.Add(PackedExpressionOp.ResolvePropertyKey);
-                    builder.Add(PackedExpressionOp.LoadFunctionLiteral(member.Function, IsConstructorFunction: false));
+                    builder.Add(PackedExpressionOp.LoadFunctionLiteral(
+                        builder.InternObject(member.Function),
+                        IsConstructorFunction: false));
                     builder.Add(PackedExpressionOp.DefineComputedObjectAccessor(accessorKind));
                     break;
 
@@ -2278,6 +2292,10 @@ internal static class ExpressionProgramCompiler
         private readonly List<PackedExpressionOp> _operations = [];
         private readonly List<string> _stringConstants = [];
         private readonly Dictionary<string, int> _stringConstantMap = new(StringComparer.Ordinal);
+        private readonly List<object> _objectConstants = [];
+        private readonly Dictionary<object, int> _objectConstantMap = new(ReferenceEqualityComparer<object>.Instance);
+        private readonly List<ImmutableArray<bool>> _spreadMaskConstants = [];
+        private readonly Dictionary<ImmutableArray<bool>, int> _spreadMaskConstantMap = [];
 
         public int Count => _operations.Count;
 
@@ -2305,11 +2323,40 @@ internal static class ExpressionProgramCompiler
             return index;
         }
 
+        public int InternObject<T>(T value)
+            where T : class
+        {
+            if (_objectConstantMap.TryGetValue(value, out var existingIndex))
+            {
+                return existingIndex;
+            }
+
+            var index = _objectConstants.Count;
+            _objectConstants.Add(value);
+            _objectConstantMap[value] = index;
+            return index;
+        }
+
+        public int InternSpreadMask(ImmutableArray<bool> value)
+        {
+            if (_spreadMaskConstantMap.TryGetValue(value, out var existingIndex))
+            {
+                return existingIndex;
+            }
+
+            var index = _spreadMaskConstants.Count;
+            _spreadMaskConstants.Add(value);
+            _spreadMaskConstantMap[value] = index;
+            return index;
+        }
+
         public ExpressionProgram Build()
         {
             return new ExpressionProgram(
                 [.. _operations],
-                _stringConstants.Count == 0 ? ImmutableArray<string>.Empty : [.. _stringConstants]);
+                _stringConstants.Count == 0 ? ImmutableArray<string>.Empty : [.. _stringConstants],
+                _objectConstants.Count == 0 ? ImmutableArray<object>.Empty : [.. _objectConstants],
+                _spreadMaskConstants.Count == 0 ? ImmutableArray<ImmutableArray<bool>>.Empty : [.. _spreadMaskConstants]);
         }
     }
 }

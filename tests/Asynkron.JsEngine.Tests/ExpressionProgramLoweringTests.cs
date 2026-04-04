@@ -640,10 +640,10 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
 
         var instruction = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
         Assert.Null(instruction.Expression);
-        var operations = instruction.ExpressionProgram.ToLegacyExpressionOps().ToArray();
-        var loadSuperCallTargetIndex = Array.FindIndex(operations, op => op is LoadNamedSuperCallTargetExpressionOp);
-        var innerCallIndex = Array.FindIndex(operations, op => op is CallExpressionOp);
-        var outerSuperConstructIndex = Array.FindIndex(operations, op => op is SuperConstructExpressionOp);
+        var operations = instruction.ExpressionProgram.GetOps().ToArray();
+        var loadSuperCallTargetIndex = Array.FindIndex(operations, op => op.Kind == ExpressionOpKind.LoadNamedSuperCallTarget);
+        var innerCallIndex = Array.FindIndex(operations, op => op.Kind == ExpressionOpKind.Call);
+        var outerSuperConstructIndex = Array.FindIndex(operations, op => op.Kind == ExpressionOpKind.SuperConstruct);
 
         Assert.True(loadSuperCallTargetIndex >= 0);
         Assert.True(innerCallIndex > loadSuperCallTargetIndex);
@@ -665,10 +665,10 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
 
         var instruction = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
         Assert.Null(instruction.Expression);
-        var operations = instruction.ExpressionProgram.ToLegacyExpressionOps().ToArray();
-        var ensureIndex = Array.FindIndex(operations, op => op is EnsureSuperReferenceExpressionOp);
-        var innerSuperConstructIndex = Array.FindIndex(operations, op => op is SuperConstructExpressionOp);
-        var computedReadIndex = Array.FindIndex(operations, op => op is GetComputedSuperPropertyExpressionOp);
+        var operations = instruction.ExpressionProgram.GetOps().ToArray();
+        var ensureIndex = Array.FindIndex(operations, op => op.Kind == ExpressionOpKind.EnsureSuperReference);
+        var innerSuperConstructIndex = Array.FindIndex(operations, op => op.Kind == ExpressionOpKind.SuperConstruct);
+        var computedReadIndex = Array.FindIndex(operations, op => op.Kind == ExpressionOpKind.GetComputedSuperProperty);
 
         Assert.True(ensureIndex >= 0);
         Assert.True(innerSuperConstructIndex > ensureIndex);
@@ -1147,7 +1147,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         AssertProgramContains<JumpIfShortCircuitedExpressionOp>(instruction.ReturnProgram);
         Assert.Equal(
             2,
-            instruction.ReturnProgram!.Value.ToLegacyExpressionOps().OfType<CallExpressionOp>().Count());
+            instruction.ReturnProgram!.Value.GetOps(ExpressionOpKind.Call).Count());
     }
 
     [Fact]
@@ -1783,7 +1783,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         Assert.Null(instruction.Initializer);
         Assert.Equal(
             2,
-            instruction.InitializerProgram!.Value.ToLegacyExpressionOps().OfType<DefineObjectAccessorExpressionOp>().Count());
+            instruction.InitializerProgram!.Value.GetOps(ExpressionOpKind.DefineObjectAccessor).Count());
     }
 
     [Fact]
@@ -1911,14 +1911,12 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         return Assert.IsType<ExecutionPlan>(cache.Plan);
     }
 
-    private static void AssertProgramContains<TOp>(ExpressionProgram? program, Func<TOp, bool>? predicate = null)
-        where TOp : ExpressionOp
+    private static void AssertProgramContains<TOp>(ExpressionProgram? program, Func<ExpressionOpView, bool>? predicate = null)
+        where TOp : IExpressionOpMarker
     {
         Assert.NotNull(program);
-        var match = program.Value.Operations
-            .Select(op => op.ToLegacyExpressionOp(program.Value))
-            .OfType<TOp>()
-            .FirstOrDefault(op => predicate is null || predicate(op));
-        Assert.NotNull(match);
+        Assert.Contains(
+            program.Value.GetOps(TOp.Kind),
+            op => predicate is null || predicate(op));
     }
 }

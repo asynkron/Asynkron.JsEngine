@@ -9,36 +9,37 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    private static readonly ConditionalWeakTable<ExpressionNode, ClassElementExpressionProgramCache>
-        ClassElementExpressionPrograms = new();
+    private static readonly ConditionalWeakTable<ExpressionNode, ExpressionProgramCache>
+        ExpressionPrograms = new();
 
-    private static JsValue EvaluateClassElementExpressionProgram(
+    private static JsValue EvaluateCachedExpressionProgram(
         ExpressionNode expression,
         JsEnvironment environment,
-        EvaluationContext context)
+        EvaluationContext context,
+        string failureLabel)
     {
-        var cache = ClassElementExpressionPrograms.GetValue(expression, static node =>
+        var cache = ExpressionPrograms.GetValue(expression, static node =>
         {
             if (ExpressionProgramCompiler.TryCompile(node, out var program, out var failureReason))
             {
-                return ClassElementExpressionProgramCache.Success(program);
+                return ExpressionProgramCache.Success(program);
             }
 
-            return ClassElementExpressionProgramCache.Failure(failureReason ?? "unknown failure");
+            return ExpressionProgramCache.Failure(failureReason ?? "unknown failure");
         });
 
         if (!cache.Succeeded)
         {
             throw new NotSupportedException(
-                $"Class element expression could not be lowered to expression bytecode: {cache.FailureReason}");
+                $"{failureLabel} could not be lowered to expression bytecode: {cache.FailureReason}");
         }
 
         return ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(cache.Program, environment, context);
     }
 
-    private sealed class ClassElementExpressionProgramCache
+    private sealed class ExpressionProgramCache
     {
-        private ClassElementExpressionProgramCache(
+        private ExpressionProgramCache(
             bool succeeded,
             ExpressionProgram program,
             string? failureReason)
@@ -52,10 +53,10 @@ public static partial class TypedAstEvaluator
         public ExpressionProgram Program { get; }
         public string? FailureReason { get; }
 
-        public static ClassElementExpressionProgramCache Success(ExpressionProgram program) =>
+        public static ExpressionProgramCache Success(ExpressionProgram program) =>
             new(true, program, failureReason: null);
 
-        public static ClassElementExpressionProgramCache Failure(string failureReason) =>
+        public static ExpressionProgramCache Failure(string failureReason) =>
             new(false, default, failureReason);
     }
 }

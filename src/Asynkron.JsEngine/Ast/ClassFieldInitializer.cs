@@ -42,7 +42,11 @@ public static partial class TypedAstEvaluator
             var initEnv = CreateStaticInitializationEnvironment(constructorAccessor, environment, out var superBinding);
             initEnv.DefineJsValue(EvalHostFunction.FieldInitializerEvalFlag, JsValue.True, true, isLexicalBinding: true,
                 blocksFunctionScopeOverride: true);
-            valueJs = EvaluateClassElementExpressionProgram(field.Initializer, initEnv, context);
+            valueJs = EvaluateCachedExpressionProgram(
+                field.Initializer,
+                initEnv,
+                context,
+                "Class element expression");
             if (context.ShouldStopEvaluation)
             {
                 return false;

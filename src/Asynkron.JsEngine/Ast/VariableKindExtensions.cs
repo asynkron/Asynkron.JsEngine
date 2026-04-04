@@ -5,8 +5,6 @@ using Microsoft.Extensions.Logging;
 
 #endregion
 
-#pragma warning disable CS0618 // Obsolete AST evaluation methods are used intentionally here
-
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
@@ -48,7 +46,11 @@ public static partial class TypedAstEvaluator
 
         var valueJs = declarator.Initializer is null
             ? JsValue.Undefined
-            : declarator.Initializer.EvaluateExpression(environment, context);
+            : EvaluateCachedExpressionProgram(
+                declarator.Initializer,
+                environment,
+                context,
+                "Variable initializer");
 
         if (context.ShouldStopEvaluation)
         {

@@ -258,19 +258,28 @@ internal sealed record YieldInstruction(
 ///     Represents a delegated <c>yield*</c> expression that iterates another iterable.
 /// </summary>
 /// <param name="Next">Next instruction index.</param>
-/// <param name="IterableExpression">Builder-stage AST representation of the iterable expression.</param>
 /// <param name="IterableProgram">Lowered bytecode representation of the iterable expression.</param>
 /// <param name="StateSlotSymbol">Symbol for tracking the yield* state.</param>
 /// <param name="ResultSlotSymbol">Symbol for storing the result, or null.</param>
 internal sealed record YieldStarInstruction(
     int Next,
-    ExpressionNode? IterableExpression = null,
     ExpressionProgram? IterableProgram = null,
     Symbol? StateSlotSymbol = null,
     Symbol? ResultSlotSymbol = null,
     Symbol? AwaitStateKey = null,
     ExpressionProgram? AwaitedProgram = null)
     : ExecutionInstruction(InstructionKind.YieldStar, Next);
+
+/// <summary>
+///     Represents a delegated <c>yield*</c> whose iterable still requires AST evaluation because it contains
+///     nested suspension points.
+/// </summary>
+internal sealed record SuspendingYieldStarInstruction(
+    int Next,
+    ExpressionNode IterableExpression,
+    Symbol StateSlotSymbol,
+    Symbol? ResultSlotSymbol = null)
+    : ExecutionInstruction(InstructionKind.SuspendingYieldStar, Next);
 
 /// <summary>
 ///     Stores the most recent <c>.next(value)</c> payload into a synthetic slot (or discards it) before execution
@@ -357,8 +366,7 @@ internal sealed record EndFinallyInstruction(int Next)
 ///     Initializes the iterator for a <c>for...of</c> or <c>for await...of</c> loop.
 /// </summary>
 /// <param name="IteratorKind">Whether this is a sync or async iterator.</param>
-/// <param name="IterableExpression">AST representation of the iterable expression (nullable during migration).</param>
-/// <param name="IterableProgram">Bytecode representation of the iterable expression (nullable during migration).</param>
+/// <param name="IterableProgram">Bytecode representation of the iterable expression.</param>
 /// <param name="IteratorSlot">Symbol for the iterator state.</param>
 /// <param name="IteratorSlotIndex">Pre-resolved slot index for fast iterator state access (-1 if not resolved).</param>
 /// <param name="Next">Jump target after initialization.</param>
@@ -373,12 +381,26 @@ internal sealed record IteratorInitInstruction(
     Symbol IteratorSlot,
     int IteratorSlotIndex,
     int Next,
-    ExpressionNode? IterableExpression = null,
-    ExpressionProgram? IterableProgram = null,
+    ExpressionProgram IterableProgram,
     ImmutableArray<Symbol> TdzBindings = default,
     bool TdzIsConst = false,
     SourceReference? IterableSource = null)
     : ExecutionInstruction(InstructionKind.IteratorInit, Next);
+
+/// <summary>
+///     Initializes a <c>for...of</c> or <c>for await...of</c> loop whose iterable still requires AST evaluation
+///     because it contains suspension points.
+/// </summary>
+internal sealed record SuspendingIteratorInitInstruction(
+    IteratorDriverKind IteratorKind,
+    Symbol IteratorSlot,
+    int IteratorSlotIndex,
+    int Next,
+    ExpressionNode IterableExpression,
+    ImmutableArray<Symbol> TdzBindings = default,
+    bool TdzIsConst = false,
+    SourceReference? IterableSource = null)
+    : ExecutionInstruction(InstructionKind.SuspendingIteratorInit, Next);
 
 /// <summary>
 ///     Advances the iterator for a <c>for...of</c> or <c>for await...of</c> loop.
@@ -471,17 +493,26 @@ internal sealed record ReturnInstruction(
 ///     Marks the beginning of a <c>with</c> statement. Evaluates the object expression
 ///     and pushes a with-environment onto the scope chain.
 /// </summary>
-/// <param name="ObjectExpression">Builder-stage AST representation of the object expression.</param>
 /// <param name="ObjectProgram">Lowered bytecode representation of the object expression.</param>
 /// <param name="WithScopeSlot">Symbol for storing the with scope.</param>
 /// <param name="Next">Next instruction index.</param>
 internal sealed record EnterWithInstruction(
     Symbol WithScopeSlot,
     int Next,
-    ExpressionNode? ObjectExpression = null,
-    ExpressionProgram? ObjectProgram = null,
+    ExpressionProgram ObjectProgram,
     SourceReference? ObjectSource = null)
     : ExecutionInstruction(InstructionKind.EnterWith, Next);
+
+/// <summary>
+///     Marks the beginning of a <c>with</c> statement whose object expression still requires AST evaluation because
+///     it contains suspension points.
+/// </summary>
+internal sealed record SuspendingEnterWithInstruction(
+    Symbol WithScopeSlot,
+    int Next,
+    ExpressionNode ObjectExpression,
+    SourceReference? ObjectSource = null)
+    : ExecutionInstruction(InstructionKind.SuspendingEnterWith, Next);
 
 /// <summary>
 ///     Marks the end of a <c>with</c> statement. Pops the with-environment from the scope chain.
@@ -500,7 +531,6 @@ internal sealed record SetCompletionValueInstruction(int Next)
 ///     Initializes the for-in loop by evaluating the object expression and collecting
 ///     enumerable property keys.
 /// </summary>
-/// <param name="ObjectExpression">Builder-stage AST representation of the object expression.</param>
 /// <param name="ObjectProgram">Lowered bytecode representation of the object expression.</param>
 /// <param name="StateSlot">Symbol for the for-in state.</param>
 /// <param name="StateSlotIndex">Pre-resolved slot index for fast state access (-1 if not resolved).</param>
@@ -518,12 +548,27 @@ internal sealed record ForInInitInstruction(
     Symbol ValueSlot,
     int ValueSlotIndex,
     int Next,
-    ExpressionNode? ObjectExpression = null,
-    ExpressionProgram? ObjectProgram = null,
+    ExpressionProgram ObjectProgram,
     ImmutableArray<Symbol> TdzBindings = default,
     bool TdzIsConst = false,
     SourceReference? ObjectSource = null)
     : ExecutionInstruction(InstructionKind.ForInInit, Next);
+
+/// <summary>
+///     Initializes a for-in loop whose object expression still requires AST evaluation because it contains
+///     suspension points.
+/// </summary>
+internal sealed record SuspendingForInInitInstruction(
+    Symbol StateSlot,
+    int StateSlotIndex,
+    Symbol ValueSlot,
+    int ValueSlotIndex,
+    int Next,
+    ExpressionNode ObjectExpression,
+    ImmutableArray<Symbol> TdzBindings = default,
+    bool TdzIsConst = false,
+    SourceReference? ObjectSource = null)
+    : ExecutionInstruction(InstructionKind.SuspendingForInInit, Next);
 
 /// <summary>
 ///     Advances the for-in loop to the next enumerable property key.

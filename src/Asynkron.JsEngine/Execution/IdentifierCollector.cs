@@ -424,25 +424,19 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 return;
 
             case IteratorInitInstruction iterInit:
-                if (iterInit.IterableProgram is { } iterableProgram)
-                {
-                    VisitExpressionProgram(iterableProgram);
-                }
-                else if (iterInit.IterableExpression is not null)
-                {
-                    Visit(iterInit.IterableExpression);
-                }
+                VisitExpressionProgram(iterInit.IterableProgram);
+                return;
+
+            case SuspendingIteratorInitInstruction suspendingIteratorInit:
+                Visit(suspendingIteratorInit.IterableExpression);
                 return;
 
             case ForInInitInstruction forInInit:
-                if (forInInit.ObjectProgram is { } forInObjectProgram)
-                {
-                    VisitExpressionProgram(forInObjectProgram);
-                }
-                else if (forInInit.ObjectExpression is not null)
-                {
-                    Visit(forInInit.ObjectExpression);
-                }
+                VisitExpressionProgram(forInInit.ObjectProgram);
+                return;
+
+            case SuspendingForInInitInstruction suspendingForInInit:
+                Visit(suspendingForInInit.ObjectExpression);
                 return;
 
             case CompoundAssignmentSlotInstruction compoundAssign:
@@ -457,14 +451,11 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 return;
 
             case EnterWithInstruction enterWith:
-                if (enterWith.ObjectProgram is { } objectProgram)
-                {
-                    VisitExpressionProgram(objectProgram);
-                }
-                else if (enterWith.ObjectExpression is not null)
-                {
-                    Visit(enterWith.ObjectExpression);
-                }
+                VisitExpressionProgram(enterWith.ObjectProgram);
+                return;
+
+            case SuspendingEnterWithInstruction suspendingEnterWith:
+                Visit(suspendingEnterWith.ObjectExpression);
                 return;
 
             case YieldStarInstruction { AwaitedProgram: not null } yieldStar:
@@ -476,10 +467,10 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 {
                     VisitExpressionProgram(yieldStarIterableProgram);
                 }
-                else if (yieldStar.IterableExpression is not null)
-                {
-                    Visit(yieldStar.IterableExpression);
-                }
+                return;
+
+            case SuspendingYieldStarInstruction suspendingYieldStar:
+                Visit(suspendingYieldStar.IterableExpression);
                 return;
         }
     }

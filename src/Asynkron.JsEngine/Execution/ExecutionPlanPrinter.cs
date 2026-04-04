@@ -197,9 +197,14 @@ internal static class ExecutionPlanPrinter
             YieldStarInstruction yieldStar =>
                 "YIELD* " + (yieldStar.AwaitedProgram is not null
                     ? $"await {FormatExpression(null, yieldStar.AwaitedProgram)}"
-                    : FormatExpression(yieldStar.IterableExpression, yieldStar.IterableProgram))
+                    : FormatExpression(null, yieldStar.IterableProgram))
                 + (yieldStar.ResultSlotSymbol != null ? $" (result → {yieldStar.ResultSlotSymbol.Name})" : "")
                 + $" → [{yieldStar.Next}]",
+
+            SuspendingYieldStarInstruction suspendingYieldStar =>
+                "YIELD* " + FormatExpression(suspendingYieldStar.IterableExpression, null)
+                + (suspendingYieldStar.ResultSlotSymbol != null ? $" (result → {suspendingYieldStar.ResultSlotSymbol.Name})" : "")
+                + $" → [{suspendingYieldStar.Next}]",
 
             EnterTryInstruction enterTry =>
                 $"ENTER_TRY (handler: {(enterTry.HandlerIndex >= 0 ? $"[{enterTry.HandlerIndex}]" : "none")}, " +
@@ -212,7 +217,10 @@ internal static class ExecutionPlanPrinter
                 $"END_FINALLY → [{endFinally.Next}]",
 
             IteratorInitInstruction iterInit =>
-                $"ITER_INIT {FormatExpression(iterInit.IterableExpression, iterInit.IterableProgram)} (slot: {iterInit.IteratorSlot.Name}, kind: {iterInit.Kind}) → [{iterInit.Next}]",
+                $"ITER_INIT {FormatExpression(null, iterInit.IterableProgram)} (slot: {iterInit.IteratorSlot.Name}, kind: {iterInit.Kind}) → [{iterInit.Next}]",
+
+            SuspendingIteratorInitInstruction suspendingIterInit =>
+                $"ITER_INIT {FormatExpression(suspendingIterInit.IterableExpression, null)} (slot: {suspendingIterInit.IteratorSlot.Name}, kind: {suspendingIterInit.Kind}) → [{suspendingIterInit.Next}]",
 
             IteratorMoveNextInstruction moveNext =>
                 $"ITER_MOVE_NEXT (iter: {moveNext.IteratorSlot.Name}, value: {moveNext.ValueSlot.Name}) body: [{moveNext.Next}], done: [{moveNext.BreakIndex}]",
@@ -221,7 +229,10 @@ internal static class ExecutionPlanPrinter
                 $"ITER_CLOSE (iter: {iterClose.IteratorSlot.Name}) → [{iterClose.Next}]",
 
             ForInInitInstruction forInInit =>
-                $"FORIN_INIT {FormatExpression(forInInit.ObjectExpression, forInInit.ObjectProgram)} (state: {forInInit.StateSlot.Name}, value: {forInInit.ValueSlot.Name}) → [{forInInit.Next}]",
+                $"FORIN_INIT {FormatExpression(null, forInInit.ObjectProgram)} (state: {forInInit.StateSlot.Name}, value: {forInInit.ValueSlot.Name}) → [{forInInit.Next}]",
+
+            SuspendingForInInitInstruction suspendingForInInit =>
+                $"FORIN_INIT {FormatExpression(suspendingForInInit.ObjectExpression, null)} (state: {suspendingForInInit.StateSlot.Name}, value: {suspendingForInInit.ValueSlot.Name}) → [{suspendingForInInit.Next}]",
 
             ForInMoveNextInstruction forInMoveNext =>
                 $"FORIN_MOVE_NEXT (state: {forInMoveNext.StateSlot.Name}, value: {forInMoveNext.ValueSlot.Name}) body: [{forInMoveNext.Next}], done: [{forInMoveNext.BreakIndex}]",
@@ -230,7 +241,10 @@ internal static class ExecutionPlanPrinter
                 $"ARRAY_DESTRUCT_INIT {FormatExpression(arrayDestructuringInit.SourceExpression, arrayDestructuringInit.SourceProgram)} (iter: {arrayDestructuringInit.IteratorSlot.Name}) → [{arrayDestructuringInit.Next}]",
 
             EnterWithInstruction enterWith =>
-                $"ENTER_WITH {FormatExpression(enterWith.ObjectExpression, enterWith.ObjectProgram)} → [{enterWith.Next}]",
+                $"ENTER_WITH {FormatExpression(null, enterWith.ObjectProgram)} → [{enterWith.Next}]",
+
+            SuspendingEnterWithInstruction suspendingEnterWith =>
+                $"ENTER_WITH {FormatExpression(suspendingEnterWith.ObjectExpression, null)} → [{suspendingEnterWith.Next}]",
 
             LeaveWithInstruction leaveWith =>
                 $"LEAVE_WITH → [{leaveWith.Next}]",

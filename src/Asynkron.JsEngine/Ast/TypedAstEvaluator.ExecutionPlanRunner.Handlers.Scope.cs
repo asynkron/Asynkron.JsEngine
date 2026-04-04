@@ -25,9 +25,7 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<EnterWithInstruction>(instr);
-            var objValueJs = instruction.ObjectProgram is { } objectProgram
-                ? runner.EvaluateExpressionProgram(objectProgram, environment, context)
-                : instruction.ObjectExpression!.EvaluateExpression(environment, context);
+            var objValueJs = runner.EvaluateExpressionProgram(instruction.ObjectProgram, environment, context);
 
             if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingWithResult, environment))
             {
@@ -43,7 +41,43 @@ public static partial class TypedAstEvaluator
             if (TryConvertToWithBindingObject(objValueJs, context, out var withObject))
             {
                 var withEnv = JsEnvironment.CreateInstance(environment, false, context.CurrentScope.IsStrict,
-                    instruction.ObjectSource ?? instruction.ObjectExpression?.Source, "with", withObject);
+                    instruction.ObjectSource, "with", withObject);
+                StoreSymbolValue(runner._executionEnvironment!, instruction.WithScopeSlot, withEnv);
+                runner.WithStateRef.ActiveWithScopes.Push(instruction.WithScopeSlot);
+                environment = withEnv;
+            }
+
+            runner._programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static InstructionResult HandleSuspendingEnterWith(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
+            ref JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var instruction = Unsafe.As<SuspendingEnterWithInstruction>(instr);
+            var objValueJs = instruction.ObjectExpression.EvaluateExpression(environment, context);
+
+            if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingWithResult, environment))
+            {
+                returnValue = pendingWithResult;
+                return InstructionResult.Return;
+            }
+
+            if (context.IsThrow)
+            {
+                return HandleEnterWithThrowSlow(runner, context, out returnValue);
+            }
+
+            if (TryConvertToWithBindingObject(objValueJs, context, out var withObject))
+            {
+                var withEnv = JsEnvironment.CreateInstance(environment, false, context.CurrentScope.IsStrict,
+                    instruction.ObjectSource ?? instruction.ObjectExpression.Source, "with", withObject);
                 StoreSymbolValue(runner._executionEnvironment!, instruction.WithScopeSlot, withEnv);
                 runner.WithStateRef.ActiveWithScopes.Push(instruction.WithScopeSlot);
                 environment = withEnv;

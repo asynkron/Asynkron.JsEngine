@@ -21,6 +21,7 @@ internal enum InstructionKind : byte
     PopEnvironment,
     Yield,
     YieldStar,
+    SuspendingYieldStar,
     StoreResumeValue,
     EnterTry,
     EnterCatch,
@@ -29,6 +30,7 @@ internal enum InstructionKind : byte
     BreakableExit,
     EndFinally,
     IteratorInit,
+    SuspendingIteratorInit,
     IteratorMoveNext,
     IteratorClose,
     Jump,
@@ -37,10 +39,12 @@ internal enum InstructionKind : byte
     Continue,
     Return,
     EnterWith,
+    SuspendingEnterWith,
     LeaveWith,
     SetCompletionValue,
     CompoundAssignmentSlot,
     ForInInit,
+    SuspendingForInInit,
     ForInMoveNext,
 
     // Array destructuring

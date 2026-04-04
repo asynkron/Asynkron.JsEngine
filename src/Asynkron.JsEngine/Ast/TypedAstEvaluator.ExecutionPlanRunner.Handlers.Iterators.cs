@@ -86,7 +86,7 @@ public static partial class TypedAstEvaluator
             if (!instruction.TdzBindings.IsDefaultOrEmpty)
             {
                 iterableEnv = JsEnvironment.CreateInstance(environment, false, false,
-                    instruction.IterableSource ?? instruction.IterableExpression?.Source, "for-of-head-tdz");
+                    instruction.IterableSource, "for-of-head-tdz");
                 foreach (var tdzSymbol in instruction.TdzBindings)
                 {
                     iterableEnv.DefineJsValue(tdzSymbol, JsValue.Uninitialized,
@@ -95,9 +95,80 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            var iterableValue = instruction.IterableProgram is { } iterableProgram
-                ? runner.EvaluateExpressionProgram(iterableProgram, iterableEnv, context)
-                : instruction.IterableExpression!.EvaluateExpression(iterableEnv, context);
+            var iterableValue = runner.EvaluateExpressionProgram(instruction.IterableProgram, iterableEnv, context);
+            if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingIteratorResult, environment))
+            {
+                returnValue = pendingIteratorResult;
+                return InstructionResult.Return;
+            }
+
+            if (context.IsThrow)
+            {
+                return HandleIteratorInitThrowSlow(runner, context, out returnValue);
+            }
+
+            var iteratorState = CreateIteratorDriverState(iterableValue, instruction.IteratorKind, context);
+
+            var iteratorEnv = environment;
+            var walkCount = 0;
+            if (instruction.IteratorSlotIndex >= 0)
+            {
+                while (iteratorEnv is not null &&
+                       (iteratorEnv.ScopeId != runner._plan!.RootScopeId ||
+                        !iteratorEnv.HasSlots ||
+                        iteratorEnv._slots!.Length <= instruction.IteratorSlotIndex))
+                {
+                    iteratorEnv = iteratorEnv.Enclosing;
+                    walkCount++;
+                    if (walkCount > 1000)
+                    {
+                        break;
+                    }
+                }
+
+                iteratorEnv ??= environment;
+            }
+
+            if (instruction.IteratorSlotIndex >= 0 && iteratorEnv.HasSlots)
+            {
+                iteratorState.IteratorVariable = runner.CreateSlotVariable(iteratorEnv, instruction.IteratorSlotIndex);
+            }
+
+            iteratorState.LoopScopeEnvironment = environment;
+            runner.IteratorStateRef.CurrentDriverState = iteratorState;
+
+            runner.StoreValueBySlot(iteratorEnv, instruction.IteratorSlot,
+                instruction.IteratorSlotIndex,
+                JsValue.FromObjectUnsafe(iteratorState));
+
+            runner._programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static InstructionResult HandleSuspendingIteratorInit(
+                    ExecutionPlanRunner runner,
+                    ExecutionInstruction instr,
+                    ref JsEnvironment environment,
+                    EvaluationContext context,
+                    out JsValue returnValue)
+        {
+            var instruction = Unsafe.As<SuspendingIteratorInitInstruction>(instr);
+            var iterableEnv = environment;
+            if (!instruction.TdzBindings.IsDefaultOrEmpty)
+            {
+                iterableEnv = JsEnvironment.CreateInstance(environment, false, false,
+                    instruction.IterableSource ?? instruction.IterableExpression.Source, "for-of-head-tdz");
+                foreach (var tdzSymbol in instruction.TdzBindings)
+                {
+                    iterableEnv.DefineJsValue(tdzSymbol, JsValue.Uninitialized,
+                        instruction.TdzIsConst, isLexicalBinding: true,
+                        blocksFunctionScopeOverride: true);
+                }
+            }
+
+            var iterableValue = instruction.IterableExpression.EvaluateExpression(iterableEnv, context);
             if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingIteratorResult, environment))
             {
                 returnValue = pendingIteratorResult;

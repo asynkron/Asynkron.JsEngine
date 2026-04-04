@@ -138,8 +138,14 @@ internal struct ForOfLoopDriver : ILoopDriver
 
     public int EmitInitAndWire(EmitContext ctx, int loopEnterTarget)
     {
-        ctx.Patch(_instrPlan.InitIndex,
-            (IteratorInitInstruction)ctx.Instructions[_instrPlan.InitIndex] with { Next = loopEnterTarget });
+        ctx.Patch(
+            _instrPlan.InitIndex,
+            ctx.Instructions[_instrPlan.InitIndex] switch
+            {
+                IteratorInitInstruction iteratorInit => iteratorInit with { Next = loopEnterTarget },
+                SuspendingIteratorInitInstruction suspendingIteratorInit => suspendingIteratorInit with { Next = loopEnterTarget },
+                _ => throw new InvalidOperationException("Unexpected iterator init instruction shape.")
+            });
         return _instrPlan.InitIndex;
     }
 

@@ -40,7 +40,11 @@ internal static class WithEmitter
         // Build the enter with instruction (comes before the body)
         if (AstShapeAnalyzer.ContainsAwait(statement.Object) || AstShapeAnalyzer.ContainsYield(statement.Object))
         {
-            entryIndex = ctx.Append(new EnterWithInstruction(withScopeSlot, bodyEntry, ObjectExpression: statement.Object));
+            entryIndex = ctx.Append(new SuspendingEnterWithInstruction(
+                withScopeSlot,
+                bodyEntry,
+                statement.Object,
+                statement.Object.Source));
             return true;
         }
 
@@ -55,8 +59,8 @@ internal static class WithEmitter
         entryIndex = ctx.Append(new EnterWithInstruction(
             withScopeSlot,
             bodyEntry,
-            ObjectProgram: objectProgram,
-            ObjectSource: statement.Object.Source));
+            objectProgram,
+            statement.Object.Source));
         return true;
     }
 }

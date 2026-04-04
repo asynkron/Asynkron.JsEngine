@@ -44,33 +44,36 @@ internal static class IteratorInstructionTemplate
                 : default;
         var tdzIsConst = plan.DeclarationKind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
 
-        ExpressionNode? iterableExpression = plan.Iterable;
-        ExpressionProgram? iterableProgram = null;
-        Asynkron.JsEngine.Parser.SourceReference? iterableSource = null;
-
-        if (!(AstShapeAnalyzer.ContainsAwait(plan.Iterable) || AstShapeAnalyzer.ContainsYield(plan.Iterable)))
+        var initIndex = instructions.Count;
+        if (AstShapeAnalyzer.ContainsAwait(plan.Iterable) || AstShapeAnalyzer.ContainsYield(plan.Iterable))
+        {
+            instructions.Add(new SuspendingIteratorInitInstruction(
+                plan.Kind,
+                iteratorSymbol,
+                iteratorSlotIndex,
+                Next: -1,
+                IterableExpression: plan.Iterable,
+                TdzBindings: tdzBindings,
+                TdzIsConst: tdzIsConst,
+                IterableSource: plan.Iterable.Source));
+        }
+        else
         {
             if (!ExpressionProgramCompiler.TryCompile(plan.Iterable, out var compiledIterableProgram, out failureReason))
             {
                 return false;
             }
 
-            iterableExpression = null;
-            iterableProgram = compiledIterableProgram;
-            iterableSource = plan.Iterable.Source;
+            instructions.Add(new IteratorInitInstruction(
+                plan.Kind,
+                iteratorSymbol,
+                iteratorSlotIndex,
+                Next: -1,
+                IterableProgram: compiledIterableProgram,
+                TdzBindings: tdzBindings,
+                TdzIsConst: tdzIsConst,
+                IterableSource: plan.Iterable.Source));
         }
-
-        var initIndex = instructions.Count;
-        instructions.Add(new IteratorInitInstruction(
-            plan.Kind,
-            iteratorSymbol,
-            iteratorSlotIndex,
-            Next: -1,
-            IterableExpression: iterableExpression,
-            IterableProgram: iterableProgram,
-            TdzBindings: tdzBindings,
-            TdzIsConst: tdzIsConst,
-            IterableSource: iterableSource));
 
         var moveNextIndex = instructions.Count;
         instructions.Add(new IteratorMoveNextInstruction(plan.Kind, iteratorSymbol, valueSymbol, iteratorSlotIndex,

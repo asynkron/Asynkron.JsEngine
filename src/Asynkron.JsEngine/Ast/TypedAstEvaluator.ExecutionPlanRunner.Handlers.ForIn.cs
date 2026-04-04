@@ -30,7 +30,7 @@ public static partial class TypedAstEvaluator
             if (!instruction.TdzBindings.IsDefaultOrEmpty)
             {
                 objectEnv = JsEnvironment.CreateInstance(environment, false, false,
-                    instruction.ObjectSource ?? instruction.ObjectExpression?.Source, "for-in-head-tdz");
+                    instruction.ObjectSource, "for-in-head-tdz");
                 foreach (var tdzSymbol in instruction.TdzBindings)
                 {
                     objectEnv.DefineJsValue(tdzSymbol, JsValue.Uninitialized,
@@ -40,9 +40,7 @@ public static partial class TypedAstEvaluator
             }
 
             // Evaluate the object expression
-            var objectValue = instruction.ObjectProgram is { } objectProgram
-                ? runner.EvaluateExpressionProgram(objectProgram, objectEnv, context)
-                : instruction.ObjectExpression!.EvaluateExpression(objectEnv, context);
+            var objectValue = runner.EvaluateExpressionProgram(instruction.ObjectProgram, objectEnv, context);
             if (context.IsThrow)
             {
                 var initThrown = context.FlowValue;
@@ -93,6 +91,85 @@ public static partial class TypedAstEvaluator
             runner.ForInStateRef.CurrentDriverState = forInState;
 
             // Store the state (use runner instance method to apply slot offset)
+            runner.StoreValueBySlot(stateEnv, instruction.StateSlot,
+                instruction.StateSlotIndex,
+                JsValue.FromObjectUnsafe(forInState));
+
+            runner._programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static InstructionResult HandleSuspendingForInInit(
+                    ExecutionPlanRunner runner,
+                    ExecutionInstruction instr,
+                    ref JsEnvironment environment,
+                    EvaluationContext context,
+                    out JsValue returnValue)
+        {
+            var instruction = Unsafe.As<SuspendingForInInitInstruction>(instr);
+            var objectEnv = environment;
+
+            if (!instruction.TdzBindings.IsDefaultOrEmpty)
+            {
+                objectEnv = JsEnvironment.CreateInstance(environment, false, false,
+                    instruction.ObjectSource ?? instruction.ObjectExpression.Source, "for-in-head-tdz");
+                foreach (var tdzSymbol in instruction.TdzBindings)
+                {
+                    objectEnv.DefineJsValue(tdzSymbol, JsValue.Uninitialized,
+                        instruction.TdzIsConst, isLexicalBinding: true,
+                        blocksFunctionScopeOverride: true);
+                }
+            }
+
+            var objectValue = instruction.ObjectExpression.EvaluateExpression(objectEnv, context);
+            if (context.IsThrow)
+            {
+                var initThrown = context.FlowValue;
+                context.Clear();
+                if (runner.HandleAbruptCompletion(AbruptKind.Throw, initThrown))
+                {
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                runner.TryCatchStateRef.TryStack.Clear();
+                throw new ThrowSignal(initThrown);
+            }
+
+            var forInState = ForInDriverStatePool.Rent();
+            forInState.SourceObject = objectValue;
+            CollectEnumerablePropertyKeys(objectValue, forInState.PropertyKeys);
+
+            var stateEnv = environment;
+            var walkCount = 0;
+            if (instruction.StateSlotIndex >= 0)
+            {
+                while (stateEnv is not null &&
+                       (stateEnv.ScopeId != runner._plan!.RootScopeId ||
+                        !stateEnv.HasSlots ||
+                        stateEnv._slots!.Length <= instruction.StateSlotIndex))
+                {
+                    stateEnv = stateEnv.Enclosing;
+                    walkCount++;
+                    if (walkCount > 1000)
+                    {
+                        break;
+                    }
+                }
+
+                stateEnv ??= environment;
+            }
+
+            if (instruction.StateSlotIndex >= 0 && stateEnv.HasSlots)
+            {
+                forInState.StateVariable = runner.CreateSlotVariable(stateEnv, instruction.StateSlotIndex);
+            }
+
+            forInState.LoopScopeEnvironment = environment;
+            runner.ForInStateRef.CurrentDriverState = forInState;
+
             runner.StoreValueBySlot(stateEnv, instruction.StateSlot,
                 instruction.StateSlotIndex,
                 JsValue.FromObjectUnsafe(forInState));

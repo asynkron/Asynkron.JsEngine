@@ -392,109 +392,6 @@ internal sealed partial class ExecutionPlanBuilder
                     };
                     break;
 
-                case YieldStarInstruction { IterableExpression: AwaitExpression awaitExpression, IterableProgram: null, AwaitedProgram: null } yieldStarInstruction:
-                    if (!TryCompileExpressionProgram(awaitExpression.Expression, out var awaitedIterableProgram, out var awaitedIterableFailure))
-                    {
-                        return FailExpressionProgram(
-                            "YieldStarInstruction",
-                            awaitExpression.Expression,
-                            awaitedIterableFailure);
-                    }
-
-                    Instructions[i] = yieldStarInstruction with
-                    {
-                        IterableExpression = null,
-                        IterableProgram = null,
-                        AwaitStateKey = ((IAstCacheable<Symbol>)awaitExpression).GetOrCreateCache(),
-                        AwaitedProgram = awaitedIterableProgram
-                    };
-                    break;
-
-                case YieldStarInstruction { IterableExpression: not null, IterableProgram: null } yieldStarInstruction:
-                    if (!TryCompileExpressionProgram(yieldStarInstruction.IterableExpression, out var iterableProgram, out var iterableFailure))
-                    {
-                        return FailExpressionProgram(
-                            "YieldStarInstruction",
-                            yieldStarInstruction.IterableExpression,
-                            iterableFailure);
-                    }
-
-                    Instructions[i] = yieldStarInstruction with
-                    {
-                        IterableExpression = null,
-                        IterableProgram = iterableProgram
-                    };
-                    break;
-
-                case IteratorInitInstruction { IterableExpression: not null, IterableProgram: null } iteratorInitInstruction:
-                    if (AstShapeAnalyzer.ContainsAwait(iteratorInitInstruction.IterableExpression) ||
-                        AstShapeAnalyzer.ContainsYield(iteratorInitInstruction.IterableExpression))
-                    {
-                        break;
-                    }
-
-                    if (!TryCompileExpressionProgram(iteratorInitInstruction.IterableExpression, out var iteratorProgram, out var iteratorFailure))
-                    {
-                        return FailExpressionProgram(
-                            "IteratorInitInstruction",
-                            iteratorInitInstruction.IterableExpression,
-                            iteratorFailure);
-                    }
-
-                    Instructions[i] = iteratorInitInstruction with
-                    {
-                        IterableExpression = null,
-                        IterableProgram = iteratorProgram,
-                        IterableSource = iteratorInitInstruction.IterableSource ?? iteratorInitInstruction.IterableExpression.Source
-                    };
-                    break;
-
-                case ForInInitInstruction { ObjectExpression: not null, ObjectProgram: null } forInInitInstruction:
-                    if (AstShapeAnalyzer.ContainsAwait(forInInitInstruction.ObjectExpression) ||
-                        AstShapeAnalyzer.ContainsYield(forInInitInstruction.ObjectExpression))
-                    {
-                        break;
-                    }
-
-                    if (!TryCompileExpressionProgram(forInInitInstruction.ObjectExpression, out var objectProgram, out var forInFailure))
-                    {
-                        return FailExpressionProgram(
-                            "ForInInitInstruction",
-                            forInInitInstruction.ObjectExpression,
-                            forInFailure);
-                    }
-
-                    Instructions[i] = forInInitInstruction with
-                    {
-                        ObjectExpression = null,
-                        ObjectProgram = objectProgram,
-                        ObjectSource = forInInitInstruction.ObjectSource ?? forInInitInstruction.ObjectExpression.Source
-                    };
-                    break;
-
-                case EnterWithInstruction { ObjectExpression: not null, ObjectProgram: null } enterWithInstruction:
-                    if (AstShapeAnalyzer.ContainsAwait(enterWithInstruction.ObjectExpression) ||
-                        AstShapeAnalyzer.ContainsYield(enterWithInstruction.ObjectExpression))
-                    {
-                        break;
-                    }
-
-                    if (!TryCompileExpressionProgram(enterWithInstruction.ObjectExpression, out var withObjectProgram, out var withFailure))
-                    {
-                        return FailExpressionProgram(
-                            "EnterWithInstruction",
-                            enterWithInstruction.ObjectExpression,
-                            withFailure);
-                    }
-
-                    Instructions[i] = enterWithInstruction with
-                    {
-                        ObjectExpression = null,
-                        ObjectProgram = withObjectProgram,
-                        ObjectSource = enterWithInstruction.ObjectSource ?? enterWithInstruction.ObjectExpression.Source
-                    };
-                    break;
-
                 case ArrayDestructuringInitInstruction { SourceExpression: not null, SourceProgram: null } arrayDestructuringInitInstruction:
                     if (!TryCompileExpressionProgram(arrayDestructuringInitInstruction.SourceExpression, out var destructuringSourceProgram, out var destructuringFailure))
                     {
@@ -578,10 +475,6 @@ internal sealed partial class ExecutionPlanBuilder
                                AstShapeAnalyzer.ContainsYield(compoundInstruction.RhsExpression)):
                     case SimpleVariableDeclarationInstruction { Initializer: not null }:
                     case YieldInstruction { YieldExpression: not null }:
-                    case YieldStarInstruction { IterableExpression: not null }:
-                    case IteratorInitInstruction { IterableExpression: not null }:
-                    case ForInInitInstruction { ObjectExpression: not null }:
-                    case EnterWithInstruction { ObjectExpression: not null }:
                     case EvaluateAndDiscardInstruction { Expression: not null } evaluateInstruction
                         when !(AstShapeAnalyzer.ContainsAwait(evaluateInstruction.Expression) ||
                                AstShapeAnalyzer.ContainsYield(evaluateInstruction.Expression)):
@@ -1193,11 +1086,11 @@ internal sealed partial class ExecutionPlanBuilder
 
         if (AstShapeAnalyzer.ContainsAwait(expression.Expression) || AstShapeAnalyzer.ContainsYield(expression.Expression))
         {
-            entryIndex = Append(new YieldStarInstruction(
+            entryIndex = Append(new SuspendingYieldStarInstruction(
                 continuationIndex,
-                IterableExpression: expression.Expression,
-                StateSlotSymbol: stateSymbol,
-                ResultSlotSymbol: resultSlot));
+                expression.Expression,
+                stateSymbol,
+                resultSlot));
             return true;
         }
 

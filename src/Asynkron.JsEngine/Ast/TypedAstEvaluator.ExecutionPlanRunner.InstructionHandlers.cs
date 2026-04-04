@@ -41,6 +41,7 @@ public static partial class TypedAstEvaluator
             handlers[(int)InstructionKind.PopEnvironment] = HandlePopEnvironment;
             handlers[(int)InstructionKind.Yield] = HandleYield;
             handlers[(int)InstructionKind.YieldStar] = HandleYieldStar;
+            handlers[(int)InstructionKind.SuspendingYieldStar] = HandleSuspendingYieldStar;
             handlers[(int)InstructionKind.StoreResumeValue] = HandleStoreResumeValue;
             handlers[(int)InstructionKind.EnterTry] = HandleEnterTry;
             handlers[(int)InstructionKind.EnterCatch] = HandleEnterCatch;
@@ -49,6 +50,7 @@ public static partial class TypedAstEvaluator
             handlers[(int)InstructionKind.BreakableExit] = HandleBreakableExit;
             handlers[(int)InstructionKind.EndFinally] = HandleEndFinally;
             handlers[(int)InstructionKind.IteratorInit] = HandleIteratorInit;
+            handlers[(int)InstructionKind.SuspendingIteratorInit] = HandleSuspendingIteratorInit;
             handlers[(int)InstructionKind.IteratorMoveNext] = HandleIteratorMoveNext;
             handlers[(int)InstructionKind.Jump] = HandleJump;
             handlers[(int)InstructionKind.Branch] = HandleBranch;
@@ -56,10 +58,12 @@ public static partial class TypedAstEvaluator
             handlers[(int)InstructionKind.Continue] = HandleContinue;
             handlers[(int)InstructionKind.Return] = HandleReturn;
             handlers[(int)InstructionKind.EnterWith] = HandleEnterWith;
+            handlers[(int)InstructionKind.SuspendingEnterWith] = HandleSuspendingEnterWith;
             handlers[(int)InstructionKind.LeaveWith] = HandleLeaveWith;
             handlers[(int)InstructionKind.IteratorClose] = HandleIteratorClose;
             handlers[(int)InstructionKind.SetCompletionValue] = HandleSetCompletionValue;
             handlers[(int)InstructionKind.ForInInit] = HandleForInInit;
+            handlers[(int)InstructionKind.SuspendingForInInit] = HandleSuspendingForInInit;
             handlers[(int)InstructionKind.ForInMoveNext] = HandleForInMoveNext;
             // Array destructuring
             handlers[(int)InstructionKind.ArrayDestructuringInit] = HandleArrayDestructuringInit;

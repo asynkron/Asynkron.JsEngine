@@ -128,21 +128,22 @@ internal struct ForInLoopDriver : ILoopDriver
 
     public bool EmitMoveNext(EmitContext ctx, out int moveNextEntry, out int moveNextBranch)
     {
-        _initIndex = ctx.Append(new ForInInitInstruction(
-            _stateSymbol, _stateSlotIndex,
-            _valueSymbol, _valueSlotIndex,
-            Next: -1,
-            ObjectExpression: _objectExpression,
-            TdzBindings: _tdzBindings,
-            TdzIsConst: _tdzIsConst));
-
-        _moveNextIndex = ctx.Append(new ForInMoveNextInstruction(
-            _stateSymbol, _valueSymbol,
-            _stateSlotIndex, _valueSlotIndex,
-            -1, -1));
-
         if (AstShapeAnalyzer.ContainsAwait(_objectExpression))
         {
+            _initIndex = ctx.Append(new SuspendingForInInitInstruction(
+                _stateSymbol, _stateSlotIndex,
+                _valueSymbol, _valueSlotIndex,
+                Next: -1,
+                ObjectExpression: _objectExpression,
+                TdzBindings: _tdzBindings,
+                TdzIsConst: _tdzIsConst,
+                ObjectSource: _objectExpression.Source));
+
+            _moveNextIndex = ctx.Append(new ForInMoveNextInstruction(
+                _stateSymbol, _valueSymbol,
+                _stateSlotIndex, _valueSlotIndex,
+                -1, -1));
+
             moveNextEntry = _moveNextIndex;
             moveNextBranch = _moveNextIndex;
             return true;
@@ -156,15 +157,22 @@ internal struct ForInLoopDriver : ILoopDriver
             return false;
         }
 
+        _initIndex = ctx.Append(new ForInInitInstruction(
+            _stateSymbol, _stateSlotIndex,
+            _valueSymbol, _valueSlotIndex,
+            Next: -1,
+            ObjectProgram: objectProgram,
+            TdzBindings: _tdzBindings,
+            TdzIsConst: _tdzIsConst,
+            ObjectSource: _objectExpression.Source));
+
+        _moveNextIndex = ctx.Append(new ForInMoveNextInstruction(
+            _stateSymbol, _valueSymbol,
+            _stateSlotIndex, _valueSlotIndex,
+            -1, -1));
+
         moveNextEntry = _moveNextIndex;
         moveNextBranch = _moveNextIndex;
-        ctx.Patch(_initIndex,
-            (ForInInitInstruction)ctx.Instructions[_initIndex] with
-            {
-                ObjectExpression = null,
-                ObjectProgram = objectProgram,
-                ObjectSource = _objectExpression.Source
-            });
         return true;
     }
 
@@ -180,8 +188,14 @@ internal struct ForInLoopDriver : ILoopDriver
 
     public int EmitInitAndWire(EmitContext ctx, int loopEnterTarget)
     {
-        ctx.Patch(_initIndex,
-            (ForInInitInstruction)ctx.Instructions[_initIndex] with { Next = loopEnterTarget });
+        ctx.Patch(
+            _initIndex,
+            ctx.Instructions[_initIndex] switch
+            {
+                ForInInitInstruction forInInit => forInInit with { Next = loopEnterTarget },
+                SuspendingForInInitInstruction suspendingForInInit => suspendingForInInit with { Next = loopEnterTarget },
+                _ => throw new InvalidOperationException("Unexpected for-in init instruction shape.")
+            });
         return _initIndex;
     }
 

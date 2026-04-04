@@ -92,7 +92,6 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             """, "relay");
 
         var instruction = Assert.Single(plan.Instructions.OfType<YieldStarInstruction>(), i => i.IterableProgram is not null);
-        Assert.Null(instruction.IterableExpression);
         AssertProgramContains<LoadIdentifierExpressionOp>(instruction.IterableProgram, op => op.Name.Name == "items");
     }
 
@@ -107,10 +106,22 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
 
         var instruction = Assert.Single(plan.Instructions.OfType<YieldStarInstruction>()
 , i => i.AwaitedProgram is not null);
-        Assert.Null(instruction.IterableExpression);
         Assert.Null(instruction.IterableProgram);
         Assert.NotNull(instruction.AwaitStateKey);
         AssertProgramContains<LoadIdentifierExpressionOp>(instruction.AwaitedProgram, op => op.Name.Name == "items");
+    }
+
+    [Fact]
+    public async Task YieldStarInstruction_NestedAwaitIterable_UsesSuspendingInstruction()
+    {
+        var plan = await GetFunctionPlan("""
+            async function* relay(items) {
+                yield* (await items).values();
+            }
+            """, "relay");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<SuspendingYieldStarInstruction>());
+        Assert.IsType<CallExpression>(instruction.IterableExpression);
     }
 
     [Fact]
@@ -203,11 +214,26 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             """, "firstItem");
 
         var instruction = Assert.Single(plan.Instructions.OfType<IteratorInitInstruction>());
-        Assert.Null(instruction.IterableExpression);
         Assert.NotNull(instruction.IterableSource);
         AssertProgramContains<LoadIdentifierExpressionOp>(
             instruction.IterableProgram,
             op => op.Name.Name == "items");
+    }
+
+    [Fact]
+    public async Task IteratorInitInstruction_AwaitedIterable_UsesSuspendingInstruction()
+    {
+        var plan = await GetFunctionPlan("""
+            async function firstItem(itemsPromise) {
+                for (const item of await itemsPromise) {
+                    return item;
+                }
+                return 0;
+            }
+            """, "firstItem");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<SuspendingIteratorInitInstruction>());
+        Assert.IsType<AwaitExpression>(instruction.IterableExpression);
     }
 
     [Fact]
@@ -419,9 +445,24 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             """, "firstKey");
 
         var instruction = Assert.Single(plan.Instructions.OfType<ForInInitInstruction>());
-        Assert.Null(instruction.ObjectExpression);
         Assert.NotNull(instruction.ObjectSource);
         AssertProgramContains<LoadIdentifierExpressionOp>(instruction.ObjectProgram, op => op.Name.Name == "source");
+    }
+
+    [Fact]
+    public async Task ForInInitInstruction_AwaitedObject_UsesSuspendingInstruction()
+    {
+        var plan = await GetFunctionPlan("""
+            async function firstKey(sourcePromise) {
+                for (const key in await sourcePromise) {
+                    return key;
+                }
+                return "missing";
+            }
+            """, "firstKey");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<SuspendingForInInitInstruction>());
+        Assert.IsType<AwaitExpression>(instruction.ObjectExpression);
     }
 
     [Fact]
@@ -436,9 +477,23 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             """, "readWith");
 
         var instruction = Assert.Single(plan.Instructions.OfType<EnterWithInstruction>());
-        Assert.Null(instruction.ObjectExpression);
         Assert.NotNull(instruction.ObjectSource);
         AssertProgramContains<LoadIdentifierExpressionOp>(instruction.ObjectProgram, op => op.Name.Name == "scopeObj");
+    }
+
+    [Fact]
+    public async Task EnterWithInstruction_AwaitedObject_UsesSuspendingInstruction()
+    {
+        var plan = await GetFunctionPlan("""
+            async function readWith(scopePromise) {
+                with (await scopePromise) {
+                    return answer;
+                }
+            }
+            """, "readWith");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<SuspendingEnterWithInstruction>());
+        Assert.IsType<AwaitExpression>(instruction.ObjectExpression);
     }
 
     [Fact]

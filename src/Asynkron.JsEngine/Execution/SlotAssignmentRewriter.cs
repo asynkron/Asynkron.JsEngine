@@ -483,19 +483,25 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             case IteratorInitInstruction iterInit:
                 return iterInit with
                 {
-                    IterableExpression = Rewrite(iterInit.IterableExpression),
-                    IterableProgram = iterInit.IterableProgram is { } iteratorIterableProgram
-                        ? RewriteExpressionProgram(iteratorIterableProgram)
-                        : null
+                    IterableProgram = RewriteExpressionProgram(iterInit.IterableProgram)
+                };
+
+            case SuspendingIteratorInitInstruction suspendingIterInit:
+                return suspendingIterInit with
+                {
+                    IterableExpression = Rewrite(suspendingIterInit.IterableExpression)
                 };
 
             case EnterWithInstruction enterWith:
                 return enterWith with
                 {
-                    ObjectExpression = Rewrite(enterWith.ObjectExpression),
-                    ObjectProgram = enterWith.ObjectProgram is { } withObjectProgram
-                        ? RewriteExpressionProgram(withObjectProgram)
-                        : null
+                    ObjectProgram = RewriteExpressionProgram(enterWith.ObjectProgram)
+                };
+
+            case SuspendingEnterWithInstruction suspendingEnterWith:
+                return suspendingEnterWith with
+                {
+                    ObjectExpression = Rewrite(suspendingEnterWith.ObjectExpression)
                 };
 
             case YieldStarInstruction { AwaitedProgram: not null } yieldStar:
@@ -507,19 +513,27 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             case YieldStarInstruction yieldStar:
                 return yieldStar with
                 {
-                    IterableExpression = Rewrite(yieldStar.IterableExpression),
                     IterableProgram = yieldStar.IterableProgram is { } yieldStarIterableProgram
                         ? RewriteExpressionProgram(yieldStarIterableProgram)
                         : null
                 };
 
+            case SuspendingYieldStarInstruction suspendingYieldStar:
+                return suspendingYieldStar with
+                {
+                    IterableExpression = Rewrite(suspendingYieldStar.IterableExpression)
+                };
+
             case ForInInitInstruction forInInit:
                 return forInInit with
                 {
-                    ObjectExpression = Rewrite(forInInit.ObjectExpression),
-                    ObjectProgram = forInInit.ObjectProgram is { } forInObjectProgram
-                        ? RewriteExpressionProgram(forInObjectProgram)
-                        : null
+                    ObjectProgram = RewriteExpressionProgram(forInInit.ObjectProgram)
+                };
+
+            case SuspendingForInInitInstruction suspendingForInInit:
+                return suspendingForInInit with
+                {
+                    ObjectExpression = Rewrite(suspendingForInInit.ObjectExpression)
                 };
 
             case ArrayDestructuringInitInstruction destructuringInit:

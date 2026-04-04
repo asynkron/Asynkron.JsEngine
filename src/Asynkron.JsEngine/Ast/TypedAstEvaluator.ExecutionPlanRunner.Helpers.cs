@@ -2404,17 +2404,44 @@ public static partial class TypedAstEvaluator
                 return constructorIndex + 1;
             }
 
+            IReadOnlyList<JsValue> arguments;
             JsValue[]? pooledArguments = null;
 
             try
             {
-                var arguments = MaterializeProgramArguments(
-                    construct.ArgumentCount,
-                    construct.GetSpreadIndices(spreadMaskConstants),
-                    stack,
-                    constructorIndex + 1,
-                    context,
-                    out pooledArguments);
+                if (construct.SpreadMaskConstantIndex < 0)
+                {
+                    switch (construct.ArgumentCount)
+                    {
+                        case 0:
+                            arguments = EmptyValueArgs.Instance;
+                            break;
+
+                        case 1:
+                            arguments = new SingleValueArgs(stack[constructorIndex + 1]);
+                            break;
+
+                        default:
+                            arguments = MaterializeProgramArguments(
+                                construct.ArgumentCount,
+                                default,
+                                stack,
+                                constructorIndex + 1,
+                                context,
+                                out pooledArguments);
+                            break;
+                    }
+                }
+                else
+                {
+                    arguments = MaterializeProgramArguments(
+                        construct.ArgumentCount,
+                        construct.GetSpreadIndices(spreadMaskConstants),
+                        stack,
+                        constructorIndex + 1,
+                        context,
+                        out pooledArguments);
+                }
 
                 stack[constructorIndex] = global::Asynkron.JsEngine.StdLib.ReflectHelper.Construct(
                     callable,
@@ -2450,6 +2477,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext context)
         {
             var baseIndex = stackIndex - superConstruct.ArgumentCount;
+            IReadOnlyList<JsValue> arguments;
             JsValue[]? pooledArguments = null;
             var callDepthIncremented = false;
 
@@ -2502,13 +2530,39 @@ public static partial class TypedAstEvaluator
 
                 callDepthIncremented = true;
 
-                var arguments = MaterializeProgramArguments(
-                    superConstruct.ArgumentCount,
-                    superConstruct.GetSpreadIndices(spreadMaskConstants),
-                    stack,
-                    baseIndex,
-                    context,
-                    out pooledArguments);
+                if (superConstruct.SpreadMaskConstantIndex < 0)
+                {
+                    switch (superConstruct.ArgumentCount)
+                    {
+                        case 0:
+                            arguments = EmptyValueArgs.Instance;
+                            break;
+
+                        case 1:
+                            arguments = new SingleValueArgs(stack[baseIndex]);
+                            break;
+
+                        default:
+                            arguments = MaterializeProgramArguments(
+                                superConstruct.ArgumentCount,
+                                default,
+                                stack,
+                                baseIndex,
+                                context,
+                                out pooledArguments);
+                            break;
+                    }
+                }
+                else
+                {
+                    arguments = MaterializeProgramArguments(
+                        superConstruct.ArgumentCount,
+                        superConstruct.GetSpreadIndices(spreadMaskConstants),
+                        stack,
+                        baseIndex,
+                        context,
+                        out pooledArguments);
+                }
 
                 if (!JsOps.IsConstructor(constructorValue) ||
                     !constructorValue.TryGetObject<IJsCallable>(out var callable))

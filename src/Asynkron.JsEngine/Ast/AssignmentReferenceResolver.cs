@@ -140,15 +140,6 @@ internal static class AssignmentReferenceResolver
         return Resolve(expression, environment, context, evaluateExpression, false);
     }
 
-    public static AssignmentReference ResolveForDestructuring(
-        ExpressionNode expression,
-        JsEnvironment environment,
-        EvaluationContext context,
-        Func<ExpressionNode, JsEnvironment, EvaluationContext, JsValue> evaluateExpression)
-    {
-        return Resolve(expression, environment, context, evaluateExpression, true);
-    }
-
     private static AssignmentReference Resolve(
         ExpressionNode expression,
         JsEnvironment environment,

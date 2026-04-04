@@ -228,30 +228,38 @@ public static partial class TypedAstEvaluator
                     allowNameInference, skipBlockedBindingLookup);
                 break;
             case ArrayBinding arrayBinding:
-                arrayBinding.BindArrayPattern(value, environment, context, mode);
+                ApplyCompiledBindingTarget(
+                    arrayBinding,
+                    value,
+                    environment,
+                    context,
+                    mode,
+                    hasInitializer,
+                    allowNameInference,
+                    skipBlockedBindingLookup);
                 break;
             case ObjectBinding objectBinding:
-                objectBinding.BindObjectPattern(value, environment, context, mode);
+                ApplyCompiledBindingTarget(
+                    objectBinding,
+                    value,
+                    environment,
+                    context,
+                    mode,
+                    hasInitializer,
+                    allowNameInference,
+                    skipBlockedBindingLookup);
                 break;
             case AssignmentTargetBinding assignmentTarget:
-                {
-                    // Use fast path for identifiers, slow path for member expressions
-                    var reference = assignmentTarget.Expression is IdentifierExpression
-                        ? AssignmentReferenceResolver.ResolveIdentifierFast(
-                            assignmentTarget.Expression, environment, context)
-                        : AssignmentReferenceResolver.Resolve(
-                            assignmentTarget.Expression,
-                            environment,
-                            context,
-                            static (e, env, ctx) => e.EvaluateExpression(env, ctx));
-                    if (context.ShouldStopEvaluation)
-                    {
-                        return;
-                    }
-
-                    reference.SetValue(value);
-                    break;
-                }
+                ApplyCompiledBindingTarget(
+                    assignmentTarget,
+                    value,
+                    environment,
+                    context,
+                    mode,
+                    hasInitializer,
+                    allowNameInference,
+                    skipBlockedBindingLookup);
+                break;
             default:
                 throw new NotSupportedException($"Binding target '{target.GetType().Name}' is not supported.");
         }

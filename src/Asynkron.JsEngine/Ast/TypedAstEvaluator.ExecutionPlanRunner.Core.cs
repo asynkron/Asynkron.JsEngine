@@ -150,6 +150,40 @@ public static partial class TypedAstEvaluator
             }
         }
 
+        internal static void ApplyStandaloneBindingTargetProgram(
+            BindingTargetProgram target,
+            JsValue value,
+            JsEnvironment environment,
+            EvaluationContext context,
+            BindingMode mode,
+            bool hasInitializer = true,
+            bool allowNameInference = true,
+            bool skipBlockedBindingLookup = false)
+        {
+            var runner = new ExecutionPlanRunner(environment, context, newTarget: default);
+            var previousContext = EvaluationContext.Current;
+            var previousEnvironment = JsEnvironment.Current;
+            EvaluationContext.Current = context;
+            JsEnvironment.Current = environment;
+            try
+            {
+                runner.ApplyBindingTargetProgram(
+                    target,
+                    value,
+                    environment,
+                    context,
+                    mode,
+                    hasInitializer,
+                    allowNameInference,
+                    skipBlockedBindingLookup);
+            }
+            finally
+            {
+                JsEnvironment.Current = previousEnvironment;
+                EvaluationContext.Current = previousContext;
+            }
+        }
+
         /// <summary>
         /// Runs an execution plan for script-level code.
         /// This is a lightweight path that skips generator/async machinery setup.

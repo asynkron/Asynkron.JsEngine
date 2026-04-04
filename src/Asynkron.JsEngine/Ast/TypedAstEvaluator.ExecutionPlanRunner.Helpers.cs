@@ -169,6 +169,63 @@ public static partial class TypedAstEvaluator
             };
         }
 
+        private static int GetExpressionFlagWordCount(int stackSize)
+        {
+            return (stackSize + 63) >> 6;
+        }
+
+        private ref struct ExpressionFlagStack(Span<ulong> words)
+        {
+            private Span<ulong> _words = words;
+
+            [MethodImpl(JsEngineConstants.Inlining)]
+            public bool Get(int index)
+            {
+                var wordIndex = index >> 6;
+                var bit = 1UL << (index & 63);
+                return (_words[wordIndex] & bit) != 0;
+            }
+
+            [MethodImpl(JsEngineConstants.Inlining)]
+            public void Set(int index, bool value)
+            {
+                var wordIndex = index >> 6;
+                var bit = 1UL << (index & 63);
+                ref var word = ref _words[wordIndex];
+                if (value)
+                {
+                    word |= bit;
+                }
+                else
+                {
+                    word &= ~bit;
+                }
+            }
+
+            [MethodImpl(JsEngineConstants.Inlining)]
+            public void Copy(int sourceIndex, int destinationIndex)
+            {
+                Set(destinationIndex, Get(sourceIndex));
+            }
+
+            [MethodImpl(JsEngineConstants.Inlining)]
+            public void Swap(int leftIndex, int rightIndex)
+            {
+                var left = Get(leftIndex);
+                Set(leftIndex, Get(rightIndex));
+                Set(rightIndex, left);
+            }
+
+            [MethodImpl(JsEngineConstants.Inlining)]
+            public void RotateRight(int firstIndex, int secondIndex, int thirdIndex)
+            {
+                var third = Get(thirdIndex);
+                Set(thirdIndex, Get(secondIndex));
+                Set(secondIndex, Get(firstIndex));
+                Set(firstIndex, third);
+            }
+        }
+
         private JsValue EvaluateExpressionProgram(
             ExpressionProgram program,
             JsEnvironment environment,
@@ -193,7 +250,7 @@ public static partial class TypedAstEvaluator
                 out var flagBuffer,
                 out var rentedFromPool);
             Span<JsValue> stack = stackBuffer.AsSpan(0, stackSize);
-            Span<bool> stackFlags = flagBuffer.AsSpan(0, stackSize);
+            var stackFlags = new ExpressionFlagStack(flagBuffer.AsSpan(0, GetExpressionFlagWordCount(stackSize)));
             var stackIndex = 0;
             var programCounter = 0;
 
@@ -207,7 +264,7 @@ public static partial class TypedAstEvaluator
                         case ExpressionOpKind.LoadLiteral:
                             {
                                 stack[stackIndex++] = operation.GetLiteral(literalConstants);
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -219,7 +276,7 @@ public static partial class TypedAstEvaluator
                                         operation.GetString(stringConstants),
                                         operation.EncodedRegexFlags,
                                         context.RealmState));
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -232,7 +289,7 @@ public static partial class TypedAstEvaluator
                                         environment,
                                         context,
                                         operation.IsConstructorFunction));
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -244,7 +301,7 @@ public static partial class TypedAstEvaluator
                                     environment,
                                     context,
                                     classExpression.Name ?? context.CurrentFunctionNameHint);
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -254,7 +311,7 @@ public static partial class TypedAstEvaluator
                                 var templateDescriptor = operation.GetObject<TaggedTemplateDescriptor>(objectConstants);
                                 stack[stackIndex++] = JsValue.FromJsArray(
                                     GetOrCreateProgramTemplateObject(templateDescriptor, context));
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -269,7 +326,7 @@ public static partial class TypedAstEvaluator
                                     operation.IsArguments,
                                     environment,
                                     context);
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -286,7 +343,7 @@ public static partial class TypedAstEvaluator
                                     stack[stackIndex - 1],
                                     environment,
                                     context);
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -313,7 +370,7 @@ public static partial class TypedAstEvaluator
 
                         case ExpressionOpKind.DuplicateTop:
                             stack[stackIndex] = stack[stackIndex - 1];
-                            stackFlags[stackIndex] = stackFlags[stackIndex - 1];
+                            stackFlags.Copy(stackIndex - 1, stackIndex);
                             stackIndex++;
                             programCounter++;
                             break;
@@ -321,8 +378,8 @@ public static partial class TypedAstEvaluator
                         case ExpressionOpKind.DuplicateTopTwo:
                             stack[stackIndex] = stack[stackIndex - 2];
                             stack[stackIndex + 1] = stack[stackIndex - 1];
-                            stackFlags[stackIndex] = stackFlags[stackIndex - 2];
-                            stackFlags[stackIndex + 1] = stackFlags[stackIndex - 1];
+                            stackFlags.Copy(stackIndex - 2, stackIndex);
+                            stackFlags.Copy(stackIndex - 1, stackIndex + 1);
                             stackIndex += 2;
                             programCounter++;
                             break;
@@ -330,28 +387,26 @@ public static partial class TypedAstEvaluator
                         case ExpressionOpKind.SwapTopTwo:
                             (stack[stackIndex - 1], stack[stackIndex - 2]) =
                                 (stack[stackIndex - 2], stack[stackIndex - 1]);
-                            (stackFlags[stackIndex - 1], stackFlags[stackIndex - 2]) =
-                                (stackFlags[stackIndex - 2], stackFlags[stackIndex - 1]);
+                            stackFlags.Swap(stackIndex - 1, stackIndex - 2);
                             programCounter++;
                             break;
 
                         case ExpressionOpKind.RotateTopThreeRight:
                             (stack[stackIndex - 1], stack[stackIndex - 2], stack[stackIndex - 3]) =
                                 (stack[stackIndex - 2], stack[stackIndex - 3], stack[stackIndex - 1]);
-                            (stackFlags[stackIndex - 1], stackFlags[stackIndex - 2], stackFlags[stackIndex - 3]) =
-                                (stackFlags[stackIndex - 2], stackFlags[stackIndex - 3], stackFlags[stackIndex - 1]);
+                            stackFlags.RotateRight(stackIndex - 3, stackIndex - 2, stackIndex - 1);
                             programCounter++;
                             break;
 
                         case ExpressionOpKind.LoadThis:
                             stack[stackIndex++] = ResolveThisValue(environment, context);
-                            stackFlags[stackIndex - 1] = false;
+                            stackFlags.Set(stackIndex - 1, false);
                             programCounter++;
                             break;
 
                         case ExpressionOpKind.LoadNewTarget:
                             stack[stackIndex++] = _newTarget.IsUndefined ? JsValue.Undefined : _newTarget;
-                            stackFlags[stackIndex - 1] = false;
+                            stackFlags.Set(stackIndex - 1, false);
                             programCounter++;
                             break;
 
@@ -360,13 +415,13 @@ public static partial class TypedAstEvaluator
                                 var target = stack[stackIndex - 1];
                                 var callee = GetProgramNamedPropertyValue(
                                     target,
-                                    stackFlags[stackIndex - 1],
+                                    stackFlags.Get(stackIndex - 1),
                                     operation.GetString(stringConstants),
                                     isOptional: false,
                                     context,
                                     out var calleeWasShortCircuited);
                                 stack[stackIndex++] = callee;
-                                stackFlags[stackIndex - 1] = calleeWasShortCircuited;
+                                stackFlags.Set(stackIndex - 1, calleeWasShortCircuited);
                                 programCounter++;
                                 break;
                             }
@@ -377,12 +432,12 @@ public static partial class TypedAstEvaluator
                                 var target = stack[stackIndex - 1];
                                 var callee = GetProgramComputedPropertyValue(
                                     target,
-                                    stackFlags[stackIndex - 1],
+                                    stackFlags.Get(stackIndex - 1),
                                     propertyKey,
                                     context,
                                     out var calleeWasShortCircuited);
                                 stack[stackIndex++] = callee;
-                                stackFlags[stackIndex - 1] = calleeWasShortCircuited;
+                                stackFlags.Set(stackIndex - 1, calleeWasShortCircuited);
                                 programCounter++;
                                 break;
                             }
@@ -396,9 +451,9 @@ public static partial class TypedAstEvaluator
                                     out var receiver,
                                     out var callee);
                                 stack[stackIndex++] = receiver;
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 stack[stackIndex++] = callee;
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -413,9 +468,9 @@ public static partial class TypedAstEvaluator
                                     out var receiver,
                                     out var callee);
                                 stack[stackIndex++] = receiver;
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 stack[stackIndex++] = callee;
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -427,7 +482,7 @@ public static partial class TypedAstEvaluator
 
                         case ExpressionOpKind.CreateArray:
                             stack[stackIndex++] = JsValue.FromJsArray(new JsArray(context.RealmState));
-                            stackFlags[stackIndex - 1] = false;
+                            stackFlags.Set(stackIndex - 1, false);
                             programCounter++;
                             break;
 
@@ -485,7 +540,7 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 stack[stackIndex++] = JsValue.FromJsObject(targetObject);
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -507,7 +562,7 @@ public static partial class TypedAstEvaluator
 
                         case ExpressionOpKind.ResolvePropertyKey:
                             stack[stackIndex - 1] = ResolveProgramPropertyKey(stack[stackIndex - 1], context);
-                            stackFlags[stackIndex - 1] = false;
+                            stackFlags.Set(stackIndex - 1, false);
                             programCounter++;
                             break;
 
@@ -639,13 +694,15 @@ public static partial class TypedAstEvaluator
 
                         case ExpressionOpKind.GetNamedProperty:
                             {
+                                var targetWasShortCircuited = stackFlags.Get(stackIndex - 1);
                                 stack[stackIndex - 1] = GetProgramNamedPropertyValue(
                                     stack[stackIndex - 1],
-                                    stackFlags[stackIndex - 1],
+                                    targetWasShortCircuited,
                                     operation.GetString(stringConstants),
                                     operation.IsOptional,
                                     context,
-                                    out stackFlags[stackIndex - 1]);
+                                    out var resultWasShortCircuited);
+                                stackFlags.Set(stackIndex - 1, resultWasShortCircuited);
                                 programCounter++;
                                 break;
                             }
@@ -654,12 +711,14 @@ public static partial class TypedAstEvaluator
                             {
                                 var propertyKey = stack[--stackIndex];
                                 var target = stack[stackIndex - 1];
+                                var targetWasShortCircuited = stackFlags.Get(stackIndex - 1);
                                 stack[stackIndex - 1] = GetProgramComputedPropertyValue(
                                     target,
-                                    stackFlags[stackIndex - 1],
+                                    targetWasShortCircuited,
                                     propertyKey,
                                     context,
-                                    out stackFlags[stackIndex - 1]);
+                                    out var resultWasShortCircuited);
+                                stackFlags.Set(stackIndex - 1, resultWasShortCircuited);
                                 programCounter++;
                                 break;
                             }
@@ -670,7 +729,7 @@ public static partial class TypedAstEvaluator
                                     operation.GetString(stringConstants),
                                     environment,
                                     context);
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -682,7 +741,7 @@ public static partial class TypedAstEvaluator
                                     propertyKey,
                                     environment,
                                     context);
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -698,7 +757,7 @@ public static partial class TypedAstEvaluator
                                     propertyValue,
                                     context);
                                 stack[stackIndex - 1] = propertyValue;
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -715,7 +774,7 @@ public static partial class TypedAstEvaluator
                                     propertyValue,
                                     context);
                                 stack[stackIndex - 1] = propertyValue;
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -729,7 +788,7 @@ public static partial class TypedAstEvaluator
                                     propertyValue,
                                     environment,
                                     context);
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -744,7 +803,7 @@ public static partial class TypedAstEvaluator
                                     propertyValue,
                                     environment,
                                     context);
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -756,7 +815,7 @@ public static partial class TypedAstEvaluator
                                     identifierConstants,
                                     environment,
                                     context);
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -768,7 +827,7 @@ public static partial class TypedAstEvaluator
                                     operation.GetString(stringConstants),
                                     operation,
                                     context);
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -782,7 +841,7 @@ public static partial class TypedAstEvaluator
                                     propertyKey,
                                     operation,
                                     context);
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -794,7 +853,7 @@ public static partial class TypedAstEvaluator
                                     operation,
                                     environment,
                                     context);
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -807,14 +866,14 @@ public static partial class TypedAstEvaluator
                                     operation,
                                     environment,
                                     context);
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
 
                         case ExpressionOpKind.TypeOf:
                             stack[stackIndex - 1] = new JsValue(GetTypeofStringValue(stack[stackIndex - 1]));
-                            stackFlags[stackIndex - 1] = false;
+                            stackFlags.Set(stackIndex - 1, false);
                             programCounter++;
                             break;
 
@@ -825,7 +884,7 @@ public static partial class TypedAstEvaluator
                                     identifierConstants,
                                     environment,
                                     context);
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -839,7 +898,7 @@ public static partial class TypedAstEvaluator
                                     context)
                                     ? JsValue.True
                                     : JsValue.False;
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -852,7 +911,7 @@ public static partial class TypedAstEvaluator
                                     context)
                                     ? JsValue.True
                                     : JsValue.False;
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -867,7 +926,7 @@ public static partial class TypedAstEvaluator
                                     context)
                                     ? JsValue.True
                                     : JsValue.False;
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -880,38 +939,38 @@ public static partial class TypedAstEvaluator
                                         "Cannot convert a BigInt value to a number",
                                         context)
                                     : new JsValue(ToNumberValue(operand, context));
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
 
                         case ExpressionOpKind.UnaryMinus:
                             stack[stackIndex - 1] = NegateValue(stack[stackIndex - 1], context);
-                            stackFlags[stackIndex - 1] = false;
+                            stackFlags.Set(stackIndex - 1, false);
                             programCounter++;
                             break;
 
                         case ExpressionOpKind.UnaryBitwiseNot:
                             stack[stackIndex - 1] = BitwiseNotValue(stack[stackIndex - 1], context);
-                            stackFlags[stackIndex - 1] = false;
+                            stackFlags.Set(stackIndex - 1, false);
                             programCounter++;
                             break;
 
                         case ExpressionOpKind.UnaryVoid:
                             stack[stackIndex - 1] = JsValue.Undefined;
-                            stackFlags[stackIndex - 1] = false;
+                            stackFlags.Set(stackIndex - 1, false);
                             programCounter++;
                             break;
 
                         case ExpressionOpKind.ToString:
                             stack[stackIndex - 1] = new JsValue(JsOps.ToJsString(stack[stackIndex - 1], context));
-                            stackFlags[stackIndex - 1] = false;
+                            stackFlags.Set(stackIndex - 1, false);
                             programCounter++;
                             break;
 
                         case ExpressionOpKind.UnaryLogicalNot:
                             stack[stackIndex - 1] = stack[stackIndex - 1].IsTruthy ? JsValue.False : JsValue.True;
-                            stackFlags[stackIndex - 1] = false;
+                            stackFlags.Set(stackIndex - 1, false);
                             programCounter++;
                             break;
 
@@ -929,7 +988,7 @@ public static partial class TypedAstEvaluator
                                             ProfileBranchCompare(operation.Operator, left, right, context),
                                         _ => ProfileApplyBinaryOperator(operation.Operator, left, right, context)
                                     };
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -963,7 +1022,7 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 stack[stackIndex - 1] = found ? JsValue.True : JsValue.False;
-                                stackFlags[stackIndex - 1] = false;
+                                stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
                             }
@@ -987,12 +1046,12 @@ public static partial class TypedAstEvaluator
 
                         case ExpressionOpKind.JumpIfNullish:
                             {
-                                if (stackFlags[stackIndex - 1] || stack[stackIndex - 1].IsNullish)
+                                if (stackFlags.Get(stackIndex - 1) || stack[stackIndex - 1].IsNullish)
                                 {
                                     if (operation.ReplaceWithUndefined)
                                     {
                                         stack[stackIndex - 1] = JsValue.Undefined;
-                                        stackFlags[stackIndex - 1] = true;
+                                        stackFlags.Set(stackIndex - 1, true);
                                     }
 
                                     programCounter = operation.Target;
@@ -1006,7 +1065,7 @@ public static partial class TypedAstEvaluator
 
                         case ExpressionOpKind.JumpIfShortCircuited:
                             {
-                                programCounter = stackFlags[stackIndex - 1]
+                                programCounter = stackFlags.Get(stackIndex - 1)
                                     ? operation.Target
                                     : programCounter + 1;
                                 break;
@@ -1041,7 +1100,7 @@ public static partial class TypedAstEvaluator
                                 stackIndex = ExecuteProgramSuperConstruct(
                                     operation,
                                     stack,
-                                    stackFlags,
+                                    ref stackFlags,
                                     stackIndex,
                                     spreadMaskConstants,
                                     environment,
@@ -1055,7 +1114,7 @@ public static partial class TypedAstEvaluator
                                 stackIndex = ExecuteProgramCall(
                                     operation,
                                     stack,
-                                    stackFlags,
+                                    ref stackFlags,
                                     stackIndex,
                                     spreadMaskConstants,
                                     environment,
@@ -1069,7 +1128,7 @@ public static partial class TypedAstEvaluator
                                 stackIndex = ExecuteProgramConstruct(
                                     operation,
                                     stack,
-                                    stackFlags,
+                                    ref stackFlags,
                                     stackIndex,
                                     spreadMaskConstants,
                                     context);
@@ -1085,13 +1144,13 @@ public static partial class TypedAstEvaluator
                     if (context.ShouldStopEvaluation)
                     {
                         return stackIndex > 0
-                            ? stackFlags[stackIndex - 1] ? JsValue.Undefined : stack[stackIndex - 1]
+                            ? stackFlags.Get(stackIndex - 1) ? JsValue.Undefined : stack[stackIndex - 1]
                             : JsValue.Undefined;
                     }
                 }
 
                 return stackIndex > 0
-                    ? stackFlags[stackIndex - 1] ? JsValue.Undefined : stack[stackIndex - 1]
+                    ? stackFlags.Get(stackIndex - 1) ? JsValue.Undefined : stack[stackIndex - 1]
                     : JsValue.Undefined;
             }
             finally
@@ -1103,9 +1162,10 @@ public static partial class TypedAstEvaluator
         private void AcquireExpressionBuffers(
             int stackSize,
             out JsValue[] stackBuffer,
-            out bool[] flagBuffer,
+            out ulong[] flagBuffer,
             out bool rentedFromPool)
         {
+            var flagWordCount = GetExpressionFlagWordCount(stackSize);
             if (_expressionBufferLeaseCount == 0)
             {
                 EnsureCachedExpressionBufferCapacity(stackSize);
@@ -1116,7 +1176,7 @@ public static partial class TypedAstEvaluator
             else
             {
                 stackBuffer = ArrayPool<JsValue>.Shared.Rent(stackSize);
-                flagBuffer = ArrayPool<bool>.Shared.Rent(stackSize);
+                flagBuffer = ArrayPool<ulong>.Shared.Rent(flagWordCount);
                 rentedFromPool = true;
             }
 
@@ -1135,24 +1195,26 @@ public static partial class TypedAstEvaluator
                 _expressionStackBuffer = ArrayPool<JsValue>.Shared.Rent(stackSize);
             }
 
-            if (_expressionFlagBuffer is null || _expressionFlagBuffer.Length < stackSize)
+            var flagWordCount = GetExpressionFlagWordCount(stackSize);
+            if (_expressionFlagBuffer is null || _expressionFlagBuffer.Length < flagWordCount)
             {
                 if (_expressionFlagBuffer is not null)
                 {
-                    ArrayPool<bool>.Shared.Return(_expressionFlagBuffer, clearArray: false);
+                    ArrayPool<ulong>.Shared.Return(_expressionFlagBuffer, clearArray: false);
                 }
 
-                _expressionFlagBuffer = ArrayPool<bool>.Shared.Rent(stackSize);
+                _expressionFlagBuffer = ArrayPool<ulong>.Shared.Rent(flagWordCount);
             }
         }
 
         private void ReleaseExpressionBuffers(
             JsValue[] stackBuffer,
-            bool[] flagBuffer,
+            ulong[] flagBuffer,
             int usedLength,
             bool rentedFromPool)
         {
             stackBuffer.AsSpan(0, usedLength).Clear();
+            flagBuffer.AsSpan(0, GetExpressionFlagWordCount(usedLength)).Clear();
             _expressionBufferLeaseCount--;
 
             if (!rentedFromPool)
@@ -1161,7 +1223,7 @@ public static partial class TypedAstEvaluator
             }
 
             ArrayPool<JsValue>.Shared.Return(stackBuffer, clearArray: false);
-            ArrayPool<bool>.Shared.Return(flagBuffer, clearArray: false);
+            ArrayPool<ulong>.Shared.Return(flagBuffer, clearArray: false);
         }
 
         private void ReturnCachedExpressionBuffers()
@@ -1179,7 +1241,7 @@ public static partial class TypedAstEvaluator
 
             if (_expressionFlagBuffer is not null)
             {
-                ArrayPool<bool>.Shared.Return(_expressionFlagBuffer, clearArray: false);
+                ArrayPool<ulong>.Shared.Return(_expressionFlagBuffer, clearArray: false);
                 _expressionFlagBuffer = null;
             }
         }
@@ -2091,7 +2153,7 @@ public static partial class TypedAstEvaluator
         private int ExecuteProgramCall(
             PackedExpressionOp call,
             Span<JsValue> stack,
-            Span<bool> stackFlags,
+            ref ExpressionFlagStack stackFlags,
             int stackIndex,
             ReadOnlySpan<ImmutableArray<int>> spreadMaskConstants,
             JsEnvironment environment,
@@ -2111,7 +2173,7 @@ public static partial class TypedAstEvaluator
                     context.RealmState);
                 context.SetThrow(error);
                 stack[baseIndex] = JsValue.Undefined;
-                stackFlags[baseIndex] = false;
+                stackFlags.Set(baseIndex, false);
                 return baseIndex + 1;
             }
 
@@ -2123,7 +2185,7 @@ public static partial class TypedAstEvaluator
                     classConstructor.RealmState);
                 context.SetThrow(error);
                 stack[baseIndex] = JsValue.Undefined;
-                stackFlags[baseIndex] = false;
+                stackFlags.Set(baseIndex, false);
                 return baseIndex + 1;
             }
 
@@ -2215,14 +2277,14 @@ public static partial class TypedAstEvaluator
             }
 
             stack[baseIndex] = result;
-            stackFlags[baseIndex] = false;
+            stackFlags.Set(baseIndex, false);
             return baseIndex + 1;
         }
 
         private int ExecuteProgramConstruct(
             PackedExpressionOp construct,
             Span<JsValue> stack,
-            Span<bool> stackFlags,
+            ref ExpressionFlagStack stackFlags,
             int stackIndex,
             ReadOnlySpan<ImmutableArray<int>> spreadMaskConstants,
             EvaluationContext context)
@@ -2239,7 +2301,7 @@ public static partial class TypedAstEvaluator
                     context.RealmState);
                 context.SetThrow(error);
                 stack[constructorIndex] = JsValue.Undefined;
-                stackFlags[constructorIndex] = false;
+                stackFlags.Set(constructorIndex, false);
                 return constructorIndex + 1;
             }
 
@@ -2260,13 +2322,13 @@ public static partial class TypedAstEvaluator
                     arguments,
                     callable,
                     context.RealmState);
-                stackFlags[constructorIndex] = false;
+                stackFlags.Set(constructorIndex, false);
             }
             catch (ThrowSignal signal)
             {
                 context.SetThrow(signal.ThrownValue);
                 stack[constructorIndex] = signal.ThrownValue;
-                stackFlags[constructorIndex] = false;
+                stackFlags.Set(constructorIndex, false);
             }
             finally
             {
@@ -2282,7 +2344,7 @@ public static partial class TypedAstEvaluator
         private int ExecuteProgramSuperConstruct(
             PackedExpressionOp superConstruct,
             Span<JsValue> stack,
-            Span<bool> stackFlags,
+            ref ExpressionFlagStack stackFlags,
             int stackIndex,
             ReadOnlySpan<ImmutableArray<int>> spreadMaskConstants,
             JsEnvironment environment,
@@ -2358,7 +2420,7 @@ public static partial class TypedAstEvaluator
                         context.RealmState);
                     context.SetThrow(error);
                     stack[baseIndex] = JsValue.Undefined;
-                    stackFlags[baseIndex] = false;
+                    stackFlags.Set(baseIndex, false);
                     return baseIndex + 1;
                 }
 
@@ -2427,20 +2489,20 @@ public static partial class TypedAstEvaluator
                     if (context.ShouldStopEvaluation)
                     {
                         stack[baseIndex] = context.FlowValue;
-                        stackFlags[baseIndex] = false;
+                        stackFlags.Set(baseIndex, false);
                         return baseIndex + 1;
                     }
                 }
 
                 stack[baseIndex] = result;
-                stackFlags[baseIndex] = false;
+                stackFlags.Set(baseIndex, false);
                 return baseIndex + 1;
             }
             catch (ThrowSignal signal)
             {
                 context.SetThrow(signal.ThrownValue);
                 stack[baseIndex] = signal.ThrownValue;
-                stackFlags[baseIndex] = false;
+                stackFlags.Set(baseIndex, false);
                 return baseIndex + 1;
             }
             finally

@@ -96,7 +96,7 @@ public static partial class TypedAstEvaluator
         private GeneratorState _state = GeneratorState.Start;
         private bool _rootScopeLogged;
         private JsValue[]? _expressionStackBuffer;
-        private bool[]? _expressionFlagBuffer;
+        private ulong[]? _expressionFlagBuffer;
         private int _expressionBufferLeaseCount;
 
         /// <summary>

@@ -2307,6 +2307,60 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsClassComputedMethodNameScriptExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var program = _engine.ParseProgram("""
+                const suffix = "alue";
+                const Box = class {
+                    ["v" + suffix]() { return 42; }
+                };
+                new Box().value();
+                """);
+
+            var result = await _engine.Evaluate(program);
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsClassComputedFieldNameScriptExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var program = _engine.ParseProgram("""
+                const suffix = "alue";
+                const Box = class {
+                    ["v" + suffix];
+                };
+                Object.prototype.hasOwnProperty.call(new Box(), "value");
+                """);
+
+            var result = await _engine.Evaluate(program);
+
+            Assert.Equal(true, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
     public async Task AssertNoAstEvaluation_Enabled_ImmutableIdentifierAssignment_FailsAtRuntimeNotPlanBuild()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;

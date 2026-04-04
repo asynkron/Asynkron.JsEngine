@@ -157,6 +157,37 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
     }
 
     [Fact(Timeout = 2000)]
+    public async Task AsyncGenerator_ClassComputedFieldNameCanAwait()
+    {
+        await using var engine = CreateEngine();
+
+        AsyncTestHelpers.RegisterDelayHelper(engine);
+
+        await engine.Evaluate("""
+            let log = [];
+
+            async function* gen() {
+                class Box {
+                    [(await __delay(1, "va")) + "lue"];
+                }
+
+                yield Object.prototype.hasOwnProperty.call(new Box(), "value");
+            }
+
+            async function run() {
+                for await (const value of gen()) {
+                    log.push(String(value));
+                }
+            }
+
+            run();
+        """);
+
+        var result = await engine.Evaluate("log.join(',');");
+        Assert.Equal("true", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task AsyncGenerator_ForLoopWithYield()
     {
         await using var engine = CreateEngine();

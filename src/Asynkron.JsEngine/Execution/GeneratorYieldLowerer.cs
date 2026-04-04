@@ -1181,41 +1181,73 @@ internal static class GeneratorYieldLowerer
             var changed = false;
             var rewrittenExtends = definition.Extends;
 
+            if (_rewriteAwaits && definition.Extends is not null && AstShapeAnalyzer.ContainsAwait(definition.Extends))
+            {
+                rewrittenExtends =
+                    RewriteAwaitExpressionToSyntheticIdentifier(definition.Extends, prefixStatements);
+                changed = true;
+            }
+
             // Handle extends clause containing yield
-            if (definition.Extends is not null && AstShapeAnalyzer.ContainsYield(definition.Extends))
+            if (rewrittenExtends is not null && AstShapeAnalyzer.ContainsYield(rewrittenExtends))
             {
                 var extendsChanged = false;
-                rewrittenExtends =
-                    RewriteExpressionForComplexYields(definition.Extends, prefixStatements, ref extendsChanged);
+                rewrittenExtends = RewriteExpressionForComplexYields(rewrittenExtends, prefixStatements, ref extendsChanged);
                 changed |= extendsChanged;
             }
 
             for (var i = 0; i < members.Count; i++)
             {
                 var member = members[i];
+                if (member is { IsComputed: true, ComputedName: not null } && _rewriteAwaits &&
+                    AstShapeAnalyzer.ContainsAwait(member.ComputedName))
+                {
+                    member = member with
+                    {
+                        ComputedName =
+                            RewriteAwaitExpressionToSyntheticIdentifier(member.ComputedName, prefixStatements)
+                    };
+                    changed = true;
+                }
+
                 if (member is { IsComputed: true, ComputedName: not null } &&
                     AstShapeAnalyzer.ContainsYield(member.ComputedName))
                 {
                     var memberChanged = false;
                     var rewrittenName =
                         RewriteExpressionForComplexYields(member.ComputedName, prefixStatements, ref memberChanged);
-                    members[i] = member with { ComputedName = rewrittenName };
+                    member = member with { ComputedName = rewrittenName };
                     changed |= memberChanged;
                 }
+
+                members[i] = member;
             }
 
             for (var i = 0; i < fields.Count; i++)
             {
                 var field = fields[i];
+                if (field is { IsComputed: true, ComputedName: not null } && _rewriteAwaits &&
+                    AstShapeAnalyzer.ContainsAwait(field.ComputedName))
+                {
+                    field = field with
+                    {
+                        ComputedName =
+                            RewriteAwaitExpressionToSyntheticIdentifier(field.ComputedName, prefixStatements)
+                    };
+                    changed = true;
+                }
+
                 if (field is { IsComputed: true, ComputedName: not null } &&
                     AstShapeAnalyzer.ContainsYield(field.ComputedName))
                 {
                     var fieldChanged = false;
                     var rewrittenName =
                         RewriteExpressionForComplexYields(field.ComputedName, prefixStatements, ref fieldChanged);
-                    fields[i] = field with { ComputedName = rewrittenName };
+                    field = field with { ComputedName = rewrittenName };
                     changed |= fieldChanged;
                 }
+
+                fields[i] = field;
             }
 
             if (!changed)
@@ -1231,6 +1263,174 @@ internal static class GeneratorYieldLowerer
                 Fields = fields.ToImmutable()
             };
             return true;
+        }
+
+        private ExpressionNode RewriteAwaitExpressionToSyntheticIdentifier(
+            ExpressionNode expression,
+            ImmutableArray<StatementNode>.Builder prefixStatements)
+        {
+            switch (expression)
+            {
+                case AwaitExpression awaitExpression:
+                    {
+                        var tempBinding = CreateResumeIdentifier();
+                        prefixStatements.Add(CreateTempDeclaration(awaitExpression.Source, tempBinding, awaitExpression));
+                        return new IdentifierExpression(awaitExpression.Source, tempBinding.Name);
+                    }
+                case CallExpression callExpression:
+                    {
+                        var rewrittenCallee =
+                            RewriteAwaitExpressionToSyntheticIdentifier(callExpression.Callee, prefixStatements);
+                        var rewrittenArgs = callExpression.Arguments
+                            .Select(arg => arg with
+                            {
+                                Expression =
+                                    RewriteAwaitExpressionToSyntheticIdentifier(arg.Expression, prefixStatements)
+                            })
+                            .ToImmutableArray();
+                        return callExpression with { Callee = rewrittenCallee, Arguments = rewrittenArgs };
+                    }
+                case MemberExpression memberExpression:
+                    return memberExpression with
+                    {
+                        Target = RewriteAwaitExpressionToSyntheticIdentifier(memberExpression.Target, prefixStatements),
+                        Property = RewriteAwaitExpressionToSyntheticIdentifier(memberExpression.Property, prefixStatements)
+                    };
+                case NewExpression newExpression:
+                    {
+                        var rewrittenCtor =
+                            RewriteAwaitExpressionToSyntheticIdentifier(newExpression.Constructor, prefixStatements);
+                        var rewrittenArgs = newExpression.Arguments
+                            .Select(arg => arg with
+                            {
+                                Expression =
+                                    RewriteAwaitExpressionToSyntheticIdentifier(arg.Expression, prefixStatements)
+                            })
+                            .ToImmutableArray();
+                        return newExpression with { Constructor = rewrittenCtor, Arguments = rewrittenArgs };
+                    }
+                case UnaryExpression unaryExpression:
+                    return unaryExpression with
+                    {
+                        Operand = RewriteAwaitExpressionToSyntheticIdentifier(unaryExpression.Operand, prefixStatements)
+                    };
+                case BinaryExpression binaryExpression:
+                    return binaryExpression with
+                    {
+                        Left = RewriteAwaitExpressionToSyntheticIdentifier(binaryExpression.Left, prefixStatements),
+                        Right = RewriteAwaitExpressionToSyntheticIdentifier(binaryExpression.Right, prefixStatements)
+                    };
+                case ConditionalExpression conditionalExpression:
+                    return conditionalExpression with
+                    {
+                        Test = RewriteAwaitExpressionToSyntheticIdentifier(conditionalExpression.Test, prefixStatements),
+                        Consequent = RewriteAwaitExpressionToSyntheticIdentifier(
+                            conditionalExpression.Consequent,
+                            prefixStatements),
+                        Alternate = RewriteAwaitExpressionToSyntheticIdentifier(
+                            conditionalExpression.Alternate,
+                            prefixStatements)
+                    };
+                case SequenceExpression sequenceExpression:
+                    return sequenceExpression with
+                    {
+                        Left = RewriteAwaitExpressionToSyntheticIdentifier(sequenceExpression.Left, prefixStatements),
+                        Right = RewriteAwaitExpressionToSyntheticIdentifier(sequenceExpression.Right, prefixStatements)
+                    };
+                case AssignmentExpression assignmentExpression:
+                    return assignmentExpression with
+                    {
+                        Value = RewriteAwaitExpressionToSyntheticIdentifier(assignmentExpression.Value, prefixStatements)
+                    };
+                case PropertyAssignmentExpression propertyAssignmentExpression:
+                    return propertyAssignmentExpression with
+                    {
+                        Target = RewriteAwaitExpressionToSyntheticIdentifier(
+                            propertyAssignmentExpression.Target,
+                            prefixStatements),
+                        Property = RewriteAwaitExpressionToSyntheticIdentifier(
+                            propertyAssignmentExpression.Property,
+                            prefixStatements),
+                        Value = RewriteAwaitExpressionToSyntheticIdentifier(
+                            propertyAssignmentExpression.Value,
+                            prefixStatements)
+                    };
+                case IndexAssignmentExpression indexAssignmentExpression:
+                    return indexAssignmentExpression with
+                    {
+                        Target = RewriteAwaitExpressionToSyntheticIdentifier(
+                            indexAssignmentExpression.Target,
+                            prefixStatements),
+                        Index = RewriteAwaitExpressionToSyntheticIdentifier(
+                            indexAssignmentExpression.Index,
+                            prefixStatements),
+                        Value = RewriteAwaitExpressionToSyntheticIdentifier(
+                            indexAssignmentExpression.Value,
+                            prefixStatements)
+                    };
+                case ArrayExpression arrayExpression:
+                    return arrayExpression with
+                    {
+                        Elements = arrayExpression.Elements
+                            .Select(element => element.Expression is null
+                                ? element
+                                : element with
+                                {
+                                    Expression = RewriteAwaitExpressionToSyntheticIdentifier(
+                                        element.Expression,
+                                        prefixStatements)
+                                })
+                            .ToImmutableArray()
+                    };
+                case ObjectExpression objectExpression:
+                    return objectExpression with
+                    {
+                        Members = objectExpression.Members
+                            .Select(member => member with
+                            {
+                                Key = member is { IsComputed: true, Key: ExpressionNode keyExpression }
+                                    ? RewriteAwaitExpressionToSyntheticIdentifier(keyExpression, prefixStatements)
+                                    : member.Key,
+                                Value = member.Value is null
+                                    ? null
+                                    : RewriteAwaitExpressionToSyntheticIdentifier(member.Value, prefixStatements)
+                            })
+                            .ToImmutableArray()
+                    };
+                case TemplateLiteralExpression templateExpression:
+                    {
+                        var rewrittenParts = templateExpression.Parts
+                            .Select(part => part.Expression is null
+                                ? part
+                                : part with
+                                {
+                                    Expression = RewriteAwaitExpressionToSyntheticIdentifier(
+                                        part.Expression,
+                                        prefixStatements)
+                                })
+                            .ToImmutableArray();
+                        return templateExpression with { Parts = rewrittenParts };
+                    }
+                case TaggedTemplateExpression taggedTemplateExpression:
+                    return taggedTemplateExpression with
+                    {
+                        Tag = RewriteAwaitExpressionToSyntheticIdentifier(
+                            taggedTemplateExpression.Tag,
+                            prefixStatements),
+                        StringsArray = RewriteAwaitExpressionToSyntheticIdentifier(
+                            taggedTemplateExpression.StringsArray,
+                            prefixStatements),
+                        RawStringsArray = RewriteAwaitExpressionToSyntheticIdentifier(
+                            taggedTemplateExpression.RawStringsArray,
+                            prefixStatements),
+                        Expressions = taggedTemplateExpression.Expressions
+                            .Select(expressionNode =>
+                                RewriteAwaitExpressionToSyntheticIdentifier(expressionNode, prefixStatements))
+                            .ToImmutableArray()
+                    };
+                default:
+                    return expression;
+            }
         }
 
         private bool TryRewriteComplexYieldExpression(

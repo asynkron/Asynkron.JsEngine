@@ -1799,30 +1799,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 }
 
                 var propertyName = field.Name;
-                if (field.IsComputed)
-                {
-                    if (field.ComputedName is null)
-                    {
-                        throw new InvalidOperationException("Computed class field is missing name expression.");
-                    }
-
-                    var nameValueJs = field.ComputedName.EvaluateExpression(initEnv, context);
-                    if (context.ShouldStopEvaluation)
-                    {
-                        return;
-                    }
-
-                    propertyName = JsOps.GetRequiredPropertyName(nameValueJs, context);
-                    if (context.ShouldStopEvaluation)
-                    {
-                        return;
-                    }
-                }
-                else if (field.IsPrivate && PrivateNameScope is not null &&
-                         !propertyName.Contains('@', StringComparison.Ordinal))
-                {
-                    propertyName = PrivateNameScope.GetKey(propertyName);
-                }
 
                 context.RealmState.Logger?.LogInformation(
                     "Initializing instance field '{PropertyName}' (computed={IsComputed}, private={IsPrivate})",

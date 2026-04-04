@@ -284,7 +284,7 @@ public static partial class TypedAstEvaluator
         foreach (var field in fields)
         {
             var propertyName = field.Name;
-            if (!field.TryResolveFieldName(expr => expr.EvaluateExpression(environment, context),
+            if (!field.TryResolveFieldName(expr => EvaluateClassElementExpressionProgram(expr, environment, context),
                     context,
                     privateNameScope,
                     out propertyName))

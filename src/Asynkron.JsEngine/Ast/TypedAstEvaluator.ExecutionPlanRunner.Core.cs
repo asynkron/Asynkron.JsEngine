@@ -3,6 +3,7 @@
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 
@@ -101,6 +102,52 @@ public static partial class TypedAstEvaluator
             _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
             _isScriptMode = true;
             _slotOffset = slotOffset;
+        }
+
+        private ExecutionPlanRunner(
+            JsEnvironment environment,
+            EvaluationContext context,
+            JsValue newTarget)
+        {
+            _executionEnvironment = environment;
+            _closure = environment;
+            _context = context;
+            _realmState = context.RealmState;
+            _arguments = [];
+            _callable = null!;
+            _function = null!;
+            _thisValue = environment.TryGetJsValue(Symbol.This, out var thisValue)
+                ? thisValue
+                : JsValue.Undefined;
+            _newTarget = newTarget;
+            _derivedClassErrorRealm = _realmState;
+            _isStrict = environment.IsStrict;
+            _isAsync = false;
+            _isGenerator = false;
+            _allowIdentifierCache = context.AllowIdentifierCache;
+            _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
+        }
+
+        internal static JsValue EvaluateStandaloneExpressionProgram(
+            ExpressionProgram program,
+            JsEnvironment environment,
+            EvaluationContext context,
+            JsValue newTarget = default)
+        {
+            var runner = new ExecutionPlanRunner(environment, context, newTarget);
+            var previousContext = EvaluationContext.Current;
+            var previousEnvironment = JsEnvironment.Current;
+            EvaluationContext.Current = context;
+            JsEnvironment.Current = environment;
+            try
+            {
+                return runner.EvaluateExpressionProgram(program, environment, context);
+            }
+            finally
+            {
+                JsEnvironment.Current = previousEnvironment;
+                EvaluationContext.Current = previousContext;
+            }
         }
 
         /// <summary>

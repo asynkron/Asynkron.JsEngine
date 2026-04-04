@@ -462,12 +462,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                         : null
                 };
 
-            case SuspendingSimpleVariableDeclarationInstruction suspendingVarDecl:
-                return suspendingVarDecl with
-                {
-                    Initializer = Rewrite(suspendingVarDecl.Initializer)
-                };
-
             case BindingVariableDeclarationInstruction bindingDecl:
                 return bindingDecl with
                 {
@@ -478,13 +472,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     AwaitedProgram = bindingDecl.AwaitedProgram is { } bindingAwaitedProgram
                         ? RewriteExpressionProgram(bindingAwaitedProgram)
                         : null
-                };
-
-            case SuspendingBindingVariableDeclarationInstruction suspendingBindingDecl:
-                return suspendingBindingDecl with
-                {
-                    TargetProgram = RewriteBindingTargetProgram(suspendingBindingDecl.TargetProgram),
-                    Initializer = Rewrite(suspendingBindingDecl.Initializer)
                 };
 
             case IteratorInitInstruction iterInit:

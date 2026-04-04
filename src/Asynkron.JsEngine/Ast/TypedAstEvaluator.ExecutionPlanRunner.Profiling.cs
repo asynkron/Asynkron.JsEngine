@@ -72,15 +72,6 @@ public static partial class TypedAstEvaluator
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]
-        private static JsValue ProfileEvaluateExpression(
-                    ExpressionNode expression,
-                    JsEnvironment environment,
-                    EvaluationContext context)
-        {
-            return expression.EvaluateExpression(environment, context);
-        }
-
-        [MethodImpl(JsEngineConstants.Inlining)]
         private static JsValue ProfileEvaluateStatement(
                     StatementNode statement,
                     JsEnvironment environment,

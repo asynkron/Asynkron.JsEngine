@@ -36,9 +36,7 @@ public static partial class TypedAstEvaluator
             handlers[(int)InstructionKind.FunctionDeclaration] = HandleFunctionDeclaration;
             handlers[(int)InstructionKind.ClassDeclaration] = HandleClassDeclaration;
             handlers[(int)InstructionKind.SimpleVariableDeclaration] = HandleSimpleVariableDeclaration;
-            handlers[(int)InstructionKind.SuspendingSimpleVariableDeclaration] = HandleSuspendingSimpleVariableDeclaration;
             handlers[(int)InstructionKind.BindingVariableDeclaration] = HandleBindingVariableDeclaration;
-            handlers[(int)InstructionKind.SuspendingBindingVariableDeclaration] = HandleSuspendingBindingVariableDeclaration;
             handlers[(int)InstructionKind.PushEnvironment] = HandlePushEnvironment;
             handlers[(int)InstructionKind.PopEnvironment] = HandlePopEnvironment;
             handlers[(int)InstructionKind.Yield] = HandleYield;

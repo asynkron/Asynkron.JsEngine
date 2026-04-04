@@ -206,18 +206,6 @@ internal sealed record SimpleVariableDeclarationInstruction(
     public ExpressionNode? Initializer => null;
 }
 
-internal sealed record SuspendingSimpleVariableDeclarationInstruction(
-    int Next,
-    VariableKind VarKind,
-    Symbol TargetSymbol,
-    ExpressionNode Initializer,
-    bool AllowNameInference = false,
-    bool IsScriptLevel = false)
-    : ExecutionInstruction(InstructionKind.SuspendingSimpleVariableDeclaration, Next)
-{
-    public ExpressionProgram? InitializerProgram => null;
-}
-
 /// <summary>
 ///     Represents a single variable declarator that uses a binding target.
 ///     Handles declarations like: let {a, b} = obj; const [x, y] = arr; var {x = 1} = source;
@@ -232,16 +220,6 @@ internal sealed record BindingVariableDeclarationInstruction(
     : ExecutionInstruction(InstructionKind.BindingVariableDeclaration, Next)
 {
     public ExpressionNode? Initializer => null;
-}
-
-internal sealed record SuspendingBindingVariableDeclarationInstruction(
-    int Next,
-    VariableKind VarKind,
-    BindingTargetProgram TargetProgram,
-    ExpressionNode Initializer)
-    : ExecutionInstruction(InstructionKind.SuspendingBindingVariableDeclaration, Next)
-{
-    public ExpressionProgram? InitializerProgram => null;
 }
 
 /// <summary>

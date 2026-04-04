@@ -155,18 +155,12 @@ internal static class ExecutionPlanPrinter
                     : "") +
                 $" → [{varDecl.Next}]",
 
-            SuspendingSimpleVariableDeclarationInstruction suspendingVarDecl =>
-                $"VAR {suspendingVarDecl.VarKind} {suspendingVarDecl.TargetSymbol.Name} = {FormatExpression(suspendingVarDecl.Initializer, null)} → [{suspendingVarDecl.Next}]",
-
             BindingVariableDeclarationInstruction bindingDecl =>
                 $"VAR_BIND {bindingDecl.VarKind} {FormatBindingTarget(bindingDecl.TargetProgram)}" +
                 ((bindingDecl.AwaitedProgram ?? bindingDecl.InitializerProgram) is not null
                     ? $" = {FormatExpression(null, bindingDecl.AwaitedProgram ?? bindingDecl.InitializerProgram)}"
                     : "") +
                 $" → [{bindingDecl.Next}]",
-
-            SuspendingBindingVariableDeclarationInstruction suspendingBindingDecl =>
-                $"VAR_BIND {suspendingBindingDecl.VarKind} {FormatBindingTarget(suspendingBindingDecl.TargetProgram)} = {FormatExpression(suspendingBindingDecl.Initializer, null)} → [{suspendingBindingDecl.Next}]",
 
             PushEnvironmentInstruction pushEnv =>
                 $"PUSH_ENV (bindings: [{string.Join(", ", pushEnv.PerIterationBindings.Select(s => s.Name))}], " +

@@ -148,7 +148,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
 
         Assert.DoesNotContain(
             plan.Instructions,
-            static instruction => instruction.Kind == InstructionKind.SuspendingSimpleVariableDeclaration);
+            static instruction => instruction.GetType().Name.Contains("SuspendingSimpleVariableDeclaration", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -947,7 +947,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
 
         Assert.DoesNotContain(
             plan.Instructions,
-            static instruction => instruction.Kind == InstructionKind.SuspendingBindingVariableDeclaration);
+            static instruction => instruction.GetType().Name.Contains("SuspendingBindingVariableDeclaration", StringComparison.Ordinal));
     }
 
     [Fact]

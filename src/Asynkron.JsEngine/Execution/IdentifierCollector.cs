@@ -383,11 +383,6 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 RegisterDeclaration(varDecl);
                 return;
 
-            case SuspendingSimpleVariableDeclarationInstruction suspendingVarDecl:
-                RegisterDeclaration(suspendingVarDecl);
-                Visit(suspendingVarDecl.Initializer);
-                return;
-
             case BindingVariableDeclarationInstruction { InitializerProgram: not null or _, AwaitedProgram: not null } bindingDecl:
                 RegisterBindingDeclaration(bindingDecl);
                 VisitExpressionProgram(bindingDecl.AwaitedProgram ?? bindingDecl.InitializerProgram!.Value);
@@ -395,11 +390,6 @@ internal sealed class ScopeSlotCollector : AstVisitor
 
             case BindingVariableDeclarationInstruction bindingDecl:
                 RegisterBindingDeclaration(bindingDecl);
-                return;
-
-            case SuspendingBindingVariableDeclarationInstruction suspendingBindingDecl:
-                RegisterBindingDeclaration(suspendingBindingDecl);
-                Visit(suspendingBindingDecl.Initializer);
                 return;
 
             case IteratorInitInstruction iterInit:
@@ -556,17 +546,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
         RegisterDeclaration(varDecl.VarKind, varDecl.TargetSymbol);
     }
 
-    private void RegisterDeclaration(SuspendingSimpleVariableDeclarationInstruction varDecl)
-    {
-        RegisterDeclaration(varDecl.VarKind, varDecl.TargetSymbol);
-    }
-
     private void RegisterBindingDeclaration(BindingVariableDeclarationInstruction bindingDecl)
-    {
-        RegisterBindingDeclaration(bindingDecl.VarKind, bindingDecl.TargetProgram);
-    }
-
-    private void RegisterBindingDeclaration(SuspendingBindingVariableDeclarationInstruction bindingDecl)
     {
         RegisterBindingDeclaration(bindingDecl.VarKind, bindingDecl.TargetProgram);
     }

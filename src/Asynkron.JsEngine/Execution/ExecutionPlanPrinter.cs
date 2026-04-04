@@ -237,9 +237,6 @@ internal static class ExecutionPlanPrinter
             IteratorInitInstruction iterInit =>
                 $"ITER_INIT {FormatExpression(null, iterInit.AwaitedProgram ?? iterInit.IterableProgram)} (slot: {iterInit.IteratorSlot.Name}, kind: {iterInit.Kind}) → [{iterInit.Next}]",
 
-            SuspendingIteratorInitInstruction suspendingIterInit =>
-                $"ITER_INIT {FormatExpression(suspendingIterInit.IterableExpression, null)} (slot: {suspendingIterInit.IteratorSlot.Name}, kind: {suspendingIterInit.Kind}) → [{suspendingIterInit.Next}]",
-
             IteratorMoveNextInstruction moveNext =>
                 $"ITER_MOVE_NEXT (iter: {moveNext.IteratorSlot.Name}, value: {moveNext.ValueSlot.Name}) body: [{moveNext.Next}], done: [{moveNext.BreakIndex}]",
 
@@ -248,9 +245,6 @@ internal static class ExecutionPlanPrinter
 
             ForInInitInstruction forInInit =>
                 $"FORIN_INIT {FormatExpression(null, forInInit.AwaitedProgram ?? forInInit.ObjectProgram)} (state: {forInInit.StateSlot.Name}, value: {forInInit.ValueSlot.Name}) → [{forInInit.Next}]",
-
-            SuspendingForInInitInstruction suspendingForInInit =>
-                $"FORIN_INIT {FormatExpression(suspendingForInInit.ObjectExpression, null)} (state: {suspendingForInInit.StateSlot.Name}, value: {suspendingForInInit.ValueSlot.Name}) → [{suspendingForInInit.Next}]",
 
             ForInMoveNextInstruction forInMoveNext =>
                 $"FORIN_MOVE_NEXT (state: {forInMoveNext.StateSlot.Name}, value: {forInMoveNext.ValueSlot.Name}) body: [{forInMoveNext.Next}], done: [{forInMoveNext.BreakIndex}]",

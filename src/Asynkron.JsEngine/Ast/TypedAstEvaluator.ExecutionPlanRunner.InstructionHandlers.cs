@@ -57,7 +57,6 @@ public static partial class TypedAstEvaluator
             handlers[(int)InstructionKind.BreakableExit] = HandleBreakableExit;
             handlers[(int)InstructionKind.EndFinally] = HandleEndFinally;
             handlers[(int)InstructionKind.IteratorInit] = HandleIteratorInit;
-            handlers[(int)InstructionKind.SuspendingIteratorInit] = HandleSuspendingIteratorInit;
             handlers[(int)InstructionKind.IteratorMoveNext] = HandleIteratorMoveNext;
             handlers[(int)InstructionKind.Jump] = HandleJump;
             handlers[(int)InstructionKind.Branch] = HandleBranch;
@@ -70,7 +69,6 @@ public static partial class TypedAstEvaluator
             handlers[(int)InstructionKind.IteratorClose] = HandleIteratorClose;
             handlers[(int)InstructionKind.SetCompletionValue] = HandleSetCompletionValue;
             handlers[(int)InstructionKind.ForInInit] = HandleForInInit;
-            handlers[(int)InstructionKind.SuspendingForInInit] = HandleSuspendingForInInit;
             handlers[(int)InstructionKind.ForInMoveNext] = HandleForInMoveNext;
             // Array destructuring
             handlers[(int)InstructionKind.ArrayDestructuringInit] = HandleArrayDestructuringInit;

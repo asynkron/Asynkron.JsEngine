@@ -481,21 +481,6 @@ internal sealed record IteratorInitInstruction(
     : ExecutionInstruction(InstructionKind.IteratorInit, Next);
 
 /// <summary>
-///     Initializes a <c>for...of</c> or <c>for await...of</c> loop whose iterable still requires AST evaluation
-///     because it contains suspension points.
-/// </summary>
-internal sealed record SuspendingIteratorInitInstruction(
-    IteratorDriverKind IteratorKind,
-    Symbol IteratorSlot,
-    int IteratorSlotIndex,
-    int Next,
-    ExpressionNode IterableExpression,
-    ImmutableArray<Symbol> TdzBindings = default,
-    bool TdzIsConst = false,
-    SourceReference? IterableSource = null)
-    : ExecutionInstruction(InstructionKind.SuspendingIteratorInit, Next);
-
-/// <summary>
 ///     Advances the iterator for a <c>for...of</c> or <c>for await...of</c> loop.
 /// </summary>
 /// <param name="IteratorKind">Whether this is a sync or async iterator.</param>
@@ -650,22 +635,6 @@ internal sealed record ForInInitInstruction(
     bool TdzIsConst = false,
     SourceReference? ObjectSource = null)
     : ExecutionInstruction(InstructionKind.ForInInit, Next);
-
-/// <summary>
-///     Initializes a for-in loop whose object expression still requires AST evaluation because it contains
-///     suspension points.
-/// </summary>
-internal sealed record SuspendingForInInitInstruction(
-    Symbol StateSlot,
-    int StateSlotIndex,
-    Symbol ValueSlot,
-    int ValueSlotIndex,
-    int Next,
-    ExpressionNode ObjectExpression,
-    ImmutableArray<Symbol> TdzBindings = default,
-    bool TdzIsConst = false,
-    SourceReference? ObjectSource = null)
-    : ExecutionInstruction(InstructionKind.SuspendingForInInit, Next);
 
 /// <summary>
 ///     Advances the for-in loop to the next enumerable property key.

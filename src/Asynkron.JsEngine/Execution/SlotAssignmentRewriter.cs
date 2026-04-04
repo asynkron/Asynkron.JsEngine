@@ -580,12 +580,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                         : null
                 };
 
-            case SuspendingIteratorInitInstruction suspendingIterInit:
-                return suspendingIterInit with
-                {
-                    IterableExpression = Rewrite(suspendingIterInit.IterableExpression)
-                };
-
             case EnterWithInstruction enterWith:
                 return enterWith with
                 {
@@ -632,12 +626,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     AwaitedProgram = forInInit.AwaitedProgram is { } objectAwaitedProgram
                         ? RewriteExpressionProgram(objectAwaitedProgram)
                         : null
-                };
-
-            case SuspendingForInInitInstruction suspendingForInInit:
-                return suspendingForInInit with
-                {
-                    ObjectExpression = Rewrite(suspendingForInInit.ObjectExpression)
                 };
 
             case ArrayDestructuringInitInstruction destructuringInit:

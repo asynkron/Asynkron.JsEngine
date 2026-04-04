@@ -422,16 +422,8 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 VisitExpressionProgram(iterInit.AwaitedProgram ?? iterInit.IterableProgram!.Value);
                 return;
 
-            case SuspendingIteratorInitInstruction suspendingIteratorInit:
-                Visit(suspendingIteratorInit.IterableExpression);
-                return;
-
             case ForInInitInstruction forInInit:
                 VisitExpressionProgram(forInInit.AwaitedProgram ?? forInInit.ObjectProgram!.Value);
-                return;
-
-            case SuspendingForInInitInstruction suspendingForInInit:
-                Visit(suspendingForInInit.ObjectExpression);
                 return;
 
             case CompoundAssignmentSlotInstruction compoundAssign:

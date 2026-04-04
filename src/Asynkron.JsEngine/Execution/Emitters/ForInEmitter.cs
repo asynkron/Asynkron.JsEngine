@@ -158,27 +158,6 @@ internal struct ForInLoopDriver : ILoopDriver
             return true;
         }
 
-        if (AstShapeAnalyzer.ContainsAwait(_objectExpression))
-        {
-            _initIndex = ctx.Append(new SuspendingForInInitInstruction(
-                _stateSymbol, _stateSlotIndex,
-                _valueSymbol, _valueSlotIndex,
-                Next: -1,
-                ObjectExpression: _objectExpression,
-                TdzBindings: _tdzBindings,
-                TdzIsConst: _tdzIsConst,
-                ObjectSource: _objectExpression.Source));
-
-            _moveNextIndex = ctx.Append(new ForInMoveNextInstruction(
-                _stateSymbol, _valueSymbol,
-                _stateSlotIndex, _valueSlotIndex,
-                -1, -1));
-
-            moveNextEntry = _moveNextIndex;
-            moveNextBranch = _moveNextIndex;
-            return true;
-        }
-
         if (!ExpressionProgramCompiler.TryCompile(_objectExpression, out var objectProgram, out var failureReason))
         {
             ctx.SetExpressionProgramFailure("ForInInitInstruction", _objectExpression, failureReason);
@@ -223,7 +202,6 @@ internal struct ForInLoopDriver : ILoopDriver
             ctx.Instructions[_initIndex] switch
             {
                 ForInInitInstruction forInInit => forInInit with { Next = loopEnterTarget },
-                SuspendingForInInitInstruction suspendingForInInit => suspendingForInInit with { Next = loopEnterTarget },
                 _ => throw new InvalidOperationException("Unexpected for-in init instruction shape.")
             });
         return _initIndex;

@@ -490,9 +490,6 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         AssertProgramContains<LoadIdentifierExpressionOp>(
             instruction.IterableProgram,
             op => op.Name.Name!.StartsWith("__yield_lower_", StringComparison.Ordinal));
-        Assert.DoesNotContain(
-            plan.Instructions,
-            static i => i.Kind == InstructionKind.SuspendingIteratorInit);
     }
 
     [Fact]
@@ -770,9 +767,6 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         AssertProgramContains<LoadIdentifierExpressionOp>(
             instruction.ObjectProgram,
             op => op.Name.Name!.StartsWith("__yield_lower_", StringComparison.Ordinal));
-        Assert.DoesNotContain(
-            plan.Instructions,
-            static i => i.Kind == InstructionKind.SuspendingForInInit);
     }
 
     [Fact]

@@ -37,7 +37,6 @@ internal enum InstructionKind : byte
     BreakableExit,
     EndFinally,
     IteratorInit,
-    SuspendingIteratorInit,
     IteratorMoveNext,
     IteratorClose,
     Jump,
@@ -51,7 +50,6 @@ internal enum InstructionKind : byte
     SetCompletionValue,
     CompoundAssignmentSlot,
     ForInInit,
-    SuspendingForInInit,
     ForInMoveNext,
 
     // Array destructuring

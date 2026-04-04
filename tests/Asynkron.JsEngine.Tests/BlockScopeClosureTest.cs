@@ -131,7 +131,10 @@ public sealed class BlockScopeClosureTest(ITestOutputHelper output) : InternalTe
                                         Output.WriteLine($"      Inner instr: {innerInstr.GetType().Name}");
                                         if (innerInstr is ReturnInstruction { ReturnProgram: { } returnProgram })
                                         {
-                                            var retId = returnProgram.Operations.OfType<LoadIdentifierExpressionOp>().FirstOrDefault();
+                                            var retId = returnProgram.Operations
+                                                .Select(static op => op.ToLegacyExpressionOp())
+                                                .OfType<LoadIdentifierExpressionOp>()
+                                                .FirstOrDefault();
                                             if (retId is not null)
                                             {
                                                 Output.WriteLine($"        Return z - ScopeId: {retId.ScopeId}, SlotIndex: {retId.SlotIndex}");

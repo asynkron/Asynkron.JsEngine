@@ -292,7 +292,6 @@ internal readonly struct PackedExpressionOp
     private readonly JsValue _value;
     private readonly int _int0;
     private readonly int _int1;
-    private readonly int _int2;
     private readonly byte _flags;
 
     private PackedExpressionOp(
@@ -300,14 +299,12 @@ internal readonly struct PackedExpressionOp
         JsValue value = default,
         int int0 = 0,
         int int1 = 0,
-        int int2 = 0,
         byte flags = 0)
     {
         Kind = kind;
         _value = value;
         _int0 = int0;
         _int1 = int1;
-        _int2 = int2;
         _flags = flags;
     }
 
@@ -721,12 +718,12 @@ internal readonly struct PackedExpressionOp
 
     public PackedExpressionOp WithIdentifierConstant(int identifierConstantIndex)
     {
-        return new PackedExpressionOp(Kind, _value, identifierConstantIndex, _int1, _int2, _flags);
+        return new PackedExpressionOp(Kind, _value, identifierConstantIndex, _int1, _flags);
     }
 
     public PackedExpressionOp WithObjectConstant(int objectConstantIndex)
     {
-        return new PackedExpressionOp(Kind, _value, _int0, objectConstantIndex, _int2, _flags);
+        return new PackedExpressionOp(Kind, _value, _int0, objectConstantIndex, _flags);
     }
 
     private static byte EncodeRegexFlags(string flags)

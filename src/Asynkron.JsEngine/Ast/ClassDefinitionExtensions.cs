@@ -67,7 +67,7 @@ public static partial class TypedAstEvaluator
                         element.Index);
                     if (!field.TryInitializeStaticField(
                             constructorAccessor,
-                            expr => EvaluateStaticFieldExpression(expr, constructorAccessor, environment, context),
+                            environment,
                             context,
                             privateNameScope,
                             privateScopeFactory))

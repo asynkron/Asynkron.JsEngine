@@ -1809,7 +1809,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 var valueJs = JsValue.Undefined;
                 if (field.Initializer is not null)
                 {
-                    valueJs = field.Initializer.EvaluateExpression(initEnv, context);
+                    valueJs = EvaluateClassElementExpressionProgram(field.Initializer, initEnv, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return;

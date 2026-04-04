@@ -2361,6 +2361,95 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsInstanceFieldInitializerSuperExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var program = _engine.ParseProgram("""
+                class Base {
+                    get value() { return 41; }
+                }
+
+                class Derived extends Base {
+                    field = super.value + 1;
+                }
+
+                new Derived().field;
+                """);
+
+            var result = await _engine.Evaluate(program);
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsStaticFieldInitializerSuperExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var program = _engine.ParseProgram("""
+                class Base {
+                    static get value() { return 41; }
+                }
+
+                class Derived extends Base {
+                    static field = super.value + 1;
+                }
+
+                Derived.field;
+                """);
+
+            var result = await _engine.Evaluate(program);
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsFieldInitializerNewTargetUndefinedExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var program = _engine.ParseProgram("""
+                class Box {
+                    field = typeof new.target;
+                }
+
+                new Box().field;
+                """);
+
+            var result = await _engine.Evaluate(program);
+
+            Assert.Equal("undefined", result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
     public async Task AssertNoAstEvaluation_Enabled_ImmutableIdentifierAssignment_FailsAtRuntimeNotPlanBuild()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;

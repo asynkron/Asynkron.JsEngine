@@ -3,27 +3,6 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
-    private static JsValue EvaluateStaticFieldExpression(
-        ExpressionNode expression,
-        IJsPropertyAccessor constructorAccessor,
-        JsEnvironment environment,
-        EvaluationContext context)
-    {
-        using var classFieldInitScope = context.EnterClassFieldInitializer();
-        var initEnv = CreateStaticInitializationEnvironment(constructorAccessor, environment, out var superBinding);
-        initEnv.DefineJsValue(EvalHostFunction.FieldInitializerEvalFlag, JsValue.True, true, isLexicalBinding: true,
-            blocksFunctionScopeOverride: true);
-        var resultValue = expression.EvaluateExpression(initEnv, context);
-        if (resultValue.ObjectValue is SyncFunctionInvoker { IsArrowFunction: true } typedFunction &&
-            superBinding is not null)
-        {
-            typedFunction.SetSuperBinding(superBinding.Constructor, superBinding.Prototype);
-        }
-
-        return resultValue;
-    }
-
     private static JsEnvironment CreateStaticInitializationEnvironment(
         IJsPropertyAccessor constructorAccessor,
         JsEnvironment environment,

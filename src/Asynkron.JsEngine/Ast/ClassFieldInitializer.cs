@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.Ast;
 public static partial class TypedAstEvaluator
 {
     public static bool TryInitializeStaticField(this ClassField field, IJsPropertyAccessor constructorAccessor,
-        Func<ExpressionNode, JsValue> evaluateExpression,
+        JsEnvironment environment,
         EvaluationContext context,
         PrivateNameScope? privateNameScope,
         Func<IDisposable?>? privateScopeFactory)
@@ -38,10 +38,20 @@ public static partial class TypedAstEvaluator
         if (field.Initializer is not null)
         {
             using var handle = privateScopeFactory?.Invoke();
-            valueJs = evaluateExpression(field.Initializer);
+            using var classFieldInitScope = context.EnterClassFieldInitializer();
+            var initEnv = CreateStaticInitializationEnvironment(constructorAccessor, environment, out var superBinding);
+            initEnv.DefineJsValue(EvalHostFunction.FieldInitializerEvalFlag, JsValue.True, true, isLexicalBinding: true,
+                blocksFunctionScopeOverride: true);
+            valueJs = EvaluateClassElementExpressionProgram(field.Initializer, initEnv, context);
             if (context.ShouldStopEvaluation)
             {
                 return false;
+            }
+
+            if (valueJs.ObjectValue is SyncFunctionInvoker { IsArrowFunction: true } typedFunction &&
+                superBinding is not null)
+            {
+                typedFunction.SetSuperBinding(superBinding.Constructor, superBinding.Prototype);
             }
 
             if (field.Initializer.IsAnonymousFunctionDefinitionNode())

@@ -2569,13 +2569,39 @@ public static partial class TypedAstEvaluator
                 return spreadArguments.ToImmutable();
             }
 
-            var argumentArray = argumentCount <= 4
+            var usePooledArray = argumentCount <= 4;
+            var argumentArray = usePooledArray
                 ? global::Asynkron.JsEngine.JsValueCache.RentJsValueArray(argumentCount)
                 : new JsValue[argumentCount];
 
-            if (argumentCount <= 4)
+            if (usePooledArray)
             {
                 pooledArguments = argumentArray;
+            }
+
+            switch (argumentCount)
+            {
+                case 1:
+                    argumentArray[0] = stack[firstArgumentIndex];
+                    return argumentArray;
+
+                case 2:
+                    argumentArray[0] = stack[firstArgumentIndex];
+                    argumentArray[1] = stack[firstArgumentIndex + 1];
+                    return argumentArray;
+
+                case 3:
+                    argumentArray[0] = stack[firstArgumentIndex];
+                    argumentArray[1] = stack[firstArgumentIndex + 1];
+                    argumentArray[2] = stack[firstArgumentIndex + 2];
+                    return argumentArray;
+
+                case 4:
+                    argumentArray[0] = stack[firstArgumentIndex];
+                    argumentArray[1] = stack[firstArgumentIndex + 1];
+                    argumentArray[2] = stack[firstArgumentIndex + 2];
+                    argumentArray[3] = stack[firstArgumentIndex + 3];
+                    return argumentArray;
             }
 
             for (var i = 0; i < argumentCount; i++)

@@ -9,6 +9,20 @@ namespace Asynkron.JsEngine.Ast;
 public static partial class TypedAstEvaluator
 {
     /// <summary>
+    /// Invokes a callable with no arguments and returns the result as JsValue.
+    /// This overload avoids interface-based argument setup for the common zero-argument case.
+    /// </summary>
+    [MethodImpl(JsEngineConstants.Inlining)]
+    private static JsValue InvokeCallableNoArgs(
+        IJsCallable callable,
+        JsValue thisValue,
+        EvaluationContext? callingContext,
+        JsEnvironment? callingEnvironment = null)
+    {
+        return InvokeCallableJsValueGeneric(callable, EmptyValueArgs.Instance, thisValue, callingContext, callingEnvironment);
+    }
+
+    /// <summary>
     /// Invokes a callable with a single argument and returns the result as JsValue.
     /// This overload avoids array allocation for the common single-argument case.
     /// </summary>

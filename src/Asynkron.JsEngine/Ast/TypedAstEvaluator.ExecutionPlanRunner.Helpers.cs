@@ -413,11 +413,10 @@ public static partial class TypedAstEvaluator
                         case ExpressionOpKind.LoadNamedCallTarget:
                             {
                                 var target = stack[stackIndex - 1];
-                                var callee = GetProgramNamedPropertyValue(
+                                var callee = GetProgramNamedCallTargetValue(
                                     target,
                                     stackFlags.Get(stackIndex - 1),
                                     operation.GetString(stringConstants),
-                                    isOptional: false,
                                     context,
                                     out var calleeWasShortCircuited);
                                 stack[stackIndex++] = callee;
@@ -430,7 +429,7 @@ public static partial class TypedAstEvaluator
                             {
                                 var propertyKey = stack[--stackIndex];
                                 var target = stack[stackIndex - 1];
-                                var callee = GetProgramComputedPropertyValue(
+                                var callee = GetProgramComputedCallTargetValue(
                                     target,
                                     stackFlags.Get(stackIndex - 1),
                                     propertyKey,
@@ -2028,7 +2027,64 @@ public static partial class TypedAstEvaluator
             return handle.GetJsValue();
         }
 
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static JsValue GetProgramNamedCallTargetValue(
+            JsValue target,
+            bool targetWasShortCircuited,
+            string propertyName,
+            EvaluationContext context,
+            out bool resultWasShortCircuited)
+        {
+            if (!TryPrepareProgramPropertyRead(
+                    target,
+                    targetWasShortCircuited,
+                    shortCircuitOnNullishTarget: false,
+                    context,
+                    out resultWasShortCircuited))
+            {
+                return JsValue.Undefined;
+            }
+
+            if (!propertyName.IsPrivateName())
+            {
+                return JsOps.TryGetPropertyValue(target, propertyName, out var directValue, context)
+                    ? directValue
+                    : JsValue.Undefined;
+            }
+
+            var handle = PropertyHandle.Resolve(
+                target,
+                propertyName,
+                context,
+                context.CurrentScope.IsStrict,
+                allowPrivate: true);
+            return handle.GetJsValue();
+        }
+
         private static JsValue GetProgramComputedPropertyValue(
+            JsValue target,
+            bool targetWasShortCircuited,
+            JsValue propertyKey,
+            EvaluationContext context,
+            out bool resultWasShortCircuited)
+        {
+            if (!TryPrepareProgramPropertyRead(
+                    target,
+                    targetWasShortCircuited,
+                    shortCircuitOnNullishTarget: false,
+                    context,
+                    out resultWasShortCircuited))
+            {
+                return JsValue.Undefined;
+            }
+
+            return JsOps.TryGetPropertyValueJsValue(target, propertyKey, out var directValue, context)
+                ? directValue
+                : JsValue.Undefined;
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static JsValue GetProgramComputedCallTargetValue(
             JsValue target,
             bool targetWasShortCircuited,
             JsValue propertyKey,
@@ -2231,16 +2287,46 @@ public static partial class TypedAstEvaluator
                     debugFunction.CurrentContext = context;
                 }
 
-                IReadOnlyList<JsValue> arguments;
-                arguments = MaterializeProgramArguments(
-                    call.ArgumentCount,
-                    call.GetSpreadIndices(spreadMaskConstants),
-                    stack,
-                    calleeIndex + 1,
-                    context,
-                    out pooledArguments);
+                if (call.SpreadMaskConstantIndex < 0)
+                {
+                    switch (call.ArgumentCount)
+                    {
+                        case 0:
+                            result = InvokeCallableNoArgs(callable, thisValue, context, environment);
+                            break;
 
-                result = InvokeCallableJsValue(callable, arguments, thisValue, context, environment);
+                        case 1:
+                            result = InvokeCallableSingleArg(
+                                callable,
+                                stack[calleeIndex + 1],
+                                thisValue,
+                                context,
+                                environment);
+                            break;
+
+                        default:
+                            var arguments = MaterializeProgramArguments(
+                                call.ArgumentCount,
+                                default,
+                                stack,
+                                calleeIndex + 1,
+                                context,
+                                out pooledArguments);
+                            result = InvokeCallableJsValue(callable, arguments, thisValue, context, environment);
+                            break;
+                    }
+                }
+                else
+                {
+                    var arguments = MaterializeProgramArguments(
+                        call.ArgumentCount,
+                        call.GetSpreadIndices(spreadMaskConstants),
+                        stack,
+                        calleeIndex + 1,
+                        context,
+                        out pooledArguments);
+                    result = InvokeCallableJsValue(callable, arguments, thisValue, context, environment);
+                }
             }
             catch (ThrowSignal signal)
             {

@@ -62,9 +62,8 @@ public static partial class TypedAstEvaluator
 
                 case NamedSuperPropertyAssignmentBindingTargetProgram namedSuperPropertyAssignment:
                     ApplyProgramNamedSuperPropertyAssignment(
-                        new SetNamedSuperPropertyExpressionOp(
-                            namedSuperPropertyAssignment.PropertyName,
-                            AllowNameInference: false),
+                        namedSuperPropertyAssignment.PropertyName,
+                        allowNameInference: false,
                         value,
                         environment,
                         context);
@@ -570,10 +569,14 @@ public static partial class TypedAstEvaluator
                 return null;
             }
 
-            var propertyOp = new SetNamedPropertyExpressionOp(targetProgram.PropertyName, AllowNameInference: false);
             return AssignmentReference.ForDelegate(
                 static () => JsValue.Undefined,
-                value => ApplyProgramNamedPropertyAssignment(target, propertyOp, value, context));
+                value => ApplyProgramNamedPropertyAssignment(
+                    target,
+                    targetProgram.PropertyName,
+                    allowNameInference: false,
+                    value,
+                    context));
         }
 
         private AssignmentReference? PreResolveComputedPropertyAssignmentTargetProgram(
@@ -593,10 +596,14 @@ public static partial class TypedAstEvaluator
                 return null;
             }
 
-            var propertyOp = new SetComputedPropertyExpressionOp(AllowNameInference: false);
             return AssignmentReference.ForDelegate(
                 static () => JsValue.Undefined,
-                value => ApplyProgramComputedPropertyAssignment(target, propertyKey, propertyOp, value, context));
+                value => ApplyProgramComputedPropertyAssignment(
+                    target,
+                    propertyKey,
+                    allowNameInference: false,
+                    value,
+                    context));
         }
 
         private static AssignmentReference? PreResolveNamedSuperPropertyAssignmentTargetProgram(
@@ -610,12 +617,14 @@ public static partial class TypedAstEvaluator
                 return null;
             }
 
-            var propertyOp = new SetNamedSuperPropertyExpressionOp(
-                targetProgram.PropertyName,
-                AllowNameInference: false);
             return AssignmentReference.ForDelegate(
                 static () => JsValue.Undefined,
-                value => ApplyProgramNamedSuperPropertyAssignment(propertyOp, value, environment, context));
+                value => ApplyProgramNamedSuperPropertyAssignment(
+                    targetProgram.PropertyName,
+                    allowNameInference: false,
+                    value,
+                    environment,
+                    context));
         }
 
         private AssignmentReference? PreResolveComputedSuperPropertyAssignmentTargetProgram(
@@ -635,10 +644,14 @@ public static partial class TypedAstEvaluator
                 return null;
             }
 
-            var propertyOp = new SetComputedSuperPropertyExpressionOp(AllowNameInference: false);
             return AssignmentReference.ForDelegate(
                 static () => JsValue.Undefined,
-                value => ApplyProgramComputedSuperPropertyAssignment(propertyKey, propertyOp, value, environment, context));
+                value => ApplyProgramComputedSuperPropertyAssignment(
+                    propertyKey,
+                    allowNameInference: false,
+                    value,
+                    environment,
+                    context));
         }
 
         private void ApplyNamedPropertyAssignmentTargetProgram(
@@ -655,7 +668,8 @@ public static partial class TypedAstEvaluator
 
             ApplyProgramNamedPropertyAssignment(
                 target,
-                new SetNamedPropertyExpressionOp(targetProgram.PropertyName, AllowNameInference: false),
+                targetProgram.PropertyName,
+                allowNameInference: false,
                 value,
                 context);
         }
@@ -681,7 +695,7 @@ public static partial class TypedAstEvaluator
             ApplyProgramComputedPropertyAssignment(
                 target,
                 propertyKey,
-                new SetComputedPropertyExpressionOp(AllowNameInference: false),
+                allowNameInference: false,
                 value,
                 context);
         }
@@ -700,7 +714,7 @@ public static partial class TypedAstEvaluator
 
             ApplyProgramComputedSuperPropertyAssignment(
                 propertyKey,
-                new SetComputedSuperPropertyExpressionOp(AllowNameInference: false),
+                allowNameInference: false,
                 value,
                 environment,
                 context);

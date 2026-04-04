@@ -1740,7 +1740,7 @@ public sealed class JsEnvironment : IRentable
     /// Slot-aware identifier write. Uses slot hint when possible; otherwise falls back to normal write resolution.
     /// </summary>
     [MethodImpl(JsEngineConstants.Inlining)]
-    private bool TryWriteIdentifierWithSlot(
+    internal bool TryWriteIdentifierWithSlot(
         Symbol name,
         int scopeId,
         int slotIndex,

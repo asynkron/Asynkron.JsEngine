@@ -335,7 +335,14 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 return;
 
             case EvaluateAndDiscardInstruction eval:
-                Visit(eval.Expression);
+                if (eval.ExpressionProgram is { } evalProgram)
+                {
+                    VisitExpressionProgram(evalProgram);
+                }
+                else if (eval.Expression is not null)
+                {
+                    Visit(eval.Expression);
+                }
                 return;
 
             case AwaitAndDiscardInstruction awaitDiscard:
@@ -343,11 +350,25 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 return;
 
             case AssignmentSlotInstruction assign:
-                Visit(assign.ValueExpression);
+                if (assign.ValueProgram is { } valueProgram)
+                {
+                    VisitExpressionProgram(valueProgram);
+                }
+                else if (assign.ValueExpression is not null)
+                {
+                    Visit(assign.ValueExpression);
+                }
                 return;
 
             case LogicalCompoundAssignmentSlotInstruction logicalCompound:
-                Visit(logicalCompound.RhsExpression);
+                if (logicalCompound.RhsProgram is { } logicalRhsProgram)
+                {
+                    VisitExpressionProgram(logicalRhsProgram);
+                }
+                else if (logicalCompound.RhsExpression is not null)
+                {
+                    Visit(logicalCompound.RhsExpression);
+                }
                 return;
 
             case YieldInstruction { AwaitedProgram: not null } yield:
@@ -379,6 +400,11 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 Visit(varDecl.Initializer);
                 return;
 
+            case SimpleVariableDeclarationInstruction { InitializerProgram: not null } varDecl:
+                RegisterDeclaration(varDecl);
+                VisitExpressionProgram(varDecl.InitializerProgram.Value);
+                return;
+
             case SimpleVariableDeclarationInstruction varDecl:
                 RegisterDeclaration(varDecl);
                 return;
@@ -388,20 +414,46 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 Visit(bindingDecl.Initializer);
                 return;
 
+            case BindingVariableDeclarationInstruction { InitializerProgram: not null } bindingDecl:
+                RegisterBindingDeclaration(bindingDecl);
+                VisitExpressionProgram(bindingDecl.InitializerProgram.Value);
+                return;
+
             case BindingVariableDeclarationInstruction bindingDecl:
                 RegisterBindingDeclaration(bindingDecl);
                 return;
 
             case IteratorInitInstruction iterInit:
-                Visit(iterInit.IterableExpression);
+                if (iterInit.IterableProgram is { } iterableProgram)
+                {
+                    VisitExpressionProgram(iterableProgram);
+                }
+                else if (iterInit.IterableExpression is not null)
+                {
+                    Visit(iterInit.IterableExpression);
+                }
                 return;
 
             case CompoundAssignmentSlotInstruction compoundAssign:
-                Visit(compoundAssign.RhsExpression);
+                if (compoundAssign.RhsProgram is { } compoundRhsProgram)
+                {
+                    VisitExpressionProgram(compoundRhsProgram);
+                }
+                else if (compoundAssign.RhsExpression is not null)
+                {
+                    Visit(compoundAssign.RhsExpression);
+                }
                 return;
 
             case EnterWithInstruction enterWith:
-                Visit(enterWith.ObjectExpression);
+                if (enterWith.ObjectProgram is { } objectProgram)
+                {
+                    VisitExpressionProgram(objectProgram);
+                }
+                else if (enterWith.ObjectExpression is not null)
+                {
+                    Visit(enterWith.ObjectExpression);
+                }
                 return;
 
             case YieldStarInstruction { AwaitedProgram: not null } yieldStar:
@@ -409,7 +461,14 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 return;
 
             case YieldStarInstruction yieldStar:
-                Visit(yieldStar.IterableExpression);
+                if (yieldStar.IterableProgram is { } yieldStarIterableProgram)
+                {
+                    VisitExpressionProgram(yieldStarIterableProgram);
+                }
+                else if (yieldStar.IterableExpression is not null)
+                {
+                    Visit(yieldStar.IterableExpression);
+                }
                 return;
         }
     }

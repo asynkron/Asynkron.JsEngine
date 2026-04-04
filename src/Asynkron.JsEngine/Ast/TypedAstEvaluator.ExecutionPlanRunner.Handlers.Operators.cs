@@ -7,8 +7,6 @@ using Asynkron.JsEngine.StdLib;
 
 #endregion
 
-#pragma warning disable CS0618 // Obsolete AST evaluation methods are used intentionally here
-
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
@@ -256,13 +254,12 @@ public static partial class TypedAstEvaluator
                 }
                 else if (instruction.ScopeId >= 0 && instruction.SlotIndex >= 0)
                 {
-                    var targetIdentifier = new IdentifierExpression(
-                        instruction.RhsExpression?.Source,
+                    environment.TryWriteIdentifierWithSlot(
                         instruction.TargetSymbol,
-                        SlotIndex: instruction.SlotIndex,
-                        ScopeId: instruction.ScopeId,
-                        FlatSlotId: instruction.FlatSlotId);
-                    environment.TryWriteIdentifierWithSlot(targetIdentifier, rhsValue, context);
+                        instruction.ScopeId,
+                        instruction.SlotIndex,
+                        rhsValue,
+                        context);
                 }
                 else
                 {

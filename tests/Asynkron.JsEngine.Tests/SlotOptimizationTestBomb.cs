@@ -376,7 +376,14 @@ public sealed class SlotOptimizationTestBomb : IAsyncLifetime
                 CollectIdentifiersFromProgram(branch.ConditionProgram, result, nameFilter);
                 break;
             case CompoundAssignmentSlotInstruction compound:
-                CollectIdentifiersFromExpression(compound.RhsExpression, result, nameFilter);
+                if (compound.RhsProgram is { } rhsProgram)
+                {
+                    CollectIdentifiersFromProgram(rhsProgram, result, nameFilter);
+                }
+                else if (compound.RhsExpression is not null)
+                {
+                    CollectIdentifiersFromExpression(compound.RhsExpression, result, nameFilter);
+                }
                 break;
             case ReturnInstruction ret when ret.ReturnProgram is { } returnProgram:
                 CollectIdentifiersFromProgram(returnProgram, result, nameFilter);

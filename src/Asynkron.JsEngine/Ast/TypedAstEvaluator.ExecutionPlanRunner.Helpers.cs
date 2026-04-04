@@ -179,12 +179,13 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            var operationCount = program.Operations.Length;
-            var stackSize = Math.Max(16, operationCount);
+            var operations = program.Operations.AsSpan();
+            var operationCount = operations.Length;
+            var stackSize = Math.Max(program.MaxStackDepth, 1);
             var rentedStack = ArrayPool<JsValue>.Shared.Rent(stackSize);
-            var stack = rentedStack.AsSpan(0, stackSize);
             var rentedFlags = ArrayPool<bool>.Shared.Rent(stackSize);
-            var stackFlags = rentedFlags.AsSpan(0, stackSize);
+            Span<JsValue> stack = rentedStack.AsSpan(0, stackSize);
+            Span<bool> stackFlags = rentedFlags.AsSpan(0, stackSize);
             var stackIndex = 0;
             var programCounter = 0;
 
@@ -192,7 +193,7 @@ public static partial class TypedAstEvaluator
             {
                 while ((uint)programCounter < (uint)operationCount)
                 {
-                    switch (program.Operations[programCounter])
+                    switch (operations[programCounter])
                     {
                         case LoadLiteralExpressionOp loadLiteral:
                             stack[stackIndex++] = loadLiteral.Value;
@@ -237,13 +238,27 @@ public static partial class TypedAstEvaluator
                             break;
 
                         case LoadIdentifierExpressionOp loadIdentifier:
-                            stack[stackIndex++] = EvaluateProgramIdentifier(loadIdentifier, environment, context);
+                            stack[stackIndex++] = EvaluateProgramIdentifier(
+                                loadIdentifier.Name,
+                                loadIdentifier.ScopeId,
+                                loadIdentifier.SlotIndex,
+                                loadIdentifier.IsArguments,
+                                environment,
+                                context);
                             stackFlags[stackIndex - 1] = false;
                             programCounter++;
                             break;
 
                         case StoreIdentifierExpressionOp storeIdentifier:
-                            ApplyProgramIdentifierAssignment(storeIdentifier, stack[stackIndex - 1], environment, context);
+                            ApplyProgramIdentifierAssignment(
+                                storeIdentifier.Name,
+                                storeIdentifier.ScopeId,
+                                storeIdentifier.SlotIndex,
+                                storeIdentifier.FlatSlotId,
+                                storeIdentifier.AllowNameInference,
+                                stack[stackIndex - 1],
+                                environment,
+                                context);
                             stackFlags[stackIndex - 1] = false;
                             programCounter++;
                             break;
@@ -315,7 +330,8 @@ public static partial class TypedAstEvaluator
                                 var callee = GetProgramNamedPropertyValue(
                                     target,
                                     stackFlags[stackIndex - 1],
-                                    new GetNamedPropertyExpressionOp(namedCallTarget.PropertyName),
+                                    namedCallTarget.PropertyName,
+                                    isOptional: false,
                                     context,
                                     out var calleeWasShortCircuited);
                                 stack[stackIndex++] = callee;
@@ -332,7 +348,6 @@ public static partial class TypedAstEvaluator
                                     target,
                                     stackFlags[stackIndex - 1],
                                     propertyKey,
-                                    new GetComputedPropertyExpressionOp(),
                                     context,
                                     out var calleeWasShortCircuited);
                                 stack[stackIndex++] = callee;
@@ -584,7 +599,8 @@ public static partial class TypedAstEvaluator
                             stack[stackIndex - 1] = GetProgramNamedPropertyValue(
                                 stack[stackIndex - 1],
                                 stackFlags[stackIndex - 1],
-                                namedProperty,
+                                namedProperty.PropertyName,
+                                namedProperty.IsOptional,
                                 context,
                                 out stackFlags[stackIndex - 1]);
                             programCounter++;
@@ -598,7 +614,6 @@ public static partial class TypedAstEvaluator
                                     target,
                                     stackFlags[stackIndex - 1],
                                     propertyKey,
-                                    computedProperty,
                                     context,
                                     out stackFlags[stackIndex - 1]);
                                 programCounter++;
@@ -630,7 +645,12 @@ public static partial class TypedAstEvaluator
                             {
                                 var propertyValue = stack[--stackIndex];
                                 var target = stack[stackIndex - 1];
-                                ApplyProgramNamedPropertyAssignment(target, namedAssignment, propertyValue, context);
+                                ApplyProgramNamedPropertyAssignment(
+                                    target,
+                                    namedAssignment.PropertyName,
+                                    namedAssignment.AllowNameInference,
+                                    propertyValue,
+                                    context);
                                 stack[stackIndex - 1] = propertyValue;
                                 stackFlags[stackIndex - 1] = false;
                                 programCounter++;
@@ -645,7 +665,7 @@ public static partial class TypedAstEvaluator
                                 ApplyProgramComputedPropertyAssignment(
                                     target,
                                     propertyKey,
-                                    computedAssignment,
+                                    computedAssignment.AllowNameInference,
                                     propertyValue,
                                     context);
                                 stack[stackIndex - 1] = propertyValue;
@@ -658,7 +678,8 @@ public static partial class TypedAstEvaluator
                             {
                                 var propertyValue = stack[stackIndex - 1];
                                 stack[stackIndex - 1] = ApplyProgramNamedSuperPropertyAssignment(
-                                    namedSuperAssignment,
+                                    namedSuperAssignment.PropertyName,
+                                    namedSuperAssignment.AllowNameInference,
                                     propertyValue,
                                     environment,
                                     context);
@@ -673,7 +694,7 @@ public static partial class TypedAstEvaluator
                                 var propertyKey = stack[--stackIndex];
                                 stack[stackIndex++] = ApplyProgramComputedSuperPropertyAssignment(
                                     propertyKey,
-                                    computedSuperAssignment,
+                                    computedSuperAssignment.AllowNameInference,
                                     propertyValue,
                                     environment,
                                     context);
@@ -972,7 +993,7 @@ public static partial class TypedAstEvaluator
 
                         default:
                             throw new NotSupportedException(
-                                $"Unsupported expression op '{program.Operations[programCounter].GetType().Name}'.");
+                                $"Unsupported expression op '{operations[programCounter].GetType().Name}'.");
                     }
 
                     if (context.ShouldStopEvaluation)
@@ -990,82 +1011,88 @@ public static partial class TypedAstEvaluator
             finally
             {
                 ArrayPool<JsValue>.Shared.Return(rentedStack, clearArray: true);
-                ArrayPool<bool>.Shared.Return(rentedFlags, clearArray: true);
+
+                ArrayPool<bool>.Shared.Return(rentedFlags, clearArray: false);
             }
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]
         private JsValue EvaluateProgramIdentifier(
-            LoadIdentifierExpressionOp identifier,
+            Symbol name,
+            int scopeId,
+            int slotIndex,
+            bool isArguments,
             JsEnvironment environment,
             EvaluationContext context)
         {
-            if (identifier.IsArguments)
+            if (isArguments)
             {
-                return environment.TryGetIdentifierJsValue(identifier.Name, context, out var argumentsValue)
+                return environment.TryGetIdentifierJsValue(name, context, out var argumentsValue)
                     ? argumentsValue
-                    : HandleIdentifierNotFound(identifier.Name, context);
+                    : HandleIdentifierNotFound(name, context);
             }
 
             if (!context.AllowIdentifierCache)
             {
-                return environment.TryGetIdentifierJsValue(identifier.Name, context, out var resolvedValue)
+                return environment.TryGetIdentifierJsValue(name, context, out var resolvedValue)
                     ? resolvedValue
-                    : HandleIdentifierNotFound(identifier.Name, context);
+                    : HandleIdentifierNotFound(name, context);
             }
 
-            if (identifier.ScopeId >= 0 && identifier.SlotIndex >= 0)
+            if (scopeId >= 0 && slotIndex >= 0)
             {
-                var identifierExpression = new IdentifierExpression(
-                    Source: null,
-                    identifier.Name,
-                    SlotIndex: identifier.SlotIndex,
-                    ScopeId: identifier.ScopeId,
-                    FlatSlotId: identifier.FlatSlotId);
-                if (environment.TryReadIdentifierWithSlot(identifierExpression, context, out var slotValue))
+                if (environment.TryReadIdentifierWithSlot(
+                        name,
+                        scopeId,
+                        slotIndex,
+                        context,
+                        out var slotValue))
                 {
                     return slotValue;
                 }
             }
 
-            return environment.TryGetIdentifierJsValue(identifier.Name, context, out var value)
+            return environment.TryGetIdentifierJsValue(name, context, out var value)
                 ? value
-                : HandleIdentifierNotFound(identifier.Name, context);
+                : HandleIdentifierNotFound(name, context);
         }
 
         private void ApplyProgramIdentifierAssignment(
-            StoreIdentifierExpressionOp identifier,
+            Symbol name,
+            int scopeId,
+            int slotIndex,
+            int flatSlotId,
+            bool allowNameInference,
             JsValue value,
             JsEnvironment environment,
             EvaluationContext context)
         {
-            if (identifier.AllowNameInference &&
+            if (allowNameInference &&
                 value is { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget nameTarget })
             {
-                nameTarget.EnsureHasName(identifier.Name.Name);
+                nameTarget.EnsureHasName(name.Name);
             }
 
-            var variable = FlatSlotAccessor.Create(this, identifier.FlatSlotId);
+            var variable = FlatSlotAccessor.Create(this, flatSlotId);
             if (variable.UseFlatSlot)
             {
-                variable.EnsureAssignable(identifier.Name, _realmState);
+                variable.EnsureAssignable(name, _realmState);
                 variable.Variable.Write(value);
                 return;
             }
 
-            if (identifier.ScopeId >= 0 && identifier.SlotIndex >= 0)
+            if (scopeId >= 0 && slotIndex >= 0)
             {
-                var targetIdentifier = new IdentifierExpression(
-                    Source: null,
-                    identifier.Name,
-                    SlotIndex: identifier.SlotIndex,
-                    ScopeId: identifier.ScopeId,
-                    FlatSlotId: identifier.FlatSlotId);
-                environment.TryWriteIdentifierWithSlot(targetIdentifier, value, context);
+                environment.TryWriteIdentifierWithSlot(
+                    name,
+                    scopeId,
+                    slotIndex,
+                    value,
+                    context);
                 return;
             }
 
-            environment.SetIdentifierJsValue(identifier.Name, value, context);
+            environment.SetIdentifierJsValue(name, value, context);
         }
 
         private JsValue ExecuteProgramIdentifierUpdate(
@@ -1073,13 +1100,13 @@ public static partial class TypedAstEvaluator
             JsEnvironment environment,
             EvaluationContext context)
         {
-            var loadIdentifier = new LoadIdentifierExpressionOp(
+            var currentValue = EvaluateProgramIdentifier(
                 update.Name,
                 update.ScopeId,
                 update.SlotIndex,
-                update.FlatSlotId,
-                update.IsArguments);
-            var currentValue = EvaluateProgramIdentifier(loadIdentifier, environment, context);
+                update.IsArguments,
+                environment,
+                context);
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;
@@ -1092,12 +1119,11 @@ public static partial class TypedAstEvaluator
             }
 
             ApplyProgramIdentifierAssignment(
-                new StoreIdentifierExpressionOp(
-                    update.Name,
-                    update.ScopeId,
-                    update.SlotIndex,
-                    update.FlatSlotId,
-                    AllowNameInference: false),
+                update.Name,
+                update.ScopeId,
+                update.SlotIndex,
+                update.FlatSlotId,
+                allowNameInference: false,
                 newValue,
                 environment,
                 context);
@@ -1113,7 +1139,8 @@ public static partial class TypedAstEvaluator
             var currentValue = GetProgramNamedPropertyValue(
                 target,
                 targetWasShortCircuited: false,
-                new GetNamedPropertyExpressionOp(update.PropertyName),
+                update.PropertyName,
+                isOptional: false,
                 context,
                 out _);
             if (context.ShouldStopEvaluation)
@@ -1129,7 +1156,8 @@ public static partial class TypedAstEvaluator
 
             ApplyProgramNamedPropertyAssignment(
                 target,
-                new SetNamedPropertyExpressionOp(update.PropertyName, AllowNameInference: false),
+                update.PropertyName,
+                allowNameInference: false,
                 newValue,
                 context);
 
@@ -1176,7 +1204,6 @@ public static partial class TypedAstEvaluator
                     target,
                     targetWasShortCircuited: false,
                     new JsValue(resolvedName),
-                    new GetComputedPropertyExpressionOp(),
                     context,
                     out _);
             }
@@ -1221,7 +1248,8 @@ public static partial class TypedAstEvaluator
             }
 
             ApplyProgramNamedSuperPropertyAssignment(
-                new SetNamedSuperPropertyExpressionOp(update.PropertyName, AllowNameInference: false),
+                update.PropertyName,
+                allowNameInference: false,
                 newValue,
                 environment,
                 context);
@@ -1249,7 +1277,7 @@ public static partial class TypedAstEvaluator
 
             ApplyProgramComputedSuperPropertyAssignment(
                 propertyKey,
-                new SetComputedSuperPropertyExpressionOp(AllowNameInference: false),
+                allowNameInference: false,
                 newValue,
                 environment,
                 context);
@@ -1264,12 +1292,10 @@ public static partial class TypedAstEvaluator
         {
             var hasBinding = environment.HasBinding(identifier.Name);
             var operandValue = EvaluateProgramIdentifier(
-                new LoadIdentifierExpressionOp(
-                    identifier.Name,
-                    identifier.ScopeId,
-                    identifier.SlotIndex,
-                    identifier.FlatSlotId,
-                    identifier.IsArguments),
+                identifier.Name,
+                identifier.ScopeId,
+                identifier.SlotIndex,
+                identifier.IsArguments,
                 environment,
                 context);
 
@@ -1698,7 +1724,8 @@ public static partial class TypedAstEvaluator
         private static JsValue GetProgramNamedPropertyValue(
             JsValue target,
             bool targetWasShortCircuited,
-            GetNamedPropertyExpressionOp propertyOp,
+            string propertyName,
+            bool isOptional,
             EvaluationContext context,
             out bool resultWasShortCircuited)
         {
@@ -1708,7 +1735,7 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            if (propertyOp.IsOptional && target.IsNullOrUndefined)
+            if (isOptional && target.IsNullOrUndefined)
             {
                 resultWasShortCircuited = true;
                 return JsValue.Undefined;
@@ -1726,16 +1753,16 @@ public static partial class TypedAstEvaluator
             }
 
             resultWasShortCircuited = false;
-            if (!propertyOp.PropertyName.IsPrivateName())
+            if (!propertyName.IsPrivateName())
             {
-                return JsOps.TryGetPropertyValue(target, propertyOp.PropertyName, out var directValue, context)
+                return JsOps.TryGetPropertyValue(target, propertyName, out var directValue, context)
                     ? directValue
                     : JsValue.Undefined;
             }
 
             var handle = PropertyHandle.Resolve(
                 target,
-                propertyOp.PropertyName,
+                propertyName,
                 context,
                 context.CurrentScope.IsStrict,
                 allowPrivate: true);
@@ -1746,7 +1773,6 @@ public static partial class TypedAstEvaluator
             JsValue target,
             bool targetWasShortCircuited,
             JsValue propertyKey,
-            GetComputedPropertyExpressionOp propertyOp,
             EvaluationContext context,
             out bool resultWasShortCircuited)
         {
@@ -1805,24 +1831,25 @@ public static partial class TypedAstEvaluator
 
         private static void ApplyProgramNamedPropertyAssignment(
             JsValue target,
-            SetNamedPropertyExpressionOp propertyOp,
+            string propertyName,
+            bool allowNameInference,
             JsValue value,
             EvaluationContext context)
         {
-            if (propertyOp.AllowNameInference &&
+            if (allowNameInference &&
                 value is { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget nameTarget })
             {
-                nameTarget.EnsureHasName(propertyOp.PropertyName);
+                nameTarget.EnsureHasName(propertyName);
             }
 
-            var handle = PropertyHandle.Resolve(target, propertyOp.PropertyName, context, context.CurrentScope.IsStrict);
+            var handle = PropertyHandle.Resolve(target, propertyName, context, context.CurrentScope.IsStrict);
             handle.SetValue(value);
         }
 
         private static void ApplyProgramComputedPropertyAssignment(
             JsValue target,
             JsValue propertyKey,
-            SetComputedPropertyExpressionOp propertyOp,
+            bool allowNameInference,
             JsValue value,
             EvaluationContext context)
         {
@@ -1832,7 +1859,7 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            if (propertyOp.AllowNameInference &&
+            if (allowNameInference &&
                 value is { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget nameTarget })
             {
                 nameTarget.EnsureHasName(propertyName);
@@ -1848,23 +1875,24 @@ public static partial class TypedAstEvaluator
         }
 
         private static JsValue ApplyProgramNamedSuperPropertyAssignment(
-            SetNamedSuperPropertyExpressionOp propertyOp,
+            string propertyName,
+            bool allowNameInference,
             JsValue value,
             JsEnvironment environment,
             EvaluationContext context)
         {
-            if (propertyOp.AllowNameInference &&
+            if (allowNameInference &&
                 value is { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget nameTarget })
             {
-                nameTarget.EnsureHasName(propertyOp.PropertyName);
+                nameTarget.EnsureHasName(propertyName);
             }
 
-            return AssignToSuperBinding(environment, context, propertyOp.PropertyName, value, "property");
+            return AssignToSuperBinding(environment, context, propertyName, value, "property");
         }
 
         private static JsValue ApplyProgramComputedSuperPropertyAssignment(
             JsValue propertyKey,
-            SetComputedSuperPropertyExpressionOp propertyOp,
+            bool allowNameInference,
             JsValue value,
             JsEnvironment environment,
             EvaluationContext context)
@@ -1875,7 +1903,7 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            if (propertyOp.AllowNameInference &&
+            if (allowNameInference &&
                 value is { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget nameTarget })
             {
                 nameTarget.EnsureHasName(propertyName);

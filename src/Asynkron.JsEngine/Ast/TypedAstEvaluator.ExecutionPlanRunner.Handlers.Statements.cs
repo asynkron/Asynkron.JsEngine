@@ -5,8 +5,6 @@ using Asynkron.JsEngine.Execution.Instructions;
 
 #endregion
 
-#pragma warning disable CS0618 // Obsolete AST evaluation methods are used intentionally here
-
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
@@ -125,15 +123,14 @@ public static partial class TypedAstEvaluator
                 variable.EnsureAssignable(instruction.TargetSymbol, runner._realmState);
                 variable.Variable.Write(assignedValue);
             }
-                else if (instruction.ScopeId >= 0 && instruction.SlotIndex >= 0)
-                {
-                var targetIdentifier = new IdentifierExpression(
-                        instruction.ValueExpression?.Source,
-                        instruction.TargetSymbol,
-                        SlotIndex: instruction.SlotIndex,
-                        ScopeId: instruction.ScopeId,
-                    FlatSlotId: instruction.FlatSlotId);
-                environment.TryWriteIdentifierWithSlot(targetIdentifier, assignedValue, context);
+            else if (instruction.ScopeId >= 0 && instruction.SlotIndex >= 0)
+            {
+                environment.TryWriteIdentifierWithSlot(
+                    instruction.TargetSymbol,
+                    instruction.ScopeId,
+                    instruction.SlotIndex,
+                    assignedValue,
+                    context);
             }
             else
             {

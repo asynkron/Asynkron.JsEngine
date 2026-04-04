@@ -150,10 +150,31 @@ internal static class ExpressionStatementEmitter
                 IsImmutableTarget: false
             } assignment)
         {
+            if (AstShapeAnalyzer.ContainsAwait(assignment.Value))
+            {
+                entryIndex = ctx.Append(new AssignmentSlotInstruction(
+                    nextIndex,
+                    assignment.Target,
+                    ValueExpression: assignment.Value,
+                    SuppressCompletionValue: suppressCompletion,
+                    AllowNameInference: ShouldAllowAssignmentNameInference(assignment)));
+                return true;
+            }
+
+            if (!ExpressionProgramCompiler.TryCompile(assignment.Value, out var assignmentValueProgram, out var assignmentFailure))
+            {
+                ctx.SetExpressionProgramFailure(
+                    "AssignmentSlotInstruction",
+                    assignment.Value,
+                    assignmentFailure);
+                entryIndex = -1;
+                return false;
+            }
+
             entryIndex = ctx.Append(new AssignmentSlotInstruction(
                 nextIndex,
                 assignment.Target,
-                ValueExpression: assignment.Value,
+                ValueProgram: assignmentValueProgram,
                 SuppressCompletionValue: suppressCompletion,
                 AllowNameInference: ShouldAllowAssignmentNameInference(assignment)));
             return true;
@@ -173,11 +194,33 @@ internal static class ExpressionStatementEmitter
             logicalBinary.Operator is
                 BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr or BinaryOperator.NullishCoalescing)
         {
+            if (AstShapeAnalyzer.ContainsAwait(logicalBinary.Right))
+            {
+                entryIndex = ctx.Append(new LogicalCompoundAssignmentSlotInstruction(
+                    nextIndex,
+                    logicalCompoundAssign.Target,
+                    logicalBinary.Operator,
+                    RhsExpression: logicalBinary.Right,
+                    SuppressCompletionValue: suppressCompletion,
+                    AllowNameInference: ShouldAllowAssignmentNameInference(logicalCompoundAssign)));
+                return true;
+            }
+
+            if (!ExpressionProgramCompiler.TryCompile(logicalBinary.Right, out var logicalRhsProgram, out var logicalFailure))
+            {
+                ctx.SetExpressionProgramFailure(
+                    "LogicalCompoundAssignmentSlotInstruction",
+                    logicalBinary.Right,
+                    logicalFailure);
+                entryIndex = -1;
+                return false;
+            }
+
             entryIndex = ctx.Append(new LogicalCompoundAssignmentSlotInstruction(
                 nextIndex,
                 logicalCompoundAssign.Target,
                 logicalBinary.Operator,
-                RhsExpression: logicalBinary.Right,
+                RhsProgram: logicalRhsProgram,
                 SuppressCompletionValue: suppressCompletion,
                 AllowNameInference: ShouldAllowAssignmentNameInference(logicalCompoundAssign)));
             return true;
@@ -197,20 +240,60 @@ internal static class ExpressionStatementEmitter
                 BinaryOperator.BitwiseXor or BinaryOperator.LeftShift or
                 BinaryOperator.RightShift or BinaryOperator.UnsignedRightShift)
         {
+            if (AstShapeAnalyzer.ContainsAwait(arithmeticBinary.Right))
+            {
+                entryIndex = ctx.Append(new CompoundAssignmentSlotInstruction(
+                    nextIndex,
+                    compoundAssign.Target,
+                    arithmeticBinary.Operator,
+                    arithmeticBinary.Right,
+                    SuppressCompletionValue: suppressCompletion));
+                return true;
+            }
+
+            if (!ExpressionProgramCompiler.TryCompile(arithmeticBinary.Right, out var compoundRhsProgram, out var compoundFailure))
+            {
+                ctx.SetExpressionProgramFailure(
+                    "CompoundAssignmentSlotInstruction",
+                    arithmeticBinary.Right,
+                    compoundFailure);
+                entryIndex = -1;
+                return false;
+            }
+
             entryIndex = ctx.Append(new CompoundAssignmentSlotInstruction(
                 nextIndex,
                 compoundAssign.Target,
                 arithmeticBinary.Operator,
-                arithmeticBinary.Right,
+                RhsProgram: compoundRhsProgram,
                 SuppressCompletionValue: suppressCompletion));
             return true;
         }
 
-        // Use native EvaluateAndDiscardInstruction - evaluates expression and discards result
+        if (AstShapeAnalyzer.ContainsAwait(expressionStatement.Expression))
+        {
+            entryIndex =
+                ctx.Append(new EvaluateAndDiscardInstruction(
+                    nextIndex,
+                    Expression: expressionStatement.Expression,
+                    SuppressCompletionValue: suppressCompletion));
+            return true;
+        }
+
+        if (!ExpressionProgramCompiler.TryCompile(expressionStatement.Expression, out var expressionProgram, out var expressionFailure))
+        {
+            ctx.SetExpressionProgramFailure(
+                "EvaluateAndDiscardInstruction",
+                expressionStatement.Expression,
+                expressionFailure);
+            entryIndex = -1;
+            return false;
+        }
+
         entryIndex =
             ctx.Append(new EvaluateAndDiscardInstruction(
                 nextIndex,
-                Expression: expressionStatement.Expression,
+                ExpressionProgram: expressionProgram,
                 SuppressCompletionValue: suppressCompletion));
         return true;
     }

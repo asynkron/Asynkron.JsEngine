@@ -126,8 +126,14 @@ internal static class DeclarationEmitter
             nextIndex,
             varKind,
             targetProgram,
-            declarator.Initializer));
-        return true;
+            InitializerProgram: TryCompileInitializerProgram(
+                ctx,
+                "BindingVariableDeclarationInstruction",
+                declarator.Initializer,
+                out var bindingInitializerProgram)
+                ? bindingInitializerProgram
+                : null));
+        return bindingInitializerProgram is not null || declarator.Initializer is null;
     }
 
     /// <summary>
@@ -225,11 +231,21 @@ internal static class DeclarationEmitter
 
         var isScriptLevel = ctx.IsScriptLevel && varKind == VariableKind.Var;
         var allowNameInference = IsAnonymousFunctionDefinition(declarator.Initializer);
+        if (!TryCompileInitializerProgram(
+                ctx,
+                "SimpleVariableDeclarationInstruction",
+                declarator.Initializer,
+                out var initializerProgram))
+        {
+            entryIndex = -1;
+            return false;
+        }
+
         entryIndex = ctx.Append(new SimpleVariableDeclarationInstruction(
             nextIndex,
             varKind,
             identifierBinding.Name,
-            declarator.Initializer,
+            InitializerProgram: initializerProgram,
             AllowNameInference: allowNameInference,
             IsScriptLevel: isScriptLevel));
         return true;
@@ -361,5 +377,32 @@ internal static class DeclarationEmitter
         }
 
         return expression is FunctionExpression { Name: null } or ClassExpression { Name: null };
+    }
+
+    private static bool TryCompileInitializerProgram(
+        EmitContext ctx,
+        string instructionName,
+        ExpressionNode? initializer,
+        out ExpressionProgram? initializerProgram)
+    {
+        initializerProgram = null;
+        if (initializer is null)
+        {
+            return true;
+        }
+
+        if (AstShapeAnalyzer.ContainsAwait(initializer) || AstShapeAnalyzer.ContainsYield(initializer))
+        {
+            return true;
+        }
+
+        if (!ExpressionProgramCompiler.TryCompile(initializer, out var compiledProgram, out var failureReason))
+        {
+            ctx.SetExpressionProgramFailure(instructionName, initializer, failureReason);
+            return false;
+        }
+
+        initializerProgram = compiledProgram;
+        return true;
     }
 }

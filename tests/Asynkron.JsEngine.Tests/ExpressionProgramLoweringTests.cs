@@ -33,6 +33,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
 
         var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
         Assert.Null(instruction.ReturnExpression);
+        Assert.Equal(2, instruction.ReturnProgram!.Value.MaxStackDepth);
         AssertProgramContains<BinaryExpressionOp>(instruction.ReturnProgram, op => op.Operator == BinaryOperator.Add);
     }
 

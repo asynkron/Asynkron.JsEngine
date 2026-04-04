@@ -97,11 +97,18 @@ internal static class DestructuringEmitter
         }
 
         // Init instruction
+        if (!ExpressionProgramCompiler.TryCompile(sourceExpression, out var sourceProgram, out var failureReason))
+        {
+            ctx.SetExpressionProgramFailure("ArrayDestructuringInitInstruction", sourceExpression, failureReason);
+            entryIndex = -1;
+            return false;
+        }
+
         var initIndex = ctx.Append(new ArrayDestructuringInitInstruction(
             iteratorSymbol,
             iteratorSlotIndex,
             currentNext,
-            SourceExpression: sourceExpression));
+            SourceProgram: sourceProgram));
 
         entryIndex = initIndex;
         return true;

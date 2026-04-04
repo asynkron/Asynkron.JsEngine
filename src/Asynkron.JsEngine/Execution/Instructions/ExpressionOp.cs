@@ -77,13 +77,121 @@ internal enum ExpressionOpKind : byte
     ThrowReferenceError
 }
 
-internal readonly record struct ExpressionProgram(ImmutableArray<ExpressionOp> Operations)
+internal readonly record struct ExpressionProgram
 {
-    public static ExpressionProgram Empty { get; } = new([]);
+    public ExpressionProgram(ImmutableArray<ExpressionOp> operations)
+    {
+        Operations = operations;
+        MaxStackDepth = ComputeMaxStackDepth(operations);
+    }
+
+    public static ExpressionProgram Empty { get; } = new(ImmutableArray<ExpressionOp>.Empty);
+
+    public ImmutableArray<ExpressionOp> Operations { get; init; }
+
+    public int MaxStackDepth { get; init; }
 
     public bool IsEmpty => Operations.IsDefaultOrEmpty || Operations.Length == 0;
 
-    public override string ToString() => $"{Operations.Length} ops";
+    public override string ToString() => $"{Operations.Length} ops, stack {MaxStackDepth}";
+
+    private static int ComputeMaxStackDepth(ImmutableArray<ExpressionOp> operations)
+    {
+        if (operations.IsDefaultOrEmpty)
+        {
+            return 0;
+        }
+
+        var stackDepth = 0;
+        var maxStackDepth = 0;
+
+        foreach (var operation in operations)
+        {
+            stackDepth += GetStackDelta(operation);
+            maxStackDepth = Math.Max(maxStackDepth, stackDepth);
+        }
+
+        return Math.Max(maxStackDepth, 1);
+    }
+
+    private static int GetStackDelta(ExpressionOp operation)
+    {
+        return operation switch
+        {
+            LoadLiteralExpressionOp => 1,
+            LoadRegexLiteralExpressionOp => 1,
+            LoadFunctionLiteralExpressionOp => 1,
+            LoadClassLiteralExpressionOp => 1,
+            LoadIdentifierExpressionOp => 1,
+            LoadTemplateObjectExpressionOp => 1,
+            StoreIdentifierExpressionOp => 0,
+            ApplyBindingTargetExpressionOp => -1,
+            DuplicateTopExpressionOp => 1,
+            DuplicateTopTwoExpressionOp => 2,
+            SwapTopTwoExpressionOp => 0,
+            RotateTopThreeRightExpressionOp => 0,
+            LoadThisExpressionOp => 1,
+            LoadNewTargetExpressionOp => 1,
+            LoadNamedCallTargetExpressionOp => 1,
+            LoadComputedCallTargetExpressionOp => 0,
+            LoadNamedSuperCallTargetExpressionOp => 2,
+            LoadComputedSuperCallTargetExpressionOp => 1,
+            EnsureSuperReferenceExpressionOp => 0,
+            CreateArrayExpressionOp => 1,
+            ArrayPushExpressionOp => -1,
+            ArrayPushHoleExpressionOp => 0,
+            ArraySpreadExpressionOp => -1,
+            CreateObjectExpressionOp => 1,
+            RequireObjectCoercibleExpressionOp => 0,
+            ResolvePropertyKeyExpressionOp => 0,
+            DefineObjectPropertyExpressionOp => -1,
+            DefineComputedObjectPropertyExpressionOp => -2,
+            DefineObjectMethodExpressionOp => -1,
+            DefineComputedObjectMethodExpressionOp => -2,
+            DefineObjectAccessorExpressionOp => -1,
+            DefineComputedObjectAccessorExpressionOp => -2,
+            ObjectSpreadExpressionOp => -1,
+            GetNamedPropertyExpressionOp => 0,
+            GetComputedPropertyExpressionOp => -1,
+            GetNamedSuperPropertyExpressionOp => 1,
+            GetComputedSuperPropertyExpressionOp => 0,
+            SetNamedPropertyExpressionOp => -1,
+            SetComputedPropertyExpressionOp => -2,
+            SetNamedSuperPropertyExpressionOp => 0,
+            SetComputedSuperPropertyExpressionOp => -1,
+            UpdateIdentifierExpressionOp => 1,
+            UpdateNamedPropertyExpressionOp => 0,
+            UpdateComputedPropertyExpressionOp => -1,
+            UpdateNamedSuperPropertyExpressionOp => 1,
+            UpdateComputedSuperPropertyExpressionOp => 0,
+            TypeOfExpressionOp => 0,
+            TypeOfIdentifierExpressionOp => 1,
+            DeleteIdentifierExpressionOp => 1,
+            DeleteNamedPropertyExpressionOp => 0,
+            DeleteComputedPropertyExpressionOp => -1,
+            UnaryPlusExpressionOp => 0,
+            UnaryMinusExpressionOp => 0,
+            UnaryBitwiseNotExpressionOp => 0,
+            UnaryVoidExpressionOp => 0,
+            ToStringExpressionOp => 0,
+            UnaryLogicalNotExpressionOp => 0,
+            BinaryExpressionOp => -1,
+            PopExpressionOp => -1,
+            JumpExpressionOp => 0,
+            JumpIfNullishExpressionOp => 0,
+            JumpIfShortCircuitedExpressionOp => 0,
+            JumpIfTrueExpressionOp => 0,
+            JumpIfFalseExpressionOp => 0,
+            JumpIfNotNullishExpressionOp => 0,
+            SuperConstructExpressionOp superConstruct => 1 - superConstruct.ArgumentCount,
+            CallExpressionOp call => -(call.ArgumentCount + (call.HasExplicitThis ? 1 : 0)),
+            ConstructExpressionOp construct => -construct.ArgumentCount,
+            PrivateFieldInExpressionOp => 0,
+            ThrowReferenceErrorExpressionOp => 0,
+            _ => throw new NotSupportedException(
+                $"Expression stack analysis does not support '{operation.GetType().Name}'.")
+        };
+    }
 }
 
 internal abstract record ExpressionOp(ExpressionOpKind Kind);

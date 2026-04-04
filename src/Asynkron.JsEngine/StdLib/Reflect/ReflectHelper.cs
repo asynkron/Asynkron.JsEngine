@@ -1,6 +1,5 @@
 #region
 
-using System.Reflection;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.ObjectHelper;
@@ -209,33 +208,43 @@ public static class ReflectHelper
         instance.BeginConstruction();
         try
         {
-            var invokeWithContext = target.GetType().GetMethod(
-                "InvokeWithContext",
-                [typeof(IReadOnlyList<JsValue>), typeof(JsValue), typeof(EvaluationContext), typeof(JsValue)]);
-            if (invokeWithContext is not null)
+            switch (target)
             {
-                var constructContext = realm.CreateContext(pushScope: false);
-                try
-                {
-                    var invokeResult = invokeWithContext.Invoke(target,
-                        [argList, new JsValue(instance), constructContext, JsValue.FromObjectUnsafe(newTarget)]);
-                    constructed = invokeResult is JsValue jsv ? jsv : JsValue.FromObjectUnsafe(invokeResult);
-                }
-                catch (TargetInvocationException tie) when (tie.InnerException is ThrowSignal)
-                {
-                    throw tie.InnerException;
-                }
+                case TypedAstEvaluator.SyncFunctionInvoker typedFunction:
+                    {
+                        var constructContext = realm.CreateContext(pushScope: false);
+                        constructed = typedFunction.InvokeWithContext(
+                            argList,
+                            new JsValue(instance),
+                            constructContext,
+                            JsValue.FromObjectUnsafe(newTarget));
+                        if (constructContext.IsThrow)
+                        {
+                            throw new ThrowSignal(constructContext.FlowValue);
+                        }
 
-                // Check if the constructor set a throw on the context (InvokeWithContext doesn't throw
-                // when it has a calling context, it sets the throw state instead)
-                if (constructContext.IsThrow)
-                {
-                    throw new ThrowSignal(constructContext.FlowValue);
-                }
-            }
-            else
-            {
-                constructed = target.Invoke(argList, new JsValue(instance));
+                        break;
+                    }
+
+                case HostFunction hostFunction:
+                    {
+                        var constructContext = realm.CreateContext(pushScope: false);
+                        constructed = hostFunction.InvokeWithContext(
+                            argList,
+                            new JsValue(instance),
+                            constructContext,
+                            JsValue.FromObjectUnsafe(newTarget));
+                        if (constructContext.IsThrow)
+                        {
+                            throw new ThrowSignal(constructContext.FlowValue);
+                        }
+
+                        break;
+                    }
+
+                default:
+                    constructed = target.Invoke(argList, new JsValue(instance));
+                    break;
             }
         }
         finally

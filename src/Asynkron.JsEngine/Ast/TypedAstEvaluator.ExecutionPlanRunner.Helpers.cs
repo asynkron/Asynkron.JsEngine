@@ -217,7 +217,7 @@ public static partial class TypedAstEvaluator
                                 stack[stackIndex++] = new JsValue(
                                     StdLib.RegExpHelper.CreateRegExpLiteral(
                                         operation.GetString(stringConstants),
-                                        operation.RegexFlags,
+                                        operation.EncodedRegexFlags,
                                         context.RealmState));
                                 stackFlags[stackIndex - 1] = false;
                                 programCounter++;

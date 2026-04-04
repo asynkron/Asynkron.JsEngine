@@ -12,6 +12,40 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static class RegExpHelper
 {
+    internal static JsObject CreateRegExpLiteral(string pattern, byte encodedFlags, RealmState? realm = null,
+        JsObject? existingInstance = null)
+    {
+        try
+        {
+            ValidateGroupNames(pattern);
+            var regex = new JsRegExp(pattern, encodedFlags, realm, existingInstance);
+            var target = regex.JsObject;
+            target["__regex__"] = regex;
+
+            if (existingInstance is null && realm?.RegExpPrototype is not null)
+            {
+                target.SetPrototype(realm.RegExpPrototype);
+            }
+
+            var lastIndexDescriptor = target.GetOwnPropertyDescriptor("lastIndex");
+            if (lastIndexDescriptor is null)
+            {
+                target.DefineProperty("lastIndex",
+                    new PropertyDescriptor { Value = 0d, Writable = true, Enumerable = false, Configurable = false });
+            }
+
+            return target;
+        }
+        catch (ParseException ex)
+        {
+            throw new ThrowSignal(CreateSyntaxError(ex.Message, realm: realm));
+        }
+        catch (ArgumentException ex)
+        {
+            throw new ThrowSignal(CreateSyntaxError(ex.Message, realm: realm));
+        }
+    }
+
     internal static JsObject CreateRegExpLiteral(string pattern, string flags, RealmState? realm = null,
         JsObject? existingInstance = null)
     {

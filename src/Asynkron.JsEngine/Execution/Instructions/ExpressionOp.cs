@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Execution.Instructions;
 
@@ -247,14 +248,6 @@ internal readonly struct PackedExpressionOp
     private const byte Flag0 = 1 << 0;
     private const byte Flag1 = 1 << 1;
     private const byte Flag2 = 1 << 2;
-    private const byte RegexFlagHasIndices = 1 << 0;
-    private const byte RegexFlagGlobal = 1 << 1;
-    private const byte RegexFlagIgnoreCase = 1 << 2;
-    private const byte RegexFlagMultiline = 1 << 3;
-    private const byte RegexFlagDotAll = 1 << 4;
-    private const byte RegexFlagUnicode = 1 << 5;
-    private const byte RegexFlagUnicodeSets = 1 << 6;
-    private const byte RegexFlagSticky = 1 << 7;
     private const int FlagShift = 8;
 
     public static readonly PackedExpressionOp EnsureSuperReference = new(ExpressionOpKind.EnsureSuperReference);
@@ -320,7 +313,9 @@ internal readonly struct PackedExpressionOp
 
     public int StringConstantIndex => _int0;
 
-    public string RegexFlags => DecodeRegexFlags(Flags);
+    public string RegexFlags => JsRegExp.DecodeFlags(Flags);
+
+    public byte EncodedRegexFlags => Flags;
 
     public int Depth => _int0;
 
@@ -395,7 +390,7 @@ internal readonly struct PackedExpressionOp
         return new PackedExpressionOp(
             ExpressionOpKind.LoadRegexLiteral,
             int0: PatternIndex,
-            flags: EncodeRegexFlags(Flags));
+            flags: JsRegExp.EncodeFlags(Flags));
     }
 
     public static PackedExpressionOp LoadFunctionLiteral(
@@ -730,86 +725,5 @@ internal readonly struct PackedExpressionOp
     public PackedExpressionOp WithObjectConstant(int objectConstantIndex)
     {
         return new PackedExpressionOp(Kind, _int0, objectConstantIndex, Flags);
-    }
-
-    private static byte EncodeRegexFlags(string flags)
-    {
-        var encoded = (byte)0;
-
-        foreach (var flag in flags)
-        {
-            encoded |= flag switch
-            {
-                'd' => RegexFlagHasIndices,
-                'g' => RegexFlagGlobal,
-                'i' => RegexFlagIgnoreCase,
-                'm' => RegexFlagMultiline,
-                's' => RegexFlagDotAll,
-                'u' => RegexFlagUnicode,
-                'v' => RegexFlagUnicodeSets,
-                'y' => RegexFlagSticky,
-                _ => throw new NotSupportedException($"Unsupported regex flag '{flag}'.")
-            };
-        }
-
-        return encoded;
-    }
-
-    private static string DecodeRegexFlags(byte encodedFlags)
-    {
-        var length = 0;
-        if ((encodedFlags & RegexFlagHasIndices) != 0) length++;
-        if ((encodedFlags & RegexFlagGlobal) != 0) length++;
-        if ((encodedFlags & RegexFlagIgnoreCase) != 0) length++;
-        if ((encodedFlags & RegexFlagMultiline) != 0) length++;
-        if ((encodedFlags & RegexFlagDotAll) != 0) length++;
-        if ((encodedFlags & RegexFlagUnicode) != 0) length++;
-        if ((encodedFlags & RegexFlagUnicodeSets) != 0) length++;
-        if ((encodedFlags & RegexFlagSticky) != 0) length++;
-
-        return string.Create(length, encodedFlags, static (span, flags) =>
-        {
-            var index = 0;
-
-            if ((flags & RegexFlagHasIndices) != 0)
-            {
-                span[index++] = 'd';
-            }
-
-            if ((flags & RegexFlagGlobal) != 0)
-            {
-                span[index++] = 'g';
-            }
-
-            if ((flags & RegexFlagIgnoreCase) != 0)
-            {
-                span[index++] = 'i';
-            }
-
-            if ((flags & RegexFlagMultiline) != 0)
-            {
-                span[index++] = 'm';
-            }
-
-            if ((flags & RegexFlagDotAll) != 0)
-            {
-                span[index++] = 's';
-            }
-
-            if ((flags & RegexFlagUnicode) != 0)
-            {
-                span[index++] = 'u';
-            }
-
-            if ((flags & RegexFlagUnicodeSets) != 0)
-            {
-                span[index++] = 'v';
-            }
-
-            if ((flags & RegexFlagSticky) != 0)
-            {
-                span[index++] = 'y';
-            }
-        });
     }
 }

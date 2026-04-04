@@ -94,10 +94,9 @@ public sealed class SlotOptimizationTests : IAsyncLifetime
         Assert.Equal("s", compoundInstr.TargetSymbol.Name);
         var rhsProgram = compoundInstr.RhsProgram ?? throw new InvalidOperationException("Expected compound assignment RHS program.");
 
-        var rhsLoad = rhsProgram.Operations
-            .OfType<LoadIdentifierExpressionOp>()
+        var rhsLoad = rhsProgram.GetOps(ExpressionOpKind.LoadIdentifier)
             .FirstOrDefault(op => op.Name.Name == "i");
-        Assert.NotNull(rhsLoad);
+        Assert.Equal(ExpressionOpKind.LoadIdentifier, rhsLoad.Kind);
         Assert.True(rhsLoad.SlotIndex >= 0, $"RHS 'i' should have SlotIndex >= 0, but was {rhsLoad.SlotIndex}");
         Assert.True(rhsLoad.ScopeId >= 0, $"RHS 'i' should have ScopeId >= 0, but was {rhsLoad.ScopeId}");
     }
@@ -354,13 +353,12 @@ public sealed class SlotOptimizationTests : IAsyncLifetime
         Assert.True(slotHitsForI > 0, $"Variable 'i' should use slot fast path, but got {slotHitsForI} hits");
     }
 
-    private static LoadIdentifierExpressionOp GetFirstLoadIdentifier(ExpressionProgram? program, string expectedName)
+    private static ExpressionOpView GetFirstLoadIdentifier(ExpressionProgram? program, string expectedName)
     {
         Assert.True(program is not null, "Expected an expression program.");
-        var loadIdentifier = program.Value.Operations
-            .OfType<LoadIdentifierExpressionOp>()
+        var loadIdentifier = program.Value.GetOps(ExpressionOpKind.LoadIdentifier)
             .FirstOrDefault(op => op.Name.Name == expectedName);
-        Assert.NotNull(loadIdentifier);
+        Assert.Equal(ExpressionOpKind.LoadIdentifier, loadIdentifier.Kind);
         return loadIdentifier;
     }
 
@@ -417,7 +415,7 @@ public sealed class SlotOptimizationTests : IAsyncLifetime
         List<IdentifierSlotInfo> result,
         string? nameFilter)
     {
-        foreach (var identifier in program.Operations.OfType<LoadIdentifierExpressionOp>())
+        foreach (var identifier in program.GetOps(ExpressionOpKind.LoadIdentifier))
         {
             if (nameFilter is null || identifier.Name.Name == nameFilter)
             {

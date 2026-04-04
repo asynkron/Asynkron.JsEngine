@@ -320,12 +320,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     ExpressionProgram = RewriteExpressionProgram(eval.ExpressionProgram)
                 };
 
-            case SuspendingEvaluateAndDiscardInstruction suspendingEval:
-                return suspendingEval with
-                {
-                    Expression = Rewrite(suspendingEval.Expression)
-                };
-
             case AwaitAndDiscardInstruction awaitDiscard:
                 return awaitDiscard with { AwaitedProgram = RewriteExpressionProgram(awaitDiscard.AwaitedProgram) };
 
@@ -359,29 +353,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     };
                 }
 
-            case SuspendingAssignmentSlotInstruction suspendingAssign:
-                {
-                    var rewrittenValue = Rewrite(suspendingAssign.ValueExpression);
-                    if (TryResolve(suspendingAssign.TargetSymbol, out var assignmentResolution))
-                    {
-                        var assignmentFlatSlotId = GetOrCreateFlatSlotId(
-                            assignmentResolution.scopeId,
-                            assignmentResolution.slotIndex);
-                        return suspendingAssign with
-                        {
-                            ValueExpression = rewrittenValue,
-                            ScopeId = assignmentResolution.scopeId,
-                            SlotIndex = assignmentResolution.slotIndex,
-                            FlatSlotId = assignmentFlatSlotId
-                        };
-                    }
-
-                    return suspendingAssign with
-                    {
-                        ValueExpression = rewrittenValue
-                    };
-                }
-
             case LogicalCompoundAssignmentSlotInstruction logicalCompound:
                 {
                     var rewrittenProgram = logicalCompound.RhsProgram is { } logicalRhsProgram
@@ -409,29 +380,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     {
                         RhsProgram = rewrittenProgram,
                         AwaitedProgram = rewrittenAwaitedProgram
-                    };
-                }
-
-            case SuspendingLogicalCompoundAssignmentSlotInstruction suspendingLogicalCompound:
-                {
-                    var rewrittenRhs = Rewrite(suspendingLogicalCompound.RhsExpression);
-                    if (TryResolve(suspendingLogicalCompound.TargetSymbol, out var logicalResolution))
-                    {
-                        var logicalFlatSlotId = GetOrCreateFlatSlotId(
-                            logicalResolution.scopeId,
-                            logicalResolution.slotIndex);
-                        return suspendingLogicalCompound with
-                        {
-                            RhsExpression = rewrittenRhs,
-                            ScopeId = logicalResolution.scopeId,
-                            SlotIndex = logicalResolution.slotIndex,
-                            FlatSlotId = logicalFlatSlotId
-                        };
-                    }
-
-                    return suspendingLogicalCompound with
-                    {
-                        RhsExpression = rewrittenRhs
                     };
                 }
 
@@ -471,30 +419,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     };
                 }
 
-            case SuspendingCompoundAssignmentSlotInstruction suspendingCompoundAssign:
-                {
-                    var rewrittenRhs = Rewrite(suspendingCompoundAssign.RhsExpression);
-
-                    if (TryResolve(suspendingCompoundAssign.TargetSymbol, out var compoundResolution))
-                    {
-                        var compoundFlatSlotId = GetOrCreateFlatSlotId(
-                            compoundResolution.scopeId,
-                            compoundResolution.slotIndex);
-                        return suspendingCompoundAssign with
-                        {
-                            RhsExpression = rewrittenRhs,
-                            ScopeId = compoundResolution.scopeId,
-                            SlotIndex = compoundResolution.slotIndex,
-                            FlatSlotId = compoundFlatSlotId
-                        };
-                    }
-
-                    return suspendingCompoundAssign with
-                    {
-                        RhsExpression = rewrittenRhs
-                    };
-                }
-
             case YieldInstruction { AwaitedProgram: not null } yieldInstruction:
                 return yieldInstruction with
                 {
@@ -503,12 +427,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
 
             case YieldInstruction { YieldProgram: not null } yieldInstruction:
                 return yieldInstruction with { YieldProgram = RewriteExpressionProgram(yieldInstruction.YieldProgram!.Value) };
-
-            case SuspendingYieldInstruction suspendingYieldInstruction:
-                return suspendingYieldInstruction with
-                {
-                    YieldExpression = Rewrite(suspendingYieldInstruction.YieldExpression)
-                };
 
             case ReturnInstruction { AwaitedProgram: not null } returnInstruction:
                 return returnInstruction with
@@ -544,12 +462,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                         : null
                 };
 
-            case SuspendingSimpleVariableDeclarationInstruction suspendingVarDecl:
-                return suspendingVarDecl with
-                {
-                    Initializer = Rewrite(suspendingVarDecl.Initializer)
-                };
-
             case BindingVariableDeclarationInstruction bindingDecl:
                 return bindingDecl with
                 {
@@ -560,13 +472,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     AwaitedProgram = bindingDecl.AwaitedProgram is { } bindingAwaitedProgram
                         ? RewriteExpressionProgram(bindingAwaitedProgram)
                         : null
-                };
-
-            case SuspendingBindingVariableDeclarationInstruction suspendingBindingDecl:
-                return suspendingBindingDecl with
-                {
-                    TargetProgram = RewriteBindingTargetProgram(suspendingBindingDecl.TargetProgram),
-                    Initializer = Rewrite(suspendingBindingDecl.Initializer)
                 };
 
             case IteratorInitInstruction iterInit:
@@ -580,12 +485,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                         : null
                 };
 
-            case SuspendingIteratorInitInstruction suspendingIterInit:
-                return suspendingIterInit with
-                {
-                    IterableExpression = Rewrite(suspendingIterInit.IterableExpression)
-                };
-
             case EnterWithInstruction enterWith:
                 return enterWith with
                 {
@@ -595,12 +494,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     AwaitedProgram = enterWith.AwaitedProgram is { } withAwaitedProgram
                         ? RewriteExpressionProgram(withAwaitedProgram)
                         : null
-                };
-
-            case SuspendingEnterWithInstruction suspendingEnterWith:
-                return suspendingEnterWith with
-                {
-                    ObjectExpression = Rewrite(suspendingEnterWith.ObjectExpression)
                 };
 
             case YieldStarInstruction { AwaitedProgram: not null } yieldStar:
@@ -617,12 +510,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                         : null
                 };
 
-            case SuspendingYieldStarInstruction suspendingYieldStar:
-                return suspendingYieldStar with
-                {
-                    IterableExpression = Rewrite(suspendingYieldStar.IterableExpression)
-                };
-
             case ForInInitInstruction forInInit:
                 return forInInit with
                 {
@@ -632,12 +519,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     AwaitedProgram = forInInit.AwaitedProgram is { } objectAwaitedProgram
                         ? RewriteExpressionProgram(objectAwaitedProgram)
                         : null
-                };
-
-            case SuspendingForInInitInstruction suspendingForInInit:
-                return suspendingForInInit with
-                {
-                    ObjectExpression = Rewrite(suspendingForInInit.ObjectExpression)
                 };
 
             case ArrayDestructuringInitInstruction destructuringInit:
@@ -674,71 +555,88 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             return program;
         }
 
+        var objectConstants = program.ObjectConstants.AsSpan();
+        var identifierConstants = program.IdentifierConstants.AsSpan();
+        var objectPool = new ExpressionProgramObjectPoolBuilder(program.ObjectConstants);
+        var identifierPool = new ExpressionProgramIdentifierPoolBuilder(program.IdentifierConstants);
         var changed = false;
-        var builder = ImmutableArray.CreateBuilder<ExpressionOp>(program.Operations.Length);
+        var builder = ImmutableArray.CreateBuilder<PackedExpressionOp>(program.Operations.Length);
         foreach (var operation in program.Operations)
         {
-            var rewritten = RewriteExpressionOp(operation);
-            changed |= !ReferenceEquals(operation, rewritten);
+            var rewritten = RewriteExpressionOp(operation, objectConstants, identifierConstants, objectPool, identifierPool);
+            changed |= !operation.Equals(rewritten);
             builder.Add(rewritten);
         }
 
-        return changed ? new ExpressionProgram(builder.MoveToImmutable()) : program;
+        return changed
+            ? new ExpressionProgram(
+                builder.MoveToImmutable(),
+                program.LiteralConstants,
+                program.StringConstants,
+                objectPool.Build(),
+                identifierPool.Build(),
+                program.SpreadMaskConstants)
+            : program;
     }
 
-    private ExpressionOp RewriteExpressionOp(ExpressionOp operation)
+    private PackedExpressionOp RewriteExpressionOp(
+        PackedExpressionOp operation,
+        ReadOnlySpan<object> objectConstants,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ExpressionProgramObjectPoolBuilder objectPool,
+        ExpressionProgramIdentifierPoolBuilder identifierPool)
     {
-        switch (operation)
+        switch (operation.Kind)
         {
-            case LoadIdentifierExpressionOp loadIdentifier when TryResolve(loadIdentifier.Name, out var loadResolution):
-                return loadIdentifier with
+            case ExpressionOpKind.LoadIdentifier:
+            case ExpressionOpKind.StoreIdentifier:
+            case ExpressionOpKind.UpdateIdentifier:
+            case ExpressionOpKind.TypeOfIdentifier:
                 {
-                    ScopeId = loadResolution.scopeId,
-                    SlotIndex = loadResolution.slotIndex,
-                    FlatSlotId = GetOrCreateFlatSlotId(loadResolution.scopeId, loadResolution.slotIndex)
-                };
+                    var identifier = operation.GetIdentifier(identifierConstants);
+                    if (!TryResolve(identifier.Name, out var resolution))
+                    {
+                        return operation;
+                    }
 
-            case StoreIdentifierExpressionOp storeIdentifier when TryResolve(storeIdentifier.Name, out var storeResolution):
-                return storeIdentifier with
-                {
-                    ScopeId = storeResolution.scopeId,
-                    SlotIndex = storeResolution.slotIndex,
-                    FlatSlotId = GetOrCreateFlatSlotId(storeResolution.scopeId, storeResolution.slotIndex)
-                };
+                    var rewrittenIdentifier = identifier with
+                    {
+                        ScopeId = resolution.scopeId,
+                        SlotIndex = resolution.slotIndex,
+                        FlatSlotId = GetOrCreateFlatSlotId(resolution.scopeId, resolution.slotIndex)
+                    };
 
-            case UpdateIdentifierExpressionOp updateIdentifier when TryResolve(updateIdentifier.Name, out var updateResolution):
-                return updateIdentifier with
-                {
-                    ScopeId = updateResolution.scopeId,
-                    SlotIndex = updateResolution.slotIndex,
-                    FlatSlotId = GetOrCreateFlatSlotId(updateResolution.scopeId, updateResolution.slotIndex)
-                };
+                    return rewrittenIdentifier.Equals(identifier)
+                        ? operation
+                        : operation.WithIdentifierConstant(identifierPool.InternIdentifier(rewrittenIdentifier));
+                }
 
-            case TypeOfIdentifierExpressionOp typeofIdentifier when TryResolve(typeofIdentifier.Name, out var typeofResolution):
-                return typeofIdentifier with
+            case ExpressionOpKind.ApplyBindingTarget:
                 {
-                    ScopeId = typeofResolution.scopeId,
-                    SlotIndex = typeofResolution.slotIndex,
-                    FlatSlotId = GetOrCreateFlatSlotId(typeofResolution.scopeId, typeofResolution.slotIndex)
-                };
+                    var targetProgram = operation.GetObject<BindingTargetProgram>(objectConstants);
+                    var rewrittenTargetProgram = RewriteBindingTargetProgram(targetProgram);
+                    return ReferenceEquals(targetProgram, rewrittenTargetProgram)
+                        ? operation
+                        : operation.WithObjectConstant(objectPool.InternObject(rewrittenTargetProgram));
+                }
 
-            case ApplyBindingTargetExpressionOp applyBindingTarget:
-                return applyBindingTarget with
+            case ExpressionOpKind.LoadFunctionLiteral:
                 {
-                    TargetProgram = RewriteBindingTargetProgram(applyBindingTarget.TargetProgram)
-                };
+                    var function = operation.GetObject<FunctionExpression>(objectConstants);
+                    var rewrittenFunction = (FunctionExpression)Rewrite(function);
+                    return ReferenceEquals(function, rewrittenFunction)
+                        ? operation
+                        : operation.WithObjectConstant(objectPool.InternObject(rewrittenFunction));
+                }
 
-            case LoadFunctionLiteralExpressionOp functionLiteral:
-                return functionLiteral with
+            case ExpressionOpKind.LoadClassLiteral:
                 {
-                    Function = (FunctionExpression)Rewrite(functionLiteral.Function)
-                };
-
-            case LoadClassLiteralExpressionOp classLiteral:
-                return classLiteral with
-                {
-                    Class = (ClassExpression)Rewrite(classLiteral.Class)
-                };
+                    var classExpression = operation.GetObject<ClassExpression>(objectConstants);
+                    var rewrittenClassExpression = (ClassExpression)Rewrite(classExpression);
+                    return ReferenceEquals(classExpression, rewrittenClassExpression)
+                        ? operation
+                        : operation.WithObjectConstant(objectPool.InternObject(rewrittenClassExpression));
+                }
 
             default:
                 return operation;
@@ -928,9 +826,10 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     private static int TryGetFlatSlotId(ExpressionProgram program)
     {
         if (program.Operations.Length == 1 &&
-            program.Operations[0] is LoadIdentifierExpressionOp { FlatSlotId: >= 0 } loadIdentifier)
+            program.Operations[0].Kind == ExpressionOpKind.LoadIdentifier)
         {
-            return loadIdentifier.FlatSlotId;
+            var identifier = program.Operations[0].GetIdentifier(program.IdentifierConstants.AsSpan());
+            return identifier.FlatSlotId;
         }
 
         return -1;
@@ -1107,5 +1006,74 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         _scopeIdRemap[scopeId] = mappedId;
         _reverseScopeIdRemap[mappedId] = scopeId;
         return mappedId;
+    }
+
+    private sealed class ExpressionProgramObjectPoolBuilder
+    {
+        private readonly List<object> _objects;
+        private readonly Dictionary<object, int> _indices;
+
+        public ExpressionProgramObjectPoolBuilder(ImmutableArray<object> existingObjects)
+        {
+            _objects = existingObjects.IsDefaultOrEmpty ? [] : [.. existingObjects];
+            _indices = new Dictionary<object, int>(ReferenceEqualityComparer<object>.Instance);
+            for (var i = 0; i < _objects.Count; i++)
+            {
+                _indices[_objects[i]] = i;
+            }
+        }
+
+        public int InternObject<T>(T value)
+            where T : class
+        {
+            if (_indices.TryGetValue(value, out var existingIndex))
+            {
+                return existingIndex;
+            }
+
+            var index = _objects.Count;
+            _objects.Add(value);
+            _indices[value] = index;
+            return index;
+        }
+
+        public ImmutableArray<object> Build()
+        {
+            return _objects.Count == 0 ? ImmutableArray<object>.Empty : [.. _objects];
+        }
+    }
+
+    private sealed class ExpressionProgramIdentifierPoolBuilder
+    {
+        private readonly List<IdentifierOperand> _identifiers;
+        private readonly Dictionary<IdentifierOperand, int> _indices;
+
+        public ExpressionProgramIdentifierPoolBuilder(ImmutableArray<IdentifierOperand> existingIdentifiers)
+        {
+            _identifiers = existingIdentifiers.IsDefaultOrEmpty ? [] : [.. existingIdentifiers];
+            _indices = new Dictionary<IdentifierOperand, int>(_identifiers.Count);
+            for (var i = 0; i < _identifiers.Count; i++)
+            {
+                _indices[_identifiers[i]] = i;
+            }
+        }
+
+        public int InternIdentifier(IdentifierOperand value)
+        {
+            if (_indices.TryGetValue(value, out var existingIndex))
+            {
+                return existingIndex;
+            }
+
+            var index = _identifiers.Count;
+            _identifiers.Add(value);
+            _indices[value] = index;
+            return index;
+        }
+
+        public ImmutableArray<IdentifierOperand> Build()
+        {
+            return _identifiers.Count == 0 ? ImmutableArray<IdentifierOperand>.Empty : [.. _identifiers];
+        }
     }
 }

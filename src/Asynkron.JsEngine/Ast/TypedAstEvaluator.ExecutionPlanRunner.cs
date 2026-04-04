@@ -96,7 +96,7 @@ public static partial class TypedAstEvaluator
         private GeneratorState _state = GeneratorState.Start;
         private bool _rootScopeLogged;
         private JsValue[]? _expressionStackBuffer;
-        private bool[]? _expressionFlagBuffer;
+        private ulong[]? _expressionFlagBuffer;
         private int _expressionBufferLeaseCount;
 
         /// <summary>
@@ -125,51 +125,24 @@ public static partial class TypedAstEvaluator
         private WithState WithStateRef => field ??= new WithState();
         private ForInState ForInStateRef => field ??= new ForInState();
 
-        internal JsValue EvaluateAwaitInGenerator(AwaitExpression expression, JsEnvironment environment,
-            EvaluationContext context)
-        {
-            return EvaluateAwaitInGenerator(
-                expression.GetAwaitStateKey(),
-                expression.Expression,
-                null,
-                environment,
-                context);
-        }
-
         internal JsValue EvaluateAwaitInGenerator(
             Symbol awaitKey,
             ExpressionProgram awaitedProgram,
             JsEnvironment environment,
             EvaluationContext context)
         {
-            return EvaluateAwaitInGenerator(awaitKey, null, awaitedProgram, environment, context);
-        }
-
-        internal JsValue EvaluateAwaitInGenerator(
-            Symbol awaitKey,
-            ExpressionNode? awaitedExpression,
-            ExpressionProgram? awaitedProgram,
-            JsEnvironment environment,
-            EvaluationContext context)
-        {
             // When not executing under async-aware stepping, fall back to the
-            // legacy blocking helper so synchronous generators remain usable.
+            // blocking helper so synchronous generators remain usable.
             if (!AsyncStateRef.AsyncStepMode)
             {
-                // Keep as JsValue to avoid boxing round trips
-                var awaitedValueSync = awaitedProgram is { } syncProgram
-                    ? EvaluateExpressionProgram(syncProgram, environment, context)
-                    : awaitedExpression!.EvaluateExpression(environment, context);
+                var awaitedValueSync = EvaluateExpressionProgram(awaitedProgram, environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return awaitedValueSync;
                 }
 
-                // awaitedValueSync is already JsValue
                 TryAwaitPromise(awaitedValueSync, context, out var resolvedSync);
-
                 return resolvedSync;
-
             }
 
             // Async-aware mode: use per-site await state so we don't re-run
@@ -181,8 +154,6 @@ public static partial class TypedAstEvaluator
                 var isThrow = state.IsThrow;
                 RecordAwaitKeyForReset(awaitKey);
 
-                // If the await was rejected, throw at this point so the
-                // generator's try-catch can handle it.
                 if (isThrow)
                 {
                     throw new ThrowSignal(result);
@@ -191,10 +162,7 @@ public static partial class TypedAstEvaluator
                 return result;
             }
 
-            // Keep as JsValue to avoid boxing round trips
-            var awaitedValue = awaitedProgram is { } program
-                ? EvaluateExpressionProgram(program, environment, context)
-                : awaitedExpression!.EvaluateExpression(environment, context);
+            var awaitedValue = EvaluateExpressionProgram(awaitedProgram, environment, context);
             if (context.ShouldStopEvaluation)
             {
                 return awaitedValue;

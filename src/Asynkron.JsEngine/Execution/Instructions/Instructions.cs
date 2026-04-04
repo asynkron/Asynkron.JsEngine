@@ -43,12 +43,6 @@ internal sealed record EvaluateAndDiscardInstruction(
     public ExpressionNode? Expression => null;
 }
 
-internal sealed record SuspendingEvaluateAndDiscardInstruction(
-    int Next,
-    ExpressionNode Expression,
-    bool SuppressCompletionValue = false)
-    : ExecutionInstruction(InstructionKind.SuspendingEvaluateAndDiscard, Next);
-
 /// <summary>
 ///     Evaluates an await expression statement and discards the result.
 /// </summary>
@@ -107,17 +101,6 @@ internal sealed record AssignmentSlotInstruction(
     public ExpressionNode? ValueExpression => null;
 }
 
-internal sealed record SuspendingAssignmentSlotInstruction(
-    int Next,
-    Symbol TargetSymbol,
-    ExpressionNode ValueExpression,
-    bool SuppressCompletionValue = false,
-    bool AllowNameInference = true,
-    int ScopeId = -1,
-    int SlotIndex = -1,
-    int FlatSlotId = -1)
-    : ExecutionInstruction(InstructionKind.SuspendingAssignmentSlot, Next);
-
 /// <summary>
 ///     Performs a logical compound assignment on an identifier slot (e.g., x ||= y).
 ///     The runner preserves short-circuit semantics and only evaluates the RHS when needed.
@@ -138,18 +121,6 @@ internal sealed record LogicalCompoundAssignmentSlotInstruction(
 {
     public ExpressionNode? RhsExpression => null;
 }
-
-internal sealed record SuspendingLogicalCompoundAssignmentSlotInstruction(
-    int Next,
-    Symbol TargetSymbol,
-    BinaryOperator Operator,
-    ExpressionNode RhsExpression,
-    bool SuppressCompletionValue = false,
-    bool AllowNameInference = true,
-    int ScopeId = -1,
-    int SlotIndex = -1,
-    int FlatSlotId = -1)
-    : ExecutionInstruction(InstructionKind.SuspendingLogicalCompoundAssignmentSlot, Next);
 
 /// <summary>
 ///     Performs a compound assignment operation directly on an identifier slot (e.g., s += i).
@@ -186,17 +157,6 @@ internal sealed record CompoundAssignmentSlotInstruction(
 {
     public ExpressionNode? RhsExpression => null;
 }
-
-internal sealed record SuspendingCompoundAssignmentSlotInstruction(
-    int Next,
-    Symbol TargetSymbol,
-    BinaryOperator Operator,
-    ExpressionNode RhsExpression,
-    bool SuppressCompletionValue = false,
-    int ScopeId = -1,
-    int SlotIndex = -1,
-    int FlatSlotId = -1)
-    : ExecutionInstruction(InstructionKind.SuspendingCompoundAssignmentSlot, Next);
 
 internal readonly record struct FunctionDeclarationDescriptor(Symbol Name, FunctionExpression Function);
 
@@ -246,18 +206,6 @@ internal sealed record SimpleVariableDeclarationInstruction(
     public ExpressionNode? Initializer => null;
 }
 
-internal sealed record SuspendingSimpleVariableDeclarationInstruction(
-    int Next,
-    VariableKind VarKind,
-    Symbol TargetSymbol,
-    ExpressionNode Initializer,
-    bool AllowNameInference = false,
-    bool IsScriptLevel = false)
-    : ExecutionInstruction(InstructionKind.SuspendingSimpleVariableDeclaration, Next)
-{
-    public ExpressionProgram? InitializerProgram => null;
-}
-
 /// <summary>
 ///     Represents a single variable declarator that uses a binding target.
 ///     Handles declarations like: let {a, b} = obj; const [x, y] = arr; var {x = 1} = source;
@@ -272,16 +220,6 @@ internal sealed record BindingVariableDeclarationInstruction(
     : ExecutionInstruction(InstructionKind.BindingVariableDeclaration, Next)
 {
     public ExpressionNode? Initializer => null;
-}
-
-internal sealed record SuspendingBindingVariableDeclarationInstruction(
-    int Next,
-    VariableKind VarKind,
-    BindingTargetProgram TargetProgram,
-    ExpressionNode Initializer)
-    : ExecutionInstruction(InstructionKind.SuspendingBindingVariableDeclaration, Next)
-{
-    public ExpressionProgram? InitializerProgram => null;
 }
 
 /// <summary>
@@ -337,15 +275,6 @@ internal sealed record YieldInstruction(
     : ExecutionInstruction(InstructionKind.Yield, Next);
 
 /// <summary>
-///     Represents a yield expression whose operand still requires AST evaluation because it contains nested
-///     suspension points.
-/// </summary>
-internal sealed record SuspendingYieldInstruction(
-    int Next,
-    ExpressionNode YieldExpression)
-    : ExecutionInstruction(InstructionKind.SuspendingYield, Next);
-
-/// <summary>
 ///     Represents a delegated <c>yield*</c> expression that iterates another iterable.
 /// </summary>
 /// <param name="Next">Next instruction index.</param>
@@ -360,17 +289,6 @@ internal sealed record YieldStarInstruction(
     Symbol? AwaitStateKey = null,
     ExpressionProgram? AwaitedProgram = null)
     : ExecutionInstruction(InstructionKind.YieldStar, Next);
-
-/// <summary>
-///     Represents a delegated <c>yield*</c> whose iterable still requires AST evaluation because it contains
-///     nested suspension points.
-/// </summary>
-internal sealed record SuspendingYieldStarInstruction(
-    int Next,
-    ExpressionNode IterableExpression,
-    Symbol StateSlotSymbol,
-    Symbol? ResultSlotSymbol = null)
-    : ExecutionInstruction(InstructionKind.SuspendingYieldStar, Next);
 
 /// <summary>
 ///     Stores the most recent <c>.next(value)</c> payload into a synthetic slot (or discards it) before execution
@@ -481,21 +399,6 @@ internal sealed record IteratorInitInstruction(
     : ExecutionInstruction(InstructionKind.IteratorInit, Next);
 
 /// <summary>
-///     Initializes a <c>for...of</c> or <c>for await...of</c> loop whose iterable still requires AST evaluation
-///     because it contains suspension points.
-/// </summary>
-internal sealed record SuspendingIteratorInitInstruction(
-    IteratorDriverKind IteratorKind,
-    Symbol IteratorSlot,
-    int IteratorSlotIndex,
-    int Next,
-    ExpressionNode IterableExpression,
-    ImmutableArray<Symbol> TdzBindings = default,
-    bool TdzIsConst = false,
-    SourceReference? IterableSource = null)
-    : ExecutionInstruction(InstructionKind.SuspendingIteratorInit, Next);
-
-/// <summary>
 ///     Advances the iterator for a <c>for...of</c> or <c>for await...of</c> loop.
 /// </summary>
 /// <param name="IteratorKind">Whether this is a sync or async iterator.</param>
@@ -599,17 +502,6 @@ internal sealed record EnterWithInstruction(
     : ExecutionInstruction(InstructionKind.EnterWith, Next);
 
 /// <summary>
-///     Marks the beginning of a <c>with</c> statement whose object expression still requires AST evaluation because
-///     it contains suspension points.
-/// </summary>
-internal sealed record SuspendingEnterWithInstruction(
-    Symbol WithScopeSlot,
-    int Next,
-    ExpressionNode ObjectExpression,
-    SourceReference? ObjectSource = null)
-    : ExecutionInstruction(InstructionKind.SuspendingEnterWith, Next);
-
-/// <summary>
 ///     Marks the end of a <c>with</c> statement. Pops the with-environment from the scope chain.
 /// </summary>
 internal sealed record LeaveWithInstruction(Symbol WithScopeSlot, int Next)
@@ -650,22 +542,6 @@ internal sealed record ForInInitInstruction(
     bool TdzIsConst = false,
     SourceReference? ObjectSource = null)
     : ExecutionInstruction(InstructionKind.ForInInit, Next);
-
-/// <summary>
-///     Initializes a for-in loop whose object expression still requires AST evaluation because it contains
-///     suspension points.
-/// </summary>
-internal sealed record SuspendingForInInitInstruction(
-    Symbol StateSlot,
-    int StateSlotIndex,
-    Symbol ValueSlot,
-    int ValueSlotIndex,
-    int Next,
-    ExpressionNode ObjectExpression,
-    ImmutableArray<Symbol> TdzBindings = default,
-    bool TdzIsConst = false,
-    SourceReference? ObjectSource = null)
-    : ExecutionInstruction(InstructionKind.SuspendingForInInit, Next);
 
 /// <summary>
 ///     Advances the for-in loop to the next enumerable property key.

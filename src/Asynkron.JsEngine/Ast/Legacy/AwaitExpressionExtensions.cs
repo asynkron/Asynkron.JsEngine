@@ -21,8 +21,7 @@ public static partial class TypedAstEvaluator
         // is responsible for evaluating the awaited expression and managing resume.
         if (environment.TryGetObject<ExecutionPlanRunner>(Symbol.GeneratorInstanceSymbol, out var generator))
         {
-            // EvaluateAwaitInGenerator returns JsValue to avoid boxing in async paths.
-            var result = generator.EvaluateAwaitInGenerator(expression, environment, context);
+            var result = generator.EvaluateAwaitInGeneratorLegacy(expression, environment, context);
             return result;
         }
 

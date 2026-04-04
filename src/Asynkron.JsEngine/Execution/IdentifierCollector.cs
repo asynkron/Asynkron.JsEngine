@@ -338,10 +338,6 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 VisitExpressionProgram(eval.ExpressionProgram);
                 return;
 
-            case SuspendingEvaluateAndDiscardInstruction suspendingEval:
-                Visit(suspendingEval.Expression);
-                return;
-
             case AwaitAndDiscardInstruction awaitDiscard:
                 VisitExpressionProgram(awaitDiscard.AwaitedProgram);
                 return;
@@ -350,16 +346,8 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 VisitExpressionProgram(assign.AwaitedProgram ?? assign.ValueProgram!.Value);
                 return;
 
-            case SuspendingAssignmentSlotInstruction suspendingAssign:
-                Visit(suspendingAssign.ValueExpression);
-                return;
-
             case LogicalCompoundAssignmentSlotInstruction logicalCompound:
                 VisitExpressionProgram(logicalCompound.AwaitedProgram ?? logicalCompound.RhsProgram!.Value);
-                return;
-
-            case SuspendingLogicalCompoundAssignmentSlotInstruction suspendingLogicalCompound:
-                Visit(suspendingLogicalCompound.RhsExpression);
                 return;
 
             case YieldInstruction { AwaitedProgram: not null } yield:
@@ -368,10 +356,6 @@ internal sealed class ScopeSlotCollector : AstVisitor
 
             case YieldInstruction { YieldProgram: not null } yield:
                 VisitExpressionProgram(yield.YieldProgram.Value);
-                return;
-
-            case SuspendingYieldInstruction suspendingYield:
-                Visit(suspendingYield.YieldExpression);
                 return;
 
             case ReturnInstruction { AwaitedProgram: not null } ret:
@@ -399,11 +383,6 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 RegisterDeclaration(varDecl);
                 return;
 
-            case SuspendingSimpleVariableDeclarationInstruction suspendingVarDecl:
-                RegisterDeclaration(suspendingVarDecl);
-                Visit(suspendingVarDecl.Initializer);
-                return;
-
             case BindingVariableDeclarationInstruction { InitializerProgram: not null or _, AwaitedProgram: not null } bindingDecl:
                 RegisterBindingDeclaration(bindingDecl);
                 VisitExpressionProgram(bindingDecl.AwaitedProgram ?? bindingDecl.InitializerProgram!.Value);
@@ -413,41 +392,20 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 RegisterBindingDeclaration(bindingDecl);
                 return;
 
-            case SuspendingBindingVariableDeclarationInstruction suspendingBindingDecl:
-                RegisterBindingDeclaration(suspendingBindingDecl);
-                Visit(suspendingBindingDecl.Initializer);
-                return;
-
             case IteratorInitInstruction iterInit:
                 VisitExpressionProgram(iterInit.AwaitedProgram ?? iterInit.IterableProgram!.Value);
-                return;
-
-            case SuspendingIteratorInitInstruction suspendingIteratorInit:
-                Visit(suspendingIteratorInit.IterableExpression);
                 return;
 
             case ForInInitInstruction forInInit:
                 VisitExpressionProgram(forInInit.AwaitedProgram ?? forInInit.ObjectProgram!.Value);
                 return;
 
-            case SuspendingForInInitInstruction suspendingForInInit:
-                Visit(suspendingForInInit.ObjectExpression);
-                return;
-
             case CompoundAssignmentSlotInstruction compoundAssign:
                 VisitExpressionProgram(compoundAssign.AwaitedProgram ?? compoundAssign.RhsProgram!.Value);
                 return;
 
-            case SuspendingCompoundAssignmentSlotInstruction suspendingCompoundAssign:
-                Visit(suspendingCompoundAssign.RhsExpression);
-                return;
-
             case EnterWithInstruction enterWith:
                 VisitExpressionProgram(enterWith.AwaitedProgram ?? enterWith.ObjectProgram!.Value);
-                return;
-
-            case SuspendingEnterWithInstruction suspendingEnterWith:
-                Visit(suspendingEnterWith.ObjectExpression);
                 return;
 
             case YieldStarInstruction { AwaitedProgram: not null } yieldStar:
@@ -460,10 +418,6 @@ internal sealed class ScopeSlotCollector : AstVisitor
                     VisitExpressionProgram(yieldStarIterableProgram);
                 }
                 return;
-
-            case SuspendingYieldStarInstruction suspendingYieldStar:
-                Visit(suspendingYieldStar.IterableExpression);
-                return;
         }
     }
 
@@ -474,40 +428,30 @@ internal sealed class ScopeSlotCollector : AstVisitor
             return;
         }
 
+        var objectConstants = program.ObjectConstants.AsSpan();
+        var identifierConstants = program.IdentifierConstants.AsSpan();
         foreach (var op in program.Operations)
         {
-            switch (op)
+            switch (op.Kind)
             {
-                case LoadIdentifierExpressionOp loadIdentifier:
-                    RegisterCompilerGeneratedIdentifier(loadIdentifier.Name);
+                case ExpressionOpKind.LoadIdentifier:
+                case ExpressionOpKind.StoreIdentifier:
+                case ExpressionOpKind.UpdateIdentifier:
+                case ExpressionOpKind.TypeOfIdentifier:
+                case ExpressionOpKind.DeleteIdentifier:
+                    RegisterCompilerGeneratedIdentifier(op.GetIdentifier(identifierConstants).Name);
                     break;
 
-                case StoreIdentifierExpressionOp storeIdentifier:
-                    RegisterCompilerGeneratedIdentifier(storeIdentifier.Name);
+                case ExpressionOpKind.ApplyBindingTarget:
+                    VisitBindingTargetProgram(op.GetObject<BindingTargetProgram>(objectConstants));
                     break;
 
-                case UpdateIdentifierExpressionOp updateIdentifier:
-                    RegisterCompilerGeneratedIdentifier(updateIdentifier.Name);
+                case ExpressionOpKind.LoadFunctionLiteral:
+                    Visit(op.GetObject<FunctionExpression>(objectConstants));
                     break;
 
-                case TypeOfIdentifierExpressionOp typeofIdentifier:
-                    RegisterCompilerGeneratedIdentifier(typeofIdentifier.Name);
-                    break;
-
-                case DeleteIdentifierExpressionOp deleteIdentifier:
-                    RegisterCompilerGeneratedIdentifier(deleteIdentifier.Name);
-                    break;
-
-                case ApplyBindingTargetExpressionOp applyBindingTarget:
-                    VisitBindingTargetProgram(applyBindingTarget.TargetProgram);
-                    break;
-
-                case LoadFunctionLiteralExpressionOp functionLiteral:
-                    Visit(functionLiteral.Function);
-                    break;
-
-                case LoadClassLiteralExpressionOp classLiteral:
-                    Visit(classLiteral.Class);
+                case ExpressionOpKind.LoadClassLiteral:
+                    Visit(op.GetObject<ClassExpression>(objectConstants));
                     break;
             }
         }
@@ -592,17 +536,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
         RegisterDeclaration(varDecl.VarKind, varDecl.TargetSymbol);
     }
 
-    private void RegisterDeclaration(SuspendingSimpleVariableDeclarationInstruction varDecl)
-    {
-        RegisterDeclaration(varDecl.VarKind, varDecl.TargetSymbol);
-    }
-
     private void RegisterBindingDeclaration(BindingVariableDeclarationInstruction bindingDecl)
-    {
-        RegisterBindingDeclaration(bindingDecl.VarKind, bindingDecl.TargetProgram);
-    }
-
-    private void RegisterBindingDeclaration(SuspendingBindingVariableDeclarationInstruction bindingDecl)
     {
         RegisterBindingDeclaration(bindingDecl.VarKind, bindingDecl.TargetProgram);
     }

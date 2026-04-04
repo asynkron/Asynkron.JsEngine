@@ -1,7 +1,6 @@
 #region
 
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution.Instructions;
 
 #endregion
@@ -54,16 +53,6 @@ internal static class WithEmitter
                 AwaitStateKey: ((IAstCacheable<Symbol>)awaitObject).GetOrCreateCache(),
                 AwaitedProgram: awaitedProgram,
                 ObjectSource: statement.Object.Source));
-            return true;
-        }
-
-        if (AstShapeAnalyzer.ContainsAwait(statement.Object) || AstShapeAnalyzer.ContainsYield(statement.Object))
-        {
-            entryIndex = ctx.Append(new SuspendingEnterWithInstruction(
-                withScopeSlot,
-                bodyEntry,
-                statement.Object,
-                statement.Object.Source));
             return true;
         }
 

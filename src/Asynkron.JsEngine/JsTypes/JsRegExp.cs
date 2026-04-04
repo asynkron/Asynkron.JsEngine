@@ -24,6 +24,23 @@ public sealed class JsRegExp
     // large string allocations). ~1200 entries max (600 properties x 2 for negate).
     private static readonly ConcurrentDictionary<(string Expression, bool Negate), string>
         PropertyEscapePatternCache = new();
+    private const byte FlagHasIndices = 1 << 0;
+    private const byte FlagGlobal = 1 << 1;
+    private const byte FlagIgnoreCase = 1 << 2;
+    private const byte FlagMultiline = 1 << 3;
+    private const byte FlagDotAll = 1 << 4;
+    private const byte FlagUnicode = 1 << 5;
+    private const byte FlagUnicodeSets = 1 << 6;
+    private const byte FlagSticky = 1 << 7;
+    private const byte AllFlagsMask =
+        FlagHasIndices |
+        FlagGlobal |
+        FlagIgnoreCase |
+        FlagMultiline |
+        FlagDotAll |
+        FlagUnicode |
+        FlagUnicodeSets |
+        FlagSticky;
 
     /// <summary>
     /// Normalized pattern length above which we skip RegexOptions.Compiled.
@@ -149,19 +166,33 @@ public sealed class JsRegExp
     private int[]? _quantifiedAncestorMap;
 
     private Regex? _compiledRegex;
+    private readonly byte _encodedFlags;
+    private string? _flags;
 
     public JsRegExp(string pattern, string flags = "", RealmState? realmState = null, JsObject? existingObject = null)
+        : this(pattern, EncodeFlags(flags), flags, realmState, existingObject)
+    {
+    }
+
+    internal JsRegExp(string pattern, byte encodedFlags, RealmState? realmState = null, JsObject? existingObject = null)
+        : this(pattern, ValidateEncodedFlags(encodedFlags), null, realmState, existingObject)
+    {
+    }
+
+    private JsRegExp(
+        string pattern,
+        byte encodedFlags,
+        string? flags,
+        RealmState? realmState,
+        JsObject? existingObject)
     {
         Pattern = pattern;
-        Flags = flags;
+        _encodedFlags = encodedFlags;
+        _flags = flags;
         RealmState = realmState;
         JsObject = existingObject ?? new JsObject();
 
-        ValidateFlags(Flags);
-        var hasUnicodeFlag = Flags.Contains('u', StringComparison.Ordinal) ||
-                             Flags.Contains('v', StringComparison.Ordinal);
-        var hasUnicodeSetsFlag = Flags.Contains('v', StringComparison.Ordinal);
-        var normalized = NormalizePattern(pattern, hasUnicodeFlag, hasUnicodeSetsFlag, IgnoreCase, DotAll, Multiline);
+        var normalized = NormalizePattern(pattern, Unicode || UnicodeSets, UnicodeSets, IgnoreCase, DotAll, Multiline);
         var sanitized = SanitizeGroupNamesForDotNet(normalized, out var nameMapping);
         var renamed = RenameDuplicateGroups(sanitized, ref nameMapping, out _duplicateGroupNames);
         _normalizedPattern = _duplicateGroupNames is not null
@@ -212,16 +243,16 @@ public sealed class JsRegExp
 
     public string Pattern { get; }
 
-    public string Flags { get; }
+    public string Flags => _flags ??= DecodeFlags(_encodedFlags);
 
-    public bool Global => Flags.Contains('g', StringComparison.Ordinal);
-    public bool IgnoreCase => Flags.Contains('i', StringComparison.Ordinal);
-    public bool Multiline => Flags.Contains('m', StringComparison.Ordinal);
-    public bool DotAll => Flags.Contains('s', StringComparison.Ordinal);
-    public bool Unicode => Flags.Contains('u', StringComparison.Ordinal);
-    public bool Sticky => Flags.Contains('y', StringComparison.Ordinal);
-    public bool HasIndices => Flags.Contains('d', StringComparison.Ordinal);
-    public bool UnicodeSets => Flags.Contains('v', StringComparison.Ordinal);
+    public bool Global => (_encodedFlags & FlagGlobal) != 0;
+    public bool IgnoreCase => (_encodedFlags & FlagIgnoreCase) != 0;
+    public bool Multiline => (_encodedFlags & FlagMultiline) != 0;
+    public bool DotAll => (_encodedFlags & FlagDotAll) != 0;
+    public bool Unicode => (_encodedFlags & FlagUnicode) != 0;
+    public bool Sticky => (_encodedFlags & FlagSticky) != 0;
+    public bool HasIndices => (_encodedFlags & FlagHasIndices) != 0;
+    public bool UnicodeSets => (_encodedFlags & FlagUnicodeSets) != 0;
 
     public JsObject JsObject { get; }
     internal RealmState? RealmState { get; }
@@ -423,43 +454,114 @@ public sealed class JsRegExp
         return EnsureRegex();
     }
 
-    private static void ValidateFlags(string flags)
+    internal static byte EncodeFlags(string flags)
     {
-        var seen = new HashSet<char>();
-        var hasUnicode = false;
-        var hasUnicodeSets = false;
+        var encodedFlags = (byte)0;
         foreach (var flag in flags)
         {
-            if (!seen.Add(flag))
+            var encodedFlag = flag switch
+            {
+                'd' => FlagHasIndices,
+                'g' => FlagGlobal,
+                'i' => FlagIgnoreCase,
+                'm' => FlagMultiline,
+                's' => FlagDotAll,
+                'u' => FlagUnicode,
+                'v' => FlagUnicodeSets,
+                'y' => FlagSticky,
+                _ => throw new ParseException($"Invalid regular expression flag '{flag}'.")
+            };
+
+            if ((encodedFlags & encodedFlag) != 0)
             {
                 throw new ParseException($"Invalid regular expression flags: duplicate '{flag}'.");
             }
 
-            if (flag is not ('g' or 'i' or 'm' or 'u' or 'y' or 's' or 'd' or 'v'))
+            if ((encodedFlag == FlagUnicode && (encodedFlags & FlagUnicodeSets) != 0) ||
+                (encodedFlag == FlagUnicodeSets && (encodedFlags & FlagUnicode) != 0))
             {
                 throw new ParseException($"Invalid regular expression flag '{flag}'.");
             }
 
-            if (flag == 'u')
-            {
-                hasUnicode = true;
-                if (hasUnicodeSets)
-                {
-                    throw new ParseException("Invalid regular expression flag 'u'.");
-                }
-            }
-
-            if (flag != 'v')
-            {
-                continue;
-            }
-
-            hasUnicodeSets = true;
-            if (hasUnicode)
-            {
-                throw new ParseException("Invalid regular expression flag 'v'.");
-            }
+            encodedFlags |= encodedFlag;
         }
+
+        return encodedFlags;
+    }
+
+    internal static string DecodeFlags(byte encodedFlags)
+    {
+        ValidateEncodedFlags(encodedFlags);
+        var length = 0;
+        if ((encodedFlags & FlagHasIndices) != 0) length++;
+        if ((encodedFlags & FlagGlobal) != 0) length++;
+        if ((encodedFlags & FlagIgnoreCase) != 0) length++;
+        if ((encodedFlags & FlagMultiline) != 0) length++;
+        if ((encodedFlags & FlagDotAll) != 0) length++;
+        if ((encodedFlags & FlagUnicode) != 0) length++;
+        if ((encodedFlags & FlagUnicodeSets) != 0) length++;
+        if ((encodedFlags & FlagSticky) != 0) length++;
+
+        return string.Create(length, encodedFlags, static (span, flags) =>
+        {
+            var index = 0;
+
+            if ((flags & FlagHasIndices) != 0)
+            {
+                span[index++] = 'd';
+            }
+
+            if ((flags & FlagGlobal) != 0)
+            {
+                span[index++] = 'g';
+            }
+
+            if ((flags & FlagIgnoreCase) != 0)
+            {
+                span[index++] = 'i';
+            }
+
+            if ((flags & FlagMultiline) != 0)
+            {
+                span[index++] = 'm';
+            }
+
+            if ((flags & FlagDotAll) != 0)
+            {
+                span[index++] = 's';
+            }
+
+            if ((flags & FlagUnicode) != 0)
+            {
+                span[index++] = 'u';
+            }
+
+            if ((flags & FlagUnicodeSets) != 0)
+            {
+                span[index++] = 'v';
+            }
+
+            if ((flags & FlagSticky) != 0)
+            {
+                span[index++] = 'y';
+            }
+        });
+    }
+
+    private static byte ValidateEncodedFlags(byte encodedFlags)
+    {
+        if ((encodedFlags & ~AllFlagsMask) != 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(encodedFlags));
+        }
+
+        if ((encodedFlags & FlagUnicode) != 0 &&
+            (encodedFlags & FlagUnicodeSets) != 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(encodedFlags));
+        }
+
+        return encodedFlags;
     }
 
     internal int GetLastIndex()

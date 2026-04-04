@@ -178,12 +178,10 @@ internal static class DeclarationEmitter
         if (AstShapeAnalyzer.ContainsAwait(declarator.Initializer) ||
             AstShapeAnalyzer.ContainsYield(declarator.Initializer))
         {
-            entryIndex = ctx.Append(new SuspendingBindingVariableDeclarationInstruction(
-                nextIndex,
-                varKind,
-                targetProgram,
-                declarator.Initializer));
-            return true;
+            entryIndex = -1;
+            ctx.SetFailureReason(
+                "Binding variable declaration contains unlowered await or yield initializer.");
+            return false;
         }
 
         return false;
@@ -306,14 +304,10 @@ internal static class DeclarationEmitter
             (AstShapeAnalyzer.ContainsYield(declarator.Initializer) ||
              AstShapeAnalyzer.ContainsAwait(declarator.Initializer)))
         {
-            entryIndex = ctx.Append(new SuspendingSimpleVariableDeclarationInstruction(
-                nextIndex,
-                varKind,
-                identifierBinding.Name,
-                declarator.Initializer,
-                allowNameInference,
-                isScriptLevel));
-            return true;
+            entryIndex = -1;
+            ctx.SetFailureReason(
+                "Simple variable declaration contains unlowered await or yield initializer.");
+            return false;
         }
 
         if (!TryCompileInitializerProgram(

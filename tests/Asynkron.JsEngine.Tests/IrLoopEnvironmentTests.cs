@@ -744,11 +744,9 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         Assert.NotNull(instruction.AwaitStateKey);
         var awaitedProgram = instruction.AwaitedProgram ?? throw new InvalidOperationException("Expected awaited assignment program.");
         Assert.Contains(
-            awaitedProgram.Operations.OfType<LoadIdentifierExpressionOp>(),
+            awaitedProgram.GetOps(ExpressionOpKind.LoadIdentifier),
             op => op.Name.Name == "Promise");
-        Assert.DoesNotContain(
-            cache.Plan.Instructions,
-            i => i.Kind == InstructionKind.SuspendingAssignmentSlot);
+        Assert.DoesNotContain(cache.Plan.Instructions.OfType<EvaluateAndDiscardInstruction>(), _ => true);
     }
 
     [Fact(Timeout = 5000)]
@@ -826,7 +824,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         Assert.NotNull(instruction.AwaitStateKey);
         var awaitedProgram = instruction.AwaitedProgram ?? throw new InvalidOperationException("Expected awaited throw program.");
         Assert.Contains(
-            awaitedProgram.Operations.OfType<LoadIdentifierExpressionOp>(),
+            awaitedProgram.GetOps(ExpressionOpKind.LoadIdentifier),
             op => op.Name.Name == "Promise");
     }
 
@@ -960,11 +958,154 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         Assert.NotNull(instruction.AwaitStateKey);
         var awaitedProgram = instruction.AwaitedProgram ?? throw new InvalidOperationException("Expected awaited logical assignment program.");
         Assert.Contains(
-            awaitedProgram.Operations.OfType<LoadIdentifierExpressionOp>(),
+            awaitedProgram.GetOps(ExpressionOpKind.LoadIdentifier),
             op => op.Name.Name == "Promise");
-        Assert.DoesNotContain(
-            cache.Plan.Instructions,
-            i => i.Kind == InstructionKind.SuspendingLogicalCompoundAssignmentSlot);
+        Assert.DoesNotContain(cache.Plan.Instructions.OfType<EvaluateAndDiscardInstruction>(), _ => true);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncNestedAwaitCompoundAssignment_SnapshotsCurrentValueBeforeAwait()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.EvaluateAndAwait("""
+            async function testNestedAwaitCompoundSnapshot() {
+                let current = 3;
+                current += (await Promise.resolve().then(() => {
+                    current = 100;
+                    return 4;
+                })) + 1;
+                return current;
+            }
+
+            let nestedCompoundSnapshotResult = undefined;
+            testNestedAwaitCompoundSnapshot().then(value => nestedCompoundSnapshotResult = value);
+            nestedCompoundSnapshotResult;
+            """);
+
+        Assert.Equal(8.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncNestedAwaitLogicalCompoundAssignment_PreservesShortCircuit()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.EvaluateAndAwait("""
+            async function testNestedAwaitLogicalShortCircuit() {
+                let current = 1;
+                let calls = 0;
+
+                async function nextValue() {
+                    calls++;
+                    return 7;
+                }
+
+                current ||= (await nextValue()) + 1;
+                return current + calls;
+            }
+
+            let nestedLogicalShortCircuitResult = undefined;
+            testNestedAwaitLogicalShortCircuit().then(value => nestedLogicalShortCircuitResult = value);
+            nestedLogicalShortCircuitResult;
+            """);
+
+        Assert.Equal(1.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncNestedAwaitMultiDeclaratorDeclaration_PreservesInitializerOrder()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.EvaluateAndAwait("""
+            async function testNestedAwaitMultiDeclaration() {
+                let trace = [];
+                let first = (await Promise.resolve().then(() => {
+                    trace.push("await");
+                    return 2;
+                })) + 1, second = trace.length + first;
+                return first * 10 + second;
+            }
+
+            let nestedAwaitMultiDeclarationResult = undefined;
+            testNestedAwaitMultiDeclaration().then(value => nestedAwaitMultiDeclarationResult = value);
+            nestedAwaitMultiDeclarationResult;
+            """);
+
+        Assert.Equal(34.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncComputedAwaitedIterableProperty_PreservesTargetEvaluationOrder()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.EvaluateAndAwait("""
+            async function testComputedAwaitedIterableProperty() {
+                let trace = [];
+                let groups = { selected: [7] };
+
+                function getGroups() {
+                    trace.push("target");
+                    return groups;
+                }
+
+                let first = 0;
+                for (const item of getGroups()[await Promise.resolve().then(() => {
+                    trace.push("await");
+                    return "selected";
+                })]) {
+                    first = item;
+                    break;
+                }
+
+                return trace.join(",") + ":" + first;
+            }
+
+            let computedAwaitedIterablePropertyResult = undefined;
+            testComputedAwaitedIterableProperty().then(value => computedAwaitedIterablePropertyResult = value);
+            computedAwaitedIterablePropertyResult;
+            """);
+
+        Assert.Equal("target,await:7", result.ToString());
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorWithYieldingObject_ReusesEnterWithInstruction()
+    {
+        await using var engine = CreateEngine();
+
+        var program = engine.ParseProgram("""
+            function* readWith() {
+                with (yield { marker: "request" }) {
+                    return answer;
+                }
+            }
+            """);
+
+        await engine.Evaluate(program);
+        var result = await engine.Evaluate("""
+            let iter = readWith();
+            let first = iter.next();
+            let second = iter.next({ answer: 42 });
+            [first.value.marker, first.done, second.value, second.done].join(",");
+            """);
+
+        Assert.Equal("request,false,42,true", result.ToString());
+
+        var funcDecl = Assert.IsType<FunctionDeclaration>(program.Body[0]);
+        var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        var instruction = Assert.Single(
+            cache.Plan.Instructions.OfType<EnterWithInstruction>(),
+            i => i.ObjectProgram is not null);
+        var objectProgram = instruction.ObjectProgram ?? throw new InvalidOperationException("Expected lowered with object program.");
+        Assert.Contains(
+            objectProgram.GetOps(ExpressionOpKind.LoadIdentifier),
+            op => op.Name.Name!.StartsWith("__yield_lower_resume", StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]

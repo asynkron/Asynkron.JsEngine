@@ -26,10 +26,15 @@ This page indexes the agent playbooks. MUST READ AND UNDERSTAND ALL OF THESE bef
 
 ## IR / Bytecode Optimization Notes
 - Treat the current expression bytecode as a stack-machine `ExpressionProgram` (`ExpressionOp` sequence + `MaxStackDepth`), not as compact raw bytes yet. The main CPU endgame is compacting `ExpressionOp` storage and tightening the expression interpreter, not adding more AST-style special cases.
+- Prefer the non-dynamic fast path to be: AST parse/analyze -> IR emit only -> expression payloads as bytecode only. Keep AST evaluation quarantined to explicit dynamic or suspending seams that have not been removed yet.
 - When removing AST eval from IR, prefer emit-time or lowering-time normalization over runner-time fallbacks. Reuse existing dedicated IR instructions by rewriting safe source shapes into synthetic temporaries rather than introducing mixed AST/IR execution paths.
+- Prefer lowerer/emitter normalization over runner special-cases. If a suspending or nested-await shape can be rewritten into existing bytecode or dedicated IR instructions before execution, do that and delete the mixed AST/IR seam instead of preserving both paths.
+- When attacking AST-eval seams, start by lowering evaluation-order-safe statement contexts first, then delete the now-dead suspending instruction family/handler. Treat "delete the seam" as the target, not "add another fallback".
 - Keep existing direct fast paths if they are already better than a generic rewrite. Do not normalize direct `await`, direct `yield* await ...`, or sequence-expression left-leg await cases into synthetic temporaries if a dedicated instruction shape already exists.
 - Hoist nested `await` only when evaluation order is preserved. Usually safe: simple declaration initializers, plain expression statements, `yield` / `yield*`, `return`, `throw`, `for-of` / `for-in` iterable-object expressions, and `with` object expressions. Treat assignment families, logical short-circuit operators, and destructuring defaults/assignment targets as high-risk unless a proof-driven rewrite preserves JavaScript semantics exactly.
 - Remove hot-path AST object construction before chasing subtler wins. Eliminating runtime `IdentifierExpression` and similar AST allocations can produce outsized allocation reductions and makes the remaining profiler picture much clearer.
+- When compacting expression bytecode, push shared encodings into the runtime type that owns the semantics. Keep the execution fast path in encoded form and let printer/test bridges decode only for diagnostics.
+- Interpreter side-state matters too. If expression execution needs per-stack metadata such as optional-chain short-circuit state, prefer packed representations over parallel byte/bool arrays when the semantics are binary.
 - For this class of work, prove progress three ways:
   - Scan remaining AST-eval seams with `rg "EvaluateExpression\\(|ProfileEvaluateExpression\\(" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner*`
   - Run a narrow lowering/IR proof pack first, then widen
@@ -42,3 +47,4 @@ This page indexes the agent playbooks. MUST READ AND UNDERSTAND ALL OF THESE bef
 - Keep proof filters extremely narrow: exact failing file first, then owning cluster, then a slightly broader confirmation run.
 - Subagent tasks should be tightly bounded: one seam, one owned file set, and one exact `Release` proof command.
 - Copying a whole file from a sidecar is integration, not proof. Always rerun the exact focused proof on `main` immediately after transplanting a sidecar change.
+- For IR/bytecode optimization work, keep the proof loop explicit: build, narrow owning pack, focused IR pack, AST-eval seam scan, and `./tools/profile forloop --memory`. Do not claim CPU or memory wins without current-worktree numbers.

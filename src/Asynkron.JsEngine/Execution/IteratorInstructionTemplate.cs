@@ -63,18 +63,6 @@ internal static class IteratorInstructionTemplate
                 TdzIsConst: tdzIsConst,
                 IterableSource: plan.Iterable.Source));
         }
-        else if (AstShapeAnalyzer.ContainsAwait(plan.Iterable) || AstShapeAnalyzer.ContainsYield(plan.Iterable))
-        {
-            instructions.Add(new SuspendingIteratorInitInstruction(
-                plan.Kind,
-                iteratorSymbol,
-                iteratorSlotIndex,
-                Next: -1,
-                IterableExpression: plan.Iterable,
-                TdzBindings: tdzBindings,
-                TdzIsConst: tdzIsConst,
-                IterableSource: plan.Iterable.Source));
-        }
         else
         {
             if (!ExpressionProgramCompiler.TryCompile(plan.Iterable, out var compiledIterableProgram, out failureReason))

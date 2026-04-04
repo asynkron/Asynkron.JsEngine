@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Execution.Instructions;
 
@@ -79,15 +80,36 @@ internal enum ExpressionOpKind : byte
 
 internal readonly record struct ExpressionProgram
 {
-    public ExpressionProgram(ImmutableArray<ExpressionOp> operations)
+    public ExpressionProgram(
+        ImmutableArray<PackedExpressionOp> operations,
+        ImmutableArray<JsValue> literalConstants = default,
+        ImmutableArray<string> stringConstants = default,
+        ImmutableArray<object> objectConstants = default,
+        ImmutableArray<IdentifierOperand> identifierConstants = default,
+        ImmutableArray<ImmutableArray<int>> spreadMaskConstants = default)
     {
         Operations = operations;
+        LiteralConstants = literalConstants.IsDefault ? ImmutableArray<JsValue>.Empty : literalConstants;
+        StringConstants = stringConstants.IsDefault ? ImmutableArray<string>.Empty : stringConstants;
+        ObjectConstants = objectConstants.IsDefault ? ImmutableArray<object>.Empty : objectConstants;
+        IdentifierConstants = identifierConstants.IsDefault ? ImmutableArray<IdentifierOperand>.Empty : identifierConstants;
+        SpreadMaskConstants = spreadMaskConstants.IsDefault ? ImmutableArray<ImmutableArray<int>>.Empty : spreadMaskConstants;
         MaxStackDepth = ComputeMaxStackDepth(operations);
     }
 
-    public static ExpressionProgram Empty { get; } = new(ImmutableArray<ExpressionOp>.Empty);
+    public static ExpressionProgram Empty { get; } = new(ImmutableArray<PackedExpressionOp>.Empty);
 
-    public ImmutableArray<ExpressionOp> Operations { get; init; }
+    public ImmutableArray<PackedExpressionOp> Operations { get; init; }
+
+    public ImmutableArray<JsValue> LiteralConstants { get; init; }
+
+    public ImmutableArray<string> StringConstants { get; init; }
+
+    public ImmutableArray<object> ObjectConstants { get; init; }
+
+    public ImmutableArray<IdentifierOperand> IdentifierConstants { get; init; }
+
+    public ImmutableArray<ImmutableArray<int>> SpreadMaskConstants { get; init; }
 
     public int MaxStackDepth { get; init; }
 
@@ -95,7 +117,7 @@ internal readonly record struct ExpressionProgram
 
     public override string ToString() => $"{Operations.Length} ops, stack {MaxStackDepth}";
 
-    private static int ComputeMaxStackDepth(ImmutableArray<ExpressionOp> operations)
+    private static int ComputeMaxStackDepth(ImmutableArray<PackedExpressionOp> operations)
     {
         if (operations.IsDefaultOrEmpty)
         {
@@ -114,7 +136,7 @@ internal readonly record struct ExpressionProgram
         return Math.Max(maxStackDepth, 1);
     }
 
-    private static int GetStackDelta(ExpressionOp operation)
+    private static int GetStackDelta(PackedExpressionOp operation)
     {
         return operation.Kind switch
         {
@@ -183,9 +205,9 @@ internal readonly record struct ExpressionProgram
             ExpressionOpKind.JumpIfTrue => 0,
             ExpressionOpKind.JumpIfFalse => 0,
             ExpressionOpKind.JumpIfNotNullish => 0,
-            ExpressionOpKind.SuperConstruct => 1 - ((SuperConstructExpressionOp)operation).ArgumentCount,
-            ExpressionOpKind.Call => -(((CallExpressionOp)operation).ArgumentCount + (((CallExpressionOp)operation).HasExplicitThis ? 1 : 0)),
-            ExpressionOpKind.Construct => -((ConstructExpressionOp)operation).ArgumentCount,
+            ExpressionOpKind.SuperConstruct => 1 - operation.ArgumentCount,
+            ExpressionOpKind.Call => -(operation.ArgumentCount + (operation.HasExplicitThis ? 1 : 0)),
+            ExpressionOpKind.Construct => -operation.ArgumentCount,
             ExpressionOpKind.PrivateFieldIn => 0,
             ExpressionOpKind.ThrowReferenceError => 0,
             _ => throw new NotSupportedException(
@@ -193,8 +215,6 @@ internal readonly record struct ExpressionProgram
         };
     }
 }
-
-internal abstract record ExpressionOp(ExpressionOpKind Kind);
 
 internal enum ObjectAccessorKind : byte
 {
@@ -217,335 +237,493 @@ internal sealed class TaggedTemplateDescriptor
     public ImmutableArray<JsValue> RawStrings { get; }
 }
 
-internal static class ExpressionOps
+internal readonly record struct IdentifierOperand(
+    Symbol Name,
+    int ScopeId = -1,
+    int SlotIndex = -1,
+    int FlatSlotId = -1);
+
+internal readonly struct PackedExpressionOp
 {
-    public static readonly EnsureSuperReferenceExpressionOp EnsureSuperReference = new();
-    public static readonly LoadThisExpressionOp LoadThis = new();
-    public static readonly LoadNewTargetExpressionOp LoadNewTarget = new();
-    public static readonly DuplicateTopExpressionOp DuplicateTop = new();
-    public static readonly DuplicateTopTwoExpressionOp DuplicateTopTwo = new();
-    public static readonly SwapTopTwoExpressionOp SwapTopTwo = new();
-    public static readonly RotateTopThreeRightExpressionOp RotateTopThreeRight = new();
-    public static readonly LoadComputedCallTargetExpressionOp LoadComputedCallTarget = new();
-    public static readonly LoadComputedSuperCallTargetExpressionOp LoadComputedSuperCallTarget = new();
-    public static readonly CreateArrayExpressionOp CreateArray = new();
-    public static readonly ArrayPushExpressionOp ArrayPush = new();
-    public static readonly ArrayPushHoleExpressionOp ArrayPushHole = new();
-    public static readonly ArraySpreadExpressionOp ArraySpread = new();
-    public static readonly CreateObjectExpressionOp CreateObject = new();
-    public static readonly ResolvePropertyKeyExpressionOp ResolvePropertyKey = new();
-    public static readonly ObjectSpreadExpressionOp ObjectSpread = new();
-    public static readonly GetComputedSuperPropertyExpressionOp GetComputedSuperProperty = new();
-    public static readonly TypeOfExpressionOp TypeOf = new();
-    public static readonly DeleteComputedPropertyExpressionOp DeleteComputedProperty = new();
-    public static readonly UnaryPlusExpressionOp UnaryPlus = new();
-    public static readonly UnaryMinusExpressionOp UnaryMinus = new();
-    public static readonly UnaryBitwiseNotExpressionOp UnaryBitwiseNot = new();
-    public static readonly UnaryVoidExpressionOp UnaryVoid = new();
-    public static readonly ToStringExpressionOp ToString = new();
-    public static readonly UnaryLogicalNotExpressionOp UnaryLogicalNot = new();
-    public static readonly PopExpressionOp Pop = new();
+    private const byte Flag0 = 1 << 0;
+    private const byte Flag1 = 1 << 1;
+    private const byte Flag2 = 1 << 2;
+    private const int FlagShift = 8;
 
-    private static readonly RequireObjectCoercibleExpressionOp RequireObjectCoercibleDefault = new();
-    private static readonly RequireObjectCoercibleExpressionOp RequireObjectCoercibleDepthOne = new(1);
-    private static readonly GetComputedPropertyExpressionOp GetComputedPropertyDefault = new();
-    private static readonly GetComputedPropertyExpressionOp GetComputedPropertyShortCircuit = new(true);
-    private static readonly SetComputedPropertyExpressionOp SetComputedPropertyDefault = new();
-    private static readonly SetComputedPropertyExpressionOp SetComputedPropertyNoInference = new(false);
-    private static readonly SetComputedSuperPropertyExpressionOp SetComputedSuperPropertyDefault = new();
-    private static readonly SetComputedSuperPropertyExpressionOp SetComputedSuperPropertyNoInference = new(false);
+    public static readonly PackedExpressionOp EnsureSuperReference = new(ExpressionOpKind.EnsureSuperReference);
+    public static readonly PackedExpressionOp LoadThis = new(ExpressionOpKind.LoadThis);
+    public static readonly PackedExpressionOp LoadNewTarget = new(ExpressionOpKind.LoadNewTarget);
+    public static readonly PackedExpressionOp DuplicateTop = new(ExpressionOpKind.DuplicateTop);
+    public static readonly PackedExpressionOp DuplicateTopTwo = new(ExpressionOpKind.DuplicateTopTwo);
+    public static readonly PackedExpressionOp SwapTopTwo = new(ExpressionOpKind.SwapTopTwo);
+    public static readonly PackedExpressionOp RotateTopThreeRight = new(ExpressionOpKind.RotateTopThreeRight);
+    public static readonly PackedExpressionOp LoadComputedCallTarget = new(ExpressionOpKind.LoadComputedCallTarget);
+    public static readonly PackedExpressionOp LoadComputedSuperCallTarget = new(ExpressionOpKind.LoadComputedSuperCallTarget);
+    public static readonly PackedExpressionOp CreateArray = new(ExpressionOpKind.CreateArray);
+    public static readonly PackedExpressionOp ArrayPush = new(ExpressionOpKind.ArrayPush);
+    public static readonly PackedExpressionOp ArrayPushHole = new(ExpressionOpKind.ArrayPushHole);
+    public static readonly PackedExpressionOp ArraySpread = new(ExpressionOpKind.ArraySpread);
+    public static readonly PackedExpressionOp CreateObject = new(ExpressionOpKind.CreateObject);
+    public static readonly PackedExpressionOp ResolvePropertyKey = new(ExpressionOpKind.ResolvePropertyKey);
+    public static readonly PackedExpressionOp DefineComputedObjectMethod = new(ExpressionOpKind.DefineComputedObjectMethod);
+    public static readonly PackedExpressionOp ObjectSpread = new(ExpressionOpKind.ObjectSpread);
+    public static readonly PackedExpressionOp GetComputedSuperProperty = new(ExpressionOpKind.GetComputedSuperProperty);
+    public static readonly PackedExpressionOp TypeOf = new(ExpressionOpKind.TypeOf);
+    public static readonly PackedExpressionOp DeleteComputedProperty = new(ExpressionOpKind.DeleteComputedProperty);
+    public static readonly PackedExpressionOp UnaryPlus = new(ExpressionOpKind.UnaryPlus);
+    public static readonly PackedExpressionOp UnaryMinus = new(ExpressionOpKind.UnaryMinus);
+    public static readonly PackedExpressionOp UnaryBitwiseNot = new(ExpressionOpKind.UnaryBitwiseNot);
+    public static readonly PackedExpressionOp UnaryVoid = new(ExpressionOpKind.UnaryVoid);
+    public static readonly PackedExpressionOp ToStringValue = new(ExpressionOpKind.ToString);
+    public static readonly PackedExpressionOp UnaryLogicalNot = new(ExpressionOpKind.UnaryLogicalNot);
+    public static readonly PackedExpressionOp Pop = new(ExpressionOpKind.Pop);
 
-    public static RequireObjectCoercibleExpressionOp RequireObjectCoercible(int depth = 0)
+    private static readonly PackedExpressionOp RequireObjectCoercibleDefault = new(ExpressionOpKind.RequireObjectCoercible);
+    private static readonly PackedExpressionOp RequireObjectCoercibleDepthOne = new(ExpressionOpKind.RequireObjectCoercible, int0: 1);
+    private static readonly PackedExpressionOp GetComputedPropertyDefault = new(ExpressionOpKind.GetComputedProperty);
+    private static readonly PackedExpressionOp GetComputedPropertyShortCircuit = new(ExpressionOpKind.GetComputedProperty, flags: Flag1);
+    private static readonly PackedExpressionOp SetComputedPropertyDefault = new(ExpressionOpKind.SetComputedProperty, flags: Flag0);
+    private static readonly PackedExpressionOp SetComputedPropertyNoInference = new(ExpressionOpKind.SetComputedProperty);
+    private static readonly PackedExpressionOp SetComputedSuperPropertyDefault = new(ExpressionOpKind.SetComputedSuperProperty, flags: Flag0);
+    private static readonly PackedExpressionOp SetComputedSuperPropertyNoInference = new(ExpressionOpKind.SetComputedSuperProperty);
+
+    private readonly ushort _opcode;
+    private readonly int _int0;
+    private readonly int _int1;
+
+    private PackedExpressionOp(
+        ExpressionOpKind kind,
+        int int0 = 0,
+        int int1 = 0,
+        byte flags = 0)
     {
-        return depth switch
+        _opcode = (ushort)((ushort)kind | (flags << FlagShift));
+        _int0 = int0;
+        _int1 = int1;
+    }
+
+    public ExpressionOpKind Kind => (ExpressionOpKind)(_opcode & 0xFF);
+
+    private byte Flags => (byte)(_opcode >> FlagShift);
+
+    public JsValue GetLiteral(ReadOnlySpan<JsValue> literalConstants)
+    {
+        return literalConstants[_int0];
+    }
+
+    public int StringConstantIndex => _int0;
+
+    public string RegexFlags => JsRegExp.DecodeFlags(Flags);
+
+    public byte EncodedRegexFlags => Flags;
+
+    public int Depth => _int0;
+
+    public int Target => _int0;
+
+    public int ArgumentCount => _int0;
+
+    public ObjectAccessorKind AccessorKind => (Flags & Flag0) != 0
+        ? ObjectAccessorKind.Setter
+        : ObjectAccessorKind.Getter;
+
+    public BinaryOperator Operator => (BinaryOperator)_int0;
+
+    public bool IsArguments => Kind == ExpressionOpKind.UpdateIdentifier
+        ? (Flags & Flag2) != 0
+        : (Flags & Flag0) != 0;
+
+    public bool AllowNameInference => Kind == ExpressionOpKind.DefineObjectProperty
+        ? (Flags & Flag1) != 0
+        : (Flags & Flag0) != 0;
+
+    public bool IsOptional => (Flags & Flag0) != 0;
+
+    public bool IsIncrement => (Flags & Flag0) != 0;
+
+    public bool HasExplicitThis => (Flags & Flag0) != 0;
+
+    public bool IsPrototypeMutation => (Flags & Flag0) != 0;
+
+    public bool IsConstructorFunction => (Flags & Flag0) != 0;
+
+    public bool ShortCircuitOnNullishTarget => (Flags & Flag1) != 0;
+
+    public bool IsPrefix => (Flags & Flag1) != 0;
+
+    public bool IsDirectEval => (Flags & Flag1) != 0;
+
+    public bool ReplaceWithUndefined => (Flags & Flag1) != 0;
+
+    public int SpreadMaskConstantIndex => _int1 - 1;
+
+    public string GetString(ReadOnlySpan<string> stringConstants)
+    {
+        return stringConstants[_int0];
+    }
+
+    public T GetObject<T>(ReadOnlySpan<object> objectConstants)
+        where T : class
+    {
+        return (T)objectConstants[_int1];
+    }
+
+    public IdentifierOperand GetIdentifier(ReadOnlySpan<IdentifierOperand> identifierConstants)
+    {
+        return identifierConstants[_int0];
+    }
+
+    public ImmutableArray<int> GetSpreadIndices(ReadOnlySpan<ImmutableArray<int>> spreadMaskConstants)
+    {
+        return SpreadMaskConstantIndex < 0
+            ? default
+            : spreadMaskConstants[SpreadMaskConstantIndex];
+    }
+
+    public static PackedExpressionOp LoadLiteralConstant(int literalConstantIndex)
+    {
+        return new PackedExpressionOp(ExpressionOpKind.LoadLiteral, int0: literalConstantIndex);
+    }
+
+    public static PackedExpressionOp LoadRegexLiteral(int PatternIndex, string Flags)
+    {
+        return new PackedExpressionOp(
+            ExpressionOpKind.LoadRegexLiteral,
+            int0: PatternIndex,
+            flags: JsRegExp.EncodeFlags(Flags));
+    }
+
+    public static PackedExpressionOp LoadFunctionLiteral(
+        int functionIndex,
+        bool IsConstructorFunction = true)
+    {
+        return new PackedExpressionOp(
+            ExpressionOpKind.LoadFunctionLiteral,
+            int1: functionIndex,
+            flags: IsConstructorFunction ? Flag0 : (byte)0);
+    }
+
+    public static PackedExpressionOp LoadClassLiteral(int classIndex)
+    {
+        return new PackedExpressionOp(ExpressionOpKind.LoadClassLiteral, int1: classIndex);
+    }
+
+    public static PackedExpressionOp LoadIdentifier(
+        int identifierConstantIndex,
+        bool IsArguments = false)
+    {
+        return new PackedExpressionOp(
+            ExpressionOpKind.LoadIdentifier,
+            int0: identifierConstantIndex,
+            flags: IsArguments ? Flag0 : (byte)0);
+    }
+
+    public static PackedExpressionOp LoadTemplateObject(int descriptorIndex)
+    {
+        return new PackedExpressionOp(ExpressionOpKind.LoadTemplateObject, int1: descriptorIndex);
+    }
+
+    public static PackedExpressionOp StoreIdentifier(
+        int identifierConstantIndex,
+        bool AllowNameInference = true)
+    {
+        return new PackedExpressionOp(
+            ExpressionOpKind.StoreIdentifier,
+            int0: identifierConstantIndex,
+            flags: AllowNameInference ? Flag0 : (byte)0);
+    }
+
+    public static PackedExpressionOp ApplyBindingTarget(int targetProgramIndex)
+    {
+        return new PackedExpressionOp(ExpressionOpKind.ApplyBindingTarget, int1: targetProgramIndex);
+    }
+
+    public static PackedExpressionOp LoadNamedCallTarget(int propertyNameIndex)
+    {
+        return new PackedExpressionOp(ExpressionOpKind.LoadNamedCallTarget, int0: propertyNameIndex);
+    }
+
+    public static PackedExpressionOp LoadNamedSuperCallTarget(int propertyNameIndex)
+    {
+        return new PackedExpressionOp(ExpressionOpKind.LoadNamedSuperCallTarget, int0: propertyNameIndex);
+    }
+
+    public static PackedExpressionOp RequireObjectCoercible(int Depth = 0)
+    {
+        return Depth switch
         {
             0 => RequireObjectCoercibleDefault,
             1 => RequireObjectCoercibleDepthOne,
-            _ => new RequireObjectCoercibleExpressionOp(depth)
+            _ => new PackedExpressionOp(ExpressionOpKind.RequireObjectCoercible, int0: Depth)
         };
     }
 
-    public static GetComputedPropertyExpressionOp GetComputedProperty(bool shortCircuitOnNullishTarget = false)
+    public static PackedExpressionOp DefineObjectProperty(
+        int propertyNameIndex,
+        bool IsPrototypeMutation = false,
+        bool AllowNameInference = false)
     {
-        return shortCircuitOnNullishTarget
+        return new PackedExpressionOp(
+            ExpressionOpKind.DefineObjectProperty,
+            int0: propertyNameIndex,
+            flags: (byte)((IsPrototypeMutation ? Flag0 : 0) |
+                          (AllowNameInference ? Flag1 : 0)));
+    }
+
+    public static PackedExpressionOp DefineComputedObjectProperty(bool AllowNameInference = false)
+    {
+        return new PackedExpressionOp(
+            ExpressionOpKind.DefineComputedObjectProperty,
+            flags: AllowNameInference ? Flag0 : (byte)0);
+    }
+
+    public static PackedExpressionOp DefineObjectMethod(int propertyNameIndex)
+    {
+        return new PackedExpressionOp(ExpressionOpKind.DefineObjectMethod, int0: propertyNameIndex);
+    }
+
+    public static PackedExpressionOp DefineObjectAccessor(int propertyNameIndex, ObjectAccessorKind AccessorKind)
+    {
+        return new PackedExpressionOp(
+            ExpressionOpKind.DefineObjectAccessor,
+            int0: propertyNameIndex,
+            flags: AccessorKind == ObjectAccessorKind.Setter ? Flag0 : (byte)0);
+    }
+
+    public static PackedExpressionOp DefineComputedObjectAccessor(ObjectAccessorKind AccessorKind)
+    {
+        return new PackedExpressionOp(
+            ExpressionOpKind.DefineComputedObjectAccessor,
+            int0: (int)AccessorKind);
+    }
+
+    public static PackedExpressionOp GetNamedProperty(
+        int propertyNameIndex,
+        bool IsOptional = false,
+        bool ShortCircuitOnNullishTarget = false)
+    {
+        return new PackedExpressionOp(
+            ExpressionOpKind.GetNamedProperty,
+            int0: propertyNameIndex,
+            flags: (byte)((IsOptional ? Flag0 : 0) |
+                          (ShortCircuitOnNullishTarget ? Flag1 : 0)));
+    }
+
+    public static PackedExpressionOp GetComputedProperty(bool ShortCircuitOnNullishTarget = false)
+    {
+        return ShortCircuitOnNullishTarget
             ? GetComputedPropertyShortCircuit
             : GetComputedPropertyDefault;
     }
 
-    public static SetComputedPropertyExpressionOp SetComputedProperty(bool allowNameInference = true)
+    public static PackedExpressionOp GetNamedSuperProperty(int propertyNameIndex)
     {
-        return allowNameInference
+        return new PackedExpressionOp(ExpressionOpKind.GetNamedSuperProperty, int0: propertyNameIndex);
+    }
+
+    public static PackedExpressionOp SetNamedProperty(
+        int propertyNameIndex,
+        bool AllowNameInference = true)
+    {
+        return new PackedExpressionOp(
+            ExpressionOpKind.SetNamedProperty,
+            int0: propertyNameIndex,
+            flags: AllowNameInference ? Flag0 : (byte)0);
+    }
+
+    public static PackedExpressionOp SetComputedProperty(bool AllowNameInference = true)
+    {
+        return AllowNameInference
             ? SetComputedPropertyDefault
             : SetComputedPropertyNoInference;
     }
 
-    public static SetComputedSuperPropertyExpressionOp SetComputedSuperProperty(bool allowNameInference = true)
+    public static PackedExpressionOp SetNamedSuperProperty(
+        int propertyNameIndex,
+        bool AllowNameInference = true)
     {
-        return allowNameInference
+        return new PackedExpressionOp(
+            ExpressionOpKind.SetNamedSuperProperty,
+            int0: propertyNameIndex,
+            flags: AllowNameInference ? Flag0 : (byte)0);
+    }
+
+    public static PackedExpressionOp SetComputedSuperProperty(bool AllowNameInference = true)
+    {
+        return AllowNameInference
             ? SetComputedSuperPropertyDefault
             : SetComputedSuperPropertyNoInference;
     }
+
+    public static PackedExpressionOp UpdateIdentifier(
+        int identifierConstantIndex,
+        bool IsIncrement = true,
+        bool IsPrefix = true,
+        bool IsArguments = false)
+    {
+        return new PackedExpressionOp(
+            ExpressionOpKind.UpdateIdentifier,
+            int0: identifierConstantIndex,
+            flags: (byte)((IsIncrement ? Flag0 : 0) |
+                          (IsPrefix ? Flag1 : 0) |
+                          (IsArguments ? Flag2 : 0)));
+    }
+
+    public static PackedExpressionOp UpdateNamedProperty(
+        int propertyNameIndex,
+        bool IsIncrement = true,
+        bool IsPrefix = true)
+    {
+        return new PackedExpressionOp(
+            ExpressionOpKind.UpdateNamedProperty,
+            int0: propertyNameIndex,
+            flags: (byte)((IsIncrement ? Flag0 : 0) |
+                          (IsPrefix ? Flag1 : 0)));
+    }
+
+    public static PackedExpressionOp UpdateComputedProperty(
+        bool IsIncrement = true,
+        bool IsPrefix = true)
+    {
+        return new PackedExpressionOp(
+            ExpressionOpKind.UpdateComputedProperty,
+            flags: (byte)((IsIncrement ? Flag0 : 0) |
+                          (IsPrefix ? Flag1 : 0)));
+    }
+
+    public static PackedExpressionOp UpdateNamedSuperProperty(
+        int propertyNameIndex,
+        bool IsIncrement = true,
+        bool IsPrefix = true)
+    {
+        return new PackedExpressionOp(
+            ExpressionOpKind.UpdateNamedSuperProperty,
+            int0: propertyNameIndex,
+            flags: (byte)((IsIncrement ? Flag0 : 0) |
+                          (IsPrefix ? Flag1 : 0)));
+    }
+
+    public static PackedExpressionOp UpdateComputedSuperProperty(
+        bool IsIncrement = true,
+        bool IsPrefix = true)
+    {
+        return new PackedExpressionOp(
+            ExpressionOpKind.UpdateComputedSuperProperty,
+            flags: (byte)((IsIncrement ? Flag0 : 0) |
+                          (IsPrefix ? Flag1 : 0)));
+    }
+
+    public static PackedExpressionOp TypeOfIdentifier(
+        int identifierConstantIndex,
+        bool IsArguments = false)
+    {
+        return new PackedExpressionOp(
+            ExpressionOpKind.TypeOfIdentifier,
+            int0: identifierConstantIndex,
+            flags: IsArguments ? Flag0 : (byte)0);
+    }
+
+    public static PackedExpressionOp DeleteIdentifier(int identifierConstantIndex)
+    {
+        return new PackedExpressionOp(ExpressionOpKind.DeleteIdentifier, int0: identifierConstantIndex);
+    }
+
+    public static PackedExpressionOp DeleteNamedProperty(int propertyNameIndex)
+    {
+        return new PackedExpressionOp(ExpressionOpKind.DeleteNamedProperty, int0: propertyNameIndex);
+    }
+
+    public static PackedExpressionOp Binary(BinaryOperator Operator)
+    {
+        return new PackedExpressionOp(ExpressionOpKind.Binary, int0: (int)Operator);
+    }
+
+    public static PackedExpressionOp PrivateFieldIn(int privateNameIndex)
+    {
+        return new PackedExpressionOp(ExpressionOpKind.PrivateFieldIn, int0: privateNameIndex);
+    }
+
+    public static PackedExpressionOp ThrowReferenceError(int messageIndex)
+    {
+        return new PackedExpressionOp(ExpressionOpKind.ThrowReferenceError, int0: messageIndex);
+    }
+
+    public static PackedExpressionOp Jump(int Target)
+    {
+        return new PackedExpressionOp(ExpressionOpKind.Jump, int0: Target);
+    }
+
+    public static PackedExpressionOp JumpIfNullish(
+        int Target,
+        bool ReplaceWithUndefined = false)
+    {
+        return new PackedExpressionOp(
+            ExpressionOpKind.JumpIfNullish,
+            int0: Target,
+            flags: ReplaceWithUndefined ? Flag1 : (byte)0);
+    }
+
+    public static PackedExpressionOp JumpIfShortCircuited(int Target)
+    {
+        return new PackedExpressionOp(ExpressionOpKind.JumpIfShortCircuited, int0: Target);
+    }
+
+    public static PackedExpressionOp JumpIfTrue(int Target)
+    {
+        return new PackedExpressionOp(ExpressionOpKind.JumpIfTrue, int0: Target);
+    }
+
+    public static PackedExpressionOp JumpIfFalse(int Target)
+    {
+        return new PackedExpressionOp(ExpressionOpKind.JumpIfFalse, int0: Target);
+    }
+
+    public static PackedExpressionOp JumpIfNotNullish(int Target)
+    {
+        return new PackedExpressionOp(ExpressionOpKind.JumpIfNotNullish, int0: Target);
+    }
+
+    public static PackedExpressionOp SuperConstruct(
+        int ArgumentCount,
+        int SpreadMaskConstantIndex = -1)
+    {
+        return new PackedExpressionOp(
+            ExpressionOpKind.SuperConstruct,
+            int0: ArgumentCount,
+            int1: SpreadMaskConstantIndex + 1);
+    }
+
+    public static PackedExpressionOp Call(
+        int ArgumentCount,
+        bool HasExplicitThis = false,
+        bool IsDirectEval = false,
+        int SpreadMaskConstantIndex = -1)
+    {
+        return new PackedExpressionOp(
+            ExpressionOpKind.Call,
+            int0: ArgumentCount,
+            int1: SpreadMaskConstantIndex + 1,
+            flags: (byte)((HasExplicitThis ? Flag0 : 0) |
+                          (IsDirectEval ? Flag1 : 0)));
+    }
+
+    public static PackedExpressionOp Construct(
+        int ArgumentCount,
+        int SpreadMaskConstantIndex = -1)
+    {
+        return new PackedExpressionOp(
+            ExpressionOpKind.Construct,
+            int0: ArgumentCount,
+            int1: SpreadMaskConstantIndex + 1);
+    }
+
+    public PackedExpressionOp WithIdentifierConstant(int identifierConstantIndex)
+    {
+        return new PackedExpressionOp(Kind, identifierConstantIndex, _int1, Flags);
+    }
+
+    public PackedExpressionOp WithObjectConstant(int objectConstantIndex)
+    {
+        return new PackedExpressionOp(Kind, _int0, objectConstantIndex, Flags);
+    }
 }
-
-internal sealed record LoadLiteralExpressionOp(JsValue Value)
-    : ExpressionOp(ExpressionOpKind.LoadLiteral);
-
-internal sealed record LoadRegexLiteralExpressionOp(string Pattern, string Flags)
-    : ExpressionOp(ExpressionOpKind.LoadRegexLiteral);
-
-internal sealed record LoadFunctionLiteralExpressionOp(
-    FunctionExpression Function,
-    bool IsConstructorFunction = true)
-    : ExpressionOp(ExpressionOpKind.LoadFunctionLiteral);
-
-internal sealed record LoadClassLiteralExpressionOp(ClassExpression Class)
-    : ExpressionOp(ExpressionOpKind.LoadClassLiteral);
-
-internal sealed record LoadTemplateObjectExpressionOp(TaggedTemplateDescriptor Descriptor)
-    : ExpressionOp(ExpressionOpKind.LoadTemplateObject);
-
-internal sealed record LoadIdentifierExpressionOp(
-    Symbol Name,
-    int ScopeId = -1,
-    int SlotIndex = -1,
-    int FlatSlotId = -1,
-    bool IsArguments = false)
-    : ExpressionOp(ExpressionOpKind.LoadIdentifier);
-
-internal sealed record StoreIdentifierExpressionOp(
-    Symbol Name,
-    int ScopeId = -1,
-    int SlotIndex = -1,
-    int FlatSlotId = -1,
-    bool AllowNameInference = true)
-    : ExpressionOp(ExpressionOpKind.StoreIdentifier);
-
-internal sealed record ApplyBindingTargetExpressionOp(BindingTargetProgram TargetProgram)
-    : ExpressionOp(ExpressionOpKind.ApplyBindingTarget);
-
-internal sealed record DuplicateTopExpressionOp()
-    : ExpressionOp(ExpressionOpKind.DuplicateTop);
-
-internal sealed record DuplicateTopTwoExpressionOp()
-    : ExpressionOp(ExpressionOpKind.DuplicateTopTwo);
-
-internal sealed record SwapTopTwoExpressionOp()
-    : ExpressionOp(ExpressionOpKind.SwapTopTwo);
-
-internal sealed record RotateTopThreeRightExpressionOp()
-    : ExpressionOp(ExpressionOpKind.RotateTopThreeRight);
-
-internal sealed record LoadThisExpressionOp()
-    : ExpressionOp(ExpressionOpKind.LoadThis);
-
-internal sealed record LoadNewTargetExpressionOp()
-    : ExpressionOp(ExpressionOpKind.LoadNewTarget);
-
-internal sealed record LoadNamedCallTargetExpressionOp(string PropertyName)
-    : ExpressionOp(ExpressionOpKind.LoadNamedCallTarget);
-
-internal sealed record LoadComputedCallTargetExpressionOp()
-    : ExpressionOp(ExpressionOpKind.LoadComputedCallTarget);
-
-internal sealed record LoadNamedSuperCallTargetExpressionOp(string PropertyName)
-    : ExpressionOp(ExpressionOpKind.LoadNamedSuperCallTarget);
-
-internal sealed record LoadComputedSuperCallTargetExpressionOp()
-    : ExpressionOp(ExpressionOpKind.LoadComputedSuperCallTarget);
-
-internal sealed record EnsureSuperReferenceExpressionOp()
-    : ExpressionOp(ExpressionOpKind.EnsureSuperReference);
-
-internal sealed record CreateArrayExpressionOp()
-    : ExpressionOp(ExpressionOpKind.CreateArray);
-
-internal sealed record ArrayPushExpressionOp()
-    : ExpressionOp(ExpressionOpKind.ArrayPush);
-
-internal sealed record ArrayPushHoleExpressionOp()
-    : ExpressionOp(ExpressionOpKind.ArrayPushHole);
-
-internal sealed record ArraySpreadExpressionOp()
-    : ExpressionOp(ExpressionOpKind.ArraySpread);
-
-internal sealed record CreateObjectExpressionOp()
-    : ExpressionOp(ExpressionOpKind.CreateObject);
-
-/// <summary>
-/// Checks that the value at [stackIndex - 1 - Depth] is not null/undefined.
-/// Throws TypeError if it is. Per ES spec, RequireObjectCoercible must be called
-/// before ToPropertyKey in compound assignment (13.15.2 step 1.e).
-/// </summary>
-internal sealed record RequireObjectCoercibleExpressionOp(int Depth = 0)
-    : ExpressionOp(ExpressionOpKind.RequireObjectCoercible);
-
-internal sealed record ResolvePropertyKeyExpressionOp()
-    : ExpressionOp(ExpressionOpKind.ResolvePropertyKey);
-
-internal sealed record DefineObjectPropertyExpressionOp(
-    string PropertyName,
-    bool IsPrototypeMutation = false,
-    bool AllowNameInference = false)
-    : ExpressionOp(ExpressionOpKind.DefineObjectProperty);
-
-internal sealed record DefineComputedObjectPropertyExpressionOp(bool AllowNameInference = false)
-    : ExpressionOp(ExpressionOpKind.DefineComputedObjectProperty);
-
-internal sealed record DefineObjectMethodExpressionOp(string PropertyName)
-    : ExpressionOp(ExpressionOpKind.DefineObjectMethod);
-
-internal sealed record DefineComputedObjectMethodExpressionOp()
-    : ExpressionOp(ExpressionOpKind.DefineComputedObjectMethod);
-
-internal sealed record DefineObjectAccessorExpressionOp(string PropertyName, ObjectAccessorKind AccessorKind)
-    : ExpressionOp(ExpressionOpKind.DefineObjectAccessor);
-
-internal sealed record DefineComputedObjectAccessorExpressionOp(ObjectAccessorKind AccessorKind)
-    : ExpressionOp(ExpressionOpKind.DefineComputedObjectAccessor);
-
-internal sealed record ObjectSpreadExpressionOp()
-    : ExpressionOp(ExpressionOpKind.ObjectSpread);
-
-internal sealed record GetNamedPropertyExpressionOp(
-    string PropertyName,
-    bool IsOptional = false,
-    bool ShortCircuitOnNullishTarget = false)
-    : ExpressionOp(ExpressionOpKind.GetNamedProperty);
-
-internal sealed record GetComputedPropertyExpressionOp(bool ShortCircuitOnNullishTarget = false)
-    : ExpressionOp(ExpressionOpKind.GetComputedProperty);
-
-internal sealed record GetNamedSuperPropertyExpressionOp(string PropertyName)
-    : ExpressionOp(ExpressionOpKind.GetNamedSuperProperty);
-
-internal sealed record GetComputedSuperPropertyExpressionOp()
-    : ExpressionOp(ExpressionOpKind.GetComputedSuperProperty);
-
-internal sealed record SetNamedPropertyExpressionOp(string PropertyName, bool AllowNameInference = true)
-    : ExpressionOp(ExpressionOpKind.SetNamedProperty);
-
-internal sealed record SetComputedPropertyExpressionOp(bool AllowNameInference = true)
-    : ExpressionOp(ExpressionOpKind.SetComputedProperty);
-
-internal sealed record SetNamedSuperPropertyExpressionOp(string PropertyName, bool AllowNameInference = true)
-    : ExpressionOp(ExpressionOpKind.SetNamedSuperProperty);
-
-internal sealed record SetComputedSuperPropertyExpressionOp(bool AllowNameInference = true)
-    : ExpressionOp(ExpressionOpKind.SetComputedSuperProperty);
-
-internal sealed record UpdateIdentifierExpressionOp(
-    Symbol Name,
-    int ScopeId = -1,
-    int SlotIndex = -1,
-    int FlatSlotId = -1,
-    bool IsIncrement = true,
-    bool IsPrefix = true,
-    bool IsArguments = false)
-    : ExpressionOp(ExpressionOpKind.UpdateIdentifier);
-
-internal sealed record UpdateNamedPropertyExpressionOp(
-    string PropertyName,
-    bool IsIncrement = true,
-    bool IsPrefix = true)
-    : ExpressionOp(ExpressionOpKind.UpdateNamedProperty);
-
-internal sealed record UpdateComputedPropertyExpressionOp(
-    bool IsIncrement = true,
-    bool IsPrefix = true)
-    : ExpressionOp(ExpressionOpKind.UpdateComputedProperty);
-
-internal sealed record UpdateNamedSuperPropertyExpressionOp(
-    string PropertyName,
-    bool IsIncrement = true,
-    bool IsPrefix = true)
-    : ExpressionOp(ExpressionOpKind.UpdateNamedSuperProperty);
-
-internal sealed record UpdateComputedSuperPropertyExpressionOp(
-    bool IsIncrement = true,
-    bool IsPrefix = true)
-    : ExpressionOp(ExpressionOpKind.UpdateComputedSuperProperty);
-
-internal sealed record TypeOfExpressionOp()
-    : ExpressionOp(ExpressionOpKind.TypeOf);
-
-internal sealed record TypeOfIdentifierExpressionOp(
-    Symbol Name,
-    int ScopeId = -1,
-    int SlotIndex = -1,
-    int FlatSlotId = -1,
-    bool IsArguments = false)
-    : ExpressionOp(ExpressionOpKind.TypeOfIdentifier);
-
-internal sealed record DeleteIdentifierExpressionOp(Symbol Name)
-    : ExpressionOp(ExpressionOpKind.DeleteIdentifier);
-
-internal sealed record DeleteNamedPropertyExpressionOp(string PropertyName)
-    : ExpressionOp(ExpressionOpKind.DeleteNamedProperty);
-
-internal sealed record DeleteComputedPropertyExpressionOp()
-    : ExpressionOp(ExpressionOpKind.DeleteComputedProperty);
-
-internal sealed record UnaryPlusExpressionOp()
-    : ExpressionOp(ExpressionOpKind.UnaryPlus);
-
-internal sealed record UnaryMinusExpressionOp()
-    : ExpressionOp(ExpressionOpKind.UnaryMinus);
-
-internal sealed record UnaryBitwiseNotExpressionOp()
-    : ExpressionOp(ExpressionOpKind.UnaryBitwiseNot);
-
-internal sealed record UnaryVoidExpressionOp()
-    : ExpressionOp(ExpressionOpKind.UnaryVoid);
-
-internal sealed record ToStringExpressionOp()
-    : ExpressionOp(ExpressionOpKind.ToString);
-
-internal sealed record UnaryLogicalNotExpressionOp()
-    : ExpressionOp(ExpressionOpKind.UnaryLogicalNot);
-
-internal sealed record BinaryExpressionOp(BinaryOperator Operator)
-    : ExpressionOp(ExpressionOpKind.Binary);
-
-internal sealed record PrivateFieldInExpressionOp(string PrivateName)
-    : ExpressionOp(ExpressionOpKind.PrivateFieldIn);
-
-internal sealed record ThrowReferenceErrorExpressionOp(string Message)
-    : ExpressionOp(ExpressionOpKind.ThrowReferenceError);
-
-internal sealed record PopExpressionOp()
-    : ExpressionOp(ExpressionOpKind.Pop);
-
-internal sealed record JumpExpressionOp(int Target)
-    : ExpressionOp(ExpressionOpKind.Jump);
-
-internal sealed record JumpIfNullishExpressionOp(int Target, bool ReplaceWithUndefined = false)
-    : ExpressionOp(ExpressionOpKind.JumpIfNullish);
-
-internal sealed record JumpIfShortCircuitedExpressionOp(int Target)
-    : ExpressionOp(ExpressionOpKind.JumpIfShortCircuited);
-
-internal sealed record JumpIfTrueExpressionOp(int Target)
-    : ExpressionOp(ExpressionOpKind.JumpIfTrue);
-
-internal sealed record JumpIfFalseExpressionOp(int Target)
-    : ExpressionOp(ExpressionOpKind.JumpIfFalse);
-
-internal sealed record JumpIfNotNullishExpressionOp(int Target)
-    : ExpressionOp(ExpressionOpKind.JumpIfNotNullish);
-
-internal sealed record SuperConstructExpressionOp(
-    int ArgumentCount,
-    ImmutableArray<bool> SpreadMask = default)
-    : ExpressionOp(ExpressionOpKind.SuperConstruct);
-
-internal sealed record CallExpressionOp(
-    int ArgumentCount,
-    bool HasExplicitThis = false,
-    bool IsDirectEval = false,
-    ImmutableArray<bool> SpreadMask = default)
-    : ExpressionOp(ExpressionOpKind.Call);
-
-internal sealed record ConstructExpressionOp(
-    int ArgumentCount,
-    ImmutableArray<bool> SpreadMask = default)
-    : ExpressionOp(ExpressionOpKind.Construct);

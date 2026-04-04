@@ -43,16 +43,10 @@ internal static class ExpressionStatementEmitter
         // - Yields in assignment target expressions (e.g., [ {}[ yield ] ] = x)
         if (EmitContext.ExpressionContainsDestructuringWithYieldAnywhere(expressionStatement.Expression))
         {
-            // AST fallback: expression statement with yield in destructuring
-            // Reason: Conditional yield semantics in destructuring defaults/targets
-            // Tracking: #398, #416 (IR-only execution epic)
-            var suppressCompletionFallback =
-                ctx.SuppressCompletionValue || expressionStatement.SuppressCompletionValue;
-            entryIndex = ctx.Append(new SuspendingEvaluateAndDiscardInstruction(
-                nextIndex,
-                expressionStatement.Expression,
-                suppressCompletionFallback));
-            return true;
+            entryIndex = -1;
+            ctx.SetFailureReason(
+                "Expression statement contains destructuring with unlowered yield - this should have been handled by GeneratorYieldLowerer.");
+            return false;
         }
 
         var expressionShape = AstShapeAnalyzer.AnalyzeExpression(expressionStatement.Expression);
@@ -141,10 +135,7 @@ internal static class ExpressionStatementEmitter
         }
 
         // Fast path: simple identifier assignment (e.g., x = value).
-        // Keep script-level execution on the generic path because scripts may still
-        // observe dynamic resolution through explicit dynamic-scope execution.
-        if (!ctx.IsScriptLevel &&
-            expressionStatement.Expression is AssignmentExpression
+        if (expressionStatement.Expression is AssignmentExpression
             {
                 IsCompoundAssignment: false,
                 IsImmutableTarget: false
@@ -175,17 +166,6 @@ internal static class ExpressionStatementEmitter
                 return true;
             }
 
-            if (AstShapeAnalyzer.ContainsAwait(assignment.Value))
-            {
-                entryIndex = ctx.Append(new SuspendingAssignmentSlotInstruction(
-                    nextIndex,
-                    assignment.Target,
-                    assignment.Value,
-                    suppressCompletion,
-                    ShouldAllowAssignmentNameInference(assignment)));
-                return true;
-            }
-
             if (!ExpressionProgramCompiler.TryCompile(assignment.Value, out var assignmentValueProgram, out var assignmentFailure))
             {
                 ctx.SetExpressionProgramFailure(
@@ -205,13 +185,8 @@ internal static class ExpressionStatementEmitter
             return true;
         }
 
-        // Fast path: compound assignment on simple identifiers.
-        // NOTE: Skip this optimization for script-level code because:
-        //   1. Scripts may contain 'with' statements that require dynamic identifier resolution
-        //   2. Eval'd code runs at script level and may be inside a with-scope from caller
-        //   3. Slot-based lookup would bypass the with-scope, breaking 'with' semantics
-        if (!ctx.IsScriptLevel &&
-            expressionStatement.Expression is AssignmentExpression
+        // Fast path: logical compound assignment on simple identifiers.
+        if (expressionStatement.Expression is AssignmentExpression
             {
                 IsCompoundAssignment: true,
                 Value: BinaryExpression logicalBinary
@@ -245,18 +220,6 @@ internal static class ExpressionStatementEmitter
                 return true;
             }
 
-            if (AstShapeAnalyzer.ContainsAwait(logicalBinary.Right))
-            {
-                entryIndex = ctx.Append(new SuspendingLogicalCompoundAssignmentSlotInstruction(
-                    nextIndex,
-                    logicalCompoundAssign.Target,
-                    logicalBinary.Operator,
-                    logicalBinary.Right,
-                    suppressCompletion,
-                    ShouldAllowAssignmentNameInference(logicalCompoundAssign)));
-                return true;
-            }
-
             if (!ExpressionProgramCompiler.TryCompile(logicalBinary.Right, out var logicalRhsProgram, out var logicalFailure))
             {
                 ctx.SetExpressionProgramFailure(
@@ -277,8 +240,7 @@ internal static class ExpressionStatementEmitter
             return true;
         }
 
-        if (!ctx.IsScriptLevel &&
-            expressionStatement.Expression is AssignmentExpression
+        if (expressionStatement.Expression is AssignmentExpression
             {
                 IsCompoundAssignment: true,
                 Value: BinaryExpression arithmeticBinary
@@ -316,17 +278,6 @@ internal static class ExpressionStatementEmitter
                 return true;
             }
 
-            if (AstShapeAnalyzer.ContainsAwait(arithmeticBinary.Right))
-            {
-                entryIndex = ctx.Append(new SuspendingCompoundAssignmentSlotInstruction(
-                    nextIndex,
-                    compoundAssign.Target,
-                    arithmeticBinary.Operator,
-                    arithmeticBinary.Right,
-                    SuppressCompletionValue: suppressCompletion));
-                return true;
-            }
-
             if (!ExpressionProgramCompiler.TryCompile(arithmeticBinary.Right, out var compoundRhsProgram, out var compoundFailure))
             {
                 ctx.SetExpressionProgramFailure(
@@ -348,12 +299,10 @@ internal static class ExpressionStatementEmitter
 
         if (AstShapeAnalyzer.ContainsAwait(expressionStatement.Expression))
         {
-            entryIndex =
-                ctx.Append(new SuspendingEvaluateAndDiscardInstruction(
-                    nextIndex,
-                    expressionStatement.Expression,
-                    suppressCompletion));
-            return true;
+            entryIndex = -1;
+            ctx.SetFailureReason(
+                "Expression statement contains unlowered await - this should have been handled by GeneratorYieldLowerer.");
+            return false;
         }
 
         if (!ExpressionProgramCompiler.TryCompile(expressionStatement.Expression, out var expressionProgram, out var expressionFailure))

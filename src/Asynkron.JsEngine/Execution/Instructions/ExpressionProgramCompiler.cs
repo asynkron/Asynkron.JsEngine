@@ -11,13 +11,25 @@ internal static class ExpressionProgramCompiler
     {
         if (program.IsEmpty)
         {
-            return new ExpressionProgram([ExpressionOps.EnsureSuperReference]);
+            return new ExpressionProgram(
+                [PackedExpressionOp.EnsureSuperReference],
+                program.LiteralConstants,
+                program.StringConstants,
+                program.ObjectConstants,
+                program.IdentifierConstants,
+                program.SpreadMaskConstants);
         }
 
-        var builder = ImmutableArray.CreateBuilder<ExpressionOp>(program.Operations.Length + 1);
-        builder.Add(ExpressionOps.EnsureSuperReference);
+        var builder = ImmutableArray.CreateBuilder<PackedExpressionOp>(program.Operations.Length + 1);
+        builder.Add(PackedExpressionOp.EnsureSuperReference);
         builder.AddRange(program.Operations);
-        return new ExpressionProgram(builder.MoveToImmutable());
+        return new ExpressionProgram(
+            builder.MoveToImmutable(),
+            program.LiteralConstants,
+            program.StringConstants,
+            program.ObjectConstants,
+            program.IdentifierConstants,
+            program.SpreadMaskConstants);
     }
 
     public static bool TryCompile(
@@ -25,14 +37,14 @@ internal static class ExpressionProgramCompiler
         out ExpressionProgram program,
         out string? failureReason)
     {
-        var builder = new List<ExpressionOp>();
+        var builder = new ExpressionProgramBuilder();
         if (!TryCompileExpression(expression, builder, out failureReason))
         {
             program = default;
             return false;
         }
 
-        program = new ExpressionProgram([.. builder]);
+        program = builder.Build();
         return true;
     }
 
@@ -94,13 +106,13 @@ internal static class ExpressionProgramCompiler
 
     private static bool TryCompileExpression(
         ExpressionNode expression,
-        List<ExpressionOp> builder,
+        ExpressionProgramBuilder builder,
         out string? failureReason)
     {
         switch (expression)
         {
             case LiteralExpression literal:
-                builder.Add(new LoadLiteralExpressionOp(literal.Value));
+                builder.Add(PackedExpressionOp.LoadLiteralConstant(builder.InternLiteral(literal.Value)));
                 failureReason = null;
                 return true;
 
@@ -111,37 +123,38 @@ internal static class ExpressionProgramCompiler
                 return TryCompileDestructuringAssignmentExpression(destructuringAssignment, builder, out failureReason);
 
             case IdentifierExpression identifier:
-                builder.Add(new LoadIdentifierExpressionOp(
-                    identifier.Name,
-                    identifier.ScopeId,
-                    identifier.SlotIndex,
-                    identifier.FlatSlotId,
+                builder.Add(PackedExpressionOp.LoadIdentifier(
+                    builder.InternIdentifier(new IdentifierOperand(
+                        identifier.Name,
+                        identifier.ScopeId,
+                        identifier.SlotIndex,
+                        identifier.FlatSlotId)),
                     ReferenceEquals(identifier.Name, Symbol.Arguments)));
                 failureReason = null;
                 return true;
 
             case ThisExpression:
-                builder.Add(ExpressionOps.LoadThis);
+                builder.Add(PackedExpressionOp.LoadThis);
                 failureReason = null;
                 return true;
 
             case NewTargetExpression:
-                builder.Add(ExpressionOps.LoadNewTarget);
+                builder.Add(PackedExpressionOp.LoadNewTarget);
                 failureReason = null;
                 return true;
 
             case RegexLiteralExpression regex:
-                builder.Add(new LoadRegexLiteralExpressionOp(regex.Pattern, regex.Flags));
+                builder.Add(PackedExpressionOp.LoadRegexLiteral(builder.InternString(regex.Pattern), regex.Flags));
                 failureReason = null;
                 return true;
 
             case FunctionExpression function:
-                builder.Add(new LoadFunctionLiteralExpressionOp(function));
+                builder.Add(PackedExpressionOp.LoadFunctionLiteral(builder.InternObject(function)));
                 failureReason = null;
                 return true;
 
             case ClassExpression classExpression:
-                builder.Add(new LoadClassLiteralExpressionOp(classExpression));
+                builder.Add(PackedExpressionOp.LoadClassLiteral(builder.InternObject(classExpression)));
                 failureReason = null;
                 return true;
 
@@ -193,7 +206,7 @@ internal static class ExpressionProgramCompiler
 
     private static bool TryCompileBinaryExpression(
         BinaryExpression expression,
-        List<ExpressionOp> builder,
+        ExpressionProgramBuilder builder,
         out string? failureReason)
     {
         // Special case: #privateField in obj — the LHS is a PrivateIdentifierExpression
@@ -205,7 +218,7 @@ internal static class ExpressionProgramCompiler
                 return false;
             }
 
-            builder.Add(new PrivateFieldInExpressionOp(privateId.Name));
+            builder.Add(PackedExpressionOp.PrivateFieldIn(builder.InternString(privateId.Name)));
             failureReason = null;
             return true;
         }
@@ -220,15 +233,15 @@ internal static class ExpressionProgramCompiler
             case BinaryOperator.LogicalAnd:
             {
                 var shortCircuitIndex = builder.Count;
-                builder.Add(new JumpIfFalseExpressionOp(-1));
-                builder.Add(ExpressionOps.Pop);
+                builder.Add(PackedExpressionOp.JumpIfFalse(-1));
+                builder.Add(PackedExpressionOp.Pop);
 
                 if (!TryCompileExpression(expression.Right, builder, out failureReason))
                 {
                     return false;
                 }
 
-                builder[shortCircuitIndex] = new JumpIfFalseExpressionOp(builder.Count);
+                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfFalse(builder.Count);
                 failureReason = null;
                 return true;
             }
@@ -236,15 +249,15 @@ internal static class ExpressionProgramCompiler
             case BinaryOperator.LogicalOr:
             {
                 var shortCircuitIndex = builder.Count;
-                builder.Add(new JumpIfTrueExpressionOp(-1));
-                builder.Add(ExpressionOps.Pop);
+                builder.Add(PackedExpressionOp.JumpIfTrue(-1));
+                builder.Add(PackedExpressionOp.Pop);
 
                 if (!TryCompileExpression(expression.Right, builder, out failureReason))
                 {
                     return false;
                 }
 
-                builder[shortCircuitIndex] = new JumpIfTrueExpressionOp(builder.Count);
+                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfTrue(builder.Count);
                 failureReason = null;
                 return true;
             }
@@ -252,15 +265,15 @@ internal static class ExpressionProgramCompiler
             case BinaryOperator.NullishCoalescing:
             {
                 var shortCircuitIndex = builder.Count;
-                builder.Add(new JumpIfNotNullishExpressionOp(-1));
-                builder.Add(ExpressionOps.Pop);
+                builder.Add(PackedExpressionOp.JumpIfNotNullish(-1));
+                builder.Add(PackedExpressionOp.Pop);
 
                 if (!TryCompileExpression(expression.Right, builder, out failureReason))
                 {
                     return false;
                 }
 
-                builder[shortCircuitIndex] = new JumpIfNotNullishExpressionOp(builder.Count);
+                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfNotNullish(builder.Count);
                 failureReason = null;
                 return true;
             }
@@ -271,14 +284,14 @@ internal static class ExpressionProgramCompiler
             return false;
         }
 
-        builder.Add(new BinaryExpressionOp(expression.Operator));
+        builder.Add(PackedExpressionOp.Binary(expression.Operator));
         failureReason = null;
         return true;
     }
 
     private static bool TryCompileUnaryExpression(
         UnaryExpression expression,
-        List<ExpressionOp> builder,
+        ExpressionProgramBuilder builder,
         out string? failureReason)
     {
         switch (expression.Operator)
@@ -289,18 +302,19 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(ExpressionOps.UnaryLogicalNot);
+                builder.Add(PackedExpressionOp.UnaryLogicalNot);
                 failureReason = null;
                 return true;
 
             case UnaryOperator.TypeOf:
                 if (expression.Operand is IdentifierExpression identifierForTypeOf)
                 {
-                    builder.Add(new TypeOfIdentifierExpressionOp(
-                        identifierForTypeOf.Name,
-                        identifierForTypeOf.ScopeId,
-                        identifierForTypeOf.SlotIndex,
-                        identifierForTypeOf.FlatSlotId,
+                    builder.Add(PackedExpressionOp.TypeOfIdentifier(
+                        builder.InternIdentifier(new IdentifierOperand(
+                            identifierForTypeOf.Name,
+                            identifierForTypeOf.ScopeId,
+                            identifierForTypeOf.SlotIndex,
+                            identifierForTypeOf.FlatSlotId)),
                         IsArguments: ReferenceEquals(identifierForTypeOf.Name, Symbol.Arguments)));
                     failureReason = null;
                     return true;
@@ -311,7 +325,7 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(ExpressionOps.TypeOf);
+                builder.Add(PackedExpressionOp.TypeOf);
                 failureReason = null;
                 return true;
 
@@ -319,7 +333,8 @@ internal static class ExpressionProgramCompiler
                 switch (expression.Operand)
                 {
                     case IdentifierExpression identifierForDelete:
-                        builder.Add(new DeleteIdentifierExpressionOp(identifierForDelete.Name));
+                        builder.Add(PackedExpressionOp.DeleteIdentifier(
+                            builder.InternIdentifier(new IdentifierOperand(identifierForDelete.Name))));
                         failureReason = null;
                         return true;
 
@@ -335,7 +350,8 @@ internal static class ExpressionProgramCompiler
                             return false;
                         }
 
-                        builder.Add(new DeleteNamedPropertyExpressionOp(propertyLiteral.Value.AsString()));
+                        builder.Add(PackedExpressionOp.DeleteNamedProperty(
+                            builder.InternString(propertyLiteral.Value.AsString())));
                         failureReason = null;
                         return true;
 
@@ -355,7 +371,7 @@ internal static class ExpressionProgramCompiler
                             return false;
                         }
 
-                        builder.Add(ExpressionOps.DeleteComputedProperty);
+                        builder.Add(PackedExpressionOp.DeleteComputedProperty);
                         failureReason = null;
                         return true;
 
@@ -369,11 +385,11 @@ internal static class ExpressionProgramCompiler
                                 return false;
                             }
 
-                            builder.Add(ExpressionOps.Pop);
+                            builder.Add(PackedExpressionOp.Pop);
                         }
 
-                        builder.Add(new ThrowReferenceErrorExpressionOp(
-                            "Unsupported reference to 'super'"));
+                        builder.Add(PackedExpressionOp.ThrowReferenceError(
+                            builder.InternString("Unsupported reference to 'super'")));
                         failureReason = null;
                         return true;
 
@@ -387,8 +403,8 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(ExpressionOps.Pop);
-                builder.Add(new LoadLiteralExpressionOp(JsValue.True));
+                builder.Add(PackedExpressionOp.Pop);
+                builder.Add(PackedExpressionOp.LoadLiteralConstant(builder.InternLiteral(JsValue.True)));
                 failureReason = null;
                 return true;
 
@@ -398,7 +414,7 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(ExpressionOps.UnaryPlus);
+                builder.Add(PackedExpressionOp.UnaryPlus);
                 failureReason = null;
                 return true;
 
@@ -408,7 +424,7 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(ExpressionOps.UnaryMinus);
+                builder.Add(PackedExpressionOp.UnaryMinus);
                 failureReason = null;
                 return true;
 
@@ -418,7 +434,7 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(ExpressionOps.UnaryBitwiseNot);
+                builder.Add(PackedExpressionOp.UnaryBitwiseNot);
                 failureReason = null;
                 return true;
 
@@ -428,7 +444,7 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(ExpressionOps.UnaryVoid);
+                builder.Add(PackedExpressionOp.UnaryVoid);
                 failureReason = null;
                 return true;
 
@@ -436,11 +452,12 @@ internal static class ExpressionProgramCompiler
             case UnaryOperator.Decrement:
                 if (expression.Operand is IdentifierExpression identifier)
                 {
-                    builder.Add(new UpdateIdentifierExpressionOp(
-                        identifier.Name,
-                        identifier.ScopeId,
-                        identifier.SlotIndex,
-                        identifier.FlatSlotId,
+                    builder.Add(PackedExpressionOp.UpdateIdentifier(
+                        builder.InternIdentifier(new IdentifierOperand(
+                            identifier.Name,
+                            identifier.ScopeId,
+                            identifier.SlotIndex,
+                            identifier.FlatSlotId)),
                         IsIncrement: expression.Operator == UnaryOperator.Increment,
                         IsPrefix: expression.IsPrefix,
                         IsArguments: ReferenceEquals(identifier.Name, Symbol.Arguments)));
@@ -469,7 +486,7 @@ internal static class ExpressionProgramCompiler
 
     private static bool TryCompileDestructuringAssignmentExpression(
         DestructuringAssignmentExpression expression,
-        List<ExpressionOp> builder,
+        ExpressionProgramBuilder builder,
         out string? failureReason)
     {
         if (!TryCompileExpression(expression.Value, builder, out failureReason))
@@ -484,15 +501,15 @@ internal static class ExpressionProgramCompiler
             return false;
         }
 
-        builder.Add(ExpressionOps.DuplicateTop);
-        builder.Add(new ApplyBindingTargetExpressionOp(targetProgram));
+        builder.Add(PackedExpressionOp.DuplicateTop);
+        builder.Add(PackedExpressionOp.ApplyBindingTarget(builder.InternObject(targetProgram)));
         failureReason = null;
         return true;
     }
 
     private static bool TryCompileCallExpression(
         CallExpression expression,
-        List<ExpressionOp> builder,
+        ExpressionProgramBuilder builder,
         out string? failureReason)
     {
         var isDirectEval = false;
@@ -502,7 +519,7 @@ internal static class ExpressionProgramCompiler
         var targetShortCircuitJumpIndex = -1;
         var callNullishJumpIndex = -1;
         var calleeShortCircuitJumpIndex = -1;
-        List<bool>? spreadMaskBuilder = null;
+        List<int>? spreadMaskBuilder = null;
 
         switch (expression.Callee)
         {
@@ -516,28 +533,29 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(new LoadNamedSuperCallTargetExpressionOp(superPropertyLiteral.Value.AsString()));
+                builder.Add(PackedExpressionOp.LoadNamedSuperCallTarget(
+                    builder.InternString(superPropertyLiteral.Value.AsString())));
                 if (expression.IsOptional)
                 {
                     callNullishJumpIndex = builder.Count;
-                    builder.Add(new JumpIfNullishExpressionOp(-1, ReplaceWithUndefined: true));
+                    builder.Add(PackedExpressionOp.JumpIfNullish(-1, ReplaceWithUndefined: true));
                 }
 
                 hasExplicitThis = true;
                 break;
 
             case MemberExpression { Target: SuperExpression } member:
-                builder.Add(ExpressionOps.EnsureSuperReference);
+                builder.Add(PackedExpressionOp.EnsureSuperReference);
                 if (!TryCompileExpression(member.Property, builder, out failureReason))
                 {
                     return false;
                 }
 
-                builder.Add(ExpressionOps.LoadComputedSuperCallTarget);
+                builder.Add(PackedExpressionOp.LoadComputedSuperCallTarget);
                 if (expression.IsOptional)
                 {
                     callNullishJumpIndex = builder.Count;
-                    builder.Add(new JumpIfNullishExpressionOp(-1, ReplaceWithUndefined: true));
+                    builder.Add(PackedExpressionOp.JumpIfNullish(-1, ReplaceWithUndefined: true));
                 }
 
                 hasExplicitThis = true;
@@ -552,7 +570,7 @@ internal static class ExpressionProgramCompiler
                 if (expression.IsOptional)
                 {
                     callNullishJumpIndex = builder.Count;
-                    builder.Add(new JumpIfNullishExpressionOp(-1, ReplaceWithUndefined: true));
+                    builder.Add(PackedExpressionOp.JumpIfNullish(-1, ReplaceWithUndefined: true));
                 }
                 else
                 {
@@ -578,11 +596,11 @@ internal static class ExpressionProgramCompiler
                 }
 
                 var propertyName = propertyLiteral.Value.AsString();
-                builder.Add(new LoadNamedCallTargetExpressionOp(propertyName));
+                builder.Add(PackedExpressionOp.LoadNamedCallTarget(builder.InternString(propertyName)));
                 if (expression.IsOptional)
                 {
                     callNullishJumpIndex = builder.Count;
-                    builder.Add(new JumpIfNullishExpressionOp(-1, ReplaceWithUndefined: true));
+                    builder.Add(PackedExpressionOp.JumpIfNullish(-1, ReplaceWithUndefined: true));
                 }
                 hasExplicitThis = true;
                 break;
@@ -603,11 +621,11 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(ExpressionOps.LoadComputedCallTarget);
+                builder.Add(PackedExpressionOp.LoadComputedCallTarget);
                 if (expression.IsOptional)
                 {
                     callNullishJumpIndex = builder.Count;
-                    builder.Add(new JumpIfNullishExpressionOp(-1, ReplaceWithUndefined: true));
+                    builder.Add(PackedExpressionOp.JumpIfNullish(-1, ReplaceWithUndefined: true));
                 }
                 hasExplicitThis = true;
                 break;
@@ -621,13 +639,13 @@ internal static class ExpressionProgramCompiler
                 if (HasOptionalChaining(expression.Callee))
                 {
                     calleeShortCircuitJumpIndex = builder.Count;
-                    builder.Add(new JumpIfShortCircuitedExpressionOp(-1));
+                    builder.Add(PackedExpressionOp.JumpIfShortCircuited(-1));
                 }
 
                 if (expression.IsOptional)
                 {
                     callNullishJumpIndex = builder.Count;
-                    builder.Add(new JumpIfNullishExpressionOp(-1, ReplaceWithUndefined: true));
+                    builder.Add(PackedExpressionOp.JumpIfNullish(-1, ReplaceWithUndefined: true));
                 }
                 break;
         }
@@ -644,37 +662,30 @@ internal static class ExpressionProgramCompiler
             {
                 if (spreadMaskBuilder is null)
                 {
-                    spreadMaskBuilder = new List<bool>(expression.Arguments.Length);
-                    for (var i = 0; i < argumentIndex; i++)
-                    {
-                        spreadMaskBuilder.Add(false);
-                    }
+                    spreadMaskBuilder = new List<int>();
                 }
-            }
 
-            if (spreadMaskBuilder is not null)
-            {
-                spreadMaskBuilder.Add(argument.IsSpread);
+                spreadMaskBuilder.Add(argumentIndex);
             }
         }
 
         if (expression.Callee is SuperExpression)
         {
-            builder.Add(new SuperConstructExpressionOp(
+            builder.Add(PackedExpressionOp.SuperConstruct(
                 expression.Arguments.Length,
                 spreadMaskBuilder is not null
-                    ? ImmutableArray.CreateRange(spreadMaskBuilder)
-                    : default));
+                    ? builder.InternSpreadMask(ImmutableArray.CreateRange(spreadMaskBuilder))
+                    : -1));
         }
         else
         {
-            builder.Add(new CallExpressionOp(
+            builder.Add(PackedExpressionOp.Call(
                 expression.Arguments.Length,
                 HasExplicitThis: hasExplicitThis,
                 IsDirectEval: isDirectEval,
-                SpreadMask: spreadMaskBuilder is not null
-                    ? ImmutableArray.CreateRange(spreadMaskBuilder)
-                    : default));
+                SpreadMaskConstantIndex: spreadMaskBuilder is not null
+                    ? builder.InternSpreadMask(ImmutableArray.CreateRange(spreadMaskBuilder))
+                    : -1));
         }
 
         if (callNullishJumpIndex >= 0)
@@ -682,33 +693,33 @@ internal static class ExpressionProgramCompiler
             if (hasExplicitThis)
             {
                 var endJumpIndex = builder.Count;
-                builder.Add(new JumpExpressionOp(-1));
+                builder.Add(PackedExpressionOp.Jump(-1));
 
                 var cleanupIndex = builder.Count;
-                builder[callNullishJumpIndex] = new JumpIfNullishExpressionOp(cleanupIndex, ReplaceWithUndefined: true);
-                builder.Add(ExpressionOps.SwapTopTwo);
-                builder.Add(ExpressionOps.Pop);
-                builder[endJumpIndex] = new JumpExpressionOp(builder.Count);
+                builder[callNullishJumpIndex] = PackedExpressionOp.JumpIfNullish(cleanupIndex, ReplaceWithUndefined: true);
+                builder.Add(PackedExpressionOp.SwapTopTwo);
+                builder.Add(PackedExpressionOp.Pop);
+                builder[endJumpIndex] = PackedExpressionOp.Jump(builder.Count);
             }
             else
             {
-                builder[callNullishJumpIndex] = new JumpIfNullishExpressionOp(builder.Count, ReplaceWithUndefined: true);
+                builder[callNullishJumpIndex] = PackedExpressionOp.JumpIfNullish(builder.Count, ReplaceWithUndefined: true);
             }
         }
 
         if (targetNullishJumpIndex >= 0)
         {
-            builder[targetNullishJumpIndex] = new JumpIfNullishExpressionOp(builder.Count, ReplaceWithUndefined: true);
+            builder[targetNullishJumpIndex] = PackedExpressionOp.JumpIfNullish(builder.Count, ReplaceWithUndefined: true);
         }
 
         if (targetShortCircuitJumpIndex >= 0)
         {
-            builder[targetShortCircuitJumpIndex] = new JumpIfShortCircuitedExpressionOp(builder.Count);
+            builder[targetShortCircuitJumpIndex] = PackedExpressionOp.JumpIfShortCircuited(builder.Count);
         }
 
         if (calleeShortCircuitJumpIndex >= 0)
         {
-            builder[calleeShortCircuitJumpIndex] = new JumpIfShortCircuitedExpressionOp(builder.Count);
+            builder[calleeShortCircuitJumpIndex] = PackedExpressionOp.JumpIfShortCircuited(builder.Count);
         }
 
         failureReason = null;
@@ -717,7 +728,7 @@ internal static class ExpressionProgramCompiler
 
     private static bool TryCompileAssignmentExpression(
         AssignmentExpression expression,
-        List<ExpressionOp> builder,
+        ExpressionProgramBuilder builder,
         out string? failureReason)
     {
         if (expression.IsCompoundAssignment)
@@ -730,11 +741,12 @@ internal static class ExpressionProgramCompiler
             return false;
         }
 
-        builder.Add(new StoreIdentifierExpressionOp(
-            expression.Target,
-            expression.ScopeId,
-            expression.SlotIndex,
-            expression.FlatSlotId,
+        builder.Add(PackedExpressionOp.StoreIdentifier(
+            builder.InternIdentifier(new IdentifierOperand(
+                expression.Target,
+                expression.ScopeId,
+                expression.SlotIndex,
+                expression.FlatSlotId)),
             AllowNameInference: ShouldAllowAssignmentNameInference(expression)));
         failureReason = null;
         return true;
@@ -742,7 +754,7 @@ internal static class ExpressionProgramCompiler
 
     private static bool TryCompileCompoundAssignmentExpression(
         AssignmentExpression expression,
-        List<ExpressionOp> builder,
+        ExpressionProgramBuilder builder,
         out string? failureReason)
     {
         if (expression.Value is not BinaryExpression binary)
@@ -751,28 +763,31 @@ internal static class ExpressionProgramCompiler
             return false;
         }
 
-        var storeOp = new StoreIdentifierExpressionOp(
-            expression.Target,
-            expression.ScopeId,
-            expression.SlotIndex,
-            expression.FlatSlotId,
+        var storeOp = PackedExpressionOp.StoreIdentifier(
+            builder.InternIdentifier(new IdentifierOperand(
+                expression.Target,
+                expression.ScopeId,
+                expression.SlotIndex,
+                expression.FlatSlotId)),
             AllowNameInference: ShouldAllowAssignmentNameInference(expression));
-        var loadOp = new LoadIdentifierExpressionOp(
-            expression.Target,
-            expression.ScopeId,
-            expression.SlotIndex,
-            expression.FlatSlotId,
+        var loadOp = PackedExpressionOp.LoadIdentifier(
+            builder.InternIdentifier(new IdentifierOperand(
+                expression.Target,
+                expression.ScopeId,
+                expression.SlotIndex,
+                expression.FlatSlotId)),
             ReferenceEquals(expression.Target, Symbol.Arguments));
 
         // For logical compound assignments (&&=, ||=, ??=), the assignment value
         // is lowered to BinaryExpression(op, lhs, rhs). NamedEvaluation applies to
         // the actual RHS (binary.Right), not the whole BinaryExpression. Create a
         // separate store op that checks binary.Right for anonymous function defs.
-        var logicalStoreOp = new StoreIdentifierExpressionOp(
-            expression.Target,
-            expression.ScopeId,
-            expression.SlotIndex,
-            expression.FlatSlotId,
+        var logicalStoreOp = PackedExpressionOp.StoreIdentifier(
+            builder.InternIdentifier(new IdentifierOperand(
+                expression.Target,
+                expression.ScopeId,
+                expression.SlotIndex,
+                expression.FlatSlotId)),
             AllowNameInference: IsAnonymousFunctionDefinitionForNameInference(binary.Right) &&
                                 !IsParenthesizedIdentifierAssignment(expression));
 
@@ -782,8 +797,8 @@ internal static class ExpressionProgramCompiler
             {
                 builder.Add(loadOp);
                 var shortCircuitIndex = builder.Count;
-                builder.Add(new JumpIfFalseExpressionOp(-1));
-                builder.Add(ExpressionOps.Pop);
+                builder.Add(PackedExpressionOp.JumpIfFalse(-1));
+                builder.Add(PackedExpressionOp.Pop);
 
                 if (!TryCompileExpression(binary.Right, builder, out failureReason))
                 {
@@ -791,7 +806,7 @@ internal static class ExpressionProgramCompiler
                 }
 
                 builder.Add(logicalStoreOp);
-                builder[shortCircuitIndex] = new JumpIfFalseExpressionOp(builder.Count);
+                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfFalse(builder.Count);
                 failureReason = null;
                 return true;
             }
@@ -800,8 +815,8 @@ internal static class ExpressionProgramCompiler
             {
                 builder.Add(loadOp);
                 var shortCircuitIndex = builder.Count;
-                builder.Add(new JumpIfTrueExpressionOp(-1));
-                builder.Add(ExpressionOps.Pop);
+                builder.Add(PackedExpressionOp.JumpIfTrue(-1));
+                builder.Add(PackedExpressionOp.Pop);
 
                 if (!TryCompileExpression(binary.Right, builder, out failureReason))
                 {
@@ -809,7 +824,7 @@ internal static class ExpressionProgramCompiler
                 }
 
                 builder.Add(logicalStoreOp);
-                builder[shortCircuitIndex] = new JumpIfTrueExpressionOp(builder.Count);
+                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfTrue(builder.Count);
                 failureReason = null;
                 return true;
             }
@@ -818,8 +833,8 @@ internal static class ExpressionProgramCompiler
             {
                 builder.Add(loadOp);
                 var shortCircuitIndex = builder.Count;
-                builder.Add(new JumpIfNotNullishExpressionOp(-1));
-                builder.Add(ExpressionOps.Pop);
+                builder.Add(PackedExpressionOp.JumpIfNotNullish(-1));
+                builder.Add(PackedExpressionOp.Pop);
 
                 if (!TryCompileExpression(binary.Right, builder, out failureReason))
                 {
@@ -827,7 +842,7 @@ internal static class ExpressionProgramCompiler
                 }
 
                 builder.Add(logicalStoreOp);
-                builder[shortCircuitIndex] = new JumpIfNotNullishExpressionOp(builder.Count);
+                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfNotNullish(builder.Count);
                 failureReason = null;
                 return true;
             }
@@ -840,7 +855,7 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(new BinaryExpressionOp(binary.Operator));
+                builder.Add(PackedExpressionOp.Binary(binary.Operator));
                 builder.Add(storeOp);
                 failureReason = null;
                 return true;
@@ -849,10 +864,10 @@ internal static class ExpressionProgramCompiler
 
     private static bool TryCompileNewExpression(
         NewExpression expression,
-        List<ExpressionOp> builder,
+        ExpressionProgramBuilder builder,
         out string? failureReason)
     {
-        List<bool>? spreadMaskBuilder = null;
+        List<int>? spreadMaskBuilder = null;
 
         if (!TryCompileExpression(expression.Constructor, builder, out failureReason))
         {
@@ -871,25 +886,18 @@ internal static class ExpressionProgramCompiler
             {
                 if (spreadMaskBuilder is null)
                 {
-                    spreadMaskBuilder = new List<bool>(expression.Arguments.Length);
-                    for (var i = 0; i < argumentIndex; i++)
-                    {
-                        spreadMaskBuilder.Add(false);
-                    }
+                    spreadMaskBuilder = new List<int>();
                 }
-            }
 
-            if (spreadMaskBuilder is not null)
-            {
-                spreadMaskBuilder.Add(argument.IsSpread);
+                spreadMaskBuilder.Add(argumentIndex);
             }
         }
 
-        builder.Add(new ConstructExpressionOp(
+        builder.Add(PackedExpressionOp.Construct(
             expression.Arguments.Length,
-            SpreadMask: spreadMaskBuilder is not null
-                ? ImmutableArray.CreateRange(spreadMaskBuilder)
-                : default));
+            SpreadMaskConstantIndex: spreadMaskBuilder is not null
+                ? builder.InternSpreadMask(ImmutableArray.CreateRange(spreadMaskBuilder))
+                : -1));
         failureReason = null;
         return true;
     }
@@ -898,7 +906,7 @@ internal static class ExpressionProgramCompiler
         MemberExpression expression,
         bool isIncrement,
         bool isPrefix,
-        List<ExpressionOp> builder,
+        ExpressionProgramBuilder builder,
         out string? failureReason)
     {
         if (HasOptionalChaining(expression.Target) || expression.IsOptional)
@@ -917,22 +925,22 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(new UpdateNamedSuperPropertyExpressionOp(
-                    propertyLiteral.Value.AsString(),
+                builder.Add(PackedExpressionOp.UpdateNamedSuperProperty(
+                    builder.InternString(propertyLiteral.Value.AsString()),
                     IsIncrement: isIncrement,
                     IsPrefix: isPrefix));
                 failureReason = null;
                 return true;
             }
 
-            builder.Add(ExpressionOps.EnsureSuperReference);
-            builder.Add(ExpressionOps.EnsureSuperReference);
+            builder.Add(PackedExpressionOp.EnsureSuperReference);
+            builder.Add(PackedExpressionOp.EnsureSuperReference);
             if (!TryCompileExpression(expression.Property, builder, out failureReason))
             {
                 return false;
             }
 
-            builder.Add(new UpdateComputedSuperPropertyExpressionOp(
+            builder.Add(PackedExpressionOp.UpdateComputedSuperProperty(
                 IsIncrement: isIncrement,
                 IsPrefix: isPrefix));
             failureReason = null;
@@ -952,8 +960,8 @@ internal static class ExpressionProgramCompiler
                 return false;
             }
 
-            builder.Add(new UpdateNamedPropertyExpressionOp(
-                propertyLiteral.Value.AsString(),
+            builder.Add(PackedExpressionOp.UpdateNamedProperty(
+                builder.InternString(propertyLiteral.Value.AsString()),
                 IsIncrement: isIncrement,
                 IsPrefix: isPrefix));
             failureReason = null;
@@ -965,7 +973,7 @@ internal static class ExpressionProgramCompiler
             return false;
         }
 
-        builder.Add(new UpdateComputedPropertyExpressionOp(
+        builder.Add(PackedExpressionOp.UpdateComputedProperty(
             IsIncrement: isIncrement,
             IsPrefix: isPrefix));
         failureReason = null;
@@ -974,7 +982,7 @@ internal static class ExpressionProgramCompiler
 
     private static bool TryCompileSequenceExpression(
         SequenceExpression expression,
-        List<ExpressionOp> builder,
+        ExpressionProgramBuilder builder,
         out string? failureReason)
     {
         if (!TryCompileExpression(expression.Left, builder, out failureReason))
@@ -982,7 +990,7 @@ internal static class ExpressionProgramCompiler
             return false;
         }
 
-        builder.Add(ExpressionOps.Pop);
+        builder.Add(PackedExpressionOp.Pop);
 
         if (!TryCompileExpression(expression.Right, builder, out failureReason))
         {
@@ -995,7 +1003,7 @@ internal static class ExpressionProgramCompiler
 
     private static bool TryCompileTaggedTemplateExpression(
         TaggedTemplateExpression expression,
-        List<ExpressionOp> builder,
+        ExpressionProgramBuilder builder,
         out string? failureReason)
     {
         var hasExplicitThis = false;
@@ -1017,18 +1025,19 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(new LoadNamedSuperCallTargetExpressionOp(superPropertyLiteral.Value.AsString()));
+                builder.Add(PackedExpressionOp.LoadNamedSuperCallTarget(
+                    builder.InternString(superPropertyLiteral.Value.AsString())));
                 hasExplicitThis = true;
                 break;
 
             case MemberExpression { Target: SuperExpression } member:
-                builder.Add(ExpressionOps.EnsureSuperReference);
+                builder.Add(PackedExpressionOp.EnsureSuperReference);
                 if (!TryCompileExpression(member.Property, builder, out failureReason))
                 {
                     return false;
                 }
 
-                builder.Add(ExpressionOps.LoadComputedSuperCallTarget);
+                builder.Add(PackedExpressionOp.LoadComputedSuperCallTarget);
                 hasExplicitThis = true;
                 break;
 
@@ -1049,7 +1058,8 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(new LoadNamedCallTargetExpressionOp(propertyLiteral.Value.AsString()));
+                builder.Add(PackedExpressionOp.LoadNamedCallTarget(
+                    builder.InternString(propertyLiteral.Value.AsString())));
                 hasExplicitThis = true;
                 break;
 
@@ -1069,7 +1079,7 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(ExpressionOps.LoadComputedCallTarget);
+                builder.Add(PackedExpressionOp.LoadComputedCallTarget);
                 hasExplicitThis = true;
                 break;
 
@@ -1082,7 +1092,7 @@ internal static class ExpressionProgramCompiler
                 if (HasOptionalChaining(expression.Tag))
                 {
                     calleeShortCircuitJumpIndex = builder.Count;
-                    builder.Add(new JumpIfShortCircuitedExpressionOp(-1));
+                    builder.Add(PackedExpressionOp.JumpIfShortCircuited(-1));
                 }
                 break;
         }
@@ -1092,7 +1102,7 @@ internal static class ExpressionProgramCompiler
             return false;
         }
 
-        builder.Add(new LoadTemplateObjectExpressionOp(descriptor));
+        builder.Add(PackedExpressionOp.LoadTemplateObject(builder.InternObject(descriptor)));
 
         foreach (var templateExpression in expression.Expressions)
         {
@@ -1102,23 +1112,23 @@ internal static class ExpressionProgramCompiler
             }
         }
 
-        builder.Add(new CallExpressionOp(
+        builder.Add(PackedExpressionOp.Call(
             expression.Expressions.Length + 1,
             HasExplicitThis: hasExplicitThis));
 
         if (targetNullishJumpIndex >= 0)
         {
-            builder[targetNullishJumpIndex] = new JumpIfNullishExpressionOp(builder.Count, ReplaceWithUndefined: true);
+            builder[targetNullishJumpIndex] = PackedExpressionOp.JumpIfNullish(builder.Count, ReplaceWithUndefined: true);
         }
 
         if (targetShortCircuitJumpIndex >= 0)
         {
-            builder[targetShortCircuitJumpIndex] = new JumpIfShortCircuitedExpressionOp(builder.Count);
+            builder[targetShortCircuitJumpIndex] = PackedExpressionOp.JumpIfShortCircuited(builder.Count);
         }
 
         if (calleeShortCircuitJumpIndex >= 0)
         {
-            builder[calleeShortCircuitJumpIndex] = new JumpIfShortCircuitedExpressionOp(builder.Count);
+            builder[calleeShortCircuitJumpIndex] = PackedExpressionOp.JumpIfShortCircuited(builder.Count);
         }
 
         failureReason = null;
@@ -1127,17 +1137,17 @@ internal static class ExpressionProgramCompiler
 
     private static bool TryCompileTemplateLiteralExpression(
         TemplateLiteralExpression expression,
-        List<ExpressionOp> builder,
+        ExpressionProgramBuilder builder,
         out string? failureReason)
     {
-        builder.Add(new LoadLiteralExpressionOp(new JsValue(string.Empty)));
+        builder.Add(PackedExpressionOp.LoadLiteralConstant(builder.InternLiteral(new JsValue(string.Empty))));
 
         foreach (var part in expression.Parts)
         {
             if (part.Text is not null)
             {
-                builder.Add(new LoadLiteralExpressionOp(new JsValue(part.Text)));
-                builder.Add(new BinaryExpressionOp(BinaryOperator.Add));
+                builder.Add(PackedExpressionOp.LoadLiteralConstant(builder.InternLiteral(new JsValue(part.Text))));
+                builder.Add(PackedExpressionOp.Binary(BinaryOperator.Add));
                 continue;
             }
 
@@ -1151,8 +1161,8 @@ internal static class ExpressionProgramCompiler
                 return false;
             }
 
-            builder.Add(ExpressionOps.ToString);
-            builder.Add(new BinaryExpressionOp(BinaryOperator.Add));
+            builder.Add(PackedExpressionOp.ToStringValue);
+            builder.Add(PackedExpressionOp.Binary(BinaryOperator.Add));
         }
 
         failureReason = null;
@@ -1222,7 +1232,7 @@ internal static class ExpressionProgramCompiler
 
     private static bool TryCompilePropertyAssignmentExpression(
         PropertyAssignmentExpression expression,
-        List<ExpressionOp> builder,
+        ExpressionProgramBuilder builder,
         out string? failureReason)
     {
         if (expression.IsCompoundAssignment)
@@ -1240,7 +1250,7 @@ internal static class ExpressionProgramCompiler
         {
             if (expression.IsComputed)
             {
-                builder.Add(ExpressionOps.EnsureSuperReference);
+                builder.Add(PackedExpressionOp.EnsureSuperReference);
                 if (!TryCompileExpression(expression.Property, builder, out failureReason))
                 {
                     return false;
@@ -1251,7 +1261,7 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(ExpressionOps.SetComputedSuperProperty());
+                builder.Add(PackedExpressionOp.SetComputedSuperProperty());
                 failureReason = null;
                 return true;
             }
@@ -1267,7 +1277,8 @@ internal static class ExpressionProgramCompiler
                 return false;
             }
 
-            builder.Add(new SetNamedSuperPropertyExpressionOp(superPropertyLiteral.Value.AsString()));
+            builder.Add(PackedExpressionOp.SetNamedSuperProperty(
+                builder.InternString(superPropertyLiteral.Value.AsString())));
             failureReason = null;
             return true;
         }
@@ -1279,7 +1290,7 @@ internal static class ExpressionProgramCompiler
 
         if (expression.IsComputed)
         {
-            builder.Add(ExpressionOps.EnsureSuperReference);
+            builder.Add(PackedExpressionOp.EnsureSuperReference);
             if (!TryCompileExpression(expression.Property, builder, out failureReason))
             {
                 return false;
@@ -1291,7 +1302,7 @@ internal static class ExpressionProgramCompiler
             }
 
             // Per ES spec, assignment to MemberExpression does NOT trigger NamedEvaluation.
-            builder.Add(ExpressionOps.SetComputedProperty(allowNameInference: false));
+            builder.Add(PackedExpressionOp.SetComputedProperty(AllowNameInference: false));
             failureReason = null;
             return true;
         }
@@ -1309,14 +1320,16 @@ internal static class ExpressionProgramCompiler
 
         // Per ES spec, assignment to MemberExpression does NOT trigger NamedEvaluation.
         // Only assignments to IdentifierRef get name inference (handled by AssignmentExpression).
-        builder.Add(new SetNamedPropertyExpressionOp(propertyLiteral.Value.AsString(), AllowNameInference: false));
+        builder.Add(PackedExpressionOp.SetNamedProperty(
+            builder.InternString(propertyLiteral.Value.AsString()),
+            AllowNameInference: false));
         failureReason = null;
         return true;
     }
 
     private static bool TryCompileIndexAssignmentExpression(
         IndexAssignmentExpression expression,
-        List<ExpressionOp> builder,
+        ExpressionProgramBuilder builder,
         out string? failureReason)
     {
         if (expression.IsCompoundAssignment)
@@ -1332,7 +1345,7 @@ internal static class ExpressionProgramCompiler
 
         if (expression.Target is SuperExpression)
         {
-            builder.Add(ExpressionOps.EnsureSuperReference);
+            builder.Add(PackedExpressionOp.EnsureSuperReference);
             if (!TryCompileExpression(expression.Index, builder, out failureReason))
             {
                 return false;
@@ -1343,7 +1356,7 @@ internal static class ExpressionProgramCompiler
                 return false;
             }
 
-            builder.Add(ExpressionOps.SetComputedSuperProperty());
+            builder.Add(PackedExpressionOp.SetComputedSuperProperty());
             failureReason = null;
             return true;
         }
@@ -1363,14 +1376,14 @@ internal static class ExpressionProgramCompiler
             return false;
         }
 
-        builder.Add(ExpressionOps.SetComputedProperty());
+        builder.Add(PackedExpressionOp.SetComputedProperty());
         failureReason = null;
         return true;
     }
 
     private static bool TryCompileCompoundPropertyAssignmentExpression(
         PropertyAssignmentExpression expression,
-        List<ExpressionOp> builder,
+        ExpressionProgramBuilder builder,
         out string? failureReason)
     {
         if (HasOptionalChaining(expression.Target))
@@ -1392,25 +1405,26 @@ internal static class ExpressionProgramCompiler
         }
 
         var propertyName = propertyLiteral.Value.AsString();
+        var propertyNameIndex = builder.InternString(propertyName);
         if (expression.Target is SuperExpression)
         {
-            builder.Add(new GetNamedSuperPropertyExpressionOp(propertyName));
+            builder.Add(PackedExpressionOp.GetNamedSuperProperty(propertyNameIndex));
 
             switch (binary.Operator)
             {
                 case BinaryOperator.LogicalAnd:
                 {
                     var shortCircuitIndex = builder.Count;
-                    builder.Add(new JumpIfFalseExpressionOp(-1));
-                    builder.Add(ExpressionOps.Pop);
+                    builder.Add(PackedExpressionOp.JumpIfFalse(-1));
+                    builder.Add(PackedExpressionOp.Pop);
 
                     if (!TryCompileExpression(binary.Right, builder, out failureReason))
                     {
                         return false;
                     }
 
-                    builder.Add(new SetNamedSuperPropertyExpressionOp(propertyName));
-                    builder[shortCircuitIndex] = new JumpIfFalseExpressionOp(builder.Count);
+                    builder.Add(PackedExpressionOp.SetNamedSuperProperty(propertyNameIndex));
+                    builder[shortCircuitIndex] = PackedExpressionOp.JumpIfFalse(builder.Count);
                     failureReason = null;
                     return true;
                 }
@@ -1418,16 +1432,16 @@ internal static class ExpressionProgramCompiler
                 case BinaryOperator.LogicalOr:
                 {
                     var shortCircuitIndex = builder.Count;
-                    builder.Add(new JumpIfTrueExpressionOp(-1));
-                    builder.Add(ExpressionOps.Pop);
+                    builder.Add(PackedExpressionOp.JumpIfTrue(-1));
+                    builder.Add(PackedExpressionOp.Pop);
 
                     if (!TryCompileExpression(binary.Right, builder, out failureReason))
                     {
                         return false;
                     }
 
-                    builder.Add(new SetNamedSuperPropertyExpressionOp(propertyName));
-                    builder[shortCircuitIndex] = new JumpIfTrueExpressionOp(builder.Count);
+                    builder.Add(PackedExpressionOp.SetNamedSuperProperty(propertyNameIndex));
+                    builder[shortCircuitIndex] = PackedExpressionOp.JumpIfTrue(builder.Count);
                     failureReason = null;
                     return true;
                 }
@@ -1435,16 +1449,16 @@ internal static class ExpressionProgramCompiler
                 case BinaryOperator.NullishCoalescing:
                 {
                     var shortCircuitIndex = builder.Count;
-                    builder.Add(new JumpIfNotNullishExpressionOp(-1));
-                    builder.Add(ExpressionOps.Pop);
+                    builder.Add(PackedExpressionOp.JumpIfNotNullish(-1));
+                    builder.Add(PackedExpressionOp.Pop);
 
                     if (!TryCompileExpression(binary.Right, builder, out failureReason))
                     {
                         return false;
                     }
 
-                    builder.Add(new SetNamedSuperPropertyExpressionOp(propertyName));
-                    builder[shortCircuitIndex] = new JumpIfNotNullishExpressionOp(builder.Count);
+                    builder.Add(PackedExpressionOp.SetNamedSuperProperty(propertyNameIndex));
+                    builder[shortCircuitIndex] = PackedExpressionOp.JumpIfNotNullish(builder.Count);
                     failureReason = null;
                     return true;
                 }
@@ -1455,8 +1469,10 @@ internal static class ExpressionProgramCompiler
                 return false;
             }
 
-            builder.Add(new BinaryExpressionOp(binary.Operator));
-            builder.Add(new SetNamedSuperPropertyExpressionOp(propertyName, AllowNameInference: false));
+            builder.Add(PackedExpressionOp.Binary(binary.Operator));
+            builder.Add(PackedExpressionOp.SetNamedSuperProperty(
+                propertyNameIndex,
+                AllowNameInference: false));
             failureReason = null;
             return true;
         }
@@ -1466,31 +1482,31 @@ internal static class ExpressionProgramCompiler
             return false;
         }
 
-        builder.Add(ExpressionOps.DuplicateTop);
-        builder.Add(new GetNamedPropertyExpressionOp(propertyName));
+        builder.Add(PackedExpressionOp.DuplicateTop);
+        builder.Add(PackedExpressionOp.GetNamedProperty(propertyNameIndex));
 
         switch (binary.Operator)
         {
             case BinaryOperator.LogicalAnd:
             {
                 var shortCircuitIndex = builder.Count;
-                builder.Add(new JumpIfFalseExpressionOp(-1));
-                builder.Add(ExpressionOps.Pop);
+                builder.Add(PackedExpressionOp.JumpIfFalse(-1));
+                builder.Add(PackedExpressionOp.Pop);
 
                 if (!TryCompileExpression(binary.Right, builder, out failureReason))
                 {
                     return false;
                 }
 
-                builder.Add(new SetNamedPropertyExpressionOp(propertyName));
+                builder.Add(PackedExpressionOp.SetNamedProperty(propertyNameIndex));
                 var endJumpIndex = builder.Count;
-                builder.Add(new JumpExpressionOp(-1));
+                builder.Add(PackedExpressionOp.Jump(-1));
 
                 var shortCircuitStart = builder.Count;
-                builder[shortCircuitIndex] = new JumpIfFalseExpressionOp(shortCircuitStart);
-                builder.Add(ExpressionOps.SwapTopTwo);
-                builder.Add(ExpressionOps.Pop);
-                builder[endJumpIndex] = new JumpExpressionOp(builder.Count);
+                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfFalse(shortCircuitStart);
+                builder.Add(PackedExpressionOp.SwapTopTwo);
+                builder.Add(PackedExpressionOp.Pop);
+                builder[endJumpIndex] = PackedExpressionOp.Jump(builder.Count);
                 failureReason = null;
                 return true;
             }
@@ -1498,23 +1514,23 @@ internal static class ExpressionProgramCompiler
             case BinaryOperator.LogicalOr:
             {
                 var shortCircuitIndex = builder.Count;
-                builder.Add(new JumpIfTrueExpressionOp(-1));
-                builder.Add(ExpressionOps.Pop);
+                builder.Add(PackedExpressionOp.JumpIfTrue(-1));
+                builder.Add(PackedExpressionOp.Pop);
 
                 if (!TryCompileExpression(binary.Right, builder, out failureReason))
                 {
                     return false;
                 }
 
-                builder.Add(new SetNamedPropertyExpressionOp(propertyName));
+                builder.Add(PackedExpressionOp.SetNamedProperty(propertyNameIndex));
                 var endJumpIndex = builder.Count;
-                builder.Add(new JumpExpressionOp(-1));
+                builder.Add(PackedExpressionOp.Jump(-1));
 
                 var shortCircuitStart = builder.Count;
-                builder[shortCircuitIndex] = new JumpIfTrueExpressionOp(shortCircuitStart);
-                builder.Add(ExpressionOps.SwapTopTwo);
-                builder.Add(ExpressionOps.Pop);
-                builder[endJumpIndex] = new JumpExpressionOp(builder.Count);
+                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfTrue(shortCircuitStart);
+                builder.Add(PackedExpressionOp.SwapTopTwo);
+                builder.Add(PackedExpressionOp.Pop);
+                builder[endJumpIndex] = PackedExpressionOp.Jump(builder.Count);
                 failureReason = null;
                 return true;
             }
@@ -1522,23 +1538,23 @@ internal static class ExpressionProgramCompiler
             case BinaryOperator.NullishCoalescing:
             {
                 var shortCircuitIndex = builder.Count;
-                builder.Add(new JumpIfNotNullishExpressionOp(-1));
-                builder.Add(ExpressionOps.Pop);
+                builder.Add(PackedExpressionOp.JumpIfNotNullish(-1));
+                builder.Add(PackedExpressionOp.Pop);
 
                 if (!TryCompileExpression(binary.Right, builder, out failureReason))
                 {
                     return false;
                 }
 
-                builder.Add(new SetNamedPropertyExpressionOp(propertyName));
+                builder.Add(PackedExpressionOp.SetNamedProperty(propertyNameIndex));
                 var endJumpIndex = builder.Count;
-                builder.Add(new JumpExpressionOp(-1));
+                builder.Add(PackedExpressionOp.Jump(-1));
 
                 var shortCircuitStart = builder.Count;
-                builder[shortCircuitIndex] = new JumpIfNotNullishExpressionOp(shortCircuitStart);
-                builder.Add(ExpressionOps.SwapTopTwo);
-                builder.Add(ExpressionOps.Pop);
-                builder[endJumpIndex] = new JumpExpressionOp(builder.Count);
+                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfNotNullish(shortCircuitStart);
+                builder.Add(PackedExpressionOp.SwapTopTwo);
+                builder.Add(PackedExpressionOp.Pop);
+                builder[endJumpIndex] = PackedExpressionOp.Jump(builder.Count);
                 failureReason = null;
                 return true;
             }
@@ -1549,15 +1565,17 @@ internal static class ExpressionProgramCompiler
             return false;
         }
 
-        builder.Add(new BinaryExpressionOp(binary.Operator));
-        builder.Add(new SetNamedPropertyExpressionOp(propertyName, AllowNameInference: false));
+        builder.Add(PackedExpressionOp.Binary(binary.Operator));
+        builder.Add(PackedExpressionOp.SetNamedProperty(
+            propertyNameIndex,
+            AllowNameInference: false));
         failureReason = null;
         return true;
     }
 
     private static bool TryCompileCompoundIndexAssignmentExpression(
         IndexAssignmentExpression expression,
-        List<ExpressionOp> builder,
+        ExpressionProgramBuilder builder,
         out string? failureReason)
     {
         if (HasOptionalChaining(expression.Target))
@@ -1574,37 +1592,37 @@ internal static class ExpressionProgramCompiler
 
         if (expression.Target is SuperExpression)
         {
-            builder.Add(ExpressionOps.EnsureSuperReference);
+            builder.Add(PackedExpressionOp.EnsureSuperReference);
             if (!TryCompileExpression(expression.Index, builder, out failureReason))
             {
                 return false;
             }
 
-            builder.Add(ExpressionOps.DuplicateTop);
-            builder.Add(ExpressionOps.GetComputedSuperProperty);
+            builder.Add(PackedExpressionOp.DuplicateTop);
+            builder.Add(PackedExpressionOp.GetComputedSuperProperty);
 
             switch (binary.Operator)
             {
                 case BinaryOperator.LogicalAnd:
                 {
                     var shortCircuitIndex = builder.Count;
-                    builder.Add(new JumpIfFalseExpressionOp(-1));
-                    builder.Add(ExpressionOps.Pop);
+                    builder.Add(PackedExpressionOp.JumpIfFalse(-1));
+                    builder.Add(PackedExpressionOp.Pop);
 
                     if (!TryCompileExpression(binary.Right, builder, out failureReason))
                     {
                         return false;
                     }
 
-                    builder.Add(ExpressionOps.SetComputedSuperProperty());
+                    builder.Add(PackedExpressionOp.SetComputedSuperProperty());
                     var endJumpIndex = builder.Count;
-                    builder.Add(new JumpExpressionOp(-1));
+                    builder.Add(PackedExpressionOp.Jump(-1));
 
                     var shortCircuitStart = builder.Count;
-                    builder[shortCircuitIndex] = new JumpIfFalseExpressionOp(shortCircuitStart);
-                    builder.Add(ExpressionOps.SwapTopTwo);
-                    builder.Add(ExpressionOps.Pop);
-                    builder[endJumpIndex] = new JumpExpressionOp(builder.Count);
+                    builder[shortCircuitIndex] = PackedExpressionOp.JumpIfFalse(shortCircuitStart);
+                    builder.Add(PackedExpressionOp.SwapTopTwo);
+                    builder.Add(PackedExpressionOp.Pop);
+                    builder[endJumpIndex] = PackedExpressionOp.Jump(builder.Count);
                     failureReason = null;
                     return true;
                 }
@@ -1612,23 +1630,23 @@ internal static class ExpressionProgramCompiler
                 case BinaryOperator.LogicalOr:
                 {
                     var shortCircuitIndex = builder.Count;
-                    builder.Add(new JumpIfTrueExpressionOp(-1));
-                    builder.Add(ExpressionOps.Pop);
+                    builder.Add(PackedExpressionOp.JumpIfTrue(-1));
+                    builder.Add(PackedExpressionOp.Pop);
 
                     if (!TryCompileExpression(binary.Right, builder, out failureReason))
                     {
                         return false;
                     }
 
-                    builder.Add(ExpressionOps.SetComputedSuperProperty());
+                    builder.Add(PackedExpressionOp.SetComputedSuperProperty());
                     var endJumpIndex = builder.Count;
-                    builder.Add(new JumpExpressionOp(-1));
+                    builder.Add(PackedExpressionOp.Jump(-1));
 
                     var shortCircuitStart = builder.Count;
-                    builder[shortCircuitIndex] = new JumpIfTrueExpressionOp(shortCircuitStart);
-                    builder.Add(ExpressionOps.SwapTopTwo);
-                    builder.Add(ExpressionOps.Pop);
-                    builder[endJumpIndex] = new JumpExpressionOp(builder.Count);
+                    builder[shortCircuitIndex] = PackedExpressionOp.JumpIfTrue(shortCircuitStart);
+                    builder.Add(PackedExpressionOp.SwapTopTwo);
+                    builder.Add(PackedExpressionOp.Pop);
+                    builder[endJumpIndex] = PackedExpressionOp.Jump(builder.Count);
                     failureReason = null;
                     return true;
                 }
@@ -1636,23 +1654,23 @@ internal static class ExpressionProgramCompiler
                 case BinaryOperator.NullishCoalescing:
                 {
                     var shortCircuitIndex = builder.Count;
-                    builder.Add(new JumpIfNotNullishExpressionOp(-1));
-                    builder.Add(ExpressionOps.Pop);
+                    builder.Add(PackedExpressionOp.JumpIfNotNullish(-1));
+                    builder.Add(PackedExpressionOp.Pop);
 
                     if (!TryCompileExpression(binary.Right, builder, out failureReason))
                     {
                         return false;
                     }
 
-                    builder.Add(ExpressionOps.SetComputedSuperProperty());
+                    builder.Add(PackedExpressionOp.SetComputedSuperProperty());
                     var endJumpIndex = builder.Count;
-                    builder.Add(new JumpExpressionOp(-1));
+                    builder.Add(PackedExpressionOp.Jump(-1));
 
                     var shortCircuitStart = builder.Count;
-                    builder[shortCircuitIndex] = new JumpIfNotNullishExpressionOp(shortCircuitStart);
-                    builder.Add(ExpressionOps.SwapTopTwo);
-                    builder.Add(ExpressionOps.Pop);
-                    builder[endJumpIndex] = new JumpExpressionOp(builder.Count);
+                    builder[shortCircuitIndex] = PackedExpressionOp.JumpIfNotNullish(shortCircuitStart);
+                    builder.Add(PackedExpressionOp.SwapTopTwo);
+                    builder.Add(PackedExpressionOp.Pop);
+                    builder[endJumpIndex] = PackedExpressionOp.Jump(builder.Count);
                     failureReason = null;
                     return true;
                 }
@@ -1663,8 +1681,8 @@ internal static class ExpressionProgramCompiler
                 return false;
             }
 
-            builder.Add(new BinaryExpressionOp(binary.Operator));
-            builder.Add(ExpressionOps.SetComputedSuperProperty(allowNameInference: false));
+            builder.Add(PackedExpressionOp.Binary(binary.Operator));
+            builder.Add(PackedExpressionOp.SetComputedSuperProperty(AllowNameInference: false));
             failureReason = null;
             return true;
         }
@@ -1681,38 +1699,38 @@ internal static class ExpressionProgramCompiler
 
         // Per ES spec 13.15.2 step 1.e: RequireObjectCoercible(base) BEFORE ToPropertyKey(index).
         // Stack is [target, index]. Check target (depth 1) is not null/undefined before resolving key.
-        builder.Add(ExpressionOps.RequireObjectCoercible(depth: 1));
+        builder.Add(PackedExpressionOp.RequireObjectCoercible(Depth: 1));
 
         // Resolve the property key once before duplicating, so both Get and Set
         // use the already-resolved string. This ensures ToPropertyKey is called
         // exactly once per the ECMAScript spec (e.g. S11.13.2_A7.1_T4).
-        builder.Add(ExpressionOps.ResolvePropertyKey);
-        builder.Add(ExpressionOps.DuplicateTopTwo);
-        builder.Add(ExpressionOps.GetComputedProperty());
+        builder.Add(PackedExpressionOp.ResolvePropertyKey);
+        builder.Add(PackedExpressionOp.DuplicateTopTwo);
+        builder.Add(PackedExpressionOp.GetComputedProperty());
 
         switch (binary.Operator)
         {
             case BinaryOperator.LogicalAnd:
             {
                 var shortCircuitIndex = builder.Count;
-                builder.Add(new JumpIfFalseExpressionOp(-1));
-                builder.Add(ExpressionOps.Pop);
+                builder.Add(PackedExpressionOp.JumpIfFalse(-1));
+                builder.Add(PackedExpressionOp.Pop);
 
                 if (!TryCompileExpression(binary.Right, builder, out failureReason))
                 {
                     return false;
                 }
 
-                builder.Add(ExpressionOps.SetComputedProperty());
+                builder.Add(PackedExpressionOp.SetComputedProperty());
                 var endJumpIndex = builder.Count;
-                builder.Add(new JumpExpressionOp(-1));
+                builder.Add(PackedExpressionOp.Jump(-1));
 
                 var shortCircuitStart = builder.Count;
-                builder[shortCircuitIndex] = new JumpIfFalseExpressionOp(shortCircuitStart);
-                builder.Add(ExpressionOps.RotateTopThreeRight);
-                builder.Add(ExpressionOps.Pop);
-                builder.Add(ExpressionOps.Pop);
-                builder[endJumpIndex] = new JumpExpressionOp(builder.Count);
+                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfFalse(shortCircuitStart);
+                builder.Add(PackedExpressionOp.RotateTopThreeRight);
+                builder.Add(PackedExpressionOp.Pop);
+                builder.Add(PackedExpressionOp.Pop);
+                builder[endJumpIndex] = PackedExpressionOp.Jump(builder.Count);
                 failureReason = null;
                 return true;
             }
@@ -1720,24 +1738,24 @@ internal static class ExpressionProgramCompiler
             case BinaryOperator.LogicalOr:
             {
                 var shortCircuitIndex = builder.Count;
-                builder.Add(new JumpIfTrueExpressionOp(-1));
-                builder.Add(ExpressionOps.Pop);
+                builder.Add(PackedExpressionOp.JumpIfTrue(-1));
+                builder.Add(PackedExpressionOp.Pop);
 
                 if (!TryCompileExpression(binary.Right, builder, out failureReason))
                 {
                     return false;
                 }
 
-                builder.Add(ExpressionOps.SetComputedProperty());
+                builder.Add(PackedExpressionOp.SetComputedProperty());
                 var endJumpIndex = builder.Count;
-                builder.Add(new JumpExpressionOp(-1));
+                builder.Add(PackedExpressionOp.Jump(-1));
 
                 var shortCircuitStart = builder.Count;
-                builder[shortCircuitIndex] = new JumpIfTrueExpressionOp(shortCircuitStart);
-                builder.Add(ExpressionOps.RotateTopThreeRight);
-                builder.Add(ExpressionOps.Pop);
-                builder.Add(ExpressionOps.Pop);
-                builder[endJumpIndex] = new JumpExpressionOp(builder.Count);
+                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfTrue(shortCircuitStart);
+                builder.Add(PackedExpressionOp.RotateTopThreeRight);
+                builder.Add(PackedExpressionOp.Pop);
+                builder.Add(PackedExpressionOp.Pop);
+                builder[endJumpIndex] = PackedExpressionOp.Jump(builder.Count);
                 failureReason = null;
                 return true;
             }
@@ -1745,24 +1763,24 @@ internal static class ExpressionProgramCompiler
             case BinaryOperator.NullishCoalescing:
             {
                 var shortCircuitIndex = builder.Count;
-                builder.Add(new JumpIfNotNullishExpressionOp(-1));
-                builder.Add(ExpressionOps.Pop);
+                builder.Add(PackedExpressionOp.JumpIfNotNullish(-1));
+                builder.Add(PackedExpressionOp.Pop);
 
                 if (!TryCompileExpression(binary.Right, builder, out failureReason))
                 {
                     return false;
                 }
 
-                builder.Add(ExpressionOps.SetComputedProperty());
+                builder.Add(PackedExpressionOp.SetComputedProperty());
                 var endJumpIndex = builder.Count;
-                builder.Add(new JumpExpressionOp(-1));
+                builder.Add(PackedExpressionOp.Jump(-1));
 
                 var shortCircuitStart = builder.Count;
-                builder[shortCircuitIndex] = new JumpIfNotNullishExpressionOp(shortCircuitStart);
-                builder.Add(ExpressionOps.RotateTopThreeRight);
-                builder.Add(ExpressionOps.Pop);
-                builder.Add(ExpressionOps.Pop);
-                builder[endJumpIndex] = new JumpExpressionOp(builder.Count);
+                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfNotNullish(shortCircuitStart);
+                builder.Add(PackedExpressionOp.RotateTopThreeRight);
+                builder.Add(PackedExpressionOp.Pop);
+                builder.Add(PackedExpressionOp.Pop);
+                builder[endJumpIndex] = PackedExpressionOp.Jump(builder.Count);
                 failureReason = null;
                 return true;
             }
@@ -1773,15 +1791,15 @@ internal static class ExpressionProgramCompiler
             return false;
         }
 
-        builder.Add(new BinaryExpressionOp(binary.Operator));
-        builder.Add(ExpressionOps.SetComputedProperty(allowNameInference: false));
+        builder.Add(PackedExpressionOp.Binary(binary.Operator));
+        builder.Add(PackedExpressionOp.SetComputedProperty(AllowNameInference: false));
         failureReason = null;
         return true;
     }
 
     private static bool TryCompileConditionalExpression(
         ConditionalExpression expression,
-        List<ExpressionOp> builder,
+        ExpressionProgramBuilder builder,
         out string? failureReason)
     {
         if (!TryCompileExpression(expression.Test, builder, out failureReason))
@@ -1790,8 +1808,8 @@ internal static class ExpressionProgramCompiler
         }
 
         var falseBranchJumpIndex = builder.Count;
-        builder.Add(new JumpIfFalseExpressionOp(-1));
-        builder.Add(ExpressionOps.Pop);
+        builder.Add(PackedExpressionOp.JumpIfFalse(-1));
+        builder.Add(PackedExpressionOp.Pop);
 
         if (!TryCompileExpression(expression.Consequent, builder, out failureReason))
         {
@@ -1799,25 +1817,25 @@ internal static class ExpressionProgramCompiler
         }
 
         var endJumpIndex = builder.Count;
-        builder.Add(new JumpExpressionOp(-1));
+        builder.Add(PackedExpressionOp.Jump(-1));
 
         var alternateStartIndex = builder.Count;
-        builder[falseBranchJumpIndex] = new JumpIfFalseExpressionOp(alternateStartIndex);
-        builder.Add(ExpressionOps.Pop);
+        builder[falseBranchJumpIndex] = PackedExpressionOp.JumpIfFalse(alternateStartIndex);
+        builder.Add(PackedExpressionOp.Pop);
 
         if (!TryCompileExpression(expression.Alternate, builder, out failureReason))
         {
             return false;
         }
 
-        builder[endJumpIndex] = new JumpExpressionOp(builder.Count);
+        builder[endJumpIndex] = PackedExpressionOp.Jump(builder.Count);
         failureReason = null;
         return true;
     }
 
     private static bool TryCompileMemberExpression(
         MemberExpression expression,
-        List<ExpressionOp> builder,
+        ExpressionProgramBuilder builder,
         out string? failureReason)
     {
         if (expression.Target is SuperExpression)
@@ -1830,18 +1848,19 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(new GetNamedSuperPropertyExpressionOp(propertyLiteral.Value.AsString()));
+                builder.Add(PackedExpressionOp.GetNamedSuperProperty(
+                    builder.InternString(propertyLiteral.Value.AsString())));
                 failureReason = null;
                 return true;
             }
 
-            builder.Add(ExpressionOps.EnsureSuperReference);
+            builder.Add(PackedExpressionOp.EnsureSuperReference);
             if (!TryCompileExpression(expression.Property, builder, out failureReason))
             {
                 return false;
             }
 
-            builder.Add(ExpressionOps.GetComputedSuperProperty);
+            builder.Add(PackedExpressionOp.GetComputedSuperProperty);
             failureReason = null;
             return true;
         }
@@ -1851,15 +1870,15 @@ internal static class ExpressionProgramCompiler
             switch (symbolProp.Value.AsString())
             {
                 case "iterator":
-                    builder.Add(new LoadLiteralExpressionOp((JsValue)Symbols.Iterator));
+                    builder.Add(PackedExpressionOp.LoadLiteralConstant(builder.InternLiteral((JsValue)Symbols.Iterator)));
                     failureReason = null;
                     return true;
                 case "asyncIterator":
-                    builder.Add(new LoadLiteralExpressionOp((JsValue)Symbols.AsyncIterator));
+                    builder.Add(PackedExpressionOp.LoadLiteralConstant(builder.InternLiteral((JsValue)Symbols.AsyncIterator)));
                     failureReason = null;
                     return true;
                 case "toStringTag":
-                    builder.Add(new LoadLiteralExpressionOp((JsValue)Symbols.ToStringTag));
+                    builder.Add(PackedExpressionOp.LoadLiteralConstant(builder.InternLiteral((JsValue)Symbols.ToStringTag)));
                     failureReason = null;
                     return true;
             }
@@ -1880,8 +1899,8 @@ internal static class ExpressionProgramCompiler
                 return false;
             }
 
-            builder.Add(new GetNamedPropertyExpressionOp(
-                propertyLiteral.Value.AsString(),
+            builder.Add(PackedExpressionOp.GetNamedProperty(
+                builder.InternString(propertyLiteral.Value.AsString()),
                 IsOptional: expression.IsOptional,
                 ShortCircuitOnNullishTarget: shortCircuitOnNullishTarget));
             failureReason = null;
@@ -1891,15 +1910,15 @@ internal static class ExpressionProgramCompiler
         if (expression.IsOptional)
         {
             var endIndex = builder.Count;
-            builder.Add(new JumpIfNullishExpressionOp(-1, ReplaceWithUndefined: true));
+            builder.Add(PackedExpressionOp.JumpIfNullish(-1, ReplaceWithUndefined: true));
 
             if (!TryCompileExpression(expression.Property, builder, out failureReason))
             {
                 return false;
             }
 
-            builder.Add(ExpressionOps.GetComputedProperty(shortCircuitOnNullishTarget));
-            builder[endIndex] = new JumpIfNullishExpressionOp(builder.Count, ReplaceWithUndefined: true);
+            builder.Add(PackedExpressionOp.GetComputedProperty(shortCircuitOnNullishTarget));
+            builder[endIndex] = PackedExpressionOp.JumpIfNullish(builder.Count, ReplaceWithUndefined: true);
             failureReason = null;
             return true;
         }
@@ -1909,17 +1928,17 @@ internal static class ExpressionProgramCompiler
             return false;
         }
 
-        builder.Add(ExpressionOps.GetComputedProperty(shortCircuitOnNullishTarget));
+        builder.Add(PackedExpressionOp.GetComputedProperty(shortCircuitOnNullishTarget));
         failureReason = null;
         return true;
     }
 
     private static bool TryCompileArrayExpression(
         ArrayExpression expression,
-        List<ExpressionOp> builder,
+        ExpressionProgramBuilder builder,
         out string? failureReason)
     {
-        builder.Add(ExpressionOps.CreateArray);
+        builder.Add(PackedExpressionOp.CreateArray);
 
         foreach (var element in expression.Elements)
         {
@@ -1936,13 +1955,13 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(ExpressionOps.ArraySpread);
+                builder.Add(PackedExpressionOp.ArraySpread);
                 continue;
             }
 
             if (element.Expression is null)
             {
-                builder.Add(ExpressionOps.ArrayPushHole);
+                builder.Add(PackedExpressionOp.ArrayPushHole);
                 continue;
             }
 
@@ -1951,7 +1970,7 @@ internal static class ExpressionProgramCompiler
                 return false;
             }
 
-            builder.Add(ExpressionOps.ArrayPush);
+            builder.Add(PackedExpressionOp.ArrayPush);
         }
 
         failureReason = null;
@@ -1960,10 +1979,10 @@ internal static class ExpressionProgramCompiler
 
     private static bool TryCompileObjectExpression(
         ObjectExpression expression,
-        List<ExpressionOp> builder,
+        ExpressionProgramBuilder builder,
         out string? failureReason)
     {
-        builder.Add(ExpressionOps.CreateObject);
+        builder.Add(PackedExpressionOp.CreateObject);
 
         foreach (var member in expression.Members)
         {
@@ -1988,7 +2007,7 @@ internal static class ExpressionProgramCompiler
                         }
                         else
                         {
-                            builder.Add(new LoadLiteralExpressionOp(JsValue.Undefined));
+                            builder.Add(PackedExpressionOp.LoadLiteralConstant(builder.InternLiteral(JsValue.Undefined)));
                         }
 
                         if (!TryGetStaticObjectPropertyName(member.Key, out var propertyName))
@@ -1997,8 +2016,8 @@ internal static class ExpressionProgramCompiler
                             return false;
                         }
 
-                        builder.Add(new DefineObjectPropertyExpressionOp(
-                            propertyName,
+                        builder.Add(PackedExpressionOp.DefineObjectProperty(
+                            builder.InternString(propertyName),
                             IsPrototypeMutation: member.Kind == ObjectMemberKind.Property &&
                                                  member.Parameter is null &&
                                                  string.Equals(propertyName, "__proto__", StringComparison.Ordinal),
@@ -2017,7 +2036,7 @@ internal static class ExpressionProgramCompiler
                         return false;
                     }
 
-                    builder.Add(ExpressionOps.ResolvePropertyKey);
+                    builder.Add(PackedExpressionOp.ResolvePropertyKey);
 
                     if (member.Value is not null)
                     {
@@ -2028,10 +2047,10 @@ internal static class ExpressionProgramCompiler
                     }
                     else
                     {
-                        builder.Add(new LoadLiteralExpressionOp(JsValue.Undefined));
+                        builder.Add(PackedExpressionOp.LoadLiteralConstant(builder.InternLiteral(JsValue.Undefined)));
                     }
 
-                    builder.Add(new DefineComputedObjectPropertyExpressionOp(
+                    builder.Add(PackedExpressionOp.DefineComputedObjectProperty(
                         AllowNameInference: IsAnonymousFunctionDefinitionForNameInference(member.Value)));
                     break;
 
@@ -2050,8 +2069,10 @@ internal static class ExpressionProgramCompiler
                             return false;
                         }
 
-                        builder.Add(new LoadFunctionLiteralExpressionOp(member.Function, IsConstructorFunction: false));
-                        builder.Add(new DefineObjectMethodExpressionOp(methodName));
+                        builder.Add(PackedExpressionOp.LoadFunctionLiteral(
+                            builder.InternObject(member.Function),
+                            IsConstructorFunction: false));
+                        builder.Add(PackedExpressionOp.DefineObjectMethod(builder.InternString(methodName)));
                         break;
                     }
 
@@ -2066,9 +2087,11 @@ internal static class ExpressionProgramCompiler
                         return false;
                     }
 
-                    builder.Add(ExpressionOps.ResolvePropertyKey);
-                    builder.Add(new LoadFunctionLiteralExpressionOp(member.Function, IsConstructorFunction: false));
-                    builder.Add(new DefineComputedObjectMethodExpressionOp());
+                    builder.Add(PackedExpressionOp.ResolvePropertyKey);
+                    builder.Add(PackedExpressionOp.LoadFunctionLiteral(
+                        builder.InternObject(member.Function),
+                        IsConstructorFunction: false));
+                    builder.Add(PackedExpressionOp.DefineComputedObjectMethod);
                     break;
 
                 case ObjectMemberKind.Getter:
@@ -2091,8 +2114,12 @@ internal static class ExpressionProgramCompiler
                             return false;
                         }
 
-                        builder.Add(new LoadFunctionLiteralExpressionOp(member.Function, IsConstructorFunction: false));
-                        builder.Add(new DefineObjectAccessorExpressionOp(accessorName, accessorKind));
+                        builder.Add(PackedExpressionOp.LoadFunctionLiteral(
+                            builder.InternObject(member.Function),
+                            IsConstructorFunction: false));
+                        builder.Add(PackedExpressionOp.DefineObjectAccessor(
+                            builder.InternString(accessorName),
+                            accessorKind));
                         break;
                     }
 
@@ -2107,9 +2134,11 @@ internal static class ExpressionProgramCompiler
                         return false;
                     }
 
-                    builder.Add(ExpressionOps.ResolvePropertyKey);
-                    builder.Add(new LoadFunctionLiteralExpressionOp(member.Function, IsConstructorFunction: false));
-                    builder.Add(new DefineComputedObjectAccessorExpressionOp(accessorKind));
+                    builder.Add(PackedExpressionOp.ResolvePropertyKey);
+                    builder.Add(PackedExpressionOp.LoadFunctionLiteral(
+                        builder.InternObject(member.Function),
+                        IsConstructorFunction: false));
+                    builder.Add(PackedExpressionOp.DefineComputedObjectAccessor(accessorKind));
                     break;
 
                 case ObjectMemberKind.Spread:
@@ -2124,7 +2153,7 @@ internal static class ExpressionProgramCompiler
                         return false;
                     }
 
-                    builder.Add(ExpressionOps.ObjectSpread);
+                    builder.Add(PackedExpressionOp.ObjectSpread);
                     break;
 
                 default:
@@ -2140,7 +2169,7 @@ internal static class ExpressionProgramCompiler
 
     private static bool TryCompileOptionalMemberCallTarget(
         MemberExpression member,
-        List<ExpressionOp> builder,
+        ExpressionProgramBuilder builder,
         ref int targetNullishJumpIndex,
         ref int targetShortCircuitJumpIndex,
         out string? failureReason)
@@ -2159,13 +2188,13 @@ internal static class ExpressionProgramCompiler
         if (HasOptionalChaining(member.Target))
         {
             targetShortCircuitJumpIndex = builder.Count;
-            builder.Add(new JumpIfShortCircuitedExpressionOp(-1));
+            builder.Add(PackedExpressionOp.JumpIfShortCircuited(-1));
         }
 
         if (member.IsOptional)
         {
             targetNullishJumpIndex = builder.Count;
-            builder.Add(new JumpIfNullishExpressionOp(-1, ReplaceWithUndefined: true));
+            builder.Add(PackedExpressionOp.JumpIfNullish(-1, ReplaceWithUndefined: true));
         }
 
         failureReason = null;
@@ -2254,5 +2283,110 @@ internal static class ExpressionProgramCompiler
             ClassExpression { Name: null } => true,
             _ => false
         };
+    }
+
+    private sealed class ExpressionProgramBuilder
+    {
+        private readonly List<PackedExpressionOp> _operations = [];
+        private readonly List<JsValue> _literalConstants = [];
+        private readonly Dictionary<JsValue, int> _literalConstantMap = [];
+        private readonly List<string> _stringConstants = [];
+        private readonly Dictionary<string, int> _stringConstantMap = new(StringComparer.Ordinal);
+        private readonly List<object> _objectConstants = [];
+        private readonly Dictionary<object, int> _objectConstantMap = new(ReferenceEqualityComparer<object>.Instance);
+        private readonly List<IdentifierOperand> _identifierConstants = [];
+        private readonly Dictionary<IdentifierOperand, int> _identifierConstantMap = [];
+        private readonly List<ImmutableArray<int>> _spreadMaskConstants = [];
+        private readonly Dictionary<ImmutableArray<int>, int> _spreadMaskConstantMap = [];
+
+        public int Count => _operations.Count;
+
+        public PackedExpressionOp this[int index]
+        {
+            get => _operations[index];
+            set => _operations[index] = value;
+        }
+
+        public void Add(PackedExpressionOp operation)
+        {
+            _operations.Add(operation);
+        }
+
+        public int InternLiteral(JsValue value)
+        {
+            if (_literalConstantMap.TryGetValue(value, out var existingIndex))
+            {
+                return existingIndex;
+            }
+
+            var index = _literalConstants.Count;
+            _literalConstants.Add(value);
+            _literalConstantMap[value] = index;
+            return index;
+        }
+
+        public int InternString(string value)
+        {
+            if (_stringConstantMap.TryGetValue(value, out var existingIndex))
+            {
+                return existingIndex;
+            }
+
+            var index = _stringConstants.Count;
+            _stringConstants.Add(value);
+            _stringConstantMap[value] = index;
+            return index;
+        }
+
+        public int InternObject<T>(T value)
+            where T : class
+        {
+            if (_objectConstantMap.TryGetValue(value, out var existingIndex))
+            {
+                return existingIndex;
+            }
+
+            var index = _objectConstants.Count;
+            _objectConstants.Add(value);
+            _objectConstantMap[value] = index;
+            return index;
+        }
+
+        public int InternIdentifier(IdentifierOperand value)
+        {
+            if (_identifierConstantMap.TryGetValue(value, out var existingIndex))
+            {
+                return existingIndex;
+            }
+
+            var index = _identifierConstants.Count;
+            _identifierConstants.Add(value);
+            _identifierConstantMap[value] = index;
+            return index;
+        }
+
+        public int InternSpreadMask(ImmutableArray<int> value)
+        {
+            if (_spreadMaskConstantMap.TryGetValue(value, out var existingIndex))
+            {
+                return existingIndex;
+            }
+
+            var index = _spreadMaskConstants.Count;
+            _spreadMaskConstants.Add(value);
+            _spreadMaskConstantMap[value] = index;
+            return index;
+        }
+
+        public ExpressionProgram Build()
+        {
+            return new ExpressionProgram(
+                [.. _operations],
+                _literalConstants.Count == 0 ? ImmutableArray<JsValue>.Empty : [.. _literalConstants],
+                _stringConstants.Count == 0 ? ImmutableArray<string>.Empty : [.. _stringConstants],
+                _objectConstants.Count == 0 ? ImmutableArray<object>.Empty : [.. _objectConstants],
+                _identifierConstants.Count == 0 ? ImmutableArray<IdentifierOperand>.Empty : [.. _identifierConstants],
+                _spreadMaskConstants.Count == 0 ? ImmutableArray<ImmutableArray<int>>.Empty : [.. _spreadMaskConstants]);
+        }
     }
 }

@@ -1,6 +1,7 @@
 #region
 
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
 
 #endregion
 
@@ -21,8 +22,20 @@ public static partial class TypedAstEvaluator
         // is responsible for evaluating the awaited expression and managing resume.
         if (environment.TryGetObject<ExecutionPlanRunner>(Symbol.GeneratorInstanceSymbol, out var generator))
         {
-            var result = generator.EvaluateAwaitInGeneratorLegacy(expression, environment, context);
-            return result;
+            if (!ExpressionProgramCompiler.TryCompile(
+                    expression.Expression,
+                    out var awaitedProgram,
+                    out var failureReason))
+            {
+                throw new NotSupportedException(
+                    $"Async generator await operand could not be lowered to expression bytecode: {failureReason}");
+            }
+
+            return generator.EvaluateAwaitInGenerator(
+                expression.GetAwaitStateKey(),
+                awaitedProgram,
+                environment,
+                context);
         }
 
         var awaitedValue = expression.Expression.EvaluateExpression(environment, context);

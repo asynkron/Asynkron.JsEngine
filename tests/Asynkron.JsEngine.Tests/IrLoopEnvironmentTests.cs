@@ -711,7 +711,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncAssignmentExpression_UsesAssignmentInstruction()
+    public async Task AsyncAssignmentExpression_UsesSuspendingAssignmentInstruction()
     {
         await using var engine = CreateEngine();
 
@@ -738,11 +738,11 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
         Assert.NotNull(cache.Plan);
 
-        var hasAssignmentInstruction = cache.Plan.Instructions
-            .Any(i => i.Kind == InstructionKind.AssignmentSlot);
+        var hasSuspendingAssignmentInstruction = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.SuspendingAssignmentSlot);
 
-        Assert.True(hasAssignmentInstruction,
-            "Async simple assignment should stay on AssignmentSlotInstruction");
+        Assert.True(hasSuspendingAssignmentInstruction,
+            "Async simple assignment should use SuspendingAssignmentSlotInstruction");
     }
 
     [Fact(Timeout = 5000)]
@@ -881,7 +881,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncLogicalCompoundAssignment_UsesLogicalAssignmentInstruction()
+    public async Task AsyncLogicalCompoundAssignment_UsesSuspendingLogicalAssignmentInstruction()
     {
         await using var engine = CreateEngine();
 
@@ -908,11 +908,11 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
         Assert.NotNull(cache.Plan);
 
-        var hasLogicalInstruction = cache.Plan.Instructions
-            .Any(i => i.Kind == InstructionKind.LogicalCompoundAssignmentSlot);
+        var hasSuspendingLogicalInstruction = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.SuspendingLogicalCompoundAssignmentSlot);
 
-        Assert.True(hasLogicalInstruction,
-            "Async logical compound assignments should stay on LogicalCompoundAssignmentSlotInstruction");
+        Assert.True(hasSuspendingLogicalInstruction,
+            "Async logical compound assignments should use SuspendingLogicalCompoundAssignmentSlotInstruction");
     }
 
     [Fact(Timeout = 5000)]

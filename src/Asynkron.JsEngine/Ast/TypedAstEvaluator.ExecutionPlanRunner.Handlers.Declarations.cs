@@ -239,7 +239,7 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<SimpleVariableDeclarationInstruction>(instr);
-            var hasInitializer = instruction.Initializer is not null || instruction.InitializerProgram is not null;
+            var hasInitializer = instruction.InitializerProgram is not null;
             var isAnonymousFunctionDefinition = instruction.AllowNameInference;
             var isLexicalDeclaration = instruction.VarKind != VariableKind.Var;
             var isConstDeclaration = instruction.VarKind == VariableKind.Const;
@@ -256,7 +256,7 @@ public static partial class TypedAstEvaluator
 
             var varValue = instruction.InitializerProgram is { } initializerProgram
                 ? runner.EvaluateExpressionProgram(initializerProgram, environment, context)
-                : instruction.Initializer?.EvaluateExpression(environment, context) ?? JsValue.Undefined;
+                : JsValue.Undefined;
 
             if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingVarResult, environment))
             {
@@ -315,10 +315,110 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static InstructionResult HandleSuspendingSimpleVariableDeclaration(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
+            ref JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var instruction = Unsafe.As<SuspendingSimpleVariableDeclarationInstruction>(instr);
+            var isAnonymousFunctionDefinition = instruction.AllowNameInference;
+            var isLexicalDeclaration = instruction.VarKind != VariableKind.Var;
+            var isConstDeclaration = instruction.VarKind == VariableKind.Const;
+
+            using var functionNameHint = isAnonymousFunctionDefinition
+                ? context.EnterFunctionNameHint(instruction.TargetSymbol)
+                : null;
+
+            if (isLexicalDeclaration)
+            {
+                environment.DefineJsValue(instruction.TargetSymbol, JsValue.Uninitialized,
+                    isConstDeclaration, isLexicalBinding: true, blocksFunctionScopeOverride: true);
+            }
+
+            var varValue = instruction.Initializer.EvaluateExpression(environment, context);
+
+            if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingVarResult, environment))
+            {
+                returnValue = pendingVarResult;
+                return InstructionResult.Return;
+            }
+
+            if (context.IsThrow)
+            {
+                return HandleSuspendingSimpleVariableDeclarationThrowSlow(runner, instruction, context, out returnValue);
+            }
+
+            if (context.IsReturn)
+            {
+                return HandleSuspendingSimpleVariableDeclarationReturnSlow(runner, instruction, context, out returnValue);
+            }
+
+            if (context.IsYield)
+            {
+                return HandleSuspendingSimpleVariableDeclarationYieldSlow(runner, ref environment, context, out returnValue);
+            }
+
+            if (instruction.VarKind == VariableKind.Var)
+            {
+                environment.EnsureFunctionScopedVarBinding(instruction.TargetSymbol, context);
+                if (!environment.TryAssignBlockedBinding(instruction.TargetSymbol, varValue))
+                {
+                    environment.AssignJsValue(instruction.TargetSymbol, varValue);
+                }
+            }
+            else
+            {
+                environment.DefineJsValue(instruction.TargetSymbol, varValue,
+                    isConstDeclaration, isLexicalBinding: true, blocksFunctionScopeOverride: true);
+            }
+
+            if (instruction.VarKind != VariableKind.Var)
+            {
+                ExecutionPlanPrinter.TraceDefine(
+                    runner._realmState.Logger,
+                    instruction.VarKind.ToString(),
+                    instruction.TargetSymbol.Name,
+                    varValue.ToString() ?? "?",
+                    environment.Depth,
+                    environment.ScopeId,
+                    environment.GetHashCode());
+            }
+
+            runner._programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static InstructionResult HandleSimpleVariableDeclarationThrowSlow(
             ExecutionPlanRunner runner,
             SimpleVariableDeclarationInstruction instruction,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var varThrown = context.FlowValue;
+            context.Clear();
+            if (runner.HandleAbruptCompletion(AbruptKind.Throw, varThrown))
+            {
+                if (runner._programCounter == runner._currentInstructionIndex)
+                {
+                    runner._programCounter = instruction.Next;
+                }
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
+            runner.TryCatchStateRef.TryStack.Clear();
+            throw new ThrowSignal(varThrown);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleSuspendingSimpleVariableDeclarationThrowSlow(
+            ExecutionPlanRunner runner,
+            SuspendingSimpleVariableDeclarationInstruction instruction,
             EvaluationContext context,
             out JsValue returnValue)
         {
@@ -362,7 +462,49 @@ public static partial class TypedAstEvaluator
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleSuspendingSimpleVariableDeclarationReturnSlow(
+            ExecutionPlanRunner runner,
+            SuspendingSimpleVariableDeclarationInstruction instruction,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var varReturnValue = context.FlowValue;
+            context.ClearReturn();
+            if (!runner.HandleAbruptCompletion(AbruptKind.Return, varReturnValue))
+            {
+                returnValue = runner.CompleteReturn(varReturnValue);
+                return InstructionResult.Return;
+            }
+
+            if (runner._programCounter == runner._currentInstructionIndex)
+            {
+                runner._programCounter = instruction.Next;
+            }
+
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
         private static InstructionResult HandleSimpleVariableDeclarationYieldSlow(
+            ExecutionPlanRunner runner,
+            ref JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var varYieldedValue = context.FlowValue;
+            var varIteratorResultObject = (context.CurrentSignal as YieldCompletionSignal)?.IteratorResultObject;
+            runner.RecordYield(context, environment);
+            context.Clear();
+            runner._state = GeneratorState.Suspended;
+            returnValue = varIteratorResultObject is not null
+                ? JsValue.FromObjectUnsafe(varIteratorResultObject)
+                : CreateIteratorResult(varYieldedValue, false);
+            return InstructionResult.Return;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleSuspendingSimpleVariableDeclarationYieldSlow(
             ExecutionPlanRunner runner,
             ref JsEnvironment environment,
             EvaluationContext context,
@@ -388,12 +530,10 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<BindingVariableDeclarationInstruction>(instr);
-            var hasInitializer = instruction.Initializer is not null || instruction.InitializerProgram is not null;
+            var hasInitializer = instruction.InitializerProgram is not null;
             var bindingValue = instruction.InitializerProgram is { } initializerProgram
                 ? runner.EvaluateExpressionProgram(initializerProgram, environment, context)
-                : instruction.Initializer is { } initializer
-                    ? initializer.EvaluateExpression(environment, context)
-                    : JsValue.Undefined;
+                : JsValue.Undefined;
 
             if (!context.ShouldStopEvaluation)
             {
@@ -422,7 +562,6 @@ public static partial class TypedAstEvaluator
                     _ => throw new ArgumentOutOfRangeException(nameof(instruction.VarKind), instruction.VarKind, null)
                 };
 
-                if (instruction.TargetProgram is { } targetProgram)
                 runner.ApplyBindingTargetProgram(
                     instruction.TargetProgram,
                     bindingValue,
@@ -459,10 +598,107 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static InstructionResult HandleSuspendingBindingVariableDeclaration(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
+            ref JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var instruction = Unsafe.As<SuspendingBindingVariableDeclarationInstruction>(instr);
+            const bool hasInitializer = true;
+            var bindingValue = instruction.Initializer.EvaluateExpression(environment, context);
+
+            if (!context.ShouldStopEvaluation)
+            {
+                if (instruction.VarKind is VariableKind.Using or VariableKind.AwaitUsing)
+                {
+                    if (!bindingValue.IsNullOrUndefined && !bindingValue.TryGetObject<IJsObjectLike>(out _))
+                    {
+                        throw StandardLibrary.ThrowTypeError(
+                            "using declarations require an object value",
+                            context,
+                            context.RealmState);
+                    }
+
+                    var isAwaitUsing = instruction.VarKind == VariableKind.AwaitUsing;
+                    environment.RegisterDisposable(bindingValue, isAwaitUsing, context.RealmState!);
+                }
+
+                var mode = instruction.VarKind switch
+                {
+                    VariableKind.Var => BindingMode.DefineVar,
+                    VariableKind.Let => BindingMode.DefineLet,
+                    VariableKind.Const => BindingMode.DefineConst,
+                    VariableKind.Using => BindingMode.DefineConst,
+                    VariableKind.AwaitUsing => BindingMode.DefineConst,
+                    _ => throw new ArgumentOutOfRangeException(nameof(instruction.VarKind), instruction.VarKind, null)
+                };
+
+                runner.ApplyBindingTargetProgram(
+                    instruction.TargetProgram,
+                    bindingValue,
+                    environment,
+                    context,
+                    mode,
+                    hasInitializer,
+                    allowNameInference: false);
+            }
+
+            if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingResult, environment))
+            {
+                returnValue = pendingResult;
+                return InstructionResult.Return;
+            }
+
+            if (context.IsThrow)
+            {
+                return HandleSuspendingBindingVariableDeclarationThrowSlow(runner, instruction, context, out returnValue);
+            }
+
+            if (context.IsReturn)
+            {
+                return HandleSuspendingBindingVariableDeclarationReturnSlow(runner, instruction, context, out returnValue);
+            }
+
+            if (context.IsYield)
+            {
+                return HandleSuspendingBindingVariableDeclarationYieldSlow(runner, ref environment, context, out returnValue);
+            }
+
+            runner._programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static InstructionResult HandleBindingVariableDeclarationThrowSlow(
             ExecutionPlanRunner runner,
             BindingVariableDeclarationInstruction instruction,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var thrown = context.FlowValue;
+            context.Clear();
+            if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
+            {
+                if (runner._programCounter == runner._currentInstructionIndex)
+                {
+                    runner._programCounter = instruction.Next;
+                }
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
+            runner.TryCatchStateRef.TryStack.Clear();
+            throw new ThrowSignal(thrown);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleSuspendingBindingVariableDeclarationThrowSlow(
+            ExecutionPlanRunner runner,
+            SuspendingBindingVariableDeclarationInstruction instruction,
             EvaluationContext context,
             out JsValue returnValue)
         {
@@ -506,7 +742,49 @@ public static partial class TypedAstEvaluator
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleSuspendingBindingVariableDeclarationReturnSlow(
+            ExecutionPlanRunner runner,
+            SuspendingBindingVariableDeclarationInstruction instruction,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var returnVal = context.FlowValue;
+            context.ClearReturn();
+            if (!runner.HandleAbruptCompletion(AbruptKind.Return, returnVal))
+            {
+                returnValue = runner.CompleteReturn(returnVal);
+                return InstructionResult.Return;
+            }
+
+            if (runner._programCounter == runner._currentInstructionIndex)
+            {
+                runner._programCounter = instruction.Next;
+            }
+
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
         private static InstructionResult HandleBindingVariableDeclarationYieldSlow(
+            ExecutionPlanRunner runner,
+            ref JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var yieldedValue = context.FlowValue;
+            var iteratorResultObject = (context.CurrentSignal as YieldCompletionSignal)?.IteratorResultObject;
+            runner.RecordYield(context, environment);
+            context.Clear();
+            runner._state = GeneratorState.Suspended;
+            returnValue = iteratorResultObject is not null
+                ? JsValue.FromObjectUnsafe(iteratorResultObject)
+                : CreateIteratorResult(yieldedValue, false);
+            return InstructionResult.Return;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleSuspendingBindingVariableDeclarationYieldSlow(
             ExecutionPlanRunner runner,
             ref JsEnvironment environment,
             EvaluationContext context,

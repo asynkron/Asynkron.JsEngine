@@ -93,16 +93,7 @@ public sealed class SlotOptimizationTests : IAsyncLifetime
         Assert.NotNull(compoundInstr);
         Assert.Equal("s", compoundInstr.TargetSymbol.Name);
 
-        if (compoundInstr.RhsExpression is IdentifierExpression rhsId)
-        {
-            Assert.Equal("i", rhsId.Name.Name);
-            Assert.True(rhsId.SlotIndex >= 0, $"RHS 'i' should have SlotIndex >= 0, but was {rhsId.SlotIndex}");
-            Assert.True(rhsId.ScopeId >= 0, $"RHS 'i' should have ScopeId >= 0, but was {rhsId.ScopeId}");
-            return;
-        }
-
-        Assert.NotNull(compoundInstr.RhsProgram);
-        var rhsLoad = compoundInstr.RhsProgram.Value.Operations
+        var rhsLoad = compoundInstr.RhsProgram.Operations
             .OfType<LoadIdentifierExpressionOp>()
             .FirstOrDefault(op => op.Name.Name == "i");
         Assert.NotNull(rhsLoad);

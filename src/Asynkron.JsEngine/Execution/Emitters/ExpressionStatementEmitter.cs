@@ -48,10 +48,10 @@ internal static class ExpressionStatementEmitter
             // Tracking: #398, #416 (IR-only execution epic)
             var suppressCompletionFallback =
                 ctx.SuppressCompletionValue || expressionStatement.SuppressCompletionValue;
-            entryIndex = ctx.Append(new EvaluateAndDiscardInstruction(
+            entryIndex = ctx.Append(new SuspendingEvaluateAndDiscardInstruction(
                 nextIndex,
-                Expression: expressionStatement.Expression,
-                SuppressCompletionValue: suppressCompletionFallback));
+                expressionStatement.Expression,
+                suppressCompletionFallback));
             return true;
         }
 
@@ -152,12 +152,12 @@ internal static class ExpressionStatementEmitter
         {
             if (AstShapeAnalyzer.ContainsAwait(assignment.Value))
             {
-                entryIndex = ctx.Append(new AssignmentSlotInstruction(
+                entryIndex = ctx.Append(new SuspendingAssignmentSlotInstruction(
                     nextIndex,
                     assignment.Target,
-                    ValueExpression: assignment.Value,
-                    SuppressCompletionValue: suppressCompletion,
-                    AllowNameInference: ShouldAllowAssignmentNameInference(assignment)));
+                    assignment.Value,
+                    suppressCompletion,
+                    ShouldAllowAssignmentNameInference(assignment)));
                 return true;
             }
 
@@ -174,9 +174,9 @@ internal static class ExpressionStatementEmitter
             entryIndex = ctx.Append(new AssignmentSlotInstruction(
                 nextIndex,
                 assignment.Target,
-                ValueProgram: assignmentValueProgram,
-                SuppressCompletionValue: suppressCompletion,
-                AllowNameInference: ShouldAllowAssignmentNameInference(assignment)));
+                assignmentValueProgram,
+                suppressCompletion,
+                ShouldAllowAssignmentNameInference(assignment)));
             return true;
         }
 
@@ -196,13 +196,13 @@ internal static class ExpressionStatementEmitter
         {
             if (AstShapeAnalyzer.ContainsAwait(logicalBinary.Right))
             {
-                entryIndex = ctx.Append(new LogicalCompoundAssignmentSlotInstruction(
+                entryIndex = ctx.Append(new SuspendingLogicalCompoundAssignmentSlotInstruction(
                     nextIndex,
                     logicalCompoundAssign.Target,
                     logicalBinary.Operator,
-                    RhsExpression: logicalBinary.Right,
-                    SuppressCompletionValue: suppressCompletion,
-                    AllowNameInference: ShouldAllowAssignmentNameInference(logicalCompoundAssign)));
+                    logicalBinary.Right,
+                    suppressCompletion,
+                    ShouldAllowAssignmentNameInference(logicalCompoundAssign)));
                 return true;
             }
 
@@ -220,9 +220,9 @@ internal static class ExpressionStatementEmitter
                 nextIndex,
                 logicalCompoundAssign.Target,
                 logicalBinary.Operator,
-                RhsProgram: logicalRhsProgram,
-                SuppressCompletionValue: suppressCompletion,
-                AllowNameInference: ShouldAllowAssignmentNameInference(logicalCompoundAssign)));
+                logicalRhsProgram,
+                suppressCompletion,
+                ShouldAllowAssignmentNameInference(logicalCompoundAssign)));
             return true;
         }
 
@@ -242,7 +242,7 @@ internal static class ExpressionStatementEmitter
         {
             if (AstShapeAnalyzer.ContainsAwait(arithmeticBinary.Right))
             {
-                entryIndex = ctx.Append(new CompoundAssignmentSlotInstruction(
+                entryIndex = ctx.Append(new SuspendingCompoundAssignmentSlotInstruction(
                     nextIndex,
                     compoundAssign.Target,
                     arithmeticBinary.Operator,
@@ -265,7 +265,7 @@ internal static class ExpressionStatementEmitter
                 nextIndex,
                 compoundAssign.Target,
                 arithmeticBinary.Operator,
-                RhsProgram: compoundRhsProgram,
+                compoundRhsProgram,
                 SuppressCompletionValue: suppressCompletion));
             return true;
         }
@@ -273,10 +273,10 @@ internal static class ExpressionStatementEmitter
         if (AstShapeAnalyzer.ContainsAwait(expressionStatement.Expression))
         {
             entryIndex =
-                ctx.Append(new EvaluateAndDiscardInstruction(
+                ctx.Append(new SuspendingEvaluateAndDiscardInstruction(
                     nextIndex,
-                    Expression: expressionStatement.Expression,
-                    SuppressCompletionValue: suppressCompletion));
+                    expressionStatement.Expression,
+                    suppressCompletion));
             return true;
         }
 
@@ -293,8 +293,8 @@ internal static class ExpressionStatementEmitter
         entryIndex =
             ctx.Append(new EvaluateAndDiscardInstruction(
                 nextIndex,
-                ExpressionProgram: expressionProgram,
-                SuppressCompletionValue: suppressCompletion));
+                expressionProgram,
+                suppressCompletion));
         return true;
     }
 

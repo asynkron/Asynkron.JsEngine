@@ -122,18 +122,47 @@ internal static class DeclarationEmitter
             return false;
         }
 
-        entryIndex = ctx.Append(new BindingVariableDeclarationInstruction(
-            nextIndex,
-            varKind,
-            targetProgram,
-            InitializerProgram: TryCompileInitializerProgram(
+        if (!TryCompileInitializerProgram(
                 ctx,
                 "BindingVariableDeclarationInstruction",
                 declarator.Initializer,
-                out var bindingInitializerProgram)
-                ? bindingInitializerProgram
-                : null));
-        return bindingInitializerProgram is not null || declarator.Initializer is null;
+                out var bindingInitializerProgram))
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        if (declarator.Initializer is null)
+        {
+            entryIndex = ctx.Append(new BindingVariableDeclarationInstruction(
+                nextIndex,
+                varKind,
+                targetProgram));
+            return true;
+        }
+
+        if (bindingInitializerProgram is not null)
+        {
+            entryIndex = ctx.Append(new BindingVariableDeclarationInstruction(
+                nextIndex,
+                varKind,
+                targetProgram,
+                bindingInitializerProgram));
+            return true;
+        }
+
+        if (AstShapeAnalyzer.ContainsAwait(declarator.Initializer) ||
+            AstShapeAnalyzer.ContainsYield(declarator.Initializer))
+        {
+            entryIndex = ctx.Append(new SuspendingBindingVariableDeclarationInstruction(
+                nextIndex,
+                varKind,
+                targetProgram,
+                declarator.Initializer));
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -221,16 +250,22 @@ internal static class DeclarationEmitter
             return false;
         }
 
+        var isScriptLevel = ctx.IsScriptLevel && varKind == VariableKind.Var;
+        var allowNameInference = IsAnonymousFunctionDefinition(declarator.Initializer);
         if (declarator.Initializer is not null &&
             (AstShapeAnalyzer.ContainsYield(declarator.Initializer) ||
              AstShapeAnalyzer.ContainsAwait(declarator.Initializer)))
         {
-            entryIndex = -1;
-            return false;
+            entryIndex = ctx.Append(new SuspendingSimpleVariableDeclarationInstruction(
+                nextIndex,
+                varKind,
+                identifierBinding.Name,
+                declarator.Initializer,
+                allowNameInference,
+                isScriptLevel));
+            return true;
         }
 
-        var isScriptLevel = ctx.IsScriptLevel && varKind == VariableKind.Var;
-        var allowNameInference = IsAnonymousFunctionDefinition(declarator.Initializer);
         if (!TryCompileInitializerProgram(
                 ctx,
                 "SimpleVariableDeclarationInstruction",
@@ -245,9 +280,9 @@ internal static class DeclarationEmitter
             nextIndex,
             varKind,
             identifierBinding.Name,
-            InitializerProgram: initializerProgram,
-            AllowNameInference: allowNameInference,
-            IsScriptLevel: isScriptLevel));
+            initializerProgram,
+            allowNameInference,
+            isScriptLevel));
         return true;
     }
 

@@ -34,10 +34,18 @@ internal sealed record ThrowInstruction(
 /// </param>
 internal sealed record EvaluateAndDiscardInstruction(
     int Next,
-    ExpressionNode? Expression = null,
-    ExpressionProgram? ExpressionProgram = null,
+    ExpressionProgram ExpressionProgram,
     bool SuppressCompletionValue = false)
-    : ExecutionInstruction(InstructionKind.EvaluateAndDiscard, Next);
+    : ExecutionInstruction(InstructionKind.EvaluateAndDiscard, Next)
+{
+    public ExpressionNode? Expression => null;
+}
+
+internal sealed record SuspendingEvaluateAndDiscardInstruction(
+    int Next,
+    ExpressionNode Expression,
+    bool SuppressCompletionValue = false)
+    : ExecutionInstruction(InstructionKind.SuspendingEvaluateAndDiscard, Next);
 
 /// <summary>
 ///     Evaluates an await expression statement and discards the result.
@@ -84,14 +92,27 @@ internal sealed record IncrementSlotInstruction(
 internal sealed record AssignmentSlotInstruction(
     int Next,
     Symbol TargetSymbol,
-    ExpressionNode? ValueExpression = null,
-    ExpressionProgram? ValueProgram = null,
+    ExpressionProgram ValueProgram,
     bool SuppressCompletionValue = false,
     bool AllowNameInference = true,
     int ScopeId = -1,
     int SlotIndex = -1,
     int FlatSlotId = -1)
-    : ExecutionInstruction(InstructionKind.AssignmentSlot, Next);
+    : ExecutionInstruction(InstructionKind.AssignmentSlot, Next)
+{
+    public ExpressionNode? ValueExpression => null;
+}
+
+internal sealed record SuspendingAssignmentSlotInstruction(
+    int Next,
+    Symbol TargetSymbol,
+    ExpressionNode ValueExpression,
+    bool SuppressCompletionValue = false,
+    bool AllowNameInference = true,
+    int ScopeId = -1,
+    int SlotIndex = -1,
+    int FlatSlotId = -1)
+    : ExecutionInstruction(InstructionKind.SuspendingAssignmentSlot, Next);
 
 /// <summary>
 ///     Performs a logical compound assignment on an identifier slot (e.g., x ||= y).
@@ -101,14 +122,28 @@ internal sealed record LogicalCompoundAssignmentSlotInstruction(
     int Next,
     Symbol TargetSymbol,
     BinaryOperator Operator,
-    ExpressionNode? RhsExpression = null,
-    ExpressionProgram? RhsProgram = null,
+    ExpressionProgram RhsProgram,
     bool SuppressCompletionValue = false,
     bool AllowNameInference = true,
     int ScopeId = -1,
     int SlotIndex = -1,
     int FlatSlotId = -1)
-    : ExecutionInstruction(InstructionKind.LogicalCompoundAssignmentSlot, Next);
+    : ExecutionInstruction(InstructionKind.LogicalCompoundAssignmentSlot, Next)
+{
+    public ExpressionNode? RhsExpression => null;
+}
+
+internal sealed record SuspendingLogicalCompoundAssignmentSlotInstruction(
+    int Next,
+    Symbol TargetSymbol,
+    BinaryOperator Operator,
+    ExpressionNode RhsExpression,
+    bool SuppressCompletionValue = false,
+    bool AllowNameInference = true,
+    int ScopeId = -1,
+    int SlotIndex = -1,
+    int FlatSlotId = -1)
+    : ExecutionInstruction(InstructionKind.SuspendingLogicalCompoundAssignmentSlot, Next);
 
 /// <summary>
 ///     Performs a compound assignment operation directly on an identifier slot (e.g., s += i).
@@ -123,8 +158,7 @@ internal sealed record LogicalCompoundAssignmentSlotInstruction(
 /// <param name="Next">Next instruction index.</param>
 /// <param name="TargetSymbol">The target identifier symbol.</param>
 /// <param name="Operator">The compound assignment operator (Add, Subtract, etc.).</param>
-/// <param name="RhsExpression">AST representation of the right-hand side expression (nullable during migration).</param>
-/// <param name="RhsProgram">Bytecode representation of the right-hand side expression (nullable during migration).</param>
+/// <param name="RhsProgram">Bytecode representation of the right-hand side expression.</param>
 /// <param name="SuppressCompletionValue">When true, the completion value is NOT updated.</param>
 /// <param name="ScopeId">Scope ID where the variable is declared. -1 means unresolved.</param>
 /// <param name="SlotIndex">Slot index within the scope. -1 means unresolved.</param>
@@ -134,14 +168,27 @@ internal sealed record CompoundAssignmentSlotInstruction(
     int Next,
     Symbol TargetSymbol,
     BinaryOperator Operator,
-    ExpressionNode? RhsExpression = null,
-    ExpressionProgram? RhsProgram = null,
+    ExpressionProgram RhsProgram,
     bool SuppressCompletionValue = false,
     int ScopeId = -1,
     int SlotIndex = -1,
     int FlatSlotId = -1,
     int RhsFlatSlotId = -1)
-    : ExecutionInstruction(InstructionKind.CompoundAssignmentSlot, Next);
+    : ExecutionInstruction(InstructionKind.CompoundAssignmentSlot, Next)
+{
+    public ExpressionNode? RhsExpression => null;
+}
+
+internal sealed record SuspendingCompoundAssignmentSlotInstruction(
+    int Next,
+    Symbol TargetSymbol,
+    BinaryOperator Operator,
+    ExpressionNode RhsExpression,
+    bool SuppressCompletionValue = false,
+    int ScopeId = -1,
+    int SlotIndex = -1,
+    int FlatSlotId = -1)
+    : ExecutionInstruction(InstructionKind.SuspendingCompoundAssignmentSlot, Next);
 
 internal readonly record struct FunctionDeclarationDescriptor(Symbol Name, FunctionExpression Function);
 
@@ -171,7 +218,6 @@ internal sealed record ClassDeclarationInstruction(int Next, ClassDeclarationDes
 /// <param name="Next">Next instruction index.</param>
 /// <param name="VarKind">The variable declaration kind (var/let/const).</param>
 /// <param name="TargetSymbol">The identifier being declared.</param>
-/// <param name="Initializer">Builder-stage AST representation of the initializer expression.</param>
 /// <param name="InitializerProgram">Lowered bytecode representation of the initializer expression.</param>
 /// <param name="IsScriptLevel">
 ///     When true, indicates this is a top-level script var declaration.
@@ -182,11 +228,25 @@ internal sealed record SimpleVariableDeclarationInstruction(
     int Next,
     VariableKind VarKind,
     Symbol TargetSymbol,
-    ExpressionNode? Initializer = null,
     ExpressionProgram? InitializerProgram = null,
     bool AllowNameInference = false,
     bool IsScriptLevel = false)
-    : ExecutionInstruction(InstructionKind.SimpleVariableDeclaration, Next);
+    : ExecutionInstruction(InstructionKind.SimpleVariableDeclaration, Next)
+{
+    public ExpressionNode? Initializer => null;
+}
+
+internal sealed record SuspendingSimpleVariableDeclarationInstruction(
+    int Next,
+    VariableKind VarKind,
+    Symbol TargetSymbol,
+    ExpressionNode Initializer,
+    bool AllowNameInference = false,
+    bool IsScriptLevel = false)
+    : ExecutionInstruction(InstructionKind.SuspendingSimpleVariableDeclaration, Next)
+{
+    public ExpressionProgram? InitializerProgram => null;
+}
 
 /// <summary>
 ///     Represents a single variable declarator that uses a binding target.
@@ -196,9 +256,21 @@ internal sealed record BindingVariableDeclarationInstruction(
     int Next,
     VariableKind VarKind,
     BindingTargetProgram TargetProgram,
-    ExpressionNode? Initializer = null,
     ExpressionProgram? InitializerProgram = null)
-    : ExecutionInstruction(InstructionKind.BindingVariableDeclaration, Next);
+    : ExecutionInstruction(InstructionKind.BindingVariableDeclaration, Next)
+{
+    public ExpressionNode? Initializer => null;
+}
+
+internal sealed record SuspendingBindingVariableDeclarationInstruction(
+    int Next,
+    VariableKind VarKind,
+    BindingTargetProgram TargetProgram,
+    ExpressionNode Initializer)
+    : ExecutionInstruction(InstructionKind.SuspendingBindingVariableDeclaration, Next)
+{
+    public ExpressionProgram? InitializerProgram => null;
+}
 
 /// <summary>
 ///     Pushes a new environment onto the scope stack.

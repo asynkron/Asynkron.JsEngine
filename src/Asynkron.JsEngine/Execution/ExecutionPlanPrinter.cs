@@ -137,30 +137,45 @@ internal static class ExecutionPlanPrinter
                 $"BRANCH ({FormatExpression(null, branch.ConditionProgram)}) ? [{branch.ConsequentIndex}] : [{branch.AlternateIndex}]",
 
             EvaluateAndDiscardInstruction discard =>
-                $"EVAL_DISCARD {FormatExpression(discard.Expression, discard.ExpressionProgram)} → [{discard.Next}]",
+                $"EVAL_DISCARD {FormatExpression(null, discard.ExpressionProgram)} → [{discard.Next}]",
+
+            SuspendingEvaluateAndDiscardInstruction suspendingDiscard =>
+                $"EVAL_DISCARD {FormatExpression(suspendingDiscard.Expression, null)} → [{suspendingDiscard.Next}]",
 
             AwaitAndDiscardInstruction awaitDiscard =>
                 $"AWAIT_DISCARD {FormatExpression(null, awaitDiscard.AwaitedProgram)} → [{awaitDiscard.Next}]",
 
             AssignmentSlotInstruction assign =>
-                $"ASSIGN {assign.TargetSymbol.Name} = {FormatExpression(assign.ValueExpression, assign.ValueProgram)} → [{assign.Next}]",
+                $"ASSIGN {assign.TargetSymbol.Name} = {FormatExpression(null, assign.ValueProgram)} → [{assign.Next}]",
+
+            SuspendingAssignmentSlotInstruction suspendingAssign =>
+                $"ASSIGN {suspendingAssign.TargetSymbol.Name} = {FormatExpression(suspendingAssign.ValueExpression, null)} → [{suspendingAssign.Next}]",
 
             LogicalCompoundAssignmentSlotInstruction logicalCompound =>
-                $"ASSIGN_LOGICAL {logicalCompound.TargetSymbol.Name} {FormatBinaryOperator(logicalCompound.Operator)}= {FormatExpression(logicalCompound.RhsExpression, logicalCompound.RhsProgram)} → [{logicalCompound.Next}]",
+                $"ASSIGN_LOGICAL {logicalCompound.TargetSymbol.Name} {FormatBinaryOperator(logicalCompound.Operator)}= {FormatExpression(null, logicalCompound.RhsProgram)} → [{logicalCompound.Next}]",
+
+            SuspendingLogicalCompoundAssignmentSlotInstruction suspendingLogicalCompound =>
+                $"ASSIGN_LOGICAL {suspendingLogicalCompound.TargetSymbol.Name} {FormatBinaryOperator(suspendingLogicalCompound.Operator)}= {FormatExpression(suspendingLogicalCompound.RhsExpression, null)} → [{suspendingLogicalCompound.Next}]",
 
             SimpleVariableDeclarationInstruction varDecl =>
-                $"VAR {varDecl.Kind} {varDecl.TargetSymbol.Name}" +
-                (varDecl.Initializer != null || varDecl.InitializerProgram is not null
-                    ? $" = {FormatExpression(varDecl.Initializer, varDecl.InitializerProgram)}"
+                $"VAR {varDecl.VarKind} {varDecl.TargetSymbol.Name}" +
+                (varDecl.InitializerProgram is not null
+                    ? $" = {FormatExpression(null, varDecl.InitializerProgram)}"
                     : "") +
                 $" → [{varDecl.Next}]",
 
+            SuspendingSimpleVariableDeclarationInstruction suspendingVarDecl =>
+                $"VAR {suspendingVarDecl.VarKind} {suspendingVarDecl.TargetSymbol.Name} = {FormatExpression(suspendingVarDecl.Initializer, null)} → [{suspendingVarDecl.Next}]",
+
             BindingVariableDeclarationInstruction bindingDecl =>
                 $"VAR_BIND {bindingDecl.VarKind} {FormatBindingTarget(bindingDecl.TargetProgram)}" +
-                (bindingDecl.Initializer != null || bindingDecl.InitializerProgram is not null
-                    ? $" = {FormatExpression(bindingDecl.Initializer, bindingDecl.InitializerProgram)}"
+                (bindingDecl.InitializerProgram is not null
+                    ? $" = {FormatExpression(null, bindingDecl.InitializerProgram)}"
                     : "") +
                 $" → [{bindingDecl.Next}]",
+
+            SuspendingBindingVariableDeclarationInstruction suspendingBindingDecl =>
+                $"VAR_BIND {suspendingBindingDecl.VarKind} {FormatBindingTarget(suspendingBindingDecl.TargetProgram)} = {FormatExpression(suspendingBindingDecl.Initializer, null)} → [{suspendingBindingDecl.Next}]",
 
             PushEnvironmentInstruction pushEnv =>
                 $"PUSH_ENV (bindings: [{string.Join(", ", pushEnv.PerIterationBindings.Select(s => s.Name))}], " +
@@ -270,7 +285,10 @@ internal static class ExecutionPlanPrinter
                 $" → [{inc.Next}]",
 
             CompoundAssignmentSlotInstruction compound =>
-                $"COMPOUND {compound.TargetSymbol.Name} {compound.Operator}= {FormatExpression(compound.RhsExpression, compound.RhsProgram)} → [{compound.Next}]",
+                $"COMPOUND {compound.TargetSymbol.Name} {compound.Operator}= {FormatExpression(null, compound.RhsProgram)} → [{compound.Next}]",
+
+            SuspendingCompoundAssignmentSlotInstruction suspendingCompound =>
+                $"COMPOUND {suspendingCompound.TargetSymbol.Name} {suspendingCompound.Operator}= {FormatExpression(suspendingCompound.RhsExpression, null)} → [{suspendingCompound.Next}]",
 
             _ => instruction.ToString() ?? "<?>"
         };

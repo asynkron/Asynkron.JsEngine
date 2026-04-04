@@ -101,20 +101,11 @@ public sealed class SlotOptimizationTestBomb : IAsyncLifetime
         Assert.NotNull(compoundInstr);
         Assert.Equal("s", compoundInstr.TargetSymbol.Name);
 
-        if (compoundInstr.RhsExpression is IdentifierExpression rhsId)
-        {
-            Assert.Equal("i", rhsId.Name.Name);
-            AssertIdentifierHasSlot(rhsId, cache.Plan, requireNonRootScope: true);
-        }
-        else
-        {
-            Assert.NotNull(compoundInstr.RhsProgram);
-            var rhsLoad = compoundInstr.RhsProgram.Value.Operations
-                .OfType<LoadIdentifierExpressionOp>()
-                .FirstOrDefault(op => op.Name.Name == "i");
-            Assert.NotNull(rhsLoad);
-            AssertIdentifierHasSlot(rhsLoad, cache.Plan, requireNonRootScope: true);
-        }
+        var rhsLoad = compoundInstr.RhsProgram.Operations
+            .OfType<LoadIdentifierExpressionOp>()
+            .FirstOrDefault(op => op.Name.Name == "i");
+        Assert.NotNull(rhsLoad);
+        AssertIdentifierHasSlot(rhsLoad, cache.Plan, requireNonRootScope: true);
 
         AssertSymbolHasSlot(compoundInstr.TargetSymbol, cache.Plan);
     }

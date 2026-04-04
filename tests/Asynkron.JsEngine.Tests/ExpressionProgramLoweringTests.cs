@@ -69,6 +69,20 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task SimpleVariableDeclaration_AwaitedInitializer_UsesSuspendingInstruction()
+    {
+        var plan = await GetFunctionPlan("""
+            async function declareSimple(valuePromise) {
+                let next = (await valuePromise) + 1;
+                return next;
+            }
+            """, "declareSimple");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<SuspendingSimpleVariableDeclarationInstruction>());
+        Assert.IsType<BinaryExpression>(instruction.Initializer);
+    }
+
+    [Fact]
     public async Task YieldInstruction_SimpleBinaryExpression_IsLoweredToExpressionProgram()
     {
         var plan = await GetFunctionPlan("""
@@ -153,6 +167,21 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AssignmentSlotInstruction_AwaitedValue_UsesSuspendingInstruction()
+    {
+        var plan = await GetFunctionPlan("""
+            async function assignFrom(valuePromise) {
+                let current = 0;
+                current = (await valuePromise) + 1;
+                return current;
+            }
+            """, "assignFrom");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<SuspendingAssignmentSlotInstruction>());
+        Assert.IsType<BinaryExpression>(instruction.ValueExpression);
+    }
+
+    [Fact]
     public async Task LogicalCompoundAssignmentSlotInstruction_SimpleIdentifierValue_IsLoweredToExpressionProgram()
     {
         var plan = await GetFunctionPlan("""
@@ -166,6 +195,21 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         var instruction = Assert.Single(plan.Instructions.OfType<LogicalCompoundAssignmentSlotInstruction>());
         Assert.Null(instruction.RhsExpression);
         AssertProgramContains<LoadIdentifierExpressionOp>(instruction.RhsProgram, op => op.Name.Name == "value");
+    }
+
+    [Fact]
+    public async Task LogicalCompoundAssignmentSlotInstruction_AwaitedValue_UsesSuspendingInstruction()
+    {
+        var plan = await GetFunctionPlan("""
+            async function assignLogical(flag, valuePromise) {
+                let current = flag;
+                current ||= (await valuePromise) + 1;
+                return current;
+            }
+            """, "assignLogical");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<SuspendingLogicalCompoundAssignmentSlotInstruction>());
+        Assert.IsType<BinaryExpression>(instruction.RhsExpression);
     }
 
     [Fact]
@@ -187,6 +231,21 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task CompoundAssignmentSlotInstruction_AwaitedValue_UsesSuspendingInstruction()
+    {
+        var plan = await GetFunctionPlan("""
+            async function addValue(base, valuePromise) {
+                let current = base;
+                current += (await valuePromise) + 1;
+                return current;
+            }
+            """, "addValue");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<SuspendingCompoundAssignmentSlotInstruction>());
+        Assert.IsType<BinaryExpression>(instruction.RhsExpression);
+    }
+
+    [Fact]
     public async Task ScriptExpressionStatement_SimpleIdentifier_IsLoweredToExpressionProgram()
     {
         var program = _engine.ParseProgram("""
@@ -205,12 +264,25 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         Assert.Null(declaration.Initializer);
         Assert.NotNull(declaration.InitializerProgram);
 
-        var expressionStatement = Assert.Single(cache.Plan.Instructions.OfType<EvaluateAndDiscardInstruction>()
-, i => i.ExpressionProgram is not null);
+        var expressionStatement = Assert.Single(cache.Plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
         Assert.Null(expressionStatement.Expression);
         AssertProgramContains<LoadIdentifierExpressionOp>(
             expressionStatement.ExpressionProgram,
             op => op.Name.Name == "value");
+    }
+
+    [Fact]
+    public async Task ExpressionStatement_AwaitedExpression_UsesSuspendingInstruction()
+    {
+        var plan = await GetFunctionPlan("""
+            async function probe(valuePromise) {
+                (await valuePromise) + 1;
+                return 1;
+            }
+            """, "probe");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<SuspendingEvaluateAndDiscardInstruction>());
+        Assert.IsType<BinaryExpression>(instruction.Expression);
     }
 
     [Fact]
@@ -377,8 +449,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             }
             """, "Derived");
 
-        var instruction = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>()
-, i => i.ExpressionProgram is not null);
+        var instruction = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
         Assert.Null(instruction.Expression);
         AssertProgramContains<SuperConstructExpressionOp>(instruction.ExpressionProgram, op => op.ArgumentCount == 1);
         AssertProgramContains<BinaryExpressionOp>(instruction.ExpressionProgram, op => op.Operator == BinaryOperator.Add);
@@ -401,12 +472,9 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             }
             """, "Derived");
 
-        var instruction = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>()
-, i => i.ExpressionProgram is not null);
+        var instruction = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
         Assert.Null(instruction.Expression);
-        Assert.NotNull(instruction.ExpressionProgram);
-
-        var operations = instruction.ExpressionProgram.Value.Operations;
+        var operations = instruction.ExpressionProgram.Operations;
         var loadSuperCallTargetIndex = Array.FindIndex(operations.ToArray(), op => op is LoadNamedSuperCallTargetExpressionOp);
         var innerCallIndex = Array.FindIndex(operations.ToArray(), op => op is CallExpressionOp);
         var outerSuperConstructIndex = Array.FindIndex(operations.ToArray(), op => op is SuperConstructExpressionOp);
@@ -429,12 +497,9 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             }
             """, "Derived");
 
-        var instruction = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>()
-, i => i.ExpressionProgram is not null);
+        var instruction = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
         Assert.Null(instruction.Expression);
-        Assert.NotNull(instruction.ExpressionProgram);
-
-        var operations = instruction.ExpressionProgram.Value.Operations;
+        var operations = instruction.ExpressionProgram.Operations;
         var ensureIndex = Array.FindIndex(operations.ToArray(), op => op is EnsureSuperReferenceExpressionOp);
         var innerSuperConstructIndex = Array.FindIndex(operations.ToArray(), op => op is SuperConstructExpressionOp);
         var computedReadIndex = Array.FindIndex(operations.ToArray(), op => op is GetComputedSuperPropertyExpressionOp);
@@ -543,6 +608,20 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         AssertProgramContains<CreateObjectExpressionOp>(instruction.InitializerProgram);
         AssertProgramContains<DefineObjectPropertyExpressionOp>(instruction.InitializerProgram, op => op.PropertyName == "x");
         AssertProgramContains<DefineObjectPropertyExpressionOp>(instruction.InitializerProgram, op => op.PropertyName == "y");
+    }
+
+    [Fact]
+    public async Task BindingVariableDeclarationInstruction_AwaitedInitializer_UsesSuspendingInstruction()
+    {
+        var plan = await GetFunctionPlan("""
+            async function sumPoint(pointPromise) {
+                const { x, y } = await pointPromise;
+                return x + y;
+            }
+            """, "sumPoint");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<SuspendingBindingVariableDeclarationInstruction>());
+        Assert.IsType<AwaitExpression>(instruction.Initializer);
     }
 
     [Fact]
@@ -1102,8 +1181,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         Assert.True(cache.Succeeded, $"Script plan should build. Failure: {cache.FailureReason}");
         Assert.NotNull(cache.Plan);
 
-        var expressionStatement = Assert.Single(cache.Plan.Instructions.OfType<EvaluateAndDiscardInstruction>()
-, i => i.ExpressionProgram is not null);
+        var expressionStatement = Assert.Single(cache.Plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
         Assert.Null(expressionStatement.Expression);
         AssertProgramContains<LoadTemplateObjectExpressionOp>(expressionStatement.ExpressionProgram);
         AssertProgramContains<CallExpressionOp>(
@@ -1393,8 +1471,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         var cache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
         Assert.True(cache.Succeeded, $"Script plan should build. Failure: {cache.FailureReason}");
 
-        var assignment = Assert.Single(cache.Plan!.Instructions.OfType<EvaluateAndDiscardInstruction>()
-, i => i.ExpressionProgram is not null);
+        var assignment = Assert.Single(cache.Plan!.Instructions.OfType<EvaluateAndDiscardInstruction>());
         Assert.Null(assignment.Expression);
         AssertProgramContains<StoreIdentifierExpressionOp>(
             assignment.ExpressionProgram,
@@ -1412,8 +1489,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             }
             """, "assignFirst");
 
-        var assignment = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>()
-, i => i.ExpressionProgram is not null);
+        var assignment = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
         Assert.Null(assignment.Expression);
         AssertProgramContains<ApplyBindingTargetExpressionOp>(
             assignment.ExpressionProgram,

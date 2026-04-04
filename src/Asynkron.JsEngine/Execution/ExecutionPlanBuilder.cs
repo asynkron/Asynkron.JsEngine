@@ -254,110 +254,6 @@ internal sealed partial class ExecutionPlanBuilder
         {
             switch (Instructions[i])
             {
-                case EvaluateAndDiscardInstruction { Expression: not null, ExpressionProgram: null } evaluateInstruction:
-                    if (AstShapeAnalyzer.ContainsAwait(evaluateInstruction.Expression) ||
-                        AstShapeAnalyzer.ContainsYield(evaluateInstruction.Expression))
-                    {
-                        break;
-                    }
-
-                    if (!TryCompileExpressionProgram(evaluateInstruction.Expression, out var evaluateProgram, out var evaluateFailure))
-                    {
-                        return FailExpressionProgram(
-                            "EvaluateAndDiscardInstruction",
-                            evaluateInstruction.Expression,
-                            evaluateFailure);
-                    }
-
-                    Instructions[i] = evaluateInstruction with
-                    {
-                        Expression = null,
-                        ExpressionProgram = evaluateProgram
-                    };
-                    break;
-
-                case AssignmentSlotInstruction { ValueExpression: not null, ValueProgram: null } assignmentInstruction:
-                    if (AstShapeAnalyzer.ContainsAwait(assignmentInstruction.ValueExpression) ||
-                        AstShapeAnalyzer.ContainsYield(assignmentInstruction.ValueExpression))
-                    {
-                        break;
-                    }
-
-                    if (!TryCompileExpressionProgram(assignmentInstruction.ValueExpression, out var assignmentProgram, out var assignmentFailure))
-                    {
-                        return FailExpressionProgram(
-                            "AssignmentSlotInstruction",
-                            assignmentInstruction.ValueExpression,
-                            assignmentFailure);
-                    }
-
-                    Instructions[i] = assignmentInstruction with
-                    {
-                        ValueExpression = null,
-                        ValueProgram = assignmentProgram
-                    };
-                    break;
-
-                case LogicalCompoundAssignmentSlotInstruction { RhsExpression: not null, RhsProgram: null } logicalInstruction:
-                    if (AstShapeAnalyzer.ContainsAwait(logicalInstruction.RhsExpression) ||
-                        AstShapeAnalyzer.ContainsYield(logicalInstruction.RhsExpression))
-                    {
-                        break;
-                    }
-
-                    if (!TryCompileExpressionProgram(logicalInstruction.RhsExpression, out var logicalProgram, out var logicalFailure))
-                    {
-                        return FailExpressionProgram(
-                            "LogicalCompoundAssignmentSlotInstruction",
-                            logicalInstruction.RhsExpression,
-                            logicalFailure);
-                    }
-
-                    Instructions[i] = logicalInstruction with
-                    {
-                        RhsExpression = null,
-                        RhsProgram = logicalProgram
-                    };
-                    break;
-
-                case CompoundAssignmentSlotInstruction { RhsExpression: not null, RhsProgram: null } compoundInstruction:
-                    if (AstShapeAnalyzer.ContainsAwait(compoundInstruction.RhsExpression) ||
-                        AstShapeAnalyzer.ContainsYield(compoundInstruction.RhsExpression))
-                    {
-                        break;
-                    }
-
-                    if (!TryCompileExpressionProgram(compoundInstruction.RhsExpression, out var compoundProgram, out var compoundFailure))
-                    {
-                        return FailExpressionProgram(
-                            "CompoundAssignmentSlotInstruction",
-                            compoundInstruction.RhsExpression,
-                            compoundFailure);
-                    }
-
-                    Instructions[i] = compoundInstruction with
-                    {
-                        RhsExpression = null,
-                        RhsProgram = compoundProgram
-                    };
-                    break;
-
-                case SimpleVariableDeclarationInstruction { Initializer: not null, InitializerProgram: null } variableInstruction:
-                    if (!TryCompileExpressionProgram(variableInstruction.Initializer, out var initializerProgram, out var initializerFailure))
-                    {
-                        return FailExpressionProgram(
-                            "SimpleVariableDeclarationInstruction",
-                            variableInstruction.Initializer,
-                            initializerFailure);
-                    }
-
-                    Instructions[i] = variableInstruction with
-                    {
-                        Initializer = null,
-                        InitializerProgram = initializerProgram
-                    };
-                    break;
-
                 case ArrayDestructuringInitInstruction { SourceExpression: not null, SourceProgram: null } arrayDestructuringInitInstruction:
                     if (!TryCompileExpressionProgram(arrayDestructuringInitInstruction.SourceExpression, out var destructuringSourceProgram, out var destructuringFailure))
                     {
@@ -373,37 +269,6 @@ internal sealed partial class ExecutionPlanBuilder
                         SourceProgram = destructuringSourceProgram
                     };
                     break;
-
-                case BindingVariableDeclarationInstruction bindingInstruction:
-                {
-                    var updatedBindingInstruction = bindingInstruction;
-
-                    if (updatedBindingInstruction.Initializer is not null && updatedBindingInstruction.InitializerProgram is null)
-                    {
-                        if (AstShapeAnalyzer.ContainsAwait(updatedBindingInstruction.Initializer) ||
-                            AstShapeAnalyzer.ContainsYield(updatedBindingInstruction.Initializer))
-                        {
-                            break;
-                        }
-
-                        if (!TryCompileExpressionProgram(updatedBindingInstruction.Initializer, out var bindingInitializerProgram, out var bindingInitializerFailure))
-                        {
-                            return FailExpressionProgram(
-                                "BindingVariableDeclarationInstruction",
-                                updatedBindingInstruction.Initializer,
-                                bindingInitializerFailure);
-                        }
-
-                        updatedBindingInstruction = updatedBindingInstruction with
-                        {
-                            Initializer = null,
-                            InitializerProgram = bindingInitializerProgram
-                        };
-                        Instructions[i] = updatedBindingInstruction;
-                    }
-
-                    break;
-                }
             }
         }
 
@@ -430,23 +295,7 @@ internal sealed partial class ExecutionPlanBuilder
             {
                 switch (Instructions[instructionIndex])
                 {
-                    case AssignmentSlotInstruction { ValueExpression: not null } assignmentInstruction
-                        when !(AstShapeAnalyzer.ContainsAwait(assignmentInstruction.ValueExpression) ||
-                               AstShapeAnalyzer.ContainsYield(assignmentInstruction.ValueExpression)):
-                    case LogicalCompoundAssignmentSlotInstruction { RhsExpression: not null } logicalInstruction
-                        when !(AstShapeAnalyzer.ContainsAwait(logicalInstruction.RhsExpression) ||
-                               AstShapeAnalyzer.ContainsYield(logicalInstruction.RhsExpression)):
-                    case CompoundAssignmentSlotInstruction { RhsExpression: not null } compoundInstruction
-                        when !(AstShapeAnalyzer.ContainsAwait(compoundInstruction.RhsExpression) ||
-                               AstShapeAnalyzer.ContainsYield(compoundInstruction.RhsExpression)):
-                    case SimpleVariableDeclarationInstruction { Initializer: not null }:
-                    case EvaluateAndDiscardInstruction { Expression: not null } evaluateInstruction
-                        when !(AstShapeAnalyzer.ContainsAwait(evaluateInstruction.Expression) ||
-                               AstShapeAnalyzer.ContainsYield(evaluateInstruction.Expression)):
                     case ArrayDestructuringInitInstruction { SourceExpression: not null }:
-                    case BindingVariableDeclarationInstruction { Initializer: not null } bindingInstruction
-                        when !(AstShapeAnalyzer.ContainsAwait(bindingInstruction.Initializer) ||
-                               AstShapeAnalyzer.ContainsYield(bindingInstruction.Initializer)):
                         _failureCode ??= ExecutionPlanFailureCode.AstPayloadLeak;
                         _failureReason ??=
                             $"Execution plan published with an AST payload leak at instruction [{instructionIndex}] ({Instructions[instructionIndex].Kind}).";

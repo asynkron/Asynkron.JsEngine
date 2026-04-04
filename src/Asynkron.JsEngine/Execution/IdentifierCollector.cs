@@ -335,14 +335,11 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 return;
 
             case EvaluateAndDiscardInstruction eval:
-                if (eval.ExpressionProgram is { } evalProgram)
-                {
-                    VisitExpressionProgram(evalProgram);
-                }
-                else if (eval.Expression is not null)
-                {
-                    Visit(eval.Expression);
-                }
+                VisitExpressionProgram(eval.ExpressionProgram);
+                return;
+
+            case SuspendingEvaluateAndDiscardInstruction suspendingEval:
+                Visit(suspendingEval.Expression);
                 return;
 
             case AwaitAndDiscardInstruction awaitDiscard:
@@ -350,25 +347,19 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 return;
 
             case AssignmentSlotInstruction assign:
-                if (assign.ValueProgram is { } valueProgram)
-                {
-                    VisitExpressionProgram(valueProgram);
-                }
-                else if (assign.ValueExpression is not null)
-                {
-                    Visit(assign.ValueExpression);
-                }
+                VisitExpressionProgram(assign.ValueProgram);
+                return;
+
+            case SuspendingAssignmentSlotInstruction suspendingAssign:
+                Visit(suspendingAssign.ValueExpression);
                 return;
 
             case LogicalCompoundAssignmentSlotInstruction logicalCompound:
-                if (logicalCompound.RhsProgram is { } logicalRhsProgram)
-                {
-                    VisitExpressionProgram(logicalRhsProgram);
-                }
-                else if (logicalCompound.RhsExpression is not null)
-                {
-                    Visit(logicalCompound.RhsExpression);
-                }
+                VisitExpressionProgram(logicalCompound.RhsProgram);
+                return;
+
+            case SuspendingLogicalCompoundAssignmentSlotInstruction suspendingLogicalCompound:
+                Visit(suspendingLogicalCompound.RhsExpression);
                 return;
 
             case YieldInstruction { AwaitedProgram: not null } yield:
@@ -399,11 +390,6 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 VisitExpressionProgram(branch.ConditionProgram);
                 return;
 
-            case SimpleVariableDeclarationInstruction { Initializer: not null } varDecl:
-                RegisterDeclaration(varDecl);
-                Visit(varDecl.Initializer);
-                return;
-
             case SimpleVariableDeclarationInstruction { InitializerProgram: not null } varDecl:
                 RegisterDeclaration(varDecl);
                 VisitExpressionProgram(varDecl.InitializerProgram.Value);
@@ -413,9 +399,9 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 RegisterDeclaration(varDecl);
                 return;
 
-            case BindingVariableDeclarationInstruction { Initializer: not null } bindingDecl:
-                RegisterBindingDeclaration(bindingDecl);
-                Visit(bindingDecl.Initializer);
+            case SuspendingSimpleVariableDeclarationInstruction suspendingVarDecl:
+                RegisterDeclaration(suspendingVarDecl);
+                Visit(suspendingVarDecl.Initializer);
                 return;
 
             case BindingVariableDeclarationInstruction { InitializerProgram: not null } bindingDecl:
@@ -425,6 +411,11 @@ internal sealed class ScopeSlotCollector : AstVisitor
 
             case BindingVariableDeclarationInstruction bindingDecl:
                 RegisterBindingDeclaration(bindingDecl);
+                return;
+
+            case SuspendingBindingVariableDeclarationInstruction suspendingBindingDecl:
+                RegisterBindingDeclaration(suspendingBindingDecl);
+                Visit(suspendingBindingDecl.Initializer);
                 return;
 
             case IteratorInitInstruction iterInit:
@@ -444,14 +435,11 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 return;
 
             case CompoundAssignmentSlotInstruction compoundAssign:
-                if (compoundAssign.RhsProgram is { } compoundRhsProgram)
-                {
-                    VisitExpressionProgram(compoundRhsProgram);
-                }
-                else if (compoundAssign.RhsExpression is not null)
-                {
-                    Visit(compoundAssign.RhsExpression);
-                }
+                VisitExpressionProgram(compoundAssign.RhsProgram);
+                return;
+
+            case SuspendingCompoundAssignmentSlotInstruction suspendingCompoundAssign:
+                Visit(suspendingCompoundAssign.RhsExpression);
                 return;
 
             case EnterWithInstruction enterWith:
@@ -601,41 +589,31 @@ internal sealed class ScopeSlotCollector : AstVisitor
 
     private void RegisterDeclaration(SimpleVariableDeclarationInstruction varDecl)
     {
-        int targetScope;
-        if (varDecl.VarKind == VariableKind.Var)
-        {
-            targetScope = _rootScopeId;
-        }
-        else
-        {
-            // Prefer the current lexical scope; fall back to any binding hint we discovered.
-            targetScope = CurrentScopeId;
-            if (targetScope == _rootScopeId &&
-                _bindingScopeHints.TryGetValue(varDecl.TargetSymbol, out var hintedScope))
-            {
-                targetScope = hintedScope;
-            }
-        }
+        RegisterDeclaration(varDecl.VarKind, varDecl.TargetSymbol);
+    }
 
-        _ = AllocateSlotInScope(targetScope, varDecl.TargetSymbol);
-        if (varDecl.VarKind != VariableKind.Var)
-        {
-            GetOrCreateScopeInfo(targetScope).LexicalBindings.Add(varDecl.TargetSymbol);
-        }
-        else
-        {
-            // Ensure var slots are marked non-lexical
-            GetOrCreateScopeInfo(targetScope).LexicalBindings.Remove(varDecl.TargetSymbol);
-        }
+    private void RegisterDeclaration(SuspendingSimpleVariableDeclarationInstruction varDecl)
+    {
+        RegisterDeclaration(varDecl.VarKind, varDecl.TargetSymbol);
     }
 
     private void RegisterBindingDeclaration(BindingVariableDeclarationInstruction bindingDecl)
     {
+        RegisterBindingDeclaration(bindingDecl.VarKind, bindingDecl.TargetProgram);
+    }
+
+    private void RegisterBindingDeclaration(SuspendingBindingVariableDeclarationInstruction bindingDecl)
+    {
+        RegisterBindingDeclaration(bindingDecl.VarKind, bindingDecl.TargetProgram);
+    }
+
+    private void RegisterBindingDeclaration(VariableKind varKind, BindingTargetProgram targetProgram)
+    {
         var names = new List<Symbol>();
-        bindingDecl.TargetProgram.CollectSymbols(names);
+        targetProgram.CollectSymbols(names);
         foreach (var name in names)
         {
-            RegisterDeclaration(bindingDecl.VarKind, name);
+            RegisterDeclaration(varKind, name);
         }
     }
 

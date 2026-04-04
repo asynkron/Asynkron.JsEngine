@@ -430,38 +430,26 @@ internal sealed class ScopeSlotCollector : AstVisitor
 
         foreach (var op in program.Operations)
         {
-            switch (op)
+            switch (op.Kind)
             {
-                case LoadIdentifierExpressionOp loadIdentifier:
-                    RegisterCompilerGeneratedIdentifier(loadIdentifier.Name);
+                case ExpressionOpKind.LoadIdentifier:
+                case ExpressionOpKind.StoreIdentifier:
+                case ExpressionOpKind.UpdateIdentifier:
+                case ExpressionOpKind.TypeOfIdentifier:
+                case ExpressionOpKind.DeleteIdentifier:
+                    RegisterCompilerGeneratedIdentifier(op.Name);
                     break;
 
-                case StoreIdentifierExpressionOp storeIdentifier:
-                    RegisterCompilerGeneratedIdentifier(storeIdentifier.Name);
+                case ExpressionOpKind.ApplyBindingTarget:
+                    VisitBindingTargetProgram(op.TargetProgram);
                     break;
 
-                case UpdateIdentifierExpressionOp updateIdentifier:
-                    RegisterCompilerGeneratedIdentifier(updateIdentifier.Name);
+                case ExpressionOpKind.LoadFunctionLiteral:
+                    Visit(op.Function);
                     break;
 
-                case TypeOfIdentifierExpressionOp typeofIdentifier:
-                    RegisterCompilerGeneratedIdentifier(typeofIdentifier.Name);
-                    break;
-
-                case DeleteIdentifierExpressionOp deleteIdentifier:
-                    RegisterCompilerGeneratedIdentifier(deleteIdentifier.Name);
-                    break;
-
-                case ApplyBindingTargetExpressionOp applyBindingTarget:
-                    VisitBindingTargetProgram(applyBindingTarget.TargetProgram);
-                    break;
-
-                case LoadFunctionLiteralExpressionOp functionLiteral:
-                    Visit(functionLiteral.Function);
-                    break;
-
-                case LoadClassLiteralExpressionOp classLiteral:
-                    Visit(classLiteral.Class);
+                case ExpressionOpKind.LoadClassLiteral:
+                    Visit(op.Class);
                     break;
             }
         }

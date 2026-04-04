@@ -14,8 +14,8 @@ internal static class ExpressionProgramCompiler
             return new ExpressionProgram([ExpressionOps.EnsureSuperReference]);
         }
 
-        var builder = ImmutableArray.CreateBuilder<ExpressionOp>(program.Operations.Length + 1);
-        builder.Add(ExpressionOps.EnsureSuperReference);
+        var builder = ImmutableArray.CreateBuilder<PackedExpressionOp>(program.Operations.Length + 1);
+        builder.Add(PackedExpressionOp.Pack(ExpressionOps.EnsureSuperReference));
         builder.AddRange(program.Operations);
         return new ExpressionProgram(builder.MoveToImmutable());
     }

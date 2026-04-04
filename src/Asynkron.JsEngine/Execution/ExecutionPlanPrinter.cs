@@ -311,110 +311,101 @@ internal static class ExecutionPlanPrinter
         return string.Join(" ", program.Operations.Select(FormatExpressionOp));
     }
 
-    private static string FormatExpressionOp(ExpressionOp op)
+    private static string FormatExpressionOp(PackedExpressionOp op)
     {
-        return op switch
+        return op.Kind switch
         {
-            LoadLiteralExpressionOp literal => literal.Value.ToString() ?? "null",
-            LoadRegexLiteralExpressionOp loadRegex => $"/{loadRegex.Pattern}/{loadRegex.Flags}",
-            LoadFunctionLiteralExpressionOp loadFunction =>
-                loadFunction.Function.Name is { } functionName ? $"fn:{functionName.Name}" : "fn",
-            LoadClassLiteralExpressionOp loadClass =>
-                loadClass.Class.Name is { } className ? $"class:{className.Name}" : "class",
-            LoadTemplateObjectExpressionOp => "template",
-            LoadIdentifierExpressionOp identifier => identifier.Name.Name,
-            StoreIdentifierExpressionOp identifier => $"store.{identifier.Name.Name}",
-            ApplyBindingTargetExpressionOp bindingTarget => $"bind.{bindingTarget.TargetProgram}",
-            DuplicateTopExpressionOp => "dup",
-            DuplicateTopTwoExpressionOp => "dup2",
-            SwapTopTwoExpressionOp => "swap",
-            RotateTopThreeRightExpressionOp => "rot3r",
-            LoadThisExpressionOp => "this",
-            LoadNewTargetExpressionOp => "new.target",
-            LoadNamedCallTargetExpressionOp callTarget => $"call.{callTarget.PropertyName}",
-            LoadComputedCallTargetExpressionOp => "call[]",
-            LoadNamedSuperCallTargetExpressionOp callTarget => $"super.call.{callTarget.PropertyName}",
-            LoadComputedSuperCallTargetExpressionOp => "super.call[]",
-            EnsureSuperReferenceExpressionOp => "super.this",
-            CreateArrayExpressionOp => "arr[]",
-            ArrayPushExpressionOp => "arr.push",
-            ArrayPushHoleExpressionOp => "arr.hole",
-            ArraySpreadExpressionOp => "arr.spread",
-            CreateObjectExpressionOp => "obj{}",
-            RequireObjectCoercibleExpressionOp req => $"require_obj[{req.Depth}]",
-            ResolvePropertyKeyExpressionOp => "propkey",
-            DefineObjectPropertyExpressionOp property => $"obj.{property.PropertyName}",
-            DefineComputedObjectPropertyExpressionOp => "obj[]",
-            DefineObjectMethodExpressionOp method => $"obj.method:{method.PropertyName}",
-            DefineComputedObjectMethodExpressionOp => "obj.method[]",
-            DefineObjectAccessorExpressionOp accessor =>
-                accessor.AccessorKind == ObjectAccessorKind.Getter
-                    ? $"obj.get:{accessor.PropertyName}"
-                    : $"obj.set:{accessor.PropertyName}",
-            DefineComputedObjectAccessorExpressionOp accessor =>
-                accessor.AccessorKind == ObjectAccessorKind.Getter
-                    ? "obj.get[]"
-                    : "obj.set[]",
-            ObjectSpreadExpressionOp => "obj.spread",
-            GetNamedPropertyExpressionOp property => $".{property.PropertyName}",
-            GetComputedPropertyExpressionOp => "[]",
-            GetNamedSuperPropertyExpressionOp property => $"super.{property.PropertyName}",
-            GetComputedSuperPropertyExpressionOp => "super[]",
-            SetNamedPropertyExpressionOp property => $"set.{property.PropertyName}",
-            SetComputedPropertyExpressionOp => "set[]",
-            SetNamedSuperPropertyExpressionOp property => $"super.set.{property.PropertyName}",
-            SetComputedSuperPropertyExpressionOp => "super.set[]",
-            UpdateIdentifierExpressionOp update =>
-                update.IsPrefix
-                    ? $"{(update.IsIncrement ? "++" : "--")}{update.Name.Name}"
-                    : $"{update.Name.Name}{(update.IsIncrement ? "++" : "--")}",
-            UpdateNamedPropertyExpressionOp update =>
-                update.IsPrefix
-                    ? $"{(update.IsIncrement ? "++" : "--")}.{update.PropertyName}"
-                    : $".{update.PropertyName}{(update.IsIncrement ? "++" : "--")}",
-            UpdateComputedPropertyExpressionOp update =>
-                update.IsPrefix
-                    ? $"{(update.IsIncrement ? "++" : "--")}[]"
-                    : $"[]{(update.IsIncrement ? "++" : "--")}",
-            UpdateNamedSuperPropertyExpressionOp update =>
-                update.IsPrefix
-                    ? $"{(update.IsIncrement ? "++" : "--")}super.{update.PropertyName}"
-                    : $"super.{update.PropertyName}{(update.IsIncrement ? "++" : "--")}",
-            UpdateComputedSuperPropertyExpressionOp update =>
-                update.IsPrefix
-                    ? $"{(update.IsIncrement ? "++" : "--")}super[]"
-                    : $"super[]{(update.IsIncrement ? "++" : "--")}",
-            TypeOfExpressionOp => "typeof",
-            TypeOfIdentifierExpressionOp typeofIdentifier => $"typeof {typeofIdentifier.Name.Name}",
-            DeleteIdentifierExpressionOp deleteIdentifier => $"delete {deleteIdentifier.Name.Name}",
-            DeleteNamedPropertyExpressionOp deleteNamedProperty => $"delete .{deleteNamedProperty.PropertyName}",
-            DeleteComputedPropertyExpressionOp => "delete []",
-            UnaryPlusExpressionOp => "+",
-            UnaryMinusExpressionOp => "-",
-            UnaryBitwiseNotExpressionOp => "~",
-            UnaryVoidExpressionOp => "void",
-            ToStringExpressionOp => "str",
-            UnaryLogicalNotExpressionOp => "!",
-            BinaryExpressionOp binary => FormatBinaryOperator(binary.Operator),
-            PrivateFieldInExpressionOp privateIn => $"#{privateIn.PrivateName} in",
-            ThrowReferenceErrorExpressionOp throwRef => $"throw.ref:{throwRef.Message}",
-            PopExpressionOp => "pop",
-            JumpExpressionOp jump => $"jmp:{jump.Target}",
-            JumpIfNullishExpressionOp jumpIfNullish => $"jmpN:{jumpIfNullish.Target}",
-            JumpIfShortCircuitedExpressionOp jumpIfShortCircuited => $"jmpS:{jumpIfShortCircuited.Target}",
-            JumpIfTrueExpressionOp jumpIfTrue => $"jmpT:{jumpIfTrue.Target}",
-            JumpIfFalseExpressionOp jumpIfFalse => $"jmpF:{jumpIfFalse.Target}",
-            JumpIfNotNullishExpressionOp jumpIfNotNullish => $"jmpNN:{jumpIfNotNullish.Target}",
-            SuperConstructExpressionOp superConstruct => superConstruct.SpreadMask.IsDefaultOrEmpty
-                ? $"super/{superConstruct.ArgumentCount}"
-                : $"super*/{superConstruct.ArgumentCount}",
-            CallExpressionOp call => call.SpreadMask.IsDefaultOrEmpty
-                ? $"call/{call.ArgumentCount}"
-                : $"call*/{call.ArgumentCount}",
-            ConstructExpressionOp construct => construct.SpreadMask.IsDefaultOrEmpty
-                ? $"new/{construct.ArgumentCount}"
-                : $"new*/{construct.ArgumentCount}",
-            _ => op.GetType().Name
+            ExpressionOpKind.LoadLiteral => op.LiteralValue.ToString() ?? "null",
+            ExpressionOpKind.LoadRegexLiteral => $"/{op.Pattern}/{op.RegexFlags}",
+            ExpressionOpKind.LoadFunctionLiteral => op.Function.Name is { } functionName ? $"fn:{functionName.Name}" : "fn",
+            ExpressionOpKind.LoadClassLiteral => op.Class.Name is { } className ? $"class:{className.Name}" : "class",
+            ExpressionOpKind.LoadTemplateObject => "template",
+            ExpressionOpKind.LoadIdentifier => op.Name.Name,
+            ExpressionOpKind.StoreIdentifier => $"store.{op.Name.Name}",
+            ExpressionOpKind.ApplyBindingTarget => $"bind.{op.TargetProgram}",
+            ExpressionOpKind.DuplicateTop => "dup",
+            ExpressionOpKind.DuplicateTopTwo => "dup2",
+            ExpressionOpKind.SwapTopTwo => "swap",
+            ExpressionOpKind.RotateTopThreeRight => "rot3r",
+            ExpressionOpKind.LoadThis => "this",
+            ExpressionOpKind.LoadNewTarget => "new.target",
+            ExpressionOpKind.LoadNamedCallTarget => $"call.{op.Text}",
+            ExpressionOpKind.LoadComputedCallTarget => "call[]",
+            ExpressionOpKind.LoadNamedSuperCallTarget => $"super.call.{op.Text}",
+            ExpressionOpKind.LoadComputedSuperCallTarget => "super.call[]",
+            ExpressionOpKind.EnsureSuperReference => "super.this",
+            ExpressionOpKind.CreateArray => "arr[]",
+            ExpressionOpKind.ArrayPush => "arr.push",
+            ExpressionOpKind.ArrayPushHole => "arr.hole",
+            ExpressionOpKind.ArraySpread => "arr.spread",
+            ExpressionOpKind.CreateObject => "obj{}",
+            ExpressionOpKind.RequireObjectCoercible => $"require_obj[{op.Depth}]",
+            ExpressionOpKind.ResolvePropertyKey => "propkey",
+            ExpressionOpKind.DefineObjectProperty => $"obj.{op.Text}",
+            ExpressionOpKind.DefineComputedObjectProperty => "obj[]",
+            ExpressionOpKind.DefineObjectMethod => $"obj.method:{op.Text}",
+            ExpressionOpKind.DefineComputedObjectMethod => "obj.method[]",
+            ExpressionOpKind.DefineObjectAccessor => op.AccessorKind == ObjectAccessorKind.Getter
+                ? $"obj.get:{op.Text}"
+                : $"obj.set:{op.Text}",
+            ExpressionOpKind.DefineComputedObjectAccessor => op.AccessorKind == ObjectAccessorKind.Getter
+                ? "obj.get[]"
+                : "obj.set[]",
+            ExpressionOpKind.ObjectSpread => "obj.spread",
+            ExpressionOpKind.GetNamedProperty => $".{op.Text}",
+            ExpressionOpKind.GetComputedProperty => "[]",
+            ExpressionOpKind.GetNamedSuperProperty => $"super.{op.Text}",
+            ExpressionOpKind.GetComputedSuperProperty => "super[]",
+            ExpressionOpKind.SetNamedProperty => $"set.{op.Text}",
+            ExpressionOpKind.SetComputedProperty => "set[]",
+            ExpressionOpKind.SetNamedSuperProperty => $"super.set.{op.Text}",
+            ExpressionOpKind.SetComputedSuperProperty => "super.set[]",
+            ExpressionOpKind.UpdateIdentifier => op.IsPrefix
+                ? $"{(op.IsIncrement ? "++" : "--")}{op.Name.Name}"
+                : $"{op.Name.Name}{(op.IsIncrement ? "++" : "--")}",
+            ExpressionOpKind.UpdateNamedProperty => op.IsPrefix
+                ? $"{(op.IsIncrement ? "++" : "--")}.{op.Text}"
+                : $".{op.Text}{(op.IsIncrement ? "++" : "--")}",
+            ExpressionOpKind.UpdateComputedProperty => op.IsPrefix
+                ? $"{(op.IsIncrement ? "++" : "--")}[]"
+                : $"[]{(op.IsIncrement ? "++" : "--")}",
+            ExpressionOpKind.UpdateNamedSuperProperty => op.IsPrefix
+                ? $"{(op.IsIncrement ? "++" : "--")}super.{op.Text}"
+                : $"super.{op.Text}{(op.IsIncrement ? "++" : "--")}",
+            ExpressionOpKind.UpdateComputedSuperProperty => op.IsPrefix
+                ? $"{(op.IsIncrement ? "++" : "--")}super[]"
+                : $"super[]{(op.IsIncrement ? "++" : "--")}",
+            ExpressionOpKind.TypeOf => "typeof",
+            ExpressionOpKind.TypeOfIdentifier => $"typeof {op.Name.Name}",
+            ExpressionOpKind.DeleteIdentifier => $"delete {op.Name.Name}",
+            ExpressionOpKind.DeleteNamedProperty => $"delete .{op.Text}",
+            ExpressionOpKind.DeleteComputedProperty => "delete []",
+            ExpressionOpKind.UnaryPlus => "+",
+            ExpressionOpKind.UnaryMinus => "-",
+            ExpressionOpKind.UnaryBitwiseNot => "~",
+            ExpressionOpKind.UnaryVoid => "void",
+            ExpressionOpKind.ToString => "str",
+            ExpressionOpKind.UnaryLogicalNot => "!",
+            ExpressionOpKind.Binary => FormatBinaryOperator(op.Operator),
+            ExpressionOpKind.PrivateFieldIn => $"#{op.Text} in",
+            ExpressionOpKind.ThrowReferenceError => $"throw.ref:{op.Text}",
+            ExpressionOpKind.Pop => "pop",
+            ExpressionOpKind.Jump => $"jmp:{op.Target}",
+            ExpressionOpKind.JumpIfNullish => $"jmpN:{op.Target}",
+            ExpressionOpKind.JumpIfShortCircuited => $"jmpS:{op.Target}",
+            ExpressionOpKind.JumpIfTrue => $"jmpT:{op.Target}",
+            ExpressionOpKind.JumpIfFalse => $"jmpF:{op.Target}",
+            ExpressionOpKind.JumpIfNotNullish => $"jmpNN:{op.Target}",
+            ExpressionOpKind.SuperConstruct => op.SpreadMask.IsDefaultOrEmpty
+                ? $"super/{op.ArgumentCount}"
+                : $"super*/{op.ArgumentCount}",
+            ExpressionOpKind.Call => op.SpreadMask.IsDefaultOrEmpty
+                ? $"call/{op.ArgumentCount}"
+                : $"call*/{op.ArgumentCount}",
+            ExpressionOpKind.Construct => op.SpreadMask.IsDefaultOrEmpty
+                ? $"new/{op.ArgumentCount}"
+                : $"new*/{op.ArgumentCount}",
+            _ => op.Kind.ToString()
         };
     }
 

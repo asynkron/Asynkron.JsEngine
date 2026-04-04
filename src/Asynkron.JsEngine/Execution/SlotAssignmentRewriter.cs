@@ -556,70 +556,53 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         }
 
         var changed = false;
-        var builder = ImmutableArray.CreateBuilder<ExpressionOp>(program.Operations.Length);
+        var builder = ImmutableArray.CreateBuilder<PackedExpressionOp>(program.Operations.Length);
         foreach (var operation in program.Operations)
         {
             var rewritten = RewriteExpressionOp(operation);
-            changed |= !ReferenceEquals(operation, rewritten);
+            changed |= !operation.Equals(rewritten);
             builder.Add(rewritten);
         }
 
         return changed ? new ExpressionProgram(builder.MoveToImmutable()) : program;
     }
 
-    private ExpressionOp RewriteExpressionOp(ExpressionOp operation)
+    private PackedExpressionOp RewriteExpressionOp(PackedExpressionOp operation)
     {
-        switch (operation)
+        switch (operation.Kind)
         {
-            case LoadIdentifierExpressionOp loadIdentifier when TryResolve(loadIdentifier.Name, out var loadResolution):
-                return loadIdentifier with
-                {
-                    ScopeId = loadResolution.scopeId,
-                    SlotIndex = loadResolution.slotIndex,
-                    FlatSlotId = GetOrCreateFlatSlotId(loadResolution.scopeId, loadResolution.slotIndex)
-                };
+            case ExpressionOpKind.LoadIdentifier when TryResolve(operation.Name, out var loadResolution):
+                return operation.WithIdentifierResolution(
+                    loadResolution.scopeId,
+                    loadResolution.slotIndex,
+                    GetOrCreateFlatSlotId(loadResolution.scopeId, loadResolution.slotIndex));
 
-            case StoreIdentifierExpressionOp storeIdentifier when TryResolve(storeIdentifier.Name, out var storeResolution):
-                return storeIdentifier with
-                {
-                    ScopeId = storeResolution.scopeId,
-                    SlotIndex = storeResolution.slotIndex,
-                    FlatSlotId = GetOrCreateFlatSlotId(storeResolution.scopeId, storeResolution.slotIndex)
-                };
+            case ExpressionOpKind.StoreIdentifier when TryResolve(operation.Name, out var storeResolution):
+                return operation.WithIdentifierResolution(
+                    storeResolution.scopeId,
+                    storeResolution.slotIndex,
+                    GetOrCreateFlatSlotId(storeResolution.scopeId, storeResolution.slotIndex));
 
-            case UpdateIdentifierExpressionOp updateIdentifier when TryResolve(updateIdentifier.Name, out var updateResolution):
-                return updateIdentifier with
-                {
-                    ScopeId = updateResolution.scopeId,
-                    SlotIndex = updateResolution.slotIndex,
-                    FlatSlotId = GetOrCreateFlatSlotId(updateResolution.scopeId, updateResolution.slotIndex)
-                };
+            case ExpressionOpKind.UpdateIdentifier when TryResolve(operation.Name, out var updateResolution):
+                return operation.WithIdentifierResolution(
+                    updateResolution.scopeId,
+                    updateResolution.slotIndex,
+                    GetOrCreateFlatSlotId(updateResolution.scopeId, updateResolution.slotIndex));
 
-            case TypeOfIdentifierExpressionOp typeofIdentifier when TryResolve(typeofIdentifier.Name, out var typeofResolution):
-                return typeofIdentifier with
-                {
-                    ScopeId = typeofResolution.scopeId,
-                    SlotIndex = typeofResolution.slotIndex,
-                    FlatSlotId = GetOrCreateFlatSlotId(typeofResolution.scopeId, typeofResolution.slotIndex)
-                };
+            case ExpressionOpKind.TypeOfIdentifier when TryResolve(operation.Name, out var typeofResolution):
+                return operation.WithIdentifierResolution(
+                    typeofResolution.scopeId,
+                    typeofResolution.slotIndex,
+                    GetOrCreateFlatSlotId(typeofResolution.scopeId, typeofResolution.slotIndex));
 
-            case ApplyBindingTargetExpressionOp applyBindingTarget:
-                return applyBindingTarget with
-                {
-                    TargetProgram = RewriteBindingTargetProgram(applyBindingTarget.TargetProgram)
-                };
+            case ExpressionOpKind.ApplyBindingTarget:
+                return operation.WithBindingTargetProgram(RewriteBindingTargetProgram(operation.TargetProgram));
 
-            case LoadFunctionLiteralExpressionOp functionLiteral:
-                return functionLiteral with
-                {
-                    Function = (FunctionExpression)Rewrite(functionLiteral.Function)
-                };
+            case ExpressionOpKind.LoadFunctionLiteral:
+                return operation.WithFunction((FunctionExpression)Rewrite(operation.Function));
 
-            case LoadClassLiteralExpressionOp classLiteral:
-                return classLiteral with
-                {
-                    Class = (ClassExpression)Rewrite(classLiteral.Class)
-                };
+            case ExpressionOpKind.LoadClassLiteral:
+                return operation.WithClass((ClassExpression)Rewrite(operation.Class));
 
             default:
                 return operation;
@@ -809,7 +792,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     private static int TryGetFlatSlotId(ExpressionProgram program)
     {
         if (program.Operations.Length == 1 &&
-            program.Operations[0] is LoadIdentifierExpressionOp { FlatSlotId: >= 0 } loadIdentifier)
+            program.Operations[0] is { Kind: ExpressionOpKind.LoadIdentifier, FlatSlotId: >= 0 } loadIdentifier)
         {
             return loadIdentifier.FlatSlotId;
         }

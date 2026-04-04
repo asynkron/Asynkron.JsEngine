@@ -640,10 +640,10 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
 
         var instruction = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
         Assert.Null(instruction.Expression);
-        var operations = instruction.ExpressionProgram.Operations;
-        var loadSuperCallTargetIndex = Array.FindIndex(operations.ToArray(), op => op is LoadNamedSuperCallTargetExpressionOp);
-        var innerCallIndex = Array.FindIndex(operations.ToArray(), op => op is CallExpressionOp);
-        var outerSuperConstructIndex = Array.FindIndex(operations.ToArray(), op => op is SuperConstructExpressionOp);
+        var operations = instruction.ExpressionProgram.Operations.Select(static op => op.ToLegacyExpressionOp()).ToArray();
+        var loadSuperCallTargetIndex = Array.FindIndex(operations, op => op is LoadNamedSuperCallTargetExpressionOp);
+        var innerCallIndex = Array.FindIndex(operations, op => op is CallExpressionOp);
+        var outerSuperConstructIndex = Array.FindIndex(operations, op => op is SuperConstructExpressionOp);
 
         Assert.True(loadSuperCallTargetIndex >= 0);
         Assert.True(innerCallIndex > loadSuperCallTargetIndex);
@@ -665,10 +665,10 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
 
         var instruction = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
         Assert.Null(instruction.Expression);
-        var operations = instruction.ExpressionProgram.Operations;
-        var ensureIndex = Array.FindIndex(operations.ToArray(), op => op is EnsureSuperReferenceExpressionOp);
-        var innerSuperConstructIndex = Array.FindIndex(operations.ToArray(), op => op is SuperConstructExpressionOp);
-        var computedReadIndex = Array.FindIndex(operations.ToArray(), op => op is GetComputedSuperPropertyExpressionOp);
+        var operations = instruction.ExpressionProgram.Operations.Select(static op => op.ToLegacyExpressionOp()).ToArray();
+        var ensureIndex = Array.FindIndex(operations, op => op is EnsureSuperReferenceExpressionOp);
+        var innerSuperConstructIndex = Array.FindIndex(operations, op => op is SuperConstructExpressionOp);
+        var computedReadIndex = Array.FindIndex(operations, op => op is GetComputedSuperPropertyExpressionOp);
 
         Assert.True(ensureIndex >= 0);
         Assert.True(innerSuperConstructIndex > ensureIndex);
@@ -1145,7 +1145,9 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
         Assert.Null(instruction.ReturnExpression);
         AssertProgramContains<JumpIfShortCircuitedExpressionOp>(instruction.ReturnProgram);
-        Assert.Equal(2, instruction.ReturnProgram!.Value.Operations.OfType<CallExpressionOp>().Count());
+        Assert.Equal(
+            2,
+            instruction.ReturnProgram!.Value.Operations.Select(static op => op.ToLegacyExpressionOp()).OfType<CallExpressionOp>().Count());
     }
 
     [Fact]
@@ -1781,7 +1783,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         Assert.Null(instruction.Initializer);
         Assert.Equal(
             2,
-            instruction.InitializerProgram!.Value.Operations.OfType<DefineObjectAccessorExpressionOp>().Count());
+            instruction.InitializerProgram!.Value.Operations.Select(static op => op.ToLegacyExpressionOp()).OfType<DefineObjectAccessorExpressionOp>().Count());
     }
 
     [Fact]
@@ -1913,7 +1915,10 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         where TOp : ExpressionOp
     {
         Assert.NotNull(program);
-        var match = program.Value.Operations.OfType<TOp>().FirstOrDefault(op => predicate is null || predicate(op));
+        var match = program.Value.Operations
+            .Select(static op => op.ToLegacyExpressionOp())
+            .OfType<TOp>()
+            .FirstOrDefault(op => predicate is null || predicate(op));
         Assert.NotNull(match);
     }
 }

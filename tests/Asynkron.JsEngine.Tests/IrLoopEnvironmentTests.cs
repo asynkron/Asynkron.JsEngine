@@ -1041,6 +1041,41 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 5000)]
+    public async Task AsyncComputedAwaitedIterableProperty_PreservesTargetEvaluationOrder()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.EvaluateAndAwait("""
+            async function testComputedAwaitedIterableProperty() {
+                let trace = [];
+                let groups = { selected: [7] };
+
+                function getGroups() {
+                    trace.push("target");
+                    return groups;
+                }
+
+                let first = 0;
+                for (const item of getGroups()[await Promise.resolve().then(() => {
+                    trace.push("await");
+                    return "selected";
+                })]) {
+                    first = item;
+                    break;
+                }
+
+                return trace.join(",") + ":" + first;
+            }
+
+            let computedAwaitedIterablePropertyResult = undefined;
+            testComputedAwaitedIterableProperty().then(value => computedAwaitedIterablePropertyResult = value);
+            computedAwaitedIterablePropertyResult;
+            """);
+
+        Assert.Equal("target,await:7", result.ToString());
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task SequenceExpression_ReusesDedicatedStatementInstructions()
     {
         await using var engine = CreateEngine();

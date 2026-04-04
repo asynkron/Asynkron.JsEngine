@@ -588,6 +588,14 @@ internal static class GeneratorYieldLowerer
                 return false;
             }
 
+            if (TryRewriteComputedMemberAwaitProperty(
+                    expression,
+                    out prefixStatements,
+                    out rewrittenExpression))
+            {
+                return true;
+            }
+
             var tempBinding = CreateResumeIdentifier();
             var replacement = new IdentifierExpression(expression.Source, tempBinding.Name);
             if (!TryExtractLeadingAwait(expression, replacement, out var awaitedExpression, out rewrittenExpression))
@@ -602,6 +610,68 @@ internal static class GeneratorYieldLowerer
                     VariableKind.Let,
                     [new VariableDeclarator(awaitedExpression.Source, tempBinding, awaitedExpression)])
             ];
+            return true;
+        }
+
+        private bool TryRewriteComputedMemberAwaitProperty(
+            ExpressionNode expression,
+            out ImmutableArray<StatementNode> prefixStatements,
+            out ExpressionNode rewrittenExpression)
+        {
+            prefixStatements = default;
+            rewrittenExpression = expression;
+
+            if (expression is not MemberExpression
+                {
+                    IsComputed: true,
+                    Target: { } target,
+                    Property: { } property
+                } memberExpression ||
+                AstShapeAnalyzer.ContainsAwait(target) ||
+                AstShapeAnalyzer.ContainsYield(target) ||
+                !AstShapeAnalyzer.ContainsAwait(property))
+            {
+                return false;
+            }
+
+            ImmutableArray<StatementNode> propertyPrefixStatements;
+            ExpressionNode rewrittenProperty;
+            if (property is AwaitExpression propertyAwait)
+            {
+                var awaitBinding = CreateResumeIdentifier();
+                propertyPrefixStatements =
+                [
+                    CreateTempDeclaration(
+                        property.Source,
+                        awaitBinding,
+                        propertyAwait)
+                ];
+                rewrittenProperty = new IdentifierExpression(property.Source, awaitBinding.Name);
+            }
+            else if (!TryRewriteExpressionWithNestedAwait(
+                         property,
+                         out propertyPrefixStatements,
+                         out rewrittenProperty))
+            {
+                return false;
+            }
+
+            var builder = ImmutableArray.CreateBuilder<StatementNode>();
+            ExpressionNode rewrittenTarget = target;
+            if (target is not IdentifierExpression)
+            {
+                var targetBinding = CreateResumeIdentifier();
+                builder.Add(CreateTempDeclaration(expression.Source, targetBinding, target));
+                rewrittenTarget = new IdentifierExpression(target.Source, targetBinding.Name);
+            }
+
+            builder.AddRange(propertyPrefixStatements);
+            prefixStatements = builder.ToImmutable();
+            rewrittenExpression = memberExpression with
+            {
+                Target = rewrittenTarget,
+                Property = rewrittenProperty
+            };
             return true;
         }
 

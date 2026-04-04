@@ -81,12 +81,14 @@ internal readonly record struct ExpressionProgram
 {
     public ExpressionProgram(
         ImmutableArray<PackedExpressionOp> operations,
+        ImmutableArray<JsValue> literalConstants = default,
         ImmutableArray<string> stringConstants = default,
         ImmutableArray<object> objectConstants = default,
         ImmutableArray<IdentifierOperand> identifierConstants = default,
         ImmutableArray<ImmutableArray<int>> spreadMaskConstants = default)
     {
         Operations = operations;
+        LiteralConstants = literalConstants.IsDefault ? ImmutableArray<JsValue>.Empty : literalConstants;
         StringConstants = stringConstants.IsDefault ? ImmutableArray<string>.Empty : stringConstants;
         ObjectConstants = objectConstants.IsDefault ? ImmutableArray<object>.Empty : objectConstants;
         IdentifierConstants = identifierConstants.IsDefault ? ImmutableArray<IdentifierOperand>.Empty : identifierConstants;
@@ -97,6 +99,8 @@ internal readonly record struct ExpressionProgram
     public static ExpressionProgram Empty { get; } = new(ImmutableArray<PackedExpressionOp>.Empty);
 
     public ImmutableArray<PackedExpressionOp> Operations { get; init; }
+
+    public ImmutableArray<JsValue> LiteralConstants { get; init; }
 
     public ImmutableArray<string> StringConstants { get; init; }
 
@@ -289,20 +293,17 @@ internal readonly struct PackedExpressionOp
     private static readonly PackedExpressionOp SetComputedSuperPropertyDefault = new(ExpressionOpKind.SetComputedSuperProperty, flags: Flag0);
     private static readonly PackedExpressionOp SetComputedSuperPropertyNoInference = new(ExpressionOpKind.SetComputedSuperProperty);
 
-    private readonly JsValue _value;
     private readonly int _int0;
     private readonly int _int1;
     private readonly byte _flags;
 
     private PackedExpressionOp(
         ExpressionOpKind kind,
-        JsValue value = default,
         int int0 = 0,
         int int1 = 0,
         byte flags = 0)
     {
         Kind = kind;
-        _value = value;
         _int0 = int0;
         _int1 = int1;
         _flags = flags;
@@ -310,7 +311,10 @@ internal readonly struct PackedExpressionOp
 
     public ExpressionOpKind Kind { get; }
 
-    public JsValue LiteralValue => _value;
+    public JsValue GetLiteral(ReadOnlySpan<JsValue> literalConstants)
+    {
+        return literalConstants[_int0];
+    }
 
     public int StringConstantIndex => _int0;
 
@@ -379,9 +383,9 @@ internal readonly struct PackedExpressionOp
             : spreadMaskConstants[SpreadMaskConstantIndex];
     }
 
-    public static PackedExpressionOp LoadLiteral(JsValue Value)
+    public static PackedExpressionOp LoadLiteralConstant(int literalConstantIndex)
     {
-        return new PackedExpressionOp(ExpressionOpKind.LoadLiteral, value: Value);
+        return new PackedExpressionOp(ExpressionOpKind.LoadLiteral, int0: literalConstantIndex);
     }
 
     public static PackedExpressionOp LoadRegexLiteral(int PatternIndex, string Flags)
@@ -718,12 +722,12 @@ internal readonly struct PackedExpressionOp
 
     public PackedExpressionOp WithIdentifierConstant(int identifierConstantIndex)
     {
-        return new PackedExpressionOp(Kind, _value, identifierConstantIndex, _int1, _flags);
+        return new PackedExpressionOp(Kind, identifierConstantIndex, _int1, _flags);
     }
 
     public PackedExpressionOp WithObjectConstant(int objectConstantIndex)
     {
-        return new PackedExpressionOp(Kind, _value, _int0, objectConstantIndex, _flags);
+        return new PackedExpressionOp(Kind, _int0, objectConstantIndex, _flags);
     }
 
     private static byte EncodeRegexFlags(string flags)

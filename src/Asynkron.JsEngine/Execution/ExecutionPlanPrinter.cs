@@ -312,6 +312,7 @@ internal static class ExecutionPlanPrinter
             " ",
             program.Operations.Select(op => FormatExpressionOp(
                 op,
+                program.LiteralConstants,
                 program.StringConstants,
                 program.ObjectConstants,
                 program.IdentifierConstants,
@@ -320,18 +321,20 @@ internal static class ExecutionPlanPrinter
 
     private static string FormatExpressionOp(
         PackedExpressionOp op,
+        ImmutableArray<JsValue> literalConstants,
         ImmutableArray<string> stringConstants,
         ImmutableArray<object> objectConstants,
         ImmutableArray<IdentifierOperand> identifierConstants,
         ImmutableArray<ImmutableArray<int>> spreadMaskConstants)
     {
+        var literalConstantSpan = literalConstants.AsSpan();
         var stringConstantSpan = stringConstants.AsSpan();
         var objectConstantSpan = objectConstants.AsSpan();
         var identifierConstantSpan = identifierConstants.AsSpan();
         var spreadMaskConstantSpan = spreadMaskConstants.AsSpan();
         return op.Kind switch
         {
-            ExpressionOpKind.LoadLiteral => op.LiteralValue.ToString() ?? "null",
+            ExpressionOpKind.LoadLiteral => op.GetLiteral(literalConstantSpan).ToString() ?? "null",
             ExpressionOpKind.LoadRegexLiteral => $"/{op.GetString(stringConstantSpan)}/{op.RegexFlags}",
             ExpressionOpKind.LoadFunctionLiteral => op.GetObject<FunctionExpression>(objectConstantSpan).Name is { } functionName ? $"fn:{functionName.Name}" : "fn",
             ExpressionOpKind.LoadClassLiteral => op.GetObject<ClassExpression>(objectConstantSpan).Name is { } className ? $"class:{className.Name}" : "class",

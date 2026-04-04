@@ -35,7 +35,7 @@ internal readonly record struct ExpressionOpView(PackedExpressionOp Operation, E
 {
     public ExpressionOpKind Kind => Operation.Kind;
 
-    public JsValue Value => Operation.LiteralValue;
+    public JsValue Value => Operation.GetLiteral(LiteralConstants);
 
     public string Pattern => Operation.GetString(StringConstants);
 
@@ -120,6 +120,8 @@ internal readonly record struct ExpressionOpView(PackedExpressionOp Operation, E
             return builder.MoveToImmutable();
         }
     }
+
+    private ReadOnlySpan<JsValue> LiteralConstants => Program.LiteralConstants.AsSpan();
 
     private ReadOnlySpan<string> StringConstants => Program.StringConstants.AsSpan();
 

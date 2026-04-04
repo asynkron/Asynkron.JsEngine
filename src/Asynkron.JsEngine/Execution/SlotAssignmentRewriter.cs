@@ -571,6 +571,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         return changed
             ? new ExpressionProgram(
                 builder.MoveToImmutable(),
+                program.LiteralConstants,
                 program.StringConstants,
                 objectPool.Build(),
                 identifierPool.Build(),

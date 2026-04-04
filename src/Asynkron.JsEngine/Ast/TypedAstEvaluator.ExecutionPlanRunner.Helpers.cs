@@ -180,6 +180,7 @@ public static partial class TypedAstEvaluator
             }
 
             var operations = program.Operations.AsSpan();
+            var literalConstants = program.LiteralConstants.AsSpan();
             var stringConstants = program.StringConstants.AsSpan();
             var objectConstants = program.ObjectConstants.AsSpan();
             var identifierConstants = program.IdentifierConstants.AsSpan();
@@ -205,7 +206,7 @@ public static partial class TypedAstEvaluator
                     {
                         case ExpressionOpKind.LoadLiteral:
                             {
-                                stack[stackIndex++] = operation.LiteralValue;
+                                stack[stackIndex++] = operation.GetLiteral(literalConstants);
                                 stackFlags[stackIndex - 1] = false;
                                 programCounter++;
                                 break;

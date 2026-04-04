@@ -13,6 +13,7 @@ internal static class ExpressionProgramCompiler
         {
             return new ExpressionProgram(
                 [PackedExpressionOp.EnsureSuperReference],
+                program.LiteralConstants,
                 program.StringConstants,
                 program.ObjectConstants,
                 program.IdentifierConstants,
@@ -24,6 +25,7 @@ internal static class ExpressionProgramCompiler
         builder.AddRange(program.Operations);
         return new ExpressionProgram(
             builder.MoveToImmutable(),
+            program.LiteralConstants,
             program.StringConstants,
             program.ObjectConstants,
             program.IdentifierConstants,
@@ -110,7 +112,7 @@ internal static class ExpressionProgramCompiler
         switch (expression)
         {
             case LiteralExpression literal:
-                builder.Add(PackedExpressionOp.LoadLiteral(literal.Value));
+                builder.Add(PackedExpressionOp.LoadLiteralConstant(builder.InternLiteral(literal.Value)));
                 failureReason = null;
                 return true;
 
@@ -402,7 +404,7 @@ internal static class ExpressionProgramCompiler
                 }
 
                 builder.Add(PackedExpressionOp.Pop);
-                builder.Add(PackedExpressionOp.LoadLiteral(JsValue.True));
+                builder.Add(PackedExpressionOp.LoadLiteralConstant(builder.InternLiteral(JsValue.True)));
                 failureReason = null;
                 return true;
 
@@ -1138,13 +1140,13 @@ internal static class ExpressionProgramCompiler
         ExpressionProgramBuilder builder,
         out string? failureReason)
     {
-        builder.Add(PackedExpressionOp.LoadLiteral(new JsValue(string.Empty)));
+        builder.Add(PackedExpressionOp.LoadLiteralConstant(builder.InternLiteral(new JsValue(string.Empty))));
 
         foreach (var part in expression.Parts)
         {
             if (part.Text is not null)
             {
-                builder.Add(PackedExpressionOp.LoadLiteral(new JsValue(part.Text)));
+                builder.Add(PackedExpressionOp.LoadLiteralConstant(builder.InternLiteral(new JsValue(part.Text))));
                 builder.Add(PackedExpressionOp.Binary(BinaryOperator.Add));
                 continue;
             }
@@ -1868,15 +1870,15 @@ internal static class ExpressionProgramCompiler
             switch (symbolProp.Value.AsString())
             {
                 case "iterator":
-                    builder.Add(PackedExpressionOp.LoadLiteral((JsValue)Symbols.Iterator));
+                    builder.Add(PackedExpressionOp.LoadLiteralConstant(builder.InternLiteral((JsValue)Symbols.Iterator)));
                     failureReason = null;
                     return true;
                 case "asyncIterator":
-                    builder.Add(PackedExpressionOp.LoadLiteral((JsValue)Symbols.AsyncIterator));
+                    builder.Add(PackedExpressionOp.LoadLiteralConstant(builder.InternLiteral((JsValue)Symbols.AsyncIterator)));
                     failureReason = null;
                     return true;
                 case "toStringTag":
-                    builder.Add(PackedExpressionOp.LoadLiteral((JsValue)Symbols.ToStringTag));
+                    builder.Add(PackedExpressionOp.LoadLiteralConstant(builder.InternLiteral((JsValue)Symbols.ToStringTag)));
                     failureReason = null;
                     return true;
             }
@@ -2005,7 +2007,7 @@ internal static class ExpressionProgramCompiler
                         }
                         else
                         {
-                            builder.Add(PackedExpressionOp.LoadLiteral(JsValue.Undefined));
+                            builder.Add(PackedExpressionOp.LoadLiteralConstant(builder.InternLiteral(JsValue.Undefined)));
                         }
 
                         if (!TryGetStaticObjectPropertyName(member.Key, out var propertyName))
@@ -2045,7 +2047,7 @@ internal static class ExpressionProgramCompiler
                     }
                     else
                     {
-                        builder.Add(PackedExpressionOp.LoadLiteral(JsValue.Undefined));
+                        builder.Add(PackedExpressionOp.LoadLiteralConstant(builder.InternLiteral(JsValue.Undefined)));
                     }
 
                     builder.Add(PackedExpressionOp.DefineComputedObjectProperty(
@@ -2286,6 +2288,8 @@ internal static class ExpressionProgramCompiler
     private sealed class ExpressionProgramBuilder
     {
         private readonly List<PackedExpressionOp> _operations = [];
+        private readonly List<JsValue> _literalConstants = [];
+        private readonly Dictionary<JsValue, int> _literalConstantMap = [];
         private readonly List<string> _stringConstants = [];
         private readonly Dictionary<string, int> _stringConstantMap = new(StringComparer.Ordinal);
         private readonly List<object> _objectConstants = [];
@@ -2306,6 +2310,19 @@ internal static class ExpressionProgramCompiler
         public void Add(PackedExpressionOp operation)
         {
             _operations.Add(operation);
+        }
+
+        public int InternLiteral(JsValue value)
+        {
+            if (_literalConstantMap.TryGetValue(value, out var existingIndex))
+            {
+                return existingIndex;
+            }
+
+            var index = _literalConstants.Count;
+            _literalConstants.Add(value);
+            _literalConstantMap[value] = index;
+            return index;
         }
 
         public int InternString(string value)
@@ -2365,6 +2382,7 @@ internal static class ExpressionProgramCompiler
         {
             return new ExpressionProgram(
                 [.. _operations],
+                _literalConstants.Count == 0 ? ImmutableArray<JsValue>.Empty : [.. _literalConstants],
                 _stringConstants.Count == 0 ? ImmutableArray<string>.Empty : [.. _stringConstants],
                 _objectConstants.Count == 0 ? ImmutableArray<object>.Empty : [.. _objectConstants],
                 _identifierConstants.Count == 0 ? ImmutableArray<IdentifierOperand>.Empty : [.. _identifierConstants],

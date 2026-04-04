@@ -200,20 +200,12 @@ internal static class ExecutionPlanPrinter
                         : "")
                 + $" → [{yield.Next}]",
 
-            SuspendingYieldInstruction suspendingYield =>
-                $"YIELD {FormatExpression(suspendingYield.YieldExpression, null)} → [{suspendingYield.Next}]",
-
             YieldStarInstruction yieldStar =>
                 "YIELD* " + (yieldStar.AwaitedProgram is not null
                     ? $"await {FormatExpression(null, yieldStar.AwaitedProgram)}"
                     : FormatExpression(null, yieldStar.IterableProgram))
                 + (yieldStar.ResultSlotSymbol != null ? $" (result → {yieldStar.ResultSlotSymbol.Name})" : "")
                 + $" → [{yieldStar.Next}]",
-
-            SuspendingYieldStarInstruction suspendingYieldStar =>
-                "YIELD* " + FormatExpression(suspendingYieldStar.IterableExpression, null)
-                + (suspendingYieldStar.ResultSlotSymbol != null ? $" (result → {suspendingYieldStar.ResultSlotSymbol.Name})" : "")
-                + $" → [{suspendingYieldStar.Next}]",
 
             EnterTryInstruction enterTry =>
                 $"ENTER_TRY (handler: {(enterTry.HandlerIndex >= 0 ? $"[{enterTry.HandlerIndex}]" : "none")}, " +

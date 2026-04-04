@@ -428,12 +428,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             case YieldInstruction { YieldProgram: not null } yieldInstruction:
                 return yieldInstruction with { YieldProgram = RewriteExpressionProgram(yieldInstruction.YieldProgram!.Value) };
 
-            case SuspendingYieldInstruction suspendingYieldInstruction:
-                return suspendingYieldInstruction with
-                {
-                    YieldExpression = Rewrite(suspendingYieldInstruction.YieldExpression)
-                };
-
             case ReturnInstruction { AwaitedProgram: not null } returnInstruction:
                 return returnInstruction with
                 {
@@ -527,12 +521,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     IterableProgram = yieldStar.IterableProgram is { } yieldStarIterableProgram
                         ? RewriteExpressionProgram(yieldStarIterableProgram)
                         : null
-                };
-
-            case SuspendingYieldStarInstruction suspendingYieldStar:
-                return suspendingYieldStar with
-                {
-                    IterableExpression = Rewrite(suspendingYieldStar.IterableExpression)
                 };
 
             case ForInInitInstruction forInInit:

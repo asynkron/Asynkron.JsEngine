@@ -803,9 +803,8 @@ internal sealed partial class ExecutionPlanBuilder
 
         if (AstShapeAnalyzer.ContainsAwait(expression) || AstShapeAnalyzer.ContainsYield(expression))
         {
-            var storeIndex = Append(new StoreResumeValueInstruction(continuationIndex, resumeSlot));
-            entryIndex = Append(new SuspendingYieldInstruction(storeIndex, expression));
-            return true;
+            SetFailureReason("Yield expression contains unlowered await or yield operand.");
+            return false;
         }
 
         if (!ExpressionProgramCompiler.TryCompile(expression, out var yieldProgram, out var yieldFailure))
@@ -851,12 +850,8 @@ internal sealed partial class ExecutionPlanBuilder
 
         if (AstShapeAnalyzer.ContainsAwait(expression.Expression) || AstShapeAnalyzer.ContainsYield(expression.Expression))
         {
-            entryIndex = Append(new SuspendingYieldStarInstruction(
-                continuationIndex,
-                expression.Expression,
-                stateSymbol,
-                resultSlot));
-            return true;
+            SetFailureReason("Yield* iterable contains unlowered await or yield operand.");
+            return false;
         }
 
         if (!ExpressionProgramCompiler.TryCompile(expression.Expression, out var iterableProgram, out var iterableFailure))

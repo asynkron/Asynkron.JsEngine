@@ -358,10 +358,6 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 VisitExpressionProgram(yield.YieldProgram.Value);
                 return;
 
-            case SuspendingYieldInstruction suspendingYield:
-                Visit(suspendingYield.YieldExpression);
-                return;
-
             case ReturnInstruction { AwaitedProgram: not null } ret:
                 VisitExpressionProgram(ret.AwaitedProgram.Value);
                 return;
@@ -431,10 +427,6 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 {
                     VisitExpressionProgram(yieldStarIterableProgram);
                 }
-                return;
-
-            case SuspendingYieldStarInstruction suspendingYieldStar:
-                Visit(suspendingYieldStar.IterableExpression);
                 return;
         }
     }

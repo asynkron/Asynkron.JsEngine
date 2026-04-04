@@ -297,15 +297,6 @@ internal sealed record YieldInstruction(
     : ExecutionInstruction(InstructionKind.Yield, Next);
 
 /// <summary>
-///     Represents a yield expression whose operand still requires AST evaluation because it contains nested
-///     suspension points.
-/// </summary>
-internal sealed record SuspendingYieldInstruction(
-    int Next,
-    ExpressionNode YieldExpression)
-    : ExecutionInstruction(InstructionKind.SuspendingYield, Next);
-
-/// <summary>
 ///     Represents a delegated <c>yield*</c> expression that iterates another iterable.
 /// </summary>
 /// <param name="Next">Next instruction index.</param>
@@ -320,17 +311,6 @@ internal sealed record YieldStarInstruction(
     Symbol? AwaitStateKey = null,
     ExpressionProgram? AwaitedProgram = null)
     : ExecutionInstruction(InstructionKind.YieldStar, Next);
-
-/// <summary>
-///     Represents a delegated <c>yield*</c> whose iterable still requires AST evaluation because it contains
-///     nested suspension points.
-/// </summary>
-internal sealed record SuspendingYieldStarInstruction(
-    int Next,
-    ExpressionNode IterableExpression,
-    Symbol StateSlotSymbol,
-    Symbol? ResultSlotSymbol = null)
-    : ExecutionInstruction(InstructionKind.SuspendingYieldStar, Next);
 
 /// <summary>
 ///     Stores the most recent <c>.next(value)</c> payload into a synthetic slot (or discards it) before execution

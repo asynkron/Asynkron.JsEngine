@@ -255,6 +255,7 @@ internal readonly struct PackedExpressionOp
     private const byte RegexFlagUnicode = 1 << 5;
     private const byte RegexFlagUnicodeSets = 1 << 6;
     private const byte RegexFlagSticky = 1 << 7;
+    private const int FlagShift = 8;
 
     public static readonly PackedExpressionOp EnsureSuperReference = new(ExpressionOpKind.EnsureSuperReference);
     public static readonly PackedExpressionOp LoadThis = new(ExpressionOpKind.LoadThis);
@@ -293,9 +294,9 @@ internal readonly struct PackedExpressionOp
     private static readonly PackedExpressionOp SetComputedSuperPropertyDefault = new(ExpressionOpKind.SetComputedSuperProperty, flags: Flag0);
     private static readonly PackedExpressionOp SetComputedSuperPropertyNoInference = new(ExpressionOpKind.SetComputedSuperProperty);
 
+    private readonly ushort _opcode;
     private readonly int _int0;
     private readonly int _int1;
-    private readonly byte _flags;
 
     private PackedExpressionOp(
         ExpressionOpKind kind,
@@ -303,13 +304,14 @@ internal readonly struct PackedExpressionOp
         int int1 = 0,
         byte flags = 0)
     {
-        Kind = kind;
+        _opcode = (ushort)((ushort)kind | (flags << FlagShift));
         _int0 = int0;
         _int1 = int1;
-        _flags = flags;
     }
 
-    public ExpressionOpKind Kind { get; }
+    public ExpressionOpKind Kind => (ExpressionOpKind)(_opcode & 0xFF);
+
+    private byte Flags => (byte)(_opcode >> FlagShift);
 
     public JsValue GetLiteral(ReadOnlySpan<JsValue> literalConstants)
     {
@@ -318,7 +320,7 @@ internal readonly struct PackedExpressionOp
 
     public int StringConstantIndex => _int0;
 
-    public string RegexFlags => DecodeRegexFlags(_flags);
+    public string RegexFlags => DecodeRegexFlags(Flags);
 
     public int Depth => _int0;
 
@@ -326,37 +328,37 @@ internal readonly struct PackedExpressionOp
 
     public int ArgumentCount => _int0;
 
-    public ObjectAccessorKind AccessorKind => (_flags & Flag0) != 0
+    public ObjectAccessorKind AccessorKind => (Flags & Flag0) != 0
         ? ObjectAccessorKind.Setter
         : ObjectAccessorKind.Getter;
 
     public BinaryOperator Operator => (BinaryOperator)_int0;
 
     public bool IsArguments => Kind == ExpressionOpKind.UpdateIdentifier
-        ? (_flags & Flag2) != 0
-        : (_flags & Flag0) != 0;
+        ? (Flags & Flag2) != 0
+        : (Flags & Flag0) != 0;
 
     public bool AllowNameInference => Kind == ExpressionOpKind.DefineObjectProperty
-        ? (_flags & Flag1) != 0
-        : (_flags & Flag0) != 0;
+        ? (Flags & Flag1) != 0
+        : (Flags & Flag0) != 0;
 
-    public bool IsOptional => (_flags & Flag0) != 0;
+    public bool IsOptional => (Flags & Flag0) != 0;
 
-    public bool IsIncrement => (_flags & Flag0) != 0;
+    public bool IsIncrement => (Flags & Flag0) != 0;
 
-    public bool HasExplicitThis => (_flags & Flag0) != 0;
+    public bool HasExplicitThis => (Flags & Flag0) != 0;
 
-    public bool IsPrototypeMutation => (_flags & Flag0) != 0;
+    public bool IsPrototypeMutation => (Flags & Flag0) != 0;
 
-    public bool IsConstructorFunction => (_flags & Flag0) != 0;
+    public bool IsConstructorFunction => (Flags & Flag0) != 0;
 
-    public bool ShortCircuitOnNullishTarget => (_flags & Flag1) != 0;
+    public bool ShortCircuitOnNullishTarget => (Flags & Flag1) != 0;
 
-    public bool IsPrefix => (_flags & Flag1) != 0;
+    public bool IsPrefix => (Flags & Flag1) != 0;
 
-    public bool IsDirectEval => (_flags & Flag1) != 0;
+    public bool IsDirectEval => (Flags & Flag1) != 0;
 
-    public bool ReplaceWithUndefined => (_flags & Flag1) != 0;
+    public bool ReplaceWithUndefined => (Flags & Flag1) != 0;
 
     public int SpreadMaskConstantIndex => _int1 - 1;
 
@@ -722,12 +724,12 @@ internal readonly struct PackedExpressionOp
 
     public PackedExpressionOp WithIdentifierConstant(int identifierConstantIndex)
     {
-        return new PackedExpressionOp(Kind, identifierConstantIndex, _int1, _flags);
+        return new PackedExpressionOp(Kind, identifierConstantIndex, _int1, Flags);
     }
 
     public PackedExpressionOp WithObjectConstant(int objectConstantIndex)
     {
-        return new PackedExpressionOp(Kind, _int0, objectConstantIndex, _flags);
+        return new PackedExpressionOp(Kind, _int0, objectConstantIndex, Flags);
     }
 
     private static byte EncodeRegexFlags(string flags)

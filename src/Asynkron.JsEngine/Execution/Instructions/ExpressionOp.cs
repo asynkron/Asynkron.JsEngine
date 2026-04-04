@@ -215,34 +215,19 @@ internal sealed class TaggedTemplateDescriptor
     public ImmutableArray<JsValue> RawStrings { get; }
 }
 
-internal sealed class RegexLiteralPayload
-{
-    public RegexLiteralPayload(string pattern, string flags)
-    {
-        Pattern = pattern;
-        Flags = flags;
-    }
-
-    public string Pattern { get; }
-
-    public string Flags { get; }
-}
-
-internal sealed class SpreadMaskPayload
-{
-    public SpreadMaskPayload(ImmutableArray<bool> spreadMask)
-    {
-        SpreadMask = spreadMask;
-    }
-
-    public ImmutableArray<bool> SpreadMask { get; }
-}
-
 internal readonly struct PackedExpressionOp
 {
     private const byte Flag0 = 1 << 0;
     private const byte Flag1 = 1 << 1;
     private const byte Flag2 = 1 << 2;
+    private const byte RegexFlagHasIndices = 1 << 0;
+    private const byte RegexFlagGlobal = 1 << 1;
+    private const byte RegexFlagIgnoreCase = 1 << 2;
+    private const byte RegexFlagMultiline = 1 << 3;
+    private const byte RegexFlagDotAll = 1 << 4;
+    private const byte RegexFlagUnicode = 1 << 5;
+    private const byte RegexFlagUnicodeSets = 1 << 6;
+    private const byte RegexFlagSticky = 1 << 7;
 
     public static readonly PackedExpressionOp EnsureSuperReference = new(ExpressionOpKind.EnsureSuperReference);
     public static readonly PackedExpressionOp LoadThis = new(ExpressionOpKind.LoadThis);
@@ -310,9 +295,9 @@ internal readonly struct PackedExpressionOp
 
     public JsValue LiteralValue => _value;
 
-    public string Pattern => ((RegexLiteralPayload)_data!).Pattern;
+    public string Pattern => (string)_data!;
 
-    public string RegexFlags => ((RegexLiteralPayload)_data!).Flags;
+    public string RegexFlags => DecodeRegexFlags(_flags);
 
     public FunctionExpression Function => (FunctionExpression)_data!;
 
@@ -368,8 +353,8 @@ internal readonly struct PackedExpressionOp
 
     public bool ReplaceWithUndefined => (_flags & Flag1) != 0;
 
-    public ImmutableArray<bool> SpreadMask => _data is SpreadMaskPayload payload
-        ? payload.SpreadMask
+    public ImmutableArray<bool> SpreadMask => _data is ImmutableArray<bool> spreadMask
+        ? spreadMask
         : default;
 
     public static PackedExpressionOp LoadLiteral(JsValue Value)
@@ -381,7 +366,8 @@ internal readonly struct PackedExpressionOp
     {
         return new PackedExpressionOp(
             ExpressionOpKind.LoadRegexLiteral,
-            data: new RegexLiteralPayload(Pattern, Flags));
+            data: Pattern,
+            flags: EncodeRegexFlags(Flags));
     }
 
     public static PackedExpressionOp LoadFunctionLiteral(
@@ -704,7 +690,7 @@ internal readonly struct PackedExpressionOp
     {
         return new PackedExpressionOp(
             ExpressionOpKind.SuperConstruct,
-            data: SpreadMask.IsDefaultOrEmpty ? null : new SpreadMaskPayload(SpreadMask),
+            data: SpreadMask.IsDefaultOrEmpty ? null : SpreadMask,
             int0: ArgumentCount);
     }
 
@@ -716,7 +702,7 @@ internal readonly struct PackedExpressionOp
     {
         return new PackedExpressionOp(
             ExpressionOpKind.Call,
-            data: SpreadMask.IsDefaultOrEmpty ? null : new SpreadMaskPayload(SpreadMask),
+            data: SpreadMask.IsDefaultOrEmpty ? null : SpreadMask,
             int0: ArgumentCount,
             flags: (byte)((HasExplicitThis ? Flag0 : 0) |
                           (IsDirectEval ? Flag1 : 0)));
@@ -728,7 +714,7 @@ internal readonly struct PackedExpressionOp
     {
         return new PackedExpressionOp(
             ExpressionOpKind.Construct,
-            data: SpreadMask.IsDefaultOrEmpty ? null : new SpreadMaskPayload(SpreadMask),
+            data: SpreadMask.IsDefaultOrEmpty ? null : SpreadMask,
             int0: ArgumentCount);
     }
 
@@ -750,5 +736,86 @@ internal readonly struct PackedExpressionOp
     public PackedExpressionOp WithClass(ClassExpression classExpression)
     {
         return new PackedExpressionOp(Kind, classExpression, _value, _int0, _int1, _int2, _flags);
+    }
+
+    private static byte EncodeRegexFlags(string flags)
+    {
+        var encoded = (byte)0;
+
+        foreach (var flag in flags)
+        {
+            encoded |= flag switch
+            {
+                'd' => RegexFlagHasIndices,
+                'g' => RegexFlagGlobal,
+                'i' => RegexFlagIgnoreCase,
+                'm' => RegexFlagMultiline,
+                's' => RegexFlagDotAll,
+                'u' => RegexFlagUnicode,
+                'v' => RegexFlagUnicodeSets,
+                'y' => RegexFlagSticky,
+                _ => throw new NotSupportedException($"Unsupported regex flag '{flag}'.")
+            };
+        }
+
+        return encoded;
+    }
+
+    private static string DecodeRegexFlags(byte encodedFlags)
+    {
+        var length = 0;
+        if ((encodedFlags & RegexFlagHasIndices) != 0) length++;
+        if ((encodedFlags & RegexFlagGlobal) != 0) length++;
+        if ((encodedFlags & RegexFlagIgnoreCase) != 0) length++;
+        if ((encodedFlags & RegexFlagMultiline) != 0) length++;
+        if ((encodedFlags & RegexFlagDotAll) != 0) length++;
+        if ((encodedFlags & RegexFlagUnicode) != 0) length++;
+        if ((encodedFlags & RegexFlagUnicodeSets) != 0) length++;
+        if ((encodedFlags & RegexFlagSticky) != 0) length++;
+
+        return string.Create(length, encodedFlags, static (span, flags) =>
+        {
+            var index = 0;
+
+            if ((flags & RegexFlagHasIndices) != 0)
+            {
+                span[index++] = 'd';
+            }
+
+            if ((flags & RegexFlagGlobal) != 0)
+            {
+                span[index++] = 'g';
+            }
+
+            if ((flags & RegexFlagIgnoreCase) != 0)
+            {
+                span[index++] = 'i';
+            }
+
+            if ((flags & RegexFlagMultiline) != 0)
+            {
+                span[index++] = 'm';
+            }
+
+            if ((flags & RegexFlagDotAll) != 0)
+            {
+                span[index++] = 's';
+            }
+
+            if ((flags & RegexFlagUnicode) != 0)
+            {
+                span[index++] = 'u';
+            }
+
+            if ((flags & RegexFlagUnicodeSets) != 0)
+            {
+                span[index++] = 'v';
+            }
+
+            if ((flags & RegexFlagSticky) != 0)
+            {
+                span[index++] = 'y';
+            }
+        });
     }
 }

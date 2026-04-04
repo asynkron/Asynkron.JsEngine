@@ -1094,25 +1094,107 @@ internal sealed partial class ExecutionPlanBuilder
         return statement is BlockStatement { IsStrict: true };
     }
 
-    internal int AppendYieldSequence(ExpressionNode? expression, int continuationIndex, Symbol? resumeSlot)
+    internal bool TryAppendYieldSequence(
+        ExpressionNode? expression,
+        int continuationIndex,
+        Symbol? resumeSlot,
+        out int entryIndex)
     {
-        var storeIndex = Append(new StoreResumeValueInstruction(continuationIndex, resumeSlot));
-        return Append(new YieldInstruction(storeIndex, expression));
+        entryIndex = -1;
+
+        if (expression is null)
+        {
+            var storeIndex = Append(new StoreResumeValueInstruction(continuationIndex, resumeSlot));
+            entryIndex = Append(new YieldInstruction(storeIndex));
+            return true;
+        }
+
+        if (expression is AwaitExpression awaitExpression)
+        {
+            if (!ExpressionProgramCompiler.TryCompile(awaitExpression.Expression, out var awaitedProgram, out var awaitFailure))
+            {
+                SetExpressionProgramFailure("YieldInstruction", awaitExpression.Expression, awaitFailure);
+                return false;
+            }
+
+            var storeIndex = Append(new StoreResumeValueInstruction(continuationIndex, resumeSlot));
+            entryIndex = Append(new YieldInstruction(
+                storeIndex,
+                AwaitStateKey: ((IAstCacheable<Symbol>)awaitExpression).GetOrCreateCache(),
+                AwaitedProgram: awaitedProgram));
+            return true;
+        }
+
+        if (AstShapeAnalyzer.ContainsAwait(expression) || AstShapeAnalyzer.ContainsYield(expression))
+        {
+            var storeIndex = Append(new StoreResumeValueInstruction(continuationIndex, resumeSlot));
+            entryIndex = Append(new YieldInstruction(storeIndex, expression));
+            return true;
+        }
+
+        if (!ExpressionProgramCompiler.TryCompile(expression, out var yieldProgram, out var yieldFailure))
+        {
+            SetExpressionProgramFailure("YieldInstruction", expression, yieldFailure);
+            return false;
+        }
+
+        var loweredStoreIndex = Append(new StoreResumeValueInstruction(continuationIndex, resumeSlot));
+        entryIndex = Append(new YieldInstruction(loweredStoreIndex, YieldProgram: yieldProgram));
+        return true;
     }
 
-    internal int AppendYieldStarSequence(YieldExpression expression, int continuationIndex, Symbol? resultSlot)
+    internal bool TryAppendYieldStarSequence(
+        YieldExpression expression,
+        int continuationIndex,
+        Symbol? resultSlot,
+        out int entryIndex)
     {
+        entryIndex = -1;
         if (expression.Expression is null)
         {
             throw new InvalidOperationException("yield* requires an expression.");
         }
 
         var stateSymbol = CreateYieldStarStateSymbol();
-        return Append(new YieldStarInstruction(
+        if (expression.Expression is AwaitExpression awaitExpression)
+        {
+            if (!ExpressionProgramCompiler.TryCompile(awaitExpression.Expression, out var awaitedProgram, out var awaitFailure))
+            {
+                SetExpressionProgramFailure("YieldStarInstruction", awaitExpression.Expression, awaitFailure);
+                return false;
+            }
+
+            entryIndex = Append(new YieldStarInstruction(
+                continuationIndex,
+                StateSlotSymbol: stateSymbol,
+                ResultSlotSymbol: resultSlot,
+                AwaitStateKey: ((IAstCacheable<Symbol>)awaitExpression).GetOrCreateCache(),
+                AwaitedProgram: awaitedProgram));
+            return true;
+        }
+
+        if (AstShapeAnalyzer.ContainsAwait(expression.Expression) || AstShapeAnalyzer.ContainsYield(expression.Expression))
+        {
+            entryIndex = Append(new YieldStarInstruction(
+                continuationIndex,
+                IterableExpression: expression.Expression,
+                StateSlotSymbol: stateSymbol,
+                ResultSlotSymbol: resultSlot));
+            return true;
+        }
+
+        if (!ExpressionProgramCompiler.TryCompile(expression.Expression, out var iterableProgram, out var iterableFailure))
+        {
+            SetExpressionProgramFailure("YieldStarInstruction", expression.Expression, iterableFailure);
+            return false;
+        }
+
+        entryIndex = Append(new YieldStarInstruction(
             continuationIndex,
-            IterableExpression: expression.Expression,
+            IterableProgram: iterableProgram,
             StateSlotSymbol: stateSymbol,
             ResultSlotSymbol: resultSlot));
+        return true;
     }
 
     internal static BlockStatement BuildCatchBlock(CatchClause clause, Symbol catchSlotSymbol)

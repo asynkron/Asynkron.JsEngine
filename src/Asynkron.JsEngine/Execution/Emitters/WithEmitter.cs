@@ -1,6 +1,7 @@
 #region
 
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution.Instructions;
 
 #endregion
@@ -37,7 +38,25 @@ internal static class WithEmitter
         }
 
         // Build the enter with instruction (comes before the body)
-        entryIndex = ctx.Append(new EnterWithInstruction(withScopeSlot, bodyEntry, ObjectExpression: statement.Object));
+        if (AstShapeAnalyzer.ContainsAwait(statement.Object) || AstShapeAnalyzer.ContainsYield(statement.Object))
+        {
+            entryIndex = ctx.Append(new EnterWithInstruction(withScopeSlot, bodyEntry, ObjectExpression: statement.Object));
+            return true;
+        }
+
+        if (!ExpressionProgramCompiler.TryCompile(statement.Object, out var objectProgram, out var failureReason))
+        {
+            ctx.SetExpressionProgramFailure("EnterWithInstruction", statement.Object, failureReason);
+            ctx.Rollback(instructionStart);
+            entryIndex = -1;
+            return false;
+        }
+
+        entryIndex = ctx.Append(new EnterWithInstruction(
+            withScopeSlot,
+            bodyEntry,
+            ObjectProgram: objectProgram,
+            ObjectSource: statement.Object.Source));
         return true;
     }
 }

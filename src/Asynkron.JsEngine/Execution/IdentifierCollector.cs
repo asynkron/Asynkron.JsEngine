@@ -434,6 +434,17 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 }
                 return;
 
+            case ForInInitInstruction forInInit:
+                if (forInInit.ObjectProgram is { } forInObjectProgram)
+                {
+                    VisitExpressionProgram(forInObjectProgram);
+                }
+                else if (forInInit.ObjectExpression is not null)
+                {
+                    Visit(forInInit.ObjectExpression);
+                }
+                return;
+
             case CompoundAssignmentSlotInstruction compoundAssign:
                 if (compoundAssign.RhsProgram is { } compoundRhsProgram)
                 {

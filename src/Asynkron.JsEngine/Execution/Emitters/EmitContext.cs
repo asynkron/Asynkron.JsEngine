@@ -276,17 +276,25 @@ internal sealed class EmitContext(
     /// <summary>
     /// Append a yield sequence (yield instruction followed by store resume value).
     /// </summary>
-    public int AppendYieldSequence(ExpressionNode? expression, int continuationIndex, Symbol? resumeSlot)
+    public bool TryAppendYieldSequence(
+        ExpressionNode? expression,
+        int continuationIndex,
+        Symbol? resumeSlot,
+        out int entryIndex)
     {
-        return builder.AppendYieldSequence(expression, continuationIndex, resumeSlot);
+        return builder.TryAppendYieldSequence(expression, continuationIndex, resumeSlot, out entryIndex);
     }
 
     /// <summary>
     /// Append a yield* sequence (delegated yield instruction).
     /// </summary>
-    public int AppendYieldStarSequence(YieldExpression expression, int continuationIndex, Symbol? resultSlot)
+    public bool TryAppendYieldStarSequence(
+        YieldExpression expression,
+        int continuationIndex,
+        Symbol? resultSlot,
+        out int entryIndex)
     {
-        return builder.AppendYieldStarSequence(expression, continuationIndex, resultSlot);
+        return builder.TryAppendYieldStarSequence(expression, continuationIndex, resultSlot, out entryIndex);
     }
 
     /// <summary>

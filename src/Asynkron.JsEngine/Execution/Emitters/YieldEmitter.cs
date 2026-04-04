@@ -48,10 +48,9 @@ internal static class YieldEmitter
         }
 
         var returnIndex = ctx.Append(new ReturnInstruction(-1, returnProgram));
-        entryIndex = yieldExpression.IsDelegated
-            ? ctx.AppendYieldStarSequence(yieldExpression, returnIndex, resumeSymbol)
-            : ctx.AppendYieldSequence(yieldExpression.Expression, returnIndex, resumeSymbol);
-        return true;
+        return yieldExpression.IsDelegated
+            ? ctx.TryAppendYieldStarSequence(yieldExpression, returnIndex, resumeSymbol, out entryIndex)
+            : ctx.TryAppendYieldSequence(yieldExpression.Expression, returnIndex, resumeSymbol, out entryIndex);
     }
 
     /// <summary>
@@ -71,8 +70,7 @@ internal static class YieldEmitter
                 return false;
             }
 
-            entryIndex = ctx.AppendYieldStarSequence(yieldExpression, nextIndex, null);
-            return true;
+            return ctx.TryAppendYieldStarSequence(yieldExpression, nextIndex, null, out entryIndex);
         }
 
         if (AstShapeAnalyzer.ContainsYield(yieldExpression.Expression))
@@ -81,8 +79,7 @@ internal static class YieldEmitter
             return false;
         }
 
-        entryIndex = ctx.AppendYieldSequence(yieldExpression.Expression, nextIndex, null);
-        return true;
+        return ctx.TryAppendYieldSequence(yieldExpression.Expression, nextIndex, null, out entryIndex);
     }
 
     /// <summary>
@@ -102,9 +99,8 @@ internal static class YieldEmitter
             return false;
         }
 
-        entryIndex = yieldExpression.IsDelegated
-            ? ctx.AppendYieldStarSequence(yieldExpression, nextIndex, targetSymbol)
-            : ctx.AppendYieldSequence(yieldExpression.Expression, nextIndex, targetSymbol);
-        return true;
+        return yieldExpression.IsDelegated
+            ? ctx.TryAppendYieldStarSequence(yieldExpression, nextIndex, targetSymbol, out entryIndex)
+            : ctx.TryAppendYieldSequence(yieldExpression.Expression, nextIndex, targetSymbol, out entryIndex);
     }
 }

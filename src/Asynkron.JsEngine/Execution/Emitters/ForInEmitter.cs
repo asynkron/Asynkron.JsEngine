@@ -141,8 +141,30 @@ internal struct ForInLoopDriver : ILoopDriver
             _stateSlotIndex, _valueSlotIndex,
             -1, -1));
 
+        if (AstShapeAnalyzer.ContainsAwait(_objectExpression))
+        {
+            moveNextEntry = _moveNextIndex;
+            moveNextBranch = _moveNextIndex;
+            return true;
+        }
+
+        if (!ExpressionProgramCompiler.TryCompile(_objectExpression, out var objectProgram, out var failureReason))
+        {
+            ctx.SetExpressionProgramFailure("ForInInitInstruction", _objectExpression, failureReason);
+            moveNextEntry = -1;
+            moveNextBranch = -1;
+            return false;
+        }
+
         moveNextEntry = _moveNextIndex;
         moveNextBranch = _moveNextIndex;
+        ctx.Patch(_initIndex,
+            (ForInInitInstruction)ctx.Instructions[_initIndex] with
+            {
+                ObjectExpression = null,
+                ObjectProgram = objectProgram,
+                ObjectSource = _objectExpression.Source
+            });
         return true;
     }
 

@@ -427,6 +427,12 @@ internal sealed partial class ExecutionPlanBuilder
                     break;
 
                 case IteratorInitInstruction { IterableExpression: not null, IterableProgram: null } iteratorInitInstruction:
+                    if (AstShapeAnalyzer.ContainsAwait(iteratorInitInstruction.IterableExpression) ||
+                        AstShapeAnalyzer.ContainsYield(iteratorInitInstruction.IterableExpression))
+                    {
+                        break;
+                    }
+
                     if (!TryCompileExpressionProgram(iteratorInitInstruction.IterableExpression, out var iteratorProgram, out var iteratorFailure))
                     {
                         return FailExpressionProgram(
@@ -444,6 +450,12 @@ internal sealed partial class ExecutionPlanBuilder
                     break;
 
                 case ForInInitInstruction { ObjectExpression: not null, ObjectProgram: null } forInInitInstruction:
+                    if (AstShapeAnalyzer.ContainsAwait(forInInitInstruction.ObjectExpression) ||
+                        AstShapeAnalyzer.ContainsYield(forInInitInstruction.ObjectExpression))
+                    {
+                        break;
+                    }
+
                     if (!TryCompileExpressionProgram(forInInitInstruction.ObjectExpression, out var objectProgram, out var forInFailure))
                     {
                         return FailExpressionProgram(
@@ -461,6 +473,12 @@ internal sealed partial class ExecutionPlanBuilder
                     break;
 
                 case EnterWithInstruction { ObjectExpression: not null, ObjectProgram: null } enterWithInstruction:
+                    if (AstShapeAnalyzer.ContainsAwait(enterWithInstruction.ObjectExpression) ||
+                        AstShapeAnalyzer.ContainsYield(enterWithInstruction.ObjectExpression))
+                    {
+                        break;
+                    }
+
                     if (!TryCompileExpressionProgram(enterWithInstruction.ObjectExpression, out var withObjectProgram, out var withFailure))
                     {
                         return FailExpressionProgram(

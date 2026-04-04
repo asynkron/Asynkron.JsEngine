@@ -104,11 +104,22 @@ internal struct ForOfLoopDriver : ILoopDriver
 
     public bool EmitMoveNext(EmitContext ctx, out int moveNextEntry, out int moveNextBranch)
     {
-        _instrPlan = IteratorInstructionTemplate.AppendInstructions(
-            ctx.Instructions, _plan,
-            -1, // breakIndex will be patched by WireMoveNext
-            _iteratorSymbol, _valueSymbol,
-            _iteratorSlotIndex, _valueSlotIndex);
+        if (!IteratorInstructionTemplate.TryAppendInstructions(
+                ctx.Instructions,
+                _plan,
+                -1, // breakIndex will be patched by WireMoveNext
+                _iteratorSymbol,
+                _valueSymbol,
+                _iteratorSlotIndex,
+                _valueSlotIndex,
+                out _instrPlan,
+                out var failureReason))
+        {
+            ctx.SetExpressionProgramFailure("IteratorInitInstruction", _plan.Iterable, failureReason);
+            moveNextEntry = -1;
+            moveNextBranch = -1;
+            return false;
+        }
 
         moveNextEntry = _instrPlan.MoveNextIndex;
         moveNextBranch = _instrPlan.MoveNextIndex;

@@ -1,6 +1,7 @@
 #region
 
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution.Instructions;
 
 #endregion
@@ -20,14 +21,20 @@ internal static class IteratorInstructionTemplate
     /// <param name="iteratorSlotIndex">Pre-allocated slot index for the iterator state.</param>
     /// <param name="valueSlotIndex">Pre-allocated slot index for the iteration value.</param>
     /// <returns>The instruction plan with slot indices.</returns>
-    public static IteratorInstructionPlan AppendInstructions(List<ExecutionInstruction> instructions,
+    public static bool TryAppendInstructions(
+        List<ExecutionInstruction> instructions,
         IteratorDriverPlan plan,
         int breakIndex,
         Symbol iteratorSymbol,
         Symbol valueSymbol,
         int iteratorSlotIndex,
-        int valueSlotIndex)
+        int valueSlotIndex,
+        out IteratorInstructionPlan instructionPlan,
+        out string? failureReason)
     {
+        instructionPlan = default;
+        failureReason = null;
+
         // For let/const declarations, the per-iteration bindings need TDZ during iterable evaluation.
         // This ensures `for (const x of [x])` throws ReferenceError for accessing x before initialization.
         var tdzBindings =
@@ -37,22 +44,46 @@ internal static class IteratorInstructionTemplate
                 : default;
         var tdzIsConst = plan.DeclarationKind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
 
+        ExpressionNode? iterableExpression = plan.Iterable;
+        ExpressionProgram? iterableProgram = null;
+        Asynkron.JsEngine.Parser.SourceReference? iterableSource = null;
+
+        if (!(AstShapeAnalyzer.ContainsAwait(plan.Iterable) || AstShapeAnalyzer.ContainsYield(plan.Iterable)))
+        {
+            if (!ExpressionProgramCompiler.TryCompile(plan.Iterable, out var compiledIterableProgram, out failureReason))
+            {
+                return false;
+            }
+
+            iterableExpression = null;
+            iterableProgram = compiledIterableProgram;
+            iterableSource = plan.Iterable.Source;
+        }
+
         var initIndex = instructions.Count;
         instructions.Add(new IteratorInitInstruction(
             plan.Kind,
             iteratorSymbol,
             iteratorSlotIndex,
             Next: -1,
-            IterableExpression: plan.Iterable,
+            IterableExpression: iterableExpression,
+            IterableProgram: iterableProgram,
             TdzBindings: tdzBindings,
-            TdzIsConst: tdzIsConst));
+            TdzIsConst: tdzIsConst,
+            IterableSource: iterableSource));
 
         var moveNextIndex = instructions.Count;
         instructions.Add(new IteratorMoveNextInstruction(plan.Kind, iteratorSymbol, valueSymbol, iteratorSlotIndex,
             valueSlotIndex, breakIndex, -1));
 
-        return new IteratorInstructionPlan(iteratorSymbol, valueSymbol, iteratorSlotIndex, valueSlotIndex, initIndex,
+        instructionPlan = new IteratorInstructionPlan(
+            iteratorSymbol,
+            valueSymbol,
+            iteratorSlotIndex,
+            valueSlotIndex,
+            initIndex,
             moveNextIndex);
+        return true;
     }
 
     public static void Wire(IteratorInstructionPlan plan, int bodyEntryIndex, List<ExecutionInstruction> instructions)

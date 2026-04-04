@@ -148,6 +148,20 @@ def parse_script_extensions(text):
     return props
 
 
+def subtract_codepoints(ranges, cps_to_remove):
+    """Remove specific code points from a list of ranges."""
+    result = []
+    for start, end in ranges:
+        seg_start = start
+        for cp in sorted(cp for cp in cps_to_remove if start <= cp <= end):
+            if cp > seg_start:
+                result.append((seg_start, cp - 1))
+            seg_start = cp + 1
+        if seg_start <= end:
+            result.append((seg_start, end))
+    return result
+
+
 def merge_ranges(ranges):
     """Merge overlapping/adjacent ranges."""
     if not ranges:
@@ -597,19 +611,39 @@ def main():
                         GC_LONG_TO_SHORT[alias] = GC_LONG_TO_SHORT[short_alias]
 
     # For Script_Extensions, each code point that has NO scx entry
-    # inherits its Script value. We need to merge.
-    # First, build the full Script_Extensions data
-    script_ext_full = defaultdict(list)
+    # inherits its Script value. Code points WITH an scx entry belong
+    # to exactly the scripts listed in ScriptExtensions.txt — their
+    # default Script value is NOT included unless explicitly listed.
+    #
+    # Algorithm:
+    # 1. Start from Script data (every code point inherits its Script value)
+    # 2. Collect all code points that have explicit Script_Extensions
+    # 3. Remove those code points from their default Script's set
+    # 4. Add them to each script listed in their Script_Extensions
 
-    # Start with script data for each script
-    for script_name, ranges in script_data.items():
-        script_ext_full[script_name].extend(ranges)
-
-    # Override with Script_Extensions data
-    # For code points in ScriptExtensions.txt, they belong to MULTIPLE scripts
-    # We need to add them to each script's extension list
+    # Build a set of all code points with explicit Script_Extensions
+    scx_override_cps = set()
     for script_code, ranges in script_ext_raw.items():
-        # Resolve short code to long name
+        for start, end in ranges:
+            for cp in range(start, end + 1):
+                scx_override_cps.add(cp)
+
+    # Build a mapping from code point → default Script name (long name)
+    cp_to_script = {}
+    for script_name, ranges in script_data.items():
+        for start, end in ranges:
+            for cp in range(start, end + 1):
+                cp_to_script[cp] = script_name
+
+    # Start with script data, but remove code points that have scx overrides
+    script_ext_full = defaultdict(list)
+    for script_name, ranges in script_data.items():
+        filtered = subtract_codepoints(ranges, scx_override_cps)
+        if filtered:
+            script_ext_full[script_name].extend(filtered)
+
+    # Add Script_Extensions data — each code point goes to every listed script
+    for script_code, ranges in script_ext_raw.items():
         long_name = script_aliases.get(script_code, script_code)
         script_ext_full[long_name].extend(ranges)
 

@@ -25,6 +25,16 @@ public sealed class JsRegExp
     private static readonly ConcurrentDictionary<(string Expression, bool Negate), string>
         PropertyEscapePatternCache = new();
 
+    /// <summary>
+    /// Normalized pattern length above which we skip RegexOptions.Compiled.
+    /// Unicode property-escape patterns (e.g. \p{Script=Arabic}) expand to
+    /// thousands of character alternations. JIT-compiling these takes hundreds
+    /// of ms and tens of MB per pattern — far exceeding any matching benefit
+    /// for typical test262 usage (a few matches per regex). 1024 chars covers
+    /// all "normal" patterns while excluding the expanded property escapes.
+    /// </summary>
+    private const int LargePatternThreshold = 1024;
+
     private const string AnyCodePointPattern =
         @"(?<![\uD800-\uDBFF])(?:[\uD800-\uDBFF][\uDC00-\uDFFF]|[\u0000-\uD7FF\uE000-\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|[\uDC00-\uDFFF])";
 
@@ -129,6 +139,15 @@ public sealed class JsRegExp
     /// </summary>
     private int[]? _groupReorderMap;
 
+    /// <summary>
+    /// For each .NET group index, the .NET group index of its nearest ancestor that
+    /// is followed by a quantifier (+, *, {n,m}). -1 if the group is not inside a
+    /// quantified construct. Used for ES capture-group-reset semantics: when a quantifier
+    /// iterates, groups inside it that didn't participate in the last iteration must be
+    /// reported as undefined rather than retaining their stale value from a prior iteration.
+    /// </summary>
+    private int[]? _quantifiedAncestorMap;
+
     private Regex? _compiledRegex;
 
     public JsRegExp(string pattern, string flags = "", RealmState? realmState = null, JsObject? existingObject = null)
@@ -151,9 +170,16 @@ public sealed class JsRegExp
         _groupNameMapping = nameMapping;
 
         // Convert JavaScript regex flags to .NET RegexOptions.
-        // Always use Compiled: the JIT cost is amortized across matches,
-        // and large property-escape patterns are orders of magnitude faster compiled.
-        var options = RegexOptions.CultureInvariant | RegexOptions.Compiled;
+        // Use Compiled for small-to-medium patterns where JIT cost is amortized
+        // across matches. For large patterns (e.g. Unicode property escapes with
+        // thousands of character alternations), the JIT compilation itself takes
+        // hundreds of milliseconds and megabytes of memory — use interpreted mode
+        // which is still fast for matching but skips the upfront JIT cost.
+        var options = RegexOptions.CultureInvariant;
+        if (_normalizedPattern.Length <= LargePatternThreshold)
+        {
+            options |= RegexOptions.Compiled;
+        }
         if (IgnoreCase)
         {
             options |= RegexOptions.IgnoreCase;
@@ -176,6 +202,7 @@ public sealed class JsRegExp
         {
             var regex = EnsureRegex();
             _groupReorderMap = BuildGroupReorderMap(regex, _normalizedPattern);
+            _quantifiedAncestorMap = BuildQuantifiedAncestorMap(regex, _normalizedPattern);
         }
         catch (ArgumentException ex)
         {
@@ -494,6 +521,14 @@ public sealed class JsRegExp
             captureValues[i] = group.Success ? new JsValue(group.Value) : JsValue.Undefined;
         }
 
+        // ES capture-group-reset: when a group is inside a quantified construct and its
+        // last capture doesn't fall within the last iteration of the quantifier, the group
+        // should be undefined (it was reset by a later iteration that didn't match it).
+        if (_quantifiedAncestorMap is { } qaMap)
+        {
+            ApplyCaptureGroupResets(match, captureValues, qaMap);
+        }
+
         // Push to result array in JS (left-to-right) order.
         if (reorderMap is not null && reorderMap.Length <= match.Groups.Count)
         {
@@ -549,6 +584,57 @@ public sealed class JsRegExp
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Implements ES capture-group-reset semantics (ES2024 21.2.2.5.1 step 4.b).
+    /// When a quantifier (+, *, {n,m}) iterates, all capturing groups inside it are
+    /// reset to undefined at the start of each iteration. .NET doesn't do this — it
+    /// retains the value from the last successful capture across iterations. We fix
+    /// this by checking whether each group's last capture falls within the range of
+    /// the last iteration of its nearest quantified ancestor. If not, the group's
+    /// value is reset to undefined.
+    /// </summary>
+    private static void ApplyCaptureGroupResets(Match match, JsValue[] captureValues, int[] quantifiedAncestorMap)
+    {
+        for (var g = 1; g < captureValues.Length && g < quantifiedAncestorMap.Length; g++)
+        {
+            var ancestorIdx = quantifiedAncestorMap[g];
+            if (ancestorIdx < 0 || ancestorIdx >= match.Groups.Count)
+            {
+                continue;
+            }
+
+            var group = match.Groups[g];
+            if (!group.Success || group.Captures.Count == 0)
+            {
+                continue;
+            }
+
+            var ancestor = match.Groups[ancestorIdx];
+            if (ancestor.Captures.Count <= 1)
+            {
+                // Ancestor only iterated once — no reset needed.
+                continue;
+            }
+
+            // Get the range of the ancestor's last iteration.
+            var lastAncestorCapture = ancestor.Captures[ancestor.Captures.Count - 1];
+            var aStart = lastAncestorCapture.Index;
+            var aEnd = aStart + lastAncestorCapture.Length;
+
+            // Get the range of this group's last capture.
+            var lastGroupCapture = group.Captures[group.Captures.Count - 1];
+            var gStart = lastGroupCapture.Index;
+            var gEnd = gStart + lastGroupCapture.Length;
+
+            // If the group's last capture is entirely outside the ancestor's last iteration,
+            // it was from a prior iteration and should be reset to undefined.
+            if (gEnd <= aStart || gStart >= aEnd)
+            {
+                captureValues[g] = JsValue.Undefined;
+            }
+        }
     }
 
     private JsObject? BuildGroupsObject(Match match, JsValue[] captureValues)
@@ -1032,6 +1118,163 @@ public sealed class JsRegExp
         }
 
         return map;
+    }
+
+    /// <summary>
+    /// Builds a map from each .NET group index to the .NET group index of its nearest
+    /// quantified ancestor (a group followed by +, *, ?, or {n,m}). Returns null if no
+    /// groups are inside quantifiers. Used by <see cref="CreateMatchArray"/> to implement
+    /// ES capture-group-reset semantics.
+    /// </summary>
+    private static int[]? BuildQuantifiedAncestorMap(Regex regex, string normalizedPattern)
+    {
+        var groupNumbers = regex.GetGroupNumbers();
+        if (groupNumbers.Length <= 1)
+        {
+            return null;
+        }
+
+        // Walk the normalized pattern and track:
+        // - group nesting (stack of .NET group numbers)
+        // - which groups are followed by a quantifier
+        var groupStack = new Stack<int>(); // .NET group numbers
+        var groupClosePositions = new Dictionary<int, int>(); // .NET group number → close paren position
+        var dotNetGroupNumberForPatternGroup = new List<int>(); // sequential pattern group index → .NET group number
+        var parentGroup = new Dictionary<int, int>(); // .NET group number → parent .NET group number (-1 for root)
+
+        var i = 0;
+        var escaped = false;
+        var inCharClass = false;
+
+        while (i < normalizedPattern.Length)
+        {
+            var c = normalizedPattern[i];
+
+            if (escaped) { escaped = false; i++; continue; }
+            if (c == '\\') { escaped = true; i++; continue; }
+            if (c == '[' && !inCharClass) { inCharClass = true; i++; continue; }
+            if (c == ']' && inCharClass) { inCharClass = false; i++; continue; }
+            if (inCharClass) { i++; continue; }
+
+            if (c == '(')
+            {
+                // Determine if this is a capturing group and its .NET group number
+                var isCapturing = true;
+                var dotNetGroupNum = -1;
+
+                if (i + 1 < normalizedPattern.Length && normalizedPattern[i + 1] == '?')
+                {
+                    // Check for (?<name>...) — capturing named group
+                    if (i + 2 < normalizedPattern.Length && normalizedPattern[i + 2] == '<' &&
+                        i + 3 < normalizedPattern.Length && normalizedPattern[i + 3] != '=' && normalizedPattern[i + 3] != '!')
+                    {
+                        var nameEnd = normalizedPattern.IndexOf('>', i + 3);
+                        if (nameEnd != -1)
+                        {
+                            var name = normalizedPattern.Substring(i + 3, nameEnd - (i + 3));
+                            dotNetGroupNum = regex.GroupNumberFromName(name);
+                        }
+                    }
+                    else
+                    {
+                        // Non-capturing: (?:...), (?=...), (?!...), (?<=...), (?<!...), (?>...)
+                        isCapturing = false;
+                    }
+                }
+
+                if (isCapturing && dotNetGroupNum == -1)
+                {
+                    // Unnamed capturing group — sequential number
+                    dotNetGroupNum = dotNetGroupNumberForPatternGroup.Count + 1;
+                }
+
+                if (isCapturing && dotNetGroupNum > 0)
+                {
+                    dotNetGroupNumberForPatternGroup.Add(dotNetGroupNum);
+                    parentGroup[dotNetGroupNum] = groupStack.Count > 0 ? groupStack.Peek() : -1;
+                    groupStack.Push(dotNetGroupNum);
+                }
+                else
+                {
+                    // Non-capturing group — assign a synthetic negative ID so we can track
+                    // quantifiers on non-capturing groups (e.g. (?:X){3} where X contains captures).
+                    var syntheticId = -(dotNetGroupNumberForPatternGroup.Count + 1000);
+                    parentGroup[syntheticId] = groupStack.Count > 0 ? groupStack.Peek() : -1;
+                    groupStack.Push(syntheticId);
+                }
+
+                i++;
+                continue;
+            }
+
+            if (c == ')' && groupStack.Count > 0)
+            {
+                var closedGroup = groupStack.Pop();
+                if (closedGroup > 0)
+                {
+                    groupClosePositions[closedGroup] = i;
+                }
+
+                i++;
+                continue;
+            }
+
+            i++;
+        }
+
+        // Now scan for quantifiers after each group close
+        var quantifiedGroups = new HashSet<int>(); // .NET group numbers that are quantified
+        foreach (var (groupNum, closePos) in groupClosePositions)
+        {
+            var next = closePos + 1;
+            if (next < normalizedPattern.Length)
+            {
+                var nc = normalizedPattern[next];
+                if (nc is '+' or '*' or '?' or '{')
+                {
+                    quantifiedGroups.Add(groupNum);
+                }
+            }
+        }
+
+        if (quantifiedGroups.Count == 0)
+        {
+            return null;
+        }
+
+        // Build the ancestor map: for each group, find its nearest quantified ancestor
+        var map = new int[groupNumbers.Length];
+        var hasAnyAncestor = false;
+
+        for (var g = 0; g < groupNumbers.Length; g++)
+        {
+            map[g] = -1;
+            var gn = groupNumbers[g];
+            if (gn == 0) continue;
+
+            // Walk up the parent chain
+            if (!parentGroup.TryGetValue(gn, out var parent))
+            {
+                continue;
+            }
+
+            while (parent > 0)
+            {
+                if (quantifiedGroups.Contains(parent))
+                {
+                    map[g] = Array.IndexOf(groupNumbers, parent);
+                    hasAnyAncestor = true;
+                    break;
+                }
+
+                if (!parentGroup.TryGetValue(parent, out parent))
+                {
+                    break;
+                }
+            }
+        }
+
+        return hasAnyAncestor ? map : null;
     }
 
     private static string NormalizePattern(string pattern, bool hasUnicodeFlag, bool hasUnicodeSetsFlag, bool ignoreCase, bool dotAll, bool multiline)

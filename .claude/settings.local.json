@@ -16,7 +16,8 @@
       "Bash(git add:*)",
       "Bash(git push:*)",
       "Bash(gh pr create:*)",
-      "Bash(gh pr merge:*)"
+      "Bash(gh pr merge:*)",
+      "Bash(find . -path *dst-day*)"
     ],
     "deny": [],
     "ask": []

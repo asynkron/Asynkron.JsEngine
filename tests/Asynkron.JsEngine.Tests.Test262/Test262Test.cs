@@ -214,7 +214,7 @@ try {
         return engine;
     }
 
-    private static JsEngine BuildTestExecutor(Test262File file)
+    private static (JsEngine Engine, Test262AgentRuntime AgentRuntime) BuildTestExecutor(Test262File file)
     {
         var debugMode = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("JSENGINE_TRACE_REALM"));
         var logger = debugMode
@@ -231,7 +231,7 @@ try {
         if (file.Flags.Contains("raw"))
         {
             // nothing should be loaded
-            return engine;
+            return (engine, null!);
         }
 
         // Execute test harness files
@@ -601,7 +601,7 @@ try {
             ExecuteHarnessProgram(engine, State.Sources["doneprintHandle.js"]);
         }
 
-        return engine;
+        return (engine, agentRuntime);
     }
 
     private static HostFunction CreateAbstractModuleSource(JsEngine engine)

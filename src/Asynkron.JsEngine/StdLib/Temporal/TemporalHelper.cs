@@ -3185,7 +3185,7 @@ public static class TemporalHelper
                 return JsValue.Null;
             }
 
-            // Named timezone — find transitions using .NET TimeZoneInfo
+            // Named timezone — find transitions using binary search over UTC offset changes
             try
             {
                 var tz = FindTimeZone(timeZoneId);
@@ -3200,78 +3200,25 @@ public static class TemporalHelper
                 var epochMs = (long)(epochNs / 1_000_000);
                 var dto = DateTimeOffset.FromUnixTimeMilliseconds(epochMs);
 
+                DateTimeOffset? transition;
                 if (isNext)
                 {
-                    // Find next transition by scanning forward
-                    var current = dto.UtcDateTime;
-                    var rules = tz.GetAdjustmentRules();
-                    DateTimeOffset? nextTransition = null;
-
-                    foreach (var rule in rules)
-                    {
-                        if (rule.DateEnd < current) continue;
-
-                        // Check transition start
-                        var transStart = GetTransitionPoint(rule.DaylightTransitionStart, rule.DateStart.Year > current.Year ? rule.DateStart.Year : current.Year, tz);
-                        if (transStart.HasValue && transStart.Value.UtcDateTime > current)
-                        {
-                            if (!nextTransition.HasValue || transStart.Value < nextTransition.Value)
-                                nextTransition = transStart;
-                        }
-
-                        // Check transition end
-                        var transEnd = GetTransitionPoint(rule.DaylightTransitionEnd, rule.DateStart.Year > current.Year ? rule.DateStart.Year : current.Year, tz);
-                        if (transEnd.HasValue && transEnd.Value.UtcDateTime > current)
-                        {
-                            if (!nextTransition.HasValue || transEnd.Value < nextTransition.Value)
-                                nextTransition = transEnd;
-                        }
-                    }
-
-                    if (nextTransition.HasValue)
-                    {
-                        var transNs = new JsTemporalInstant(nextTransition.Value).EpochNanoseconds;
-                        var transInstant = new JsTemporalInstant(transNs);
-                        var transZdt = new JsTemporalZonedDateTime(transInstant, timeZoneId, CanonicalizeCalendarId(zdt.Calendar));
-                        return WrapZonedDateTime(transZdt, realm, prototype);
-                    }
+                    transition = FindTransitionBinarySearch(tz, dto, true);
                 }
                 else
                 {
-                    // Find previous transition by scanning backward
-                    var current = dto.UtcDateTime;
-                    var rules = tz.GetAdjustmentRules();
-                    DateTimeOffset? prevTransition = null;
+                    transition = FindTransitionBinarySearch(tz, dto, false);
+                }
 
-                    foreach (var rule in rules)
-                    {
-                        if (rule.DateStart > current) continue;
-
-                        var year = current.Year;
-                        if (rule.DateEnd.Year < year) year = rule.DateEnd.Year;
-
-                        var transStart = GetTransitionPoint(rule.DaylightTransitionStart, year, tz);
-                        if (transStart.HasValue && transStart.Value.UtcDateTime < current)
-                        {
-                            if (!prevTransition.HasValue || transStart.Value > prevTransition.Value)
-                                prevTransition = transStart;
-                        }
-
-                        var transEnd = GetTransitionPoint(rule.DaylightTransitionEnd, year, tz);
-                        if (transEnd.HasValue && transEnd.Value.UtcDateTime < current)
-                        {
-                            if (!prevTransition.HasValue || transEnd.Value > prevTransition.Value)
-                                prevTransition = transEnd;
-                        }
-                    }
-
-                    if (prevTransition.HasValue)
-                    {
-                        var transNs = new JsTemporalInstant(prevTransition.Value).EpochNanoseconds;
-                        var transInstant = new JsTemporalInstant(transNs);
-                        var transZdt = new JsTemporalZonedDateTime(transInstant, timeZoneId, CanonicalizeCalendarId(zdt.Calendar));
-                        return WrapZonedDateTime(transZdt, realm, prototype);
-                    }
+                if (transition.HasValue)
+                {
+                    var transNs = new JsTemporalInstant(transition.Value).EpochNanoseconds;
+                    // Clamp to valid instant range
+                    if (transNs < InstantMinEpochNanoseconds || transNs > InstantMaxEpochNanoseconds)
+                        return JsValue.Null;
+                    var transInstant = new JsTemporalInstant(transNs);
+                    var transZdt = new JsTemporalZonedDateTime(transInstant, timeZoneId, CanonicalizeCalendarId(zdt.Calendar));
+                    return WrapZonedDateTime(transZdt, realm, prototype);
                 }
 
                 return JsValue.Null;
@@ -4306,6 +4253,92 @@ public static class TemporalHelper
     }
 
     /// <summary>
+    /// Finds the next or previous timezone transition from a given DateTimeOffset using binary search.
+    /// Uses GetUtcOffset(DateTimeOffset) which is unambiguous — avoids issues with ambiguous local times.
+    /// </summary>
+    private static DateTimeOffset? FindTransitionBinarySearch(TimeZoneInfo tz, DateTimeOffset from, bool forward)
+    {
+        var startOffset = tz.GetUtcOffset(from);
+        DateTimeOffset lo = from, hi = from;
+        var found = false;
+
+        if (forward)
+        {
+            lo = from;
+            var step = TimeSpan.FromDays(1);
+            var scanPoint = from.Add(step);
+            var iterations = 0;
+
+            while (iterations++ < 800)
+            {
+                try
+                {
+                    var scanOffset = tz.GetUtcOffset(scanPoint);
+                    if (scanOffset != startOffset)
+                    {
+                        hi = scanPoint;
+                        found = true;
+                        break;
+                    }
+                    lo = scanPoint;
+                    startOffset = scanOffset;
+                }
+                catch { break; }
+
+                scanPoint = scanPoint.Add(step);
+                if (iterations == 14) step = TimeSpan.FromDays(30);
+                if (iterations == 30) step = TimeSpan.FromDays(180);
+            }
+        }
+        else
+        {
+            hi = from;
+            var step = TimeSpan.FromDays(1);
+            var scanPoint = from.Subtract(step);
+            var iterations = 0;
+
+            while (iterations++ < 800)
+            {
+                try
+                {
+                    var scanOffset = tz.GetUtcOffset(scanPoint);
+                    if (scanOffset != startOffset)
+                    {
+                        lo = scanPoint;
+                        found = true;
+                        break;
+                    }
+                    hi = scanPoint;
+                    startOffset = scanOffset;
+                }
+                catch { break; }
+
+                scanPoint = scanPoint.Subtract(step);
+                if (iterations == 14) step = TimeSpan.FromDays(30);
+                if (iterations == 30) step = TimeSpan.FromDays(180);
+            }
+        }
+
+        if (!found) return null;
+
+        // Binary search for exact transition second
+        var loOffset = tz.GetUtcOffset(lo);
+        while ((hi - lo).TotalSeconds > 1)
+        {
+            var mid = lo.Add((hi - lo) / 2);
+            if (tz.GetUtcOffset(mid) == loOffset)
+                lo = mid;
+            else
+                hi = mid;
+        }
+
+        // hi is the first second with the new offset = the transition point
+        // Align to second boundary in UTC
+        var utc = hi.UtcDateTime;
+        return new DateTimeOffset(utc.Year, utc.Month, utc.Day,
+            utc.Hour, utc.Minute, utc.Second, TimeSpan.Zero);
+    }
+
     ///     Normalizes a UTC offset string to a colon-separated Temporal form.
     ///     Handles +HH, +HHMM, +HHMMSS, and already-colonized offsets.
     /// </summary>
@@ -6225,42 +6258,50 @@ public static class TemporalHelper
             return balanced;
         }
 
-        // Date-containing: convert to local PlainDateTime and diff
+        // Date-containing: use epoch ns arithmetic for timezone-aware difference
         var localDt = GetLocalPlainDateTime(zdt, realm);
         var localOther = GetLocalPlainDateTime(other, realm);
 
-        var timeDiffNanos = new BigInteger(localOther.Time.TotalNanoseconds) -
-                            new BigInteger(localDt.Time.TotalNanoseconds);
-        var dateSign = CompareISODate(
-            localDt.Date.Year, localDt.Date.Month, localDt.Date.Day,
-            localOther.Date.Year, localOther.Date.Month, localOther.Date.Day);
-        // dateSign < 0 means dt < other (forward), dateSign > 0 means backward
-        long timeExtraDays = 0;
-        if (timeDiffNanos < 0 && dateSign < 0)
+        // Overall direction (epoch ns comparison)
+        var overallSign = other.Instant.EpochNanoseconds.CompareTo(zdt.Instant.EpochNanoseconds);
+        if (overallSign == 0)
         {
-            // Forward in dates, backward in time → borrow a day from date
-            timeExtraDays = -1;
-            timeDiffNanos += NanosecondsPerDay;
-        }
-        else if (timeDiffNanos > 0 && dateSign > 0)
-        {
-            // Backward in dates, forward in time → borrow a day
-            timeExtraDays = 1;
-            timeDiffNanos -= NanosecondsPerDay;
+            var zeroResult = new JsTemporalDuration(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+            if (isSince) zeroResult = zeroResult.Negated();
+            return zeroResult;
         }
 
+        // Step 1: Compute initial date difference from local dates
         var adjEndY = localOther.Date.Year;
         var adjEndM = localOther.Date.Month;
         var adjEndD = localOther.Date.Day;
-        if (timeExtraDays != 0)
-        {
-            var epochDay = IsoToDayNumber(adjEndY, adjEndM, adjEndD) + timeExtraDays;
-            (adjEndY, adjEndM, adjEndD) = DayNumberToIsoDate(epochDay);
-        }
-
         var (years, months, weeks, days) = DifferenceISODate(
             localDt.Date.Year, localDt.Date.Month, localDt.Date.Day,
             adjEndY, adjEndM, adjEndD, settings.LargestUnit);
+
+        // Step 2: Compute intermediate epoch ns (start + date-only diff in timezone)
+        var dateDur = new JsTemporalDuration(years, months, weeks, days, 0, 0, 0, 0, 0, 0);
+        var intermediateNs = AddZonedDateTimeEpochNs(zdt, dateDur, realm);
+
+        // Step 3: Time diff via epoch ns (automatically DST-aware)
+        var timeDiffNanos = other.Instant.EpochNanoseconds - intermediateNs;
+
+        // Step 4: Handle overshoot (time diff sign opposes overall direction)
+        var timeSign = timeDiffNanos > 0 ? 1 : timeDiffNanos < 0 ? -1 : 0;
+        if (timeSign != 0 && timeSign == -overallSign)
+        {
+            // Adjust end date by -overallSign (borrow a day)
+            var epochDay = IsoToDayNumber(adjEndY, adjEndM, adjEndD) - overallSign;
+            (adjEndY, adjEndM, adjEndD) = DayNumberToIsoDate(epochDay);
+
+            (years, months, weeks, days) = DifferenceISODate(
+                localDt.Date.Year, localDt.Date.Month, localDt.Date.Day,
+                adjEndY, adjEndM, adjEndD, settings.LargestUnit);
+
+            dateDur = new JsTemporalDuration(years, months, weeks, days, 0, 0, 0, 0, 0, 0);
+            intermediateNs = AddZonedDateTimeEpochNs(zdt, dateDur, realm);
+            timeDiffNanos = other.Instant.EpochNanoseconds - intermediateNs;
+        }
 
         // Apply rounding
         var zdtSmallestRank = UnitRank(settings.SmallestUnit);
@@ -6288,11 +6329,12 @@ public static class TemporalHelper
             timeDiffNanos = RoundToIncrement(timeDiffNanos, incNs, settings.RoundingMode);
         }
 
-        // Check for day overflow after time rounding
-        if (timeDiffNanos >= NanosecondsPerDay || timeDiffNanos <= -NanosecondsPerDay)
+        // Check for day overflow after time rounding (use actual timezone day length)
+        var actualDayLengthNs = ComputeDayLengthNsAtIntermediate(zdt, dateDur, overallSign, realm);
+        if (BigInteger.Abs(timeDiffNanos) >= actualDayLengthNs)
         {
-            var dayOverflow = (long)(timeDiffNanos / NanosecondsPerDay);
-            timeDiffNanos -= dayOverflow * NanosecondsPerDay;
+            var dayOverflow = (long)(timeDiffNanos / actualDayLengthNs);
+            timeDiffNanos -= dayOverflow * actualDayLengthNs;
 
             var newEndEpoch = IsoToDayNumber(adjEndY, adjEndM, adjEndD) + dayOverflow;
             (adjEndY, adjEndM, adjEndD) = DayNumberToIsoDate(newEndEpoch);
@@ -7861,8 +7903,7 @@ public static class TemporalHelper
 
                     if (string.Equals(unit, "day", StringComparison.Ordinal))
                     {
-                        var dayLengthNs = ComputeActualDayLengthNs(zonedDateTimeRelativeTo, realm);
-                        return DivideToDouble(actualTotalNs, dayLengthNs);
+                        return TotalDaysForZonedDateTime(zonedDateTimeRelativeTo, actualTotalNs, realm);
                     }
 
                     var unitNsActual = new BigInteger(GetUnitNanoseconds(unit));
@@ -7873,11 +7914,10 @@ public static class TemporalHelper
                 var totalNs = DurationToTotalNanoseconds(0, duration.Hours, duration.Minutes,
                     duration.Seconds, duration.Milliseconds, duration.Microseconds, duration.Nanoseconds);
 
-                // For day unit, compute actual day length (DST-aware) instead of fixed 24h
+                // For day unit, iterate through actual timezone day lengths (DST-aware)
                 if (string.Equals(unit, "day", StringComparison.Ordinal))
                 {
-                    var dayLengthNs = ComputeActualDayLengthNs(zonedDateTimeRelativeTo, realm);
-                    return DivideToDouble(totalNs, dayLengthNs);
+                    return TotalDaysForZonedDateTime(zonedDateTimeRelativeTo, totalNs, realm);
                 }
 
                 var unitNs = new BigInteger(GetUnitNanoseconds(unit));
@@ -8082,12 +8122,10 @@ public static class TemporalHelper
 
         if (string.Equals(unit, "day", StringComparison.Ordinal))
         {
-            // For day unit with ZDT, compute actual day length from timezone
-            // (DST transitions make days 23h or 25h)
+            // For day unit with ZDT, iterate through actual timezone day lengths (DST-aware)
             var endEpochNs = AddZonedDateTimeEpochNs(relativeTo, duration, realm);
             var diffNs = endEpochNs - relativeTo.Instant.EpochNanoseconds;
-            var dayLengthNs = ComputeActualDayLengthNs(relativeTo, realm);
-            return DivideToDouble(diffNs, dayLengthNs);
+            return TotalDaysForZonedDateTime(relativeTo, diffNs, realm);
         }
 
         // For calendar units (week/month/year), validate the target epoch ns, then use PlainDate logic
@@ -8107,17 +8145,16 @@ public static class TemporalHelper
     /// <summary>
     /// Computes the actual length of a day starting at the given ZonedDateTime in nanoseconds.
     /// Accounts for DST transitions (23h, 25h days, etc.).
+    /// The direction parameter determines whether to measure forward (+1) or backward (-1).
     /// </summary>
-    private static BigInteger ComputeActualDayLengthNs(JsTemporalZonedDateTime zdt, RealmState realm)
+    private static BigInteger ComputeActualDayLengthNs(JsTemporalZonedDateTime zdt, int direction, RealmState realm)
     {
         try
         {
-            // Add 1 calendar day to the ZDT and measure the epoch ns difference
-            var oneDayDuration = new JsTemporalDuration(0, 0, 0, 1, 0, 0, 0, 0, 0, 0);
+            var oneDayDuration = new JsTemporalDuration(0, 0, 0, direction, 0, 0, 0, 0, 0, 0);
             var nextDayEpochNs = AddZonedDateTimeEpochNs(zdt, oneDayDuration, realm);
-            var dayLength = nextDayEpochNs - zdt.Instant.EpochNanoseconds;
+            var dayLength = BigInteger.Abs(nextDayEpochNs - zdt.Instant.EpochNanoseconds);
 
-            // Guard: if the result is non-positive (extremely unusual), fallback to 24h
             if (dayLength <= 0)
                 return NanosecondsPerDay;
 
@@ -8125,9 +8162,88 @@ public static class TemporalHelper
         }
         catch
         {
-            // Fallback to standard 24h day if computation fails
             return NanosecondsPerDay;
         }
+    }
+
+    /// <summary>
+    /// Computes the actual day length at the intermediate point (start + dateDuration) in the timezone.
+    /// Used by DifferenceTemporalZonedDateTime for day overflow checks after rounding.
+    /// </summary>
+    private static BigInteger ComputeDayLengthNsAtIntermediate(
+        JsTemporalZonedDateTime zdt, JsTemporalDuration dateDur, int direction, RealmState realm)
+    {
+        try
+        {
+            var intermediateNs = AddZonedDateTimeEpochNs(zdt, dateDur, realm);
+            var nextDayDur = new JsTemporalDuration(
+                dateDur.Years, dateDur.Months, dateDur.Weeks,
+                dateDur.Days + direction, 0, 0, 0, 0, 0, 0);
+            var nextDayNs = AddZonedDateTimeEpochNs(zdt, nextDayDur, realm);
+            var dayLength = BigInteger.Abs(nextDayNs - intermediateNs);
+            if (dayLength <= 0) return NanosecondsPerDay;
+            return dayLength;
+        }
+        catch
+        {
+            return NanosecondsPerDay;
+        }
+    }
+
+    /// <summary>
+    /// Computes total days (as a double) for a given epoch ns difference relative to a ZonedDateTime.
+    /// Iterates through actual timezone day lengths to handle DST correctly.
+    /// </summary>
+    private static double TotalDaysForZonedDateTime(JsTemporalZonedDateTime relativeTo, BigInteger totalEpochNsDiff, RealmState realm)
+    {
+        if (totalEpochNsDiff.IsZero) return 0;
+
+        var sign = totalEpochNsDiff > 0 ? 1 : -1;
+        var absDiff = BigInteger.Abs(totalEpochNsDiff);
+        var wholeDays = 0;
+        var accumulatedNs = BigInteger.Zero;
+
+        // Count whole days by advancing through actual timezone day lengths
+        while (wholeDays < 200_000_000)
+        {
+            BigInteger nextBoundaryDiff;
+            try
+            {
+                var nextDayDur = new JsTemporalDuration(0, 0, 0, (wholeDays + 1) * sign, 0, 0, 0, 0, 0, 0);
+                var nextBoundaryNs = AddZonedDateTimeEpochNs(relativeTo, nextDayDur, realm);
+                nextBoundaryDiff = BigInteger.Abs(nextBoundaryNs - relativeTo.Instant.EpochNanoseconds);
+            }
+            catch
+            {
+                break;
+            }
+
+            if (nextBoundaryDiff > absDiff)
+                break;
+
+            accumulatedNs = nextBoundaryDiff;
+            wholeDays++;
+        }
+
+        var remainderNs = absDiff - accumulatedNs;
+
+        // Compute length of the partial day (the day we're partway through)
+        BigInteger partialDayLength;
+        try
+        {
+            var partialStartDur = new JsTemporalDuration(0, 0, 0, wholeDays * sign, 0, 0, 0, 0, 0, 0);
+            var partialEndDur = new JsTemporalDuration(0, 0, 0, (wholeDays + 1) * sign, 0, 0, 0, 0, 0, 0);
+            var partialStartNs = AddZonedDateTimeEpochNs(relativeTo, partialStartDur, realm);
+            var partialEndNs = AddZonedDateTimeEpochNs(relativeTo, partialEndDur, realm);
+            partialDayLength = BigInteger.Abs(partialEndNs - partialStartNs);
+            if (partialDayLength <= 0) partialDayLength = NanosecondsPerDay;
+        }
+        catch
+        {
+            partialDayLength = NanosecondsPerDay;
+        }
+
+        return sign * ((double)wholeDays + BigIntegerToDouble(remainderNs) / BigIntegerToDouble(partialDayLength));
     }
 
     /// <summary>

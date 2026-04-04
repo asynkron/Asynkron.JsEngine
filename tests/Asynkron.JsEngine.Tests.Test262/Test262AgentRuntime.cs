@@ -6,7 +6,7 @@ using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Tests.Test262;
 
-internal sealed class Test262AgentRuntime
+internal sealed class Test262AgentRuntime : IDisposable
 {
     private readonly Func<JsEngine> _createAgentEngine;
     private readonly IReadOnlyDictionary<string, string> _harnessSources;
@@ -17,6 +17,7 @@ internal sealed class Test262AgentRuntime
 
     private readonly object _agentsLock = new();
     private readonly List<AgentInstance> _agents = new();
+    private volatile bool _disposed;
 
     internal Test262AgentRuntime(Func<JsEngine> createAgentEngine, IReadOnlyDictionary<string, string> harnessSources)
     {
@@ -114,6 +115,34 @@ internal sealed class Test262AgentRuntime
     private void Report(string report)
     {
         _reports.Enqueue(report);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+
+        // Signal sleep to unblock any waiting main-thread $agent.sleep() calls.
+        _sleepEvent.Set();
+
+        // Tear down all agent worker threads.
+        AgentInstance[] agents;
+        lock (_agentsLock)
+        {
+            agents = _agents.ToArray();
+            _agents.Clear();
+        }
+
+        foreach (var agent in agents)
+        {
+            agent.Shutdown();
+        }
+
+        _sleepEvent.Dispose();
     }
 
     private sealed class AgentInstance
@@ -284,6 +313,26 @@ internal sealed class Test262AgentRuntime
             _broadcastQueue.CompleteAdding();
             _callbackReady.Set();
             return JsValue.Undefined;
+        }
+
+        /// <summary>
+        /// Force-stop the agent worker thread. Called during test teardown to prevent
+        /// leaked threads from holding engine references alive.
+        /// </summary>
+        internal void Shutdown()
+        {
+            Interlocked.Exchange(ref _leaving, 1);
+
+            try
+            {
+                _broadcastQueue.CompleteAdding();
+            }
+            catch
+            {
+                // Already completed.
+            }
+
+            _callbackReady.Set();
         }
     }
 }

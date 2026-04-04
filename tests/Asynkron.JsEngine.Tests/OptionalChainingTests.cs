@@ -84,6 +84,23 @@ public sealed class OptionalChainingTests(ITestOutputHelper output) : InternalTe
         Assert.Equal("Hello", result);
     }
 
+    [Fact(Timeout = 2000)]
+    public async Task OptionalComputedMethodCallPreservesThis()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let key = 'read';
+                                                       let box = {
+                                                           value: 42,
+                                                           read() { return this.value; }
+                                                       };
+                                                       box[key]?.();
+
+                                           """);
+        Assert.Equal(42d, result);
+    }
+
     // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.
     // The feature is implemented correctly and the test passes when run individually.
     [Fact(Timeout = 2000)]
@@ -149,4 +166,3 @@ public sealed class OptionalChainingTests(ITestOutputHelper output) : InternalTe
         Assert.Equal("foo", result);
     }
 }
-

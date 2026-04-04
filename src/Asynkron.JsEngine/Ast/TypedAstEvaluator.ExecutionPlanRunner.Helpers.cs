@@ -1959,24 +1959,24 @@ public static partial class TypedAstEvaluator
             LoadProgramNamedSuperCallTarget(propertyName, environment, context, out receiver, out callee);
         }
 
-        private static JsValue GetProgramNamedPropertyValue(
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static bool TryPrepareProgramPropertyRead(
             JsValue target,
             bool targetWasShortCircuited,
-            string propertyName,
-            bool isOptional,
+            bool shortCircuitOnNullishTarget,
             EvaluationContext context,
             out bool resultWasShortCircuited)
         {
             if (targetWasShortCircuited)
             {
                 resultWasShortCircuited = true;
-                return JsValue.Undefined;
+                return false;
             }
 
-            if (isOptional && target.IsNullOrUndefined)
+            if (shortCircuitOnNullishTarget && target.IsNullOrUndefined)
             {
                 resultWasShortCircuited = true;
-                return JsValue.Undefined;
+                return false;
             }
 
             if (target.IsNullOrUndefined)
@@ -1987,10 +1987,31 @@ public static partial class TypedAstEvaluator
                     context.RealmState);
                 context.SetThrow(error);
                 resultWasShortCircuited = false;
-                return JsValue.Undefined;
+                return false;
             }
 
             resultWasShortCircuited = false;
+            return true;
+        }
+
+        private static JsValue GetProgramNamedPropertyValue(
+            JsValue target,
+            bool targetWasShortCircuited,
+            string propertyName,
+            bool isOptional,
+            EvaluationContext context,
+            out bool resultWasShortCircuited)
+        {
+            if (!TryPrepareProgramPropertyRead(
+                    target,
+                    targetWasShortCircuited,
+                    isOptional,
+                    context,
+                    out resultWasShortCircuited))
+            {
+                return JsValue.Undefined;
+            }
+
             if (!propertyName.IsPrivateName())
             {
                 return JsOps.TryGetPropertyValue(target, propertyName, out var directValue, context)
@@ -2014,24 +2035,16 @@ public static partial class TypedAstEvaluator
             EvaluationContext context,
             out bool resultWasShortCircuited)
         {
-            if (targetWasShortCircuited)
-            {
-                resultWasShortCircuited = true;
-                return JsValue.Undefined;
-            }
-
-            if (target.IsNullOrUndefined)
-            {
-                var error = StandardLibrary.CreateTypeError(
-                    "Cannot read properties of null or undefined",
+            if (!TryPrepareProgramPropertyRead(
+                    target,
+                    targetWasShortCircuited,
+                    shortCircuitOnNullishTarget: false,
                     context,
-                    context.RealmState);
-                context.SetThrow(error);
-                resultWasShortCircuited = false;
+                    out resultWasShortCircuited))
+            {
                 return JsValue.Undefined;
             }
 
-            resultWasShortCircuited = false;
             return JsOps.TryGetPropertyValueJsValue(target, propertyKey, out var directValue, context)
                 ? directValue
                 : JsValue.Undefined;

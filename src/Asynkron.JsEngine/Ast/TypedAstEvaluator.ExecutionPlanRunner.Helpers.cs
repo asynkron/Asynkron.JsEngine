@@ -2092,7 +2092,7 @@ public static partial class TypedAstEvaluator
             Span<JsValue> stack,
             Span<bool> stackFlags,
             int stackIndex,
-            ReadOnlySpan<ImmutableArray<bool>> spreadMaskConstants,
+            ReadOnlySpan<ImmutableArray<int>> spreadMaskConstants,
             JsEnvironment environment,
             EvaluationContext context)
         {
@@ -2158,7 +2158,7 @@ public static partial class TypedAstEvaluator
                 IReadOnlyList<JsValue> arguments;
                 arguments = MaterializeProgramArguments(
                     call.ArgumentCount,
-                    call.GetSpreadMask(spreadMaskConstants),
+                    call.GetSpreadIndices(spreadMaskConstants),
                     stack,
                     calleeIndex + 1,
                     context,
@@ -2223,7 +2223,7 @@ public static partial class TypedAstEvaluator
             Span<JsValue> stack,
             Span<bool> stackFlags,
             int stackIndex,
-            ReadOnlySpan<ImmutableArray<bool>> spreadMaskConstants,
+            ReadOnlySpan<ImmutableArray<int>> spreadMaskConstants,
             EvaluationContext context)
         {
             var constructorIndex = stackIndex - construct.ArgumentCount - 1;
@@ -2248,7 +2248,7 @@ public static partial class TypedAstEvaluator
             {
                 var arguments = MaterializeProgramArguments(
                     construct.ArgumentCount,
-                    construct.GetSpreadMask(spreadMaskConstants),
+                    construct.GetSpreadIndices(spreadMaskConstants),
                     stack,
                     constructorIndex + 1,
                     context,
@@ -2283,7 +2283,7 @@ public static partial class TypedAstEvaluator
             Span<JsValue> stack,
             Span<bool> stackFlags,
             int stackIndex,
-            ReadOnlySpan<ImmutableArray<bool>> spreadMaskConstants,
+            ReadOnlySpan<ImmutableArray<int>> spreadMaskConstants,
             JsEnvironment environment,
             EvaluationContext context)
         {
@@ -2342,7 +2342,7 @@ public static partial class TypedAstEvaluator
 
                 var arguments = MaterializeProgramArguments(
                     superConstruct.ArgumentCount,
-                    superConstruct.GetSpreadMask(spreadMaskConstants),
+                    superConstruct.GetSpreadIndices(spreadMaskConstants),
                     stack,
                     baseIndex,
                     context,
@@ -2458,7 +2458,7 @@ public static partial class TypedAstEvaluator
 
         private IReadOnlyList<JsValue> MaterializeProgramArguments(
             int argumentCount,
-            ImmutableArray<bool> spreadMask,
+            ImmutableArray<int> spreadIndices,
             Span<JsValue> stack,
             int firstArgumentIndex,
             EvaluationContext context,
@@ -2471,15 +2471,18 @@ public static partial class TypedAstEvaluator
                 return [];
             }
 
-            if (!spreadMask.IsDefaultOrEmpty)
+            if (!spreadIndices.IsDefaultOrEmpty)
             {
                 var spreadArguments = ImmutableArray.CreateBuilder<JsValue>(argumentCount);
+                var spreadIndexPosition = 0;
                 for (var i = 0; i < argumentCount; i++)
                 {
                     var argumentValue = stack[firstArgumentIndex + i];
-                    if (spreadMask[i])
+                    if (spreadIndexPosition < spreadIndices.Length &&
+                        spreadIndices[spreadIndexPosition] == i)
                     {
                         spreadArguments.AddRange(EnumerateSpread(argumentValue, context));
+                        spreadIndexPosition++;
                     }
                     else
                     {

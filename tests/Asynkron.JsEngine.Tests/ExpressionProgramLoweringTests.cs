@@ -1071,6 +1071,26 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ReturnInstruction_MultiSpreadCallExpression_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function joinAll(left, middle, right) {
+                return String.raw(...left, middle, ...right);
+            }
+            """, "joinAll");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<LoadNamedCallTargetExpressionOp>(instruction.ReturnProgram, op => op.PropertyName == "raw");
+        AssertProgramContains<CallExpressionOp>(
+            instruction.ReturnProgram,
+            op => op.ArgumentCount == 3 &&
+                  op.HasExplicitThis &&
+                  !op.SpreadMask.IsDefaultOrEmpty &&
+                  op.SpreadMask.SequenceEqual([true, false, true]));
+    }
+
+    [Fact]
     public async Task ReturnInstruction_DotCallExpression_IsLoweredToExpressionProgram()
     {
         var plan = await GetFunctionPlan("""
@@ -1178,6 +1198,24 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         AssertProgramContains<ConstructExpressionOp>(
             instruction.ReturnProgram,
             op => op.ArgumentCount == 1 && !op.SpreadMask.IsDefaultOrEmpty && op.SpreadMask[0]);
+    }
+
+    [Fact]
+    public async Task ReturnInstruction_MultiSpreadNewExpression_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function createDate(years, months, day) {
+                return new Date(...years, ...months, day);
+            }
+            """, "createDate");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<ConstructExpressionOp>(
+            instruction.ReturnProgram,
+            op => op.ArgumentCount == 3 &&
+                  !op.SpreadMask.IsDefaultOrEmpty &&
+                  op.SpreadMask.SequenceEqual([true, true, false]));
     }
 
     [Fact]

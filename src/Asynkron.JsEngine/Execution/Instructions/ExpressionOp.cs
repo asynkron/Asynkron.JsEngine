@@ -84,13 +84,13 @@ internal readonly record struct ExpressionProgram
         ImmutableArray<string> stringConstants = default,
         ImmutableArray<object> objectConstants = default,
         ImmutableArray<IdentifierOperand> identifierConstants = default,
-        ImmutableArray<ImmutableArray<bool>> spreadMaskConstants = default)
+        ImmutableArray<ImmutableArray<int>> spreadMaskConstants = default)
     {
         Operations = operations;
         StringConstants = stringConstants.IsDefault ? ImmutableArray<string>.Empty : stringConstants;
         ObjectConstants = objectConstants.IsDefault ? ImmutableArray<object>.Empty : objectConstants;
         IdentifierConstants = identifierConstants.IsDefault ? ImmutableArray<IdentifierOperand>.Empty : identifierConstants;
-        SpreadMaskConstants = spreadMaskConstants.IsDefault ? ImmutableArray<ImmutableArray<bool>>.Empty : spreadMaskConstants;
+        SpreadMaskConstants = spreadMaskConstants.IsDefault ? ImmutableArray<ImmutableArray<int>>.Empty : spreadMaskConstants;
         MaxStackDepth = ComputeMaxStackDepth(operations);
     }
 
@@ -104,7 +104,7 @@ internal readonly record struct ExpressionProgram
 
     public ImmutableArray<IdentifierOperand> IdentifierConstants { get; init; }
 
-    public ImmutableArray<ImmutableArray<bool>> SpreadMaskConstants { get; init; }
+    public ImmutableArray<ImmutableArray<int>> SpreadMaskConstants { get; init; }
 
     public int MaxStackDepth { get; init; }
 
@@ -375,7 +375,7 @@ internal readonly struct PackedExpressionOp
         return identifierConstants[_int0];
     }
 
-    public ImmutableArray<bool> GetSpreadMask(ReadOnlySpan<ImmutableArray<bool>> spreadMaskConstants)
+    public ImmutableArray<int> GetSpreadIndices(ReadOnlySpan<ImmutableArray<int>> spreadMaskConstants)
     {
         return SpreadMaskConstantIndex < 0
             ? default

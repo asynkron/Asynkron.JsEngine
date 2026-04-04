@@ -323,7 +323,7 @@ internal static class ExecutionPlanPrinter
         ImmutableArray<string> stringConstants,
         ImmutableArray<object> objectConstants,
         ImmutableArray<IdentifierOperand> identifierConstants,
-        ImmutableArray<ImmutableArray<bool>> spreadMaskConstants)
+        ImmutableArray<ImmutableArray<int>> spreadMaskConstants)
     {
         var stringConstantSpan = stringConstants.AsSpan();
         var objectConstantSpan = objectConstants.AsSpan();
@@ -412,13 +412,13 @@ internal static class ExecutionPlanPrinter
             ExpressionOpKind.JumpIfTrue => $"jmpT:{op.Target}",
             ExpressionOpKind.JumpIfFalse => $"jmpF:{op.Target}",
             ExpressionOpKind.JumpIfNotNullish => $"jmpNN:{op.Target}",
-            ExpressionOpKind.SuperConstruct => op.GetSpreadMask(spreadMaskConstantSpan).IsDefaultOrEmpty
+            ExpressionOpKind.SuperConstruct => op.GetSpreadIndices(spreadMaskConstantSpan).IsDefaultOrEmpty
                 ? $"super/{op.ArgumentCount}"
                 : $"super*/{op.ArgumentCount}",
-            ExpressionOpKind.Call => op.GetSpreadMask(spreadMaskConstantSpan).IsDefaultOrEmpty
+            ExpressionOpKind.Call => op.GetSpreadIndices(spreadMaskConstantSpan).IsDefaultOrEmpty
                 ? $"call/{op.ArgumentCount}"
                 : $"call*/{op.ArgumentCount}",
-            ExpressionOpKind.Construct => op.GetSpreadMask(spreadMaskConstantSpan).IsDefaultOrEmpty
+            ExpressionOpKind.Construct => op.GetSpreadIndices(spreadMaskConstantSpan).IsDefaultOrEmpty
                 ? $"new/{op.ArgumentCount}"
                 : $"new*/{op.ArgumentCount}",
             _ => op.Kind.ToString()

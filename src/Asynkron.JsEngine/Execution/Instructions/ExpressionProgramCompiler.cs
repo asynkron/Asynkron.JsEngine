@@ -517,7 +517,7 @@ internal static class ExpressionProgramCompiler
         var targetShortCircuitJumpIndex = -1;
         var callNullishJumpIndex = -1;
         var calleeShortCircuitJumpIndex = -1;
-        List<bool>? spreadMaskBuilder = null;
+        List<int>? spreadMaskBuilder = null;
 
         switch (expression.Callee)
         {
@@ -660,17 +660,10 @@ internal static class ExpressionProgramCompiler
             {
                 if (spreadMaskBuilder is null)
                 {
-                    spreadMaskBuilder = new List<bool>(expression.Arguments.Length);
-                    for (var i = 0; i < argumentIndex; i++)
-                    {
-                        spreadMaskBuilder.Add(false);
-                    }
+                    spreadMaskBuilder = new List<int>();
                 }
-            }
 
-            if (spreadMaskBuilder is not null)
-            {
-                spreadMaskBuilder.Add(argument.IsSpread);
+                spreadMaskBuilder.Add(argumentIndex);
             }
         }
 
@@ -872,7 +865,7 @@ internal static class ExpressionProgramCompiler
         ExpressionProgramBuilder builder,
         out string? failureReason)
     {
-        List<bool>? spreadMaskBuilder = null;
+        List<int>? spreadMaskBuilder = null;
 
         if (!TryCompileExpression(expression.Constructor, builder, out failureReason))
         {
@@ -891,17 +884,10 @@ internal static class ExpressionProgramCompiler
             {
                 if (spreadMaskBuilder is null)
                 {
-                    spreadMaskBuilder = new List<bool>(expression.Arguments.Length);
-                    for (var i = 0; i < argumentIndex; i++)
-                    {
-                        spreadMaskBuilder.Add(false);
-                    }
+                    spreadMaskBuilder = new List<int>();
                 }
-            }
 
-            if (spreadMaskBuilder is not null)
-            {
-                spreadMaskBuilder.Add(argument.IsSpread);
+                spreadMaskBuilder.Add(argumentIndex);
             }
         }
 
@@ -2306,8 +2292,8 @@ internal static class ExpressionProgramCompiler
         private readonly Dictionary<object, int> _objectConstantMap = new(ReferenceEqualityComparer<object>.Instance);
         private readonly List<IdentifierOperand> _identifierConstants = [];
         private readonly Dictionary<IdentifierOperand, int> _identifierConstantMap = [];
-        private readonly List<ImmutableArray<bool>> _spreadMaskConstants = [];
-        private readonly Dictionary<ImmutableArray<bool>, int> _spreadMaskConstantMap = [];
+        private readonly List<ImmutableArray<int>> _spreadMaskConstants = [];
+        private readonly Dictionary<ImmutableArray<int>, int> _spreadMaskConstantMap = [];
 
         public int Count => _operations.Count;
 
@@ -2362,7 +2348,7 @@ internal static class ExpressionProgramCompiler
             return index;
         }
 
-        public int InternSpreadMask(ImmutableArray<bool> value)
+        public int InternSpreadMask(ImmutableArray<int> value)
         {
             if (_spreadMaskConstantMap.TryGetValue(value, out var existingIndex))
             {
@@ -2382,7 +2368,7 @@ internal static class ExpressionProgramCompiler
                 _stringConstants.Count == 0 ? ImmutableArray<string>.Empty : [.. _stringConstants],
                 _objectConstants.Count == 0 ? ImmutableArray<object>.Empty : [.. _objectConstants],
                 _identifierConstants.Count == 0 ? ImmutableArray<IdentifierOperand>.Empty : [.. _identifierConstants],
-                _spreadMaskConstants.Count == 0 ? ImmutableArray<ImmutableArray<bool>>.Empty : [.. _spreadMaskConstants]);
+                _spreadMaskConstants.Count == 0 ? ImmutableArray<ImmutableArray<int>>.Empty : [.. _spreadMaskConstants]);
         }
     }
 }

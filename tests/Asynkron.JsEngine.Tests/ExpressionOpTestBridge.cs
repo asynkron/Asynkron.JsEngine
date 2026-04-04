@@ -91,7 +91,35 @@ internal readonly record struct ExpressionOpView(PackedExpressionOp Operation, E
 
     public bool IsDirectEval => Operation.IsDirectEval;
 
-    public ImmutableArray<bool> SpreadMask => Operation.GetSpreadMask(Program.SpreadMaskConstants.AsSpan());
+    public ImmutableArray<bool> SpreadMask
+    {
+        get
+        {
+            var spreadIndices = Operation.GetSpreadIndices(Program.SpreadMaskConstants.AsSpan());
+            if (spreadIndices.IsDefaultOrEmpty)
+            {
+                return default;
+            }
+
+            var builder = ImmutableArray.CreateBuilder<bool>(ArgumentCount);
+            var spreadIndexPosition = 0;
+            for (var i = 0; i < ArgumentCount; i++)
+            {
+                if (spreadIndexPosition < spreadIndices.Length &&
+                    spreadIndices[spreadIndexPosition] == i)
+                {
+                    builder.Add(true);
+                    spreadIndexPosition++;
+                }
+                else
+                {
+                    builder.Add(false);
+                }
+            }
+
+            return builder.MoveToImmutable();
+        }
+    }
 
     private ReadOnlySpan<string> StringConstants => Program.StringConstants.AsSpan();
 

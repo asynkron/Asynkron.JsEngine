@@ -250,59 +250,10 @@ internal sealed partial class ExecutionPlanBuilder
 
     private bool LowerExpressionPayloads()
     {
-        for (var i = 0; i < Instructions.Count; i++)
-        {
-            switch (Instructions[i])
-            {
-                case ArrayDestructuringInitInstruction { SourceExpression: not null, SourceProgram: null } arrayDestructuringInitInstruction:
-                    if (!TryCompileExpressionProgram(arrayDestructuringInitInstruction.SourceExpression, out var destructuringSourceProgram, out var destructuringFailure))
-                    {
-                        return FailExpressionProgram(
-                            "ArrayDestructuringInitInstruction",
-                            arrayDestructuringInitInstruction.SourceExpression,
-                            destructuringFailure);
-                    }
-
-                    Instructions[i] = arrayDestructuringInitInstruction with
-                    {
-                        SourceExpression = null,
-                        SourceProgram = destructuringSourceProgram
-                    };
-                    break;
-            }
-        }
-
         return ValidateLoweredPayloads();
-
-        bool TryCompileExpressionProgram(ExpressionNode expression, out ExpressionProgram program, out string? failureReason)
-        {
-            return ExpressionProgramCompiler.TryCompile(expression, out program, out failureReason);
-        }
-
-        bool FailExpressionProgram(string instructionName, ExpressionNode expression, string? failureReason)
-        {
-            var classifiedFailure = ExpressionProgramCompiler.ClassifyFailure(expression, failureReason);
-            _failureCode ??= ExecutionPlanFailureCode.UnsupportedExpressionProgram;
-            _expressionFailureCode ??= classifiedFailure.Code;
-            _failureReason ??=
-                $"{instructionName} could not lower expression '{expression.GetType().Name}' to bytecode [{classifiedFailure.Code}]: {classifiedFailure.Detail}.";
-            return false;
-        }
 
         bool ValidateLoweredPayloads()
         {
-            for (var instructionIndex = 0; instructionIndex < Instructions.Count; instructionIndex++)
-            {
-                switch (Instructions[instructionIndex])
-                {
-                    case ArrayDestructuringInitInstruction { SourceExpression: not null }:
-                        _failureCode ??= ExecutionPlanFailureCode.AstPayloadLeak;
-                        _failureReason ??=
-                            $"Execution plan published with an AST payload leak at instruction [{instructionIndex}] ({Instructions[instructionIndex].Kind}).";
-                        return false;
-                }
-            }
-
             return true;
         }
     }

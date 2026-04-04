@@ -159,7 +159,14 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            return ExecuteInstructionLoop(ref environment, context);
+            try
+            {
+                return ExecuteInstructionLoop(ref environment, context);
+            }
+            finally
+            {
+                ReturnCachedExpressionBuffers();
+            }
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]

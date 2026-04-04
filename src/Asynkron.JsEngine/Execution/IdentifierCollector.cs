@@ -347,7 +347,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 return;
 
             case AssignmentSlotInstruction assign:
-                VisitExpressionProgram(assign.ValueProgram);
+                VisitExpressionProgram(assign.AwaitedProgram ?? assign.ValueProgram!.Value);
                 return;
 
             case SuspendingAssignmentSlotInstruction suspendingAssign:
@@ -355,7 +355,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 return;
 
             case LogicalCompoundAssignmentSlotInstruction logicalCompound:
-                VisitExpressionProgram(logicalCompound.RhsProgram);
+                VisitExpressionProgram(logicalCompound.AwaitedProgram ?? logicalCompound.RhsProgram!.Value);
                 return;
 
             case SuspendingLogicalCompoundAssignmentSlotInstruction suspendingLogicalCompound:
@@ -383,16 +383,16 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 return;
 
             case ThrowInstruction thr:
-                VisitExpressionProgram(thr.ThrowProgram);
+                VisitExpressionProgram(thr.AwaitedProgram ?? thr.ThrowProgram!.Value);
                 return;
 
             case BranchInstruction branch:
                 VisitExpressionProgram(branch.ConditionProgram);
                 return;
 
-            case SimpleVariableDeclarationInstruction { InitializerProgram: not null } varDecl:
+            case SimpleVariableDeclarationInstruction { InitializerProgram: not null or _, AwaitedProgram: not null } varDecl:
                 RegisterDeclaration(varDecl);
-                VisitExpressionProgram(varDecl.InitializerProgram.Value);
+                VisitExpressionProgram(varDecl.AwaitedProgram ?? varDecl.InitializerProgram!.Value);
                 return;
 
             case SimpleVariableDeclarationInstruction varDecl:
@@ -404,9 +404,9 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 Visit(suspendingVarDecl.Initializer);
                 return;
 
-            case BindingVariableDeclarationInstruction { InitializerProgram: not null } bindingDecl:
+            case BindingVariableDeclarationInstruction { InitializerProgram: not null or _, AwaitedProgram: not null } bindingDecl:
                 RegisterBindingDeclaration(bindingDecl);
-                VisitExpressionProgram(bindingDecl.InitializerProgram.Value);
+                VisitExpressionProgram(bindingDecl.AwaitedProgram ?? bindingDecl.InitializerProgram!.Value);
                 return;
 
             case BindingVariableDeclarationInstruction bindingDecl:
@@ -419,7 +419,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 return;
 
             case IteratorInitInstruction iterInit:
-                VisitExpressionProgram(iterInit.IterableProgram);
+                VisitExpressionProgram(iterInit.AwaitedProgram ?? iterInit.IterableProgram!.Value);
                 return;
 
             case SuspendingIteratorInitInstruction suspendingIteratorInit:
@@ -427,7 +427,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 return;
 
             case ForInInitInstruction forInInit:
-                VisitExpressionProgram(forInInit.ObjectProgram);
+                VisitExpressionProgram(forInInit.AwaitedProgram ?? forInInit.ObjectProgram!.Value);
                 return;
 
             case SuspendingForInInitInstruction suspendingForInInit:
@@ -435,7 +435,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 return;
 
             case CompoundAssignmentSlotInstruction compoundAssign:
-                VisitExpressionProgram(compoundAssign.RhsProgram);
+                VisitExpressionProgram(compoundAssign.AwaitedProgram ?? compoundAssign.RhsProgram!.Value);
                 return;
 
             case SuspendingCompoundAssignmentSlotInstruction suspendingCompoundAssign:
@@ -443,7 +443,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 return;
 
             case EnterWithInstruction enterWith:
-                VisitExpressionProgram(enterWith.ObjectProgram);
+                VisitExpressionProgram(enterWith.AwaitedProgram ?? enterWith.ObjectProgram!.Value);
                 return;
 
             case SuspendingEnterWithInstruction suspendingEnterWith:

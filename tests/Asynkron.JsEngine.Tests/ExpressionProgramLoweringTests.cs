@@ -52,6 +52,23 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ThrowInstruction_AwaitedIdentifier_UsesAwaitedProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            async function throwAwaited(valuePromise) {
+                throw await valuePromise;
+            }
+            """, "throwAwaited");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ThrowInstruction>(), i => i.AwaitedProgram is not null);
+        Assert.Null(instruction.Expression);
+        Assert.NotNull(instruction.AwaitStateKey);
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            instruction.AwaitedProgram,
+            op => op.Name.Name == "valuePromise");
+    }
+
+    [Fact]
     public async Task SimpleVariableDeclaration_SimpleInitializer_IsLoweredToExpressionProgram()
     {
         var plan = await GetFunctionPlan("""
@@ -305,7 +322,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task IteratorInitInstruction_AwaitedIterable_UsesSuspendingInstruction()
+    public async Task IteratorInitInstruction_AwaitedIterable_UsesAwaitedProgram()
     {
         var plan = await GetFunctionPlan("""
             async function firstItem(itemsPromise) {
@@ -316,8 +333,11 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             }
             """, "firstItem");
 
-        var instruction = Assert.Single(plan.Instructions.OfType<SuspendingIteratorInitInstruction>());
-        Assert.IsType<AwaitExpression>(instruction.IterableExpression);
+        var instruction = Assert.Single(plan.Instructions.OfType<IteratorInitInstruction>(), i => i.AwaitedProgram is not null);
+        Assert.NotNull(instruction.AwaitStateKey);
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            instruction.AwaitedProgram,
+            op => op.Name.Name == "itemsPromise");
     }
 
     [Fact]
@@ -527,7 +547,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ForInInitInstruction_AwaitedObject_UsesSuspendingInstruction()
+    public async Task ForInInitInstruction_AwaitedObject_UsesAwaitedProgram()
     {
         var plan = await GetFunctionPlan("""
             async function firstKey(sourcePromise) {
@@ -538,8 +558,11 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             }
             """, "firstKey");
 
-        var instruction = Assert.Single(plan.Instructions.OfType<SuspendingForInInitInstruction>());
-        Assert.IsType<AwaitExpression>(instruction.ObjectExpression);
+        var instruction = Assert.Single(plan.Instructions.OfType<ForInInitInstruction>(), i => i.AwaitedProgram is not null);
+        Assert.NotNull(instruction.AwaitStateKey);
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            instruction.AwaitedProgram,
+            op => op.Name.Name == "sourcePromise");
     }
 
     [Fact]
@@ -559,7 +582,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task EnterWithInstruction_AwaitedObject_UsesSuspendingInstruction()
+    public async Task EnterWithInstruction_AwaitedObject_UsesAwaitedProgram()
     {
         var plan = await GetFunctionPlan("""
             async function readWith(scopePromise) {
@@ -569,8 +592,11 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             }
             """, "readWith");
 
-        var instruction = Assert.Single(plan.Instructions.OfType<SuspendingEnterWithInstruction>());
-        Assert.IsType<AwaitExpression>(instruction.ObjectExpression);
+        var instruction = Assert.Single(plan.Instructions.OfType<EnterWithInstruction>(), i => i.AwaitedProgram is not null);
+        Assert.NotNull(instruction.AwaitStateKey);
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            instruction.AwaitedProgram,
+            op => op.Name.Name == "scopePromise");
     }
 
     [Fact]
@@ -611,7 +637,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task BindingVariableDeclarationInstruction_AwaitedInitializer_UsesSuspendingInstruction()
+    public async Task BindingVariableDeclarationInstruction_AwaitedInitializer_UsesAwaitedProgram()
     {
         var plan = await GetFunctionPlan("""
             async function sumPoint(pointPromise) {
@@ -620,8 +646,13 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             }
             """, "sumPoint");
 
-        var instruction = Assert.Single(plan.Instructions.OfType<SuspendingBindingVariableDeclarationInstruction>());
-        Assert.IsType<AwaitExpression>(instruction.Initializer);
+        var instruction = Assert.Single(
+            plan.Instructions.OfType<BindingVariableDeclarationInstruction>(),
+            i => i.AwaitedProgram is not null);
+        Assert.NotNull(instruction.AwaitStateKey);
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            instruction.AwaitedProgram,
+            op => op.Name.Name == "pointPromise");
     }
 
     [Fact]

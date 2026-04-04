@@ -711,7 +711,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncAssignmentExpression_UsesSuspendingAssignmentInstruction()
+    public async Task AsyncAssignmentExpression_UsesAwaitedAssignmentInstruction()
     {
         await using var engine = CreateEngine();
 
@@ -738,11 +738,17 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
         Assert.NotNull(cache.Plan);
 
-        var hasSuspendingAssignmentInstruction = cache.Plan.Instructions
-            .Any(i => i.Kind == InstructionKind.SuspendingAssignmentSlot);
-
-        Assert.True(hasSuspendingAssignmentInstruction,
-            "Async simple assignment should use SuspendingAssignmentSlotInstruction");
+        var instruction = Assert.Single(
+            cache.Plan.Instructions.OfType<AssignmentSlotInstruction>(),
+            i => i.AwaitedProgram is not null);
+        Assert.NotNull(instruction.AwaitStateKey);
+        var awaitedProgram = instruction.AwaitedProgram ?? throw new InvalidOperationException("Expected awaited assignment program.");
+        Assert.Contains(
+            awaitedProgram.Operations.OfType<LoadIdentifierExpressionOp>(),
+            op => op.Name.Name == "Promise");
+        Assert.DoesNotContain(
+            cache.Plan.Instructions,
+            i => i.Kind == InstructionKind.SuspendingAssignmentSlot);
     }
 
     [Fact(Timeout = 5000)]
@@ -782,6 +788,46 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
             "Plain await expression statements should emit AwaitAndDiscardInstruction");
         Assert.False(hasAwaitEvaluateAndDiscard,
             "Plain await expression statements should no longer use EvaluateAndDiscardInstruction");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncThrowExpression_UsesAwaitedThrowInstruction()
+    {
+        await using var engine = CreateEngine();
+
+        var program = engine.ParseProgram("""
+            async function testAsyncThrowInstruction() {
+                try {
+                    throw await Promise.resolve(7);
+                } catch (error) {
+                    return error;
+                }
+            }
+            """);
+
+        await engine.Evaluate(program);
+        var result = await engine.EvaluateAndAwait("""
+            let asyncThrowResult = undefined;
+            testAsyncThrowInstruction().then(value => asyncThrowResult = value);
+            asyncThrowResult;
+            """);
+        Assert.Equal(7.0, result);
+
+        var funcDecl = program.Body[0] as FunctionDeclaration;
+        Assert.NotNull(funcDecl);
+
+        var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        var instruction = Assert.Single(
+            cache.Plan.Instructions.OfType<ThrowInstruction>(),
+            i => i.AwaitedProgram is not null);
+        Assert.NotNull(instruction.AwaitStateKey);
+        var awaitedProgram = instruction.AwaitedProgram ?? throw new InvalidOperationException("Expected awaited throw program.");
+        Assert.Contains(
+            awaitedProgram.Operations.OfType<LoadIdentifierExpressionOp>(),
+            op => op.Name.Name == "Promise");
     }
 
     [Fact(Timeout = 5000)]
@@ -881,7 +927,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncLogicalCompoundAssignment_UsesSuspendingLogicalAssignmentInstruction()
+    public async Task AsyncLogicalCompoundAssignment_UsesAwaitedLogicalAssignmentInstruction()
     {
         await using var engine = CreateEngine();
 
@@ -908,11 +954,17 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
         Assert.NotNull(cache.Plan);
 
-        var hasSuspendingLogicalInstruction = cache.Plan.Instructions
-            .Any(i => i.Kind == InstructionKind.SuspendingLogicalCompoundAssignmentSlot);
-
-        Assert.True(hasSuspendingLogicalInstruction,
-            "Async logical compound assignments should use SuspendingLogicalCompoundAssignmentSlotInstruction");
+        var instruction = Assert.Single(
+            cache.Plan.Instructions.OfType<LogicalCompoundAssignmentSlotInstruction>(),
+            i => i.AwaitedProgram is not null);
+        Assert.NotNull(instruction.AwaitStateKey);
+        var awaitedProgram = instruction.AwaitedProgram ?? throw new InvalidOperationException("Expected awaited logical assignment program.");
+        Assert.Contains(
+            awaitedProgram.Operations.OfType<LoadIdentifierExpressionOp>(),
+            op => op.Name.Name == "Promise");
+        Assert.DoesNotContain(
+            cache.Plan.Instructions,
+            i => i.Kind == InstructionKind.SuspendingLogicalCompoundAssignmentSlot);
     }
 
     [Fact(Timeout = 5000)]

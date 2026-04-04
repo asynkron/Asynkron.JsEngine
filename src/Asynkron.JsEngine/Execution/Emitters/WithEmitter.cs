@@ -38,6 +38,25 @@ internal static class WithEmitter
         }
 
         // Build the enter with instruction (comes before the body)
+        if (statement.Object is AwaitExpression awaitObject)
+        {
+            if (!ExpressionProgramCompiler.TryCompile(awaitObject.Expression, out var awaitedProgram, out var awaitFailure))
+            {
+                ctx.SetExpressionProgramFailure("EnterWithInstruction", awaitObject.Expression, awaitFailure);
+                ctx.Rollback(instructionStart);
+                entryIndex = -1;
+                return false;
+            }
+
+            entryIndex = ctx.Append(new EnterWithInstruction(
+                withScopeSlot,
+                bodyEntry,
+                AwaitStateKey: ((IAstCacheable<Symbol>)awaitObject).GetOrCreateCache(),
+                AwaitedProgram: awaitedProgram,
+                ObjectSource: statement.Object.Source));
+            return true;
+        }
+
         if (AstShapeAnalyzer.ContainsAwait(statement.Object) || AstShapeAnalyzer.ContainsYield(statement.Object))
         {
             entryIndex = ctx.Append(new SuspendingEnterWithInstruction(
@@ -59,8 +78,8 @@ internal static class WithEmitter
         entryIndex = ctx.Append(new EnterWithInstruction(
             withScopeSlot,
             bodyEntry,
-            objectProgram,
-            statement.Object.Source));
+            ObjectProgram: objectProgram,
+            ObjectSource: statement.Object.Source));
         return true;
     }
 }

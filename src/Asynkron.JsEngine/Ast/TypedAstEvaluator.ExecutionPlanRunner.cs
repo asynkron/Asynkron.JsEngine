@@ -95,6 +95,9 @@ public static partial class TypedAstEvaluator
         private JsValue _scriptCompletionValue = JsValue.Unit;
         private GeneratorState _state = GeneratorState.Start;
         private bool _rootScopeLogged;
+        private JsValue[]? _expressionStackBuffer;
+        private bool[]? _expressionFlagBuffer;
+        private int _expressionBufferLeaseCount;
 
         /// <summary>
         /// Offset applied to slot indices when running in script mode on GlobalEnvironment.

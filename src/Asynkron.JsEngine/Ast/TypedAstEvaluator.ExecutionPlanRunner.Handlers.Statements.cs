@@ -122,7 +122,13 @@ public static partial class TypedAstEvaluator
                 ? context.EnterFunctionNameHint(instruction.TargetSymbol)
                 : null;
 
-            var assignedValue = runner.EvaluateExpressionProgram(instruction.ValueProgram, environment, context);
+            var assignedValue = instruction.AwaitedProgram is { } awaitedProgram
+                ? runner.EvaluateAwaitInGenerator(
+                    instruction.AwaitStateKey!,
+                    awaitedProgram,
+                    environment,
+                    context)
+                : runner.EvaluateExpressionProgram(instruction.ValueProgram!.Value, environment, context);
 
             if (!context.ShouldStopEvaluation &&
                 isAnonymousFunctionDefinition &&

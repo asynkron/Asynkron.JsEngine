@@ -141,6 +141,30 @@ internal static class DeclarationEmitter
             return true;
         }
 
+        if (declarator.Initializer is AwaitExpression bindingAwait)
+        {
+            if (!ExpressionProgramCompiler.TryCompile(
+                    bindingAwait.Expression,
+                    out var awaitedProgram,
+                    out var awaitFailure))
+            {
+                ctx.SetExpressionProgramFailure(
+                    "BindingVariableDeclarationInstruction",
+                    bindingAwait.Expression,
+                    awaitFailure);
+                entryIndex = -1;
+                return false;
+            }
+
+            entryIndex = ctx.Append(new BindingVariableDeclarationInstruction(
+                nextIndex,
+                varKind,
+                targetProgram,
+                AwaitStateKey: ((IAstCacheable<Symbol>)bindingAwait).GetOrCreateCache(),
+                AwaitedProgram: awaitedProgram));
+            return true;
+        }
+
         if (bindingInitializerProgram is not null)
         {
             entryIndex = ctx.Append(new BindingVariableDeclarationInstruction(
@@ -252,6 +276,32 @@ internal static class DeclarationEmitter
 
         var isScriptLevel = ctx.IsScriptLevel && varKind == VariableKind.Var;
         var allowNameInference = IsAnonymousFunctionDefinition(declarator.Initializer);
+        if (declarator.Initializer is AwaitExpression awaitInitializer)
+        {
+            if (!ExpressionProgramCompiler.TryCompile(
+                    awaitInitializer.Expression,
+                    out var awaitedProgram,
+                    out var awaitFailure))
+            {
+                ctx.SetExpressionProgramFailure(
+                    "SimpleVariableDeclarationInstruction",
+                    awaitInitializer.Expression,
+                    awaitFailure);
+                entryIndex = -1;
+                return false;
+            }
+
+            entryIndex = ctx.Append(new SimpleVariableDeclarationInstruction(
+                nextIndex,
+                varKind,
+                identifierBinding.Name,
+                AwaitStateKey: ((IAstCacheable<Symbol>)awaitInitializer).GetOrCreateCache(),
+                AwaitedProgram: awaitedProgram,
+                AllowNameInference: allowNameInference,
+                IsScriptLevel: isScriptLevel));
+            return true;
+        }
+
         if (declarator.Initializer is not null &&
             (AstShapeAnalyzer.ContainsYield(declarator.Initializer) ||
              AstShapeAnalyzer.ContainsAwait(declarator.Initializer)))
@@ -280,9 +330,9 @@ internal static class DeclarationEmitter
             nextIndex,
             varKind,
             identifierBinding.Name,
-            initializerProgram,
-            allowNameInference,
-            isScriptLevel));
+            InitializerProgram: initializerProgram,
+            AllowNameInference: allowNameInference,
+            IsScriptLevel: isScriptLevel));
         return true;
     }
 
@@ -294,6 +344,21 @@ internal static class DeclarationEmitter
         ThrowStatement throwStatement,
         out int entryIndex)
     {
+        if (throwStatement.Expression is AwaitExpression awaitExpression)
+        {
+            if (!ExpressionProgramCompiler.TryCompile(awaitExpression.Expression, out var awaitedProgram, out var awaitFailure))
+            {
+                ctx.SetExpressionProgramFailure("ThrowInstruction", awaitExpression.Expression, awaitFailure);
+                entryIndex = -1;
+                return false;
+            }
+
+            entryIndex = ctx.Append(new ThrowInstruction(
+                AwaitStateKey: ((IAstCacheable<Symbol>)awaitExpression).GetOrCreateCache(),
+                AwaitedProgram: awaitedProgram));
+            return true;
+        }
+
         if (AstShapeAnalyzer.ContainsYield(throwStatement.Expression))
         {
             ctx.SetFailureReason("Throw expression contains unsupported yield shape.");
@@ -308,7 +373,7 @@ internal static class DeclarationEmitter
             return false;
         }
 
-        entryIndex = ctx.Append(new ThrowInstruction(throwProgram));
+        entryIndex = ctx.Append(new ThrowInstruction(ThrowProgram: throwProgram));
         return true;
     }
 

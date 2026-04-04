@@ -95,7 +95,13 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            var iterableValue = runner.EvaluateExpressionProgram(instruction.IterableProgram, iterableEnv, context);
+            var iterableValue = instruction.AwaitedProgram is { } awaitedProgram
+                ? runner.EvaluateAwaitInGenerator(
+                    instruction.AwaitStateKey!,
+                    awaitedProgram,
+                    iterableEnv,
+                    context)
+                : runner.EvaluateExpressionProgram(instruction.IterableProgram!.Value, iterableEnv, context);
             if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingIteratorResult, environment))
             {
                 returnValue = pendingIteratorResult;

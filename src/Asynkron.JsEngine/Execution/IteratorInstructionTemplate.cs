@@ -45,7 +45,25 @@ internal static class IteratorInstructionTemplate
         var tdzIsConst = plan.DeclarationKind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
 
         var initIndex = instructions.Count;
-        if (AstShapeAnalyzer.ContainsAwait(plan.Iterable) || AstShapeAnalyzer.ContainsYield(plan.Iterable))
+        if (plan.Iterable is AwaitExpression awaitIterable)
+        {
+            if (!ExpressionProgramCompiler.TryCompile(awaitIterable.Expression, out var awaitedProgram, out failureReason))
+            {
+                return false;
+            }
+
+            instructions.Add(new IteratorInitInstruction(
+                plan.Kind,
+                iteratorSymbol,
+                iteratorSlotIndex,
+                Next: -1,
+                AwaitStateKey: ((IAstCacheable<Symbol>)awaitIterable).GetOrCreateCache(),
+                AwaitedProgram: awaitedProgram,
+                TdzBindings: tdzBindings,
+                TdzIsConst: tdzIsConst,
+                IterableSource: plan.Iterable.Source));
+        }
+        else if (AstShapeAnalyzer.ContainsAwait(plan.Iterable) || AstShapeAnalyzer.ContainsYield(plan.Iterable))
         {
             instructions.Add(new SuspendingIteratorInitInstruction(
                 plan.Kind,

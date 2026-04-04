@@ -25,7 +25,13 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<EnterWithInstruction>(instr);
-            var objValueJs = runner.EvaluateExpressionProgram(instruction.ObjectProgram, environment, context);
+            var objValueJs = instruction.AwaitedProgram is { } awaitedProgram
+                ? runner.EvaluateAwaitInGenerator(
+                    instruction.AwaitStateKey!,
+                    awaitedProgram,
+                    environment,
+                    context)
+                : runner.EvaluateExpressionProgram(instruction.ObjectProgram!.Value, environment, context);
 
             if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingWithResult, environment))
             {

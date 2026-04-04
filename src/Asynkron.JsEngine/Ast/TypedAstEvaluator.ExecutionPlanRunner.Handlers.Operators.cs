@@ -221,7 +221,13 @@ public static partial class TypedAstEvaluator
                     ? context.EnterFunctionNameHint(instruction.TargetSymbol)
                     : null;
 
-                var rhsValue = runner.EvaluateExpressionProgram(instruction.RhsProgram, environment, context);
+                var rhsValue = instruction.AwaitedProgram is { } awaitedProgram
+                    ? runner.EvaluateAwaitInGenerator(
+                        instruction.AwaitStateKey!,
+                        awaitedProgram,
+                        environment,
+                        context)
+                    : runner.EvaluateExpressionProgram(instruction.RhsProgram!.Value, environment, context);
 
                 if (!context.ShouldStopEvaluation &&
                     isAnonymousFunctionDefinition &&
@@ -520,10 +526,16 @@ public static partial class TypedAstEvaluator
                     return InstructionResult.Continue;
             }
 
-            var compRhsValue = runner.EvaluateExpressionProgram(
-                instruction.RhsProgram,
-                environment,
-                context);
+            var compRhsValue = instruction.AwaitedProgram is { } awaitedProgram
+                ? runner.EvaluateAwaitInGenerator(
+                    instruction.AwaitStateKey!,
+                    awaitedProgram,
+                    environment,
+                    context)
+                : runner.EvaluateExpressionProgram(
+                    instruction.RhsProgram!.Value,
+                    environment,
+                    context);
 
             if (context.ShouldStopEvaluation)
             {

@@ -108,7 +108,7 @@ internal static class DestructuringEmitter
             iteratorSymbol,
             iteratorSlotIndex,
             currentNext,
-            SourceProgram: sourceProgram));
+            sourceProgram));
 
         entryIndex = initIndex;
         return true;

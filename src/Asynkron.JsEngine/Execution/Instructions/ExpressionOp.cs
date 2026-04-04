@@ -116,80 +116,80 @@ internal readonly record struct ExpressionProgram
 
     private static int GetStackDelta(ExpressionOp operation)
     {
-        return operation switch
+        return operation.Kind switch
         {
-            LoadLiteralExpressionOp => 1,
-            LoadRegexLiteralExpressionOp => 1,
-            LoadFunctionLiteralExpressionOp => 1,
-            LoadClassLiteralExpressionOp => 1,
-            LoadIdentifierExpressionOp => 1,
-            LoadTemplateObjectExpressionOp => 1,
-            StoreIdentifierExpressionOp => 0,
-            ApplyBindingTargetExpressionOp => -1,
-            DuplicateTopExpressionOp => 1,
-            DuplicateTopTwoExpressionOp => 2,
-            SwapTopTwoExpressionOp => 0,
-            RotateTopThreeRightExpressionOp => 0,
-            LoadThisExpressionOp => 1,
-            LoadNewTargetExpressionOp => 1,
-            LoadNamedCallTargetExpressionOp => 1,
-            LoadComputedCallTargetExpressionOp => 0,
-            LoadNamedSuperCallTargetExpressionOp => 2,
-            LoadComputedSuperCallTargetExpressionOp => 1,
-            EnsureSuperReferenceExpressionOp => 0,
-            CreateArrayExpressionOp => 1,
-            ArrayPushExpressionOp => -1,
-            ArrayPushHoleExpressionOp => 0,
-            ArraySpreadExpressionOp => -1,
-            CreateObjectExpressionOp => 1,
-            RequireObjectCoercibleExpressionOp => 0,
-            ResolvePropertyKeyExpressionOp => 0,
-            DefineObjectPropertyExpressionOp => -1,
-            DefineComputedObjectPropertyExpressionOp => -2,
-            DefineObjectMethodExpressionOp => -1,
-            DefineComputedObjectMethodExpressionOp => -2,
-            DefineObjectAccessorExpressionOp => -1,
-            DefineComputedObjectAccessorExpressionOp => -2,
-            ObjectSpreadExpressionOp => -1,
-            GetNamedPropertyExpressionOp => 0,
-            GetComputedPropertyExpressionOp => -1,
-            GetNamedSuperPropertyExpressionOp => 1,
-            GetComputedSuperPropertyExpressionOp => 0,
-            SetNamedPropertyExpressionOp => -1,
-            SetComputedPropertyExpressionOp => -2,
-            SetNamedSuperPropertyExpressionOp => 0,
-            SetComputedSuperPropertyExpressionOp => -1,
-            UpdateIdentifierExpressionOp => 1,
-            UpdateNamedPropertyExpressionOp => 0,
-            UpdateComputedPropertyExpressionOp => -1,
-            UpdateNamedSuperPropertyExpressionOp => 1,
-            UpdateComputedSuperPropertyExpressionOp => 0,
-            TypeOfExpressionOp => 0,
-            TypeOfIdentifierExpressionOp => 1,
-            DeleteIdentifierExpressionOp => 1,
-            DeleteNamedPropertyExpressionOp => 0,
-            DeleteComputedPropertyExpressionOp => -1,
-            UnaryPlusExpressionOp => 0,
-            UnaryMinusExpressionOp => 0,
-            UnaryBitwiseNotExpressionOp => 0,
-            UnaryVoidExpressionOp => 0,
-            ToStringExpressionOp => 0,
-            UnaryLogicalNotExpressionOp => 0,
-            BinaryExpressionOp => -1,
-            PopExpressionOp => -1,
-            JumpExpressionOp => 0,
-            JumpIfNullishExpressionOp => 0,
-            JumpIfShortCircuitedExpressionOp => 0,
-            JumpIfTrueExpressionOp => 0,
-            JumpIfFalseExpressionOp => 0,
-            JumpIfNotNullishExpressionOp => 0,
-            SuperConstructExpressionOp superConstruct => 1 - superConstruct.ArgumentCount,
-            CallExpressionOp call => -(call.ArgumentCount + (call.HasExplicitThis ? 1 : 0)),
-            ConstructExpressionOp construct => -construct.ArgumentCount,
-            PrivateFieldInExpressionOp => 0,
-            ThrowReferenceErrorExpressionOp => 0,
+            ExpressionOpKind.LoadLiteral => 1,
+            ExpressionOpKind.LoadRegexLiteral => 1,
+            ExpressionOpKind.LoadFunctionLiteral => 1,
+            ExpressionOpKind.LoadClassLiteral => 1,
+            ExpressionOpKind.LoadIdentifier => 1,
+            ExpressionOpKind.LoadTemplateObject => 1,
+            ExpressionOpKind.StoreIdentifier => 0,
+            ExpressionOpKind.ApplyBindingTarget => -1,
+            ExpressionOpKind.DuplicateTop => 1,
+            ExpressionOpKind.DuplicateTopTwo => 2,
+            ExpressionOpKind.SwapTopTwo => 0,
+            ExpressionOpKind.RotateTopThreeRight => 0,
+            ExpressionOpKind.LoadThis => 1,
+            ExpressionOpKind.LoadNewTarget => 1,
+            ExpressionOpKind.LoadNamedCallTarget => 1,
+            ExpressionOpKind.LoadComputedCallTarget => 0,
+            ExpressionOpKind.LoadNamedSuperCallTarget => 2,
+            ExpressionOpKind.LoadComputedSuperCallTarget => 1,
+            ExpressionOpKind.EnsureSuperReference => 0,
+            ExpressionOpKind.CreateArray => 1,
+            ExpressionOpKind.ArrayPush => -1,
+            ExpressionOpKind.ArrayPushHole => 0,
+            ExpressionOpKind.ArraySpread => -1,
+            ExpressionOpKind.CreateObject => 1,
+            ExpressionOpKind.RequireObjectCoercible => 0,
+            ExpressionOpKind.ResolvePropertyKey => 0,
+            ExpressionOpKind.DefineObjectProperty => -1,
+            ExpressionOpKind.DefineComputedObjectProperty => -2,
+            ExpressionOpKind.DefineObjectMethod => -1,
+            ExpressionOpKind.DefineComputedObjectMethod => -2,
+            ExpressionOpKind.DefineObjectAccessor => -1,
+            ExpressionOpKind.DefineComputedObjectAccessor => -2,
+            ExpressionOpKind.ObjectSpread => -1,
+            ExpressionOpKind.GetNamedProperty => 0,
+            ExpressionOpKind.GetComputedProperty => -1,
+            ExpressionOpKind.GetNamedSuperProperty => 1,
+            ExpressionOpKind.GetComputedSuperProperty => 0,
+            ExpressionOpKind.SetNamedProperty => -1,
+            ExpressionOpKind.SetComputedProperty => -2,
+            ExpressionOpKind.SetNamedSuperProperty => 0,
+            ExpressionOpKind.SetComputedSuperProperty => -1,
+            ExpressionOpKind.UpdateIdentifier => 1,
+            ExpressionOpKind.UpdateNamedProperty => 0,
+            ExpressionOpKind.UpdateComputedProperty => -1,
+            ExpressionOpKind.UpdateNamedSuperProperty => 1,
+            ExpressionOpKind.UpdateComputedSuperProperty => 0,
+            ExpressionOpKind.TypeOf => 0,
+            ExpressionOpKind.TypeOfIdentifier => 1,
+            ExpressionOpKind.DeleteIdentifier => 1,
+            ExpressionOpKind.DeleteNamedProperty => 0,
+            ExpressionOpKind.DeleteComputedProperty => -1,
+            ExpressionOpKind.UnaryPlus => 0,
+            ExpressionOpKind.UnaryMinus => 0,
+            ExpressionOpKind.UnaryBitwiseNot => 0,
+            ExpressionOpKind.UnaryVoid => 0,
+            ExpressionOpKind.ToString => 0,
+            ExpressionOpKind.UnaryLogicalNot => 0,
+            ExpressionOpKind.Binary => -1,
+            ExpressionOpKind.Pop => -1,
+            ExpressionOpKind.Jump => 0,
+            ExpressionOpKind.JumpIfNullish => 0,
+            ExpressionOpKind.JumpIfShortCircuited => 0,
+            ExpressionOpKind.JumpIfTrue => 0,
+            ExpressionOpKind.JumpIfFalse => 0,
+            ExpressionOpKind.JumpIfNotNullish => 0,
+            ExpressionOpKind.SuperConstruct => 1 - ((SuperConstructExpressionOp)operation).ArgumentCount,
+            ExpressionOpKind.Call => -(((CallExpressionOp)operation).ArgumentCount + (((CallExpressionOp)operation).HasExplicitThis ? 1 : 0)),
+            ExpressionOpKind.Construct => -((ConstructExpressionOp)operation).ArgumentCount,
+            ExpressionOpKind.PrivateFieldIn => 0,
+            ExpressionOpKind.ThrowReferenceError => 0,
             _ => throw new NotSupportedException(
-                $"Expression stack analysis does not support '{operation.GetType().Name}'.")
+                $"Expression stack analysis does not support '{operation.Kind}'.")
         };
     }
 }
@@ -215,6 +215,76 @@ internal sealed class TaggedTemplateDescriptor
     public ImmutableArray<JsValue> CookedStrings { get; }
 
     public ImmutableArray<JsValue> RawStrings { get; }
+}
+
+internal static class ExpressionOps
+{
+    public static readonly EnsureSuperReferenceExpressionOp EnsureSuperReference = new();
+    public static readonly LoadThisExpressionOp LoadThis = new();
+    public static readonly LoadNewTargetExpressionOp LoadNewTarget = new();
+    public static readonly DuplicateTopExpressionOp DuplicateTop = new();
+    public static readonly DuplicateTopTwoExpressionOp DuplicateTopTwo = new();
+    public static readonly SwapTopTwoExpressionOp SwapTopTwo = new();
+    public static readonly RotateTopThreeRightExpressionOp RotateTopThreeRight = new();
+    public static readonly LoadComputedCallTargetExpressionOp LoadComputedCallTarget = new();
+    public static readonly LoadComputedSuperCallTargetExpressionOp LoadComputedSuperCallTarget = new();
+    public static readonly CreateArrayExpressionOp CreateArray = new();
+    public static readonly ArrayPushExpressionOp ArrayPush = new();
+    public static readonly ArrayPushHoleExpressionOp ArrayPushHole = new();
+    public static readonly ArraySpreadExpressionOp ArraySpread = new();
+    public static readonly CreateObjectExpressionOp CreateObject = new();
+    public static readonly ResolvePropertyKeyExpressionOp ResolvePropertyKey = new();
+    public static readonly ObjectSpreadExpressionOp ObjectSpread = new();
+    public static readonly GetComputedSuperPropertyExpressionOp GetComputedSuperProperty = new();
+    public static readonly TypeOfExpressionOp TypeOf = new();
+    public static readonly DeleteComputedPropertyExpressionOp DeleteComputedProperty = new();
+    public static readonly UnaryPlusExpressionOp UnaryPlus = new();
+    public static readonly UnaryMinusExpressionOp UnaryMinus = new();
+    public static readonly UnaryBitwiseNotExpressionOp UnaryBitwiseNot = new();
+    public static readonly UnaryVoidExpressionOp UnaryVoid = new();
+    public static readonly ToStringExpressionOp ToString = new();
+    public static readonly UnaryLogicalNotExpressionOp UnaryLogicalNot = new();
+    public static readonly PopExpressionOp Pop = new();
+
+    private static readonly RequireObjectCoercibleExpressionOp RequireObjectCoercibleDefault = new();
+    private static readonly RequireObjectCoercibleExpressionOp RequireObjectCoercibleDepthOne = new(1);
+    private static readonly GetComputedPropertyExpressionOp GetComputedPropertyDefault = new();
+    private static readonly GetComputedPropertyExpressionOp GetComputedPropertyShortCircuit = new(true);
+    private static readonly SetComputedPropertyExpressionOp SetComputedPropertyDefault = new();
+    private static readonly SetComputedPropertyExpressionOp SetComputedPropertyNoInference = new(false);
+    private static readonly SetComputedSuperPropertyExpressionOp SetComputedSuperPropertyDefault = new();
+    private static readonly SetComputedSuperPropertyExpressionOp SetComputedSuperPropertyNoInference = new(false);
+
+    public static RequireObjectCoercibleExpressionOp RequireObjectCoercible(int depth = 0)
+    {
+        return depth switch
+        {
+            0 => RequireObjectCoercibleDefault,
+            1 => RequireObjectCoercibleDepthOne,
+            _ => new RequireObjectCoercibleExpressionOp(depth)
+        };
+    }
+
+    public static GetComputedPropertyExpressionOp GetComputedProperty(bool shortCircuitOnNullishTarget = false)
+    {
+        return shortCircuitOnNullishTarget
+            ? GetComputedPropertyShortCircuit
+            : GetComputedPropertyDefault;
+    }
+
+    public static SetComputedPropertyExpressionOp SetComputedProperty(bool allowNameInference = true)
+    {
+        return allowNameInference
+            ? SetComputedPropertyDefault
+            : SetComputedPropertyNoInference;
+    }
+
+    public static SetComputedSuperPropertyExpressionOp SetComputedSuperProperty(bool allowNameInference = true)
+    {
+        return allowNameInference
+            ? SetComputedSuperPropertyDefault
+            : SetComputedSuperPropertyNoInference;
+    }
 }
 
 internal sealed record LoadLiteralExpressionOp(JsValue Value)

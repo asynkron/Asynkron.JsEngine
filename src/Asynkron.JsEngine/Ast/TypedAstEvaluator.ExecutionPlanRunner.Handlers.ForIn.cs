@@ -40,7 +40,13 @@ public static partial class TypedAstEvaluator
             }
 
             // Evaluate the object expression
-            var objectValue = runner.EvaluateExpressionProgram(instruction.ObjectProgram, objectEnv, context);
+            var objectValue = instruction.AwaitedProgram is { } awaitedProgram
+                ? runner.EvaluateAwaitInGenerator(
+                    instruction.AwaitStateKey!,
+                    awaitedProgram,
+                    objectEnv,
+                    context)
+                : runner.EvaluateExpressionProgram(instruction.ObjectProgram!.Value, objectEnv, context);
             if (context.IsThrow)
             {
                 var initThrown = context.FlowValue;

@@ -331,7 +331,12 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
 
             case AssignmentSlotInstruction assign:
                 {
-                    var rewrittenProgram = RewriteExpressionProgram(assign.ValueProgram);
+                    var rewrittenProgram = assign.ValueProgram is { } assignValueProgram
+                        ? RewriteExpressionProgram(assignValueProgram)
+                        : (ExpressionProgram?)null;
+                    var rewrittenAwaitedProgram = assign.AwaitedProgram is { } assignAwaitedProgram
+                        ? RewriteExpressionProgram(assignAwaitedProgram)
+                        : (ExpressionProgram?)null;
                     if (TryResolve(assign.TargetSymbol, out var assignmentResolution))
                     {
                         var assignmentFlatSlotId = GetOrCreateFlatSlotId(
@@ -340,6 +345,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                         return assign with
                         {
                             ValueProgram = rewrittenProgram,
+                            AwaitedProgram = rewrittenAwaitedProgram,
                             ScopeId = assignmentResolution.scopeId,
                             SlotIndex = assignmentResolution.slotIndex,
                             FlatSlotId = assignmentFlatSlotId
@@ -348,7 +354,8 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
 
                     return assign with
                     {
-                        ValueProgram = rewrittenProgram
+                        ValueProgram = rewrittenProgram,
+                        AwaitedProgram = rewrittenAwaitedProgram
                     };
                 }
 
@@ -377,7 +384,12 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
 
             case LogicalCompoundAssignmentSlotInstruction logicalCompound:
                 {
-                    var rewrittenProgram = RewriteExpressionProgram(logicalCompound.RhsProgram);
+                    var rewrittenProgram = logicalCompound.RhsProgram is { } logicalRhsProgram
+                        ? RewriteExpressionProgram(logicalRhsProgram)
+                        : (ExpressionProgram?)null;
+                    var rewrittenAwaitedProgram = logicalCompound.AwaitedProgram is { } logicalAwaitedProgram
+                        ? RewriteExpressionProgram(logicalAwaitedProgram)
+                        : (ExpressionProgram?)null;
                     if (TryResolve(logicalCompound.TargetSymbol, out var logicalResolution))
                     {
                         var logicalFlatSlotId = GetOrCreateFlatSlotId(
@@ -386,6 +398,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                         return logicalCompound with
                         {
                             RhsProgram = rewrittenProgram,
+                            AwaitedProgram = rewrittenAwaitedProgram,
                             ScopeId = logicalResolution.scopeId,
                             SlotIndex = logicalResolution.slotIndex,
                             FlatSlotId = logicalFlatSlotId
@@ -394,7 +407,8 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
 
                     return logicalCompound with
                     {
-                        RhsProgram = rewrittenProgram
+                        RhsProgram = rewrittenProgram,
+                        AwaitedProgram = rewrittenAwaitedProgram
                     };
                 }
 
@@ -423,8 +437,15 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
 
             case CompoundAssignmentSlotInstruction compoundAssign:
                 {
-                    var rewrittenProgram = RewriteExpressionProgram(compoundAssign.RhsProgram);
-                    var rhsFlatSlotId = TryGetFlatSlotId(rewrittenProgram);
+                    var rewrittenProgram = compoundAssign.RhsProgram is { } compoundRhsProgram
+                        ? RewriteExpressionProgram(compoundRhsProgram)
+                        : (ExpressionProgram?)null;
+                    var rewrittenAwaitedProgram = compoundAssign.AwaitedProgram is { } compoundAwaitedProgram
+                        ? RewriteExpressionProgram(compoundAwaitedProgram)
+                        : (ExpressionProgram?)null;
+                    var rhsFlatSlotId = rewrittenProgram is { } rewrittenRhsProgram
+                        ? TryGetFlatSlotId(rewrittenRhsProgram)
+                        : -1;
 
                     if (TryResolve(compoundAssign.TargetSymbol, out var compoundResolution))
                     {
@@ -434,6 +455,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                         return compoundAssign with
                         {
                             RhsProgram = rewrittenProgram,
+                            AwaitedProgram = rewrittenAwaitedProgram,
                             ScopeId = compoundResolution.scopeId,
                             SlotIndex = compoundResolution.slotIndex,
                             FlatSlotId = compoundFlatSlotId,
@@ -444,6 +466,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     return compoundAssign with
                     {
                         RhsProgram = rewrittenProgram,
+                        AwaitedProgram = rewrittenAwaitedProgram,
                         RhsFlatSlotId = rhsFlatSlotId
                     };
                 }
@@ -497,13 +520,29 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                 return returnInstruction with { ReturnProgram = RewriteExpressionProgram(returnInstruction.ReturnProgram!.Value) };
 
             case ThrowInstruction thr:
-                return thr with { ThrowProgram = RewriteExpressionProgram(thr.ThrowProgram) };
+                return thr with
+                {
+                    ThrowProgram = thr.ThrowProgram is { } throwProgram
+                        ? RewriteExpressionProgram(throwProgram)
+                        : null,
+                    AwaitedProgram = thr.AwaitedProgram is { } awaitedThrowProgram
+                        ? RewriteExpressionProgram(awaitedThrowProgram)
+                        : null
+                };
 
             case BranchInstruction branch:
                 return branch with { ConditionProgram = RewriteExpressionProgram(branch.ConditionProgram) };
 
-            case SimpleVariableDeclarationInstruction { InitializerProgram: not null } varDecl:
-                return varDecl with { InitializerProgram = RewriteExpressionProgram(varDecl.InitializerProgram!.Value) };
+            case SimpleVariableDeclarationInstruction varDecl:
+                return varDecl with
+                {
+                    InitializerProgram = varDecl.InitializerProgram is { } simpleInitializerProgram
+                        ? RewriteExpressionProgram(simpleInitializerProgram)
+                        : null,
+                    AwaitedProgram = varDecl.AwaitedProgram is { } simpleAwaitedProgram
+                        ? RewriteExpressionProgram(simpleAwaitedProgram)
+                        : null
+                };
 
             case SuspendingSimpleVariableDeclarationInstruction suspendingVarDecl:
                 return suspendingVarDecl with
@@ -517,6 +556,9 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     TargetProgram = RewriteBindingTargetProgram(bindingDecl.TargetProgram),
                     InitializerProgram = bindingDecl.InitializerProgram is { } bindingProgramOnlyInitializer
                         ? RewriteExpressionProgram(bindingProgramOnlyInitializer)
+                        : null,
+                    AwaitedProgram = bindingDecl.AwaitedProgram is { } bindingAwaitedProgram
+                        ? RewriteExpressionProgram(bindingAwaitedProgram)
                         : null
                 };
 
@@ -530,7 +572,12 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             case IteratorInitInstruction iterInit:
                 return iterInit with
                 {
-                    IterableProgram = RewriteExpressionProgram(iterInit.IterableProgram)
+                    IterableProgram = iterInit.IterableProgram is { } iterableProgram
+                        ? RewriteExpressionProgram(iterableProgram)
+                        : null,
+                    AwaitedProgram = iterInit.AwaitedProgram is { } iterableAwaitedProgram
+                        ? RewriteExpressionProgram(iterableAwaitedProgram)
+                        : null
                 };
 
             case SuspendingIteratorInitInstruction suspendingIterInit:
@@ -542,7 +589,12 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             case EnterWithInstruction enterWith:
                 return enterWith with
                 {
-                    ObjectProgram = RewriteExpressionProgram(enterWith.ObjectProgram)
+                    ObjectProgram = enterWith.ObjectProgram is { } objectProgram
+                        ? RewriteExpressionProgram(objectProgram)
+                        : null,
+                    AwaitedProgram = enterWith.AwaitedProgram is { } withAwaitedProgram
+                        ? RewriteExpressionProgram(withAwaitedProgram)
+                        : null
                 };
 
             case SuspendingEnterWithInstruction suspendingEnterWith:
@@ -574,7 +626,12 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             case ForInInitInstruction forInInit:
                 return forInInit with
                 {
-                    ObjectProgram = RewriteExpressionProgram(forInInit.ObjectProgram)
+                    ObjectProgram = forInInit.ObjectProgram is { } forInObjectProgram
+                        ? RewriteExpressionProgram(forInObjectProgram)
+                        : null,
+                    AwaitedProgram = forInInit.AwaitedProgram is { } objectAwaitedProgram
+                        ? RewriteExpressionProgram(objectAwaitedProgram)
+                        : null
                 };
 
             case SuspendingForInInitInstruction suspendingForInInit:
@@ -586,10 +643,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             case ArrayDestructuringInitInstruction destructuringInit:
                 return destructuringInit with
                 {
-                    SourceExpression = Rewrite(destructuringInit.SourceExpression),
-                    SourceProgram = destructuringInit.SourceProgram is { } destructuringSourceProgram
-                        ? RewriteExpressionProgram(destructuringSourceProgram)
-                        : null
+                    SourceProgram = RewriteExpressionProgram(destructuringInit.SourceProgram)
                 };
 
             case IncrementSlotInstruction increment:

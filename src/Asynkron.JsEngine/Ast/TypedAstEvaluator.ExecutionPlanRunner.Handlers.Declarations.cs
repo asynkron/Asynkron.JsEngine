@@ -239,7 +239,7 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<SimpleVariableDeclarationInstruction>(instr);
-            var hasInitializer = instruction.InitializerProgram is not null;
+            var hasInitializer = instruction.InitializerProgram is not null || instruction.AwaitedProgram is not null;
             var isAnonymousFunctionDefinition = instruction.AllowNameInference;
             var isLexicalDeclaration = instruction.VarKind != VariableKind.Var;
             var isConstDeclaration = instruction.VarKind == VariableKind.Const;
@@ -254,9 +254,15 @@ public static partial class TypedAstEvaluator
                     isConstDeclaration, isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
-            var varValue = instruction.InitializerProgram is { } initializerProgram
-                ? runner.EvaluateExpressionProgram(initializerProgram, environment, context)
-                : JsValue.Undefined;
+            var varValue = instruction.AwaitedProgram is { } awaitedProgram
+                ? runner.EvaluateAwaitInGenerator(
+                    instruction.AwaitStateKey!,
+                    awaitedProgram,
+                    environment,
+                    context)
+                : instruction.InitializerProgram is { } initializerProgram
+                    ? runner.EvaluateExpressionProgram(initializerProgram, environment, context)
+                    : JsValue.Undefined;
 
             if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingVarResult, environment))
             {
@@ -530,10 +536,16 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<BindingVariableDeclarationInstruction>(instr);
-            var hasInitializer = instruction.InitializerProgram is not null;
-            var bindingValue = instruction.InitializerProgram is { } initializerProgram
-                ? runner.EvaluateExpressionProgram(initializerProgram, environment, context)
-                : JsValue.Undefined;
+            var hasInitializer = instruction.InitializerProgram is not null || instruction.AwaitedProgram is not null;
+            var bindingValue = instruction.AwaitedProgram is { } awaitedProgram
+                ? runner.EvaluateAwaitInGenerator(
+                    instruction.AwaitStateKey!,
+                    awaitedProgram,
+                    environment,
+                    context)
+                : instruction.InitializerProgram is { } initializerProgram
+                    ? runner.EvaluateExpressionProgram(initializerProgram, environment, context)
+                    : JsValue.Undefined;
 
             if (!context.ShouldStopEvaluation)
             {

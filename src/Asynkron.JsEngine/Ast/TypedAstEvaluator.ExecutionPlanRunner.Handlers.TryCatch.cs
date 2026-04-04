@@ -22,7 +22,13 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<ThrowInstruction>(instr);
-            var throwValue = runner.EvaluateExpressionProgram(instruction.ThrowProgram, environment, context);
+            var throwProgram = instruction.ThrowProgram;
+            var throwValue = instruction.AwaitedProgram is { } awaitedProgram
+                ? runner.EvaluateAwaitInGenerator(instruction.AwaitStateKey!, awaitedProgram, environment, context)
+                : runner.EvaluateExpressionProgram(
+                    throwProgram ?? throw new InvalidOperationException("Throw instruction is missing its payload."),
+                    environment,
+                    context);
 
             if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingThrowResult, environment))
             {

@@ -14,7 +14,9 @@ namespace Asynkron.JsEngine.Execution.Instructions;
 /// </summary>
 /// <param name="ThrowProgram">Lowered bytecode representation of the expression to throw.</param>
 internal sealed record ThrowInstruction(
-    ExpressionProgram ThrowProgram)
+    ExpressionProgram? ThrowProgram = null,
+    Symbol? AwaitStateKey = null,
+    ExpressionProgram? AwaitedProgram = null)
     : ExecutionInstruction(InstructionKind.Throw, -1)
 {
     // The AST payload has been removed; this stays null so AST-leak assertions remain explicit.
@@ -92,7 +94,9 @@ internal sealed record IncrementSlotInstruction(
 internal sealed record AssignmentSlotInstruction(
     int Next,
     Symbol TargetSymbol,
-    ExpressionProgram ValueProgram,
+    ExpressionProgram? ValueProgram = null,
+    Symbol? AwaitStateKey = null,
+    ExpressionProgram? AwaitedProgram = null,
     bool SuppressCompletionValue = false,
     bool AllowNameInference = true,
     int ScopeId = -1,
@@ -122,7 +126,9 @@ internal sealed record LogicalCompoundAssignmentSlotInstruction(
     int Next,
     Symbol TargetSymbol,
     BinaryOperator Operator,
-    ExpressionProgram RhsProgram,
+    ExpressionProgram? RhsProgram = null,
+    Symbol? AwaitStateKey = null,
+    ExpressionProgram? AwaitedProgram = null,
     bool SuppressCompletionValue = false,
     bool AllowNameInference = true,
     int ScopeId = -1,
@@ -168,7 +174,9 @@ internal sealed record CompoundAssignmentSlotInstruction(
     int Next,
     Symbol TargetSymbol,
     BinaryOperator Operator,
-    ExpressionProgram RhsProgram,
+    ExpressionProgram? RhsProgram = null,
+    Symbol? AwaitStateKey = null,
+    ExpressionProgram? AwaitedProgram = null,
     bool SuppressCompletionValue = false,
     int ScopeId = -1,
     int SlotIndex = -1,
@@ -229,6 +237,8 @@ internal sealed record SimpleVariableDeclarationInstruction(
     VariableKind VarKind,
     Symbol TargetSymbol,
     ExpressionProgram? InitializerProgram = null,
+    Symbol? AwaitStateKey = null,
+    ExpressionProgram? AwaitedProgram = null,
     bool AllowNameInference = false,
     bool IsScriptLevel = false)
     : ExecutionInstruction(InstructionKind.SimpleVariableDeclaration, Next)
@@ -256,7 +266,9 @@ internal sealed record BindingVariableDeclarationInstruction(
     int Next,
     VariableKind VarKind,
     BindingTargetProgram TargetProgram,
-    ExpressionProgram? InitializerProgram = null)
+    ExpressionProgram? InitializerProgram = null,
+    Symbol? AwaitStateKey = null,
+    ExpressionProgram? AwaitedProgram = null)
     : ExecutionInstruction(InstructionKind.BindingVariableDeclaration, Next)
 {
     public ExpressionNode? Initializer => null;
@@ -460,7 +472,9 @@ internal sealed record IteratorInitInstruction(
     Symbol IteratorSlot,
     int IteratorSlotIndex,
     int Next,
-    ExpressionProgram IterableProgram,
+    ExpressionProgram? IterableProgram = null,
+    Symbol? AwaitStateKey = null,
+    ExpressionProgram? AwaitedProgram = null,
     ImmutableArray<Symbol> TdzBindings = default,
     bool TdzIsConst = false,
     SourceReference? IterableSource = null)
@@ -578,7 +592,9 @@ internal sealed record ReturnInstruction(
 internal sealed record EnterWithInstruction(
     Symbol WithScopeSlot,
     int Next,
-    ExpressionProgram ObjectProgram,
+    ExpressionProgram? ObjectProgram = null,
+    Symbol? AwaitStateKey = null,
+    ExpressionProgram? AwaitedProgram = null,
     SourceReference? ObjectSource = null)
     : ExecutionInstruction(InstructionKind.EnterWith, Next);
 
@@ -627,7 +643,9 @@ internal sealed record ForInInitInstruction(
     Symbol ValueSlot,
     int ValueSlotIndex,
     int Next,
-    ExpressionProgram ObjectProgram,
+    ExpressionProgram? ObjectProgram = null,
+    Symbol? AwaitStateKey = null,
+    ExpressionProgram? AwaitedProgram = null,
     ImmutableArray<Symbol> TdzBindings = default,
     bool TdzIsConst = false,
     SourceReference? ObjectSource = null)
@@ -675,7 +693,6 @@ internal sealed record ForInMoveNextInstruction(
 ///     Initializes array destructuring by evaluating the source expression and
 ///     getting an iterator from it. Stores the iterator state in a slot.
 /// </summary>
-/// <param name="SourceExpression">Builder-stage AST representation of the source expression.</param>
 /// <param name="SourceProgram">Lowered bytecode representation of the source expression.</param>
 /// <param name="IteratorSlot">Symbol for storing the iterator state.</param>
 /// <param name="IteratorSlotIndex">Pre-resolved slot index for fast iterator state access (-1 if not resolved).</param>
@@ -684,9 +701,11 @@ internal sealed record ArrayDestructuringInitInstruction(
     Symbol IteratorSlot,
     int IteratorSlotIndex,
     int Next,
-    ExpressionNode? SourceExpression = null,
-    ExpressionProgram? SourceProgram = null)
-    : ExecutionInstruction(InstructionKind.ArrayDestructuringInit, Next);
+    ExpressionProgram SourceProgram)
+    : ExecutionInstruction(InstructionKind.ArrayDestructuringInit, Next)
+{
+    public ExpressionNode? SourceExpression => null;
+}
 
 /// <summary>
 ///     Extracts the next element from the iterator and binds it to a target symbol.

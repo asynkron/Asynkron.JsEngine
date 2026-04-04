@@ -128,6 +128,36 @@ internal struct ForInLoopDriver : ILoopDriver
 
     public bool EmitMoveNext(EmitContext ctx, out int moveNextEntry, out int moveNextBranch)
     {
+        if (_objectExpression is AwaitExpression awaitObject)
+        {
+            if (!ExpressionProgramCompiler.TryCompile(awaitObject.Expression, out var awaitedProgram, out var awaitFailure))
+            {
+                ctx.SetExpressionProgramFailure("ForInInitInstruction", awaitObject.Expression, awaitFailure);
+                moveNextEntry = -1;
+                moveNextBranch = -1;
+                return false;
+            }
+
+            _initIndex = ctx.Append(new ForInInitInstruction(
+                _stateSymbol, _stateSlotIndex,
+                _valueSymbol, _valueSlotIndex,
+                Next: -1,
+                AwaitStateKey: ((IAstCacheable<Symbol>)awaitObject).GetOrCreateCache(),
+                AwaitedProgram: awaitedProgram,
+                TdzBindings: _tdzBindings,
+                TdzIsConst: _tdzIsConst,
+                ObjectSource: _objectExpression.Source));
+
+            _moveNextIndex = ctx.Append(new ForInMoveNextInstruction(
+                _stateSymbol, _valueSymbol,
+                _stateSlotIndex, _valueSlotIndex,
+                -1, -1));
+
+            moveNextEntry = _moveNextIndex;
+            moveNextBranch = _moveNextIndex;
+            return true;
+        }
+
         if (AstShapeAnalyzer.ContainsAwait(_objectExpression))
         {
             _initIndex = ctx.Append(new SuspendingForInInitInstruction(

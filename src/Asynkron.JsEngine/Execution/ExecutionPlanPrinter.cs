@@ -146,21 +146,21 @@ internal static class ExecutionPlanPrinter
                 $"AWAIT_DISCARD {FormatExpression(null, awaitDiscard.AwaitedProgram)} → [{awaitDiscard.Next}]",
 
             AssignmentSlotInstruction assign =>
-                $"ASSIGN {assign.TargetSymbol.Name} = {FormatExpression(null, assign.ValueProgram)} → [{assign.Next}]",
+                $"ASSIGN {assign.TargetSymbol.Name} = {FormatExpression(null, assign.AwaitedProgram ?? assign.ValueProgram)} → [{assign.Next}]",
 
             SuspendingAssignmentSlotInstruction suspendingAssign =>
                 $"ASSIGN {suspendingAssign.TargetSymbol.Name} = {FormatExpression(suspendingAssign.ValueExpression, null)} → [{suspendingAssign.Next}]",
 
             LogicalCompoundAssignmentSlotInstruction logicalCompound =>
-                $"ASSIGN_LOGICAL {logicalCompound.TargetSymbol.Name} {FormatBinaryOperator(logicalCompound.Operator)}= {FormatExpression(null, logicalCompound.RhsProgram)} → [{logicalCompound.Next}]",
+                $"ASSIGN_LOGICAL {logicalCompound.TargetSymbol.Name} {FormatBinaryOperator(logicalCompound.Operator)}= {FormatExpression(null, logicalCompound.AwaitedProgram ?? logicalCompound.RhsProgram)} → [{logicalCompound.Next}]",
 
             SuspendingLogicalCompoundAssignmentSlotInstruction suspendingLogicalCompound =>
                 $"ASSIGN_LOGICAL {suspendingLogicalCompound.TargetSymbol.Name} {FormatBinaryOperator(suspendingLogicalCompound.Operator)}= {FormatExpression(suspendingLogicalCompound.RhsExpression, null)} → [{suspendingLogicalCompound.Next}]",
 
             SimpleVariableDeclarationInstruction varDecl =>
                 $"VAR {varDecl.VarKind} {varDecl.TargetSymbol.Name}" +
-                (varDecl.InitializerProgram is not null
-                    ? $" = {FormatExpression(null, varDecl.InitializerProgram)}"
+                ((varDecl.AwaitedProgram ?? varDecl.InitializerProgram) is not null
+                    ? $" = {FormatExpression(null, varDecl.AwaitedProgram ?? varDecl.InitializerProgram)}"
                     : "") +
                 $" → [{varDecl.Next}]",
 
@@ -169,8 +169,8 @@ internal static class ExecutionPlanPrinter
 
             BindingVariableDeclarationInstruction bindingDecl =>
                 $"VAR_BIND {bindingDecl.VarKind} {FormatBindingTarget(bindingDecl.TargetProgram)}" +
-                (bindingDecl.InitializerProgram is not null
-                    ? $" = {FormatExpression(null, bindingDecl.InitializerProgram)}"
+                ((bindingDecl.AwaitedProgram ?? bindingDecl.InitializerProgram) is not null
+                    ? $" = {FormatExpression(null, bindingDecl.AwaitedProgram ?? bindingDecl.InitializerProgram)}"
                     : "") +
                 $" → [{bindingDecl.Next}]",
 
@@ -193,7 +193,7 @@ internal static class ExecutionPlanPrinter
                 (ret.Next >= 0 ? $" → [{ret.Next}]" : ""),
 
             ThrowInstruction thr =>
-                $"THROW {FormatExpression(null, thr.ThrowProgram)}",
+                $"THROW {FormatExpression(null, thr.AwaitedProgram ?? thr.ThrowProgram)}",
 
             BreakInstruction brk =>
                 $"BREAK (popTo: {brk.TargetScopeId}) → [{brk.TargetIndex}]",
@@ -235,7 +235,7 @@ internal static class ExecutionPlanPrinter
                 $"END_FINALLY → [{endFinally.Next}]",
 
             IteratorInitInstruction iterInit =>
-                $"ITER_INIT {FormatExpression(null, iterInit.IterableProgram)} (slot: {iterInit.IteratorSlot.Name}, kind: {iterInit.Kind}) → [{iterInit.Next}]",
+                $"ITER_INIT {FormatExpression(null, iterInit.AwaitedProgram ?? iterInit.IterableProgram)} (slot: {iterInit.IteratorSlot.Name}, kind: {iterInit.Kind}) → [{iterInit.Next}]",
 
             SuspendingIteratorInitInstruction suspendingIterInit =>
                 $"ITER_INIT {FormatExpression(suspendingIterInit.IterableExpression, null)} (slot: {suspendingIterInit.IteratorSlot.Name}, kind: {suspendingIterInit.Kind}) → [{suspendingIterInit.Next}]",
@@ -247,7 +247,7 @@ internal static class ExecutionPlanPrinter
                 $"ITER_CLOSE (iter: {iterClose.IteratorSlot.Name}) → [{iterClose.Next}]",
 
             ForInInitInstruction forInInit =>
-                $"FORIN_INIT {FormatExpression(null, forInInit.ObjectProgram)} (state: {forInInit.StateSlot.Name}, value: {forInInit.ValueSlot.Name}) → [{forInInit.Next}]",
+                $"FORIN_INIT {FormatExpression(null, forInInit.AwaitedProgram ?? forInInit.ObjectProgram)} (state: {forInInit.StateSlot.Name}, value: {forInInit.ValueSlot.Name}) → [{forInInit.Next}]",
 
             SuspendingForInInitInstruction suspendingForInInit =>
                 $"FORIN_INIT {FormatExpression(suspendingForInInit.ObjectExpression, null)} (state: {suspendingForInInit.StateSlot.Name}, value: {suspendingForInInit.ValueSlot.Name}) → [{suspendingForInInit.Next}]",
@@ -256,10 +256,10 @@ internal static class ExecutionPlanPrinter
                 $"FORIN_MOVE_NEXT (state: {forInMoveNext.StateSlot.Name}, value: {forInMoveNext.ValueSlot.Name}) body: [{forInMoveNext.Next}], done: [{forInMoveNext.BreakIndex}]",
 
             ArrayDestructuringInitInstruction arrayDestructuringInit =>
-                $"ARRAY_DESTRUCT_INIT {FormatExpression(arrayDestructuringInit.SourceExpression, arrayDestructuringInit.SourceProgram)} (iter: {arrayDestructuringInit.IteratorSlot.Name}) → [{arrayDestructuringInit.Next}]",
+                $"ARRAY_DESTRUCT_INIT {FormatExpression(null, arrayDestructuringInit.SourceProgram)} (iter: {arrayDestructuringInit.IteratorSlot.Name}) → [{arrayDestructuringInit.Next}]",
 
             EnterWithInstruction enterWith =>
-                $"ENTER_WITH {FormatExpression(null, enterWith.ObjectProgram)} → [{enterWith.Next}]",
+                $"ENTER_WITH {FormatExpression(null, enterWith.AwaitedProgram ?? enterWith.ObjectProgram)} → [{enterWith.Next}]",
 
             SuspendingEnterWithInstruction suspendingEnterWith =>
                 $"ENTER_WITH {FormatExpression(suspendingEnterWith.ObjectExpression, null)} → [{suspendingEnterWith.Next}]",
@@ -285,7 +285,7 @@ internal static class ExecutionPlanPrinter
                 $" → [{inc.Next}]",
 
             CompoundAssignmentSlotInstruction compound =>
-                $"COMPOUND {compound.TargetSymbol.Name} {compound.Operator}= {FormatExpression(null, compound.RhsProgram)} → [{compound.Next}]",
+                $"COMPOUND {compound.TargetSymbol.Name} {compound.Operator}= {FormatExpression(null, compound.AwaitedProgram ?? compound.RhsProgram)} → [{compound.Next}]",
 
             SuspendingCompoundAssignmentSlotInstruction suspendingCompound =>
                 $"COMPOUND {suspendingCompound.TargetSymbol.Name} {suspendingCompound.Operator}= {FormatExpression(suspendingCompound.RhsExpression, null)} → [{suspendingCompound.Next}]",

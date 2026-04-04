@@ -88,16 +88,7 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<ArrayDestructuringInitInstruction>(instr);
-            if (instruction.SourceExpression is not null && instruction.SourceProgram is null)
-            {
-                throw new NotSupportedException(
-                    "ArrayDestructuringInitInstruction requires a lowered source program.");
-            }
-
-            // Evaluate the source expression
-            var sourceValue = instruction.SourceProgram is { } sourceProgram
-                ? runner.EvaluateExpressionProgram(sourceProgram, environment, context)
-                : JsValue.Undefined;
+            var sourceValue = runner.EvaluateExpressionProgram(instruction.SourceProgram, environment, context);
 
             if (context.IsThrow)
             {

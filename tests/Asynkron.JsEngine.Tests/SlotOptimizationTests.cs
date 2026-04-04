@@ -92,8 +92,9 @@ public sealed class SlotOptimizationTests : IAsyncLifetime
             .FirstOrDefault();
         Assert.NotNull(compoundInstr);
         Assert.Equal("s", compoundInstr.TargetSymbol.Name);
+        var rhsProgram = compoundInstr.RhsProgram ?? throw new InvalidOperationException("Expected compound assignment RHS program.");
 
-        var rhsLoad = compoundInstr.RhsProgram.Operations
+        var rhsLoad = rhsProgram.Operations
             .OfType<LoadIdentifierExpressionOp>()
             .FirstOrDefault(op => op.Name.Name == "i");
         Assert.NotNull(rhsLoad);

@@ -150,6 +150,31 @@ internal static class ExpressionStatementEmitter
                 IsImmutableTarget: false
             } assignment)
         {
+            if (assignment.Value is AwaitExpression assignmentAwait)
+            {
+                if (!ExpressionProgramCompiler.TryCompile(
+                        assignmentAwait.Expression,
+                        out var awaitedProgram,
+                        out var awaitFailure))
+                {
+                    ctx.SetExpressionProgramFailure(
+                        "AssignmentSlotInstruction",
+                        assignmentAwait.Expression,
+                        awaitFailure);
+                    entryIndex = -1;
+                    return false;
+                }
+
+                entryIndex = ctx.Append(new AssignmentSlotInstruction(
+                    nextIndex,
+                    assignment.Target,
+                    AwaitStateKey: ((IAstCacheable<Symbol>)assignmentAwait).GetOrCreateCache(),
+                    AwaitedProgram: awaitedProgram,
+                    SuppressCompletionValue: suppressCompletion,
+                    AllowNameInference: ShouldAllowAssignmentNameInference(assignment)));
+                return true;
+            }
+
             if (AstShapeAnalyzer.ContainsAwait(assignment.Value))
             {
                 entryIndex = ctx.Append(new SuspendingAssignmentSlotInstruction(
@@ -174,9 +199,9 @@ internal static class ExpressionStatementEmitter
             entryIndex = ctx.Append(new AssignmentSlotInstruction(
                 nextIndex,
                 assignment.Target,
-                assignmentValueProgram,
-                suppressCompletion,
-                ShouldAllowAssignmentNameInference(assignment)));
+                ValueProgram: assignmentValueProgram,
+                SuppressCompletionValue: suppressCompletion,
+                AllowNameInference: ShouldAllowAssignmentNameInference(assignment)));
             return true;
         }
 
@@ -194,6 +219,32 @@ internal static class ExpressionStatementEmitter
             logicalBinary.Operator is
                 BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr or BinaryOperator.NullishCoalescing)
         {
+            if (logicalBinary.Right is AwaitExpression logicalAwait)
+            {
+                if (!ExpressionProgramCompiler.TryCompile(
+                        logicalAwait.Expression,
+                        out var awaitedProgram,
+                        out var awaitFailure))
+                {
+                    ctx.SetExpressionProgramFailure(
+                        "LogicalCompoundAssignmentSlotInstruction",
+                        logicalAwait.Expression,
+                        awaitFailure);
+                    entryIndex = -1;
+                    return false;
+                }
+
+                entryIndex = ctx.Append(new LogicalCompoundAssignmentSlotInstruction(
+                    nextIndex,
+                    logicalCompoundAssign.Target,
+                    logicalBinary.Operator,
+                    AwaitStateKey: ((IAstCacheable<Symbol>)logicalAwait).GetOrCreateCache(),
+                    AwaitedProgram: awaitedProgram,
+                    SuppressCompletionValue: suppressCompletion,
+                    AllowNameInference: ShouldAllowAssignmentNameInference(logicalCompoundAssign)));
+                return true;
+            }
+
             if (AstShapeAnalyzer.ContainsAwait(logicalBinary.Right))
             {
                 entryIndex = ctx.Append(new SuspendingLogicalCompoundAssignmentSlotInstruction(
@@ -220,9 +271,9 @@ internal static class ExpressionStatementEmitter
                 nextIndex,
                 logicalCompoundAssign.Target,
                 logicalBinary.Operator,
-                logicalRhsProgram,
-                suppressCompletion,
-                ShouldAllowAssignmentNameInference(logicalCompoundAssign)));
+                RhsProgram: logicalRhsProgram,
+                SuppressCompletionValue: suppressCompletion,
+                AllowNameInference: ShouldAllowAssignmentNameInference(logicalCompoundAssign)));
             return true;
         }
 
@@ -240,6 +291,31 @@ internal static class ExpressionStatementEmitter
                 BinaryOperator.BitwiseXor or BinaryOperator.LeftShift or
                 BinaryOperator.RightShift or BinaryOperator.UnsignedRightShift)
         {
+            if (arithmeticBinary.Right is AwaitExpression compoundAwait)
+            {
+                if (!ExpressionProgramCompiler.TryCompile(
+                        compoundAwait.Expression,
+                        out var awaitedProgram,
+                        out var awaitFailure))
+                {
+                    ctx.SetExpressionProgramFailure(
+                        "CompoundAssignmentSlotInstruction",
+                        compoundAwait.Expression,
+                        awaitFailure);
+                    entryIndex = -1;
+                    return false;
+                }
+
+                entryIndex = ctx.Append(new CompoundAssignmentSlotInstruction(
+                    nextIndex,
+                    compoundAssign.Target,
+                    arithmeticBinary.Operator,
+                    AwaitStateKey: ((IAstCacheable<Symbol>)compoundAwait).GetOrCreateCache(),
+                    AwaitedProgram: awaitedProgram,
+                    SuppressCompletionValue: suppressCompletion));
+                return true;
+            }
+
             if (AstShapeAnalyzer.ContainsAwait(arithmeticBinary.Right))
             {
                 entryIndex = ctx.Append(new SuspendingCompoundAssignmentSlotInstruction(

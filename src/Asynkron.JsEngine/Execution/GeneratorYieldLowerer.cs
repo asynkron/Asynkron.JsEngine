@@ -22,7 +22,7 @@ internal static class GeneratorYieldLowerer
         out FunctionExpression lowered,
         out string? failureReason)
     {
-        var lowerer = new LoweringContext();
+        var lowerer = new LoweringContext(function.IsAsync);
         var loweredBody = lowerer.RewriteBlock(function.Body);
 
         lowered = ReferenceEquals(loweredBody, function.Body)
@@ -50,7 +50,13 @@ internal static class GeneratorYieldLowerer
 
     private sealed class LoweringContext
     {
+        private readonly bool _rewriteAwaits;
         private int _resumeCounter;
+
+        public LoweringContext(bool rewriteAwaits)
+        {
+            _rewriteAwaits = rewriteAwaits;
+        }
 
         public BlockStatement RewriteBlock(BlockStatement block)
         {
@@ -146,6 +152,13 @@ internal static class GeneratorYieldLowerer
                     continue;
                 }
 
+                if (_rewriteAwaits && TryRewriteNestedAwaitStatement(statement, out var awaitedRewrite))
+                {
+                    builder.AddRange(awaitedRewrite);
+                    changed = true;
+                    continue;
+                }
+
                 if (TryRewriteComplexYieldExpression(statement, out var complexYieldRewrite))
                 {
                     builder.AddRange(complexYieldRewrite);
@@ -220,6 +233,342 @@ internal static class GeneratorYieldLowerer
             }
 
             return changed ? builder.ToImmutable() : statements;
+        }
+
+        private bool TryRewriteNestedAwaitStatement(
+            StatementNode statement,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            replacement = default;
+
+            return statement switch
+            {
+                VariableDeclaration declaration => TryRewriteNestedAwaitVariableDeclaration(declaration, out replacement),
+                ExpressionStatement expressionStatement => TryRewriteNestedAwaitExpressionStatement(expressionStatement,
+                    out replacement),
+                ReturnStatement returnStatement => TryRewriteNestedAwaitReturn(returnStatement, out replacement),
+                ThrowStatement throwStatement => TryRewriteNestedAwaitThrow(throwStatement, out replacement),
+                ForEachStatement forEachStatement => TryRewriteNestedAwaitForEach(forEachStatement, out replacement),
+                WithStatement withStatement => TryRewriteNestedAwaitWith(withStatement, out replacement),
+                _ => false
+            };
+        }
+
+        private bool TryRewriteNestedAwaitVariableDeclaration(
+            VariableDeclaration declaration,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            replacement = default;
+            if (declaration.Declarators.Length != 1)
+            {
+                return false;
+            }
+
+            var declarator = declaration.Declarators[0];
+            if (declarator.Initializer is null or AwaitExpression)
+            {
+                return false;
+            }
+
+            if (!TryRewriteExpressionWithNestedAwait(
+                    declarator.Initializer,
+                    out var prefixStatements,
+                    out var rewrittenInitializer))
+            {
+                return false;
+            }
+
+            replacement = prefixStatements.Add(
+                declaration with
+                {
+                    Declarators = [declarator with { Initializer = rewrittenInitializer }]
+                });
+            return true;
+        }
+
+        private bool TryRewriteNestedAwaitExpressionStatement(
+            ExpressionStatement statement,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            replacement = default;
+            if (statement.Expression is AwaitExpression or AssignmentExpression)
+            {
+                return false;
+            }
+
+            if (!TryRewriteExpressionWithNestedAwait(
+                    statement.Expression,
+                    out var prefixStatements,
+                    out var rewrittenExpression))
+            {
+                return false;
+            }
+
+            replacement = prefixStatements.Add(statement with { Expression = rewrittenExpression });
+            return true;
+        }
+
+        private bool TryRewriteNestedAwaitReturn(
+            ReturnStatement statement,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            replacement = default;
+            if (statement.Expression is null or AwaitExpression)
+            {
+                return false;
+            }
+
+            if (!TryRewriteExpressionWithNestedAwait(
+                    statement.Expression,
+                    out var prefixStatements,
+                    out var rewrittenExpression))
+            {
+                return false;
+            }
+
+            replacement = prefixStatements.Add(statement with { Expression = rewrittenExpression });
+            return true;
+        }
+
+        private bool TryRewriteNestedAwaitThrow(
+            ThrowStatement statement,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            replacement = default;
+            if (statement.Expression is AwaitExpression)
+            {
+                return false;
+            }
+
+            if (!TryRewriteExpressionWithNestedAwait(
+                    statement.Expression,
+                    out var prefixStatements,
+                    out var rewrittenExpression))
+            {
+                return false;
+            }
+
+            replacement = prefixStatements.Add(statement with { Expression = rewrittenExpression });
+            return true;
+        }
+
+        private bool TryRewriteNestedAwaitForEach(
+            ForEachStatement statement,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            replacement = default;
+            if (statement.Iterable is AwaitExpression)
+            {
+                return false;
+            }
+
+            if (!TryRewriteExpressionWithNestedAwait(
+                    statement.Iterable,
+                    out var prefixStatements,
+                    out var rewrittenIterable))
+            {
+                return false;
+            }
+
+            replacement = prefixStatements.Add(statement with { Iterable = rewrittenIterable });
+            return true;
+        }
+
+        private bool TryRewriteNestedAwaitWith(
+            WithStatement statement,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            replacement = default;
+            if (statement.Object is AwaitExpression)
+            {
+                return false;
+            }
+
+            if (!TryRewriteExpressionWithNestedAwait(
+                    statement.Object,
+                    out var prefixStatements,
+                    out var rewrittenObject))
+            {
+                return false;
+            }
+
+            replacement = prefixStatements.Add(statement with { Object = rewrittenObject });
+            return true;
+        }
+
+        private bool TryRewriteExpressionWithNestedAwait(
+            ExpressionNode expression,
+            out ImmutableArray<StatementNode> prefixStatements,
+            out ExpressionNode rewrittenExpression)
+        {
+            prefixStatements = default;
+            rewrittenExpression = expression;
+
+            if (expression is AwaitExpression || !AstShapeAnalyzer.ContainsAwait(expression))
+            {
+                return false;
+            }
+
+            var tempBinding = CreateResumeIdentifier();
+            var replacement = new IdentifierExpression(expression.Source, tempBinding.Name);
+            if (!TryExtractLeadingAwait(expression, replacement, out var awaitedExpression, out rewrittenExpression))
+            {
+                return false;
+            }
+
+            prefixStatements =
+            [
+                new VariableDeclaration(
+                    awaitedExpression.Source,
+                    VariableKind.Let,
+                    [new VariableDeclarator(awaitedExpression.Source, tempBinding, awaitedExpression)])
+            ];
+            return true;
+        }
+
+        private bool TryExtractLeadingAwait(
+            ExpressionNode expression,
+            IdentifierExpression replacement,
+            out AwaitExpression awaitedExpression,
+            out ExpressionNode rewrittenExpression)
+        {
+            awaitedExpression = null!;
+            rewrittenExpression = expression;
+
+            switch (expression)
+            {
+                case AwaitExpression awaitExpression:
+                    awaitedExpression = awaitExpression;
+                    rewrittenExpression = replacement with { Source = awaitExpression.Source };
+                    return true;
+
+                case YieldExpression { Expression: { } operand } yieldExpression:
+                    {
+                        if (operand is AwaitExpression)
+                        {
+                            return false;
+                        }
+
+                        if (TryExtractLeadingAwait(operand, replacement, out awaitedExpression,
+                                out var rewrittenYieldOperand))
+                        {
+                            rewrittenExpression = yieldExpression with { Expression = rewrittenYieldOperand };
+                            return true;
+                        }
+
+                        return false;
+                    }
+
+                case BinaryExpression binaryExpression
+                    when !AstShapeAnalyzer.ContainsAwait(binaryExpression.Right):
+                    {
+                        if (TryExtractLeadingAwait(binaryExpression.Left, replacement, out awaitedExpression,
+                                out var rewrittenBinaryLeft))
+                        {
+                            rewrittenExpression = binaryExpression with { Left = rewrittenBinaryLeft };
+                            return true;
+                        }
+
+                        return false;
+                    }
+
+                case UnaryExpression unaryExpression:
+                    {
+                        if (TryExtractLeadingAwait(unaryExpression.Operand, replacement, out awaitedExpression,
+                                out var rewrittenUnaryOperand))
+                        {
+                            rewrittenExpression = unaryExpression with { Operand = rewrittenUnaryOperand };
+                            return true;
+                        }
+
+                        return false;
+                    }
+
+                case ConditionalExpression conditionalExpression
+                    when !AstShapeAnalyzer.ContainsAwait(conditionalExpression.Consequent) &&
+                         !AstShapeAnalyzer.ContainsAwait(conditionalExpression.Alternate):
+                    {
+                        if (TryExtractLeadingAwait(conditionalExpression.Test, replacement, out awaitedExpression,
+                                out var rewrittenTest))
+                        {
+                            rewrittenExpression = conditionalExpression with { Test = rewrittenTest };
+                            return true;
+                        }
+
+                        return false;
+                    }
+
+                case SequenceExpression sequenceExpression
+                    when !AstShapeAnalyzer.ContainsAwait(sequenceExpression.Right):
+                    {
+                        if (sequenceExpression.Left is AwaitExpression)
+                        {
+                            return false;
+                        }
+
+                        if (TryExtractLeadingAwait(sequenceExpression.Left, replacement, out awaitedExpression,
+                                out var rewrittenSequenceLeft))
+                        {
+                            rewrittenExpression = sequenceExpression with { Left = rewrittenSequenceLeft };
+                            return true;
+                        }
+
+                        return false;
+                    }
+
+                case MemberExpression memberExpression
+                    when !memberExpression.IsComputed || !AstShapeAnalyzer.ContainsAwait(memberExpression.Property):
+                    {
+                        if (TryExtractLeadingAwait(memberExpression.Target, replacement, out awaitedExpression,
+                                out var rewrittenTarget))
+                        {
+                            rewrittenExpression = memberExpression with { Target = rewrittenTarget };
+                            return true;
+                        }
+
+                        return false;
+                    }
+
+                case CallExpression callExpression when CallArgumentsContainAwait(callExpression.Arguments) == false:
+                    {
+                        if (TryExtractLeadingAwait(callExpression.Callee, replacement, out awaitedExpression,
+                                out var rewrittenCallee))
+                        {
+                            rewrittenExpression = callExpression with { Callee = rewrittenCallee };
+                            return true;
+                        }
+
+                        return false;
+                    }
+
+                case NewExpression newExpression when CallArgumentsContainAwait(newExpression.Arguments) == false:
+                    {
+                        if (TryExtractLeadingAwait(newExpression.Constructor, replacement, out awaitedExpression,
+                                out var rewrittenConstructor))
+                        {
+                            rewrittenExpression = newExpression with { Constructor = rewrittenConstructor };
+                            return true;
+                        }
+
+                        return false;
+                    }
+
+                default:
+                    return false;
+            }
+        }
+
+        private static bool CallArgumentsContainAwait(ImmutableArray<CallArgument> arguments)
+        {
+            foreach (var argument in arguments)
+            {
+                if (AstShapeAnalyzer.ContainsAwait(argument.Expression))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static BlockStatement CreateFreshBlock(

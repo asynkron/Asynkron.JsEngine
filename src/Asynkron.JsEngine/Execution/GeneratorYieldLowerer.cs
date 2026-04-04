@@ -261,30 +261,37 @@ internal static class GeneratorYieldLowerer
             out ImmutableArray<StatementNode> replacement)
         {
             replacement = default;
-            if (declaration.Declarators.Length != 1)
+            if (declaration.Declarators.IsDefaultOrEmpty)
             {
                 return false;
             }
 
-            var declarator = declaration.Declarators[0];
-            if (declarator.Initializer is null or AwaitExpression)
-            {
-                return false;
-            }
+            var builder = ImmutableArray.CreateBuilder<StatementNode>();
+            var changed = false;
 
-            if (!TryRewriteExpressionWithNestedAwait(
-                    declarator.Initializer,
-                    out var prefixStatements,
-                    out var rewrittenInitializer))
+            foreach (var declarator in declaration.Declarators)
             {
-                return false;
-            }
-
-            replacement = prefixStatements.Add(
-                declaration with
+                var rewrittenDeclarator = declarator;
+                if (declarator.Initializer is not null and not AwaitExpression &&
+                    TryRewriteExpressionWithNestedAwait(
+                        declarator.Initializer,
+                        out var prefixStatements,
+                        out var rewrittenInitializer))
                 {
-                    Declarators = [declarator with { Initializer = rewrittenInitializer }]
-                });
+                    builder.AddRange(prefixStatements);
+                    rewrittenDeclarator = declarator with { Initializer = rewrittenInitializer };
+                    changed = true;
+                }
+
+                builder.Add(CreateSingleDeclaratorDeclaration(declaration, rewrittenDeclarator));
+            }
+
+            if (!changed)
+            {
+                return false;
+            }
+
+            replacement = builder.ToImmutable();
             return true;
         }
 
@@ -752,6 +759,13 @@ internal static class GeneratorYieldLowerer
                 source,
                 VariableKind.Let,
                 [new VariableDeclarator(source, binding, initializer)]);
+        }
+
+        private static VariableDeclaration CreateSingleDeclaratorDeclaration(
+            VariableDeclaration declaration,
+            VariableDeclarator declarator)
+        {
+            return declaration with { Declarators = [declarator] };
         }
 
         private static IdentifierExpression CreateAssignmentTargetIdentifier(AssignmentExpression assignmentExpression)

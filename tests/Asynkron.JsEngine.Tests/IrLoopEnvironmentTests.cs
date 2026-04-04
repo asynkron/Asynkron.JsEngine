@@ -1018,6 +1018,29 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 5000)]
+    public async Task AsyncNestedAwaitMultiDeclaratorDeclaration_PreservesInitializerOrder()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.EvaluateAndAwait("""
+            async function testNestedAwaitMultiDeclaration() {
+                let trace = [];
+                let first = (await Promise.resolve().then(() => {
+                    trace.push("await");
+                    return 2;
+                })) + 1, second = trace.length + first;
+                return first * 10 + second;
+            }
+
+            let nestedAwaitMultiDeclarationResult = undefined;
+            testNestedAwaitMultiDeclaration().then(value => nestedAwaitMultiDeclarationResult = value);
+            nestedAwaitMultiDeclarationResult;
+            """);
+
+        Assert.Equal(34.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task SequenceExpression_ReusesDedicatedStatementInstructions()
     {
         await using var engine = CreateEngine();

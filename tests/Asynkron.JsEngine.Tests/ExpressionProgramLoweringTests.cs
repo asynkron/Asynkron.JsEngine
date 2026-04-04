@@ -114,6 +114,44 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task MultiDeclaratorSimpleVariableDeclaration_NestedAwait_RewritesOffSuspendingInstruction()
+    {
+        var plan = await GetFunctionPlan("""
+            async function declarePair(valuePromise) {
+                let first = (await valuePromise) + 1, second = first + 1;
+                return first + second;
+            }
+            """, "declarePair");
+
+        var tempInstruction = Assert.Single(
+            plan.Instructions.OfType<SimpleVariableDeclarationInstruction>(),
+            i => i.AwaitedProgram is not null && i.TargetSymbol.Name!.StartsWith("__yield_lower_", StringComparison.Ordinal));
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            tempInstruction.AwaitedProgram,
+            op => op.Name.Name == "valuePromise");
+
+        var firstInstruction = Assert.Single(
+            plan.Instructions.OfType<SimpleVariableDeclarationInstruction>(),
+            i => i.TargetSymbol.Name == "first");
+        Assert.NotNull(firstInstruction.InitializerProgram);
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            firstInstruction.InitializerProgram,
+            op => op.Name.Name!.StartsWith("__yield_lower_", StringComparison.Ordinal));
+
+        var secondInstruction = Assert.Single(
+            plan.Instructions.OfType<SimpleVariableDeclarationInstruction>(),
+            i => i.TargetSymbol.Name == "second");
+        Assert.NotNull(secondInstruction.InitializerProgram);
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            secondInstruction.InitializerProgram,
+            op => op.Name.Name == "first");
+
+        Assert.DoesNotContain(
+            plan.Instructions,
+            static instruction => instruction.Kind == InstructionKind.SuspendingSimpleVariableDeclaration);
+    }
+
+    [Fact]
     public async Task YieldInstruction_SimpleBinaryExpression_IsLoweredToExpressionProgram()
     {
         var plan = await GetFunctionPlan("""
@@ -792,6 +830,36 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         AssertProgramContains<LoadIdentifierExpressionOp>(
             instruction.AwaitedProgram,
             op => op.Name.Name == "pointPromise");
+    }
+
+    [Fact]
+    public async Task MultiDeclaratorBindingVariableDeclaration_NestedAwait_RewritesOffSuspendingInstruction()
+    {
+        var plan = await GetFunctionPlan("""
+            async function sumPoint(pointPromise) {
+                let seed = 1, { x, y } = (await pointPromise).point;
+                return seed + x + y;
+            }
+            """, "sumPoint");
+
+        var tempInstruction = Assert.Single(
+            plan.Instructions.OfType<SimpleVariableDeclarationInstruction>(),
+            i => i.AwaitedProgram is not null && i.TargetSymbol.Name!.StartsWith("__yield_lower_", StringComparison.Ordinal));
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            tempInstruction.AwaitedProgram,
+            op => op.Name.Name == "pointPromise");
+
+        var bindingInstruction = Assert.Single(
+            plan.Instructions.OfType<BindingVariableDeclarationInstruction>(),
+            i => i.InitializerProgram is not null);
+        Assert.Null(bindingInstruction.Initializer);
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            bindingInstruction.InitializerProgram,
+            op => op.Name.Name!.StartsWith("__yield_lower_", StringComparison.Ordinal));
+
+        Assert.DoesNotContain(
+            plan.Instructions,
+            static instruction => instruction.Kind == InstructionKind.SuspendingBindingVariableDeclaration);
     }
 
     [Fact]

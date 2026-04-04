@@ -217,7 +217,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AssignmentSlotInstruction_AwaitedValue_UsesSuspendingInstruction()
+    public async Task AssignmentSlotInstruction_NestedAwaitValue_RewritesToExpressionProgram()
     {
         var plan = await GetFunctionPlan("""
             async function assignFrom(valuePromise) {
@@ -227,8 +227,14 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             }
             """, "assignFrom");
 
-        var instruction = Assert.Single(plan.Instructions.OfType<SuspendingAssignmentSlotInstruction>());
-        Assert.IsType<BinaryExpression>(instruction.ValueExpression);
+        var instruction = Assert.Single(plan.Instructions.OfType<AssignmentSlotInstruction>());
+        Assert.Null(instruction.ValueExpression);
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            instruction.ValueProgram,
+            op => op.Name.Name!.StartsWith("__yield_lower_resume", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            plan.Instructions,
+            static instruction => instruction.Kind == InstructionKind.SuspendingAssignmentSlot);
     }
 
     [Fact]
@@ -248,7 +254,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task LogicalCompoundAssignmentSlotInstruction_AwaitedValue_UsesSuspendingInstruction()
+    public async Task LogicalCompoundAssignmentSlotInstruction_NestedAwaitValue_RewritesOffSuspendingInstruction()
     {
         var plan = await GetFunctionPlan("""
             async function assignLogical(flag, valuePromise) {
@@ -258,8 +264,15 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             }
             """, "assignLogical");
 
-        var instruction = Assert.Single(plan.Instructions.OfType<SuspendingLogicalCompoundAssignmentSlotInstruction>());
-        Assert.IsType<BinaryExpression>(instruction.RhsExpression);
+        Assert.Contains(
+            plan.Instructions.OfType<AssignmentSlotInstruction>(),
+            instruction => instruction.ValueProgram is not null);
+        Assert.Contains(
+            plan.Instructions.OfType<BranchInstruction>(),
+            _ => true);
+        Assert.DoesNotContain(
+            plan.Instructions,
+            static instruction => instruction.Kind == InstructionKind.SuspendingLogicalCompoundAssignmentSlot);
     }
 
     [Fact]
@@ -281,7 +294,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task CompoundAssignmentSlotInstruction_AwaitedValue_UsesSuspendingInstruction()
+    public async Task CompoundAssignmentSlotInstruction_NestedAwaitValue_RewritesOffSuspendingInstruction()
     {
         var plan = await GetFunctionPlan("""
             async function addValue(base, valuePromise) {
@@ -291,8 +304,14 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             }
             """, "addValue");
 
-        var instruction = Assert.Single(plan.Instructions.OfType<SuspendingCompoundAssignmentSlotInstruction>());
-        Assert.IsType<BinaryExpression>(instruction.RhsExpression);
+        var instruction = Assert.Single(plan.Instructions.OfType<AssignmentSlotInstruction>());
+        Assert.Null(instruction.ValueExpression);
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            instruction.ValueProgram,
+            op => op.Name.Name!.StartsWith("__yield_lower_resume", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            plan.Instructions,
+            static instruction => instruction.Kind == InstructionKind.SuspendingCompoundAssignmentSlot);
     }
 
     [Fact]

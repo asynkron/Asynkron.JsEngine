@@ -968,6 +968,56 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 5000)]
+    public async Task AsyncNestedAwaitCompoundAssignment_SnapshotsCurrentValueBeforeAwait()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.EvaluateAndAwait("""
+            async function testNestedAwaitCompoundSnapshot() {
+                let current = 3;
+                current += (await Promise.resolve().then(() => {
+                    current = 100;
+                    return 4;
+                })) + 1;
+                return current;
+            }
+
+            let nestedCompoundSnapshotResult = undefined;
+            testNestedAwaitCompoundSnapshot().then(value => nestedCompoundSnapshotResult = value);
+            nestedCompoundSnapshotResult;
+            """);
+
+        Assert.Equal(8.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncNestedAwaitLogicalCompoundAssignment_PreservesShortCircuit()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.EvaluateAndAwait("""
+            async function testNestedAwaitLogicalShortCircuit() {
+                let current = 1;
+                let calls = 0;
+
+                async function nextValue() {
+                    calls++;
+                    return 7;
+                }
+
+                current ||= (await nextValue()) + 1;
+                return current + calls;
+            }
+
+            let nestedLogicalShortCircuitResult = undefined;
+            testNestedAwaitLogicalShortCircuit().then(value => nestedLogicalShortCircuitResult = value);
+            nestedLogicalShortCircuitResult;
+            """);
+
+        Assert.Equal(1.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task SequenceExpression_ReusesDedicatedStatementInstructions()
     {
         await using var engine = CreateEngine();

@@ -152,7 +152,7 @@ internal static class GeneratorYieldLowerer
                     continue;
                 }
 
-                if (_rewriteAwaits && TryRewriteNestedAwaitStatement(statement, out var awaitedRewrite))
+                if (_rewriteAwaits && TryRewriteNestedAwaitStatement(statement, isStrict, out var awaitedRewrite))
                 {
                     builder.AddRange(awaitedRewrite);
                     changed = true;
@@ -237,6 +237,7 @@ internal static class GeneratorYieldLowerer
 
         private bool TryRewriteNestedAwaitStatement(
             StatementNode statement,
+            bool isStrict,
             out ImmutableArray<StatementNode> replacement)
         {
             replacement = default;
@@ -245,6 +246,7 @@ internal static class GeneratorYieldLowerer
             {
                 VariableDeclaration declaration => TryRewriteNestedAwaitVariableDeclaration(declaration, out replacement),
                 ExpressionStatement expressionStatement => TryRewriteNestedAwaitExpressionStatement(expressionStatement,
+                    isStrict,
                     out replacement),
                 ReturnStatement returnStatement => TryRewriteNestedAwaitReturn(returnStatement, out replacement),
                 ThrowStatement throwStatement => TryRewriteNestedAwaitThrow(throwStatement, out replacement),
@@ -288,12 +290,22 @@ internal static class GeneratorYieldLowerer
 
         private bool TryRewriteNestedAwaitExpressionStatement(
             ExpressionStatement statement,
+            bool isStrict,
             out ImmutableArray<StatementNode> replacement)
         {
             replacement = default;
-            if (statement.Expression is AwaitExpression or AssignmentExpression)
+            if (statement.Expression is AwaitExpression)
             {
                 return false;
+            }
+
+            if (statement.Expression is AssignmentExpression assignmentExpression)
+            {
+                return TryRewriteNestedAwaitAssignmentStatement(
+                    statement,
+                    assignmentExpression,
+                    isStrict,
+                    out replacement);
             }
 
             if (!TryRewriteExpressionWithNestedAwait(
@@ -305,6 +317,166 @@ internal static class GeneratorYieldLowerer
             }
 
             replacement = prefixStatements.Add(statement with { Expression = rewrittenExpression });
+            return true;
+        }
+
+        private bool TryRewriteNestedAwaitAssignmentStatement(
+            ExpressionStatement statement,
+            AssignmentExpression assignmentExpression,
+            bool isStrict,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            replacement = default;
+
+            if (!assignmentExpression.IsCompoundAssignment)
+            {
+                if (!TryRewriteExpressionWithNestedAwait(
+                        assignmentExpression.Value,
+                        out var prefixStatements,
+                        out var rewrittenValue))
+                {
+                    return false;
+                }
+
+                replacement = prefixStatements.Add(
+                    statement with
+                    {
+                        Expression = CopyAssignmentWithNewValue(
+                            assignmentExpression,
+                            rewrittenValue,
+                            isCompoundAssignment: false)
+                    });
+                return true;
+            }
+
+            if (assignmentExpression.Value is not BinaryExpression compoundBinary)
+            {
+                return false;
+            }
+
+            return compoundBinary.Operator switch
+            {
+                BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr or BinaryOperator.NullishCoalescing
+                    => TryRewriteNestedAwaitLogicalCompoundAssignment(
+                        statement,
+                        assignmentExpression,
+                        compoundBinary,
+                        isStrict,
+                        out replacement),
+                BinaryOperator.Add or BinaryOperator.Subtract or BinaryOperator.Multiply or BinaryOperator.Divide or
+                BinaryOperator.Modulo or BinaryOperator.Power or BinaryOperator.BitwiseAnd or BinaryOperator.BitwiseOr or
+                BinaryOperator.BitwiseXor or BinaryOperator.LeftShift or BinaryOperator.RightShift or
+                BinaryOperator.UnsignedRightShift
+                    => TryRewriteNestedAwaitArithmeticCompoundAssignment(
+                        statement,
+                        assignmentExpression,
+                        compoundBinary,
+                        out replacement),
+                _ => false
+            };
+        }
+
+        private bool TryRewriteNestedAwaitArithmeticCompoundAssignment(
+            ExpressionStatement statement,
+            AssignmentExpression assignmentExpression,
+            BinaryExpression compoundBinary,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            replacement = default;
+
+            if (!TryRewriteExpressionWithNestedAwait(
+                    compoundBinary.Right,
+                    out var rhsPrefixStatements,
+                    out var rewrittenRight))
+            {
+                return false;
+            }
+
+            var currentValueBinding = CreateResumeIdentifier();
+            var snapshotDeclaration = CreateTempDeclaration(
+                statement.Source,
+                currentValueBinding,
+                CreateAssignmentTargetIdentifier(assignmentExpression));
+            var rewrittenAssignment = CopyAssignmentWithNewValue(
+                assignmentExpression,
+                compoundBinary with
+                {
+                    Left = new IdentifierExpression(compoundBinary.Left.Source, currentValueBinding.Name),
+                    Right = rewrittenRight
+                },
+                isCompoundAssignment: false);
+
+            var builder = ImmutableArray.CreateBuilder<StatementNode>(rhsPrefixStatements.Length + 2);
+            builder.Add(snapshotDeclaration);
+            builder.AddRange(rhsPrefixStatements);
+            builder.Add(statement with { Expression = rewrittenAssignment });
+            replacement = builder.ToImmutable();
+            return true;
+        }
+
+        private bool TryRewriteNestedAwaitLogicalCompoundAssignment(
+            ExpressionStatement statement,
+            AssignmentExpression assignmentExpression,
+            BinaryExpression compoundBinary,
+            bool isStrict,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            replacement = default;
+
+            if (!TryRewriteExpressionWithNestedAwait(
+                    compoundBinary.Right,
+                    out var rhsPrefixStatements,
+                    out var rewrittenRight))
+            {
+                return false;
+            }
+
+            var currentValueBinding = CreateResumeIdentifier();
+            var currentValueIdentifier = new IdentifierExpression(statement.Source, currentValueBinding.Name);
+            var snapshotDeclaration = CreateTempDeclaration(
+                statement.Source,
+                currentValueBinding,
+                CreateAssignmentTargetIdentifier(assignmentExpression));
+            var rewrittenAssignment = CopyAssignmentWithNewValue(
+                assignmentExpression,
+                rewrittenRight,
+                isCompoundAssignment: false);
+
+            var branchStatements = ImmutableArray.CreateBuilder<StatementNode>(rhsPrefixStatements.Length + 1);
+            branchStatements.AddRange(rhsPrefixStatements);
+            branchStatements.Add(statement with { Expression = rewrittenAssignment });
+
+            var branchBlock = CreateFreshBlock(statement.Source, branchStatements.ToImmutable(), isStrict);
+            ExpressionNode condition = compoundBinary.Operator switch
+            {
+                BinaryOperator.LogicalAnd => currentValueIdentifier,
+                BinaryOperator.LogicalOr => new UnaryExpression(
+                    statement.Source,
+                    UnaryOperator.LogicalNot,
+                    currentValueIdentifier,
+                    IsPrefix: true),
+                BinaryOperator.NullishCoalescing => new BinaryExpression(
+                    statement.Source,
+                    BinaryOperator.LogicalOr,
+                    new BinaryExpression(
+                        statement.Source,
+                        BinaryOperator.StrictEqual,
+                        currentValueIdentifier,
+                        new LiteralExpression(statement.Source, JsValue.Null)),
+                    new BinaryExpression(
+                        statement.Source,
+                        BinaryOperator.StrictEqual,
+                        currentValueIdentifier,
+                        new LiteralExpression(statement.Source, JsValue.Undefined))),
+                _ => throw new InvalidOperationException(
+                    $"Unsupported logical compound assignment operator '{compoundBinary.Operator}'.")
+            };
+
+            replacement =
+            [
+                snapshotDeclaration,
+                new IfStatement(statement.Source, condition, branchBlock, null)
+            ];
             return true;
         }
 
@@ -569,6 +741,42 @@ internal static class GeneratorYieldLowerer
             }
 
             return false;
+        }
+
+        private static VariableDeclaration CreateTempDeclaration(
+            SourceReference? source,
+            IdentifierBinding binding,
+            ExpressionNode initializer)
+        {
+            return new VariableDeclaration(
+                source,
+                VariableKind.Let,
+                [new VariableDeclarator(source, binding, initializer)]);
+        }
+
+        private static IdentifierExpression CreateAssignmentTargetIdentifier(AssignmentExpression assignmentExpression)
+        {
+            return assignmentExpression.TargetIdentifier ??
+                   new IdentifierExpression(
+                       assignmentExpression.Source,
+                       assignmentExpression.Target,
+                       assignmentExpression.ScopeDepth,
+                       assignmentExpression.SlotIndex,
+                       assignmentExpression.ScopeId,
+                       assignmentExpression.FlatSlotId);
+        }
+
+        private static AssignmentExpression CopyAssignmentWithNewValue(
+            AssignmentExpression assignmentExpression,
+            ExpressionNode rewrittenValue,
+            bool isCompoundAssignment)
+        {
+            var rewrittenAssignment = assignmentExpression with
+            {
+                Value = rewrittenValue,
+                IsCompoundAssignment = isCompoundAssignment
+            };
+            return rewrittenAssignment with { TargetIdentifier = assignmentExpression.TargetIdentifier };
         }
 
         private static BlockStatement CreateFreshBlock(

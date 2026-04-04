@@ -24,13 +24,11 @@ public static partial class TypedAstEvaluator
         {
             var instruction = Unsafe.As<YieldInstruction>(instr);
             var yieldedValue = JsValue.Undefined;
-            if (instruction.AwaitedProgram is not null || instruction.YieldProgram is not null || instruction.YieldExpression is not null)
+            if (instruction.AwaitedProgram is not null || instruction.YieldProgram is not null)
             {
                 yieldedValue = instruction.AwaitedProgram is { } awaitedProgram
                     ? runner.EvaluateAwaitInGenerator(instruction.AwaitStateKey!, awaitedProgram, environment, context)
-                    : instruction.YieldProgram is { } yieldProgram
-                        ? runner.EvaluateExpressionProgram(yieldProgram, environment, context)
-                        : instruction.YieldExpression!.EvaluateExpression(environment, context);
+                    : runner.EvaluateExpressionProgram(instruction.YieldProgram!.Value, environment, context);
 
                 if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingYieldResult, environment))
                 {
@@ -47,6 +45,40 @@ public static partial class TypedAstEvaluator
                 {
                     return HandleYieldNestedSlow(runner, ref environment, context, out returnValue);
                 }
+            }
+
+            runner._programCounter = instruction.Next;
+            runner.RecordYield(context, environment);
+            runner._state = GeneratorState.Suspended;
+            returnValue = CreateIteratorResult(yieldedValue, false);
+            return InstructionResult.Return;
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static InstructionResult HandleSuspendingYield(
+                    ExecutionPlanRunner runner,
+                    ExecutionInstruction instr,
+                    ref JsEnvironment environment,
+                    EvaluationContext context,
+                    out JsValue returnValue)
+        {
+            var instruction = Unsafe.As<SuspendingYieldInstruction>(instr);
+            var yieldedValue = instruction.YieldExpression.EvaluateExpression(environment, context);
+
+            if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingYieldResult, environment))
+            {
+                returnValue = pendingYieldResult;
+                return InstructionResult.Return;
+            }
+
+            if (context.IsThrow)
+            {
+                return HandleYieldThrowSlow(runner, context, out returnValue);
+            }
+
+            if (context.IsYield)
+            {
+                return HandleYieldNestedSlow(runner, ref environment, context, out returnValue);
             }
 
             runner._programCounter = instruction.Next;

@@ -244,15 +244,22 @@ internal sealed record PopEnvironmentInstruction(int ScopeId, bool AllowPooling,
 ///     Represents a yield expression. When executed, the generator returns control to the caller.
 /// </summary>
 /// <param name="Next">Next instruction index after the yield.</param>
-/// <param name="YieldExpression">Builder-stage AST representation of the yielded expression.</param>
 /// <param name="YieldProgram">Lowered bytecode representation of the yielded expression.</param>
 internal sealed record YieldInstruction(
     int Next,
-    ExpressionNode? YieldExpression = null,
     ExpressionProgram? YieldProgram = null,
     Symbol? AwaitStateKey = null,
     ExpressionProgram? AwaitedProgram = null)
     : ExecutionInstruction(InstructionKind.Yield, Next);
+
+/// <summary>
+///     Represents a yield expression whose operand still requires AST evaluation because it contains nested
+///     suspension points.
+/// </summary>
+internal sealed record SuspendingYieldInstruction(
+    int Next,
+    ExpressionNode YieldExpression)
+    : ExecutionInstruction(InstructionKind.SuspendingYield, Next);
 
 /// <summary>
 ///     Represents a delegated <c>yield*</c> expression that iterates another iterable.

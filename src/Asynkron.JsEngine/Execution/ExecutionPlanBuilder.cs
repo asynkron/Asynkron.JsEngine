@@ -358,40 +358,6 @@ internal sealed partial class ExecutionPlanBuilder
                     };
                     break;
 
-                case YieldInstruction { YieldExpression: AwaitExpression awaitExpression, YieldProgram: null, AwaitedProgram: null } yieldInstruction:
-                    if (!TryCompileExpressionProgram(awaitExpression.Expression, out var awaitedYieldProgram, out var awaitedYieldFailure))
-                    {
-                        return FailExpressionProgram(
-                            "YieldInstruction",
-                            awaitExpression.Expression,
-                            awaitedYieldFailure);
-                    }
-
-                    Instructions[i] = yieldInstruction with
-                    {
-                        YieldExpression = null,
-                        YieldProgram = null,
-                        AwaitStateKey = ((IAstCacheable<Symbol>)awaitExpression).GetOrCreateCache(),
-                        AwaitedProgram = awaitedYieldProgram
-                    };
-                    break;
-
-                case YieldInstruction { YieldExpression: not null, YieldProgram: null } yieldInstruction:
-                    if (!TryCompileExpressionProgram(yieldInstruction.YieldExpression, out var yieldProgram, out var yieldFailure))
-                    {
-                        return FailExpressionProgram(
-                            "YieldInstruction",
-                            yieldInstruction.YieldExpression,
-                            yieldFailure);
-                    }
-
-                    Instructions[i] = yieldInstruction with
-                    {
-                        YieldExpression = null,
-                        YieldProgram = yieldProgram
-                    };
-                    break;
-
                 case ArrayDestructuringInitInstruction { SourceExpression: not null, SourceProgram: null } arrayDestructuringInitInstruction:
                     if (!TryCompileExpressionProgram(arrayDestructuringInitInstruction.SourceExpression, out var destructuringSourceProgram, out var destructuringFailure))
                     {
@@ -474,7 +440,6 @@ internal sealed partial class ExecutionPlanBuilder
                         when !(AstShapeAnalyzer.ContainsAwait(compoundInstruction.RhsExpression) ||
                                AstShapeAnalyzer.ContainsYield(compoundInstruction.RhsExpression)):
                     case SimpleVariableDeclarationInstruction { Initializer: not null }:
-                    case YieldInstruction { YieldExpression: not null }:
                     case EvaluateAndDiscardInstruction { Expression: not null } evaluateInstruction
                         when !(AstShapeAnalyzer.ContainsAwait(evaluateInstruction.Expression) ||
                                AstShapeAnalyzer.ContainsYield(evaluateInstruction.Expression)):
@@ -1039,7 +1004,7 @@ internal sealed partial class ExecutionPlanBuilder
         if (AstShapeAnalyzer.ContainsAwait(expression) || AstShapeAnalyzer.ContainsYield(expression))
         {
             var storeIndex = Append(new StoreResumeValueInstruction(continuationIndex, resumeSlot));
-            entryIndex = Append(new YieldInstruction(storeIndex, expression));
+            entryIndex = Append(new SuspendingYieldInstruction(storeIndex, expression));
             return true;
         }
 

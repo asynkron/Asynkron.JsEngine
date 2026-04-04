@@ -40,6 +40,7 @@ public static partial class TypedAstEvaluator
             handlers[(int)InstructionKind.PushEnvironment] = HandlePushEnvironment;
             handlers[(int)InstructionKind.PopEnvironment] = HandlePopEnvironment;
             handlers[(int)InstructionKind.Yield] = HandleYield;
+            handlers[(int)InstructionKind.SuspendingYield] = HandleSuspendingYield;
             handlers[(int)InstructionKind.YieldStar] = HandleYieldStar;
             handlers[(int)InstructionKind.SuspendingYieldStar] = HandleSuspendingYieldStar;
             handlers[(int)InstructionKind.StoreResumeValue] = HandleStoreResumeValue;

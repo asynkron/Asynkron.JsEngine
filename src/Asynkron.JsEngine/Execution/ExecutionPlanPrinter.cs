@@ -189,10 +189,13 @@ internal static class ExecutionPlanPrinter
             YieldInstruction yield =>
                 "YIELD" + (yield.AwaitedProgram is not null
                     ? $" await {FormatExpression(null, yield.AwaitedProgram)}"
-                    : yield.YieldExpression != null || yield.YieldProgram is not null
-                        ? $" {FormatExpression(yield.YieldExpression, yield.YieldProgram)}"
+                    : yield.YieldProgram is not null
+                        ? $" {FormatExpression(null, yield.YieldProgram)}"
                         : "")
                 + $" → [{yield.Next}]",
+
+            SuspendingYieldInstruction suspendingYield =>
+                $"YIELD {FormatExpression(suspendingYield.YieldExpression, null)} → [{suspendingYield.Next}]",
 
             YieldStarInstruction yieldStar =>
                 "YIELD* " + (yieldStar.AwaitedProgram is not null

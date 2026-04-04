@@ -20,6 +20,7 @@ internal enum InstructionKind : byte
     PushEnvironment,
     PopEnvironment,
     Yield,
+    SuspendingYield,
     YieldStar,
     SuspendingYieldStar,
     StoreResumeValue,

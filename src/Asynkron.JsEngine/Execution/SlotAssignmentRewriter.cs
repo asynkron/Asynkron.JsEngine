@@ -422,17 +422,14 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     AwaitedProgram = RewriteExpressionProgram(yieldInstruction.AwaitedProgram!.Value)
                 };
 
-            case YieldInstruction { YieldExpression: not null } yieldInstruction:
-                return yieldInstruction with
-                {
-                    YieldExpression = Rewrite(yieldInstruction.YieldExpression),
-                    YieldProgram = yieldInstruction.YieldProgram is { } loweredYieldProgram
-                        ? RewriteExpressionProgram(loweredYieldProgram)
-                        : null
-                };
-
             case YieldInstruction { YieldProgram: not null } yieldInstruction:
                 return yieldInstruction with { YieldProgram = RewriteExpressionProgram(yieldInstruction.YieldProgram!.Value) };
+
+            case SuspendingYieldInstruction suspendingYieldInstruction:
+                return suspendingYieldInstruction with
+                {
+                    YieldExpression = Rewrite(suspendingYieldInstruction.YieldExpression)
+                };
 
             case ReturnInstruction { AwaitedProgram: not null } returnInstruction:
                 return returnInstruction with

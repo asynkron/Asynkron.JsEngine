@@ -78,8 +78,20 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             """, "yieldSimple");
 
         var instruction = Assert.Single(plan.Instructions.OfType<YieldInstruction>(), i => i.YieldProgram is not null);
-        Assert.Null(instruction.YieldExpression);
         AssertProgramContains<BinaryExpressionOp>(instruction.YieldProgram, op => op.Operator == BinaryOperator.Add);
+    }
+
+    [Fact]
+    public async Task YieldInstruction_NestedAwaitOperand_UsesSuspendingInstruction()
+    {
+        var plan = await GetFunctionPlan("""
+            async function* yieldNested(valuePromise) {
+                yield (await valuePromise) + 1;
+            }
+            """, "yieldNested");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<SuspendingYieldInstruction>());
+        Assert.IsType<BinaryExpression>(instruction.YieldExpression);
     }
 
     [Fact]

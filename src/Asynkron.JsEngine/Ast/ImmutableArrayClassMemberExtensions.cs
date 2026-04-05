@@ -1,6 +1,7 @@
 #region
 
 using System.Collections.Immutable;
+using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
@@ -11,7 +12,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    private static void AssignClassMembers(this ImmutableArray<ClassMember> members,
+    private static void AssignClassMembers(this ImmutableArray<LoweredClassMember> members,
         ImmutableArray<ExpressionProgram?> memberNamePrograms,
         IJsPropertyAccessor constructorAccessor,
         JsObject prototype, IJsEnvironmentAwareCallable? superConstructor, IJsPropertyAccessor? superPrototype,

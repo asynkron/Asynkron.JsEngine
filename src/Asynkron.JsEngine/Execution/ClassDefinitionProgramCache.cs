@@ -16,10 +16,18 @@ internal readonly record struct LoweredClassField(
     bool IsComputed,
     bool AllowsAnonymousFunctionNameInference);
 
+internal readonly record struct LoweredClassMember(
+    ClassMemberKind Kind,
+    string Name,
+    FunctionExpression Function,
+    bool IsStatic,
+    bool IsComputed,
+    bool IsPrivate);
+
 internal readonly record struct LoweredClassDefinition(
     SourceReference? Source,
     FunctionExpression Constructor,
-    ImmutableArray<ClassMember> Members,
+    ImmutableArray<LoweredClassMember> Members,
     ImmutableArray<LoweredClassField> Fields,
     ImmutableArray<ClassStaticElement> StaticElements,
     ImmutableArray<ExecutionPlan> StaticBlockPlans);
@@ -92,6 +100,7 @@ internal sealed class ClassDefinitionProgramCache
             extendsProgram = compiledExtendsProgram;
         }
 
+        var loweredMembers = ImmutableArray.CreateBuilder<LoweredClassMember>(definition.Members.Length);
         var memberPrograms = ImmutableArray.CreateBuilder<ExpressionProgram?>(definition.Members.Length);
         foreach (var member in definition.Members)
         {
@@ -110,6 +119,13 @@ internal sealed class ClassDefinitionProgramCache
                 memberProgram = compiledMemberProgram;
             }
 
+            loweredMembers.Add(new LoweredClassMember(
+                member.Kind,
+                member.Name,
+                member.Function,
+                member.IsStatic,
+                member.IsComputed,
+                member.IsPrivate));
             memberPrograms.Add(memberProgram);
         }
 
@@ -162,7 +178,7 @@ internal sealed class ClassDefinitionProgramCache
         var loweredDefinition = new LoweredClassDefinition(
             definition.Source,
             definition.Constructor,
-            definition.Members,
+            loweredMembers.ToImmutable(),
             loweredFields.ToImmutable(),
             definition.StaticElements,
             staticBlockPlans.ToImmutable());

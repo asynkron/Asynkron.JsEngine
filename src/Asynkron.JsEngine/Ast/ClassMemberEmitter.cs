@@ -1,5 +1,6 @@
 #region
 
+using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.StdLib;
 
 #endregion
@@ -8,7 +9,7 @@ namespace Asynkron.JsEngine.Ast;
 
 internal static class ClassMemberEmitter
 {
-    public static void DefineMember(this ClassMember member, string propertyName,
+    public static void DefineMember(this LoweredClassMember member, string propertyName,
         IJsCallable callable,
         IJsPropertyAccessor constructorAccessor,
         JsObject prototype)
@@ -27,7 +28,7 @@ internal static class ClassMemberEmitter
         member.DefineAccessor(propertyName, callable, constructorAccessor, prototype);
     }
 
-    private static void DefineMethod(this ClassMember member, string propertyName,
+    private static void DefineMethod(this LoweredClassMember member, string propertyName,
         IJsCallable callable,
         IJsPropertyAccessor constructorAccessor,
         JsObject prototype)
@@ -57,7 +58,7 @@ internal static class ClassMemberEmitter
         prototype.DefineProperty(propertyName, descriptor);
     }
 
-    private static void DefineAccessor(this ClassMember member, string propertyName,
+    private static void DefineAccessor(this LoweredClassMember member, string propertyName,
         IJsCallable callable,
         IJsPropertyAccessor constructorAccessor,
         JsObject prototype)

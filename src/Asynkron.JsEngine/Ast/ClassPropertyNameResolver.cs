@@ -11,7 +11,7 @@ namespace Asynkron.JsEngine.Ast;
 
 internal static class ClassPropertyNameResolver
 {
-    public static bool TryResolveMemberName(this ClassMember member, ExpressionProgram? computedNameProgram,
+    public static bool TryResolveMemberName(this LoweredClassMember member, ExpressionProgram? computedNameProgram,
         JsEnvironment environment,
         EvaluationContext context,
         PrivateNameScope? privateNameScope,

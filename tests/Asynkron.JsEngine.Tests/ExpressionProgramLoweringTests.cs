@@ -2061,6 +2061,46 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ClassDefinition_MemberMetadata_IsLoweredIntoRuntimeDescriptor()
+    {
+        var cache = await GetClassDefinitionProgramCache("""
+            class Box {
+                static ["v" + "alue"]() {
+                    return 1;
+                }
+
+                get size() {
+                    return 2;
+                }
+
+                #secret() {
+                    return 3;
+                }
+            }
+            """, "Box");
+
+        Assert.True(cache.Succeeded, $"Class definition program cache should build. Failure: {cache.FailureReason}");
+        Assert.Equal(3, cache.Definition.Members.Length);
+
+        var computedStaticMethod = cache.Definition.Members[0];
+        Assert.Equal(ClassMemberKind.Method, computedStaticMethod.Kind);
+        Assert.True(computedStaticMethod.IsStatic);
+        Assert.True(computedStaticMethod.IsComputed);
+        Assert.False(computedStaticMethod.IsPrivate);
+
+        var getter = cache.Definition.Members[1];
+        Assert.Equal(ClassMemberKind.Getter, getter.Kind);
+        Assert.Equal("size", getter.Name);
+        Assert.False(getter.IsStatic);
+        Assert.False(getter.IsComputed);
+
+        var privateMethod = cache.Definition.Members[2];
+        Assert.Equal("#secret", privateMethod.Name);
+        Assert.True(privateMethod.IsPrivate);
+        Assert.Empty(privateMethod.Function.Parameters);
+    }
+
+    [Fact]
     public async Task ClassDeclarationInstruction_UsesCachedRuntimeMetadata()
     {
         var program = _engine.ParseProgram("""

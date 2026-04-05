@@ -53,7 +53,11 @@ public static partial class TypedAstEvaluator
             return context.ShouldStopEvaluation ? JsValue.Undefined : memberValue;
         }
 
-        var targetJs = expression.Target.EvaluateExpression(environment, context);
+        var targetJs = EvaluateCachedExpressionProgram(
+            expression.Target,
+            environment,
+            context,
+            "Dynamic member target");
         if (context.ShouldStopEvaluation)
         {
             return JsValue.Undefined;
@@ -88,7 +92,11 @@ public static partial class TypedAstEvaluator
         }
         else
         {
-            var propertyValueJs = expression.Property.EvaluateExpression(environment, context);
+            var propertyValueJs = EvaluateCachedExpressionProgram(
+                expression.Property,
+                environment,
+                context,
+                "Dynamic member property");
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;
@@ -156,7 +164,11 @@ public static partial class TypedAstEvaluator
             return (JsValue.Undefined, binding);
         }
 
-        var propertyValueJs = expression.Property.EvaluateExpression(environment, context);
+        var propertyValueJs = EvaluateCachedExpressionProgram(
+            expression.Property,
+            environment,
+            context,
+            "Dynamic super member property");
         if (context.ShouldStopEvaluation)
         {
             return (JsValue.Undefined, binding);

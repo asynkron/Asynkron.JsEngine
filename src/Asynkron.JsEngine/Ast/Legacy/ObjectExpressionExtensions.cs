@@ -32,7 +32,11 @@ public static partial class TypedAstEvaluator
 
                         var valueJs = member.Value is null
                             ? JsValue.Undefined
-                            : member.Value.EvaluateExpression(environment, context);
+                            : EvaluateCachedExpressionProgram(
+                                member.Value,
+                                environment,
+                                context,
+                                "Dynamic object property value");
 
                         if (!member.IsComputed &&
                             string.Equals(name, "__proto__", StringComparison.Ordinal) &&
@@ -162,7 +166,11 @@ public static partial class TypedAstEvaluator
 
                         var valueJs = member.Value is null
                             ? JsValue.Undefined
-                            : member.Value.EvaluateExpression(environment, context);
+                            : EvaluateCachedExpressionProgram(
+                                member.Value,
+                                environment,
+                                context,
+                                "Dynamic object field value");
                         obj.DefineProperty(name,
                             new PropertyDescriptor
                             {
@@ -175,7 +183,11 @@ public static partial class TypedAstEvaluator
                     }
                 case ObjectMemberKind.Spread:
                     {
-                        var spreadValueJs = member.Value!.EvaluateExpression(environment, context);
+                        var spreadValueJs = EvaluateCachedExpressionProgram(
+                            member.Value!,
+                            environment,
+                            context,
+                            "Dynamic object spread value");
                         if (context.ShouldStopEvaluation)
                         {
                             return JsValue.Undefined;
@@ -269,7 +281,11 @@ public static partial class TypedAstEvaluator
                 throw new InvalidOperationException("Computed property name must be an expression.");
             }
 
-            var keyValue = keyExpression.EvaluateExpression(environment, context);
+            var keyValue = EvaluateCachedExpressionProgram(
+                keyExpression,
+                environment,
+                context,
+                "Dynamic object member name");
             if (context.ShouldStopEvaluation)
             {
                 return string.Empty;

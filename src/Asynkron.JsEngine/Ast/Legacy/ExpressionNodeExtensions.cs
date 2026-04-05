@@ -75,7 +75,11 @@ public static partial class TypedAstEvaluator
             return (null, null);
         }
 
-        var baseJsValue = extendsExpression.EvaluateExpression(environment, context);
+        var baseJsValue = EvaluateCachedExpressionProgram(
+            extendsExpression,
+            environment,
+            context,
+            "Dynamic class extends expression");
         if (context.ShouldStopEvaluation)
         {
             return (null, null);
@@ -308,7 +312,11 @@ public static partial class TypedAstEvaluator
                 }
             case MemberExpression member:
                 {
-                    var targetJs = member.Target.EvaluateExpression(environment, context);
+                    var targetJs = EvaluateCachedExpressionProgram(
+                        member.Target,
+                        environment,
+                        context,
+                        "Dynamic call target member target");
                     if (context.ShouldStopEvaluation
                         || (member.IsOptional && targetJs.IsNullOrUndefined)
                         || (targetJs.IsNullOrUndefined && HasOptionalChaining(member.Target)))
@@ -329,7 +337,11 @@ public static partial class TypedAstEvaluator
                     string propertyName;
                     if (member.IsComputed)
                     {
-                        var propertyJs = member.Property.EvaluateExpression(environment, context);
+                        var propertyJs = EvaluateCachedExpressionProgram(
+                            member.Property,
+                            environment,
+                            context,
+                            "Dynamic call target computed property");
                         if (context.ShouldStopEvaluation)
                         {
                             return (JsValue.Undefined, JsValue.Undefined, true);
@@ -347,7 +359,12 @@ public static partial class TypedAstEvaluator
                         {
                             IdentifierExpression id => id.Name.Name,
                             LiteralExpression { Value.IsString: true } lit => lit.Value.AsString(),
-                            _ => JsOps.GetRequiredPropertyName(member.Property.EvaluateExpression(environment, context),
+                            _ => JsOps.GetRequiredPropertyName(
+                                EvaluateCachedExpressionProgram(
+                                    member.Property,
+                                    environment,
+                                    context,
+                                    "Dynamic call target property"),
                                 context)
                         };
                     }
@@ -476,13 +493,21 @@ public static partial class TypedAstEvaluator
                             context.RealmState);
                     }
 
-                    var targetJs = member.Target.EvaluateExpression(environment, context);
+                    var targetJs = EvaluateCachedExpressionProgram(
+                        member.Target,
+                        environment,
+                        context,
+                        "Dynamic delete member target");
                     if (context.ShouldStopEvaluation)
                     {
                         return false;
                     }
 
-                    var propertyValueJs = member.Property.EvaluateExpression(environment, context);
+                    var propertyValueJs = EvaluateCachedExpressionProgram(
+                        member.Property,
+                        environment,
+                        context,
+                        "Dynamic delete member property");
                     if (context.ShouldStopEvaluation)
                     {
                         return false;
@@ -507,7 +532,11 @@ public static partial class TypedAstEvaluator
                     return outcome is DeleteBindingResult.Deleted or DeleteBindingResult.NotFound;
                 }
             default:
-                _ = operand.EvaluateExpression(environment, context);
+                _ = EvaluateCachedExpressionProgram(
+                    operand,
+                    environment,
+                    context,
+                    "Dynamic delete operand");
                 return true;
         }
     }

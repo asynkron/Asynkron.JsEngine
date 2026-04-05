@@ -90,11 +90,6 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        if (callable is IJsEnvironmentAwareCallable envAware)
-        {
-            envAware.CallingJsEnvironment = environment;
-        }
-
         DebugAwareHostFunction? debugFunction = null;
         if (callable is DebugAwareHostFunction debugAware)
         {
@@ -107,19 +102,12 @@ public static partial class TypedAstEvaluator
 
         try
         {
-            // Use InvokeWithContext for SyncFunctionInvoker to ensure proper this coercion in non-strict mode.
-            // The regular Invoke() passes null context, which can skip the coercion in some paths.
-            if (callable is SyncFunctionInvoker typedFunction)
-            {
-                return typedFunction.InvokeWithContext(frozenArguments, thisValue, context);
-            }
-
-            if (callable is HostFunction hostFunction)
-            {
-                return hostFunction.InvokeWithContext(frozenArguments, thisValue, context);
-            }
-
-            return callable.Invoke(frozenArguments, thisValue);
+            return InvokeCallableJsValue(
+                callable,
+                frozenArguments,
+                thisValue,
+                context,
+                environment);
         }
         catch (ThrowSignal signal)
         {

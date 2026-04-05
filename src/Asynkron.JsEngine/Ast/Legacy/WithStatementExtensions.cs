@@ -6,7 +6,11 @@ public static partial class TypedAstEvaluator
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static JsValue EvaluateWithJsValue(this WithStatement statement, JsEnvironment environment, EvaluationContext context)
     {
-        var objValueJs = statement.Object.EvaluateExpression(environment, context);
+        var objValueJs = EvaluateCachedExpressionProgram(
+            statement.Object,
+            environment,
+            context,
+            "Dynamic with object");
         if (context.ShouldStopEvaluation)
         {
             return objValueJs;

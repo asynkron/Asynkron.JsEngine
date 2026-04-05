@@ -27,7 +27,11 @@ public static partial class TypedAstEvaluator
         // Hot path - explicit type checks for best inlining
         if (statement is ExpressionStatement expressionStatement)
         {
-            var result = expressionStatement.Expression.EvaluateExpression(environment, context);
+            var result = EvaluateCachedExpressionProgram(
+                expressionStatement.Expression,
+                environment,
+                context,
+                "Dynamic expression statement");
             // SuppressCompletionValue is used for synthetic assignments (e.g., switch lowering's __done flag)
             // Return Unit to indicate no change to completion value
             return expressionStatement.SuppressCompletionValue ? JsValue.Unit : result;

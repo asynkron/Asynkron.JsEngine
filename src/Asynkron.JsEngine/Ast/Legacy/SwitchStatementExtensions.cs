@@ -12,7 +12,11 @@ public static partial class TypedAstEvaluator
         EvaluationContext context,
         Symbol? targetLabel)
     {
-        var discriminantJs = statement.Discriminant.EvaluateExpression(environment, context);
+        var discriminantJs = EvaluateCachedExpressionProgram(
+            statement.Discriminant,
+            environment,
+            context,
+            "Dynamic switch discriminant");
         if (context.ShouldStopEvaluation)
         {
             return JsValue.Undefined;
@@ -48,7 +52,11 @@ public static partial class TypedAstEvaluator
                 continue;
             }
 
-            var testJs = switchCase.Test.EvaluateExpression(switchEnv, context);
+            var testJs = EvaluateCachedExpressionProgram(
+                switchCase.Test,
+                switchEnv,
+                context,
+                "Dynamic switch case test");
             if (context.ShouldStopEvaluation)
             {
                 return completionValue;

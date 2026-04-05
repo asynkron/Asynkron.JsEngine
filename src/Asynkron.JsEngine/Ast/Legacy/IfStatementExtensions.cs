@@ -17,7 +17,11 @@ public static partial class TypedAstEvaluator
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static JsValue EvaluateIfJsValue(this IfStatement statement, JsEnvironment environment, EvaluationContext context)
     {
-        var test = statement.Condition.EvaluateExpression(environment, context);
+        var test = EvaluateCachedExpressionProgram(
+            statement.Condition,
+            environment,
+            context,
+            "Dynamic if condition");
         if (context.ShouldStopEvaluation)
         {
             return JsValue.Undefined;

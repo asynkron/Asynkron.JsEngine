@@ -3,6 +3,7 @@
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
@@ -752,10 +753,12 @@ public static partial class TypedAstEvaluator
                 continue;
             }
 
+            var functionDescriptor = FunctionDeclarationDescriptor.Create(funcBinding.Name, funcBinding.Function);
             var functionValue = funcBinding.Function.CreateFunctionValue(
                 switchEnv,
                 context,
-                skipInternalNameBinding: true);
+                skipInternalNameBinding: true,
+                planSeed: functionDescriptor.PlanSeed);
             switchEnv.DefineJsValue(
                 funcBinding.Name,
                 JsValue.FromObjectUnsafe(functionValue),
@@ -842,10 +845,12 @@ public static partial class TypedAstEvaluator
             return JsValue.Unit;
         }
 
+        var functionDescriptor = FunctionDeclarationDescriptor.Create(funcDecl);
         var functionValue = funcDecl.Function.CreateFunctionValue(
             environment,
             context,
-            skipInternalNameBinding: true);
+            skipInternalNameBinding: true,
+            planSeed: functionDescriptor.PlanSeed);
         var fnValueJs = JsValue.FromObjectUnsafe(functionValue);
 
         if (isAnnexBHoistedFunction)
@@ -1273,8 +1278,10 @@ public static partial class TypedAstEvaluator
                             // Pass skipInternalNameBinding: true so the SyncFunctionInvoker doesn't create
                             // an internal const binding for the function name. For function declarations,
                             // the name binding lives in the outer (function/global) scope and is mutable.
+                            var functionDescriptor = FunctionDeclarationDescriptor.Create(functionDeclaration);
                             var functionValue = functionDeclaration.Function.CreateFunctionValue(environment, context,
-                                skipInternalNameBinding: true);
+                                skipInternalNameBinding: true,
+                                planSeed: functionDescriptor.PlanSeed);
                             var fnValueJs = JsValue.FromObjectUnsafe(functionValue);
 
                             var slotIndex = -1;
@@ -1683,8 +1690,10 @@ public static partial class TypedAstEvaluator
 
             // Pass skipInternalNameBinding: true so the function doesn't create an internal
             // const binding for its name (the binding is handled by blockEnvironment.Define below).
+            var functionDescriptor = FunctionDeclarationDescriptor.Create(functionDeclaration);
             var functionValue = functionDeclaration.Function.CreateFunctionValue(blockEnvironment, context,
-                skipInternalNameBinding: true);
+                skipInternalNameBinding: true,
+                planSeed: functionDescriptor.PlanSeed);
             blockEnvironment.DefineJsValue(
                 functionDeclaration.Name,
                 JsValue.FromObjectUnsafe(functionValue),

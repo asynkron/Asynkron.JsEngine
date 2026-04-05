@@ -2775,13 +2775,13 @@ public static partial class TypedAstEvaluator
                     {
                         var function = member.Function!;
                         var planSeed = FunctionLiteralDescriptor.Create(function).PlanSeed;
-                        var getter = new SyncFunctionInvoker(
-                            function,
+                        var getter = function.CreateFunctionValue(
                             environment,
-                            context.RealmState,
-                            context.CurrentScope.IsStrict,
-                            isConstructorFunction: false,
-                            planSeed: planSeed);
+                            context,
+                            false,
+                            planSeed: planSeed) as SyncFunctionInvoker
+                                     ?? throw new InvalidOperationException(
+                                         "Object getter must materialize as a sync function.");
                         getter.SetHomeObject(obj);
                         var name = ResolveObjectMemberName(member, environment, context);
                         if (context.ShouldStopEvaluation)
@@ -2798,13 +2798,13 @@ public static partial class TypedAstEvaluator
                     {
                         var function = member.Function!;
                         var planSeed = FunctionLiteralDescriptor.Create(function).PlanSeed;
-                        var setter = new SyncFunctionInvoker(
-                            function,
+                        var setter = function.CreateFunctionValue(
                             environment,
-                            context.RealmState,
-                            context.CurrentScope.IsStrict,
-                            isConstructorFunction: false,
-                            planSeed: planSeed);
+                            context,
+                            false,
+                            planSeed: planSeed) as SyncFunctionInvoker
+                                     ?? throw new InvalidOperationException(
+                                         "Object setter must materialize as a sync function.");
                         setter.SetHomeObject(obj);
                         var name = ResolveObjectMemberName(member, environment, context);
                         if (context.ShouldStopEvaluation)

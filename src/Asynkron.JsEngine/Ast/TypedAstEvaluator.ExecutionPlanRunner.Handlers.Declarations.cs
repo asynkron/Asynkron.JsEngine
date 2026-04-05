@@ -31,7 +31,8 @@ public static partial class TypedAstEvaluator
                 // Pass skipInternalNameBinding: true so the function doesn't create an internal
                 // const binding for its name (the binding is handled by environment.Define below).
                 var functionValue = funcDecl.Function.CreateFunctionValue(environment, ctx,
-                    skipInternalNameBinding: true);
+                    skipInternalNameBinding: true,
+                    planSeed: funcDecl.PlanSeed);
                 var fnValueJs = JsValue.FromObjectUnsafe(functionValue);
 
                 // Function declarations target the variable environment, which may be different

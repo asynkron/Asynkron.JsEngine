@@ -689,6 +689,48 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
         };
     }
 
+    private static ProgramNode ReplaceWithScopedFunctionDeclarationBodyWithUnsupportedModuleStatement(
+        ProgramNode program)
+    {
+        var withIndex = -1;
+        for (var i = 0; i < program.Body.Length; i++)
+        {
+            if (program.Body[i] is WithStatement)
+            {
+                withIndex = i;
+                break;
+            }
+        }
+
+        var withStatement = Assert.IsType<WithStatement>(program.Body[withIndex]);
+        var withBody = Assert.IsType<BlockStatement>(withStatement.Body);
+        var declaration = Assert.Single(withBody.Statements.OfType<FunctionDeclaration>());
+
+        var rewrittenDeclaration = declaration with
+        {
+            Function = declaration.Function with
+            {
+                Body = new BlockStatement(
+                    null,
+                    [new ExportAllStatement(null, "./unsupported.js")],
+                    true)
+            }
+        };
+        var declarationIndex = withBody.Statements.IndexOf(declaration);
+        var rewrittenWith = withStatement with
+        {
+            Body = withBody with
+            {
+                Statements = withBody.Statements.SetItem(declarationIndex, rewrittenDeclaration)
+            }
+        };
+
+        return program with
+        {
+            Body = program.Body.SetItem(withIndex, rewrittenWith)
+        };
+    }
+
     private static void AssertPlanBuilds(FunctionExpression function)
     {
         var cache = ((IAstCacheable<ExecutionPlanCache>)function).GetOrCreateCache();
@@ -762,6 +804,115 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
 
             EvaluationContext.AssertNoAstEvaluation = true;
             var exception = Assert.Throws<NotSupportedException>(() => InvokeGlobalFunction("broken", new JsValue(41d)));
+
+            Assert.Contains("IR plan generation failed for function", exception.Message);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_WithScopedFunctionDeclarationPlanFailure_ThrowsInsteadOfAstFallback()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = false;
+
+            var parsedProgram = _engine.ParseProgram("""
+                const scopeObj = {};
+
+                with (scopeObj) {
+                    function broken(value) {
+                        return value + 1;
+                    }
+
+                    globalThis.broken = broken;
+                }
+                """);
+            var program = ReplaceWithScopedFunctionDeclarationBodyWithUnsupportedModuleStatement(parsedProgram);
+
+            await _engine.Evaluate(program);
+
+            EvaluationContext.AssertNoAstEvaluation = true;
+            var exception = Assert.Throws<NotSupportedException>(() => InvokeGlobalFunction("broken", new JsValue(41d)));
+
+            Assert.Contains("IR plan generation failed for function", exception.Message);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_WithScopedFunctionLiteralWithCapturedDynamicScope_ThrowsPlanFailureInsteadOfAstFallback()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = false;
+
+            var program = _engine.ParseProgram("""
+                const scopeObj = { value: 41 };
+
+                function makeReader() {
+                    with (scopeObj) {
+                        return function() {
+                            return value + 1;
+                        };
+                    }
+                }
+
+                globalThis.readLiteral = makeReader();
+                """);
+
+            await _engine.Evaluate(program);
+
+            EvaluationContext.AssertNoAstEvaluation = true;
+            var exception = Assert.Throws<NotSupportedException>(() => InvokeGlobalFunction("readLiteral"));
+
+            Assert.Contains("IR plan generation failed for function", exception.Message);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_WithScopedFunctionDeclarationWithCapturedDynamicScope_ThrowsPlanFailureInsteadOfAstFallback()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = false;
+
+            var program = _engine.ParseProgram("""
+                const scopeObj = { value: 41 };
+
+                function makeReader() {
+                    with (scopeObj) {
+                        function read() {
+                            return value + 1;
+                        }
+
+                        return read;
+                    }
+                }
+
+                globalThis.readDeclaration = makeReader();
+                """);
+
+            await _engine.Evaluate(program);
+
+            EvaluationContext.AssertNoAstEvaluation = true;
+            var exception = Assert.Throws<NotSupportedException>(() => InvokeGlobalFunction("readDeclaration"));
 
             Assert.Contains("IR plan generation failed for function", exception.Message);
         }

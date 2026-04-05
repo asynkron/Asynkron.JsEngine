@@ -277,30 +277,51 @@ public sealed class WithStatementTests(ITestOutputHelper output) : InternalTestB
     }
 
     [Fact(Timeout = 2000)]
-    public async Task With_FunctionDefinedInsideWithBlockResolvesToWithObject()
+    public async Task With_FunctionLiteralCreatedInsideWithBlock_RejectsCachedIrSeed()
     {
-        // This tests that functions defined inside a with block properly resolve
-        // identifiers through the with object, even though the function's own body
-        // doesn't contain any with statements.
         await using var engine = CreateEngine();
-        var result = await engine.Evaluate("""
-            var myObj = {
-                parseInt: function() { return 'obj_parseInt'; }
-            };
-
-            var st_parseInt;
-
-            with(myObj) {
-                var f = function() {
-                    st_parseInt = parseInt;
+        var exception = await Assert.ThrowsAnyAsync<Exception>(async () =>
+        {
+            await engine.Evaluate("""
+                const scope = {
+                    parseInt: function() { return 'obj_parseInt'; }
                 };
-                f();
-            }
 
-            st_parseInt !== parseInt && typeof st_parseInt === 'function';
-            """);
+                with (scope) {
+                    const read = function() {
+                        return parseInt;
+                    };
 
-        Assert.True((bool)result!);
+                    read();
+                }
+                """);
+        });
+
+        var notSupported = Assert.IsType<NotSupportedException>(exception.GetBaseException());
+        Assert.Contains("IR plan generation failed for function", notSupported.Message, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task With_FunctionDeclarationCreatedInsideWithBlock_RejectsCachedIrSeed()
+    {
+        await using var engine = CreateEngine();
+        var exception = await Assert.ThrowsAnyAsync<Exception>(async () =>
+        {
+            await engine.Evaluate("""
+                const scope = { value: 41 };
+
+                with (scope) {
+                    function read() {
+                        return value + 1;
+                    }
+
+                    read();
+                }
+                """);
+        });
+
+        var notSupported = Assert.IsType<NotSupportedException>(exception.GetBaseException());
+        Assert.Contains("IR plan generation failed for function", notSupported.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]

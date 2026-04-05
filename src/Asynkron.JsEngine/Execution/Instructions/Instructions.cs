@@ -170,7 +170,22 @@ internal sealed record FunctionLiteralDescriptor(
     }
 }
 
-internal readonly record struct FunctionDeclarationDescriptor(Symbol Name, FunctionExpression Function);
+internal readonly record struct FunctionDeclarationDescriptor(
+    Symbol Name,
+    FunctionExpression Function,
+    FunctionExecutionPlanSeed PlanSeed)
+{
+    public static FunctionDeclarationDescriptor Create(FunctionDeclaration declaration)
+    {
+        return Create(declaration.Name, declaration.Function);
+    }
+
+    public static FunctionDeclarationDescriptor Create(Symbol name, FunctionExpression function)
+    {
+        var planCache = ((IAstCacheable<ExecutionPlanCache>)function).GetOrCreateCache();
+        return new FunctionDeclarationDescriptor(name, function, FunctionExecutionPlanSeed.FromCache(planCache));
+    }
+}
 
 /// <summary>
 ///     Represents a function declaration in the generator.

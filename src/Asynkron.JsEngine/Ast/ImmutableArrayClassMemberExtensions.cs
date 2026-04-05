@@ -64,7 +64,11 @@ public static partial class TypedAstEvaluator
                 context,
                 false,
                 false,
-                member.Callable.PlanSeed));
+                GetRuntimePlanSeedForClassCallable(
+                    member.Callable.PlanSeed,
+                    member.Callable.Function,
+                    $"class member '{displayName}'",
+                    environment)));
             if (context.ShouldStopEvaluation)
             {
                 return;

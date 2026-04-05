@@ -175,6 +175,60 @@ public sealed class ClassStatementTests(ITestOutputHelper output) : InternalTest
     }
 
     [Fact(Timeout = 2000)]
+    public async Task ClassMethodCreatedInsideWithCapturedClosure_RejectsCachedIrSeed()
+    {
+        await using var engine = CreateEngine();
+
+        var exception = await Assert.ThrowsAsync<NotSupportedException>(async () =>
+        {
+            await engine.Evaluate("""
+                function makeBox(scopeObj) {
+                    with (scopeObj) {
+                        return class Box {
+                            read() {
+                                return answer;
+                            }
+                        };
+                    }
+                }
+
+                const Box = makeBox({ answer: 42 });
+                Box.prototype.read.call({});
+                """);
+        });
+
+        Assert.Contains("with", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ClassConstructorCreatedInsideWithCapturedClosure_RejectsCachedIrSeed()
+    {
+        await using var engine = CreateEngine();
+
+        var exception = await Assert.ThrowsAnyAsync<Exception>(async () =>
+        {
+            await engine.Evaluate("""
+                function makeBox(scopeObj) {
+                    with (scopeObj) {
+                        return class Box {
+                            constructor() {
+                                this.answer = answer;
+                            }
+                        };
+                    }
+                }
+
+                const Box = makeBox({ answer: 42 });
+                new Box();
+                """);
+        });
+
+        var rootCause = exception.GetBaseException();
+        Assert.IsType<NotSupportedException>(rootCause);
+        Assert.Contains("with", rootCause.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task ClassConstructorPropertyIsClass()
     {
         await using var engine = CreateEngine();

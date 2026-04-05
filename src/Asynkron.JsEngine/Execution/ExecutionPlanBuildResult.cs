@@ -72,6 +72,16 @@ internal readonly record struct FunctionExecutionPlanSeed(
     {
         return new FunctionExecutionPlanSeed(result.Plan, result.Failure);
     }
+
+    public static FunctionExecutionPlanSeed Reject(
+        ExecutionPlanFailureCode code,
+        string detail,
+        ExpressionProgramFailureCode? expressionFailureCode = null)
+    {
+        return new FunctionExecutionPlanSeed(
+            null,
+            new ExecutionPlanBuildFailure(code, detail, expressionFailureCode));
+    }
 }
 
 public readonly record struct ExecutionPlanDiagnosticCounters(int Attempts, int Succeeded, int Failed);

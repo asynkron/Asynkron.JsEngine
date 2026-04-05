@@ -255,7 +255,11 @@ public static partial class TypedAstEvaluator
             context,
             isConstructorFunction: true,
             skipInternalNameBinding: true,
-            planSeed: definition.Constructor.PlanSeed);
+            planSeed: GetRuntimePlanSeedForClassCallable(
+                definition.Constructor.PlanSeed,
+                definition.Constructor.Function,
+                "class constructor",
+                evaluationEnvironment));
         var constructorJsValue = JsValue.FromObjectUnsafe(constructorCallable);
         if (context.ShouldStopEvaluation)
         {
@@ -384,6 +388,25 @@ public static partial class TypedAstEvaluator
         }
 
         return constructorJsValue;
+    }
+
+    private static FunctionExecutionPlanSeed GetRuntimePlanSeedForClassCallable(
+        FunctionExecutionPlanSeed cachedPlanSeed,
+        FunctionExpression function,
+        string callableDescription,
+        JsEnvironment closure)
+    {
+        if (!function.IsGenerator &&
+            !function.IsAsync &&
+            cachedPlanSeed.Plan is not null &&
+            closure.HasWithObjectInChain())
+        {
+            return FunctionExecutionPlanSeed.Reject(
+                ExecutionPlanFailureCode.AstReentryDetected,
+                $"Cached IR plan for {callableDescription} cannot execute when the closure chain contains with.");
+        }
+
+        return cachedPlanSeed;
     }
 
     private static PrivateNameScope? CreatePrivateNameScope(this LoweredClassDefinition definition, RealmState realm)

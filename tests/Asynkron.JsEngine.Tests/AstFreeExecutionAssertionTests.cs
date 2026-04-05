@@ -2625,6 +2625,41 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_ClassMethodWithCapturedDynamicScope_ThrowsPlanFailureInsteadOfAstFallback()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function makeBox(scopeObj) {
+                    with (scopeObj) {
+                        return class Box {
+                            read() {
+                                return answer;
+                            }
+                        };
+                    }
+                }
+
+                const Box = makeBox({ answer: 42 });
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var exception = await Assert.ThrowsAsync<NotSupportedException>(async () =>
+                await _engine.Evaluate("Box.prototype.read.call({});"));
+
+            Assert.Contains("with", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
     public async Task AssertNoAstEvaluation_Enabled_AllowsFieldInitializerNewTargetUndefinedExecution()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;

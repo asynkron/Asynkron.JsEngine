@@ -69,6 +69,24 @@ public static partial class TypedAstEvaluator
         return jsValue;
     }
 
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateThrowJsValue(this ThrowStatement statement, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var jsValue = EvaluateCachedExpressionProgram(
+            statement.Expression,
+            environment,
+            context,
+            "Dynamic throw expression");
+        if (context.ShouldStopEvaluation)
+        {
+            return context.FlowValue;
+        }
+
+        context.SetThrow(jsValue);
+        return jsValue;
+    }
+
     /// <summary>
     /// Evaluates a statement and returns the completion value as JsValue.
     /// Tiny hot path for inlining - only handles the most common cases.

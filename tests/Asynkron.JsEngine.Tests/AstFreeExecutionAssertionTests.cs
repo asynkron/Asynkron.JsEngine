@@ -535,6 +535,48 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_ClassMethodWithCapturedDynamicScope_ThrowsPlanFailureInsteadOfAstFallback()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                const scope = { value: 41 };
+
+                function makeBox() {
+                    with (scope) {
+                        return class Box {
+                            read() {
+                                return value + 1;
+                            }
+                        };
+                    }
+                }
+
+                globalThis.Box = makeBox();
+                globalThis.box = Object.create(globalThis.Box.prototype);
+                """);
+
+            await _engine.Evaluate(program);
+
+            EvaluationContext.AssertNoAstEvaluation = true;
+            Assert.True(_engine.GlobalObject.TryGetProperty("box", out var boxValue));
+            Assert.True(boxValue.TryGetObject<IJsPropertyAccessor>(out var boxAccessor));
+            Assert.True(boxAccessor.TryGetProperty("read", out var methodValue));
+
+            var method = Assert.IsAssignableFrom<IJsCallable>(methodValue.ObjectValue);
+            var exception = Assert.Throws<NotSupportedException>(
+                () => method.Invoke([], boxValue));
+            Assert.Contains("IR plan generation failed for function", exception.Message);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
     private static (FunctionExpression BaseMethod, FunctionExpression DerivedMethod) GetClassMethods(
         ProgramNode program,
         string baseClassName,

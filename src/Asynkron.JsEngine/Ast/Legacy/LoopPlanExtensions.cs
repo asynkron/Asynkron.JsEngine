@@ -482,7 +482,11 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        var test = plan.Condition.EvaluateExpression(environment, context);
+        var test = EvaluateCachedExpressionProgram(
+            plan.Condition,
+            environment,
+            context,
+            "Dynamic loop condition");
         if (context.ShouldStopEvaluation)
         {
             return false;
@@ -505,7 +509,11 @@ public static partial class TypedAstEvaluator
             // directly to avoid ToObject/GetNumber boxing on every iteration.
             if (statement is ExpressionStatement expr)
             {
-                _ = expr.Expression.EvaluateExpression(environment, context);
+                _ = EvaluateCachedExpressionProgram(
+                    expr.Expression,
+                    environment,
+                    context,
+                    "Dynamic loop post-iteration expression");
             }
             else
             {

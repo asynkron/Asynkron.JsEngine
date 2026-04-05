@@ -54,7 +54,11 @@ public static partial class TypedAstEvaluator
         JsValue iterableJsValue;
         try
         {
-            iterableJsValue = statement.Iterable.EvaluateExpression(iterableEnvironment, context);
+            iterableJsValue = EvaluateCachedExpressionProgram(
+                statement.Iterable,
+                iterableEnvironment,
+                context,
+                "Dynamic foreach iterable");
         }
         finally
         {
@@ -220,7 +224,11 @@ public static partial class TypedAstEvaluator
             statement.Target.CreateUninitializedLexicalBindings(iterableEnvironment, isConstDeclaration);
         }
 
-        var iterableJs = statement.Iterable.EvaluateExpression(iterableEnvironment, context);
+        var iterableJs = EvaluateCachedExpressionProgram(
+            statement.Iterable,
+            iterableEnvironment,
+            context,
+            "Dynamic for-await-of iterable");
 
         if (context.ShouldStopEvaluation)
         {

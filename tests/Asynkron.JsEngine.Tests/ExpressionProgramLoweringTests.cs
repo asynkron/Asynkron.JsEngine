@@ -2017,6 +2017,21 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ClassDefinition_FieldInitializers_AreLoweredToExpressionProgramCache()
+    {
+        var cache = await GetClassDefinitionProgramCache("""
+            class Box {
+                value = 1 + 2;
+                static total = 3 + 4;
+            }
+            """, "Box");
+
+        Assert.True(cache.Succeeded, $"Class definition program cache should build. Failure: {cache.FailureReason}");
+        Assert.Equal(2, cache.FieldInitializerPrograms.Length);
+        Assert.All(cache.FieldInitializerPrograms, program => Assert.NotNull(program));
+    }
+
+    [Fact]
     public async Task ClassStaticBlock_AssignmentBody_BuildsIrPlan()
     {
         var plan = await GetClassStaticBlockPlan("""

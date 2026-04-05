@@ -19,13 +19,15 @@ internal sealed class ClassDefinitionProgramCache
         string? failureReason,
         ExpressionProgram? extendsProgram,
         ImmutableArray<ExpressionProgram?> memberNamePrograms,
-        ImmutableArray<ExpressionProgram?> fieldNamePrograms)
+        ImmutableArray<ExpressionProgram?> fieldNamePrograms,
+        ImmutableArray<ExpressionProgram?> fieldInitializerPrograms)
     {
         Succeeded = succeeded;
         FailureReason = failureReason;
         ExtendsProgram = extendsProgram;
         MemberNamePrograms = memberNamePrograms;
         FieldNamePrograms = fieldNamePrograms;
+        FieldInitializerPrograms = fieldInitializerPrograms;
     }
 
     public bool Succeeded { get; }
@@ -37,6 +39,8 @@ internal sealed class ClassDefinitionProgramCache
     public ImmutableArray<ExpressionProgram?> MemberNamePrograms { get; }
 
     public ImmutableArray<ExpressionProgram?> FieldNamePrograms { get; }
+
+    public ImmutableArray<ExpressionProgram?> FieldInitializerPrograms { get; }
 
     public static ClassDefinitionProgramCache Build(ClassDefinition definition)
     {
@@ -77,6 +81,7 @@ internal sealed class ClassDefinitionProgramCache
         }
 
         var fieldPrograms = ImmutableArray.CreateBuilder<ExpressionProgram?>(definition.Fields.Length);
+        var fieldInitializerPrograms = ImmutableArray.CreateBuilder<ExpressionProgram?>(definition.Fields.Length);
         foreach (var field in definition.Fields)
         {
             ExpressionProgram? fieldProgram = null;
@@ -95,6 +100,23 @@ internal sealed class ClassDefinitionProgramCache
             }
 
             fieldPrograms.Add(fieldProgram);
+
+            ExpressionProgram? initializerProgram = null;
+            if (field.Initializer is { } initializer)
+            {
+                if (!ExpressionProgramCompiler.TryCompile(
+                        initializer,
+                        out var compiledInitializerProgram,
+                        out var initializerFailure))
+                {
+                    return Failure(
+                        $"Class field initializer '{field.Name}' could not lower to expression bytecode: {initializerFailure ?? "unknown failure"}");
+                }
+
+                initializerProgram = compiledInitializerProgram;
+            }
+
+            fieldInitializerPrograms.Add(initializerProgram);
         }
 
         return new ClassDefinitionProgramCache(
@@ -102,7 +124,8 @@ internal sealed class ClassDefinitionProgramCache
             failureReason: null,
             extendsProgram,
             memberPrograms.ToImmutable(),
-            fieldPrograms.ToImmutable());
+            fieldPrograms.ToImmutable(),
+            fieldInitializerPrograms.ToImmutable());
     }
 
     private static ClassDefinitionProgramCache Failure(string failureReason)
@@ -112,6 +135,7 @@ internal sealed class ClassDefinitionProgramCache
             failureReason,
             extendsProgram: null,
             memberNamePrograms: ImmutableArray<ExpressionProgram?>.Empty,
-            fieldNamePrograms: ImmutableArray<ExpressionProgram?>.Empty);
+            fieldNamePrograms: ImmutableArray<ExpressionProgram?>.Empty,
+            fieldInitializerPrograms: ImmutableArray<ExpressionProgram?>.Empty);
     }
 }

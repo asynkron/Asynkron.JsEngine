@@ -8,12 +8,13 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    public static bool TryInitializeStaticField(this ClassField field, IJsPropertyAccessor constructorAccessor,
+    internal static bool TryInitializeStaticField(this ResolvedClassField resolvedField, IJsPropertyAccessor constructorAccessor,
         JsEnvironment environment,
         EvaluationContext context,
         PrivateNameScope? privateNameScope,
         Func<IDisposable?>? privateScopeFactory)
     {
+        var field = resolvedField.Field;
         var propertyName = field.Name;
 
         if (string.Equals(propertyName, "prototype", StringComparison.Ordinal))
@@ -37,16 +38,20 @@ public static partial class TypedAstEvaluator
 
         if (field.Initializer is not null)
         {
+            if (resolvedField.InitializerProgram is not { } initializerProgram)
+            {
+                throw new InvalidOperationException("Class field initializer is missing lowered bytecode.");
+            }
+
             using var handle = privateScopeFactory?.Invoke();
             using var classFieldInitScope = context.EnterClassFieldInitializer();
             var initEnv = CreateStaticInitializationEnvironment(constructorAccessor, environment, out var superBinding);
             initEnv.DefineJsValue(EvalHostFunction.FieldInitializerEvalFlag, JsValue.True, true, isLexicalBinding: true,
                 blocksFunctionScopeOverride: true);
-            valueJs = EvaluateCachedExpressionProgram(
-                field.Initializer,
+            valueJs = EvaluateLoweredExpressionProgram(
+                initializerProgram,
                 initEnv,
-                context,
-                "Class element expression");
+                context);
             if (context.ShouldStopEvaluation)
             {
                 return false;

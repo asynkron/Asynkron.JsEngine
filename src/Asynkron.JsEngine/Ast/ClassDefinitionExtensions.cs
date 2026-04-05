@@ -37,7 +37,7 @@ public static partial class TypedAstEvaluator
 
     private static void InitializeStaticElements(
         ClassDefinition definition,
-        ImmutableArray<ClassField> resolvedFields,
+        ImmutableArray<ResolvedClassField> resolvedFields,
         IJsPropertyAccessor constructorAccessor,
         JsEnvironment environment,
         EvaluationContext context,
@@ -66,7 +66,7 @@ public static partial class TypedAstEvaluator
                     var field = resolvedFields[element.Index];
                     context.RealmState.Logger?.LogInformation(
                         "Initializing static field '{Name}' (index {Index})",
-                        field.Name,
+                        field.Field.Name,
                         element.Index);
                     if (!field.TryInitializeStaticField(
                             constructorAccessor,
@@ -233,6 +233,7 @@ public static partial class TypedAstEvaluator
             definition.ResolveFieldNames(
                 definition.Fields,
                 programCache.FieldNamePrograms,
+                programCache.FieldInitializerPrograms,
                 evaluationEnvironment,
                 context,
                 privateNameScope);
@@ -286,7 +287,7 @@ public static partial class TypedAstEvaluator
         if (constructorAccessor is SyncFunctionInvoker typedFunction)
         {
             typedFunction.SetSuperBinding(superConstructor, superPrototype);
-            var instanceFields = resolvedFields.Where(static field => !field.IsStatic).ToImmutableArray();
+            var instanceFields = resolvedFields.Where(static field => !field.Field.IsStatic).ToImmutableArray();
             _ = evaluationEnvironment;
             _ = context;
             _ = privateNameScope;
@@ -393,19 +394,20 @@ public static partial class TypedAstEvaluator
 
     // ClassFieldDefinitionEvaluation evaluates computed field names during class evaluation,
     // so resolve all field keys eagerly in declaration order (static + instance).
-    private static ImmutableArray<ClassField> ResolveFieldNames(this ClassDefinition _,
+    private static ImmutableArray<ResolvedClassField> ResolveFieldNames(this ClassDefinition _,
         ImmutableArray<ClassField> fields,
         ImmutableArray<ExpressionProgram?> fieldNamePrograms,
+        ImmutableArray<ExpressionProgram?> fieldInitializerPrograms,
         JsEnvironment environment,
         EvaluationContext context,
         PrivateNameScope? privateNameScope)
     {
         if (fields.IsDefaultOrEmpty)
         {
-            return fields;
+            return ImmutableArray<ResolvedClassField>.Empty;
         }
 
-        var builder = ImmutableArray.CreateBuilder<ClassField>(fields.Length);
+        var builder = ImmutableArray.CreateBuilder<ResolvedClassField>(fields.Length);
         for (var index = 0; index < fields.Length; index++)
         {
             var field = fields[index];
@@ -422,7 +424,7 @@ public static partial class TypedAstEvaluator
                     field.IsComputed,
                     field.IsStatic,
                     field.IsPrivate);
-                return fields;
+                return ImmutableArray<ResolvedClassField>.Empty;
             }
 
             context.RealmState.Logger?.LogInformation(
@@ -433,7 +435,9 @@ public static partial class TypedAstEvaluator
                 field.IsStatic,
                 field.IsPrivate);
 
-            builder.Add(field with { Name = propertyName, IsComputed = false, ComputedName = null });
+            builder.Add(new ResolvedClassField(
+                field with { Name = propertyName, IsComputed = false, ComputedName = null },
+                fieldInitializerPrograms.IsDefaultOrEmpty ? null : fieldInitializerPrograms[index]));
         }
 
         return builder.ToImmutable();

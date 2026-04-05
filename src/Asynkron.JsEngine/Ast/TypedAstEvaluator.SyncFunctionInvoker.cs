@@ -64,7 +64,7 @@ public static partial class TypedAstEvaluator
         private bool _canUseFastPathBase;
         private ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
         private IJsObjectLike? _homeObject;
-        private ImmutableArray<ClassField> _instanceFields = ImmutableArray<ClassField>.Empty;
+        private ImmutableArray<ResolvedClassField> _instanceFields = ImmutableArray<ResolvedClassField>.Empty;
         private bool _isConstructorEnabled;
         private bool _isDerivedClassConstructor;
         private JsObject? _prototypeObject;
@@ -1652,7 +1652,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             _canUseFastPathBase = false;
         }
 
-        public void SetInstanceFields(ImmutableArray<ClassField> fields)
+        internal void SetInstanceFields(ImmutableArray<ResolvedClassField> fields)
         {
             _instanceFields = fields;
         }
@@ -1764,8 +1764,9 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             using var _ = PrivateNameScope is not null ? context.EnterPrivateNameScope(PrivateNameScope) : null;
             using var instanceFieldScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict);
 
-            foreach (var field in _instanceFields)
+            foreach (var resolvedField in _instanceFields)
             {
+                var field = resolvedField.Field;
                 if (field.IsPrivate && PrivateNameScope is not null && instance is not IPrivateBrandHolder)
                 {
                     throw StandardLibrary.ThrowTypeError("Invalid private field receiver", context, context.RealmState);
@@ -1809,11 +1810,15 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 var valueJs = JsValue.Undefined;
                 if (field.Initializer is not null)
                 {
-                    valueJs = EvaluateCachedExpressionProgram(
-                        field.Initializer,
+                    if (resolvedField.InitializerProgram is not { } initializerProgram)
+                    {
+                        throw new InvalidOperationException("Class field initializer is missing lowered bytecode.");
+                    }
+
+                    valueJs = EvaluateLoweredExpressionProgram(
+                        initializerProgram,
                         initEnv,
-                        context,
-                        "Class element expression");
+                        context);
                     if (context.ShouldStopEvaluation)
                     {
                         return;

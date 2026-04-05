@@ -187,6 +187,109 @@ public sealed class ClassStatementTests(ITestOutputHelper output) : InternalTest
     }
 
     [Fact(Timeout = 2000)]
+    public async Task ClassMethodCreatedInsideWithCapturedClosure_RejectsCachedIrSeed()
+    {
+        await using var engine = CreateEngine();
+
+        var exception = await Assert.ThrowsAnyAsync<Exception>(async () =>
+        {
+            await engine.Evaluate("""
+                const scope = { value: 41 };
+
+                function makeBox() {
+                    with (scope) {
+                        return class Box {
+                            read() {
+                                return value + 1;
+                            }
+                        };
+                    }
+                }
+
+                const Box = makeBox();
+                const box = new Box();
+                box.read();
+                """);
+        });
+
+        var notSupported = Assert.IsType<NotSupportedException>(exception.GetBaseException());
+        Assert.Contains("IR plan generation failed for function", notSupported.Message, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ClassConstructorCreatedInsideWithCapturedClosure_RejectsCachedIrSeed()
+    {
+        await using var engine = CreateEngine();
+
+        var exception = await Assert.ThrowsAnyAsync<Exception>(async () =>
+        {
+            await engine.Evaluate("""
+                const scope = { value: 41 };
+
+                function makeBox() {
+                    with (scope) {
+                        return class Box {
+                            constructor() {
+                                this.total = value + 1;
+                            }
+                        };
+                    }
+                }
+
+                const Box = makeBox();
+                new Box().total;
+                """);
+        });
+
+        var notSupported = Assert.IsType<NotSupportedException>(exception.GetBaseException());
+        Assert.Contains("IR plan generation failed for function", notSupported.Message, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ClassMethodWithDirectEval_RejectsCachedIrSeed()
+    {
+        await using var engine = CreateEngine();
+
+        var exception = await Assert.ThrowsAnyAsync<Exception>(async () =>
+        {
+            await engine.Evaluate("""
+                class Box {
+                    read(value) {
+                        return eval("value + 1");
+                    }
+                }
+
+                new Box().read(41);
+                """);
+        });
+
+        var notSupported = Assert.IsType<NotSupportedException>(exception.GetBaseException());
+        Assert.Contains("IR plan generation failed for function", notSupported.Message, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ClassConstructorWithDirectEval_RejectsCachedIrSeed()
+    {
+        await using var engine = CreateEngine();
+
+        var exception = await Assert.ThrowsAnyAsync<Exception>(async () =>
+        {
+            await engine.Evaluate("""
+                class Box {
+                    constructor(value) {
+                        this.total = eval("value + 1");
+                    }
+                }
+
+                new Box(41).total;
+                """);
+        });
+
+        var notSupported = Assert.IsType<NotSupportedException>(exception.GetBaseException());
+        Assert.Contains("IR plan generation failed for function", notSupported.Message, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task ClassSuperMethodCall()
     {
         await using var engine = CreateEngine();

@@ -3,6 +3,7 @@
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
@@ -752,10 +753,12 @@ public static partial class TypedAstEvaluator
                 continue;
             }
 
+            var functionDescriptor = FunctionDeclarationDescriptor.Create(funcBinding.Name, funcBinding.Function);
             var functionValue = funcBinding.Function.CreateFunctionValue(
                 switchEnv,
                 context,
-                skipInternalNameBinding: true);
+                skipInternalNameBinding: true,
+                planSeed: functionDescriptor.PlanSeed);
             switchEnv.DefineJsValue(
                 funcBinding.Name,
                 JsValue.FromObjectUnsafe(functionValue),
@@ -842,10 +845,12 @@ public static partial class TypedAstEvaluator
             return JsValue.Unit;
         }
 
+        var functionDescriptor = FunctionDeclarationDescriptor.Create(funcDecl);
         var functionValue = funcDecl.Function.CreateFunctionValue(
             environment,
             context,
-            skipInternalNameBinding: true);
+            skipInternalNameBinding: true,
+            planSeed: functionDescriptor.PlanSeed);
         var fnValueJs = JsValue.FromObjectUnsafe(functionValue);
 
         if (isAnnexBHoistedFunction)
@@ -1273,8 +1278,10 @@ public static partial class TypedAstEvaluator
                             // Pass skipInternalNameBinding: true so the SyncFunctionInvoker doesn't create
                             // an internal const binding for the function name. For function declarations,
                             // the name binding lives in the outer (function/global) scope and is mutable.
+                            var functionDescriptor = FunctionDeclarationDescriptor.Create(functionDeclaration);
                             var functionValue = functionDeclaration.Function.CreateFunctionValue(environment, context,
-                                skipInternalNameBinding: true);
+                                skipInternalNameBinding: true,
+                                planSeed: functionDescriptor.PlanSeed);
                             var fnValueJs = JsValue.FromObjectUnsafe(functionValue);
 
                             var slotIndex = -1;
@@ -1683,8 +1690,10 @@ public static partial class TypedAstEvaluator
 
             // Pass skipInternalNameBinding: true so the function doesn't create an internal
             // const binding for its name (the binding is handled by blockEnvironment.Define below).
+            var functionDescriptor = FunctionDeclarationDescriptor.Create(functionDeclaration);
             var functionValue = functionDeclaration.Function.CreateFunctionValue(blockEnvironment, context,
-                skipInternalNameBinding: true);
+                skipInternalNameBinding: true,
+                planSeed: functionDescriptor.PlanSeed);
             blockEnvironment.DefineJsValue(
                 functionDeclaration.Name,
                 JsValue.FromObjectUnsafe(functionValue),
@@ -2176,8 +2185,9 @@ public static partial class TypedAstEvaluator
         // The static analysis of the eval code alone doesn't tell us about the outer context.
         var allowScriptSlotAnalysis = context.RealmState.Options.AllowScriptSlotAnalysis &&
                                       executionKind != ExecutionKind.Eval;
+        var allowsIdentifierCaching = AllowsIdentifierCaching(program);
         context.AllowIdentifierCache = allowScriptSlotAnalysis &&
-                                       AllowsIdentifierCaching(program);
+                                       allowsIdentifierCaching;
         context.DrainAwaitMicrotasks = drainAwaitMicrotasks;
         if (inheritedPrivateNameScopes is { IsDefault: false, Length: > 0 } scopes)
         {
@@ -2338,11 +2348,14 @@ public static partial class TypedAstEvaluator
         // If we plan to execute this program via the IR path, we must initialize the slot layout
         // BEFORE hoisting so that user bindings get created after internal IR slots. Otherwise,
         // internal 0-based IR slot writes can overwrite hoisted user bindings.
-        var requiresDynamicScopeExecutor = executionKind == ExecutionKind.Eval || !AllowsIdentifierCaching(program);
+        var requiresDynamicScopeExecutor = executionEnvironment.HasWithObjectInChain();
+        var canUseNoSlotIr = executionKind == ExecutionKind.Eval || !allowsIdentifierCaching;
+        var canUseIrPlan = !requiresDynamicScopeExecutor &&
+                           (context.AllowIdentifierCache || canUseNoSlotIr);
         ScriptPlanCache? scriptPlanCache = null;
         ExecutionPlan? scriptPlan = null;
-        var enableScriptSlots = allowScriptSlotAnalysis && !requiresDynamicScopeExecutor;
-        if (enableScriptSlots)
+        var enableScriptSlots = allowScriptSlotAnalysis && context.AllowIdentifierCache;
+        if (canUseIrPlan)
         {
             scriptPlanCache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
             if (scriptPlanCache.Succeeded)
@@ -2428,11 +2441,13 @@ public static partial class TypedAstEvaluator
             reverseFunctionHoist: reverseFunctionHoist,
             functionHoistDedupe: functionHoistDedupe);
 
-        // Direct eval and active with-scope stay on the explicit dynamic-scope executor.
+        // Scripts entered under an already-active with-scope still need the explicit
+        // dynamic-scope executor. Top-level with/eval programs can use the IR runner
+        // in no-slot mode when identifier caching is disabled.
         if (requiresDynamicScopeExecutor)
         {
             context.RealmState.Logger?.LogInformation(
-                "Executing script via dynamic-scope executor (eval/with path)");
+                "Executing script via dynamic-scope executor (captured with path)");
             var dynamicResult = EvaluateStatementList(program.Body, executionEnvironment, context);
             if (context.IsThrow)
             {
@@ -2442,11 +2457,18 @@ public static partial class TypedAstEvaluator
             return dynamicResult;
         }
 
-        if (!enableScriptSlots || scriptPlanCache is not { Succeeded: true } || scriptPlan is null)
+        if (!canUseIrPlan)
         {
-            var failureReason = !enableScriptSlots
-                ? "script slot analysis disabled for non-dynamic script execution"
-                : scriptPlanCache?.FailureReason ?? "IR script plan is unavailable";
+            const string failureReason = "script slot analysis disabled for non-dynamic script execution";
+            context.RealmState.Logger?.LogInformation(
+                "Rejecting non-dynamic script because IR script plan is unavailable: {FailureReason}",
+                failureReason);
+            throw new NotSupportedException($"IR plan generation failed for script: {failureReason}");
+        }
+
+        if (scriptPlanCache is not { Succeeded: true } || scriptPlan is null)
+        {
+            var failureReason = scriptPlanCache?.FailureReason ?? "IR script plan is unavailable";
             context.RealmState.Logger?.LogInformation(
                 "Rejecting non-dynamic script because IR script plan is unavailable: {FailureReason}",
                 failureReason);

@@ -64,7 +64,7 @@ public static partial class TypedAstEvaluator
                 context,
                 false,
                 false,
-                member.Callable.PlanSeed));
+                ResolveClassCallablePlanSeed(member.Callable, environment)));
             if (context.ShouldStopEvaluation)
             {
                 return;

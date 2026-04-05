@@ -15,6 +15,7 @@ internal sealed class DynamicScopeDetector : AstVisitor
     private void Reset()
     {
         Found = false;
+        FoundWithStatement = false;
         ShouldStop = false;
     }
 
@@ -34,6 +35,17 @@ internal sealed class DynamicScopeDetector : AstVisitor
 
         block.CacheContainsDynamicScope(detector.Found);
         return detector.Found;
+    }
+
+    /// <summary>
+    /// Checks if a block contains a with statement.
+    /// </summary>
+    public static bool ContainsWithStatement(BlockStatement block)
+    {
+        var detector = _instance ??= new DynamicScopeDetector();
+        detector.Reset();
+        detector.Visit(block);
+        return detector.FoundWithStatement;
     }
 
     /// <summary>
@@ -94,6 +106,7 @@ internal sealed class DynamicScopeDetector : AstVisitor
 
     protected override void VisitWithStatement(WithStatement node)
     {
+        FoundWithStatement = true;
         Found = true;
         ShouldStop = true;
     }
@@ -114,6 +127,8 @@ internal sealed class DynamicScopeDetector : AstVisitor
     // Don't traverse into nested functions - they have their own scope
     protected override void VisitFunctionExpression(FunctionExpression node) { }
     protected override void VisitFunctionDeclaration(FunctionDeclaration node) { }
+
+    private bool FoundWithStatement { get; set; }
 }
 
 /// <summary>

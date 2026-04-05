@@ -1863,7 +1863,126 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         var instruction = Assert.Single(plan.Instructions.OfType<SimpleVariableDeclarationInstruction>()
 , i => i.TargetSymbol.Name == "add");
         Assert.Null(instruction.Initializer);
-        AssertProgramContains<LoadFunctionLiteralExpressionOp>(instruction.InitializerProgram);
+        AssertProgramContains<LoadFunctionLiteralExpressionOp>(
+            instruction.InitializerProgram,
+            op => op.FunctionPlanSeed.Succeeded && op.Function.Name is null);
+    }
+
+    [Fact]
+    public async Task FunctionLiteral_CallablePlanFailures_AreCachedIntoExpressionProgram()
+    {
+        var parsedProgram = _engine.ParseProgram("""
+            const broken = function(value) {
+                return value + 1;
+            };
+            broken;
+            """);
+        var program = ReplaceVariableFunctionInitializerBodyWithUnsupportedModuleStatement(parsedProgram, "broken");
+
+        await _engine.Evaluate(program);
+
+        var cache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Script plan should build. Failure: {cache.FailureReason}");
+
+        var instruction = Assert.Single(
+            cache.Plan!.Instructions.OfType<SimpleVariableDeclarationInstruction>(),
+            i => i.TargetSymbol.Name == "broken");
+        var loadOp = Assert.Single(instruction.InitializerProgram!.Value.GetOps(ExpressionOpKind.LoadFunctionLiteral));
+
+        Assert.False(loadOp.FunctionPlanSeed.Succeeded);
+        Assert.Null(loadOp.FunctionPlanSeed.Plan);
+        Assert.NotNull(loadOp.FunctionPlanSeed.Failure);
+        Assert.Contains("ExportAllStatement", loadOp.FunctionPlanSeed.FailureReason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task FunctionDeclaration_CallablePlanFailures_AreCachedIntoDeclarationInstruction()
+    {
+        var parsedProgram = _engine.ParseProgram("""
+            function outer() {
+                if (true) {
+                    function broken(value) {
+                        return value + 1;
+                    }
+                }
+
+                return 0;
+            }
+            """);
+        var program = ReplaceNestedFunctionDeclarationBodyWithUnsupportedModuleStatement(parsedProgram, "outer", "broken");
+
+        await _engine.Evaluate(program);
+
+        var outer = Assert.IsType<FunctionDeclaration>(
+            program.Body.Single(statement => statement is FunctionDeclaration declaration && declaration.Name.Name == "outer"));
+        var cache = ((IAstCacheable<ExecutionPlanCache>)outer.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Outer plan should build. Failure: {cache.FailureReason}");
+
+        var instruction = Assert.Single(
+            cache.Plan!.Instructions.OfType<FunctionDeclarationInstruction>(),
+            static i => i.Descriptor is { Name.Name: "broken" });
+        var descriptor = Assert.IsType<FunctionDeclarationDescriptor>(instruction.Descriptor);
+
+        Assert.False(descriptor.PlanSeed.Succeeded);
+        Assert.Null(descriptor.PlanSeed.Plan);
+        Assert.NotNull(descriptor.PlanSeed.Failure);
+        Assert.Contains("ExportAllStatement", descriptor.PlanSeed.FailureReason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task FunctionDeclarationInstruction_CallablePlans_AreCachedIntoRuntimeDescriptor()
+    {
+        var program = _engine.ParseProgram("""
+            "use strict";
+            {
+                function declared(value) {
+                    return value + 1;
+                }
+            }
+            """);
+
+        await _engine.Evaluate(program);
+
+        var cache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Script plan should build. Failure: {cache.FailureReason}");
+
+        var instruction = Assert.Single(
+            cache.Plan!.Instructions.OfType<FunctionDeclarationInstruction>(),
+            i => i.Descriptor is not null);
+        var descriptor = instruction.Descriptor;
+        Assert.NotNull(descriptor);
+        Assert.Equal("declared", descriptor.Value.Name.Name);
+        Assert.True(descriptor.Value.PlanSeed.Succeeded);
+        Assert.NotNull(descriptor.Value.PlanSeed.Plan);
+    }
+
+    [Fact]
+    public async Task FunctionDeclarationInstruction_CallablePlanFailures_AreCachedIntoRuntimeDescriptor()
+    {
+        var parsedProgram = _engine.ParseProgram("""
+            "use strict";
+            {
+                function broken(value) {
+                    return value + 1;
+                }
+            }
+            """);
+        var program = ReplaceBlockFunctionDeclarationBodyWithUnsupportedModuleStatement(parsedProgram, "broken");
+
+        await _engine.Evaluate(program);
+
+        var cache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Script plan should build. Failure: {cache.FailureReason}");
+
+        var instruction = Assert.Single(
+            cache.Plan!.Instructions.OfType<FunctionDeclarationInstruction>(),
+            i => i.Descriptor is { } descriptor && descriptor.Name.Name == "broken");
+        var descriptor = Assert.IsType<FunctionDeclarationDescriptor>(instruction.Descriptor);
+
+        Assert.False(descriptor.PlanSeed.Succeeded);
+        Assert.Null(descriptor.PlanSeed.Plan);
+        Assert.NotNull(descriptor.PlanSeed.Failure);
+        Assert.Contains("ExportAllStatement", descriptor.PlanSeed.FailureReason, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -2412,6 +2531,150 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         return program with
         {
             Body = program.Body.SetItem(declarationIndex, rewrittenDeclaration)
+        };
+    }
+
+    private static ProgramNode ReplaceBlockFunctionDeclarationBodyWithUnsupportedModuleStatement(
+        ProgramNode program,
+        string functionName)
+    {
+        var blockIndex = -1;
+        for (var i = 0; i < program.Body.Length; i++)
+        {
+            if (program.Body[i] is BlockStatement)
+            {
+                blockIndex = i;
+                break;
+            }
+        }
+
+        var block = Assert.IsType<BlockStatement>(program.Body[blockIndex]);
+        var declarationIndex = -1;
+        for (var i = 0; i < block.Statements.Length; i++)
+        {
+            if (block.Statements[i] is FunctionDeclaration functionDeclaration &&
+                functionDeclaration.Name.Name == functionName)
+            {
+                declarationIndex = i;
+                break;
+            }
+        }
+
+        var blockFunctionDeclaration = Assert.IsType<FunctionDeclaration>(block.Statements[declarationIndex]);
+        var rewrittenDeclaration = blockFunctionDeclaration with
+        {
+            Function = blockFunctionDeclaration.Function with
+            {
+                Body = new BlockStatement(
+                    null,
+                    [new ExportAllStatement(null, "./unsupported.js")],
+                    true)
+            }
+        };
+
+        return program with
+        {
+            Body = program.Body.SetItem(
+                blockIndex,
+                block with
+                {
+                    Statements = block.Statements.SetItem(declarationIndex, rewrittenDeclaration)
+                })
+        };
+    }
+
+    private static ProgramNode ReplaceVariableFunctionInitializerBodyWithUnsupportedModuleStatement(
+        ProgramNode program,
+        string variableName)
+    {
+        var declaration = Assert.IsType<VariableDeclaration>(
+            program.Body.Single(statement => statement is VariableDeclaration variableDeclaration &&
+                                             variableDeclaration.Declarators.Any(declarator =>
+                                                 declarator.Target is IdentifierBinding identifier &&
+                                                 identifier.Name.Name == variableName)));
+
+        var declarationIndex = program.Body.IndexOf(declaration);
+        var declaratorIndex = -1;
+        for (var i = 0; i < declaration.Declarators.Length; i++)
+        {
+            if (declaration.Declarators[i].Target is IdentifierBinding identifier &&
+                identifier.Name.Name == variableName)
+            {
+                declaratorIndex = i;
+                break;
+            }
+        }
+
+        var declarator = declaration.Declarators[declaratorIndex];
+        var function = Assert.IsType<FunctionExpression>(declarator.Initializer);
+        var rewrittenDeclarator = declarator with
+        {
+            Initializer = function with
+            {
+                Body = new BlockStatement(
+                    null,
+                    [new ExportAllStatement(null, "./unsupported.js")],
+                    true)
+            }
+        };
+        var rewrittenDeclaration = declaration with
+        {
+            Declarators = declaration.Declarators.SetItem(declaratorIndex, rewrittenDeclarator)
+        };
+
+        return program with
+        {
+            Body = program.Body.SetItem(declarationIndex, rewrittenDeclaration)
+        };
+    }
+
+    private static ProgramNode ReplaceNestedFunctionDeclarationBodyWithUnsupportedModuleStatement(
+        ProgramNode program,
+        string outerFunctionName,
+        string nestedFunctionName)
+    {
+        var outerDeclaration = Assert.IsType<FunctionDeclaration>(
+            program.Body.Single(statement => statement is FunctionDeclaration outerFunctionDeclaration &&
+                                             outerFunctionDeclaration.Name.Name == outerFunctionName));
+        var outerDeclarationIndex = program.Body.IndexOf(outerDeclaration);
+
+        var ifStatement = Assert.IsType<IfStatement>(outerDeclaration.Function.Body.Statements[0]);
+        var block = Assert.IsType<BlockStatement>(ifStatement.Then);
+        var nestedDeclaration = Assert.IsType<FunctionDeclaration>(
+            block.Statements.Single(statement => statement is FunctionDeclaration nestedFunctionDeclaration &&
+                                                nestedFunctionDeclaration.Name.Name == nestedFunctionName));
+        var nestedDeclarationIndex = block.Statements.IndexOf(nestedDeclaration);
+
+        var rewrittenNestedDeclaration = nestedDeclaration with
+        {
+            Function = nestedDeclaration.Function with
+            {
+                Body = new BlockStatement(
+                    null,
+                    [new ExportAllStatement(null, "./unsupported.js")],
+                    true)
+            }
+        };
+        var rewrittenBlock = block with
+        {
+            Statements = block.Statements.SetItem(nestedDeclarationIndex, rewrittenNestedDeclaration)
+        };
+        var rewrittenOuterDeclaration = outerDeclaration with
+        {
+            Function = outerDeclaration.Function with
+            {
+                Body = outerDeclaration.Function.Body with
+                {
+                    Statements = outerDeclaration.Function.Body.Statements.SetItem(
+                        0,
+                        ifStatement with { Then = rewrittenBlock })
+                }
+            }
+        };
+
+        return program with
+        {
+            Body = program.Body.SetItem(outerDeclarationIndex, rewrittenOuterDeclaration)
         };
     }
 

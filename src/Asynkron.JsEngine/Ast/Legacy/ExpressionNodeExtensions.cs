@@ -2469,7 +2469,10 @@ public static partial class TypedAstEvaluator
                 environment,
                 context),
             FunctionExpression functionExpression => JsValue.FromObjectUnsafe(
-                functionExpression.CreateFunctionValue(environment, context)),
+                functionExpression.CreateFunctionValue(
+                    environment,
+                    context,
+                    planSeed: FunctionLiteralDescriptor.Create(functionExpression).PlanSeed)),
             DestructuringAssignmentExpression destructuringAssignment => EvaluateCachedExpressionProgram(
                 destructuringAssignment,
                 environment,
@@ -2725,7 +2728,12 @@ public static partial class TypedAstEvaluator
                     }
                 case ObjectMemberKind.Method:
                     {
-                        var callable = member.Function!.CreateFunctionValue(environment, context, false);
+                        var function = member.Function!;
+                        var callable = function.CreateFunctionValue(
+                            environment,
+                            context,
+                            false,
+                            planSeed: FunctionLiteralDescriptor.Create(function).PlanSeed);
                         if (callable is SyncFunctionInvoker typed)
                         {
                             typed.SetHomeObject(obj);
@@ -2765,12 +2773,15 @@ public static partial class TypedAstEvaluator
                     }
                 case ObjectMemberKind.Getter:
                     {
-                        var getter = new SyncFunctionInvoker(
-                            member.Function!,
+                        var function = member.Function!;
+                        var planSeed = FunctionLiteralDescriptor.Create(function).PlanSeed;
+                        var getter = function.CreateFunctionValue(
                             environment,
-                            context.RealmState,
-                            context.CurrentScope.IsStrict,
-                            isConstructorFunction: false);
+                            context,
+                            false,
+                            planSeed: planSeed) as SyncFunctionInvoker
+                                     ?? throw new InvalidOperationException(
+                                         "Object getter must materialize as a sync function.");
                         getter.SetHomeObject(obj);
                         var name = ResolveObjectMemberName(member, environment, context);
                         if (context.ShouldStopEvaluation)
@@ -2785,12 +2796,15 @@ public static partial class TypedAstEvaluator
                     }
                 case ObjectMemberKind.Setter:
                     {
-                        var setter = new SyncFunctionInvoker(
-                            member.Function!,
+                        var function = member.Function!;
+                        var planSeed = FunctionLiteralDescriptor.Create(function).PlanSeed;
+                        var setter = function.CreateFunctionValue(
                             environment,
-                            context.RealmState,
-                            context.CurrentScope.IsStrict,
-                            isConstructorFunction: false);
+                            context,
+                            false,
+                            planSeed: planSeed) as SyncFunctionInvoker
+                                     ?? throw new InvalidOperationException(
+                                         "Object setter must materialize as a sync function.");
                         setter.SetHomeObject(obj);
                         var name = ResolveObjectMemberName(member, environment, context);
                         if (context.ShouldStopEvaluation)

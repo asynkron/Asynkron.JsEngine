@@ -376,6 +376,34 @@ public static partial class TypedAstEvaluator
         return false;
     }
 
+    private static FunctionExecutionPlanSeed ResolveCallablePlanSeed(
+        FunctionExpression functionExpression,
+        JsEnvironment environment,
+        FunctionExecutionPlanSeed planSeed)
+    {
+        if (functionExpression.IsAsync ||
+            functionExpression.IsGenerator ||
+            !environment.HasWithObjectInChain())
+        {
+            return planSeed;
+        }
+
+        if (!planSeed.Succeeded && planSeed.Failure is null)
+        {
+            var planCache = ((IAstCacheable<ExecutionPlanCache>)functionExpression).GetOrCreateCache();
+            planSeed = FunctionExecutionPlanSeed.FromCache(planCache);
+        }
+
+        if (!planSeed.Succeeded)
+        {
+            return planSeed;
+        }
+
+        return FunctionExecutionPlanSeed.Reject(
+            ExecutionPlanFailureCode.AstReentryDetected,
+            "sync callable closes over a with environment");
+    }
+
     private static IJsCallable CreateFunctionValue(this FunctionExpression functionExpression, JsEnvironment environment,
         EvaluationContext context,
         bool isConstructorFunction = true,
@@ -416,6 +444,8 @@ public static partial class TypedAstEvaluator
         // Mark the closure environment as captured - it cannot be returned to the pool
         // since this function holds a reference to it
         closureEnvironment.Capture();
+
+        planSeed = ResolveCallablePlanSeed(functionExpression, closureEnvironment, planSeed);
 
         IJsCallable callable = functionExpression.IsGenerator switch
         {

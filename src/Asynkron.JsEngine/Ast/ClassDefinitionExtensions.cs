@@ -194,6 +194,34 @@ public static partial class TypedAstEvaluator
         }
     }
 
+    private static FunctionExecutionPlanSeed ResolveClassCallablePlanSeed(
+        LoweredClassCallable callable,
+        JsEnvironment environment)
+    {
+        if (!callable.PlanSeed.Succeeded ||
+            callable.Function.IsAsync ||
+            callable.Function.IsGenerator)
+        {
+            return callable.PlanSeed;
+        }
+
+        if (!AllowsIdentifierCaching(callable.Function))
+        {
+            return FunctionExecutionPlanSeed.Reject(
+                ExecutionPlanFailureCode.AstReentryDetected,
+                "class-created sync callable requires dynamic-scope execution");
+        }
+
+        if (!environment.HasWithObjectInChain())
+        {
+            return callable.PlanSeed;
+        }
+
+        return FunctionExecutionPlanSeed.Reject(
+            ExecutionPlanFailureCode.AstReentryDetected,
+            "class-created sync callable closes over a with environment");
+    }
+
     private static JsValue CreateClassValue(this ClassDefinition definition, JsEnvironment environment,
         EvaluationContext context,
         Symbol? className,
@@ -255,7 +283,7 @@ public static partial class TypedAstEvaluator
             context,
             isConstructorFunction: true,
             skipInternalNameBinding: true,
-            planSeed: definition.Constructor.PlanSeed);
+            planSeed: ResolveClassCallablePlanSeed(definition.Constructor, evaluationEnvironment));
         var constructorJsValue = JsValue.FromObjectUnsafe(constructorCallable);
         if (context.ShouldStopEvaluation)
         {

@@ -627,11 +627,12 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
 
             case ExpressionOpKind.LoadFunctionLiteral:
                 {
-                    var function = operation.GetObject<FunctionExpression>(objectConstants);
-                    var rewrittenFunction = (FunctionExpression)Rewrite(function);
-                    return ReferenceEquals(function, rewrittenFunction)
+                    var descriptor = operation.GetObject<FunctionLiteralDescriptor>(objectConstants);
+                    var rewrittenFunction = (FunctionExpression)Rewrite(descriptor.Function);
+                    return ReferenceEquals(descriptor.Function, rewrittenFunction)
                         ? operation
-                        : operation.WithObjectConstant(objectPool.InternObject(rewrittenFunction));
+                        : operation.WithObjectConstant(objectPool.InternObject(
+                            FunctionLiteralDescriptor.Create(rewrittenFunction)));
                 }
 
             case ExpressionOpKind.LoadClassLiteral:

@@ -53,6 +53,11 @@ public static partial class TypedAstEvaluator
                 environment = withEnv;
             }
 
+            if (runner._isScriptMode)
+            {
+                runner._scriptCompletionValue = JsValue.Undefined;
+            }
+
             runner._programCounter = instruction.Next;
             returnValue = default;
             return InstructionResult.Continue;

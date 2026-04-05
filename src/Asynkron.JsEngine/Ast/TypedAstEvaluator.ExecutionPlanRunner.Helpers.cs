@@ -286,12 +286,13 @@ public static partial class TypedAstEvaluator
 
                         case ExpressionOpKind.LoadFunctionLiteral:
                             {
-                                var function = operation.GetObject<FunctionExpression>(objectConstants);
+                                var descriptor = operation.GetObject<FunctionLiteralDescriptor>(objectConstants);
                                 stack[stackIndex++] = JsValue.FromObjectUnsafe(
-                                    function.CreateFunctionValue(
+                                    descriptor.Function.CreateFunctionValue(
                                         environment,
                                         context,
-                                        operation.IsConstructorFunction));
+                                        operation.IsConstructorFunction,
+                                        planSeed: descriptor.PlanSeed));
                                 stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;

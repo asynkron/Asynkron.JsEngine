@@ -755,7 +755,11 @@ public static partial class TypedAstEvaluator
                 _allowIdentifierCache,
                 _function.Name?.Name ?? "<anonymous>");
 
-            if (!_function.IsGenerator && !IsAsyncFunction && _allowIdentifierCache)
+            // Direct-eval callables can still execute via IR as long as the closure chain has no
+            // active with-object environments. In that mode the runner keeps identifier caching off
+            // and relies on dictionary resolution instead of slot/flat-slot fast paths.
+            var canUseIrPlan = _allowIdentifierCache || !_closure.HasWithObjectInChain();
+            if (!_function.IsGenerator && !IsAsyncFunction && canUseIrPlan)
             {
                 var plan = _planSeed.Plan;
                 var failureReason = _planSeed.FailureReason;

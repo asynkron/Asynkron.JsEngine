@@ -96,16 +96,25 @@ public static partial class TypedAstEvaluator
                     Symbol symbol,
                     EvaluationContext context)
         {
-            return environment.GetIdentifierJsValueDirect(symbol, context);
+            return context.AllowIdentifierCache
+                ? environment.GetIdentifierJsValueDirect(symbol, context)
+                : environment.GetIdentifierJsValueWithScope(symbol, context);
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]
         private static void ProfileAssignJsValue(
                     JsEnvironment environment,
                     Symbol symbol,
-                    JsValue value)
+                    JsValue value,
+                    EvaluationContext context)
         {
-            environment.AssignJsValue(symbol, value);
+            if (context.AllowIdentifierCache)
+            {
+                environment.AssignJsValue(symbol, value);
+                return;
+            }
+
+            environment.SetIdentifierJsValue(symbol, value, context);
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]

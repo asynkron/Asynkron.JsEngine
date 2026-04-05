@@ -336,7 +336,7 @@ internal static class ExecutionPlanPrinter
         {
             ExpressionOpKind.LoadLiteral => op.GetLiteral(literalConstantSpan).ToString() ?? "null",
             ExpressionOpKind.LoadRegexLiteral => $"/{op.GetString(stringConstantSpan)}/{op.RegexFlags}",
-            ExpressionOpKind.LoadFunctionLiteral => op.GetObject<FunctionExpression>(objectConstantSpan).Name is { } functionName ? $"fn:{functionName.Name}" : "fn",
+            ExpressionOpKind.LoadFunctionLiteral => op.GetObject<FunctionLiteralDescriptor>(objectConstantSpan).Function.Name is { } functionName ? $"fn:{functionName.Name}" : "fn",
             ExpressionOpKind.LoadClassLiteral => op.GetObject<ClassExpression>(objectConstantSpan).Name is { } className ? $"class:{className.Name}" : "class",
             ExpressionOpKind.LoadTemplateObject => "template",
             ExpressionOpKind.LoadIdentifier => op.GetIdentifier(identifierConstantSpan).Name.Name,

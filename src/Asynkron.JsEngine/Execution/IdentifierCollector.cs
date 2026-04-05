@@ -448,7 +448,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
                     break;
 
                 case ExpressionOpKind.LoadFunctionLiteral:
-                    Visit(op.GetObject<FunctionExpression>(objectConstants));
+                    Visit(op.GetObject<FunctionLiteralDescriptor>(objectConstants).Function);
                     break;
 
                 case ExpressionOpKind.LoadClassLiteral:

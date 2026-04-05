@@ -66,6 +66,22 @@ public static partial class TypedAstEvaluator
 
     [MethodImpl(JsEngineConstants.Inlining)]
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateClassJsValue(this ClassDeclaration declaration, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var constructorValue = declaration.Definition.CreateClassValue(environment, context, declaration.Name);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Unit;
+        }
+
+        environment.DefineJsValue(declaration.Name, constructorValue, isConst: false, isLexicalBinding: true,
+            blocksFunctionScopeOverride: true, isImmutableBinding: false);
+        return JsValue.Unit;
+    }
+
+    [MethodImpl(JsEngineConstants.Inlining)]
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static JsValue EvaluateReturnJsValue(this ReturnStatement statement, JsEnvironment environment,
         EvaluationContext context)
     {

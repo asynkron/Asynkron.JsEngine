@@ -217,8 +217,14 @@ public static partial class TypedAstEvaluator
 
         return expression switch
         {
-            RegexLiteralExpression regex => regex.EvaluateRegexLiteral(context),
-            ConditionalExpression conditional => conditional.EvaluateConditional(environment, context),
+            RegexLiteralExpression regex => new JsValue(RegExpHelper.CreateRegExpLiteral(
+                regex.Pattern,
+                regex.Flags,
+                context.RealmState)),
+            ConditionalExpression conditional => EvaluateConditionalExpression(
+                conditional,
+                environment,
+                context),
             FunctionExpression functionExpression => JsValue.FromObjectUnsafe(
                 functionExpression.CreateFunctionValue(environment, context)),
             DestructuringAssignmentExpression destructuringAssignment => EvaluateCachedExpressionProgram(
@@ -252,7 +258,10 @@ public static partial class TypedAstEvaluator
             ImportMetaExpression => EvaluateImportMeta(environment, context),
             ArrayExpression array => array.EvaluateArray(environment, context),
             ObjectExpression obj => obj.EvaluateObject(environment, context),
-            ClassExpression classExpression => classExpression.EvaluateClassExpression(environment, context),
+            ClassExpression classExpression => EvaluateClassExpressionValue(
+                classExpression,
+                environment,
+                context),
             DecoratorExpression => throw new NotSupportedException("Decorators are not supported."),
             TemplateLiteralExpression template => template.EvaluateTemplateLiteral(environment, context),
             TaggedTemplateExpression taggedTemplate => taggedTemplate.EvaluateTaggedTemplate(environment, context),
@@ -264,6 +273,45 @@ public static partial class TypedAstEvaluator
             _ => throw new NotSupportedException(
                 $"Typed evaluator does not yet support '{expression.GetType().Name}'.")
         };
+    }
+
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateConditionalExpression(
+        ConditionalExpression expression,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var test = EvaluateCachedExpressionProgram(
+            expression.Test,
+            environment,
+            context,
+            "Dynamic conditional test");
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        return test.IsTruthy
+            ? EvaluateCachedExpressionProgram(
+                expression.Consequent,
+                environment,
+                context,
+                "Dynamic conditional consequent")
+            : EvaluateCachedExpressionProgram(
+                expression.Alternate,
+                environment,
+                context,
+                "Dynamic conditional alternate");
+    }
+
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateClassExpressionValue(
+        ClassExpression expression,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var inferredName = expression.Name ?? context.CurrentFunctionNameHint;
+        return expression.Definition.CreateClassValue(environment, context, inferredName);
     }
 
     private static string DescribeCallee(this ExpressionNode expression)

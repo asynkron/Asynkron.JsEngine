@@ -1809,6 +1809,48 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FunctionDeclarationInstruction_CallablePlan_IsCachedIntoRuntimeDescriptor()
+    {
+        var plan = await GetScriptPlan("""
+            function read(value) {
+                return value + 1;
+            }
+            """);
+
+        var instruction = Assert.Single(
+            plan.Instructions.OfType<FunctionDeclarationInstruction>(),
+            i => i.Descriptor is not null);
+        var descriptor = Assert.IsType<FunctionDeclarationDescriptor>(instruction.Descriptor);
+
+        Assert.Equal("read", descriptor.Name.Name);
+        Assert.True(descriptor.PlanSeed.Succeeded);
+        Assert.NotNull(descriptor.PlanSeed.Plan);
+    }
+
+    [Fact]
+    public async Task FunctionDeclarationInstruction_CallablePlanFailure_IsCachedIntoRuntimeDescriptor()
+    {
+        var parsedProgram = _engine.ParseProgram("""
+            function read(value) {
+                return value + 1;
+            }
+            """);
+        var program = ReplaceFunctionDeclarationBodyWithUnsupportedModuleStatement(parsedProgram, "read");
+        await _engine.Evaluate(program);
+
+        var plan = GetScriptPlan(program);
+        var instruction = Assert.Single(
+            plan.Instructions.OfType<FunctionDeclarationInstruction>(),
+            i => i.Descriptor is not null);
+        var descriptor = Assert.IsType<FunctionDeclarationDescriptor>(instruction.Descriptor);
+
+        Assert.False(descriptor.PlanSeed.Succeeded);
+        Assert.Null(descriptor.PlanSeed.Plan);
+        Assert.NotNull(descriptor.PlanSeed.Failure);
+        Assert.Contains("ExportAllStatement", descriptor.PlanSeed.FailureReason, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task SimpleVariableDeclaration_AnonymousFunctionInitializer_IsLoweredToExpressionProgram()
     {
         var plan = await GetFunctionPlan("""
@@ -2337,6 +2379,20 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         return Assert.IsType<ExecutionPlan>(cache.Plan);
     }
 
+    private async Task<ExecutionPlan> GetScriptPlan(string source)
+    {
+        var program = _engine.ParseProgram(source);
+        await _engine.Evaluate(program);
+        return GetScriptPlan(program);
+    }
+
+    private static ExecutionPlan GetScriptPlan(ProgramNode program)
+    {
+        var cache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Script plan should build. Failure: {cache.FailureReason}");
+        return Assert.IsType<ExecutionPlan>(cache.Plan);
+    }
+
     private async Task<ExecutionPlan> GetClassMethodPlan(string source, string className, string methodName, bool isStatic = false)
     {
         var program = _engine.ParseProgram(source);
@@ -2437,6 +2493,39 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         var rewrittenDeclaration = declaration with
         {
             Definition = declaration.Definition with { Members = rewrittenMembers }
+        };
+
+        return program with
+        {
+            Body = program.Body.SetItem(declarationIndex, rewrittenDeclaration)
+        };
+    }
+
+    private static ProgramNode ReplaceFunctionDeclarationBodyWithUnsupportedModuleStatement(
+        ProgramNode program,
+        string functionName)
+    {
+        var declarationIndex = -1;
+        for (var i = 0; i < program.Body.Length; i++)
+        {
+            if (program.Body[i] is FunctionDeclaration functionDeclaration &&
+                functionDeclaration.Name.Name == functionName)
+            {
+                declarationIndex = i;
+                break;
+            }
+        }
+
+        var declaration = Assert.IsType<FunctionDeclaration>(program.Body[declarationIndex]);
+        var rewrittenDeclaration = declaration with
+        {
+            Function = declaration.Function with
+            {
+                Body = new BlockStatement(
+                    null,
+                    [new ExportAllStatement(null, "./unsupported.js")],
+                    true)
+            }
         };
 
         return program with

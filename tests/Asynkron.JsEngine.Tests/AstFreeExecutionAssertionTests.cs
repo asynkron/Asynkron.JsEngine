@@ -3032,7 +3032,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AssertNoAstEvaluation_Enabled_AllowsTopLevelWithScriptExecution()
+    public async Task AssertNoAstEvaluation_Enabled_ThrowsOnTopLevelWithScriptExecution()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;
 
@@ -3048,9 +3048,10 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
                 result;
                 """);
 
-            var result = await _engine.Evaluate(program);
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => _engine.Evaluate(program));
 
-            Assert.Equal(42d, result);
+            Assert.Contains("AST evaluation invoked", exception.Message, StringComparison.Ordinal);
         }
         finally
         {
@@ -3059,7 +3060,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AssertNoAstEvaluation_Enabled_AllowsTopLevelWithEvalExecution()
+    public async Task AssertNoAstEvaluation_Enabled_ThrowsOnTopLevelWithEvalExecution()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;
 
@@ -3073,9 +3074,10 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
                 result;
                 """);
 
-            var result = await _engine.Evaluate(program);
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => _engine.Evaluate(program));
 
-            Assert.Equal(42d, result);
+            Assert.Contains("AST evaluation invoked", exception.Message, StringComparison.Ordinal);
         }
         finally
         {

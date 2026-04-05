@@ -758,7 +758,11 @@ public static partial class TypedAstEvaluator
             // Direct-eval callables can still execute via IR as long as the closure chain has no
             // active with-object environments. In that mode the runner keeps identifier caching off
             // and relies on dictionary resolution instead of slot/flat-slot fast paths.
-            var canUseIrPlan = _allowIdentifierCache || !_closure.HasWithObjectInChain();
+            // Functions whose body contains 'with' statements must always skip the IR path because
+            // AssignmentSlotInstruction uses slot-based/name-based direct writes that bypass the
+            // with-scope object environment (the IR cannot resolve references through with-scope).
+            var canUseIrPlan = !DynamicScopeDetector.ContainsWithStatement(_function.Body) &&
+                               (_allowIdentifierCache || !_closure.HasWithObjectInChain());
             if (!_function.IsGenerator && !IsAsyncFunction && canUseIrPlan)
             {
                 var plan = _planSeed.Plan;

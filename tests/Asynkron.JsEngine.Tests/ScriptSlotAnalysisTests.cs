@@ -82,7 +82,7 @@ public sealed class ScriptSlotAnalysisTests : InternalTestBase
     }
 
     [Fact]
-    public async Task ScriptSlotAnalysis_TopLevelWithWithoutCapturedWith_UsesIrPath()
+    public async Task ScriptSlotAnalysis_TopLevelWithWithoutCapturedWith_UsesDynamicScopeExecutor()
     {
         var logger = new TestLogger(Output, "ScriptTopLevelWith", minLogLevel: LogLevel.Debug);
         const string script = """
@@ -103,7 +103,7 @@ public sealed class ScriptSlotAnalysisTests : InternalTestBase
 
         var result = await engine.Evaluate(script);
         Assert.Equal(7d, result);
-        Assert.DoesNotContain(
+        Assert.Contains(
             logger.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "Executing script via dynamic-scope executor",
@@ -111,7 +111,7 @@ public sealed class ScriptSlotAnalysisTests : InternalTestBase
     }
 
     [Fact]
-    public async Task ScriptSlotAnalysis_EvalWithWithoutCapturedWith_UsesIrPath()
+    public async Task ScriptSlotAnalysis_EvalWithWithoutCapturedWith_UsesDynamicScopeExecutor()
     {
         var logger = new TestLogger(Output, "EvalTopLevelWith", minLogLevel: LogLevel.Debug);
         const string script = """
@@ -129,7 +129,7 @@ public sealed class ScriptSlotAnalysisTests : InternalTestBase
 
         var result = await engine.Evaluate(script);
         Assert.Equal(11d, result);
-        Assert.DoesNotContain(
+        Assert.Contains(
             logger.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "Executing script via dynamic-scope executor",

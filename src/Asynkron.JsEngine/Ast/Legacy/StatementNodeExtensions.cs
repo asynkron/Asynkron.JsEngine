@@ -2348,7 +2348,8 @@ public static partial class TypedAstEvaluator
         // If we plan to execute this program via the IR path, we must initialize the slot layout
         // BEFORE hoisting so that user bindings get created after internal IR slots. Otherwise,
         // internal 0-based IR slot writes can overwrite hoisted user bindings.
-        var requiresDynamicScopeExecutor = executionEnvironment.HasWithObjectInChain();
+        var requiresDynamicScopeExecutor = executionEnvironment.HasWithObjectInChain() ||
+                                            DynamicScopeDetector.ContainsWithStatement(programBlock);
         var canUseNoSlotIr = executionKind == ExecutionKind.Eval || !allowsIdentifierCaching;
         var canUseIrPlan = !requiresDynamicScopeExecutor &&
                            (context.AllowIdentifierCache || canUseNoSlotIr);

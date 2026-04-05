@@ -4636,6 +4636,16 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                             _statementIndex++;
                             continue;
                         case VariableDeclaration variableDeclaration
+                            when variableDeclaration.Declarators.All(d => d.Target is IdentifierBinding) &&
+                                 ContainsNestedAwaitInitializer(variableDeclaration):
+                            if (!TryEvaluateDeclarationWithAwait(variableDeclaration, env, isStrict))
+                            {
+                                return;
+                            }
+
+                            _statementIndex++;
+                            continue;
+                        case VariableDeclaration variableDeclaration
                             when DeclarationNeedsAwaitTemps(variableDeclaration):
                             if (!TryEvaluateDeclarationWithAwait(variableDeclaration, env, isStrict))
                             {
@@ -4837,6 +4847,30 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             return false;
         }
 
+        private static bool ContainsNestedAwaitInitializer(VariableDeclaration declaration)
+        {
+            foreach (var declarator in declaration.Declarators)
+            {
+                if (declarator.Initializer is null or AwaitExpression)
+                {
+                    continue;
+                }
+
+                if (AstShapeAnalyzer.ContainsAwait(declarator.Initializer))
+                {
+                    return true;
+                }
+
+                if (declarator.Initializer is ClassExpression classExpression &&
+                    TryRewriteClassExpressionAwaitTemps(classExpression, out _, out _))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private bool TryEvaluateDeclarationWithAwait(VariableDeclaration declaration, JsEnvironment env, bool isStrict)
         {
             return TryEvaluateDeclarationWithAwait(declaration, env, isStrict, advanceTopLevelStatement: true,
@@ -4888,7 +4922,11 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                     return EvaluateDeclarator(index + 1);
                 }
 
-                if (!AstShapeAnalyzer.ContainsAwait(declarator.Initializer))
+                var initializerNeedsAsyncHandling = AstShapeAnalyzer.ContainsAwait(declarator.Initializer) ||
+                    declarator.Initializer is ClassExpression classExpression &&
+                    TryRewriteClassExpressionAwaitTemps(classExpression, out _, out _);
+
+                if (!initializerNeedsAsyncHandling)
                 {
                     try
                     {
@@ -5456,7 +5494,9 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                     return TryEvaluateNewExpressionWithAwait(newExpression, env, isStrict, continuation,
                         advanceTopLevelStatement);
 
-                case ClassExpression classExpression when AstShapeAnalyzer.ContainsAwait(classExpression):
+                case ClassExpression classExpression
+                    when AstShapeAnalyzer.ContainsAwait(classExpression) ||
+                         TryRewriteClassExpressionAwaitTemps(classExpression, out _, out _):
                     return TryEvaluateClassExpressionWithAwait(classExpression, env, isStrict, continuation,
                         advanceTopLevelStatement);
 
@@ -5952,15 +5992,28 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         {
             var definition = classExpression.Definition;
             var tempBuilder = ImmutableArray.CreateBuilder<AwaitTempBinding>();
+            var rewrittenDefinition = RewriteAwaitExpressionsInClassDefinition(definition, tempBuilder);
+            var changed = tempBuilder.Count > 0;
+
+            rewrittenClass = classExpression with
+            {
+                Definition = rewrittenDefinition
+            };
+            tempBindings = tempBuilder.ToImmutable();
+            return changed;
+        }
+
+        private static ClassDefinition RewriteAwaitExpressionsInClassDefinition(
+            ClassDefinition definition,
+            ImmutableArray<AwaitTempBinding>.Builder tempBindings)
+        {
             var members = definition.Members.ToBuilder();
             var fields = definition.Fields.ToBuilder();
             var rewrittenExtends = definition.Extends;
-            var changed = false;
 
             if (definition.Extends is not null && AstShapeAnalyzer.ContainsAwait(definition.Extends))
             {
-                rewrittenExtends = RewriteAwaitExpressionToSyntheticIdentifier(definition.Extends, tempBuilder);
-                changed = true;
+                rewrittenExtends = RewriteAwaitExpressionToSyntheticIdentifier(definition.Extends, tempBindings);
             }
 
             for (var i = 0; i < members.Count; i++)
@@ -5971,9 +6024,8 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 {
                     members[i] = member with
                     {
-                        ComputedName = RewriteAwaitExpressionToSyntheticIdentifier(member.ComputedName, tempBuilder)
+                        ComputedName = RewriteAwaitExpressionToSyntheticIdentifier(member.ComputedName, tempBindings)
                     };
-                    changed = true;
                 }
             }
 
@@ -5985,23 +6037,17 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 {
                     fields[i] = field with
                     {
-                        ComputedName = RewriteAwaitExpressionToSyntheticIdentifier(field.ComputedName, tempBuilder)
+                        ComputedName = RewriteAwaitExpressionToSyntheticIdentifier(field.ComputedName, tempBindings)
                     };
-                    changed = true;
                 }
             }
 
-            rewrittenClass = classExpression with
+            return definition with
             {
-                Definition = definition with
-                {
-                    Extends = rewrittenExtends,
-                    Members = members.ToImmutable(),
-                    Fields = fields.ToImmutable()
-                }
+                Extends = rewrittenExtends,
+                Members = members.ToImmutable(),
+                Fields = fields.ToImmutable()
             };
-            tempBindings = tempBuilder.ToImmutable();
-            return changed;
         }
 
         private static ExpressionNode RewriteAwaitExpressionToSyntheticIdentifier(
@@ -6145,6 +6191,11 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                             .Select(expressionNode =>
                                 RewriteAwaitExpressionToSyntheticIdentifier(expressionNode, tempBindings))
                             .ToImmutableArray()
+                    };
+                case ClassExpression classExpression:
+                    return classExpression with
+                    {
+                        Definition = RewriteAwaitExpressionsInClassDefinition(classExpression.Definition, tempBindings)
                     };
                 default:
                     return expression;
@@ -6416,6 +6467,13 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 case VariableDeclaration variableDeclaration
                     when variableDeclaration.Declarators.All(d => d.Target is IdentifierBinding) &&
                          ContainsDirectAwaitInitializer(variableDeclaration):
+                    return TryEvaluateDeclarationWithAwait(variableDeclaration, env, isStrict,
+                        advanceTopLevelStatement: false,
+                        onCompleted);
+
+                case VariableDeclaration variableDeclaration
+                    when variableDeclaration.Declarators.All(d => d.Target is IdentifierBinding) &&
+                         ContainsNestedAwaitInitializer(variableDeclaration):
                     return TryEvaluateDeclarationWithAwait(variableDeclaration, env, isStrict,
                         advanceTopLevelStatement: false,
                         onCompleted);

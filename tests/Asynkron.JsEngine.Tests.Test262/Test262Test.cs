@@ -715,6 +715,19 @@ try {
         ExecuteTestAsync(engine, file).GetAwaiter().GetResult();
     }
 
+    private static void ExecuteTest((JsEngine Engine, Test262AgentRuntime AgentRuntime) executor, Test262File file)
+    {
+        try
+        {
+            ExecuteTest(executor.Engine, file);
+        }
+        finally
+        {
+            executor.AgentRuntime?.Dispose();
+            executor.Engine.Dispose();
+        }
+    }
+
     private static async Task ExecuteTestAsync(JsEngine engine, Test262File file)
     {
         if (file.Type == ProgramType.Module)

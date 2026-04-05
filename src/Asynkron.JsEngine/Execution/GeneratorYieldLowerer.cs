@@ -236,10 +236,63 @@ internal static class GeneratorYieldLowerer
                     continue;
                 }
 
+                if (_rewriteAwaits && TryRewriteNestedAwaitLoopBody(statement, out var rewrittenLoopStatement))
+                {
+                    builder.Add(rewrittenLoopStatement);
+                    changed = true;
+                    continue;
+                }
+
                 builder.Add(statement);
             }
 
             return changed ? builder.ToImmutable() : statements;
+        }
+
+        private bool TryRewriteNestedAwaitLoopBody(
+            StatementNode statement,
+            out StatementNode rewrittenStatement)
+        {
+            rewrittenStatement = statement;
+
+            switch (statement)
+            {
+                case ForStatement { Body: BlockStatement forBody } forStatement:
+                {
+                    var rewrittenBody = RewriteBlock(forBody);
+                    if (ReferenceEquals(rewrittenBody, forBody))
+                    {
+                        return false;
+                    }
+
+                    rewrittenStatement = forStatement with { Body = rewrittenBody };
+                    return true;
+                }
+                case WhileStatement { Body: BlockStatement whileBody } whileStatement:
+                {
+                    var rewrittenBody = RewriteBlock(whileBody);
+                    if (ReferenceEquals(rewrittenBody, whileBody))
+                    {
+                        return false;
+                    }
+
+                    rewrittenStatement = whileStatement with { Body = rewrittenBody };
+                    return true;
+                }
+                case DoWhileStatement { Body: BlockStatement doWhileBody } doWhileStatement:
+                {
+                    var rewrittenBody = RewriteBlock(doWhileBody);
+                    if (ReferenceEquals(rewrittenBody, doWhileBody))
+                    {
+                        return false;
+                    }
+
+                    rewrittenStatement = doWhileStatement with { Body = rewrittenBody };
+                    return true;
+                }
+                default:
+                    return false;
+            }
         }
 
         private bool TryRewriteNestedAwaitStatement(
@@ -624,8 +677,25 @@ internal static class GeneratorYieldLowerer
                 return false;
             }
 
+            if (TryRewriteBinaryExpressionWithNestedAwait(
+                    expression,
+                    out prefixStatements,
+                    out rewrittenExpression))
+            {
+                return true;
+            }
+
             if (TryRewriteComputedMemberAwaitProperty(
                     expression,
+                    out prefixStatements,
+                    out rewrittenExpression))
+            {
+                return true;
+            }
+
+            if (expression is BinaryExpression binaryExpression &&
+                TryRewriteBinaryExpressionWithNestedAwait(
+                    binaryExpression,
                     out prefixStatements,
                     out rewrittenExpression))
             {
@@ -646,6 +716,145 @@ internal static class GeneratorYieldLowerer
                     VariableKind.Let,
                     [new VariableDeclarator(awaitedExpression.Source, tempBinding, awaitedExpression)])
             ];
+            return true;
+        }
+
+        private bool TryRewriteBinaryExpressionWithNestedAwait(
+            BinaryExpression binaryExpression,
+            out ImmutableArray<StatementNode> prefixStatements,
+            out ExpressionNode rewrittenExpression)
+        {
+            prefixStatements = default;
+            rewrittenExpression = binaryExpression;
+
+            var leftHasAwait = AstShapeAnalyzer.ContainsAwait(binaryExpression.Left);
+            var rightHasAwait = AstShapeAnalyzer.ContainsAwait(binaryExpression.Right);
+            if (!leftHasAwait && !rightHasAwait)
+            {
+                return false;
+            }
+
+            var builder = ImmutableArray.CreateBuilder<StatementNode>();
+            var rewrittenLeft = binaryExpression.Left;
+            var rewrittenRight = binaryExpression.Right;
+            var changed = false;
+
+            if (leftHasAwait)
+            {
+                if (binaryExpression.Left is AwaitExpression leftAwait)
+                {
+                    var leftBinding = CreateResumeIdentifier();
+                    builder.Add(CreateTempDeclaration(leftAwait.Source, leftBinding, leftAwait));
+                    rewrittenLeft = new IdentifierExpression(leftAwait.Source, leftBinding.Name);
+                    changed = true;
+                }
+                else if (TryRewriteExpressionWithNestedAwait(
+                             binaryExpression.Left,
+                             out var leftPrefixStatements,
+                             out var rewrittenLeftExpression))
+                {
+                    builder.AddRange(leftPrefixStatements);
+                    rewrittenLeft = rewrittenLeftExpression;
+                    changed = true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
+            if (rightHasAwait)
+            {
+                if (!leftHasAwait)
+                {
+                    var leftBinding = CreateResumeIdentifier();
+                    builder.Add(CreateTempDeclaration(binaryExpression.Left.Source, leftBinding, rewrittenLeft));
+                    rewrittenLeft = new IdentifierExpression(binaryExpression.Left.Source, leftBinding.Name);
+                    changed = true;
+                }
+
+                if (binaryExpression.Right is AwaitExpression rightAwait)
+                {
+                    var rightBinding = CreateResumeIdentifier();
+                    builder.Add(CreateTempDeclaration(rightAwait.Source, rightBinding, rightAwait));
+                    rewrittenRight = new IdentifierExpression(rightAwait.Source, rightBinding.Name);
+                    changed = true;
+                }
+                else if (TryRewriteExpressionWithNestedAwait(
+                             binaryExpression.Right,
+                             out var rightPrefixStatements,
+                             out var rewrittenRightExpression))
+                {
+                    builder.AddRange(rightPrefixStatements);
+                    rewrittenRight = rewrittenRightExpression;
+                    changed = true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
+            if (!changed)
+            {
+                return false;
+            }
+
+            prefixStatements = builder.ToImmutable();
+            rewrittenExpression = binaryExpression with
+            {
+                Left = rewrittenLeft,
+                Right = rewrittenRight
+            };
+            return true;
+        }
+
+        private bool TryRewriteBinaryExpressionWithNestedAwait(
+            ExpressionNode expression,
+            out ImmutableArray<StatementNode> prefixStatements,
+            out ExpressionNode rewrittenExpression)
+        {
+            prefixStatements = default;
+            rewrittenExpression = expression;
+
+            if (expression is not BinaryExpression binaryExpression ||
+                binaryExpression.Operator is BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr or
+                    BinaryOperator.NullishCoalescing)
+            {
+                return false;
+            }
+
+            var builder = ImmutableArray.CreateBuilder<StatementNode>();
+            var changed = false;
+            var rewrittenLeft = binaryExpression.Left;
+            var rewrittenRight = binaryExpression.Right;
+
+            if (AstShapeAnalyzer.ContainsAwait(rewrittenLeft))
+            {
+                rewrittenLeft = RewriteAwaitExpressionToSyntheticIdentifier(rewrittenLeft, builder);
+                changed = true;
+            }
+
+            if (AstShapeAnalyzer.ContainsAwait(rewrittenRight))
+            {
+                var capturedLeft = CreateResumeIdentifier();
+                builder.Add(CreateTempDeclaration(binaryExpression.Left.Source, capturedLeft, rewrittenLeft));
+                rewrittenLeft = new IdentifierExpression(binaryExpression.Left.Source, capturedLeft.Name);
+                rewrittenRight = RewriteAwaitExpressionToSyntheticIdentifier(rewrittenRight, builder);
+                changed = true;
+            }
+
+            if (!changed)
+            {
+                return false;
+            }
+
+            prefixStatements = builder.ToImmutable();
+            rewrittenExpression = binaryExpression with
+            {
+                Left = rewrittenLeft,
+                Right = rewrittenRight
+            };
             return true;
         }
 

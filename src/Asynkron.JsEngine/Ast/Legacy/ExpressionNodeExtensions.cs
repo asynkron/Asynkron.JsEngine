@@ -1,5 +1,6 @@
 #region
 
+using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
@@ -1730,6 +1731,120 @@ public static partial class TypedAstEvaluator
         }
 
         return new JsValue(builder.ToString());
+    }
+
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateTaggedTemplate(
+        this TaggedTemplateExpression expression,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var (tagValue, thisValue, skippedOptional) = expression.Tag.EvaluateCallTarget(environment, context);
+        if (context.ShouldStopEvaluation || skippedOptional)
+        {
+            return JsValue.Undefined;
+        }
+
+        if (!tagValue.TryGetObject<IJsCallable>(out var callable))
+        {
+            var error = StandardLibrary.CreateTypeError(
+                "Tag in tagged template must be a function.",
+                context,
+                environment.RealmState);
+            throw new ThrowSignal(error);
+        }
+
+        // Per ES spec 13.2.8.4 GetTemplateObject, template objects are cached by parse node.
+        var realmState = context.RealmState;
+        JsArray templateObject;
+        if (realmState.TemplateObjectCache.TryGetValue(expression, out var cachedTemplate))
+        {
+            templateObject = (JsArray)cachedTemplate;
+        }
+        else
+        {
+            var stringsArrayValueJs = EvaluateCachedExpressionProgram(
+                expression.StringsArray,
+                environment,
+                context,
+                "Dynamic tagged template cooked strings");
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
+            if (!stringsArrayValueJs.TryGetObject<JsArray>(out var stringsArray))
+            {
+                throw new InvalidOperationException("Tagged template strings array is invalid.");
+            }
+
+            var rawStringsArrayValueJs = EvaluateCachedExpressionProgram(
+                expression.RawStringsArray,
+                environment,
+                context,
+                "Dynamic tagged template raw strings");
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
+            if (!rawStringsArrayValueJs.TryGetObject<JsArray>(out var rawStringsArray))
+            {
+                throw new InvalidOperationException("Tagged template raw strings array is invalid.");
+            }
+
+            templateObject = (JsArray)stringsArray.CreateTemplateObject(rawStringsArray);
+            realmState?.TemplateObjectCache[expression] = templateObject;
+        }
+
+        var arguments = ImmutableArray.CreateBuilder<JsValue>(expression.Expressions.Length + 1);
+        arguments.Add(JsValue.FromJsArray(templateObject));
+
+        foreach (var expr in expression.Expressions)
+        {
+            arguments.Add(EvaluateCachedExpressionProgram(
+                expr,
+                environment,
+                context,
+                "Dynamic tagged template argument"));
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+        }
+
+        DebugAwareHostFunction? debugFunction = null;
+        if (callable is DebugAwareHostFunction debugAware)
+        {
+            debugFunction = debugAware;
+            debugFunction.CurrentJsEnvironment = environment;
+            debugFunction.CurrentContext = context;
+        }
+
+        var frozenArguments = FreezeArguments(arguments);
+
+        try
+        {
+            return InvokeCallableJsValue(
+                callable,
+                frozenArguments,
+                thisValue,
+                context,
+                environment);
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+            return signal.ThrownValue;
+        }
+        finally
+        {
+            if (debugFunction is not null)
+            {
+                debugFunction.CurrentJsEnvironment = null;
+                debugFunction.CurrentContext = null;
+            }
+        }
     }
 
     private static string DescribeCallee(this ExpressionNode expression)

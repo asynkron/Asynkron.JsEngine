@@ -198,7 +198,7 @@ public static partial class TypedAstEvaluator
             JsEnvironment environment,
             EvaluationContext context)
         {
-            // When ProgramNodeExtensions.ResetSlotLayoutForPlan already initialized the
+            // When script entry already initialized the
             // slot layout (strict-wrapper scripts where HasSlots was false), the plan's
             // synthetic slots are at index 0..N-1 and hoisted vars were appended after
             // them. Skip re-initialization and use offset 0 so IR 0-based indices map

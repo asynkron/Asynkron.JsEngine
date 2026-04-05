@@ -28,7 +28,11 @@ public static partial class TypedAstEvaluator
                 continue;
             }
 
-            var valueJs = part.Expression.EvaluateExpression(environment, context);
+            var valueJs = EvaluateCachedExpressionProgram(
+                part.Expression,
+                environment,
+                context,
+                "Dynamic template literal expression");
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;

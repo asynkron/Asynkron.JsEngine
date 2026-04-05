@@ -7,14 +7,26 @@ public static partial class TypedAstEvaluator
     private static JsValue EvaluateConditional(this ConditionalExpression expression, JsEnvironment environment,
         EvaluationContext context)
     {
-        var test = expression.Test.EvaluateExpression(environment, context);
+        var test = EvaluateCachedExpressionProgram(
+            expression.Test,
+            environment,
+            context,
+            "Dynamic conditional test");
         if (context.ShouldStopEvaluation)
         {
             return JsValue.Undefined;
         }
 
         return test.IsTruthy
-            ? expression.Consequent.EvaluateExpression(environment, context)
-            : expression.Alternate.EvaluateExpression(environment, context);
+            ? EvaluateCachedExpressionProgram(
+                expression.Consequent,
+                environment,
+                context,
+                "Dynamic conditional consequent")
+            : EvaluateCachedExpressionProgram(
+                expression.Alternate,
+                environment,
+                context,
+                "Dynamic conditional alternate");
     }
 }

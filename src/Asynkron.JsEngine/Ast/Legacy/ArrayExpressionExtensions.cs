@@ -12,7 +12,11 @@ public static partial class TypedAstEvaluator
         {
             if (element.IsSpread)
             {
-                var spreadValueJs = element.Expression!.EvaluateExpression(environment, context);
+                var spreadValueJs = EvaluateCachedExpressionProgram(
+                    element.Expression!,
+                    environment,
+                    context,
+                    "Dynamic array spread expression");
                 if (context.ShouldStopEvaluation)
                 {
                     return JsValue.Undefined;
@@ -37,7 +41,11 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                array.Push(element.Expression.EvaluateExpression(environment, context));
+                array.Push(EvaluateCachedExpressionProgram(
+                    element.Expression,
+                    environment,
+                    context,
+                    "Dynamic array element expression"));
             }
 
             if (context.ShouldStopEvaluation)

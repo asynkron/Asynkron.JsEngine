@@ -38,7 +38,11 @@ public static partial class TypedAstEvaluator
         }
         else
         {
-            var stringsArrayValueJs = expression.StringsArray.EvaluateExpression(environment, context);
+            var stringsArrayValueJs = EvaluateCachedExpressionProgram(
+                expression.StringsArray,
+                environment,
+                context,
+                "Dynamic tagged template cooked strings");
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;
@@ -49,7 +53,11 @@ public static partial class TypedAstEvaluator
                 throw new InvalidOperationException("Tagged template strings array is invalid.");
             }
 
-            var rawStringsArrayValueJs = expression.RawStringsArray.EvaluateExpression(environment, context);
+            var rawStringsArrayValueJs = EvaluateCachedExpressionProgram(
+                expression.RawStringsArray,
+                environment,
+                context,
+                "Dynamic tagged template raw strings");
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;
@@ -71,7 +79,11 @@ public static partial class TypedAstEvaluator
 
         foreach (var expr in expression.Expressions)
         {
-            arguments.Add(expr.EvaluateExpression(environment, context));
+            arguments.Add(EvaluateCachedExpressionProgram(
+                expr,
+                environment,
+                context,
+                "Dynamic tagged template argument"));
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;

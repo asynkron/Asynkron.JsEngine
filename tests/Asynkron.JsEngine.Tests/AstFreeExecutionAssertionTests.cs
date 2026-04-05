@@ -577,8 +577,12 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
         }
     }
 
+    /// <summary>
+    /// Proves that a class method with direct eval executes via IR (no AST re-entry)
+    /// when the closure chain has no with-object environments.
+    /// </summary>
     [Fact]
-    public async Task AssertNoAstEvaluation_Enabled_ClassMethodWithDirectEval_ThrowsPlanFailureInsteadOfAstFallback()
+    public async Task AssertNoAstEvaluation_Enabled_ClassMethodWithDirectEval_ExecutesViaIr()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;
 
@@ -591,7 +595,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
                     }
                 }
 
-                globalThis.box = Object.create(Box.prototype);
+                globalThis.box = new Box();
                 """);
 
             await _engine.Evaluate(program);
@@ -602,9 +606,8 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
             Assert.True(boxAccessor.TryGetProperty("read", out var methodValue));
 
             var method = Assert.IsAssignableFrom<IJsCallable>(methodValue.ObjectValue);
-            var exception = Assert.Throws<NotSupportedException>(
-                () => method.Invoke(new SingleValueArgs(41), boxValue));
-            Assert.Contains("IR plan generation failed for function", exception.Message);
+            var result = method.Invoke(new SingleValueArgs(41), boxValue);
+            Assert.Equal(42.0, result);
         }
         finally
         {
@@ -773,14 +776,14 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Verifies that the flag can be toggled on and off for the explicit dynamic-scope executor path.
+    /// Verifies that a with-scoped function executes correctly via IR regardless of the
+    /// AssertNoAstEvaluation flag, since with statements are now fully IR-handled.
     /// </summary>
     [Fact]
     public async Task AssertNoAstEvaluation_CanBeToggledDuringExecution()
     {
-        // Arrange
         var originalValue = EvaluationContext.AssertNoAstEvaluation;
-        
+
         try
         {
             var program = _engine.ParseProgram("""
@@ -792,22 +795,22 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
                     }
                 }
                 """);
-            
-            // First, execute normally
+
+            // Execute normally with assertion disabled
             EvaluationContext.AssertNoAstEvaluation = false;
             await _engine.Evaluate(program);
             var result1 = InvokeGlobalFunction("readWith");
             Assert.Equal(42.0, result1);
-            
-            // Now enable assertion - should throw
+
+            // Enable assertion — with is IR-handled, so no AST re-entry occurs
             EvaluationContext.AssertNoAstEvaluation = true;
-            var exception = Assert.Throws<InvalidOperationException>(() => InvokeGlobalFunction("readWith"));
-            Assert.Contains("WithStatement", exception.Message);
-            
-            // Disable again - should work
-            EvaluationContext.AssertNoAstEvaluation = false;
             var result2 = InvokeGlobalFunction("readWith");
             Assert.Equal(42.0, result2);
+
+            // Disable again — still works
+            EvaluationContext.AssertNoAstEvaluation = false;
+            var result3 = InvokeGlobalFunction("readWith");
+            Assert.Equal(42.0, result3);
         }
         finally
         {
@@ -3084,7 +3087,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AssertNoAstEvaluation_Enabled_ThrowsOnWithStatementExecution()
+    public async Task AssertNoAstEvaluation_Enabled_WithStatementExecutesViaIr()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;
 
@@ -3102,9 +3105,9 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
             await _engine.Evaluate(program);
             EvaluationContext.AssertNoAstEvaluation = true;
 
-            var exception = Assert.Throws<InvalidOperationException>(() => InvokeGlobalFunction("readWith"));
-
-            Assert.Contains("WithStatement", exception.Message);
+            // with statements are now fully IR-handled, no AST re-entry occurs
+            var result = InvokeGlobalFunction("readWith");
+            Assert.Equal(42.0, result);
         }
         finally
         {

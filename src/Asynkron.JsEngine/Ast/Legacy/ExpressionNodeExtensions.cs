@@ -256,7 +256,10 @@ public static partial class TypedAstEvaluator
                 ? newTarget
                 : JsValue.Undefined,
             ImportMetaExpression => EvaluateImportMeta(environment, context),
-            ArrayExpression array => array.EvaluateArray(environment, context),
+            ArrayExpression array => EvaluateArrayExpression(
+                array,
+                environment,
+                context),
             ObjectExpression obj => obj.EvaluateObject(environment, context),
             ClassExpression classExpression => EvaluateClassExpressionValue(
                 classExpression,
@@ -315,6 +318,62 @@ public static partial class TypedAstEvaluator
     {
         var inferredName = expression.Name ?? context.CurrentFunctionNameHint;
         return expression.Definition.CreateClassValue(environment, context, inferredName);
+    }
+
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateArrayExpression(
+        ArrayExpression expression,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var array = new JsArray(context.RealmState);
+        foreach (var element in expression.Elements)
+        {
+            if (element.IsSpread)
+            {
+                var spreadValueJs = EvaluateCachedExpressionProgram(
+                    element.Expression!,
+                    environment,
+                    context,
+                    "Dynamic array spread expression");
+                if (context.ShouldStopEvaluation)
+                {
+                    return JsValue.Undefined;
+                }
+
+                foreach (var item in EnumerateSpread(spreadValueJs, context))
+                {
+                    array.Push(item);
+                }
+
+                if (context.ShouldStopEvaluation)
+                {
+                    return JsValue.Undefined;
+                }
+
+                continue;
+            }
+
+            if (element.Expression is null)
+            {
+                array.PushHole();
+            }
+            else
+            {
+                array.Push(EvaluateCachedExpressionProgram(
+                    element.Expression,
+                    environment,
+                    context,
+                    "Dynamic array element expression"));
+            }
+
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+        }
+
+        return JsValue.FromJsArray(array);
     }
 
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]

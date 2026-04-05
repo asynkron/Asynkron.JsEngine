@@ -263,7 +263,10 @@ public static partial class TypedAstEvaluator
                 environment,
                 context),
             DecoratorExpression => throw new NotSupportedException("Decorators are not supported."),
-            TemplateLiteralExpression template => template.EvaluateTemplateLiteral(environment, context),
+            TemplateLiteralExpression template => EvaluateTemplateLiteralExpression(
+                template,
+                environment,
+                context),
             TaggedTemplateExpression taggedTemplate => taggedTemplate.EvaluateTaggedTemplate(environment, context),
             AwaitExpression awaitExpression => awaitExpression.EvaluateAwait(environment, context),
             YieldExpression yieldExpression => yieldExpression.EvaluateYield(environment, context),
@@ -312,6 +315,42 @@ public static partial class TypedAstEvaluator
     {
         var inferredName = expression.Name ?? context.CurrentFunctionNameHint;
         return expression.Definition.CreateClassValue(environment, context, inferredName);
+    }
+
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateTemplateLiteralExpression(
+        TemplateLiteralExpression expression,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var builder = new System.Text.StringBuilder();
+        foreach (var part in expression.Parts)
+        {
+            if (part.Text is not null)
+            {
+                builder.Append(part.Text);
+                continue;
+            }
+
+            if (part.Expression is null)
+            {
+                continue;
+            }
+
+            var valueJs = EvaluateCachedExpressionProgram(
+                part.Expression,
+                environment,
+                context,
+                "Dynamic template literal expression");
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
+            builder.Append(valueJs.ToJsString());
+        }
+
+        return new JsValue(builder.ToString());
     }
 
     private static string DescribeCallee(this ExpressionNode expression)

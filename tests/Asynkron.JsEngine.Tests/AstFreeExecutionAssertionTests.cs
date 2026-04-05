@@ -535,6 +535,34 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_FunctionDeclarationPlanFailure_ThrowsInsteadOfAstFallback()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = false;
+
+            var parsedProgram = _engine.ParseProgram("""
+                function read(value) {
+                    return value + 1;
+                }
+                """);
+            var program = ReplaceFunctionDeclarationBodyWithUnsupportedModuleStatement(parsedProgram, "read");
+
+            await _engine.Evaluate(program);
+
+            EvaluationContext.AssertNoAstEvaluation = true;
+            var exception = Assert.Throws<NotSupportedException>(() => InvokeGlobalFunction("read", 41));
+            Assert.Contains("IR plan generation failed for function", exception.Message);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
     private static (FunctionExpression BaseMethod, FunctionExpression DerivedMethod) GetClassMethods(
         ProgramNode program,
         string baseClassName,
@@ -593,6 +621,39 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
         var rewrittenDeclaration = declaration with
         {
             Definition = declaration.Definition with { Members = rewrittenMembers }
+        };
+
+        return program with
+        {
+            Body = program.Body.SetItem(declarationIndex, rewrittenDeclaration)
+        };
+    }
+
+    private static ProgramNode ReplaceFunctionDeclarationBodyWithUnsupportedModuleStatement(
+        ProgramNode program,
+        string functionName)
+    {
+        var declarationIndex = -1;
+        for (var i = 0; i < program.Body.Length; i++)
+        {
+            if (program.Body[i] is FunctionDeclaration functionDeclaration &&
+                functionDeclaration.Name.Name == functionName)
+            {
+                declarationIndex = i;
+                break;
+            }
+        }
+
+        var declaration = Assert.IsType<FunctionDeclaration>(program.Body[declarationIndex]);
+        var rewrittenDeclaration = declaration with
+        {
+            Function = declaration.Function with
+            {
+                Body = new BlockStatement(
+                    null,
+                    [new ExportAllStatement(null, "./unsupported.js")],
+                    true)
+            }
         };
 
         return program with

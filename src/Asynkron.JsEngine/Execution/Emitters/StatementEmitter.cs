@@ -36,7 +36,7 @@ internal static class StatementEmitter
                     // Function-scoped declarations are hoisted (no-op at runtime).
                     entryIndex = ctx.Append(new FunctionDeclarationInstruction(
                         nextIndex,
-                        new FunctionDeclarationDescriptor(funcDecl.Name, funcDecl.Function)));
+                        DeclarationEmitter.CreateFunctionDeclarationDescriptor(funcDecl)));
                     return true;
 
                 case IfStatement ifStatement:

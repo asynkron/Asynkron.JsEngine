@@ -13,6 +13,15 @@ namespace Asynkron.JsEngine.Execution.Emitters;
 /// </summary>
 internal static class DeclarationEmitter
 {
+    internal static FunctionDeclarationDescriptor CreateFunctionDeclarationDescriptor(FunctionDeclaration declaration)
+    {
+        var planResult = ExecutionPlanBuilder.Build(declaration.Function, reportDiagnostics: false);
+        return new FunctionDeclarationDescriptor(
+            declaration.Name,
+            declaration.Function,
+            FunctionExecutionPlanSeed.FromResult(planResult));
+    }
+
     /// <summary>
     /// Emit IR for a function declaration (hoisted - no-op at runtime).
     /// </summary>

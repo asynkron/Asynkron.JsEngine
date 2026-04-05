@@ -158,7 +158,10 @@ internal sealed record CompoundAssignmentSlotInstruction(
     public ExpressionNode? RhsExpression => null;
 }
 
-internal readonly record struct FunctionDeclarationDescriptor(Symbol Name, FunctionExpression Function);
+internal readonly record struct FunctionDeclarationDescriptor(
+    Symbol Name,
+    FunctionExpression Function,
+    FunctionExecutionPlanSeed PlanSeed);
 
 /// <summary>
 ///     Represents a function declaration in the generator.

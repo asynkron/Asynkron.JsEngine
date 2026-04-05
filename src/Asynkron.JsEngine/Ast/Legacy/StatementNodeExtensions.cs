@@ -93,6 +93,16 @@ public static partial class TypedAstEvaluator
 
     [MethodImpl(JsEngineConstants.Inlining)]
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateDoWhileJsValue(this DoWhileStatement statement, JsEnvironment environment,
+        EvaluationContext context,
+        Symbol? loopLabel)
+    {
+        var plan = ((IAstCacheable<LoopPlan>)statement).GetOrCreateCache();
+        return plan.EvaluateLoopPlanJsValue(environment, context, loopLabel);
+    }
+
+    [MethodImpl(JsEngineConstants.Inlining)]
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static JsValue EvaluateReturnJsValue(this ReturnStatement statement, JsEnvironment environment,
         EvaluationContext context)
     {

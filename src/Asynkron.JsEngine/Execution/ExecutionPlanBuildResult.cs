@@ -60,6 +60,20 @@ internal sealed class ExecutionPlanBuildResult
     }
 }
 
+internal readonly record struct FunctionExecutionPlanSeed(
+    ExecutionPlan? Plan,
+    ExecutionPlanBuildFailure? Failure)
+{
+    public bool Succeeded => Plan is not null;
+
+    public string? FailureReason => Failure?.Detail;
+
+    public static FunctionExecutionPlanSeed FromResult(ExecutionPlanBuildResult result)
+    {
+        return new FunctionExecutionPlanSeed(result.Plan, result.Failure);
+    }
+}
+
 public readonly record struct ExecutionPlanDiagnosticCounters(int Attempts, int Succeeded, int Failed);
 
 public readonly record struct ExecutionPlanDiagnosticSnapshot(

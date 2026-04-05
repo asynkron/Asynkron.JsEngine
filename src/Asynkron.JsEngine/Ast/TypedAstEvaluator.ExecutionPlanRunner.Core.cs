@@ -34,7 +34,9 @@ public static partial class TypedAstEvaluator
             IJsEnvironmentAwareCallable? superConstructor = null,
             IJsPropertyAccessor? superPrototype = null,
             EvaluationContext? evaluationContext = null,
-            RealmState? derivedClassErrorRealm = null)
+            RealmState? derivedClassErrorRealm = null,
+            ExecutionPlan? planOverride = null,
+            ExecutionPlanBuildFailure? planFailureOverride = null)
         {
             _function = function;
             _closure = closure;
@@ -56,6 +58,19 @@ public static partial class TypedAstEvaluator
             _isAsync = function.IsAsync;
             _isGenerator = function.IsGenerator;
             _allowIdentifierCache = AllowsIdentifierCaching(function) && !closure.HasWithObjectInChain();
+
+            if (planOverride is not null)
+            {
+                _plan = planOverride;
+                _programCounter = _plan.EntryPoint;
+                return;
+            }
+
+            if (planFailureOverride is not null)
+            {
+                throw new NotSupportedException(
+                    $"IR plan generation failed for function: {planFailureOverride.Detail}");
+            }
 
             var planCache = ((IAstCacheable<ExecutionPlanCache>)function).GetOrCreateCache();
             if (!planCache.Succeeded || planCache.Plan is null)
@@ -198,7 +213,7 @@ public static partial class TypedAstEvaluator
             JsEnvironment environment,
             EvaluationContext context)
         {
-            // When ProgramNodeExtensions.ResetSlotLayoutForPlan already initialized the
+            // When script entry already initialized the
             // slot layout (strict-wrapper scripts where HasSlots was false), the plan's
             // synthetic slots are at index 0..N-1 and hoisted vars were appended after
             // them. Skip re-initialization and use offset 0 so IR 0-based indices map

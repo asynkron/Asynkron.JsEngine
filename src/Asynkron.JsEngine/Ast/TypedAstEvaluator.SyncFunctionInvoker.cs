@@ -58,13 +58,14 @@ public static partial class TypedAstEvaluator
         private readonly int _functionScopeId;
 
         private readonly bool _wasAsyncFunction;
+        private readonly FunctionExecutionPlanSeed _planSeed;
 
         // Precomputed fast path eligibility - combines all conditions except newTarget.IsUndefined
         // Updated when setters are called that could invalidate fast path
         private bool _canUseFastPathBase;
         private ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
         private IJsObjectLike? _homeObject;
-        private ImmutableArray<ClassField> _instanceFields = ImmutableArray<ClassField>.Empty;
+        private ImmutableArray<ResolvedClassField> _instanceFields = ImmutableArray<ResolvedClassField>.Empty;
         private bool _isConstructorEnabled;
         private bool _isDerivedClassConstructor;
         private JsObject? _prototypeObject;
@@ -78,13 +79,14 @@ public static partial class TypedAstEvaluator
         /// </summary>
         private IJsCallable? _currentCaller;
 
-        public SyncFunctionInvoker(
+        internal SyncFunctionInvoker(
             FunctionExpression function,
             JsEnvironment closure,
             RealmState realmState,
             bool isLexicallyStrict,
             bool hasFunctionNameEnvironment = false,
-            bool isConstructorFunction = true)
+            bool isConstructorFunction = true,
+            FunctionExecutionPlanSeed planSeed = default)
         {
             // Initialize cached JsValue first (before any code that might reference 'this')
             _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
@@ -105,6 +107,7 @@ public static partial class TypedAstEvaluator
             _hasFunctionNameEnvironment = hasFunctionNameEnvironment;
             IsArrowFunction = function.IsArrow;
             _isConstructorEnabled = isConstructorFunction;
+            _planSeed = planSeed;
             var hoistPlan = ((IAstCacheable<HoistPlan>)function.Body).GetOrCreateCache();
             var bodyLexicalNames = hoistPlan.LexicalNames;
             var hasHoistableDeclarations = ((IAstCacheable<HoistableDeclarationsPlan>)function.Body)
@@ -727,7 +730,8 @@ public static partial class TypedAstEvaluator
                         _hasFunctionNameEnvironment,
                         _homeObject,
                         PrivateNameScope,
-                        _capturedPrivateNameScopes);
+                        _capturedPrivateNameScopes,
+                        _planSeed);
                     return executor.Execute();
                 }
                 catch (ThrowSignal signal) when (callingContext is not null)
@@ -738,6 +742,13 @@ public static partial class TypedAstEvaluator
                 }
             }
 
+            if (!_function.IsGenerator && !IsAsyncFunction && _planSeed.Failure is not null)
+            {
+                RealmState.ReturnContext(context);
+                throw new NotSupportedException(
+                    $"IR plan generation failed for function: {_planSeed.FailureReason}");
+            }
+
             RealmState.Logger?.LogInformation(
                 "[SyncFunctionInvoker.Invoke.ALL] _function.Hash={Hash} _allowIdentifierCache={AllowCache} _function.Name={Name}",
                 _function.GetHashCode(),
@@ -746,13 +757,24 @@ public static partial class TypedAstEvaluator
 
             if (!_function.IsGenerator && !IsAsyncFunction && _allowIdentifierCache)
             {
-                var planCache = ((IAstCacheable<ExecutionPlanCache>)_function).GetOrCreateCache();
+                var plan = _planSeed.Plan;
+                var failureReason = _planSeed.FailureReason;
+                var usedCachedPlanSeed = plan is not null || _planSeed.Failure is not null;
+                var planCache = default(ExecutionPlanCache);
+                if (!usedCachedPlanSeed)
+                {
+                    planCache = ((IAstCacheable<ExecutionPlanCache>)_function).GetOrCreateCache();
+                    plan = planCache.Plan;
+                    failureReason = planCache.FailureReason;
+                }
+
                 RealmState.Logger?.LogInformation(
-                    "[SyncFunctionInvoker.Invoke] _function.Hash={Hash} planCache.Succeeded={Succeeded} plan.Hash={PlanHash}",
+                    "[SyncFunctionInvoker.Invoke] _function.Hash={Hash} planSource={PlanSource} planSucceeded={Succeeded} plan.Hash={PlanHash}",
                     _function.GetHashCode(),
-                    planCache.Succeeded,
-                    planCache.Plan?.GetHashCode() ?? -1);
-                if (planCache.Succeeded)
+                    usedCachedPlanSeed ? "class-cache" : "function-cache",
+                    plan is not null,
+                    plan?.GetHashCode() ?? -1);
+                if (plan is not null)
                 {
                     // For arrow functions, use lexically captured this and new.target
                     var effectiveThisValue = thisValue;
@@ -818,7 +840,9 @@ public static partial class TypedAstEvaluator
                             _superConstructor,
                             _superPrototype,
                             context,
-                            derivedClassErrorRealm: constructErrorRealm);
+                            derivedClassErrorRealm: constructErrorRealm,
+                            planOverride: plan,
+                            planFailureOverride: _planSeed.Failure);
 
                         var runnerContext = runner.EnsureEvaluationContext();
 
@@ -873,7 +897,7 @@ public static partial class TypedAstEvaluator
 
                 RealmState.ReturnContext(context);
                 throw new NotSupportedException(
-                    $"IR plan generation failed for function: {planCache.FailureReason}");
+                    $"IR plan generation failed for function: {failureReason}");
             }
 
             if (!_function.IsGenerator && !IsAsyncFunction)
@@ -1652,7 +1676,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             _canUseFastPathBase = false;
         }
 
-        public void SetInstanceFields(ImmutableArray<ClassField> fields)
+        internal void SetInstanceFields(ImmutableArray<ResolvedClassField> fields)
         {
             _instanceFields = fields;
         }
@@ -1764,9 +1788,9 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             using var _ = PrivateNameScope is not null ? context.EnterPrivateNameScope(PrivateNameScope) : null;
             using var instanceFieldScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict);
 
-            foreach (var field in _instanceFields)
+            foreach (var resolvedField in _instanceFields)
             {
-                if (field.IsPrivate && PrivateNameScope is not null && instance is not IPrivateBrandHolder)
+                if (resolvedField.IsPrivate && PrivateNameScope is not null && instance is not IPrivateBrandHolder)
                 {
                     throw StandardLibrary.ThrowTypeError("Invalid private field receiver", context, context.RealmState);
                 }
@@ -1798,22 +1822,20 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     initEnv.DefineJsValue(Symbol.Arguments, argumentsValue, isLexicalBinding: false);
                 }
 
-                var propertyName = field.Name;
+                var propertyName = resolvedField.Name;
 
                 context.RealmState.Logger?.LogInformation(
-                    "Initializing instance field '{PropertyName}' (computed={IsComputed}, private={IsPrivate})",
+                    "Initializing instance field '{PropertyName}' (private={IsPrivate})",
                     propertyName,
-                    field.IsComputed,
-                    field.IsPrivate);
+                    resolvedField.IsPrivate);
 
                 var valueJs = JsValue.Undefined;
-                if (field.Initializer is not null)
+                if (resolvedField.InitializerProgram is { } initializerProgram)
                 {
-                    valueJs = EvaluateCachedExpressionProgram(
-                        field.Initializer,
+                    valueJs = EvaluateLoweredExpressionProgram(
+                        initializerProgram,
                         initEnv,
-                        context,
-                        "Class element expression");
+                        context);
                     if (context.ShouldStopEvaluation)
                     {
                         return;
@@ -1825,15 +1847,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                         typedFunction.SetSuperBinding(fieldSuperBinding.Constructor, fieldSuperBinding.Prototype);
                     }
 
-                    if (field.Initializer.IsAnonymousFunctionDefinitionNode())
+                    if (resolvedField.AnonymousFunctionName is { } displayName)
                     {
-                        var displayName = field.IsComputed ? propertyName : field.Name;
-                        var atIndex = displayName.IndexOf('@', StringComparison.Ordinal);
-                        if (atIndex > 0)
-                        {
-                            displayName = displayName[..atIndex];
-                        }
-
                         SetAnonymousFunctionName(valueJs, displayName);
                     }
                 }

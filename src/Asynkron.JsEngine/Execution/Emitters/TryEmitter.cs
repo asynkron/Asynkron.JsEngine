@@ -73,8 +73,7 @@ internal static class TryEmitter
             return false;
         }
 
-        // Emit EnterTry instruction as the entry point
-        // Note: CatchSlotSymbol is null because we use EnterCatchInstruction now
+        // Emit EnterTry instruction as the entry point.
         entryIndex = ctx.Append(new EnterTryInstruction(tryEntry, catchEntry, null, finallyEntry, endFinallyIndex));
         return true;
     }
@@ -92,35 +91,50 @@ internal static class TryEmitter
         // Allocate a scope ID for the catch environment
         var catchScopeId = ctx.AllocateScopeId();
 
-        // Build slot map and determine instruction type based on binding pattern
+        // Build slot map and determine the direct catch binding payload.
         ImmutableDictionary<Symbol, int> slotMap;
         int slotCount;
-        Symbol? catchParamSymbol = null;
-        BlockStatement catchBody;
-
+        BindingTargetProgram? catchBindingProgram = null;
         if (catchClause.Binding is IdentifierBinding identifierBinding)
         {
-            // Simple identifier binding: catch (e) { }
-            catchParamSymbol = identifierBinding.Name;
-            slotMap = ImmutableDictionary<Symbol, int>.Empty.Add(catchParamSymbol, 0);
+            catchBindingProgram = new IdentifierBindingTargetProgram(identifierBinding.Name);
+            slotMap = ImmutableDictionary<Symbol, int>.Empty.Add(identifierBinding.Name, 0);
             slotCount = 1;
-            catchBody = catchClause.Body;
         }
         else if (catchClause.Binding is not null)
         {
-            // Destructuring binding: store the thrown value in a synthetic catch slot,
-            // then let the normal binding-declaration IR destructure it inside the catch body.
-            catchParamSymbol = ctx.CreateCatchSlotSymbol();
-            slotMap = ImmutableDictionary<Symbol, int>.Empty.Add(catchParamSymbol, 0);
-            slotCount = 1;
-            catchBody = ctx.BuildCatchBlock(catchClause, catchParamSymbol);
+            if (!BindingTargetProgramCompiler.TryCompile(
+                    catchClause.Binding,
+                    out var compiledBindingProgram,
+                    out var failureReason))
+            {
+                ctx.SetFailureReason(
+                    $"Catch binding target '{catchClause.Binding.GetType().Name}' could not lower to a binding program: {failureReason ?? "unknown reason"}.",
+                    ExecutionPlanFailureCode.UnsupportedBindingProgram);
+                catchEntry = -1;
+                return false;
+            }
+
+            catchBindingProgram = compiledBindingProgram;
+            var bindingSymbols = new List<Symbol>();
+            compiledBindingProgram.CollectSymbols(bindingSymbols);
+            var slotMapBuilder = ImmutableDictionary.CreateBuilder<Symbol, int>();
+            foreach (var symbol in bindingSymbols)
+            {
+                if (!slotMapBuilder.ContainsKey(symbol))
+                {
+                    slotMapBuilder.Add(symbol, slotMapBuilder.Count);
+                }
+            }
+
+            slotMap = slotMapBuilder.ToImmutable();
+            slotCount = slotMap.Count;
         }
         else
         {
             // ES2019 optional catch binding: catch { }
             slotMap = ImmutableDictionary<Symbol, int>.Empty;
             slotCount = 0;
-            catchBody = catchClause.Body;
         }
 
         // Build instructions bottom-up:
@@ -135,7 +149,7 @@ internal static class TryEmitter
         // Per ECMAScript, the catch block body gets its own lexical environment for let/const,
         // separate from the catch parameter environment.
         ctx.PushScope(catchScopeId);
-        if (!BlockEmitter.TryEmitBlock(ctx, catchBody, popCatchEnv, out var bodyEntry))
+        if (!BlockEmitter.TryEmitBlock(ctx, catchClause.Body, popCatchEnv, out var bodyEntry))
         {
             ctx.PopScope(catchScopeId);
             catchEntry = -1;
@@ -146,7 +160,7 @@ internal static class TryEmitter
         // 3. Emit the catch instruction.
         catchEntry = ctx.Append(new EnterCatchInstruction(
             bodyEntry,
-            catchParamSymbol,
+            catchBindingProgram,
             catchScopeId,
             slotCount,
             slotMap));

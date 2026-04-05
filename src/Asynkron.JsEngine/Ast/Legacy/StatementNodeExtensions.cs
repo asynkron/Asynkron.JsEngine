@@ -1,7 +1,10 @@
 #region
 
+using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 
 #endregion
@@ -12,6 +15,8 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
+    private const string DisableForOfLoopEnvPoolVar = "JSENGINE_DISABLE_FOROF_LOOP_ENV_POOL";
+
     /// <summary>
     /// Applies a binary operator to two JsValue operands.
     /// For logical operators (&&, ||, ??), short-circuit evaluation must be done by the caller;
@@ -172,6 +177,291 @@ public static partial class TypedAstEvaluator
         var loopEnvironment =
             JsEnvironment.CreateInstance(environment, creatingSource: statement.Source, description: "for-loop");
         return plan.EvaluateLoopPlanJsValue(loopEnvironment, context, loopLabel);
+    }
+
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateForEachJsValue(this ForEachStatement statement, JsEnvironment environment,
+        EvaluationContext context, Symbol? loopLabel)
+    {
+        if (statement.Kind == ForEachKind.AwaitOf)
+        {
+            return statement.EvaluateForAwaitOfJsValue(environment, context, loopLabel);
+        }
+
+        var logger = context.RealmState.Logger;
+        var cachedPlan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
+
+        var hasLexicalDeclaration = statement.DeclarationKind is VariableKind.Let or VariableKind.Const
+            or VariableKind.Using or VariableKind.AwaitUsing;
+
+        using var pooledTdzEnv = hasLexicalDeclaration
+            ? JsEnvironmentPool.RentScoped(environment, false, false, statement.Source, "for-each-head-tdz", logger: logger)
+            : default;
+        var iterableEnvironment = hasLexicalDeclaration ? pooledTdzEnv.Value! : environment;
+
+        if (hasLexicalDeclaration)
+        {
+            InitializeIterationEnvironmentLayout(cachedPlan, iterableEnvironment);
+
+            var isConstDeclaration = statement.DeclarationKind is VariableKind.Const or VariableKind.Using
+                or VariableKind.AwaitUsing;
+            statement.Target.CreateUninitializedLexicalBindings(iterableEnvironment, isConstDeclaration);
+        }
+
+        var previousAllowIdentifierCache = context.AllowIdentifierCache;
+        if (hasLexicalDeclaration)
+        {
+            context.AllowIdentifierCache = false;
+        }
+
+        JsValue iterableJsValue;
+        try
+        {
+            iterableJsValue = EvaluateCachedExpressionProgram(
+                statement.Iterable,
+                iterableEnvironment,
+                context,
+                "Dynamic foreach iterable");
+        }
+        finally
+        {
+            context.AllowIdentifierCache = previousAllowIdentifierCache;
+        }
+
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        if (statement.Kind == ForEachKind.Of)
+        {
+            if (iterableJsValue.IsNull || iterableJsValue.IsUndefined)
+            {
+                throw StandardLibrary.ThrowTypeError("Cannot iterate over null or undefined", context,
+                    context.RealmState);
+            }
+        }
+
+        if (statement.Kind == ForEachKind.In)
+        {
+            var kind = iterableJsValue.Kind;
+            if (kind != JsValueKind.Object &&
+                kind != JsValueKind.String &&
+                kind != JsValueKind.Null &&
+                kind != JsValueKind.Undefined)
+            {
+                throw new ThrowSignal("Cannot iterate properties of non-object value.");
+            }
+        }
+
+        var useTypedArrayLoopEnv = statement.Kind == ForEachKind.Of && iterableJsValue.TryGetObject<TypedArrayBase>(out _);
+        var useLoopPool = hasLexicalDeclaration && !useTypedArrayLoopEnv && !IsEnvEnabled(DisableForOfLoopEnvPoolVar);
+        using var pooledLoopEnv = useLoopPool
+            ? JsEnvironmentPool.RentScoped(environment, false, false, statement.Source, "for-each-loop", logger: logger)
+            : default;
+        var loopEnvironment = hasLexicalDeclaration switch
+        {
+            true => useLoopPool switch
+            {
+                true => pooledLoopEnv,
+                _ => useTypedArrayLoopEnv
+                    ? environment
+                    : JsEnvironment.CreateInstance(environment, false, false, statement.Source, "for-each-loop")
+            },
+            _ => environment
+        };
+
+        if (statement.Kind == ForEachKind.Of)
+        {
+            return ExecuteIteratorWithFastPath(statement, iterableJsValue, loopEnvironment, environment, context, loopLabel);
+        }
+
+        var values = statement.Kind switch
+        {
+            ForEachKind.In => EnumeratePropertyKeys(iterableJsValue),
+            ForEachKind.Of or ForEachKind.AwaitOf => throw new ArgumentOutOfRangeException(),
+            _ => throw new ArgumentOutOfRangeException()
+        };
+
+        var useIterationSlotsForIn = cachedPlan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
+                                     statement.DeclarationKind is VariableKind.Let or VariableKind.Const
+                                         or VariableKind.Using
+                                         or VariableKind.AwaitUsing;
+
+        var lastValueJs = JsValue.Undefined;
+        foreach (var value in values)
+        {
+            if (context.ShouldStopEvaluation)
+            {
+                break;
+            }
+
+            JsEnvironment iterationEnvironment;
+            if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const
+                or VariableKind.Using or VariableKind.AwaitUsing)
+            {
+                iterationEnvironment = JsEnvironment.CreateInstance(loopEnvironment, creatingSource: statement.Source,
+                    description: "for-each-iteration");
+                if (useIterationSlotsForIn)
+                {
+                    InitializeIterationEnvironmentLayout(cachedPlan, iterationEnvironment);
+                }
+            }
+            else
+            {
+                iterationEnvironment = loopEnvironment;
+            }
+
+            statement.Target.AssignLoopBinding(value, iterationEnvironment, environment, context,
+                statement.DeclarationKind);
+
+            if (context.ShouldStopEvaluation)
+            {
+                break;
+            }
+
+            cachedPlan.SyncIterationSlots(iterationEnvironment, context);
+
+            var bodyResult = statement.Body.EvaluateStatementJsValue(iterationEnvironment, context);
+            if (!bodyResult.IsUnit)
+            {
+                lastValueJs = bodyResult;
+            }
+
+            if (context.IsReturn || context.IsThrow)
+            {
+                break;
+            }
+
+            if (context.TryClearContinue(loopLabel))
+            {
+                continue;
+            }
+
+            if (context.TryClearBreak(loopLabel))
+            {
+                break;
+            }
+        }
+
+        return lastValueJs;
+    }
+
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateForAwaitOfJsValue(this ForEachStatement statement, JsEnvironment environment,
+        EvaluationContext context, Symbol? loopLabel)
+    {
+        var logger = context.RealmState.Logger;
+        var hasLexicalDeclaration = statement.DeclarationKind is VariableKind.Let or VariableKind.Const
+            or VariableKind.Using or VariableKind.AwaitUsing;
+
+        using var pooledTdzEnv = hasLexicalDeclaration
+            ? JsEnvironmentPool.RentScoped(environment, false, false, statement.Source, "for-each-head-tdz", logger: logger)
+            : default;
+        var iterableEnvironment = hasLexicalDeclaration ? pooledTdzEnv.Value! : environment;
+
+        if (hasLexicalDeclaration)
+        {
+            var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
+            InitializeIterationEnvironmentLayout(plan, iterableEnvironment);
+
+            var isConstDeclaration = statement.DeclarationKind is VariableKind.Const or VariableKind.Using
+                or VariableKind.AwaitUsing;
+            statement.Target.CreateUninitializedLexicalBindings(iterableEnvironment, isConstDeclaration);
+        }
+
+        var iterableJs = EvaluateCachedExpressionProgram(
+            statement.Iterable,
+            iterableEnvironment,
+            context,
+            "Dynamic for-await-of iterable");
+
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        if (iterableJs.IsNull || iterableJs.IsUndefined)
+        {
+            throw StandardLibrary.ThrowTypeError("Cannot iterate over null or undefined", context,
+                context.RealmState);
+        }
+
+        var useLoopPool = hasLexicalDeclaration && !IsEnvEnabled(DisableForOfLoopEnvPoolVar);
+        using var pooledLoopEnv = useLoopPool
+            ? JsEnvironmentPool.RentScoped(environment, false, false, statement.Source, "for-await-of loop", logger: logger)
+            : default;
+        var loopEnvironment = hasLexicalDeclaration
+            ? useLoopPool
+                ? pooledLoopEnv.Value!
+                : JsEnvironment.CreateInstance(environment, false, false, statement.Source, "for-await-of loop")
+            : environment;
+
+        return ExecuteIteratorWithFastPath(statement, iterableJs, loopEnvironment, environment, context, loopLabel);
+    }
+
+    private static JsValue ExecuteIteratorWithFastPath(
+        ForEachStatement statement,
+        JsValue iterableValue,
+        JsEnvironment loopEnvironment,
+        JsEnvironment environment,
+        EvaluationContext context,
+        Symbol? loopLabel)
+    {
+        var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
+        var useIterationSlots = plan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
+                                statement.DeclarationKind is VariableKind.Let or VariableKind.Const
+                                    or VariableKind.Using
+                                    or VariableKind.AwaitUsing;
+        if (iterableValue.TryGetObject<TypedArrayBase>(out _))
+        {
+            useIterationSlots = false;
+        }
+
+        var fastEnumerator = TryGetFastEnumeratorForIteration(iterableValue);
+        if (fastEnumerator is not null)
+        {
+            try
+            {
+                return plan.ExecuteIteratorDriverJsValue(null,
+                    fastEnumerator,
+                    loopEnvironment,
+                    environment,
+                    context,
+                    loopLabel,
+                    useIterationSlots);
+            }
+            finally
+            {
+                fastEnumerator.Dispose();
+            }
+        }
+
+        return ExecuteIteratorSlowPath(iterableValue, plan, loopEnvironment, environment, context, loopLabel, useIterationSlots);
+    }
+
+    private static JsValue ExecuteIteratorSlowPath(
+        JsValue iterableValue,
+        IteratorDriverPlan plan,
+        JsEnvironment loopEnvironment,
+        JsEnvironment environment,
+        EvaluationContext context,
+        Symbol? loopLabel,
+        bool useIterationSlots)
+    {
+        var iteratorTarget = NormalizeIterableTarget(iterableValue, context);
+        if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
+        {
+            return plan.ExecuteIteratorDriverJsValue(iterator,
+                null,
+                loopEnvironment,
+                environment,
+                context,
+                loopLabel,
+                useIterationSlots);
+        }
+
+        throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
     }
 
     [MethodImpl(JsEngineConstants.Inlining)]
@@ -1247,5 +1537,931 @@ public static partial class TypedAstEvaluator
 
             break;
         }
+    }
+
+    /// <summary>
+    /// Evaluates a block statement and returns the completion value as JsValue.
+    /// Returns JsValue.Undefined for empty blocks to match browser behavior.
+    /// </summary>
+    [MethodImpl(JsEngineConstants.Inlining)]
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateBlockJsValue(this BlockStatement block, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        return block.EvaluateBlockCore(environment, context);
+    }
+
+    /// <summary>
+    /// Core block evaluation that returns JsValue directly.
+    /// Returns JsValue.Undefined for empty blocks to match browser behavior.
+    /// </summary>
+    [MethodImpl(JsEngineConstants.Inlining)]
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateBlockCore(this BlockStatement block, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        if (context.AllowIdentifierCache)
+        {
+            context.AllowIdentifierCache = AllowsIdentifierCaching(block);
+        }
+
+        var hoistPlan = ((IAstCacheable<HoistPlan>)block).GetOrCreateCache();
+
+        // Fast path: if the block has no lexical/function decls, execute directly in the incoming environment
+        if (!hoistPlan.NeedsEnvironment)
+        {
+            return block.EvaluateBlockFast(environment, context);
+        }
+
+        // Slow path: needs new environment for lexical bindings
+        return block.EvaluateBlockSlow(environment, context);
+    }
+
+    /// <summary>
+    /// Fast path for blocks that don't need a new environment.
+    /// </summary>
+    [MethodImpl(JsEngineConstants.Inlining)]
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateBlockFast(this BlockStatement block, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        return EvaluateStatementList(block.Statements, environment, context);
+    }
+
+    /// <summary>
+    /// Slow path for blocks that need a new environment for lexical bindings.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateBlockSlow(this BlockStatement block, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var scope = JsEnvironmentPool.Rent(environment, false, block.IsStrict, logger: context.RealmState.Logger);
+        try
+        {
+            return block.EvaluateBlockSlowCore(scope, context);
+        }
+        finally
+        {
+            JsEnvironmentPool.Return(scope, context.RealmState.Logger);
+        }
+    }
+
+    /// <summary>
+    /// Core slow path logic, separated to allow proper try/finally for pooling.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateBlockSlowCore(this BlockStatement block, JsEnvironment scope,
+        EvaluationContext context)
+    {
+        // Ensure we mark lexical bindings as TDZ before executing the block body.
+        // SlotAssignmentRewriter can pre-seed slots (SlotMap) which means HasBinding
+        // returns true and the hoist loop below would otherwise skip defining the
+        // bindings as uninitialized. Explicitly flagging the lexical slots here
+        // preserves the TDZ semantics even when slots already exist.
+        var hoistPlan = ((IAstCacheable<HoistPlan>)block).GetOrCreateCache();
+
+        // Use unified Initialize method that properly sets slot names from the map
+        // This ensures name-based lookups (TryLocateBinding) can find block-scoped variables
+        scope.Initialize(block.ScopeId, block.SlotMap);
+        if (hoistPlan.TopLevelLexicalNames.Count > 0)
+        {
+            scope.MarkSlotsLexicalUninitialized(hoistPlan.TopLevelLexicalNames);
+        }
+
+        var mode = scope.IsStrict || block.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
+        using var scopeHandle = context.PushScope(ScopeKind.Block, mode);
+
+        // Per ES spec, lexical declarations (let/const/class) must be hoisted to create
+        // bindings in the TDZ (Temporal Dead Zone) BEFORE function hoisting.
+        // This ensures closures that reference lexical variables will find TDZ bindings
+        // and throw ReferenceError if accessed before initialization.
+        foreach (var stmt in block.Statements)
+        {
+            switch (stmt)
+            {
+                case VariableDeclaration
+                {
+                    Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
+                } lexDecl:
+                    var isConst =
+                        lexDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
+                    foreach (var declarator in lexDecl.Declarators)
+                    {
+                        block.HoistLexicalBindingTargetForTdz(declarator.Target, scope, isConst);
+                    }
+
+                    break;
+                case ClassDeclaration classDecl:
+                    if (!scope.HasBinding(classDecl.Name))
+                    {
+                        // Class declarations create mutable bindings (like let), not const
+                        scope.DefineJsValue(classDecl.Name, JsValue.Uninitialized, isConst: false,
+                            isLexicalBinding: true, blocksFunctionScopeOverride: true);
+                    }
+
+                    break;
+            }
+        }
+
+        // Block-scoped function declarations (strict mode behavior - no AnnexB hoisting)
+        block.InstantiateLexicalBlockFunctions(scope, context);
+
+        return EvaluateStatementList(block.Statements, scope, context);
+    }
+
+    private static void InstantiateLexicalBlockFunctions(this BlockStatement block, JsEnvironment blockEnvironment,
+        EvaluationContext context)
+    {
+        foreach (var statement in block.Statements)
+        {
+            if (statement is not FunctionDeclaration functionDeclaration)
+            {
+                continue;
+            }
+
+            // Pass skipInternalNameBinding: true so the function doesn't create an internal
+            // const binding for its name (the binding is handled by blockEnvironment.Define below).
+            var functionValue = functionDeclaration.Function.CreateFunctionValue(blockEnvironment, context,
+                skipInternalNameBinding: true);
+            blockEnvironment.DefineJsValue(
+                functionDeclaration.Name,
+                JsValue.FromObjectUnsafe(functionValue),
+                true,
+                isLexicalBinding: true,
+                blocksFunctionScopeOverride: true);
+        }
+    }
+
+    private static void HoistLexicalBindingTargetForTdz(this BlockStatement block, BindingTarget target,
+        JsEnvironment blockEnvironment, bool isConst)
+    {
+        while (true)
+        {
+            switch (target)
+            {
+                case IdentifierBinding id:
+                    if (!blockEnvironment.HasBinding(id.Name))
+                    {
+                        blockEnvironment.DefineJsValue(id.Name, JsValue.Uninitialized, isConst: isConst,
+                            isLexicalBinding: true, blocksFunctionScopeOverride: true);
+                    }
+
+                    break;
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
+                    {
+                        if (element.Target is { } elementTarget)
+                        {
+                            block.HoistLexicalBindingTargetForTdz(elementTarget, blockEnvironment, isConst);
+                        }
+                    }
+
+                    if (arrayBinding.RestElement is { } restTarget)
+                    {
+                        target = restTarget;
+                        continue;
+                    }
+
+                    break;
+                case ObjectBinding objectBinding:
+                    foreach (var prop in objectBinding.Properties)
+                    {
+                        block.HoistLexicalBindingTargetForTdz(prop.Target, blockEnvironment, isConst);
+                    }
+
+                    if (objectBinding.RestElement is { } restObjTarget)
+                    {
+                        target = restObjTarget;
+                        continue;
+                    }
+
+                    break;
+            }
+
+            break;
+        }
+    }
+
+    private static void HoistVarDeclarations(this BlockStatement block, JsEnvironment environment,
+        EvaluationContext context,
+        bool hoistFunctionValues = true,
+        HashSet<Symbol>? lexicalNames = null,
+        HashSet<Symbol>? catchParameterNames = null,
+        HashSet<Symbol>? simpleCatchParameterNames = null,
+        bool inBlockScope = false,
+        bool reverseFunctionHoist = false,
+        HashSet<Symbol>? functionHoistDedupe = null)
+    {
+        var effectiveLexicalNames = lexicalNames is null
+            ? block.CollectLexicalNames()
+            : [.. lexicalNames];
+        if (lexicalNames is not null)
+        {
+            effectiveLexicalNames.UnionWith(block.CollectLexicalNames());
+        }
+
+        // Catch parameter names are tracked as *active* names from enclosing catch clauses.
+        // They are added when recursing into a catch body (see HoistFromStatement TryStatement case).
+        var effectiveCatchNames = catchParameterNames ??
+                                  new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+        var effectiveSimpleCatchNames = simpleCatchParameterNames ??
+                                        new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+
+        block.HoistVarDeclarationsPass(environment,
+            context,
+            hoistFunctionValues,
+            effectiveLexicalNames,
+            effectiveCatchNames,
+            effectiveSimpleCatchNames,
+            HoistPass.Functions,
+            inBlockScope,
+            reverseFunctionHoist,
+            functionHoistDedupe);
+        block.HoistVarDeclarationsPass(environment,
+            context,
+            false,
+            effectiveLexicalNames,
+            effectiveCatchNames,
+            effectiveSimpleCatchNames,
+            HoistPass.Vars,
+            inBlockScope,
+            reverseFunctionHoist: false,
+            functionHoistDedupe: null);
+    }
+
+    private static void HoistVarDeclarationsPass(this BlockStatement block, JsEnvironment environment,
+        EvaluationContext context,
+        bool hoistFunctionValues,
+        HashSet<Symbol> lexicalNames,
+        HashSet<Symbol> catchParameterNames,
+        HashSet<Symbol> simpleCatchParameterNames,
+        HoistPass pass,
+        bool inBlockScope,
+        bool reverseFunctionHoist,
+        HashSet<Symbol>? functionHoistDedupe)
+    {
+        if (reverseFunctionHoist && pass == HoistPass.Functions)
+        {
+            for (var i = block.Statements.Length - 1; i >= 0; i--)
+            {
+                var statement = block.Statements[i];
+                statement.HoistFromStatement(environment, context, hoistFunctionValues, lexicalNames,
+                    catchParameterNames,
+                    simpleCatchParameterNames,
+                    pass,
+                    inBlockScope,
+                    reverseFunctionHoist,
+                    functionHoistDedupe);
+            }
+            return;
+        }
+
+        foreach (var statement in block.Statements)
+        {
+            statement.HoistFromStatement(environment, context, hoistFunctionValues, lexicalNames,
+                catchParameterNames,
+                simpleCatchParameterNames,
+                pass,
+                inBlockScope,
+                reverseFunctionHoist,
+                functionHoistDedupe);
+        }
+    }
+
+    private static HashSet<Symbol> MergeLexicalNames(this BlockStatement block, HashSet<Symbol> lexicalNames)
+    {
+        var merged = new HashSet<Symbol>(lexicalNames);
+        merged.UnionWith(block.CollectLexicalNames());
+        return merged;
+    }
+
+    private static HashSet<Symbol> MergeCatchNames(this BlockStatement block, HashSet<Symbol> catchParameterNames)
+    {
+        // Catch parameter names are tracked as active names from enclosing catch clauses.
+        // Entering a normal block does not add new catch parameter names.
+        _ = block;
+        return catchParameterNames;
+    }
+
+    private static HashSet<Symbol> MergeSimpleCatchNames(this BlockStatement block,
+        HashSet<Symbol> simpleCatchParameterNames)
+    {
+        // Simple catch parameter names are tracked as active names from enclosing catch clauses.
+        // Entering a normal block does not add new catch parameter names.
+        _ = block;
+        return simpleCatchParameterNames;
+    }
+
+    private static HashSet<Symbol> CollectLexicalNames(this BlockStatement block)
+    {
+        var names = new HashSet<Symbol>();
+        block.CollectLexicalNamesFromStatement(names);
+        return names;
+    }
+
+    private static HashSet<Symbol> CollectCatchParameterNames(this BlockStatement block)
+    {
+        var names = new HashSet<Symbol>();
+        block.CollectCatchNamesFromStatement(names);
+        return names;
+    }
+
+    private static HashSet<Symbol> CollectSimpleCatchParameterNames(this BlockStatement block)
+    {
+        var names = new HashSet<Symbol>();
+        block.CollectCatchNamesFromStatement(names, simpleOnly: true);
+        return names;
+    }
+
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateStatementList(
+        IReadOnlyList<StatementNode> statements,
+        JsEnvironment env,
+        EvaluationContext context)
+    {
+        var resultJs = JsValue.Unit;
+        foreach (var statement in statements)
+        {
+            context.ThrowIfCancellationRequested();
+
+            var completionJs = statement.EvaluateStatementJsValue(env, context);
+            var shouldStop = context.ShouldStopEvaluation;
+            var shouldCapture =
+                !completionJs.IsUnit &&
+                (!shouldStop ||
+                 context.IsReturn ||
+                 context.IsThrow ||
+                 context.IsYield ||
+                 context.IsBreak ||
+                 context.IsContinue);
+
+            if (shouldCapture)
+            {
+                resultJs = completionJs;
+            }
+
+            if (shouldStop)
+            {
+                break;
+            }
+        }
+
+        return resultJs;
+    }
+
+    private static HashSet<Symbol> CollectTopLevelLexicalNames(ImmutableArray<StatementNode> statements)
+    {
+        var names = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+        foreach (var statement in statements)
+        {
+            switch (statement)
+            {
+                case VariableDeclaration
+                {
+                    Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
+                } decl:
+                    foreach (var declarator in decl.Declarators)
+                    {
+                        declarator.Target.CollectSymbolsFromBinding(names);
+                    }
+
+                    break;
+                case ClassDeclaration classDeclaration:
+                    names.Add(classDeclaration.Name);
+                    break;
+            }
+        }
+
+        return names;
+    }
+
+    /// <summary>
+    /// Collects all var-declared names from the program body, including function declarations.
+    /// This is used for GlobalDeclarationInstantiation to check for conflicts before creating bindings.
+    /// </summary>
+    private static HashSet<Symbol> CollectAllVarNames(
+        ImmutableArray<StatementNode> statements,
+        bool isStrict)
+    {
+        var names = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+        CollectVarNamesFromStatements(statements, names, isStrict, false);
+        return names;
+    }
+
+    private static void CollectVarNamesFromStatements(
+        ImmutableArray<StatementNode> statements,
+        HashSet<Symbol> names,
+        bool isStrict,
+        bool inBlockScope)
+    {
+        foreach (var statement in statements)
+        {
+            CollectVarNamesFromStatement(statement, names, isStrict, inBlockScope);
+        }
+    }
+
+    private static void CollectVarNamesFromStatement(
+        StatementNode statement,
+        HashSet<Symbol> names,
+        bool isStrict,
+        bool inBlockScope)
+    {
+        while (true)
+        {
+            switch (statement)
+            {
+                case VariableDeclaration { Kind: VariableKind.Var } varDeclaration:
+                    foreach (var declarator in varDeclaration.Declarators)
+                    {
+                        declarator.Target.CollectSymbolsFromBinding(names);
+                    }
+
+                    break;
+                case FunctionDeclaration functionDeclaration:
+                    // Function declarations at top-level are always hoisted as var names
+                    // Block-scoped function declarations are lexically scoped (no AnnexB hoisting)
+                    if (!inBlockScope)
+                    {
+                        names.Add(functionDeclaration.Name);
+                    }
+
+                    break;
+                case BlockStatement block:
+                    CollectVarNamesFromStatements(block.Statements, names, isStrict, true);
+                    break;
+                case IfStatement ifStatement:
+                    CollectVarNamesFromStatement(ifStatement.Then, names, isStrict, true);
+                    if (ifStatement.Else is not null)
+                    {
+                        statement = ifStatement.Else;
+                        continue;
+                    }
+
+                    break;
+                case WhileStatement whileStatement:
+                    statement = whileStatement.Body;
+                    continue;
+                case DoWhileStatement doWhileStatement:
+                    statement = doWhileStatement.Body;
+                    continue;
+                case ForStatement forStatement:
+                    if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Var } initVar)
+                    {
+                        foreach (var declarator in initVar.Declarators)
+                        {
+                            declarator.Target.CollectSymbolsFromBinding(names);
+                        }
+                    }
+
+                    statement = forStatement.Body;
+                    continue;
+                case ForEachStatement { DeclarationKind: VariableKind.Var } forEachStatement:
+                    forEachStatement.Target.CollectSymbolsFromBinding(names);
+                    statement = forEachStatement.Body;
+                    continue;
+                case ForEachStatement forEachStatement:
+                    statement = forEachStatement.Body;
+                    continue;
+                case TryStatement tryStatement:
+                    CollectVarNamesFromStatements(tryStatement.TryBlock.Statements, names, isStrict, true);
+                    if (tryStatement.Catch is not null)
+                    {
+                        CollectVarNamesFromStatements(tryStatement.Catch.Body.Statements, names, isStrict, true);
+                    }
+
+                    if (tryStatement.Finally is not null)
+                    {
+                        CollectVarNamesFromStatements(tryStatement.Finally.Statements, names, isStrict, true);
+                    }
+
+                    break;
+                case SwitchStatement switchStatement:
+                    foreach (var switchCase in switchStatement.Cases)
+                    {
+                        CollectVarNamesFromStatements(switchCase.Body.Statements, names, isStrict, true);
+                    }
+
+                    break;
+                case LabeledStatement labeledStatement:
+                    statement = labeledStatement.Statement;
+                    continue;
+                case WithStatement withStatement:
+                    statement = withStatement.Body;
+                    continue;
+            }
+
+            break;
+        }
+    }
+
+    private static void HoistLexicalBindingTargetForGlobalTdz(BindingTarget target, JsEnvironment environment,
+        bool isConst)
+    {
+        while (true)
+        {
+            switch (target)
+            {
+                case IdentifierBinding id:
+                    environment.DefineJsValue(id.Name, JsValue.Uninitialized, isConst: isConst,
+                        isLexicalBinding: true, blocksFunctionScopeOverride: true);
+
+                    break;
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
+                    {
+                        if (element.Target is { } elementTarget)
+                        {
+                            HoistLexicalBindingTargetForGlobalTdz(elementTarget, environment, isConst);
+                        }
+                    }
+
+                    if (arrayBinding.RestElement is { } restTarget)
+                    {
+                        target = restTarget;
+                        continue;
+                    }
+
+                    break;
+                case ObjectBinding objectBinding:
+                    foreach (var prop in objectBinding.Properties)
+                    {
+                        HoistLexicalBindingTargetForGlobalTdz(prop.Target, environment, isConst);
+                    }
+
+                    if (objectBinding.RestElement is { } restObjTarget)
+                    {
+                        target = restObjTarget;
+                        continue;
+                    }
+
+                    break;
+            }
+
+            break;
+        }
+    }
+
+    public static object? EvaluateProgram(this ProgramNode program, JsEnvironment environment,
+        RealmState realmState,
+        CancellationToken cancellationToken = default,
+        ExecutionKind executionKind = ExecutionKind.Script,
+        bool createStrictEnvironment = true,
+        Symbol? functionNameHint = null,
+        ImmutableArray<PrivateNameScope>? inheritedPrivateNameScopes = null,
+        bool drainAwaitMicrotasks = true)
+    {
+        var result = program.EvaluateProgramJsValue(environment, realmState, cancellationToken,
+            executionKind, createStrictEnvironment, functionNameHint, inheritedPrivateNameScopes,
+            drainAwaitMicrotasks);
+        if (result.IsUnit)
+        {
+            return Symbol.Undefined;
+        }
+
+        return result.Kind switch
+        {
+            JsValueKind.Undefined => Symbol.Undefined,
+            JsValueKind.Null => null,
+            JsValueKind.Boolean => result.NumberValue != 0,
+            JsValueKind.Number => result.NumberValue,
+            _ => result.ObjectValue
+        };
+    }
+
+    public static JsValue EvaluateProgramJsValue(this ProgramNode program, JsEnvironment environment,
+        RealmState realmState,
+        CancellationToken cancellationToken = default,
+        ExecutionKind executionKind = ExecutionKind.Script,
+        bool createStrictEnvironment = true,
+        Symbol? functionNameHint = null,
+        ImmutableArray<PrivateNameScope>? inheritedPrivateNameScopes = null,
+        bool drainAwaitMicrotasks = true)
+    {
+        // Track the current execution realm for cross-realm operations.
+        // When setting properties on cross-realm objects (e.g., array.length = X on a
+        // cross-realm Array), errors should be thrown from the CURRENT realm, not the
+        // object's realm. This enables proper instanceof checks in assert.throws().
+        var previousRealm = RealmState.Current;
+        RealmState.Current = realmState;
+        try
+        {
+            return EvaluateProgramJsValueCore(program, environment, realmState, cancellationToken,
+                executionKind, createStrictEnvironment, functionNameHint, inheritedPrivateNameScopes,
+                drainAwaitMicrotasks);
+        }
+        finally
+        {
+            RealmState.Current = previousRealm;
+        }
+    }
+
+    private static JsValue EvaluateProgramJsValueCore(ProgramNode program, JsEnvironment environment,
+        RealmState realmState,
+        CancellationToken cancellationToken,
+        ExecutionKind executionKind,
+        bool createStrictEnvironment,
+        Symbol? functionNameHint,
+        ImmutableArray<PrivateNameScope>? inheritedPrivateNameScopes,
+        bool drainAwaitMicrotasks)
+    {
+        var context = realmState.CreateContext(
+            ScopeKind.Program,
+            program.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy,
+            cancellationToken,
+            executionKind);
+        // For eval, always disable identifier caching/slot analysis because eval runs in the caller's
+        // lexical environment which may contain 'with' statements or allow deletable bindings.
+        // The static analysis of the eval code alone doesn't tell us about the outer context.
+        var allowScriptSlotAnalysis = context.RealmState.Options.AllowScriptSlotAnalysis &&
+                                      executionKind != ExecutionKind.Eval;
+        context.AllowIdentifierCache = allowScriptSlotAnalysis &&
+                                       AllowsIdentifierCaching(program);
+        context.DrainAwaitMicrotasks = drainAwaitMicrotasks;
+        if (inheritedPrivateNameScopes is { IsDefault: false, Length: > 0 } scopes)
+        {
+            context.EnterPrivateNameScopes(scopes);
+            context.RealmState.Logger?.LogInformation(
+                "Program inherited {PrivateScopeCount} private scopes",
+                scopes.Length);
+        }
+
+        context.SourceReference = program.Source;
+        context.IsStrictSource = program.IsStrict;
+        using var nameHintHandle = functionNameHint is not null
+            ? context.EnterFunctionNameHint(functionNameHint)
+            : null;
+        var executionEnvironment = program.IsStrict && createStrictEnvironment
+            ? JsEnvironment.CreateInstance(environment, true, true,
+                treatAsGlobalFunctionScope: environment.IsGlobalFunctionScope)
+            : environment;
+        if (program.IsStrict && !executionEnvironment.IsStrict)
+        {
+            executionEnvironment = JsEnvironment.CreateInstance(executionEnvironment, true, true,
+                treatAsGlobalFunctionScope: executionEnvironment.IsGlobalFunctionScope);
+        }
+
+        // Set ScopeId for the script environment to enable slot-based variable lookup from nested functions
+        // Note: We don't initialize slots because script-level var/let/const use dictionary-based storage
+        if (program.ScopeId >= 0)
+        {
+            executionEnvironment.ScopeId = program.ScopeId;
+        }
+
+        if (executionKind == ExecutionKind.Script)
+        {
+            executionEnvironment.RealmState?.Engine?.SetGlobalExecutionScope(
+                executionEnvironment.GetFunctionScope());
+        }
+
+        var programMode = program.IsStrict || executionEnvironment.IsStrict
+            ? ScopeMode.Strict
+            : ScopeMode.Sloppy;
+        using var programScope = context.PushScope(ScopeKind.Program, programMode);
+
+        var programBlock = new BlockStatement(program.Source, program.Body, program.IsStrict);
+        var lexicalNames = programBlock.CollectLexicalNames();
+        var topLevelLexicalNames = CollectTopLevelLexicalNames(program.Body);
+        // For bodyLexicalNames used in global/var conflict checks, we only use TOP-LEVEL names.
+        // Per ES spec GlobalDeclarationInstantiation, var declarations only conflict with
+        // top-level lexical declarations, not with block-scoped let/const in nested blocks.
+        var bodyLexicalNames = topLevelLexicalNames.Count == 0
+            ? topLevelLexicalNames
+            : new HashSet<Symbol>(topLevelLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
+        var functionScope = executionEnvironment.GetFunctionScope();
+        var reverseFunctionHoist = functionScope.IsGlobalFunctionScope &&
+                                   executionKind == ExecutionKind.Script;
+        var functionHoistDedupe = reverseFunctionHoist
+            ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
+            : null;
+        // Get the engine's true GlobalEnvironment for storing/checking lexical names.
+        // GlobalExecutionScope gets overwritten by each script, but GlobalEnvironment
+        // persists and should be the canonical location for global lexical declarations.
+        var trueGlobalEnvironment = context.RealmState.Engine?.GlobalEnvironment;
+        var globalScopeToCheck = trueGlobalEnvironment ?? functionScope;
+
+        // IMPORTANT: All conflict checks must happen BEFORE we merge any names.
+        // Otherwise we'd detect conflicts with names we just added ourselves.
+        // NOTE: These checks only apply to GlobalDeclarationInstantiation (scripts),
+        // NOT to EvalDeclarationInstantiation. Per ES spec 18.2.1.1 PerformEval step 9,
+        // direct eval creates a new declarative environment for lexical declarations,
+        // so lexical names in eval don't conflict with outer lexical names.
+        if (functionScope.IsGlobalFunctionScope && executionKind != ExecutionKind.Eval)
+        {
+            // Check if any new lexical names conflict with restricted globals
+            foreach (var blockedName in bodyLexicalNames)
+            {
+                if (functionScope.HasRestrictedGlobalProperty(blockedName))
+                {
+                    throw StandardLibrary.ThrowSyntaxError(
+                        $"Cannot redeclare var-scoped binding '{blockedName.Name}' with lexical declaration",
+                        context,
+                        context.RealmState);
+                }
+            }
+
+            // Per ES spec GlobalDeclarationInstantiation step 5:
+            // For each name in lexNames (new script's let/const/class declarations):
+            //   5.a. If envRec.HasVarDeclaration(name) is true, throw SyntaxError
+            //   5.b. If envRec.HasLexicalDeclaration(name) is true, throw SyntaxError
+            //
+            // This checks new lexical names against EXISTING lexical declarations from
+            // previous scripts, preventing `let x` in a new script when `let x` already exists.
+            foreach (var lexicalName in topLevelLexicalNames)
+            {
+                // Step 5.a: Check against existing var declarations
+                if (functionScope.HasVarDeclaration(lexicalName))
+                {
+                    throw StandardLibrary.ThrowSyntaxError(
+                        $"Identifier '{lexicalName.Name}' has already been declared",
+                        context,
+                        context.RealmState);
+                }
+
+                // Step 5.b: Check against existing lexical declarations
+                if (globalScopeToCheck.HasGlobalLexicalDeclaration(lexicalName))
+                {
+                    throw StandardLibrary.ThrowSyntaxError(
+                        $"Identifier '{lexicalName.Name}' has already been declared",
+                        context,
+                        context.RealmState);
+                }
+            }
+
+            // Per ES spec GlobalDeclarationInstantiation step 6:
+            // Check ALL var names for conflicts with existing lexical declarations BEFORE
+            // creating any bindings. This ensures that a script like 'var x; var existingLet;'
+            // doesn't create 'x' when it should throw SyntaxError for 'existingLet'.
+            var allVarNames = CollectAllVarNames(program.Body, program.IsStrict);
+            foreach (var varName in allVarNames)
+            {
+                if (globalScopeToCheck.HasGlobalLexicalDeclaration(varName))
+                {
+                    throw StandardLibrary.ThrowSyntaxError(
+                        $"Identifier '{varName.Name}' has already been declared",
+                        context,
+                        context.RealmState);
+                }
+            }
+        }
+
+        // Now that all conflict checks passed, merge/set the lexical names.
+        // For non-global scripts (eval, strict wrappers), we can SET since they're isolated.
+        // For the true GlobalEnvironment (non-strict global scripts), we must MERGE to preserve
+        // lexical names from previous evalScript calls.
+        if (executionKind != ExecutionKind.Eval &&
+            trueGlobalEnvironment is not null &&
+            ReferenceEquals(executionEnvironment, trueGlobalEnvironment))
+        {
+            // executionEnvironment IS the GlobalEnvironment - must merge to preserve cross-script names
+            trueGlobalEnvironment.MergeBodyLexicalNames(bodyLexicalNames);
+        }
+        else
+        {
+            // Isolated scope (eval, strict wrapper, etc.) - safe to set
+            executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
+
+            // For strict wrappers, also merge top-level names to the true GlobalEnvironment
+            // so cross-script checks work correctly
+            if (executionKind != ExecutionKind.Eval && trueGlobalEnvironment is not null)
+            {
+                trueGlobalEnvironment.MergeBodyLexicalNames(topLevelLexicalNames);
+            }
+        }
+
+        // Per ES spec, lexical declarations (let/const/class) must be hoisted to create
+        // bindings in the TDZ (Temporal Dead Zone) BEFORE function hoisting.
+        // This ensures closures that reference lexical variables will find TDZ bindings
+        // and throw ReferenceError if accessed before initialization.
+        //
+        // If we plan to execute this program via the IR path, we must initialize the slot layout
+        // BEFORE hoisting so that user bindings get created after internal IR slots. Otherwise,
+        // internal 0-based IR slot writes can overwrite hoisted user bindings.
+        var requiresDynamicScopeExecutor = executionKind == ExecutionKind.Eval || !AllowsIdentifierCaching(program);
+        ScriptPlanCache? scriptPlanCache = null;
+        ExecutionPlan? scriptPlan = null;
+        var enableScriptSlots = allowScriptSlotAnalysis && !requiresDynamicScopeExecutor;
+        if (enableScriptSlots)
+        {
+            scriptPlanCache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
+            if (scriptPlanCache.Succeeded)
+            {
+                scriptPlan = scriptPlanCache.Plan!;
+
+                // Only initialize slot layout up-front when this execution environment hasn't already
+                // allocated slots (e.g. strict-wrapper script environments). For true GlobalEnvironment
+                // runs, existing slots (Symbol.This, prior script bindings) may already exist and would
+                // require an index offset to remain correct.
+                if (!executionEnvironment.HasSlots)
+                {
+                    var rootSlotMap = scriptPlan.SafeRootSlotMap;
+                    var mapMax = 0;
+                    foreach (var idx in rootSlotMap.Values)
+                    {
+                        if (idx >= mapMax)
+                        {
+                            mapMax = idx + 1;
+                        }
+                    }
+
+                    var requiredSlots = Math.Max(Math.Max(scriptPlan.RootSlotCount, scriptPlan.SlotSymbols.Length),
+                        mapMax);
+                    if (requiredSlots == 0)
+                    {
+                        requiredSlots = scriptPlan.SlotCount;
+                    }
+
+                    if (requiredSlots > 0)
+                    {
+                        var scopeLexicals = scriptPlan.SafeScopeLexicalBindings;
+                        var rootLexicals = scriptPlan.SafeRootLexicalBindings;
+                        if (rootLexicals.Count == 0 && scopeLexicals.TryGetValue(0, out var fromScope0))
+                        {
+                            rootLexicals = fromScope0;
+                        }
+
+                        executionEnvironment.ResetSlotLayoutForPlan(
+                            requiredSlots,
+                            rootSlotMap,
+                            rootLexicals,
+                            scriptPlan.SlotSymbols,
+                            scriptPlan.LayoutId,
+                            scriptPlan.RootScopeId);
+                    }
+                }
+            }
+        }
+
+        foreach (var stmt in program.Body)
+        {
+            switch (stmt)
+            {
+                case VariableDeclaration
+                {
+                    Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
+                } lexDecl:
+                    var isConst =
+                        lexDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
+                    foreach (var declarator in lexDecl.Declarators)
+                    {
+                        HoistLexicalBindingTargetForGlobalTdz(declarator.Target, executionEnvironment, isConst);
+                    }
+
+                    break;
+                case ClassDeclaration classDecl:
+                    // Class declarations are also lexically scoped and need TDZ
+                    // Class declarations create mutable bindings (like let), not const
+                    if (!executionEnvironment.HasBinding(classDecl.Name))
+                    {
+                        executionEnvironment.DefineJsValue(classDecl.Name, JsValue.Uninitialized, isConst: false,
+                            isLexicalBinding: true, blocksFunctionScopeOverride: true);
+                    }
+
+                    break;
+            }
+        }
+
+        programBlock.HoistVarDeclarations(executionEnvironment,
+            context,
+            lexicalNames: lexicalNames,
+            reverseFunctionHoist: reverseFunctionHoist,
+            functionHoistDedupe: functionHoistDedupe);
+
+        // Direct eval and active with-scope stay on the explicit dynamic-scope executor.
+        if (requiresDynamicScopeExecutor)
+        {
+            context.RealmState.Logger?.LogInformation(
+                "Executing script via dynamic-scope executor (eval/with path)");
+            var dynamicResult = EvaluateStatementList(program.Body, executionEnvironment, context);
+            if (context.IsThrow)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+
+            return dynamicResult;
+        }
+
+        if (!enableScriptSlots || scriptPlanCache is not { Succeeded: true } || scriptPlan is null)
+        {
+            var failureReason = !enableScriptSlots
+                ? "script slot analysis disabled for non-dynamic script execution"
+                : scriptPlanCache?.FailureReason ?? "IR script plan is unavailable";
+            context.RealmState.Logger?.LogInformation(
+                "Rejecting non-dynamic script because IR script plan is unavailable: {FailureReason}",
+                failureReason);
+            throw new NotSupportedException($"IR plan generation failed for script: {failureReason}");
+        }
+
+        context.RealmState.Logger?.LogInformation(
+            "Executing script via IR path ({InstructionCount} instructions)",
+            scriptPlan.Instructions.Length);
+
+        // Script-level var declarations are marked with IsScriptLevel=true in the IR
+        // so they correctly update the global object.
+        return ExecutionPlanRunner.RunScript(
+            scriptPlan,
+            executionEnvironment,
+            context);
     }
 }

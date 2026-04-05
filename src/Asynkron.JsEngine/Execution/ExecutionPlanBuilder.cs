@@ -29,12 +29,10 @@ namespace Asynkron.JsEngine.Execution;
 internal sealed partial class ExecutionPlanBuilder
 {
     private const string ResumeSlotPrefix = "\u0001_resume";
-    private const string CatchSlotPrefix = "\u0001_catch";
     private const string YieldStarStatePrefix = "\u0001_yieldstar";
     private const string WithScopeSlotPrefix = "\u0001_with";
     private readonly Stack<LoopScope> _loopScopes = new();
     private readonly List<Symbol> _slotSymbols = [];
-    private int _catchSlotCounter;
     private ExecutionPlanFailureCode? _failureCode;
     private ExpressionProgramFailureCode? _expressionFailureCode;
     private string? _failureReason;
@@ -747,12 +745,6 @@ internal sealed partial class ExecutionPlanBuilder
         }
     }
 
-    internal Symbol CreateCatchSlotSymbol()
-    {
-        var symbolName = $"{CatchSlotPrefix}{_catchSlotCounter++}";
-        return Symbol.Intern(symbolName);
-    }
-
     private Symbol CreateYieldStarStateSymbol()
     {
         var symbolName = $"{YieldStarStatePrefix}{_yieldStarStateCounter++}";
@@ -866,40 +858,6 @@ internal sealed partial class ExecutionPlanBuilder
             StateSlotSymbol: stateSymbol,
             ResultSlotSymbol: resultSlot));
         return true;
-    }
-
-    internal static BlockStatement BuildCatchBlock(CatchClause clause, Symbol catchSlotSymbol)
-    {
-        var builder = ImmutableArray.CreateBuilder<StatementNode>();
-
-        // ES2019: Optional catch binding - only add variable declaration if binding exists
-        if (clause.Binding is not null)
-        {
-            var declarator = new VariableDeclarator(
-                clause.Source,
-                clause.Binding,
-                new IdentifierExpression(clause.Source, catchSlotSymbol));
-            var declaration = new VariableDeclaration(
-                clause.Source,
-                VariableKind.Let,
-                [declarator]);
-            builder.Add(declaration);
-        }
-
-        // ES2024 14.15.2 CatchClauseEvaluation: the catch parameter scope and the catch
-        // block body scope must be separate environments. The parameter destructuring is
-        // in the outer scope, and the body statements are in a nested scope. This ensures
-        // that closures created during parameter destructuring see the enclosing scope's
-        // bindings, not any same-named let/const declarations in the body.
-        var innerBody = new BlockStatement(clause.Body.Source, clause.Body.Statements, clause.Body.IsStrict);
-        builder.Add(innerBody);
-
-        // IMPORTANT: Create a NEW BlockStatement instead of using `with`.
-        // Using `with` would copy the cached HoistPlan from the original catch body,
-        // which doesn't include the synthetic `let` declaration. This would cause
-        // the catch block to execute without its own environment, causing the catch
-        // parameter to overwrite any same-named var in the enclosing function scope.
-        return new BlockStatement(clause.Source, builder.ToImmutableArray(), clause.Body.IsStrict);
     }
 
     private int Append(ExecutionInstruction instruction)

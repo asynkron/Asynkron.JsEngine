@@ -1,6 +1,8 @@
 #region
 
 using System.Globalization;
+using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Runtime;
 
 #endregion
@@ -9,7 +11,8 @@ namespace Asynkron.JsEngine.Ast;
 
 internal static class ClassPropertyNameResolver
 {
-    public static bool TryResolveMemberName(this ClassMember member, Func<ExpressionNode, JsValue> evaluator,
+    public static bool TryResolveMemberName(this LoweredClassMember member, ExpressionProgram? computedNameProgram,
+        JsEnvironment environment,
         EvaluationContext context,
         PrivateNameScope? privateNameScope,
         out string propertyName)
@@ -17,27 +20,28 @@ internal static class ClassPropertyNameResolver
         return TryResolveNameCore(
             member.Name,
             member.IsComputed,
-            member.ComputedName,
+            computedNameProgram,
             member.IsPrivate,
             "class member",
-            evaluator,
+            environment,
             context,
             privateNameScope,
             out propertyName);
     }
 
-    public static bool TryResolveFieldName(this ClassField field, Func<ExpressionNode, JsValue> evaluator,
+    public static bool TryResolveFieldName(this LoweredClassField field, ExpressionProgram? computedNameProgram,
+        JsEnvironment environment,
         EvaluationContext context,
         PrivateNameScope? privateNameScope,
         out string propertyName)
     {
         return TryResolveNameCore(
-            field.Name,
+            field.DeclaredName,
             field.IsComputed,
-            field.ComputedName,
+            computedNameProgram,
             field.IsPrivate,
             "class field",
-            evaluator,
+            environment,
             context,
             privateNameScope,
             out propertyName);
@@ -46,10 +50,10 @@ internal static class ClassPropertyNameResolver
     private static bool TryResolveNameCore(
         string name,
         bool isComputed,
-        ExpressionNode? computedName,
+        ExpressionProgram? computedNameProgram,
         bool isPrivate,
         string elementType,
-        Func<ExpressionNode, JsValue> evaluator,
+        JsEnvironment environment,
         EvaluationContext context,
         PrivateNameScope? privateNameScope,
         out string propertyName)
@@ -58,12 +62,15 @@ internal static class ClassPropertyNameResolver
 
         if (isComputed)
         {
-            if (computedName is null)
+            if (computedNameProgram is null)
             {
-                throw new InvalidOperationException($"Computed {elementType} is missing name expression.");
+                throw new InvalidOperationException($"Computed {elementType} is missing lowered name program.");
             }
 
-            var nameValue = evaluator(computedName);
+            var nameValue = TypedAstEvaluator.EvaluateLoweredExpressionProgram(
+                computedNameProgram.Value,
+                environment,
+                context);
             if (context.ShouldStopEvaluation)
             {
                 return false;

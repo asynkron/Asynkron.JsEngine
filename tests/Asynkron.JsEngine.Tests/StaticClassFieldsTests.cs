@@ -159,6 +159,42 @@ public sealed class StaticClassFieldsTests(ITestOutputHelper output) : InternalT
         Assert.Equal(53.0, result);
     }
 
+    [Fact(Timeout = 2000)]
+    public async Task Static_Field_AnonymousFunction_InfersResolvedName()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                   class Box {
+                                                       static ["v" + "alue"] = function() {};
+                                                   }
+
+                                                   Box.value.name;
+
+                                       """);
+        Assert.Equal("value", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Private_Instance_Field_AnonymousFunction_InfersDeclaredName()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                   class Box {
+                                                       #value = function() {};
+
+                                                       getName() {
+                                                           return this.#value.name;
+                                                       }
+                                                   }
+
+                                                   new Box().getName();
+
+                                       """);
+        Assert.Equal("#value", result);
+    }
+
     // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.
     // The feature is implemented correctly and the test passes when run individually.
     [Fact(Timeout = 2000)]
@@ -188,6 +224,26 @@ public sealed class StaticClassFieldsTests(ITestOutputHelper output) : InternalT
 
                                        """);
         Assert.Equal(1.0, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Static_Block_Can_Update_Class_State()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                   class Counter {
+                                                       static count = 1;
+
+                                                       static {
+                                                           this.count += 41;
+                                                       }
+                                                   }
+
+                                                   Counter.count;
+
+                                       """);
+        Assert.Equal(42.0, result);
     }
 
     [Fact(Timeout = 2000)]

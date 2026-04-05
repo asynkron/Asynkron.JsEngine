@@ -12,6 +12,14 @@ public static partial class TypedAstEvaluator
     private static readonly ConditionalWeakTable<ExpressionNode, ExpressionProgramCache>
         ExpressionPrograms = new();
 
+    internal static JsValue EvaluateLoweredExpressionProgram(
+        ExpressionProgram program,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        return ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(program, environment, context);
+    }
+
     private static JsValue EvaluateCachedExpressionProgram(
         ExpressionNode expression,
         JsEnvironment environment,
@@ -34,7 +42,7 @@ public static partial class TypedAstEvaluator
                 $"{failureLabel} could not be lowered to expression bytecode: {cache.FailureReason}");
         }
 
-        return ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(cache.Program, environment, context);
+        return EvaluateLoweredExpressionProgram(cache.Program, environment, context);
     }
 
     private sealed class ExpressionProgramCache

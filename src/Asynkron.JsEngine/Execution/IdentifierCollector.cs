@@ -326,10 +326,9 @@ internal sealed class ScopeSlotCollector : AstVisitor
 
             case EnterCatchInstruction enterCatch:
                 EnterScope(enterCatch.ScopeId, enterCatch.SlotMap, ImmutableArray<Symbol>.Empty, enterCatch.SlotCount);
-                if (enterCatch.CatchParameterSymbol is not null)
+                if (enterCatch.CatchBindingProgram is not null)
                 {
-                    AllocateSlotInScope(enterCatch.ScopeId, enterCatch.CatchParameterSymbol);
-                    GetOrCreateScopeInfo(enterCatch.ScopeId).LexicalBindings.Add(enterCatch.CatchParameterSymbol);
+                    VisitBindingTargetProgram(enterCatch.CatchBindingProgram);
                 }
 
                 return;

@@ -1759,7 +1759,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task CatchDestructuring_UsesEnterCatchPlusBindingDeclaration()
+    public async Task CatchDestructuring_UsesEnterCatchBindingProgram()
     {
         var plan = await GetFunctionPlan("""
             function readThrown() {
@@ -1772,15 +1772,24 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             """, "readThrown");
 
         var enterCatch = Assert.Single(plan.Instructions.OfType<EnterCatchInstruction>());
-        Assert.NotNull(enterCatch.CatchParameterSymbol);
-
-        var bindingInstruction = Assert.Single(plan.Instructions.OfType<BindingVariableDeclarationInstruction>());
-        Assert.IsType<ObjectBindingTargetProgram>(bindingInstruction.TargetProgram);
-        Assert.Null(bindingInstruction.Initializer);
-        Assert.NotNull(bindingInstruction.InitializerProgram);
-        AssertProgramContains<LoadIdentifierExpressionOp>(
-            bindingInstruction.InitializerProgram,
-            op => ReferenceEquals(op.Name, enterCatch.CatchParameterSymbol));
+        var catchBindingProgram = Assert.IsType<ObjectBindingTargetProgram>(enterCatch.CatchBindingProgram);
+        Assert.Empty(plan.Instructions.OfType<BindingVariableDeclarationInstruction>());
+        Assert.Collection(
+            catchBindingProgram.Properties,
+            property =>
+            {
+                Assert.Equal("x", property.Name);
+                Assert.IsType<IdentifierBindingTargetProgram>(property.Target);
+                Assert.Null(property.NameProgram);
+                Assert.Null(property.DefaultProgram);
+            },
+            property =>
+            {
+                Assert.Equal("y", property.Name);
+                Assert.IsType<IdentifierBindingTargetProgram>(property.Target);
+                Assert.Null(property.NameProgram);
+                Assert.Null(property.DefaultProgram);
+            });
     }
 
     [Fact]
@@ -1948,6 +1957,254 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             op => op.TargetProgram is ArrayBindingTargetProgram);
     }
 
+    [Fact]
+    public async Task ClassDefinition_ExtendsExpression_IsLoweredToExpressionProgramCache()
+    {
+        var cache = await GetClassDefinitionProgramCache("""
+            class Base {}
+            class Derived extends Base {
+                value() {
+                    return 42;
+                }
+            }
+            """, "Derived");
+
+        Assert.True(cache.Succeeded, $"Class definition program cache should build. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.ExtendsProgram);
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            cache.ExtendsProgram,
+            op => op.Name.Name == "Base");
+    }
+
+    [Fact]
+    public async Task ClassDefinition_ComputedMethodName_IsLoweredToExpressionProgramCache()
+    {
+        var cache = await GetClassDefinitionProgramCache("""
+            const suffix = "alue";
+            class Box {
+                ["v" + suffix]() {
+                    return 42;
+                }
+            }
+            """, "Box");
+
+        Assert.True(cache.Succeeded, $"Class definition program cache should build. Failure: {cache.FailureReason}");
+        Assert.NotEmpty(cache.MemberNamePrograms);
+        var program = Assert.Single(cache.MemberNamePrograms);
+        Assert.NotNull(program);
+        AssertProgramContains<BinaryExpressionOp>(
+            program,
+            op => op.Operator == BinaryOperator.Add);
+    }
+
+    [Fact]
+    public async Task ClassDefinition_ComputedFieldName_IsLoweredToExpressionProgramCache()
+    {
+        var cache = await GetClassDefinitionProgramCache("""
+            const suffix = "alue";
+            class Box {
+                ["v" + suffix] = 42;
+            }
+            """, "Box");
+
+        Assert.True(cache.Succeeded, $"Class definition program cache should build. Failure: {cache.FailureReason}");
+        Assert.NotEmpty(cache.FieldNamePrograms);
+        var program = Assert.Single(cache.FieldNamePrograms);
+        Assert.NotNull(program);
+        AssertProgramContains<BinaryExpressionOp>(
+            program,
+            op => op.Operator == BinaryOperator.Add);
+    }
+
+    [Fact]
+    public async Task ClassDefinition_FieldInitializers_AreLoweredToExpressionProgramCache()
+    {
+        var cache = await GetClassDefinitionProgramCache("""
+            class Box {
+                value = 1 + 2;
+                static total = 3 + 4;
+            }
+            """, "Box");
+
+        Assert.True(cache.Succeeded, $"Class definition program cache should build. Failure: {cache.FailureReason}");
+        Assert.Equal(2, cache.FieldInitializerPrograms.Length);
+        Assert.All(cache.FieldInitializerPrograms, program => Assert.NotNull(program));
+    }
+
+    [Fact]
+    public async Task ClassDefinition_FieldMetadata_IsLoweredIntoRuntimeDescriptor()
+    {
+        var cache = await GetClassDefinitionProgramCache("""
+            class Box {
+                ["v" + "alue"] = function() {};
+                #secret = function() {};
+                static total = 1;
+            }
+            """, "Box");
+
+        Assert.True(cache.Succeeded, $"Class definition program cache should build. Failure: {cache.FailureReason}");
+        Assert.Equal(3, cache.Definition.Fields.Length);
+
+        var computedField = cache.Definition.Fields[0];
+        Assert.True(computedField.IsComputed);
+        Assert.True(computedField.AllowsAnonymousFunctionNameInference);
+
+        var privateField = cache.Definition.Fields[1];
+        Assert.Equal("#secret", privateField.DeclaredName);
+        Assert.True(privateField.IsPrivate);
+        Assert.True(privateField.AllowsAnonymousFunctionNameInference);
+
+        var staticField = cache.Definition.Fields[2];
+        Assert.Equal("total", staticField.DeclaredName);
+        Assert.True(staticField.IsStatic);
+        Assert.False(staticField.AllowsAnonymousFunctionNameInference);
+    }
+
+    [Fact]
+    public async Task ClassDefinition_MemberMetadata_IsLoweredIntoRuntimeDescriptor()
+    {
+        var cache = await GetClassDefinitionProgramCache("""
+            class Box {
+                static ["v" + "alue"]() {
+                    return 1;
+                }
+
+                get size() {
+                    return 2;
+                }
+
+                #secret() {
+                    return 3;
+                }
+            }
+            """, "Box");
+
+        Assert.True(cache.Succeeded, $"Class definition program cache should build. Failure: {cache.FailureReason}");
+        Assert.Equal(3, cache.Definition.Members.Length);
+
+        var computedStaticMethod = cache.Definition.Members[0];
+        Assert.Equal(ClassMemberKind.Method, computedStaticMethod.Kind);
+        Assert.True(computedStaticMethod.IsStatic);
+        Assert.True(computedStaticMethod.IsComputed);
+        Assert.False(computedStaticMethod.IsPrivate);
+
+        var getter = cache.Definition.Members[1];
+        Assert.Equal(ClassMemberKind.Getter, getter.Kind);
+        Assert.Equal("size", getter.Name);
+        Assert.False(getter.IsStatic);
+        Assert.False(getter.IsComputed);
+
+        var privateMethod = cache.Definition.Members[2];
+        Assert.Equal("#secret", privateMethod.Name);
+        Assert.True(privateMethod.IsPrivate);
+        Assert.Empty(privateMethod.Callable.Function.Parameters);
+    }
+
+    [Fact]
+    public async Task ClassDefinition_CallablePlans_AreCachedIntoRuntimeDescriptor()
+    {
+        var cache = await GetClassDefinitionProgramCache("""
+            class Box {
+                constructor(value) {
+                    this.value = value + 1;
+                }
+
+                read() {
+                    return this.value;
+                }
+            }
+            """, "Box");
+
+        Assert.True(cache.Succeeded, $"Class definition program cache should build. Failure: {cache.FailureReason}");
+        Assert.True(cache.Definition.Constructor.PlanSeed.Succeeded);
+        Assert.NotNull(cache.Definition.Constructor.PlanSeed.Plan);
+
+        var member = Assert.Single(cache.Definition.Members);
+        Assert.True(member.Callable.PlanSeed.Succeeded);
+        Assert.NotNull(member.Callable.PlanSeed.Plan);
+    }
+
+    [Fact]
+    public async Task ClassDefinition_CallablePlanFailures_AreCachedIntoRuntimeDescriptor()
+    {
+        var parsedProgram = _engine.ParseProgram("""
+            class Box {
+                read(value) {
+                    return value + 1;
+                }
+            }
+            """);
+        var program = ReplaceClassMethodBodyWithUnsupportedModuleStatement(parsedProgram, "Box", "read");
+        await _engine.Evaluate(program);
+
+        var declaration = Assert.IsType<ClassDeclaration>(
+            program.Body.Single(statement => statement is ClassDeclaration classDeclaration &&
+                                             classDeclaration.Name.Name == "Box"));
+        var cache = ((IAstCacheable<ClassDefinitionProgramCache>)declaration.Definition).GetOrCreateCache();
+
+        Assert.True(cache.Succeeded, $"Class definition program cache should build. Failure: {cache.FailureReason}");
+
+        var member = Assert.Single(cache.Definition.Members);
+        Assert.False(member.Callable.PlanSeed.Succeeded);
+        Assert.Null(member.Callable.PlanSeed.Plan);
+        Assert.NotNull(member.Callable.PlanSeed.Failure);
+        Assert.Contains("ExportAllStatement", member.Callable.PlanSeed.FailureReason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ClassDeclarationInstruction_UsesCachedRuntimeMetadata()
+    {
+        var program = _engine.ParseProgram("""
+            class Box {
+                ["value"]() {
+                    return 42;
+                }
+
+                total = 1 + 2;
+
+                static {
+                    this.count = 1;
+                }
+            }
+            """);
+
+        await _engine.Evaluate(program);
+
+        var cache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Script plan should build. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        var instruction = Assert.Single(cache.Plan.Instructions.OfType<ClassDeclarationInstruction>());
+        Assert.True(
+            instruction.Descriptor.ProgramCache.Succeeded,
+            $"Class definition program cache should build. Failure: {instruction.Descriptor.ProgramCache.FailureReason}");
+        Assert.Equal("Box", instruction.Descriptor.Name.Name);
+        Assert.Single(instruction.Descriptor.ProgramCache.Definition.Members);
+        Assert.True(instruction.Descriptor.ProgramCache.Definition.Constructor.PlanSeed.Succeeded);
+        Assert.True(instruction.Descriptor.ProgramCache.Definition.Members[0].Callable.PlanSeed.Succeeded);
+        var field = Assert.Single(instruction.Descriptor.ProgramCache.Definition.Fields);
+        Assert.Equal("total", field.DeclaredName);
+        Assert.False(field.IsComputed);
+        Assert.Single(instruction.Descriptor.ProgramCache.Definition.StaticBlockPlans);
+        AssertProgramContains<LoadLiteralExpressionOp>(
+            instruction.Descriptor.ProgramCache.MemberNamePrograms.Single(),
+            op => op.Value.AsString() == "value");
+    }
+
+    [Fact]
+    public async Task ClassStaticBlock_AssignmentBody_BuildsIrPlan()
+    {
+        var plan = await GetClassStaticBlockPlan("""
+            class Box {
+                static {
+                    this.value = 42;
+                }
+            }
+            """, "Box");
+
+        Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
+    }
+
     private async Task<ExecutionPlan> GetFunctionPlan(string source, string functionName)
     {
         var program = _engine.ParseProgram(source);
@@ -1991,6 +2248,82 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Definition.Constructor).GetOrCreateCache();
         Assert.True(cache.Succeeded, $"Plan should build. Failure: {cache.FailureReason}");
         return Assert.IsType<ExecutionPlan>(cache.Plan);
+    }
+
+    private async Task<ExecutionPlan> GetClassStaticBlockPlan(string source, string className)
+    {
+        var program = _engine.ParseProgram(source);
+        await _engine.Evaluate(program);
+
+        var declaration = Assert.IsType<ClassDeclaration>(
+            program.Body.Single(statement => statement is ClassDeclaration classDeclaration &&
+                                             classDeclaration.Name.Name == className));
+
+        var block = Assert.Single(declaration.Definition.StaticBlocks);
+        var cache = ((IAstCacheable<StaticBlockPlanCache>)block).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Plan should build. Failure: {cache.FailureReason}");
+        return Assert.IsType<ExecutionPlan>(cache.Plan);
+    }
+
+    private async Task<ClassDefinitionProgramCache> GetClassDefinitionProgramCache(string source, string className)
+    {
+        var program = _engine.ParseProgram(source);
+        await _engine.Evaluate(program);
+
+        var declaration = Assert.IsType<ClassDeclaration>(
+            program.Body.Single(statement => statement is ClassDeclaration classDeclaration &&
+                                             classDeclaration.Name.Name == className));
+
+        return ((IAstCacheable<ClassDefinitionProgramCache>)declaration.Definition).GetOrCreateCache();
+    }
+
+    private static ProgramNode ReplaceClassMethodBodyWithUnsupportedModuleStatement(
+        ProgramNode program,
+        string className,
+        string methodName)
+    {
+        var declarationIndex = -1;
+        for (var i = 0; i < program.Body.Length; i++)
+        {
+            if (program.Body[i] is ClassDeclaration classDeclaration && classDeclaration.Name.Name == className)
+            {
+                declarationIndex = i;
+                break;
+            }
+        }
+
+        var declaration = Assert.IsType<ClassDeclaration>(program.Body[declarationIndex]);
+        var memberIndex = -1;
+        for (var i = 0; i < declaration.Definition.Members.Length; i++)
+        {
+            if (declaration.Definition.Members[i].Name == methodName)
+            {
+                memberIndex = i;
+                break;
+            }
+        }
+
+        var member = declaration.Definition.Members[memberIndex];
+        var rewrittenMember = member with
+        {
+            Function = member.Function with
+            {
+                Body = new BlockStatement(
+                    null,
+                    [new ExportAllStatement(null, "./unsupported.js")],
+                    true)
+            }
+        };
+        var rewrittenMembers = declaration.Definition.Members.SetItem(memberIndex, rewrittenMember);
+        var rewrittenDeclaration = declaration with
+        {
+            Definition = declaration.Definition with { Members = rewrittenMembers }
+        };
+
+        return program with
+        {
+            Body = program.Body.SetItem(declarationIndex, rewrittenDeclaration)
+        };
     }
 
     private static void AssertProgramContains<TOp>(ExpressionProgram? program, Func<ExpressionOpView, bool>? predicate = null)

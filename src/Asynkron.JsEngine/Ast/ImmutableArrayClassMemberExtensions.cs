@@ -1,6 +1,8 @@
 #region
 
 using System.Collections.Immutable;
+using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 
@@ -10,17 +12,18 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    private static void AssignClassMembers(this ImmutableArray<ClassMember> members, IJsPropertyAccessor constructorAccessor,
+    private static void AssignClassMembers(this ImmutableArray<LoweredClassMember> members,
+        ImmutableArray<ExpressionProgram?> memberNamePrograms,
+        IJsPropertyAccessor constructorAccessor,
         JsObject prototype, IJsEnvironmentAwareCallable? superConstructor, IJsPropertyAccessor? superPrototype,
         JsEnvironment environment, EvaluationContext context, PrivateNameScope? privateNameScope)
     {
-        foreach (var member in members)
+        for (var index = 0; index < members.Length; index++)
         {
-            if (!member.TryResolveMemberName(expr => EvaluateCachedExpressionProgram(
-                    expr,
+            var member = members[index];
+            if (!member.TryResolveMemberName(
+                    memberNamePrograms.IsDefaultOrEmpty ? null : memberNamePrograms[index],
                     environment,
-                    context,
-                    "Class element expression"),
                     context,
                     privateNameScope,
                     out var propertyName))
@@ -33,8 +36,8 @@ public static partial class TypedAstEvaluator
                 propertyName,
                 member.IsStatic,
                 member.IsPrivate,
-                member.Function.IsAsync,
-                member.Function.WasAsync,
+                member.Callable.Function.IsAsync,
+                member.Callable.Function.WasAsync,
                 member.Kind);
 
             var baseDisplayName = member.IsPrivate ? member.Name : propertyName;
@@ -56,11 +59,12 @@ public static partial class TypedAstEvaluator
 
             // Get value as JsValue and extract callable
             // Class methods are non-constructors, so pass isConstructorFunction: false
-            var valueJs = JsValue.FromObjectUnsafe(member.Function.CreateFunctionValue(
+            var valueJs = JsValue.FromObjectUnsafe(member.Callable.Function.CreateFunctionValue(
                 environment,
                 context,
                 false,
-                false));
+                false,
+                member.Callable.PlanSeed));
             if (context.ShouldStopEvaluation)
             {
                 return;

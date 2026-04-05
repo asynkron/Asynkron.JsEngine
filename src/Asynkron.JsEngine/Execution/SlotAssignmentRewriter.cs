@@ -260,6 +260,9 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                 var mappedCatchScope = RemapScopeId(enterCatch.ScopeId);
                 var updatedCatch = enterCatch with
                 {
+                    CatchBindingProgram = enterCatch.CatchBindingProgram is null
+                        ? null
+                        : RewriteBindingTargetProgram(enterCatch.CatchBindingProgram),
                     ScopeId = mappedCatchScope,
                     SlotCount = GetSlotCount(mappedCatchScope),
                     SlotMap = GetSlotMap(mappedCatchScope)

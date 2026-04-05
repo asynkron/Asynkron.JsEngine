@@ -190,7 +190,7 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<ClassDeclarationInstruction>(instr);
-            var classValue = instruction.Descriptor.Definition.CreateClassValue(
+            var classValue = instruction.Descriptor.ProgramCache.CreateClassValue(
                 environment, context, instruction.Descriptor.Name);
 
             if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingClassResult, environment))

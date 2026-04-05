@@ -1,8 +1,11 @@
 #region
 
 using System.Collections.Immutable;
+using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.StdLib;
 using JetBrains.Annotations;
 using Microsoft.Extensions.Logging;
 
@@ -33,13 +36,14 @@ public static partial class TypedAstEvaluator
     }
 
     private static void InitializeStaticElements(
-        ClassDefinition definition,
-        ImmutableArray<ClassField> resolvedFields,
+        ClassDefinitionProgramCache programCache,
+        ImmutableArray<ResolvedClassField> resolvedFields,
         IJsPropertyAccessor constructorAccessor,
         JsEnvironment environment,
         EvaluationContext context,
         PrivateNameScope? privateNameScope)
     {
+        var definition = programCache.Definition;
         if (definition.StaticElements.IsDefaultOrEmpty)
         {
             return;
@@ -77,15 +81,102 @@ public static partial class TypedAstEvaluator
 
                     break;
                 case ClassStaticElementKind.Block:
-                    var block = definition.StaticBlocks[element.Index];
-                    ExecuteStaticBlock(block, constructorAccessor, environment, context, privateScopeFactory);
+                    ExecuteStaticBlock(
+                        definition.StaticBlockPlans[element.Index],
+                        constructorAccessor,
+                        environment,
+                        context,
+                        privateScopeFactory);
                     break;
             }
         }
     }
 
+    private static (IJsEnvironmentAwareCallable? Constructor, IJsPropertyAccessor? Prototype) ResolveSuperclass(
+        ExpressionProgram? extendsProgram,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        if (extendsProgram is null)
+        {
+            return (null, null);
+        }
+
+        var baseJsValue = EvaluateLoweredExpressionProgram(extendsProgram.Value, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return (null, null);
+        }
+
+        if (baseJsValue.IsNullOrUndefined)
+        {
+            return (null, null);
+        }
+
+        var baseValue = baseJsValue.Kind == JsValueKind.Object ? baseJsValue.ObjectValue : null;
+
+        if (!JsOps.IsConstructor(JsValue.FromObjectUnsafe(baseValue)))
+        {
+            throw StandardLibrary.ThrowTypeError(
+                "Class extends value is not a constructor or null",
+                context,
+                context.RealmState);
+        }
+
+        if (baseValue is IJsPropertyAccessor accessorWithMarker &&
+            JsOps.TryGetPropertyValue(
+                JsValue.FromObjectUnsafe(accessorWithMarker),
+                "__proxyHasNoPrototype__",
+                out var marker,
+                context) &&
+            JsOps.ToBoolean(marker))
+        {
+            throw StandardLibrary.ThrowTypeError(
+                "Class extends value does not have a valid prototype",
+                context,
+                context.RealmState);
+        }
+
+        if (baseValue is not (IJsEnvironmentAwareCallable callable and IJsPropertyAccessor))
+        {
+            throw StandardLibrary.ThrowTypeError(
+                "Class extends value is not a constructor or null",
+                context,
+                context.RealmState);
+        }
+
+        var hasPrototype = JsOps.TryGetPropertyValue(baseJsValue, "prototype", out var prototypeValue, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return (null, null);
+        }
+
+        if (!hasPrototype)
+        {
+            throw StandardLibrary.ThrowTypeError(
+                "Class extends value does not have a valid prototype",
+                context,
+                context.RealmState);
+        }
+
+        if (prototypeValue.IsNull)
+        {
+            return (callable, null);
+        }
+
+        if (prototypeValue.TryGetObject<IJsPropertyAccessor>(out var prototype))
+        {
+            return (callable, prototype);
+        }
+
+        throw StandardLibrary.ThrowTypeError(
+            "Class extends value does not have a valid prototype",
+            context,
+            context.RealmState);
+    }
+
     private static void ExecuteStaticBlock(
-        ClassStaticBlock block,
+        ExecutionPlan plan,
         IJsPropertyAccessor constructorAccessor,
         JsEnvironment environment,
         EvaluationContext context,
@@ -93,7 +184,14 @@ public static partial class TypedAstEvaluator
     {
         using var privateScope = privateScopeFactory?.Invoke();
         var blockEnvironment = CreateStaticInitializationEnvironment(constructorAccessor, environment, out _);
-        _ = block.Body.EvaluateStatementJsValue(blockEnvironment, context);
+        try
+        {
+            _ = ExecutionPlanRunner.RunScript(plan, blockEnvironment, context);
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+        }
     }
 
     private static JsValue CreateClassValue(this ClassDefinition definition, JsEnvironment environment,
@@ -101,7 +199,23 @@ public static partial class TypedAstEvaluator
         Symbol? className,
         bool createNameScope = true)
     {
+        var programCache = ((IAstCacheable<ClassDefinitionProgramCache>)definition).GetOrCreateCache();
+        if (!programCache.Succeeded)
+        {
+            var reason = programCache.FailureReason ?? "unknown failure";
+            throw new NotSupportedException($"IR class definition lowering failed: {reason}");
+        }
+
+        return programCache.CreateClassValue(environment, context, className, createNameScope);
+    }
+
+    private static JsValue CreateClassValue(this ClassDefinitionProgramCache programCache, JsEnvironment environment,
+        EvaluationContext context,
+        Symbol? className,
+        bool createNameScope = true)
+    {
         using var classScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict);
+        var definition = programCache.Definition;
         var (evaluationEnvironment, classScopeEnvironment) = CreateClassScopeIfNeeded(
             environment,
             className,
@@ -109,7 +223,7 @@ public static partial class TypedAstEvaluator
             createNameScope);
 
         var (superConstructor, superPrototype) =
-            definition.Extends.ResolveSuperclass(evaluationEnvironment, context);
+            ResolveSuperclass(programCache.ExtendsProgram, evaluationEnvironment, context);
         if (context.ShouldStopEvaluation)
         {
             return JsValue.Undefined;
@@ -123,25 +237,25 @@ public static partial class TypedAstEvaluator
             definition.StaticElements.Length,
             evaluationEnvironment.IsStrict);
         var resolvedFields =
-            definition.ResolveFieldNames(definition.Fields, evaluationEnvironment, context, privateNameScope);
+            definition.ResolveFieldNames(
+                definition.Fields,
+                programCache.FieldNamePrograms,
+                programCache.FieldInitializerPrograms,
+                evaluationEnvironment,
+                context,
+                privateNameScope);
         if (context.ShouldStopEvaluation)
         {
             return JsValue.Undefined;
         }
 
-        var constructorDefinition = definition.Constructor;
-        if (definition.Extends is not null &&
-            !constructorDefinition.IsDefaultDerivedConstructor &&
-            constructorDefinition.IsImplicitDefaultDerivedConstructor())
-        {
-            constructorDefinition = constructorDefinition with { IsDefaultDerivedConstructor = true };
-        }
-
-        var constructorCallable = constructorDefinition.CreateFunctionValue(
+        var hasExtends = programCache.ExtendsProgram is not null;
+        var constructorCallable = definition.Constructor.Function.CreateFunctionValue(
             evaluationEnvironment,
             context,
             isConstructorFunction: true,
-            skipInternalNameBinding: true);
+            skipInternalNameBinding: true,
+            planSeed: definition.Constructor.PlanSeed);
         var constructorJsValue = JsValue.FromObjectUnsafe(constructorCallable);
         if (context.ShouldStopEvaluation)
         {
@@ -156,7 +270,7 @@ public static partial class TypedAstEvaluator
 
         var realm = context.RealmState;
         var prototype = constructorAccessor.EnsurePrototype(realm);
-        if (definition.Extends is not null)
+        if (hasExtends)
         {
             prototype.SetPrototype(superPrototype);
         }
@@ -185,7 +299,7 @@ public static partial class TypedAstEvaluator
             }
 
             typedFunction.SetInstanceFields(resolvedInstanceFields);
-            typedFunction.SetIsClassConstructor(definition.Extends is not null);
+            typedFunction.SetIsClassConstructor(hasExtends);
             typedFunction.SetPrivateNameScope(privateNameScope);
             typedFunction.SetSourceReference(definition.Source);
             if (privateNameScope is not null)
@@ -230,8 +344,15 @@ public static partial class TypedAstEvaluator
                 });
         }
 
-        definition.Members.AssignClassMembers(constructorAccessor, prototype, superConstructor, superPrototype,
-            evaluationEnvironment, context, privateNameScope);
+        definition.Members.AssignClassMembers(
+            programCache.MemberNamePrograms,
+            constructorAccessor,
+            prototype,
+            superConstructor,
+            superPrototype,
+            evaluationEnvironment,
+            context,
+            privateNameScope);
         if (context.ShouldStopEvaluation)
         {
             return JsValue.Undefined;
@@ -250,7 +371,12 @@ public static partial class TypedAstEvaluator
             classScopeEnvironment.TryAssignBlockedBinding(className, JsValue.FromObjectUnsafe(constructorAccessor));
         }
 
-        InitializeStaticElements(definition, resolvedFields, constructorAccessor, evaluationEnvironment, context,
+        InitializeStaticElements(
+            programCache,
+            resolvedFields,
+            constructorAccessor,
+            evaluationEnvironment,
+            context,
             privateNameScope);
         if (context.ShouldStopEvaluation)
         {
@@ -260,7 +386,7 @@ public static partial class TypedAstEvaluator
         return constructorJsValue;
     }
 
-    private static PrivateNameScope? CreatePrivateNameScope(this ClassDefinition definition, RealmState realm)
+    private static PrivateNameScope? CreatePrivateNameScope(this LoweredClassDefinition definition, RealmState realm)
     {
         var hasPrivateFields = definition.Fields.Any(static f => f.IsPrivate);
         var hasPrivateMembers = definition.Members.Any(static m => m.IsPrivate);
@@ -269,26 +395,27 @@ public static partial class TypedAstEvaluator
 
     // ClassFieldDefinitionEvaluation evaluates computed field names during class evaluation,
     // so resolve all field keys eagerly in declaration order (static + instance).
-    private static ImmutableArray<ClassField> ResolveFieldNames(this ClassDefinition _,
-        ImmutableArray<ClassField> fields,
+    private static ImmutableArray<ResolvedClassField> ResolveFieldNames(this LoweredClassDefinition _,
+        ImmutableArray<LoweredClassField> fields,
+        ImmutableArray<ExpressionProgram?> fieldNamePrograms,
+        ImmutableArray<ExpressionProgram?> fieldInitializerPrograms,
         JsEnvironment environment,
         EvaluationContext context,
         PrivateNameScope? privateNameScope)
     {
         if (fields.IsDefaultOrEmpty)
         {
-            return fields;
+            return ImmutableArray<ResolvedClassField>.Empty;
         }
 
-        var builder = ImmutableArray.CreateBuilder<ClassField>(fields.Length);
-        foreach (var field in fields)
+        var builder = ImmutableArray.CreateBuilder<ResolvedClassField>(fields.Length);
+        for (var index = 0; index < fields.Length; index++)
         {
-            var propertyName = field.Name;
-            if (!field.TryResolveFieldName(expr => EvaluateCachedExpressionProgram(
-                    expr,
+            var field = fields[index];
+            var propertyName = field.DeclaredName;
+            if (!field.TryResolveFieldName(
+                    fieldNamePrograms.IsDefaultOrEmpty ? null : fieldNamePrograms[index],
                     environment,
-                    context,
-                    "Class element expression"),
                     context,
                     privateNameScope,
                     out propertyName))
@@ -298,21 +425,38 @@ public static partial class TypedAstEvaluator
                     field.IsComputed,
                     field.IsStatic,
                     field.IsPrivate);
-                return fields;
+                return ImmutableArray<ResolvedClassField>.Empty;
             }
 
             context.RealmState.Logger?.LogInformation(
                 "Class field resolved name: original='{Original}' resolved='{Resolved}' (computed={IsComputed}, static={IsStatic}, private={IsPrivate})",
-                field.Name,
+                field.DeclaredName,
                 propertyName,
                 field.IsComputed,
                 field.IsStatic,
                 field.IsPrivate);
 
-            builder.Add(field with { Name = propertyName, IsComputed = false, ComputedName = null });
+            builder.Add(new ResolvedClassField(
+                propertyName,
+                field.IsStatic,
+                field.IsPrivate,
+                GetAnonymousFunctionName(field, propertyName),
+                fieldInitializerPrograms.IsDefaultOrEmpty ? null : fieldInitializerPrograms[index]));
         }
 
         return builder.ToImmutable();
+    }
+
+    private static string? GetAnonymousFunctionName(LoweredClassField field, string propertyName)
+    {
+        if (!field.AllowsAnonymousFunctionNameInference)
+        {
+            return null;
+        }
+
+        var displayName = field.IsComputed ? propertyName : field.DeclaredName;
+        var atIndex = displayName.IndexOf('@', StringComparison.Ordinal);
+        return atIndex > 0 ? displayName[..atIndex] : displayName;
     }
 
     [UsedImplicitly]

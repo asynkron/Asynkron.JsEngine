@@ -1,5 +1,6 @@
 #region
 
+using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
@@ -378,7 +379,8 @@ public static partial class TypedAstEvaluator
     private static IJsCallable CreateFunctionValue(this FunctionExpression functionExpression, JsEnvironment environment,
         EvaluationContext context,
         bool isConstructorFunction = true,
-        bool skipInternalNameBinding = false)
+        bool skipInternalNameBinding = false,
+        FunctionExecutionPlanSeed planSeed = default)
     {
         var closureEnvironment = environment;
         JsEnvironment? functionNameEnvironment = null;
@@ -419,11 +421,11 @@ public static partial class TypedAstEvaluator
         {
             true when functionExpression.IsAsync => new AsyncGeneratorFunctionInvoker(functionExpression,
                 closureEnvironment,
-                context.RealmState, isLexicallyStrict, hasFunctionNameEnvironment, isConstructorFunction),
+                context.RealmState, isLexicallyStrict, hasFunctionNameEnvironment, isConstructorFunction, planSeed),
             true => new SyncGeneratorInvoker(functionExpression, closureEnvironment, context.RealmState,
-                isLexicallyStrict, hasFunctionNameEnvironment, isConstructorFunction),
+                isLexicallyStrict, hasFunctionNameEnvironment, isConstructorFunction, planSeed),
             _ => new SyncFunctionInvoker(functionExpression, closureEnvironment, context.RealmState,
-                isLexicallyStrict, hasFunctionNameEnvironment, isConstructorFunction)
+                isLexicallyStrict, hasFunctionNameEnvironment, isConstructorFunction, planSeed)
         };
 
         var capturedPrivateScopes = context.CapturePrivateNameScopes();

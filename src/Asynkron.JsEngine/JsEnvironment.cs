@@ -1471,6 +1471,16 @@ public sealed class JsEnvironment : IRentable
             return AssignmentReference.ForDeclarativeBinding(cached, name, context, strictContext);
         }
 
+        if (!context.AllowIdentifierCache && TryResolveWithBinding(name, context, out var withBinding))
+        {
+            return AssignmentReference.ForWithBinding(
+                withBinding,
+                this,
+                name,
+                context,
+                strictContext);
+        }
+
         if (TryLocateBinding(name, out var bindingEnvironment, out _))
         {
             var cachedBinding = new ResolvedIdentifierBinding(bindingEnvironment, name);
@@ -1936,9 +1946,10 @@ public sealed class JsEnvironment : IRentable
             return;
         }
 
-        // For writes, use TryResolveWithBindingForWrite which skips unscopables check.
-        // Per ES spec, unscopables only affects reads, not writes.
-        if (!context.AllowIdentifierCache && TryResolveWithBindingForWrite(name, context, out var withBinding))
+        // Identifier resolution still goes through HasBinding semantics, including
+        // Symbol.unscopables. Once the reference is resolved to a with binding,
+        // the later write uses ordinary Set without another unscopables lookup.
+        if (!context.AllowIdentifierCache && TryResolveWithBinding(name, context, out var withBinding))
         {
             if (isStrictContext && IsStrictRestrictedName(name))
             {
@@ -1947,11 +1958,7 @@ public sealed class JsEnvironment : IRentable
                     context.RealmState));
             }
 
-            if (!TrySetWithBindingValueJsValue(withBinding, value, context.RealmState))
-            {
-                AssignJsValue(name, value);
-            }
-
+            _ = TrySetWithBindingValueJsValue(withBinding, value, context.RealmState);
             return;
         }
 
@@ -3199,14 +3206,6 @@ public sealed class JsEnvironment : IRentable
     {
         var propertyName = binding.PropertyName;
         var bindingObject = binding.BindingObject;
-        var stillExists = HasProperty(bindingObject, propertyName);
-        if (!stillExists && binding is { AllowMissingAssignment: false, IsStrictReference: true })
-        {
-            realm ??= (bindingObject as JsObject)?.RealmState;
-            throw StandardLibrary.ThrowReferenceError($"ReferenceError: {propertyName} is not defined",
-                realm: realm);
-        }
-
         var receiverValue = JsValue.FromObjectUnsafe(bindingObject);
         if (ReflectHelper.SetPropertyWithReceiver(bindingObject, propertyName, value, receiverValue))
         {

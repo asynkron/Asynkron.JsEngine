@@ -11,6 +11,10 @@ internal enum ExpressionOpKind : byte
     LoadFunctionLiteral,
     LoadClassLiteral,
     LoadIdentifier,
+    ResolveIdentifierReference,
+    LoadResolvedIdentifierValue,
+    PopResolvedIdentifierReference,
+    StoreResolvedIdentifier,
     LoadTemplateObject,
     StoreIdentifier,
     ApplyBindingTarget,
@@ -145,6 +149,10 @@ internal readonly record struct ExpressionProgram
             ExpressionOpKind.LoadFunctionLiteral => 1,
             ExpressionOpKind.LoadClassLiteral => 1,
             ExpressionOpKind.LoadIdentifier => 1,
+            ExpressionOpKind.ResolveIdentifierReference => 0,
+            ExpressionOpKind.LoadResolvedIdentifierValue => 1,
+            ExpressionOpKind.PopResolvedIdentifierReference => 0,
+            ExpressionOpKind.StoreResolvedIdentifier => 0,
             ExpressionOpKind.LoadTemplateObject => 1,
             ExpressionOpKind.StoreIdentifier => 0,
             ExpressionOpKind.ApplyBindingTarget => -1,
@@ -418,9 +426,30 @@ internal readonly struct PackedExpressionOp
             flags: IsArguments ? Flag0 : (byte)0);
     }
 
+    public static PackedExpressionOp ResolveIdentifierReference(int identifierConstantIndex)
+    {
+        return new PackedExpressionOp(ExpressionOpKind.ResolveIdentifierReference, int0: identifierConstantIndex);
+    }
+
+    public static readonly PackedExpressionOp LoadResolvedIdentifierValue =
+        new(ExpressionOpKind.LoadResolvedIdentifierValue);
+
+    public static readonly PackedExpressionOp PopResolvedIdentifierReference =
+        new(ExpressionOpKind.PopResolvedIdentifierReference);
+
     public static PackedExpressionOp LoadTemplateObject(int descriptorIndex)
     {
         return new PackedExpressionOp(ExpressionOpKind.LoadTemplateObject, int1: descriptorIndex);
+    }
+
+    public static PackedExpressionOp StoreResolvedIdentifier(
+        int identifierConstantIndex,
+        bool AllowNameInference = true)
+    {
+        return new PackedExpressionOp(
+            ExpressionOpKind.StoreResolvedIdentifier,
+            int0: identifierConstantIndex,
+            flags: AllowNameInference ? Flag0 : (byte)0);
     }
 
     public static PackedExpressionOp StoreIdentifier(

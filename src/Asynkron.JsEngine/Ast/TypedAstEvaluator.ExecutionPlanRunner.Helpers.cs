@@ -253,6 +253,9 @@ public static partial class TypedAstEvaluator
             var stackFlags = new ExpressionFlagStack(flagBuffer.AsSpan(0, GetExpressionFlagWordCount(stackSize)));
             var stackIndex = 0;
             var programCounter = 0;
+            AssignmentReference[]? assignmentReferenceBuffer = null;
+            var assignmentReferenceCount = 0;
+            var assignmentReferenceHighWaterMark = 0;
 
             try
             {
@@ -327,6 +330,81 @@ public static partial class TypedAstEvaluator
                                     environment,
                                     context);
                                 stackFlags.Set(stackIndex - 1, false);
+                                programCounter++;
+                                break;
+                            }
+
+                        case ExpressionOpKind.ResolveIdentifierReference:
+                            {
+                                assignmentReferenceBuffer ??= ArrayPool<AssignmentReference>.Shared.Rent(stackSize);
+                                assignmentReferenceBuffer[assignmentReferenceCount++] =
+                                    environment.ResolveIdentifierAssignmentReference(
+                                        operation.GetIdentifier(identifierConstants).Name,
+                                        context);
+                                assignmentReferenceHighWaterMark = Math.Max(
+                                    assignmentReferenceHighWaterMark,
+                                    assignmentReferenceCount);
+                                programCounter++;
+                                break;
+                            }
+
+                        case ExpressionOpKind.LoadResolvedIdentifierValue:
+                            {
+                                if (assignmentReferenceCount == 0 || assignmentReferenceBuffer is null)
+                                {
+                                    throw new InvalidOperationException(
+                                        "Expression bytecode attempted to load a missing identifier reference.");
+                                }
+
+                                stack[stackIndex++] =
+                                    assignmentReferenceBuffer[assignmentReferenceCount - 1].GetJsValue();
+                                stackFlags.Set(stackIndex - 1, false);
+                                if (context.ShouldStopEvaluation)
+                                {
+                                    return JsValue.Undefined;
+                                }
+
+                                programCounter++;
+                                break;
+                            }
+
+                        case ExpressionOpKind.PopResolvedIdentifierReference:
+                            {
+                                if (assignmentReferenceCount == 0 || assignmentReferenceBuffer is null)
+                                {
+                                    throw new InvalidOperationException(
+                                        "Expression bytecode attempted to pop a missing identifier reference.");
+                                }
+
+                                assignmentReferenceBuffer[--assignmentReferenceCount] = default;
+                                programCounter++;
+                                break;
+                            }
+
+                        case ExpressionOpKind.StoreResolvedIdentifier:
+                            {
+                                if (assignmentReferenceCount == 0 || assignmentReferenceBuffer is null)
+                                {
+                                    throw new InvalidOperationException(
+                                        "Expression bytecode attempted to store through a missing identifier reference.");
+                                }
+
+                                var identifier = operation.GetIdentifier(identifierConstants);
+                                var assignedValue = stack[stackIndex - 1];
+                                if (operation.AllowNameInference &&
+                                    assignedValue is { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget nameTarget })
+                                {
+                                    nameTarget.EnsureHasName(identifier.Name.Name);
+                                }
+
+                                assignmentReferenceBuffer[--assignmentReferenceCount].SetValue(assignedValue);
+                                assignmentReferenceBuffer[assignmentReferenceCount] = default;
+                                stackFlags.Set(stackIndex - 1, false);
+                                if (context.ShouldStopEvaluation)
+                                {
+                                    return JsValue.Undefined;
+                                }
+
                                 programCounter++;
                                 break;
                             }
@@ -1154,6 +1232,12 @@ public static partial class TypedAstEvaluator
             }
             finally
             {
+                if (assignmentReferenceBuffer is not null)
+                {
+                    assignmentReferenceBuffer.AsSpan(0, assignmentReferenceHighWaterMark).Clear();
+                    ArrayPool<AssignmentReference>.Shared.Return(assignmentReferenceBuffer, clearArray: false);
+                }
+
                 ReleaseExpressionBuffers(stackBuffer, flagBuffer, stackIndex, rentedFromPool);
             }
         }
@@ -1331,6 +1415,35 @@ public static partial class TypedAstEvaluator
             EvaluationContext context)
         {
             var identifier = update.GetIdentifier(identifierConstants);
+            if (!context.AllowIdentifierCache)
+            {
+                var reference = environment.ResolveIdentifierAssignmentReference(identifier.Name, context);
+                var referencedValue = reference.GetJsValue();
+                if (context.ShouldStopEvaluation)
+                {
+                    return JsValue.Undefined;
+                }
+
+                GetUpdatedNumericValue(
+                    referencedValue,
+                    update.IsIncrement,
+                    context,
+                    out var referencedOldNumericValue,
+                    out var referencedNewValue);
+                if (context.ShouldStopEvaluation)
+                {
+                    return JsValue.Undefined;
+                }
+
+                reference.SetValue(referencedNewValue);
+                if (context.ShouldStopEvaluation)
+                {
+                    return JsValue.Undefined;
+                }
+
+                return update.IsPrefix ? referencedNewValue : referencedOldNumericValue;
+            }
+
             var currentValue = EvaluateProgramIdentifier(
                 identifier.Name,
                 identifier.ScopeId,

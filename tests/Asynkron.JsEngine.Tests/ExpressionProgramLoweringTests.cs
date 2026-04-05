@@ -1234,6 +1234,30 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ReturnInstruction_AssignmentAcrossDeleteSequence_ResolvesIdentifierReferenceBeforeRhs()
+    {
+        var plan = await GetFunctionPlan("""
+            function assignAfterDelete(scope) {
+                var x = 0;
+                with (scope) {
+                    return x = (delete scope.x, 2);
+                }
+            }
+            """, "assignAfterDelete");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
+        AssertProgramContains<ResolveIdentifierReferenceExpressionOp>(
+            instruction.ReturnProgram,
+            op => op.Name.Name == "x");
+        AssertProgramContains<DeleteNamedPropertyExpressionOp>(
+            instruction.ReturnProgram,
+            op => op.PropertyName == "x");
+        AssertProgramContains<StoreResolvedIdentifierExpressionOp>(
+            instruction.ReturnProgram,
+            op => op.Name.Name == "x");
+    }
+
+    [Fact]
     public async Task ReturnInstruction_TemplateLiteral_IsLoweredToExpressionProgram()
     {
         var plan = await GetFunctionPlan("""
@@ -1309,7 +1333,12 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
 
         var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
         Assert.Null(instruction.ReturnExpression);
-        AssertProgramContains<StoreIdentifierExpressionOp>(instruction.ReturnProgram, op => op.Name.Name == "current");
+        AssertProgramContains<ResolveIdentifierReferenceExpressionOp>(
+            instruction.ReturnProgram,
+            op => op.Name.Name == "current");
+        AssertProgramContains<StoreResolvedIdentifierExpressionOp>(
+            instruction.ReturnProgram,
+            op => op.Name.Name == "current");
     }
 
     [Fact]
@@ -1324,9 +1353,14 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
 
         var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
         Assert.Null(instruction.ReturnExpression);
-        AssertProgramContains<LoadIdentifierExpressionOp>(instruction.ReturnProgram, op => op.Name.Name == "current");
+        AssertProgramContains<ResolveIdentifierReferenceExpressionOp>(
+            instruction.ReturnProgram,
+            op => op.Name.Name == "current");
+        AssertProgramContains<LoadResolvedIdentifierValueExpressionOp>(instruction.ReturnProgram);
         AssertProgramContains<BinaryExpressionOp>(instruction.ReturnProgram, op => op.Operator == BinaryOperator.Add);
-        AssertProgramContains<StoreIdentifierExpressionOp>(instruction.ReturnProgram, op => op.Name.Name == "current");
+        AssertProgramContains<StoreResolvedIdentifierExpressionOp>(
+            instruction.ReturnProgram,
+            op => op.Name.Name == "current");
     }
 
     [Fact]
@@ -1341,9 +1375,14 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
 
         var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
         Assert.Null(instruction.ReturnExpression);
-        AssertProgramContains<LoadIdentifierExpressionOp>(instruction.ReturnProgram, op => op.Name.Name == "current");
+        AssertProgramContains<ResolveIdentifierReferenceExpressionOp>(
+            instruction.ReturnProgram,
+            op => op.Name.Name == "current");
+        AssertProgramContains<LoadResolvedIdentifierValueExpressionOp>(instruction.ReturnProgram);
         AssertProgramContains<JumpIfTrueExpressionOp>(instruction.ReturnProgram);
-        AssertProgramContains<StoreIdentifierExpressionOp>(instruction.ReturnProgram, op => op.Name.Name == "current");
+        AssertProgramContains<StoreResolvedIdentifierExpressionOp>(
+            instruction.ReturnProgram,
+            op => op.Name.Name == "current");
     }
 
     [Fact]
@@ -1358,9 +1397,14 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
 
         var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
         Assert.Null(instruction.ReturnExpression);
-        AssertProgramContains<LoadIdentifierExpressionOp>(instruction.ReturnProgram, op => op.Name.Name == "current");
+        AssertProgramContains<ResolveIdentifierReferenceExpressionOp>(
+            instruction.ReturnProgram,
+            op => op.Name.Name == "current");
+        AssertProgramContains<LoadResolvedIdentifierValueExpressionOp>(instruction.ReturnProgram);
         AssertProgramContains<JumpIfNotNullishExpressionOp>(instruction.ReturnProgram);
-        AssertProgramContains<StoreIdentifierExpressionOp>(instruction.ReturnProgram, op => op.Name.Name == "current");
+        AssertProgramContains<StoreResolvedIdentifierExpressionOp>(
+            instruction.ReturnProgram,
+            op => op.Name.Name == "current");
     }
 
     [Fact]

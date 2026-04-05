@@ -167,12 +167,16 @@ internal sealed class LoadIdentifierExpressionOp : IExpressionOpMarker { public 
 internal sealed class LoadLiteralExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.LoadLiteral; }
 internal sealed class LoadNamedCallTargetExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.LoadNamedCallTarget; }
 internal sealed class LoadNamedSuperCallTargetExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.LoadNamedSuperCallTarget; }
+internal sealed class LoadResolvedIdentifierValueExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.LoadResolvedIdentifierValue; }
 internal sealed class LoadTemplateObjectExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.LoadTemplateObject; }
 internal sealed class PopExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.Pop; }
+internal sealed class PopResolvedIdentifierReferenceExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.PopResolvedIdentifierReference; }
+internal sealed class ResolveIdentifierReferenceExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.ResolveIdentifierReference; }
 internal sealed class RotateTopThreeRightExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.RotateTopThreeRight; }
 internal sealed class SetComputedPropertyExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.SetComputedProperty; }
 internal sealed class SetNamedPropertyExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.SetNamedProperty; }
 internal sealed class SetNamedSuperPropertyExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.SetNamedSuperProperty; }
+internal sealed class StoreResolvedIdentifierExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.StoreResolvedIdentifier; }
 internal sealed class StoreIdentifierExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.StoreIdentifier; }
 internal sealed class SuperConstructExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.SuperConstruct; }
 internal sealed class SwapTopTwoExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.SwapTopTwo; }

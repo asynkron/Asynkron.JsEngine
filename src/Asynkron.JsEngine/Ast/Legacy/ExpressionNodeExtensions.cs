@@ -472,7 +472,11 @@ public static partial class TypedAstEvaluator
                 }
             default:
                 {
-                    var directCallee = callee.EvaluateExpression(environment, context);
+                    var directCallee = EvaluateCachedExpressionProgram(
+                        callee,
+                        environment,
+                        context,
+                        "Dynamic direct callee");
                     return (directCallee, JsValue.Undefined, false);
                 }
         }
@@ -532,11 +536,7 @@ public static partial class TypedAstEvaluator
                     return outcome is DeleteBindingResult.Deleted or DeleteBindingResult.NotFound;
                 }
             default:
-                _ = EvaluateCachedExpressionProgram(
-                    operand,
-                    environment,
-                    context,
-                    "Dynamic delete operand");
+                _ = operand.EvaluateExpression(environment, context);
                 return true;
         }
     }

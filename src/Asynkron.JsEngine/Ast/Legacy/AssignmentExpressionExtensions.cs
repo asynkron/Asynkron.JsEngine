@@ -305,6 +305,7 @@ public static partial class TypedAstEvaluator
         EvaluationContext context)
     {
         var target = expression.Target;
+        var hasWithObjectInChain = environment.HasWithObjectInChain();
 
         // Check for immutable binding (e.g., named function expression name)
         // Per ECMAScript spec, in strict mode throw TypeError, in non-strict mode silently ignore
@@ -340,7 +341,8 @@ public static partial class TypedAstEvaluator
 
         // Fast path: slot-based assignment using ScopeId to find the declaring environment.
         // This enables O(1) slot access for variables in any scope (local or closure).
-        if (expression is { SlotIndex: >= 0, ScopeId: >= 0 })
+        if (!hasWithObjectInChain &&
+            expression is { SlotIndex: >= 0, ScopeId: >= 0 })
         {
             var targetIdentifier = expression.TargetIdentifier ??
                                    new IdentifierExpression(
@@ -416,7 +418,8 @@ public static partial class TypedAstEvaluator
         // Fast path for compound assignments on simple identifiers
         // This avoids creating AssignmentReference structs entirely.
         // IMPORTANT: Only use this fast path for non-dynamic scopes (see comment below for simple assignments).
-        if (expression is { IsCompoundAssignment: true, SlotIndex: >= 0, ScopeId: >= 0 } &&
+        if (!hasWithObjectInChain &&
+            expression is { IsCompoundAssignment: true, SlotIndex: >= 0, ScopeId: >= 0 } &&
             TryEvaluateCompoundAssignmentDirectJsValue(expression, expression.Value, target,
                 environment, context, out var compoundJsValue2, out var shouldAssignCompound2))
         {
@@ -442,7 +445,8 @@ public static partial class TypedAstEvaluator
         // Dynamic scopes (with eval/with) require resolving the reference BEFORE
         // evaluating the RHS, per ES spec 13.15.2. The fast path evaluates RHS first
         // which breaks code like: with(scope) { x = (delete scope.x, 2); }
-        if (expression is { IsCompoundAssignment: false, SlotIndex: >= 0, ScopeId: >= 0 })
+        if (!hasWithObjectInChain &&
+            expression is { IsCompoundAssignment: false, SlotIndex: >= 0, ScopeId: >= 0 })
         {
             // Find the environment that owns this slot. Slot indices are scoped to the declaring environment,
             // so we must not blindly write to the current environment if ScopeId differs (e.g., class name slots).
@@ -472,7 +476,8 @@ public static partial class TypedAstEvaluator
         // Runtime slot lookup: try to find slot index from environment's SlotMap
         // This avoids the expensive ResolveIdentifierDirect fallback for variables
         // declared in the current function scope when AST nodes weren't pre-stamped.
-        if (environment.TryGetSlotIndex(target, out var runtimeSlotIndex))
+        if (!hasWithObjectInChain &&
+            environment.TryGetSlotIndex(target, out var runtimeSlotIndex))
         {
             // Found slot - check TDZ first
             ref var tdzdCheckSlot = ref environment.GetSlotByIndex(runtimeSlotIndex);
@@ -604,7 +609,8 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        if (context.TryResolveAssignmentSlot(expression, environment, out var cachedSlot))
+        if (!hasWithObjectInChain &&
+            context.TryResolveAssignmentSlot(expression, environment, out var cachedSlot))
         {
             if (expression.IsCompoundAssignment &&
                 TryEvaluateCompoundAssignmentCachedSlot(expression, expression.Value, cachedSlot, environment,

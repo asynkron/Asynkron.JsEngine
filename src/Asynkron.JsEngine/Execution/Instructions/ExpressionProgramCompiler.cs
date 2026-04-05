@@ -736,17 +736,21 @@ internal static class ExpressionProgramCompiler
             return TryCompileCompoundAssignmentExpression(expression, builder, out failureReason);
         }
 
+        var identifierConstantIndex = builder.InternIdentifier(new IdentifierOperand(
+            expression.Target,
+            expression.ScopeId,
+            expression.SlotIndex,
+            expression.FlatSlotId));
+
+        builder.Add(PackedExpressionOp.ResolveIdentifierReference(identifierConstantIndex));
+
         if (!TryCompileExpression(expression.Value, builder, out failureReason))
         {
             return false;
         }
 
-        builder.Add(PackedExpressionOp.StoreIdentifier(
-            builder.InternIdentifier(new IdentifierOperand(
-                expression.Target,
-                expression.ScopeId,
-                expression.SlotIndex,
-                expression.FlatSlotId)),
+        builder.Add(PackedExpressionOp.StoreResolvedIdentifier(
+            identifierConstantIndex,
             AllowNameInference: ShouldAllowAssignmentNameInference(expression)));
         failureReason = null;
         return true;
@@ -763,38 +767,27 @@ internal static class ExpressionProgramCompiler
             return false;
         }
 
-        var storeOp = PackedExpressionOp.StoreIdentifier(
-            builder.InternIdentifier(new IdentifierOperand(
-                expression.Target,
-                expression.ScopeId,
-                expression.SlotIndex,
-                expression.FlatSlotId)),
+        var identifierConstantIndex = builder.InternIdentifier(new IdentifierOperand(
+            expression.Target,
+            expression.ScopeId,
+            expression.SlotIndex,
+            expression.FlatSlotId));
+        var resolveOp = PackedExpressionOp.ResolveIdentifierReference(identifierConstantIndex);
+        var loadOp = PackedExpressionOp.LoadResolvedIdentifierValue;
+        var storeOp = PackedExpressionOp.StoreResolvedIdentifier(
+            identifierConstantIndex,
             AllowNameInference: ShouldAllowAssignmentNameInference(expression));
-        var loadOp = PackedExpressionOp.LoadIdentifier(
-            builder.InternIdentifier(new IdentifierOperand(
-                expression.Target,
-                expression.ScopeId,
-                expression.SlotIndex,
-                expression.FlatSlotId)),
-            ReferenceEquals(expression.Target, Symbol.Arguments));
-
-        // For logical compound assignments (&&=, ||=, ??=), the assignment value
-        // is lowered to BinaryExpression(op, lhs, rhs). NamedEvaluation applies to
-        // the actual RHS (binary.Right), not the whole BinaryExpression. Create a
-        // separate store op that checks binary.Right for anonymous function defs.
-        var logicalStoreOp = PackedExpressionOp.StoreIdentifier(
-            builder.InternIdentifier(new IdentifierOperand(
-                expression.Target,
-                expression.ScopeId,
-                expression.SlotIndex,
-                expression.FlatSlotId)),
+        var logicalStoreOp = PackedExpressionOp.StoreResolvedIdentifier(
+            identifierConstantIndex,
             AllowNameInference: IsAnonymousFunctionDefinitionForNameInference(binary.Right) &&
                                 !IsParenthesizedIdentifierAssignment(expression));
+        var popReferenceOp = PackedExpressionOp.PopResolvedIdentifierReference;
 
         switch (binary.Operator)
         {
             case BinaryOperator.LogicalAnd:
             {
+                builder.Add(resolveOp);
                 builder.Add(loadOp);
                 var shortCircuitIndex = builder.Count;
                 builder.Add(PackedExpressionOp.JumpIfFalse(-1));
@@ -806,13 +799,20 @@ internal static class ExpressionProgramCompiler
                 }
 
                 builder.Add(logicalStoreOp);
-                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfFalse(builder.Count);
+                var endJumpIndex = builder.Count;
+                builder.Add(PackedExpressionOp.Jump(-1));
+                var shortCircuitTarget = builder.Count;
+                builder.Add(popReferenceOp);
+                var endTarget = builder.Count;
+                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfFalse(shortCircuitTarget);
+                builder[endJumpIndex] = PackedExpressionOp.Jump(endTarget);
                 failureReason = null;
                 return true;
             }
 
             case BinaryOperator.LogicalOr:
             {
+                builder.Add(resolveOp);
                 builder.Add(loadOp);
                 var shortCircuitIndex = builder.Count;
                 builder.Add(PackedExpressionOp.JumpIfTrue(-1));
@@ -824,13 +824,20 @@ internal static class ExpressionProgramCompiler
                 }
 
                 builder.Add(logicalStoreOp);
-                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfTrue(builder.Count);
+                var endJumpIndex = builder.Count;
+                builder.Add(PackedExpressionOp.Jump(-1));
+                var shortCircuitTarget = builder.Count;
+                builder.Add(popReferenceOp);
+                var endTarget = builder.Count;
+                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfTrue(shortCircuitTarget);
+                builder[endJumpIndex] = PackedExpressionOp.Jump(endTarget);
                 failureReason = null;
                 return true;
             }
 
             case BinaryOperator.NullishCoalescing:
             {
+                builder.Add(resolveOp);
                 builder.Add(loadOp);
                 var shortCircuitIndex = builder.Count;
                 builder.Add(PackedExpressionOp.JumpIfNotNullish(-1));
@@ -842,12 +849,19 @@ internal static class ExpressionProgramCompiler
                 }
 
                 builder.Add(logicalStoreOp);
-                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfNotNullish(builder.Count);
+                var endJumpIndex = builder.Count;
+                builder.Add(PackedExpressionOp.Jump(-1));
+                var shortCircuitTarget = builder.Count;
+                builder.Add(popReferenceOp);
+                var endTarget = builder.Count;
+                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfNotNullish(shortCircuitTarget);
+                builder[endJumpIndex] = PackedExpressionOp.Jump(endTarget);
                 failureReason = null;
                 return true;
             }
 
             default:
+                builder.Add(resolveOp);
                 builder.Add(loadOp);
 
                 if (!TryCompileExpression(binary.Right, builder, out failureReason))

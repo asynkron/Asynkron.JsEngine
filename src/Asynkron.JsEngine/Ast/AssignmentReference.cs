@@ -298,10 +298,7 @@ internal readonly struct AssignmentReference
                 _context!.RealmState));
         }
 
-        if (!JsEnvironment.TrySetWithBindingValueJsValue(_globalBinding, value, _context!.RealmState))
-        {
-            _withFallbackEnvironment!.AssignJsValue(_name!, value);
-        }
+        _ = JsEnvironment.TrySetWithBindingValueJsValue(_globalBinding, value, _context!.RealmState);
     }
 
     private JsValue ReadUnresolvableJsValue()

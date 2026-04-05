@@ -435,6 +435,8 @@ internal sealed class ScopeSlotCollector : AstVisitor
             switch (op.Kind)
             {
                 case ExpressionOpKind.LoadIdentifier:
+                case ExpressionOpKind.ResolveIdentifierReference:
+                case ExpressionOpKind.StoreResolvedIdentifier:
                 case ExpressionOpKind.StoreIdentifier:
                 case ExpressionOpKind.UpdateIdentifier:
                 case ExpressionOpKind.TypeOfIdentifier:

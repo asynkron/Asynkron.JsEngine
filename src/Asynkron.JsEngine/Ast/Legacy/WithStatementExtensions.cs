@@ -24,7 +24,18 @@ public static partial class TypedAstEvaluator
 
         var withEnv = JsEnvironment.CreateInstance(environment, false, context.CurrentScope.IsStrict, statement.Source, "with",
             withObject);
-        var completion = statement.Body.EvaluateStatementJsValue(withEnv, context);
+        var previousAllowIdentifierCache = context.AllowIdentifierCache;
+        context.AllowIdentifierCache = false;
+
+        JsValue completion;
+        try
+        {
+            completion = statement.Body.EvaluateStatementJsValue(withEnv, context);
+        }
+        finally
+        {
+            context.AllowIdentifierCache = previousAllowIdentifierCache;
+        }
 
         // Per ES spec 14.11.2 step 8: Return Completion(UpdateEmpty(C, undefined))
         // If body completion is empty, return undefined instead

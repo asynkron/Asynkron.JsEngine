@@ -92,7 +92,11 @@ public static partial class TypedAstEvaluator
                             result = typedFunc.InvokeWithContext([], JsValue.Undefined, context, JsValue.Undefined);
                             break;
                         case 1:
-                            var arg0 = expression.Arguments[0].Expression.EvaluateExpression(environment, context);
+                            var arg0 = EvaluateCachedExpressionProgram(
+                                expression.Arguments[0].Expression,
+                                environment,
+                                context,
+                                "Dynamic call argument");
                             if (context.ShouldStopEvaluation)
                             {
                                 context.CallDepth--;
@@ -105,14 +109,22 @@ public static partial class TypedAstEvaluator
                                 : typedFunc.InvokeWithContext1(arg0, JsValue.Undefined, context);
                             break;
                         default: // 2
-                            var a0 = expression.Arguments[0].Expression.EvaluateExpression(environment, context);
+                            var a0 = EvaluateCachedExpressionProgram(
+                                expression.Arguments[0].Expression,
+                                environment,
+                                context,
+                                "Dynamic call argument");
                             if (context.ShouldStopEvaluation)
                             {
                                 context.CallDepth--;
                                 return JsValue.Undefined;
                             }
 
-                            var a1 = expression.Arguments[1].Expression.EvaluateExpression(environment, context);
+                            var a1 = EvaluateCachedExpressionProgram(
+                                expression.Arguments[1].Expression,
+                                environment,
+                                context,
+                                "Dynamic call argument");
                             if (context.ShouldStopEvaluation)
                             {
                                 context.CallDepth--;
@@ -196,7 +208,11 @@ public static partial class TypedAstEvaluator
                     break;
                 case 1:
                     {
-                        var v0 = expression.Arguments[0].Expression.EvaluateExpression(environment, context);
+                        var v0 = EvaluateCachedExpressionProgram(
+                            expression.Arguments[0].Expression,
+                            environment,
+                            context,
+                            "Dynamic call argument");
                         if (context.ShouldStopEvaluation)
                         {
                             context.CallDepth--;
@@ -212,14 +228,22 @@ public static partial class TypedAstEvaluator
                     }
                 case 2:
                     {
-                        var v0 = expression.Arguments[0].Expression.EvaluateExpression(environment, context);
+                        var v0 = EvaluateCachedExpressionProgram(
+                            expression.Arguments[0].Expression,
+                            environment,
+                            context,
+                            "Dynamic call argument");
                         if (context.ShouldStopEvaluation)
                         {
                             context.CallDepth--;
                             return JsValue.Undefined;
                         }
 
-                        var v1 = expression.Arguments[1].Expression.EvaluateExpression(environment, context);
+                        var v1 = EvaluateCachedExpressionProgram(
+                            expression.Arguments[1].Expression,
+                            environment,
+                            context,
+                            "Dynamic call argument");
                         if (context.ShouldStopEvaluation)
                         {
                             context.CallDepth--;
@@ -248,8 +272,11 @@ public static partial class TypedAstEvaluator
 
                         for (var i = 0; i < argCount; i++)
                         {
-                            jsArgsArray[i] = expression.Arguments[i].Expression
-                                .EvaluateExpression(environment, context);
+                            jsArgsArray[i] = EvaluateCachedExpressionProgram(
+                                expression.Arguments[i].Expression,
+                                environment,
+                                context,
+                                "Dynamic call argument");
                             if (context.ShouldStopEvaluation)
                             {
                                 if (pooledJsValueArray is not null)
@@ -274,7 +301,11 @@ public static partial class TypedAstEvaluator
             {
                 if (argument.IsSpread)
                 {
-                    var spreadValueJs = argument.Expression.EvaluateExpression(environment, context);
+                    var spreadValueJs = EvaluateCachedExpressionProgram(
+                        argument.Expression,
+                        environment,
+                        context,
+                        "Dynamic call spread argument");
                     if (context.ShouldStopEvaluation)
                     {
                         context.CallDepth--;
@@ -306,7 +337,11 @@ public static partial class TypedAstEvaluator
                     continue;
                 }
 
-                argsBuilder.Add(argument.Expression.EvaluateExpression(environment, context));
+                argsBuilder.Add(EvaluateCachedExpressionProgram(
+                    argument.Expression,
+                    environment,
+                    context,
+                    "Dynamic call argument"));
                 if (context.ShouldStopEvaluation)
                 {
                     context.CallDepth--;
@@ -352,7 +387,11 @@ public static partial class TypedAstEvaluator
                     } && string.Equals(callLit.Value.AsString(), "call", StringComparison.Ordinal) &&
                     string.Equals(formatArgsLit.Value.AsString(), "formatArgs", StringComparison.Ordinal))
                 {
-                    var targetJs = inner.Target.EvaluateExpression(environment, context);
+                    var targetJs = EvaluateCachedExpressionProgram(
+                        inner.Target,
+                        environment,
+                        context,
+                        "Dynamic call fallback target");
                     if (context.ShouldStopEvaluation)
                     {
                         return JsValue.Undefined;
@@ -745,7 +784,11 @@ public static partial class TypedAstEvaluator
         }
 
         // Evaluate the target (map or set instance) - safe because it's just an identifier lookup
-        var targetJs = member.Target.EvaluateExpression(environment, context);
+        var targetJs = EvaluateCachedExpressionProgram(
+            member.Target,
+            environment,
+            context,
+            "Dynamic Map/Set call target");
         if (context.ShouldStopEvaluation)
         {
             result = JsValue.Undefined;
@@ -835,13 +878,21 @@ public static partial class TypedAstEvaluator
     private static JsValue FastMapSet(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
-        var key = args[0].Expression.EvaluateExpression(env, ctx);
+        var key = EvaluateCachedExpressionProgram(
+            args[0].Expression,
+            env,
+            ctx,
+            "Dynamic Map.set key");
         if (ctx.ShouldStopEvaluation)
         {
             return JsValue.Undefined;
         }
 
-        var value = args[1].Expression.EvaluateExpression(env, ctx);
+        var value = EvaluateCachedExpressionProgram(
+            args[1].Expression,
+            env,
+            ctx,
+            "Dynamic Map.set value");
         if (ctx.ShouldStopEvaluation)
         {
             return JsValue.Undefined;
@@ -855,7 +906,11 @@ public static partial class TypedAstEvaluator
     private static JsValue FastMapGet(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
-        var key = args[0].Expression.EvaluateExpression(env, ctx);
+        var key = EvaluateCachedExpressionProgram(
+            args[0].Expression,
+            env,
+            ctx,
+            "Dynamic Map.get key");
         if (ctx.ShouldStopEvaluation)
         {
             return JsValue.Undefined;
@@ -868,7 +923,11 @@ public static partial class TypedAstEvaluator
     private static JsValue FastMapHas(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
-        var key = args[0].Expression.EvaluateExpression(env, ctx);
+        var key = EvaluateCachedExpressionProgram(
+            args[0].Expression,
+            env,
+            ctx,
+            "Dynamic Map.has key");
         if (ctx.ShouldStopEvaluation)
         {
             return JsValue.Undefined;
@@ -881,7 +940,11 @@ public static partial class TypedAstEvaluator
     private static JsValue FastMapDelete(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
-        var key = args[0].Expression.EvaluateExpression(env, ctx);
+        var key = EvaluateCachedExpressionProgram(
+            args[0].Expression,
+            env,
+            ctx,
+            "Dynamic Map.delete key");
         if (ctx.ShouldStopEvaluation)
         {
             return JsValue.Undefined;
@@ -903,7 +966,11 @@ public static partial class TypedAstEvaluator
     private static JsValue FastSetAdd(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
-        var value = args[0].Expression.EvaluateExpression(env, ctx);
+        var value = EvaluateCachedExpressionProgram(
+            args[0].Expression,
+            env,
+            ctx,
+            "Dynamic Set.add value");
         if (ctx.ShouldStopEvaluation)
         {
             return JsValue.Undefined;
@@ -917,7 +984,11 @@ public static partial class TypedAstEvaluator
     private static JsValue FastSetHas(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
-        var value = args[0].Expression.EvaluateExpression(env, ctx);
+        var value = EvaluateCachedExpressionProgram(
+            args[0].Expression,
+            env,
+            ctx,
+            "Dynamic Set.has value");
         if (ctx.ShouldStopEvaluation)
         {
             return JsValue.Undefined;
@@ -930,7 +1001,11 @@ public static partial class TypedAstEvaluator
     private static JsValue FastSetDelete(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
-        var value = args[0].Expression.EvaluateExpression(env, ctx);
+        var value = EvaluateCachedExpressionProgram(
+            args[0].Expression,
+            env,
+            ctx,
+            "Dynamic Set.delete value");
         if (ctx.ShouldStopEvaluation)
         {
             return JsValue.Undefined;
@@ -953,7 +1028,11 @@ public static partial class TypedAstEvaluator
         var thisArg = JsValue.Undefined;
         if (callArguments.Length > 0)
         {
-            thisArg = callArguments[0].Expression.EvaluateExpression(environment, context);
+            thisArg = EvaluateCachedExpressionProgram(
+                callArguments[0].Expression,
+                environment,
+                context,
+                "Dynamic Function.apply thisArg");
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;
@@ -963,7 +1042,11 @@ public static partial class TypedAstEvaluator
         var argsBuilder = ImmutableArray.CreateBuilder<JsValue>();
         if (callArguments.Length > 1)
         {
-            var argsArrayJs = callArguments[1].Expression.EvaluateExpression(environment, context);
+            var argsArrayJs = EvaluateCachedExpressionProgram(
+                callArguments[1].Expression,
+                environment,
+                context,
+                "Dynamic Function.apply arguments");
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;
@@ -1000,7 +1083,11 @@ public static partial class TypedAstEvaluator
 
         for (var i = 0; i < callArguments.Length; i++)
         {
-            var argValue = callArguments[i].Expression.EvaluateExpression(environment, context);
+            var argValue = EvaluateCachedExpressionProgram(
+                callArguments[i].Expression,
+                environment,
+                context,
+                "Dynamic Function.call argument");
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;

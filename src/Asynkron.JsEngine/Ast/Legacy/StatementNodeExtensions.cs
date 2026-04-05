@@ -2,6 +2,7 @@
 
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
+using Microsoft.Extensions.Logging;
 
 #endregion
 
@@ -103,6 +104,48 @@ public static partial class TypedAstEvaluator
 
     [MethodImpl(JsEngineConstants.Inlining)]
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateIfJsValue(this IfStatement statement, JsEnvironment environment, EvaluationContext context)
+    {
+        var test = EvaluateCachedExpressionProgram(
+            statement.Condition,
+            environment,
+            context,
+            "Dynamic if condition");
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        var branch = test.IsTruthy ? statement.Then : statement.Else;
+        if (branch is null)
+        {
+            return JsValue.Undefined;
+        }
+
+        JsValue result;
+        if (branch is BlockStatement block)
+        {
+            result = block.EvaluateBlockJsValue(environment, context);
+        }
+        else if (branch is FunctionDeclaration funcDecl)
+        {
+            var blockEnv = JsEnvironment.CreateInstance(
+                environment,
+                false,
+                false,
+                description: "if-body annex-b block");
+            result = EvaluateFunctionDeclarationJsValue(funcDecl, blockEnv, context);
+        }
+        else
+        {
+            result = branch.EvaluateStatementJsValue(environment, context);
+        }
+
+        return result.IsUnit ? JsValue.Undefined : result;
+    }
+
+    [MethodImpl(JsEngineConstants.Inlining)]
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static JsValue EvaluateVariableDeclarationJsValue(this VariableDeclaration declaration,
         JsEnvironment environment,
         EvaluationContext context)
@@ -190,6 +233,445 @@ public static partial class TypedAstEvaluator
 
         context.SetThrow(jsValue);
         return jsValue;
+    }
+
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateTryJsValue(this TryStatement statement, JsEnvironment environment, EvaluationContext context)
+    {
+        context.RealmState.Logger?.LogInformation(
+            "EvaluateTry enter (catch={HasCatch}, finally={HasFinally}) throwFlag={ThrowFlag}",
+            statement.Catch is not null,
+            statement.Finally is not null,
+            context.IsThrow);
+
+        JsValue result;
+        try
+        {
+            result = statement.TryBlock.EvaluateBlockJsValue(environment, context);
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+            result = signal.ThrownValue;
+        }
+
+        if (context.IsThrow && statement.Catch is not null)
+        {
+            context.RealmState.Logger?.LogInformation(
+                "EvaluateTry handling catch; throw type={ThrowType}",
+                !context.FlowValue.IsUndefined ? context.FlowValue.GetType().Name : "undefined");
+            var thrownValue = context.FlowValue;
+            context.Clear();
+            var catchEnv = JsEnvironment.CreateInstance(
+                environment,
+                creatingSource: statement.Catch.Body.Source,
+                description: "catch");
+
+            if (statement.Catch.Binding is not null)
+            {
+                if (statement.Catch.Binding is IdentifierBinding identifierBinding)
+                {
+                    catchEnv.SetSimpleCatchParameters(
+                        new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance) { identifierBinding.Name });
+                    catchEnv.DefineJsValue(
+                        identifierBinding.Name,
+                        thrownValue,
+                        isLexicalBinding: true,
+                        blocksFunctionScopeOverride: false);
+                }
+                else
+                {
+                    statement.Catch.Binding.DefineBindingTarget(thrownValue, catchEnv, context, false);
+                }
+            }
+
+            result = statement.Catch.Body.EvaluateBlockJsValue(catchEnv, context);
+        }
+
+        if (statement.Finally is null)
+        {
+            context.RealmState.Logger?.LogInformation(
+                "EvaluateTry exit (no finally) throwFlag={ThrowFlag}",
+                context.IsThrow);
+            return result.IsUnit ? JsValue.Undefined : result;
+        }
+
+        var savedState = context.SaveCompletionState();
+        GeneratorPendingCompletion? pending = null;
+        var isGenerator = environment.IsGeneratorContext();
+        if (isGenerator && savedState.HasCompletion)
+        {
+            pending = environment.GetGeneratorPendingCompletion();
+            if (savedState.IsReturn)
+            {
+                pending.HasValue = true;
+                pending.IsThrow = false;
+                pending.IsReturn = true;
+                pending.Value = savedState.ReturnValue;
+            }
+            else if (savedState.Signal is ThrowFlowCompletionSignal throwSignal)
+            {
+                pending.HasValue = true;
+                pending.IsThrow = true;
+                pending.IsReturn = false;
+                pending.Value = throwSignal.JsValue;
+            }
+        }
+
+        context.Clear();
+        var finallyResult = statement.Finally.EvaluateBlockJsValue(environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return finallyResult.IsUnit ? JsValue.Undefined : finallyResult;
+        }
+
+        if (isGenerator && pending?.HasValue == true)
+        {
+            var pendingValueJs = pending.Value is JsValue pjs ? pjs : JsValue.FromObjectUnsafe(pending.Value);
+
+            if (pending.IsThrow)
+            {
+                context.SetThrow(pendingValueJs);
+            }
+            else if (pending.IsReturn)
+            {
+                context.SetReturn(pendingValueJs);
+            }
+
+            pending.HasValue = false;
+            pending.IsThrow = false;
+            pending.IsReturn = false;
+            pending.Value = null;
+        }
+        else
+        {
+            context.RestoreCompletionState(savedState);
+        }
+
+        context.RealmState.Logger?.LogInformation(
+            "EvaluateTry exit (with finally) throwFlag={ThrowFlag}",
+            context.IsThrow);
+        return result.IsUnit ? JsValue.Undefined : result;
+    }
+
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateSwitchJsValue(this SwitchStatement statement,
+        JsEnvironment environment,
+        EvaluationContext context,
+        Symbol? targetLabel)
+    {
+        var discriminantJs = EvaluateCachedExpressionProgram(
+            statement.Discriminant,
+            environment,
+            context,
+            "Dynamic switch discriminant");
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        var instantiationPlan = ((IAstCacheable<SwitchInstantiationPlan>)statement).GetOrCreateCache();
+        var switchEnv = JsEnvironment.CreateInstance(environment, false, instantiationPlan.IsStrict);
+        var scopeMode = instantiationPlan.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
+        using var scopeHandle = context.PushScope(ScopeKind.Block, scopeMode);
+
+        statement.InstantiateSwitchLexicalDeclarations(instantiationPlan, switchEnv, context);
+
+        var completionValue = JsValue.Undefined;
+        int? matchedCaseIndex = null;
+        int? defaultCaseIndex = null;
+
+        for (var i = 0; i < statement.Cases.Length; i++)
+        {
+            var switchCase = statement.Cases[i];
+
+            if (switchCase.Test is null)
+            {
+                defaultCaseIndex = i;
+                continue;
+            }
+
+            var testJs = EvaluateCachedExpressionProgram(
+                switchCase.Test,
+                switchEnv,
+                context,
+                "Dynamic switch case test");
+            if (context.ShouldStopEvaluation)
+            {
+                return completionValue;
+            }
+
+            if (StrictEqualsValue(discriminantJs, testJs))
+            {
+                matchedCaseIndex = i;
+                break;
+            }
+        }
+
+        var startIndex = matchedCaseIndex ?? defaultCaseIndex;
+        if (startIndex is null)
+        {
+            return JsValue.Undefined;
+        }
+
+        for (var i = startIndex.Value; i < statement.Cases.Length; i++)
+        {
+            var switchCase = statement.Cases[i];
+            var (caseCompletionJs, hasCaseJs) =
+                statement.EvaluateCaseClauseBodyJsValue(switchCase.Body, switchEnv, context);
+
+            if (hasCaseJs)
+            {
+                completionValue = caseCompletionJs;
+            }
+
+            if (context.TryClearBreak(targetLabel))
+            {
+                break;
+            }
+
+            if (context.IsReturn || context.IsThrow || context.IsContinue)
+            {
+                break;
+            }
+        }
+
+        return completionValue;
+    }
+
+    private static void InstantiateSwitchLexicalDeclarations(this SwitchStatement _,
+        SwitchInstantiationPlan plan,
+        JsEnvironment switchEnv,
+        EvaluationContext context)
+    {
+        foreach (var binding in plan.LexicalBindings)
+        {
+            binding.Target.CreateUninitializedLexicalBindings(switchEnv, binding.IsConst);
+        }
+
+        foreach (var funcBinding in plan.FunctionBindings)
+        {
+            if (!funcBinding.InitializeNow)
+            {
+                switchEnv.DefineJsValue(
+                    funcBinding.Name,
+                    JsValue.Uninitialized,
+                    true,
+                    isLexicalBinding: true,
+                    blocksFunctionScopeOverride: true);
+                continue;
+            }
+
+            var functionValue = funcBinding.Function.CreateFunctionValue(
+                switchEnv,
+                context,
+                skipInternalNameBinding: true);
+            switchEnv.DefineJsValue(
+                funcBinding.Name,
+                JsValue.FromObjectUnsafe(functionValue),
+                true,
+                isLexicalBinding: true,
+                blocksFunctionScopeOverride: true);
+        }
+
+        foreach (var className in plan.ClassBindings)
+        {
+            switchEnv.DefineJsValue(
+                className,
+                JsValue.Undefined,
+                true,
+                isLexicalBinding: true,
+                blocksFunctionScopeOverride: false);
+        }
+    }
+
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static (JsValue result, bool hasResult) EvaluateCaseClauseBodyJsValue(this SwitchStatement _,
+        BlockStatement body,
+        JsEnvironment switchEnv,
+        EvaluationContext context)
+    {
+        var hasResult = false;
+        var result = JsValue.Undefined;
+
+        foreach (var stmt in body.Statements)
+        {
+            context.ThrowIfCancellationRequested();
+
+            var completion = stmt.EvaluateStatementJsValue(switchEnv, context);
+            var shouldStop = context.ShouldStopEvaluation;
+            var shouldCapture =
+                !completion.IsUnit &&
+                (!shouldStop ||
+                 context.IsReturn ||
+                 context.IsThrow ||
+                 context.IsYield ||
+                 context.IsBreak ||
+                 context.IsContinue);
+
+            if (shouldCapture)
+            {
+                result = completion;
+                hasResult = true;
+            }
+
+            if (shouldStop)
+            {
+                break;
+            }
+        }
+
+        return (result, hasResult);
+    }
+
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateFunctionDeclarationJsValue(
+        FunctionDeclaration funcDecl,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var varEnvironment = environment.GetVarEnvironment();
+        var isAtVarEnvironment = ReferenceEquals(varEnvironment, environment) ||
+                                 environment.IsEvalDeclarationEnvironment;
+
+        var isAnnexBHoistedFunction = false;
+        if (isAtVarEnvironment && !context.CurrentScope.IsStrict)
+        {
+            if (varEnvironment.HasFunctionScopedBinding(funcDecl.Name))
+            {
+                var existingValue = varEnvironment.GetBindingValueDirect(funcDecl.Name);
+                if (existingValue.IsUndefined)
+                {
+                    isAnnexBHoistedFunction = true;
+                }
+            }
+        }
+
+        if (isAtVarEnvironment && !isAnnexBHoistedFunction)
+        {
+            return JsValue.Unit;
+        }
+
+        var functionValue = funcDecl.Function.CreateFunctionValue(
+            environment,
+            context,
+            skipInternalNameBinding: true);
+        var fnValueJs = JsValue.FromObjectUnsafe(functionValue);
+
+        if (isAnnexBHoistedFunction)
+        {
+            if (environment.IsAnnexBBlocked(funcDecl.Name))
+            {
+                return JsValue.Unit;
+            }
+
+            varEnvironment.AssignJsValue(funcDecl.Name, fnValueJs);
+
+            if (varEnvironment.IsGlobalFunctionScope)
+            {
+                var globalThis = varEnvironment.GetRootGlobalObject();
+                globalThis?.SetProperty(funcDecl.Name.Name, fnValueJs);
+            }
+        }
+        else
+        {
+            var isBlocked = !context.CurrentScope.IsStrict &&
+                            (environment.IsAnnexBBlocked(funcDecl.Name) ||
+                             HasEnclosingLexicalBinding(environment.Enclosing, funcDecl.Name));
+
+            if (!isBlocked || !environment.IsBodyEnvironment)
+            {
+                environment.DefineJsValue(
+                    funcDecl.Name,
+                    fnValueJs,
+                    isLexicalBinding: true,
+                    blocksFunctionScopeOverride: true);
+            }
+
+            if (!isBlocked && varEnvironment.HasFunctionScopedBinding(funcDecl.Name))
+            {
+                varEnvironment.AssignJsValue(funcDecl.Name, fnValueJs);
+
+                if (varEnvironment.IsGlobalFunctionScope)
+                {
+                    var globalThis = varEnvironment.GetRootGlobalObject();
+                    globalThis?.SetProperty(funcDecl.Name.Name, fnValueJs);
+                }
+            }
+        }
+
+        return JsValue.Unit;
+
+        static bool HasEnclosingLexicalBinding(JsEnvironment? start, Symbol name)
+        {
+            var current = start;
+            while (current is not null)
+            {
+                if (current.IsFunctionScope)
+                {
+                    break;
+                }
+
+                if (current.IsSimpleCatchParameter(name))
+                {
+                    current = current.Enclosing;
+                    continue;
+                }
+
+                ref var slot = ref current.TryGetSlotRef(name);
+                if (!System.Runtime.CompilerServices.Unsafe.IsNullRef(ref slot) &&
+                    slot.IsLexical &&
+                    slot.BlocksFunctionScopeOverride)
+                {
+                    return true;
+                }
+
+                current = current.Enclosing;
+            }
+
+            return false;
+        }
+    }
+
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateWithJsValue(this WithStatement statement, JsEnvironment environment, EvaluationContext context)
+    {
+        var objValueJs = EvaluateCachedExpressionProgram(
+            statement.Object,
+            environment,
+            context,
+            "Dynamic with object");
+        if (context.ShouldStopEvaluation)
+        {
+            return objValueJs;
+        }
+
+        if (!TryConvertToWithBindingObject(objValueJs, context, out var withObject))
+        {
+            return JsValue.Undefined;
+        }
+
+        var withEnv = JsEnvironment.CreateInstance(
+            environment,
+            false,
+            context.CurrentScope.IsStrict,
+            statement.Source,
+            "with",
+            withObject);
+        var previousAllowIdentifierCache = context.AllowIdentifierCache;
+        context.AllowIdentifierCache = false;
+
+        JsValue completion;
+        try
+        {
+            completion = statement.Body.EvaluateStatementJsValue(withEnv, context);
+        }
+        finally
+        {
+            context.AllowIdentifierCache = previousAllowIdentifierCache;
+        }
+
+        return completion.IsUnit ? JsValue.Undefined : completion;
     }
 
     /// <summary>

@@ -41,14 +41,23 @@ internal static class DeclarationEmitter
             return false;
         }
 
+        var programCache = ((IAstCacheable<ClassDefinitionProgramCache>)classDeclaration.Definition).GetOrCreateCache();
+        if (!programCache.Succeeded)
+        {
+            ctx.SetFailureReason(
+                $"Class declaration could not lower class runtime metadata: {programCache.FailureReason ?? "unknown failure"}.");
+            entryIndex = -1;
+            return false;
+        }
+
         // NOTE: Await expressions in class definitions (extends clause, computed property names)
-        // are handled by ClassDeclarationInstruction via normal expression evaluation.
+        // are handled by the cached class runtime metadata through normal expression-program evaluation.
         // The IR runner's TryHandlePendingAwait handles async suspension/resumption.
 
         // Use native ClassDeclarationInstruction - handles both sync and async cases
         entryIndex = ctx.Append(new ClassDeclarationInstruction(
             nextIndex,
-            new ClassDeclarationDescriptor(classDeclaration.Name, classDeclaration.Definition)));
+            new ClassDeclarationDescriptor(classDeclaration.Name, programCache)));
         return true;
     }
 

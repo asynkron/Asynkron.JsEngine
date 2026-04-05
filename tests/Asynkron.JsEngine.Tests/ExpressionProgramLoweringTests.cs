@@ -2032,6 +2032,42 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ClassDeclarationInstruction_UsesCachedRuntimeMetadata()
+    {
+        var program = _engine.ParseProgram("""
+            class Box {
+                ["value"]() {
+                    return 42;
+                }
+
+                total = 1 + 2;
+
+                static {
+                    this.count = 1;
+                }
+            }
+            """);
+
+        await _engine.Evaluate(program);
+
+        var cache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Script plan should build. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        var instruction = Assert.Single(cache.Plan.Instructions.OfType<ClassDeclarationInstruction>());
+        Assert.True(
+            instruction.Descriptor.ProgramCache.Succeeded,
+            $"Class definition program cache should build. Failure: {instruction.Descriptor.ProgramCache.FailureReason}");
+        Assert.Equal("Box", instruction.Descriptor.Name.Name);
+        Assert.Single(instruction.Descriptor.ProgramCache.Definition.Members);
+        Assert.Single(instruction.Descriptor.ProgramCache.Definition.Fields);
+        Assert.Single(instruction.Descriptor.ProgramCache.Definition.StaticBlockPlans);
+        AssertProgramContains<LoadLiteralExpressionOp>(
+            instruction.Descriptor.ProgramCache.MemberNamePrograms.Single(),
+            op => op.Value.AsString() == "value");
+    }
+
+    [Fact]
     public async Task ClassStaticBlock_AssignmentBody_BuildsIrPlan()
     {
         var plan = await GetClassStaticBlockPlan("""

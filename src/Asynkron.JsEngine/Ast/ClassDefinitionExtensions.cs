@@ -36,13 +36,14 @@ public static partial class TypedAstEvaluator
     }
 
     private static void InitializeStaticElements(
-        ClassDefinition definition,
+        ClassDefinitionProgramCache programCache,
         ImmutableArray<ResolvedClassField> resolvedFields,
         IJsPropertyAccessor constructorAccessor,
         JsEnvironment environment,
         EvaluationContext context,
         PrivateNameScope? privateNameScope)
     {
+        var definition = programCache.Definition;
         if (definition.StaticElements.IsDefaultOrEmpty)
         {
             return;
@@ -80,8 +81,12 @@ public static partial class TypedAstEvaluator
 
                     break;
                 case ClassStaticElementKind.Block:
-                    var block = definition.StaticBlocks[element.Index];
-                    ExecuteStaticBlock(block, constructorAccessor, environment, context, privateScopeFactory);
+                    ExecuteStaticBlock(
+                        definition.StaticBlockPlans[element.Index],
+                        constructorAccessor,
+                        environment,
+                        context,
+                        privateScopeFactory);
                     break;
             }
         }
@@ -171,24 +176,17 @@ public static partial class TypedAstEvaluator
     }
 
     private static void ExecuteStaticBlock(
-        ClassStaticBlock block,
+        ExecutionPlan plan,
         IJsPropertyAccessor constructorAccessor,
         JsEnvironment environment,
         EvaluationContext context,
         Func<IDisposable?>? privateScopeFactory)
     {
         using var privateScope = privateScopeFactory?.Invoke();
-        var planCache = ((IAstCacheable<StaticBlockPlanCache>)block).GetOrCreateCache();
-        if (!planCache.Succeeded || planCache.Plan is null)
-        {
-            var reason = planCache.FailureReason ?? "IR static block plan is unavailable";
-            throw new NotSupportedException($"IR plan generation failed for class static block: {reason}");
-        }
-
         var blockEnvironment = CreateStaticInitializationEnvironment(constructorAccessor, environment, out _);
         try
         {
-            _ = ExecutionPlanRunner.RunScript(planCache.Plan, blockEnvironment, context);
+            _ = ExecutionPlanRunner.RunScript(plan, blockEnvironment, context);
         }
         catch (ThrowSignal signal)
         {
@@ -201,7 +199,6 @@ public static partial class TypedAstEvaluator
         Symbol? className,
         bool createNameScope = true)
     {
-        using var classScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict);
         var programCache = ((IAstCacheable<ClassDefinitionProgramCache>)definition).GetOrCreateCache();
         if (!programCache.Succeeded)
         {
@@ -209,6 +206,16 @@ public static partial class TypedAstEvaluator
             throw new NotSupportedException($"IR class definition lowering failed: {reason}");
         }
 
+        return programCache.CreateClassValue(environment, context, className, createNameScope);
+    }
+
+    private static JsValue CreateClassValue(this ClassDefinitionProgramCache programCache, JsEnvironment environment,
+        EvaluationContext context,
+        Symbol? className,
+        bool createNameScope = true)
+    {
+        using var classScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict);
+        var definition = programCache.Definition;
         var (evaluationEnvironment, classScopeEnvironment) = CreateClassScopeIfNeeded(
             environment,
             className,
@@ -243,7 +250,8 @@ public static partial class TypedAstEvaluator
         }
 
         var constructorDefinition = definition.Constructor;
-        if (definition.Extends is not null &&
+        var hasExtends = programCache.ExtendsProgram is not null;
+        if (hasExtends &&
             !constructorDefinition.IsDefaultDerivedConstructor &&
             constructorDefinition.IsImplicitDefaultDerivedConstructor())
         {
@@ -269,7 +277,7 @@ public static partial class TypedAstEvaluator
 
         var realm = context.RealmState;
         var prototype = constructorAccessor.EnsurePrototype(realm);
-        if (definition.Extends is not null)
+        if (hasExtends)
         {
             prototype.SetPrototype(superPrototype);
         }
@@ -298,7 +306,7 @@ public static partial class TypedAstEvaluator
             }
 
             typedFunction.SetInstanceFields(resolvedInstanceFields);
-            typedFunction.SetIsClassConstructor(definition.Extends is not null);
+            typedFunction.SetIsClassConstructor(hasExtends);
             typedFunction.SetPrivateNameScope(privateNameScope);
             typedFunction.SetSourceReference(definition.Source);
             if (privateNameScope is not null)
@@ -371,7 +379,7 @@ public static partial class TypedAstEvaluator
         }
 
         InitializeStaticElements(
-            definition,
+            programCache,
             resolvedFields,
             constructorAccessor,
             evaluationEnvironment,
@@ -385,7 +393,7 @@ public static partial class TypedAstEvaluator
         return constructorJsValue;
     }
 
-    private static PrivateNameScope? CreatePrivateNameScope(this ClassDefinition definition, RealmState realm)
+    private static PrivateNameScope? CreatePrivateNameScope(this LoweredClassDefinition definition, RealmState realm)
     {
         var hasPrivateFields = definition.Fields.Any(static f => f.IsPrivate);
         var hasPrivateMembers = definition.Members.Any(static m => m.IsPrivate);
@@ -394,7 +402,7 @@ public static partial class TypedAstEvaluator
 
     // ClassFieldDefinitionEvaluation evaluates computed field names during class evaluation,
     // so resolve all field keys eagerly in declaration order (static + instance).
-    private static ImmutableArray<ResolvedClassField> ResolveFieldNames(this ClassDefinition _,
+    private static ImmutableArray<ResolvedClassField> ResolveFieldNames(this LoweredClassDefinition _,
         ImmutableArray<ClassField> fields,
         ImmutableArray<ExpressionProgram?> fieldNamePrograms,
         ImmutableArray<ExpressionProgram?> fieldInitializerPrograms,

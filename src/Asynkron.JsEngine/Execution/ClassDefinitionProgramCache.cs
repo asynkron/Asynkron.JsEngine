@@ -3,10 +3,19 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.Parser;
 
 #endregion
 
 namespace Asynkron.JsEngine.Execution;
+
+internal readonly record struct LoweredClassDefinition(
+    SourceReference? Source,
+    FunctionExpression Constructor,
+    ImmutableArray<ClassMember> Members,
+    ImmutableArray<ClassField> Fields,
+    ImmutableArray<ClassStaticElement> StaticElements,
+    ImmutableArray<ExecutionPlan> StaticBlockPlans);
 
 /// <summary>
 /// Caches lowered expression bytecode for class header evaluation.
@@ -17,6 +26,7 @@ internal sealed class ClassDefinitionProgramCache
     private ClassDefinitionProgramCache(
         bool succeeded,
         string? failureReason,
+        LoweredClassDefinition definition,
         ExpressionProgram? extendsProgram,
         ImmutableArray<ExpressionProgram?> memberNamePrograms,
         ImmutableArray<ExpressionProgram?> fieldNamePrograms,
@@ -24,6 +34,7 @@ internal sealed class ClassDefinitionProgramCache
     {
         Succeeded = succeeded;
         FailureReason = failureReason;
+        Definition = definition;
         ExtendsProgram = extendsProgram;
         MemberNamePrograms = memberNamePrograms;
         FieldNamePrograms = fieldNamePrograms;
@@ -33,6 +44,8 @@ internal sealed class ClassDefinitionProgramCache
     public bool Succeeded { get; }
 
     public string? FailureReason { get; }
+
+    public LoweredClassDefinition Definition { get; }
 
     public ExpressionProgram? ExtendsProgram { get; }
 
@@ -44,6 +57,19 @@ internal sealed class ClassDefinitionProgramCache
 
     public static ClassDefinitionProgramCache Build(ClassDefinition definition)
     {
+        var staticBlockPlans = ImmutableArray.CreateBuilder<ExecutionPlan>(definition.StaticBlocks.Length);
+        foreach (var block in definition.StaticBlocks)
+        {
+            var blockCache = ((IAstCacheable<StaticBlockPlanCache>)block).GetOrCreateCache();
+            if (!blockCache.Succeeded || blockCache.Plan is null)
+            {
+                return Failure(
+                    $"Class static block could not lower to an IR plan: {blockCache.FailureReason ?? "unknown failure"}");
+            }
+
+            staticBlockPlans.Add(blockCache.Plan);
+        }
+
         ExpressionProgram? extendsProgram = null;
         if (definition.Extends is { } extendsExpression)
         {
@@ -119,9 +145,18 @@ internal sealed class ClassDefinitionProgramCache
             fieldInitializerPrograms.Add(initializerProgram);
         }
 
+        var loweredDefinition = new LoweredClassDefinition(
+            definition.Source,
+            definition.Constructor,
+            definition.Members,
+            definition.Fields,
+            definition.StaticElements,
+            staticBlockPlans.ToImmutable());
+
         return new ClassDefinitionProgramCache(
             succeeded: true,
             failureReason: null,
+            loweredDefinition,
             extendsProgram,
             memberPrograms.ToImmutable(),
             fieldPrograms.ToImmutable(),
@@ -133,6 +168,7 @@ internal sealed class ClassDefinitionProgramCache
         return new ClassDefinitionProgramCache(
             succeeded: false,
             failureReason,
+            definition: default,
             extendsProgram: null,
             memberNamePrograms: ImmutableArray<ExpressionProgram?>.Empty,
             fieldNamePrograms: ImmutableArray<ExpressionProgram?>.Empty,

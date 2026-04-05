@@ -174,7 +174,7 @@ internal sealed record FunctionDeclarationInstruction(int Next, FunctionDeclarat
 ///     This instruction is used for class declarations that don't contain yields in
 ///     computed property names or extends clause.
 /// </summary>
-internal readonly record struct ClassDeclarationDescriptor(Symbol Name, ClassDefinition Definition);
+internal readonly record struct ClassDeclarationDescriptor(Symbol Name, ClassDefinitionProgramCache ProgramCache);
 
 internal sealed record ClassDeclarationInstruction(int Next, ClassDeclarationDescriptor Descriptor)
     : ExecutionInstruction(InstructionKind.ClassDeclaration, Next);

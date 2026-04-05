@@ -2475,6 +2475,37 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsClassStaticBlockExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var program = _engine.ParseProgram("""
+                class Counter {
+                    static value = 1;
+
+                    static {
+                        this.value += 41;
+                    }
+                }
+
+                Counter.value;
+                """);
+
+            var result = await _engine.Evaluate(program);
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
     public async Task AssertNoAstEvaluation_Enabled_AllowsFieldInitializerNewTargetUndefinedExecution()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;

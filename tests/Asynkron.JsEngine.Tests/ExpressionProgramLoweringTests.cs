@@ -1957,6 +1957,20 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             op => op.TargetProgram is ArrayBindingTargetProgram);
     }
 
+    [Fact]
+    public async Task ClassStaticBlock_AssignmentBody_BuildsIrPlan()
+    {
+        var plan = await GetClassStaticBlockPlan("""
+            class Box {
+                static {
+                    this.value = 42;
+                }
+            }
+            """, "Box");
+
+        Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
+    }
+
     private async Task<ExecutionPlan> GetFunctionPlan(string source, string functionName)
     {
         var program = _engine.ParseProgram(source);
@@ -1998,6 +2012,21 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
                                              classDeclaration.Name.Name == className));
 
         var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Definition.Constructor).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Plan should build. Failure: {cache.FailureReason}");
+        return Assert.IsType<ExecutionPlan>(cache.Plan);
+    }
+
+    private async Task<ExecutionPlan> GetClassStaticBlockPlan(string source, string className)
+    {
+        var program = _engine.ParseProgram(source);
+        await _engine.Evaluate(program);
+
+        var declaration = Assert.IsType<ClassDeclaration>(
+            program.Body.Single(statement => statement is ClassDeclaration classDeclaration &&
+                                             classDeclaration.Name.Name == className));
+
+        var block = Assert.Single(declaration.Definition.StaticBlocks);
+        var cache = ((IAstCacheable<StaticBlockPlanCache>)block).GetOrCreateCache();
         Assert.True(cache.Succeeded, $"Plan should build. Failure: {cache.FailureReason}");
         return Assert.IsType<ExecutionPlan>(cache.Plan);
     }

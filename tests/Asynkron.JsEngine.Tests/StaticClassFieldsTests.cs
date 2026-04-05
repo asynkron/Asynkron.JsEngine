@@ -191,6 +191,26 @@ public sealed class StaticClassFieldsTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Static_Block_Can_Update_Class_State()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                   class Counter {
+                                                       static count = 1;
+
+                                                       static {
+                                                           this.count += 41;
+                                                       }
+                                                   }
+
+                                                   Counter.count;
+
+                                       """);
+        Assert.Equal(42.0, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task PublicFieldNamedHashConstructorUsesOrdinaryWritableDescriptor()
     {
         await using var engine = CreateEngine();

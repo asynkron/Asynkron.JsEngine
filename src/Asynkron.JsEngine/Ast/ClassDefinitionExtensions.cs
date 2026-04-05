@@ -1,6 +1,7 @@
 #region
 
 using System.Collections.Immutable;
+using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 using JetBrains.Annotations;
@@ -92,8 +93,22 @@ public static partial class TypedAstEvaluator
         Func<IDisposable?>? privateScopeFactory)
     {
         using var privateScope = privateScopeFactory?.Invoke();
+        var planCache = ((IAstCacheable<StaticBlockPlanCache>)block).GetOrCreateCache();
+        if (!planCache.Succeeded || planCache.Plan is null)
+        {
+            var reason = planCache.FailureReason ?? "IR static block plan is unavailable";
+            throw new NotSupportedException($"IR plan generation failed for class static block: {reason}");
+        }
+
         var blockEnvironment = CreateStaticInitializationEnvironment(constructorAccessor, environment, out _);
-        _ = block.Body.EvaluateStatementJsValue(blockEnvironment, context);
+        try
+        {
+            _ = ExecutionPlanRunner.RunScript(planCache.Plan, blockEnvironment, context);
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+        }
     }
 
     private static JsValue CreateClassValue(this ClassDefinition definition, JsEnvironment environment,

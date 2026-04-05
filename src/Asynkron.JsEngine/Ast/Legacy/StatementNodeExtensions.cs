@@ -58,6 +58,14 @@ public static partial class TypedAstEvaluator
 
     [MethodImpl(JsEngineConstants.Inlining)]
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateContinueJsValue(this ContinueStatement statement, EvaluationContext context)
+    {
+        context.SetContinue(statement.Label);
+        return JsValue.Unit;
+    }
+
+    [MethodImpl(JsEngineConstants.Inlining)]
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static JsValue EvaluateReturnJsValue(this ReturnStatement statement, JsEnvironment environment,
         EvaluationContext context)
     {

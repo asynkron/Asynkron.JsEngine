@@ -322,13 +322,16 @@ internal sealed record EnterTryInstruction(
 ///     Creates a new lexical environment and binds the catch parameter to the thrown value.
 /// </summary>
 /// <param name="Next">Next instruction index (catch body entry).</param>
-/// <param name="CatchParameterSymbol">The catch parameter symbol (e.g., 'e' in catch(e)). Null for ES2019 optional catch binding.</param>
+/// <param name="CatchBindingProgram">
+///     The lowered catch binding target. This is an identifier program for simple <c>catch (e)</c>,
+///     a destructuring binding program for <c>catch ({ x })</c>, or null for ES2019 optional catch binding.
+/// </param>
 /// <param name="ScopeId">The scope ID for this catch environment.</param>
 /// <param name="SlotCount">Number of slots in the catch environment.</param>
 /// <param name="SlotMap">Mapping from symbols to slot indices.</param>
 internal sealed record EnterCatchInstruction(
     int Next,
-    Symbol? CatchParameterSymbol,
+    BindingTargetProgram? CatchBindingProgram,
     int ScopeId,
     int SlotCount,
     ImmutableDictionary<Symbol, int> SlotMap)

@@ -1759,7 +1759,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task CatchDestructuring_UsesEnterCatchPlusBindingDeclaration()
+    public async Task CatchDestructuring_UsesEnterCatchBindingProgram()
     {
         var plan = await GetFunctionPlan("""
             function readThrown() {
@@ -1772,15 +1772,24 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             """, "readThrown");
 
         var enterCatch = Assert.Single(plan.Instructions.OfType<EnterCatchInstruction>());
-        Assert.NotNull(enterCatch.CatchParameterSymbol);
-
-        var bindingInstruction = Assert.Single(plan.Instructions.OfType<BindingVariableDeclarationInstruction>());
-        Assert.IsType<ObjectBindingTargetProgram>(bindingInstruction.TargetProgram);
-        Assert.Null(bindingInstruction.Initializer);
-        Assert.NotNull(bindingInstruction.InitializerProgram);
-        AssertProgramContains<LoadIdentifierExpressionOp>(
-            bindingInstruction.InitializerProgram,
-            op => ReferenceEquals(op.Name, enterCatch.CatchParameterSymbol));
+        var catchBindingProgram = Assert.IsType<ObjectBindingTargetProgram>(enterCatch.CatchBindingProgram);
+        Assert.Empty(plan.Instructions.OfType<BindingVariableDeclarationInstruction>());
+        Assert.Collection(
+            catchBindingProgram.Properties,
+            property =>
+            {
+                Assert.Equal("x", property.Name);
+                Assert.IsType<IdentifierBindingTargetProgram>(property.Target);
+                Assert.Null(property.NameProgram);
+                Assert.Null(property.DefaultProgram);
+            },
+            property =>
+            {
+                Assert.Equal("y", property.Name);
+                Assert.IsType<IdentifierBindingTargetProgram>(property.Target);
+                Assert.Null(property.NameProgram);
+                Assert.Null(property.DefaultProgram);
+            });
     }
 
     [Fact]

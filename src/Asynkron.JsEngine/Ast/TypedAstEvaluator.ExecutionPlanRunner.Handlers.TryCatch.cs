@@ -136,7 +136,7 @@ public static partial class TypedAstEvaluator
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
             ref JsEnvironment environment,
-            EvaluationContext __,
+            EvaluationContext context,
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<EnterCatchInstruction>(instr);
@@ -145,16 +145,56 @@ public static partial class TypedAstEvaluator
             var thrownValue = PrepareCatchEnvironment(runner, ref environment,
                 instruction.SlotCount, instruction.ScopeId, out var catchEnv);
 
-            if (instruction.CatchParameterSymbol is { } param)
+            if (instruction.CatchBindingProgram is IdentifierBindingTargetProgram identifier)
             {
+                var param = identifier.Name;
                 catchEnv.SetSimpleCatchParameters(
                     new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance) { param });
                 catchEnv.DefineJsValue(param, thrownValue, false, isLexicalBinding: true);
+            }
+            else if (instruction.CatchBindingProgram is { } catchBindingProgram)
+            {
+                runner.ApplyBindingTargetProgram(
+                    catchBindingProgram,
+                    thrownValue,
+                    catchEnv,
+                    context,
+                    BindingMode.DefineLet,
+                    allowNameInference: false);
+
+                if (context.IsThrow)
+                {
+                    return HandleEnterCatchThrowSlow(runner, instruction, context, out returnValue);
+                }
             }
 
             runner._programCounter = instruction.Next;
             returnValue = default;
             return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleEnterCatchThrowSlow(
+            ExecutionPlanRunner runner,
+            EnterCatchInstruction instruction,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var thrown = context.FlowValue;
+            context.Clear();
+            if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
+            {
+                if (runner._programCounter == runner._currentInstructionIndex)
+                {
+                    runner._programCounter = instruction.Next;
+                }
+
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
+            runner.TryCatchStateRef.TryStack.Clear();
+            throw new ThrowSignal(thrown);
         }
 
         private static JsValue PrepareCatchEnvironment(

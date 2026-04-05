@@ -201,22 +201,6 @@ internal sealed class EmitContext(
     }
 
     /// <summary>
-    /// Create a catch slot symbol.
-    /// </summary>
-    public Symbol CreateCatchSlotSymbol()
-    {
-        return builder.CreateCatchSlotSymbol();
-    }
-
-    /// <summary>
-    /// Build a catch block with the given symbol.
-    /// </summary>
-    public BlockStatement BuildCatchBlock(CatchClause catchClause, Symbol catchSlotSymbol)
-    {
-        return ExecutionPlanBuilder.BuildCatchBlock(catchClause, catchSlotSymbol);
-    }
-
-    /// <summary>
     /// Allocate a slot index for a generator-internal symbol.
     /// </summary>
     public int AllocateSlot(Symbol symbol)

@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.Ast;
+using Microsoft.Extensions.Logging;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -70,6 +71,58 @@ public sealed class EvalFunctionTests(ITestOutputHelper output) : InternalTestBa
 
                                            """);
         Assert.Equal(10d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DirectEvalFunctionLiteral_UsesIrPlanInsteadOfDynamicScopeExecutor()
+    {
+        var logger = new TestLogger(output, "DirectEvalLiteral", minLogLevel: LogLevel.Debug);
+        await using var engine = CreateEngine(() => new JsEngineOptions
+        {
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate("""
+            const addOne = function(value) {
+                return eval("value + 1");
+            };
+
+            addOne(41);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(
+            logger.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "Executing sync function via dynamic-scope executor func=<anonymous>",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DirectEvalFunctionDeclarationParameterDefault_UsesIrPlanInsteadOfDynamicScopeExecutor()
+    {
+        var logger = new TestLogger(output, "DirectEvalDefault", minLogLevel: LogLevel.Debug);
+        await using var engine = CreateEngine(() => new JsEngineOptions
+        {
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate("""
+            function read(value = eval("40 + 2")) {
+                return value;
+            }
+
+            read();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(
+            logger.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "Executing sync function via dynamic-scope executor func=read",
+                StringComparison.Ordinal));
     }
 
     // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.

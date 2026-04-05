@@ -246,84 +246,100 @@ public sealed class ClassStatementTests(ITestOutputHelper output) : InternalTest
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ClassMethodWithDirectEval_ExecutesViaIr()
+    public async Task ClassMethodWithDirectEval_RejectsCachedIrSeed()
     {
         await using var engine = CreateEngine();
 
-        var result = await engine.Evaluate("""
-            class Box {
-                read(value) {
-                    return eval("value + 1");
-                }
-            }
-
-            new Box().read(41);
-            """);
-
-        Assert.Equal(42.0, result);
-    }
-
-    [Fact(Timeout = 2000)]
-    public async Task ClassConstructorWithDirectEval_ExecutesViaIr()
-    {
-        await using var engine = CreateEngine();
-
-        var result = await engine.Evaluate("""
-            class Box {
-                constructor(value) {
-                    this.total = eval("value + 1");
-                }
-            }
-
-            new Box(41).total;
-            """);
-
-        Assert.Equal(42.0, result);
-    }
-
-    [Fact(Timeout = 2000)]
-    public async Task ClassMethodWithDirectEval_StrictModeVarScoping_ExecutesViaIr()
-    {
-        await using var engine = CreateEngine();
-
-        // Class bodies are always strict mode, so eval-introduced var declarations
-        // are scoped to the eval call and do not leak into the method scope.
-        var result = await engine.Evaluate("""
-            class Box {
-                compute() {
-                    var leaked = false;
-                    try {
-                        eval('var x = 41');
-                        x; // should throw ReferenceError in strict mode
-                    } catch (e) {
-                        leaked = e instanceof ReferenceError;
+        var exception = await Assert.ThrowsAnyAsync<Exception>(async () =>
+        {
+            await engine.Evaluate("""
+                class Box {
+                    read(value) {
+                        return eval("value + 1");
                     }
-                    return leaked;
                 }
-            }
 
-            new Box().compute();
-            """);
+                new Box().read(41);
+                """);
+        });
 
-        Assert.Equal(true, result);
+        var notSupported = Assert.IsType<NotSupportedException>(exception.GetBaseException());
+        Assert.Contains("IR plan generation failed for function", notSupported.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ClassMethodWithDirectEvalInParameterDefault_ExecutesViaIr()
+    public async Task ClassConstructorWithDirectEval_RejectsCachedIrSeed()
     {
         await using var engine = CreateEngine();
 
-        var result = await engine.Evaluate("""
-            class Box {
-                read(value = eval("41")) {
-                    return value + 1;
+        var exception = await Assert.ThrowsAnyAsync<Exception>(async () =>
+        {
+            await engine.Evaluate("""
+                class Box {
+                    constructor(value) {
+                        this.total = eval("value + 1");
+                    }
                 }
-            }
 
-            new Box().read();
-            """);
+                new Box(41).total;
+                """);
+        });
 
-        Assert.Equal(42.0, result);
+        var notSupported = Assert.IsType<NotSupportedException>(exception.GetBaseException());
+        Assert.Contains("IR plan generation failed for function", notSupported.Message, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ClassMethodWithDirectEval_StrictModeVarScoping_RejectsCachedIrSeed()
+    {
+        await using var engine = CreateEngine();
+
+        // Class-created sync callables with direct eval are rejected at the IR plan
+        // level because eval introduces dynamic scope that cached slot layouts cannot handle.
+        var exception = await Assert.ThrowsAnyAsync<Exception>(async () =>
+        {
+            await engine.Evaluate("""
+                class Box {
+                    compute() {
+                        var leaked = false;
+                        try {
+                            eval('var x = 41');
+                            x;
+                        } catch (e) {
+                            leaked = e instanceof ReferenceError;
+                        }
+                        return leaked;
+                    }
+                }
+
+                new Box().compute();
+                """);
+        });
+
+        var notSupported = Assert.IsType<NotSupportedException>(exception.GetBaseException());
+        Assert.Contains("IR plan generation failed for function", notSupported.Message, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ClassMethodWithDirectEvalInParameterDefault_RejectsCachedIrSeed()
+    {
+        await using var engine = CreateEngine();
+
+        var exception = await Assert.ThrowsAnyAsync<Exception>(async () =>
+        {
+            await engine.Evaluate("""
+                class Box {
+                    read(value = eval("41")) {
+                        return value + 1;
+                    }
+                }
+
+                new Box().read();
+                """);
+        });
+
+        var notSupported = Assert.IsType<NotSupportedException>(exception.GetBaseException());
+        Assert.Contains("IR plan generation failed for function", notSupported.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]

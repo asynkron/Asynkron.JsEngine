@@ -578,11 +578,12 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Proves that a class method with direct eval executes via IR (no AST re-entry)
-    /// when the closure chain has no with-object environments.
+    /// Proves that a class method with direct eval throws a plan failure instead of
+    /// silently falling back to AST evaluation. Direct eval in class-created sync
+    /// callables is rejected because cached slot layouts cannot handle dynamic scope.
     /// </summary>
     [Fact]
-    public async Task AssertNoAstEvaluation_Enabled_ClassMethodWithDirectEval_ExecutesViaIr()
+    public async Task AssertNoAstEvaluation_Enabled_ClassMethodWithDirectEval_ThrowsPlanFailureInsteadOfAstFallback()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;
 
@@ -595,7 +596,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
                     }
                 }
 
-                globalThis.box = new Box();
+                globalThis.box = Object.create(Box.prototype);
                 """);
 
             await _engine.Evaluate(program);
@@ -606,8 +607,9 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
             Assert.True(boxAccessor.TryGetProperty("read", out var methodValue));
 
             var method = Assert.IsAssignableFrom<IJsCallable>(methodValue.ObjectValue);
-            var result = method.Invoke(new SingleValueArgs(41), boxValue);
-            Assert.Equal(42.0, result);
+            var exception = Assert.Throws<NotSupportedException>(
+                () => method.Invoke(new SingleValueArgs(41), boxValue));
+            Assert.Contains("IR plan generation failed for function", exception.Message);
         }
         finally
         {

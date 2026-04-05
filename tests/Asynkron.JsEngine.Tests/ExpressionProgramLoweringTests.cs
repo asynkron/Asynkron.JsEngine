@@ -1958,6 +1958,65 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ClassDefinition_ExtendsExpression_IsLoweredToExpressionProgramCache()
+    {
+        var cache = await GetClassDefinitionProgramCache("""
+            class Base {}
+            class Derived extends Base {
+                value() {
+                    return 42;
+                }
+            }
+            """, "Derived");
+
+        Assert.True(cache.Succeeded, $"Class definition program cache should build. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.ExtendsProgram);
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            cache.ExtendsProgram,
+            op => op.Name.Name == "Base");
+    }
+
+    [Fact]
+    public async Task ClassDefinition_ComputedMethodName_IsLoweredToExpressionProgramCache()
+    {
+        var cache = await GetClassDefinitionProgramCache("""
+            const suffix = "alue";
+            class Box {
+                ["v" + suffix]() {
+                    return 42;
+                }
+            }
+            """, "Box");
+
+        Assert.True(cache.Succeeded, $"Class definition program cache should build. Failure: {cache.FailureReason}");
+        Assert.NotEmpty(cache.MemberNamePrograms);
+        var program = Assert.Single(cache.MemberNamePrograms);
+        Assert.NotNull(program);
+        AssertProgramContains<BinaryExpressionOp>(
+            program,
+            op => op.Operator == BinaryOperator.Add);
+    }
+
+    [Fact]
+    public async Task ClassDefinition_ComputedFieldName_IsLoweredToExpressionProgramCache()
+    {
+        var cache = await GetClassDefinitionProgramCache("""
+            const suffix = "alue";
+            class Box {
+                ["v" + suffix] = 42;
+            }
+            """, "Box");
+
+        Assert.True(cache.Succeeded, $"Class definition program cache should build. Failure: {cache.FailureReason}");
+        Assert.NotEmpty(cache.FieldNamePrograms);
+        var program = Assert.Single(cache.FieldNamePrograms);
+        Assert.NotNull(program);
+        AssertProgramContains<BinaryExpressionOp>(
+            program,
+            op => op.Operator == BinaryOperator.Add);
+    }
+
+    [Fact]
     public async Task ClassStaticBlock_AssignmentBody_BuildsIrPlan()
     {
         var plan = await GetClassStaticBlockPlan("""
@@ -2029,6 +2088,18 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         var cache = ((IAstCacheable<StaticBlockPlanCache>)block).GetOrCreateCache();
         Assert.True(cache.Succeeded, $"Plan should build. Failure: {cache.FailureReason}");
         return Assert.IsType<ExecutionPlan>(cache.Plan);
+    }
+
+    private async Task<ClassDefinitionProgramCache> GetClassDefinitionProgramCache(string source, string className)
+    {
+        var program = _engine.ParseProgram(source);
+        await _engine.Evaluate(program);
+
+        var declaration = Assert.IsType<ClassDeclaration>(
+            program.Body.Single(statement => statement is ClassDeclaration classDeclaration &&
+                                             classDeclaration.Name.Name == className));
+
+        return ((IAstCacheable<ClassDefinitionProgramCache>)declaration.Definition).GetOrCreateCache();
     }
 
     private static void AssertProgramContains<TOp>(ExpressionProgram? program, Func<ExpressionOpView, bool>? predicate = null)

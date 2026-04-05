@@ -2,8 +2,10 @@
 
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.StdLib;
 using JetBrains.Annotations;
 using Microsoft.Extensions.Logging;
 
@@ -85,6 +87,89 @@ public static partial class TypedAstEvaluator
         }
     }
 
+    private static (IJsEnvironmentAwareCallable? Constructor, IJsPropertyAccessor? Prototype) ResolveSuperclass(
+        ExpressionProgram? extendsProgram,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        if (extendsProgram is null)
+        {
+            return (null, null);
+        }
+
+        var baseJsValue = EvaluateLoweredExpressionProgram(extendsProgram.Value, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return (null, null);
+        }
+
+        if (baseJsValue.IsNullOrUndefined)
+        {
+            return (null, null);
+        }
+
+        var baseValue = baseJsValue.Kind == JsValueKind.Object ? baseJsValue.ObjectValue : null;
+
+        if (!JsOps.IsConstructor(JsValue.FromObjectUnsafe(baseValue)))
+        {
+            throw StandardLibrary.ThrowTypeError(
+                "Class extends value is not a constructor or null",
+                context,
+                context.RealmState);
+        }
+
+        if (baseValue is IJsPropertyAccessor accessorWithMarker &&
+            JsOps.TryGetPropertyValue(
+                JsValue.FromObjectUnsafe(accessorWithMarker),
+                "__proxyHasNoPrototype__",
+                out var marker,
+                context) &&
+            JsOps.ToBoolean(marker))
+        {
+            throw StandardLibrary.ThrowTypeError(
+                "Class extends value does not have a valid prototype",
+                context,
+                context.RealmState);
+        }
+
+        if (baseValue is not (IJsEnvironmentAwareCallable callable and IJsPropertyAccessor))
+        {
+            throw StandardLibrary.ThrowTypeError(
+                "Class extends value is not a constructor or null",
+                context,
+                context.RealmState);
+        }
+
+        var hasPrototype = JsOps.TryGetPropertyValue(baseJsValue, "prototype", out var prototypeValue, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return (null, null);
+        }
+
+        if (!hasPrototype)
+        {
+            throw StandardLibrary.ThrowTypeError(
+                "Class extends value does not have a valid prototype",
+                context,
+                context.RealmState);
+        }
+
+        if (prototypeValue.IsNull)
+        {
+            return (callable, null);
+        }
+
+        if (prototypeValue.TryGetObject<IJsPropertyAccessor>(out var prototype))
+        {
+            return (callable, prototype);
+        }
+
+        throw StandardLibrary.ThrowTypeError(
+            "Class extends value does not have a valid prototype",
+            context,
+            context.RealmState);
+    }
+
     private static void ExecuteStaticBlock(
         ClassStaticBlock block,
         IJsPropertyAccessor constructorAccessor,
@@ -117,6 +202,13 @@ public static partial class TypedAstEvaluator
         bool createNameScope = true)
     {
         using var classScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict);
+        var programCache = ((IAstCacheable<ClassDefinitionProgramCache>)definition).GetOrCreateCache();
+        if (!programCache.Succeeded)
+        {
+            var reason = programCache.FailureReason ?? "unknown failure";
+            throw new NotSupportedException($"IR class definition lowering failed: {reason}");
+        }
+
         var (evaluationEnvironment, classScopeEnvironment) = CreateClassScopeIfNeeded(
             environment,
             className,
@@ -124,7 +216,7 @@ public static partial class TypedAstEvaluator
             createNameScope);
 
         var (superConstructor, superPrototype) =
-            definition.Extends.ResolveSuperclass(evaluationEnvironment, context);
+            ResolveSuperclass(programCache.ExtendsProgram, evaluationEnvironment, context);
         if (context.ShouldStopEvaluation)
         {
             return JsValue.Undefined;
@@ -138,7 +230,12 @@ public static partial class TypedAstEvaluator
             definition.StaticElements.Length,
             evaluationEnvironment.IsStrict);
         var resolvedFields =
-            definition.ResolveFieldNames(definition.Fields, evaluationEnvironment, context, privateNameScope);
+            definition.ResolveFieldNames(
+                definition.Fields,
+                programCache.FieldNamePrograms,
+                evaluationEnvironment,
+                context,
+                privateNameScope);
         if (context.ShouldStopEvaluation)
         {
             return JsValue.Undefined;
@@ -245,8 +342,15 @@ public static partial class TypedAstEvaluator
                 });
         }
 
-        definition.Members.AssignClassMembers(constructorAccessor, prototype, superConstructor, superPrototype,
-            evaluationEnvironment, context, privateNameScope);
+        definition.Members.AssignClassMembers(
+            programCache.MemberNamePrograms,
+            constructorAccessor,
+            prototype,
+            superConstructor,
+            superPrototype,
+            evaluationEnvironment,
+            context,
+            privateNameScope);
         if (context.ShouldStopEvaluation)
         {
             return JsValue.Undefined;
@@ -265,7 +369,12 @@ public static partial class TypedAstEvaluator
             classScopeEnvironment.TryAssignBlockedBinding(className, JsValue.FromObjectUnsafe(constructorAccessor));
         }
 
-        InitializeStaticElements(definition, resolvedFields, constructorAccessor, evaluationEnvironment, context,
+        InitializeStaticElements(
+            definition,
+            resolvedFields,
+            constructorAccessor,
+            evaluationEnvironment,
+            context,
             privateNameScope);
         if (context.ShouldStopEvaluation)
         {
@@ -286,6 +395,7 @@ public static partial class TypedAstEvaluator
     // so resolve all field keys eagerly in declaration order (static + instance).
     private static ImmutableArray<ClassField> ResolveFieldNames(this ClassDefinition _,
         ImmutableArray<ClassField> fields,
+        ImmutableArray<ExpressionProgram?> fieldNamePrograms,
         JsEnvironment environment,
         EvaluationContext context,
         PrivateNameScope? privateNameScope)
@@ -296,14 +406,13 @@ public static partial class TypedAstEvaluator
         }
 
         var builder = ImmutableArray.CreateBuilder<ClassField>(fields.Length);
-        foreach (var field in fields)
+        for (var index = 0; index < fields.Length; index++)
         {
+            var field = fields[index];
             var propertyName = field.Name;
-            if (!field.TryResolveFieldName(expr => EvaluateCachedExpressionProgram(
-                    expr,
+            if (!field.TryResolveFieldName(
+                    fieldNamePrograms.IsDefaultOrEmpty ? null : fieldNamePrograms[index],
                     environment,
-                    context,
-                    "Class element expression"),
                     context,
                     privateNameScope,
                     out propertyName))

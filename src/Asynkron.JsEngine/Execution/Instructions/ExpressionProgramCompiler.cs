@@ -149,7 +149,8 @@ internal static class ExpressionProgramCompiler
                 return true;
 
             case FunctionExpression function:
-                builder.Add(PackedExpressionOp.LoadFunctionLiteral(builder.InternObject(function)));
+                builder.Add(PackedExpressionOp.LoadFunctionLiteral(
+                    builder.InternObject(FunctionLiteralDescriptor.Create(function))));
                 failureReason = null;
                 return true;
 
@@ -2084,7 +2085,7 @@ internal static class ExpressionProgramCompiler
                         }
 
                         builder.Add(PackedExpressionOp.LoadFunctionLiteral(
-                            builder.InternObject(member.Function),
+                            builder.InternObject(FunctionLiteralDescriptor.Create(member.Function)),
                             IsConstructorFunction: false));
                         builder.Add(PackedExpressionOp.DefineObjectMethod(builder.InternString(methodName)));
                         break;
@@ -2103,7 +2104,7 @@ internal static class ExpressionProgramCompiler
 
                     builder.Add(PackedExpressionOp.ResolvePropertyKey);
                     builder.Add(PackedExpressionOp.LoadFunctionLiteral(
-                        builder.InternObject(member.Function),
+                        builder.InternObject(FunctionLiteralDescriptor.Create(member.Function)),
                         IsConstructorFunction: false));
                     builder.Add(PackedExpressionOp.DefineComputedObjectMethod);
                     break;
@@ -2129,7 +2130,7 @@ internal static class ExpressionProgramCompiler
                         }
 
                         builder.Add(PackedExpressionOp.LoadFunctionLiteral(
-                            builder.InternObject(member.Function),
+                            builder.InternObject(FunctionLiteralDescriptor.Create(member.Function)),
                             IsConstructorFunction: false));
                         builder.Add(PackedExpressionOp.DefineObjectAccessor(
                             builder.InternString(accessorName),
@@ -2150,7 +2151,7 @@ internal static class ExpressionProgramCompiler
 
                     builder.Add(PackedExpressionOp.ResolvePropertyKey);
                     builder.Add(PackedExpressionOp.LoadFunctionLiteral(
-                        builder.InternObject(member.Function),
+                        builder.InternObject(FunctionLiteralDescriptor.Create(member.Function)),
                         IsConstructorFunction: false));
                     builder.Add(PackedExpressionOp.DefineComputedObjectAccessor(accessorKind));
                     break;

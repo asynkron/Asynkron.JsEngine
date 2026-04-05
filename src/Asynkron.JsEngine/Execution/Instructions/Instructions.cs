@@ -2,6 +2,7 @@
 
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Parser;
 
 #endregion
@@ -156,6 +157,17 @@ internal sealed record CompoundAssignmentSlotInstruction(
     : ExecutionInstruction(InstructionKind.CompoundAssignmentSlot, Next)
 {
     public ExpressionNode? RhsExpression => null;
+}
+
+internal sealed record FunctionLiteralDescriptor(
+    FunctionExpression Function,
+    FunctionExecutionPlanSeed PlanSeed)
+{
+    public static FunctionLiteralDescriptor Create(FunctionExpression function)
+    {
+        var planCache = ((IAstCacheable<ExecutionPlanCache>)function).GetOrCreateCache();
+        return new FunctionLiteralDescriptor(function, FunctionExecutionPlanSeed.FromCache(planCache));
+    }
 }
 
 internal readonly record struct FunctionDeclarationDescriptor(Symbol Name, FunctionExpression Function);

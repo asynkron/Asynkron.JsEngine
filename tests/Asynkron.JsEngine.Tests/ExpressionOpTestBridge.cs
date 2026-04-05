@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Execution.Instructions;
@@ -94,7 +95,9 @@ internal readonly record struct ExpressionOpView(PackedExpressionOp Operation, E
 
     public string Flags => Operation.RegexFlags;
 
-    public FunctionExpression Function => Operation.GetObject<FunctionExpression>(ObjectConstants);
+    public FunctionExpression Function => FunctionLiteralDescriptor.Function;
+
+    public FunctionExecutionPlanSeed FunctionPlanSeed => FunctionLiteralDescriptor.PlanSeed;
 
     public bool IsConstructorFunction => Operation.IsConstructorFunction;
 
@@ -181,6 +184,8 @@ internal readonly record struct ExpressionOpView(PackedExpressionOp Operation, E
     private ReadOnlySpan<object> ObjectConstants => Program.ObjectConstants.AsSpan();
 
     private IdentifierOperand Identifier => Operation.GetIdentifier(Program.IdentifierConstants.AsSpan());
+
+    private FunctionLiteralDescriptor FunctionLiteralDescriptor => Operation.GetObject<FunctionLiteralDescriptor>(ObjectConstants);
 }
 
 internal interface IExpressionOpMarker

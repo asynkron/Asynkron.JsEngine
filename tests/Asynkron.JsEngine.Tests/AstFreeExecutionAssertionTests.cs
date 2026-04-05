@@ -601,6 +601,52 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
         };
     }
 
+    private static ProgramNode ReplaceWithScopedFunctionLiteralBodyWithUnsupportedModuleStatement(
+        ProgramNode program)
+    {
+        var withIndex = -1;
+        for (var i = 0; i < program.Body.Length; i++)
+        {
+            if (program.Body[i] is WithStatement)
+            {
+                withIndex = i;
+                break;
+            }
+        }
+
+        var withStatement = Assert.IsType<WithStatement>(program.Body[withIndex]);
+        var withBody = Assert.IsType<BlockStatement>(withStatement.Body);
+        var expressionStatement = Assert.Single(withBody.Statements.OfType<ExpressionStatement>());
+        var assignment = Assert.IsType<PropertyAssignmentExpression>(expressionStatement.Expression);
+        var function = Assert.IsType<FunctionExpression>(assignment.Value);
+
+        var rewrittenExpression = assignment with
+        {
+            Value = function with
+            {
+                Body = new BlockStatement(
+                    null,
+                    [new ExportAllStatement(null, "./unsupported.js")],
+                    true)
+            }
+        };
+        var statementIndex = withBody.Statements.IndexOf(expressionStatement);
+        var rewrittenWith = withStatement with
+        {
+            Body = withBody with
+            {
+                Statements = withBody.Statements.SetItem(
+                    statementIndex,
+                    expressionStatement with { Expression = rewrittenExpression })
+            }
+        };
+
+        return program with
+        {
+            Body = program.Body.SetItem(withIndex, rewrittenWith)
+        };
+    }
+
     private static void AssertPlanBuilds(FunctionExpression function)
     {
         var cache = ((IAstCacheable<ExecutionPlanCache>)function).GetOrCreateCache();
@@ -643,6 +689,39 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
             EvaluationContext.AssertNoAstEvaluation = false;
             var result2 = InvokeGlobalFunction("readWith");
             Assert.Equal(42.0, result2);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_WithScopedFunctionLiteralPlanFailure_ThrowsInsteadOfAstFallback()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = false;
+
+            var parsedProgram = _engine.ParseProgram("""
+                const scopeObj = {};
+
+                with (scopeObj) {
+                    globalThis.broken = function(value) {
+                        return value + 1;
+                    };
+                }
+                """);
+            var program = ReplaceWithScopedFunctionLiteralBodyWithUnsupportedModuleStatement(parsedProgram);
+
+            await _engine.Evaluate(program);
+
+            EvaluationContext.AssertNoAstEvaluation = true;
+            var exception = Assert.Throws<NotSupportedException>(() => InvokeGlobalFunction("broken", new JsValue(41d)));
+
+            Assert.Contains("IR plan generation failed for function", exception.Message);
         }
         finally
         {

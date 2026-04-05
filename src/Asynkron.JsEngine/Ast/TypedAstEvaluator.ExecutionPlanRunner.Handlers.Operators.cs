@@ -63,6 +63,69 @@ public static partial class TypedAstEvaluator
             EvaluationContext context,
             out JsValue returnValue)
         {
+            if (!context.AllowIdentifierCache)
+            {
+                var reference = environment.ResolveIdentifierAssignmentReference(instruction.TargetSymbol, context);
+                var currentValue = reference.GetJsValue();
+                if (context.ShouldStopEvaluation)
+                {
+                    var thrown = context.FlowValue;
+                    context.Clear();
+                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
+                    {
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+
+                    runner.TryCatchStateRef.TryStack.Clear();
+                    throw new ThrowSignal(thrown);
+                }
+
+                GetUpdatedNumericValue(
+                    currentValue,
+                    instruction.IsIncrement,
+                    context,
+                    out var oldNumericValue,
+                    out var newValue);
+                if (context.ShouldStopEvaluation)
+                {
+                    var thrown = context.FlowValue;
+                    context.Clear();
+                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
+                    {
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+
+                    runner.TryCatchStateRef.TryStack.Clear();
+                    throw new ThrowSignal(thrown);
+                }
+
+                reference.SetValue(newValue);
+                if (context.ShouldStopEvaluation)
+                {
+                    var thrown = context.FlowValue;
+                    context.Clear();
+                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
+                    {
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+
+                    runner.TryCatchStateRef.TryStack.Clear();
+                    throw new ThrowSignal(thrown);
+                }
+
+                if (runner._isScriptMode && !instruction.SuppressCompletionValue)
+                {
+                    runner._scriptCompletionValue = instruction.IsPrefix ? newValue : oldNumericValue;
+                }
+
+                runner._programCounter = instruction.Next;
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
             // Regular path: use ref ternary for variable access
             JsValue incCurrentValue;
             var variable = FlatSlotAccessor.Create(runner, flatSlotId);
@@ -154,7 +217,7 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                ProfileAssignJsValue(environment, instruction.TargetSymbol, incNewJsValue);
+                ProfileAssignJsValue(environment, instruction.TargetSymbol, incNewJsValue, context);
             }
 
             if (runner._isScriptMode && !instruction.SuppressCompletionValue)
@@ -176,8 +239,9 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<LogicalCompoundAssignmentSlotInstruction>(instr);
+            AssignmentReference? dynamicReference = null;
             var variable = FlatSlotAccessor.Create(runner, instruction.FlatSlotId);
-            var useFlatSlot = variable.UseFlatSlot;
+            var useFlatSlot = context.AllowIdentifierCache && variable.UseFlatSlot;
 
             JsValue currentValue;
             if (useFlatSlot)
@@ -186,7 +250,15 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                currentValue = ProfileGetIdentifier(environment, instruction.TargetSymbol, context);
+                if (!context.AllowIdentifierCache)
+                {
+                    dynamicReference = environment.ResolveIdentifierAssignmentReference(instruction.TargetSymbol, context);
+                    currentValue = dynamicReference.Value.GetJsValue();
+                }
+                else
+                {
+                    currentValue = ProfileGetIdentifier(environment, instruction.TargetSymbol, context);
+                }
             }
 
             if (context.IsThrow)
@@ -221,10 +293,10 @@ public static partial class TypedAstEvaluator
                     ? context.EnterFunctionNameHint(instruction.TargetSymbol)
                     : null;
 
-                var rhsValue = instruction.AwaitedProgram is { } awaitedProgram
+                var rhsValue = instruction.AwaitedProgram is { } pendingRhsProgram
                     ? runner.EvaluateAwaitInGenerator(
                         instruction.AwaitStateKey!,
-                        awaitedProgram,
+                        pendingRhsProgram,
                         environment,
                         context)
                     : runner.EvaluateExpressionProgram(instruction.RhsProgram!.Value, environment, context);
@@ -251,6 +323,10 @@ public static partial class TypedAstEvaluator
                 {
                     variable.EnsureAssignable(instruction.TargetSymbol, runner._realmState);
                     variable.Variable.Write(rhsValue);
+                }
+                else if (dynamicReference.HasValue)
+                {
+                    dynamicReference.Value.SetValue(rhsValue);
                 }
                 else if (instruction.ScopeId >= 0 && instruction.SlotIndex >= 0)
                 {
@@ -339,6 +415,111 @@ public static partial class TypedAstEvaluator
             EvaluationContext context,
             out JsValue returnValue)
         {
+            if (!context.AllowIdentifierCache)
+            {
+                var reference = environment.ResolveIdentifierAssignmentReference(instruction.TargetSymbol, context);
+                var currentValue = reference.GetJsValue();
+                if (context.ShouldStopEvaluation)
+                {
+                    var thrown = context.FlowValue;
+                    context.Clear();
+                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
+                    {
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+
+                    runner.TryCatchStateRef.TryStack.Clear();
+                    throw new ThrowSignal(thrown);
+                }
+
+                switch (instruction.Operator)
+                {
+                    case BinaryOperator.LogicalAnd when !currentValue.IsTruthy:
+                    case BinaryOperator.LogicalOr when currentValue.IsTruthy:
+                    case BinaryOperator.NullishCoalescing when !currentValue.IsNullish:
+                        if (runner._isScriptMode && !instruction.SuppressCompletionValue)
+                        {
+                            runner._scriptCompletionValue = currentValue;
+                        }
+
+                        runner._programCounter = instruction.Next;
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                }
+
+                var rhsValue = instruction.AwaitedProgram is { } awaitedDynamicProgram
+                    ? runner.EvaluateAwaitInGenerator(
+                        instruction.AwaitStateKey!,
+                        awaitedDynamicProgram,
+                        environment,
+                        context)
+                    : runner.EvaluateExpressionProgram(
+                        instruction.RhsProgram!.Value,
+                        environment,
+                        context);
+
+                if (context.ShouldStopEvaluation)
+                {
+                    if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingResult, environment))
+                    {
+                        returnValue = pendingResult;
+                        return InstructionResult.Return;
+                    }
+
+                    if (context.IsThrow)
+                    {
+                        var thrown = context.FlowValue;
+                        context.Clear();
+                        if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
+                        {
+                            returnValue = default;
+                            return InstructionResult.Continue;
+                        }
+
+                        runner.TryCatchStateRef.TryStack.Clear();
+                        throw new ThrowSignal(thrown);
+                    }
+                }
+
+                JsValue result;
+                if (instruction.Operator == BinaryOperator.Add)
+                {
+                    var fastAdd = ProfileCompoundAdd(currentValue, rhsValue);
+                    result = !fastAdd.IsUndefined
+                        ? fastAdd
+                        : ProfileApplyBinaryOperator(instruction.Operator, currentValue, rhsValue, context);
+                }
+                else
+                {
+                    result = ProfileApplyBinaryOperator(instruction.Operator, currentValue, rhsValue, context);
+                }
+
+                reference.SetValue(result);
+                if (context.ShouldStopEvaluation)
+                {
+                    var thrown = context.FlowValue;
+                    context.Clear();
+                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
+                    {
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+
+                    runner.TryCatchStateRef.TryStack.Clear();
+                    throw new ThrowSignal(thrown);
+                }
+
+                if (runner._isScriptMode && !instruction.SuppressCompletionValue)
+                {
+                    runner._scriptCompletionValue = result;
+                }
+
+                runner._programCounter = instruction.Next;
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
             // Regular path: use ref ternary for variable access
             JsValue compCurrentValue;
             var variable = FlatSlotAccessor.Create(runner, flatSlotId);
@@ -455,7 +636,7 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                ProfileAssignJsValue(environment, instruction.TargetSymbol, compResult);
+                ProfileAssignJsValue(environment, instruction.TargetSymbol, compResult, context);
             }
 
             if (runner._isScriptMode && !instruction.SuppressCompletionValue)

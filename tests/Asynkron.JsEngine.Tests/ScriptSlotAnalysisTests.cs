@@ -80,4 +80,59 @@ public sealed class ScriptSlotAnalysisTests : InternalTestBase
         var result = await engine.Evaluate(script);
         Assert.Equal(7d, result);
     }
+
+    [Fact]
+    public async Task ScriptSlotAnalysis_TopLevelWithWithoutCapturedWith_UsesIrPath()
+    {
+        var logger = new TestLogger(Output, "ScriptTopLevelWith", minLogLevel: LogLevel.Debug);
+        const string script = """
+            var scope = { value: 7 };
+            var result = 0;
+            with (scope) {
+                result = value;
+            }
+            result;
+            """;
+
+        await using var engine = CreateEngine(() => new JsEngineOptions
+        {
+            AllowScriptSlotAnalysis = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate(script);
+        Assert.Equal(7d, result);
+        Assert.DoesNotContain(
+            logger.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "Executing script via dynamic-scope executor",
+                StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ScriptSlotAnalysis_EvalWithWithoutCapturedWith_UsesIrPath()
+    {
+        var logger = new TestLogger(Output, "EvalTopLevelWith", minLogLevel: LogLevel.Debug);
+        const string script = """
+            var result = 0;
+            eval("with ({ value: 11 }) { result = value; }");
+            result;
+            """;
+
+        await using var engine = CreateEngine(() => new JsEngineOptions
+        {
+            AllowScriptSlotAnalysis = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate(script);
+        Assert.Equal(11d, result);
+        Assert.DoesNotContain(
+            logger.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "Executing script via dynamic-scope executor",
+                StringComparison.Ordinal));
+    }
 }

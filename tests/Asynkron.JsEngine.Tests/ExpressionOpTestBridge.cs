@@ -6,6 +6,59 @@ namespace Asynkron.JsEngine.Execution.Instructions;
 
 internal static class ExpressionOpTestBridge
 {
+    public static bool ContainsLiteralConstant(this ExpressionProgram program, Func<JsValue, bool> predicate)
+    {
+        foreach (var value in program.LiteralConstants)
+        {
+            if (predicate(value))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static bool ContainsStringConstant(this ExpressionProgram program, string value)
+    {
+        foreach (var constant in program.StringConstants)
+        {
+            if (constant == value)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static bool ContainsObjectConstant<T>(this ExpressionProgram program, Func<T, bool> predicate)
+        where T : class
+    {
+        foreach (var constant in program.ObjectConstants)
+        {
+            if (constant is T typedConstant && predicate(typedConstant))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static bool ContainsIdentifierConstant(this ExpressionProgram program, Func<IdentifierOperand, bool> predicate)
+    {
+        foreach (var identifier in program.IdentifierConstants)
+        {
+            if (predicate(identifier))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static ExpressionOpView ToTestView(this PackedExpressionOp operation, ExpressionProgram program)
     {
         return new ExpressionOpView(operation, program);

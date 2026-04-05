@@ -1,6 +1,7 @@
 #region
 
 using System.Runtime.CompilerServices;
+using Asynkron.JsEngine.Execution;
 
 #endregion
 
@@ -78,6 +79,16 @@ public static partial class TypedAstEvaluator
         environment.DefineJsValue(declaration.Name, constructorValue, isConst: false, isLexicalBinding: true,
             blocksFunctionScopeOverride: true, isImmutableBinding: false);
         return JsValue.Unit;
+    }
+
+    [MethodImpl(JsEngineConstants.Inlining)]
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateWhileJsValue(this WhileStatement statement, JsEnvironment environment,
+        EvaluationContext context,
+        Symbol? loopLabel)
+    {
+        var plan = ((IAstCacheable<LoopPlan>)statement).GetOrCreateCache();
+        return plan.EvaluateLoopPlanJsValue(environment, context, loopLabel);
     }
 
     [MethodImpl(JsEngineConstants.Inlining)]

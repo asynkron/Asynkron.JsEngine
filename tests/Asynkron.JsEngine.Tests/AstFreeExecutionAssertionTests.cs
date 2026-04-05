@@ -577,6 +577,41 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_ClassMethodWithDirectEval_ThrowsPlanFailureInsteadOfAstFallback()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                class Box {
+                    read(value) {
+                        return eval("value + 1");
+                    }
+                }
+
+                globalThis.box = Object.create(Box.prototype);
+                """);
+
+            await _engine.Evaluate(program);
+
+            EvaluationContext.AssertNoAstEvaluation = true;
+            Assert.True(_engine.GlobalObject.TryGetProperty("box", out var boxValue));
+            Assert.True(boxValue.TryGetObject<IJsPropertyAccessor>(out var boxAccessor));
+            Assert.True(boxAccessor.TryGetProperty("read", out var methodValue));
+
+            var method = Assert.IsAssignableFrom<IJsCallable>(methodValue.ObjectValue);
+            var exception = Assert.Throws<NotSupportedException>(
+                () => method.Invoke(new SingleValueArgs(41), boxValue));
+            Assert.Contains("IR plan generation failed for function", exception.Message);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
     private static (FunctionExpression BaseMethod, FunctionExpression DerivedMethod) GetClassMethods(
         ProgramNode program,
         string baseClassName,

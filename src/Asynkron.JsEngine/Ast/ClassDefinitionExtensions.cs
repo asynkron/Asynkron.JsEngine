@@ -200,8 +200,19 @@ public static partial class TypedAstEvaluator
     {
         if (!callable.PlanSeed.Succeeded ||
             callable.Function.IsAsync ||
-            callable.Function.IsGenerator ||
-            !environment.HasWithObjectInChain())
+            callable.Function.IsGenerator)
+        {
+            return callable.PlanSeed;
+        }
+
+        if (!AllowsIdentifierCaching(callable.Function))
+        {
+            return FunctionExecutionPlanSeed.Reject(
+                ExecutionPlanFailureCode.AstReentryDetected,
+                "class-created sync callable requires dynamic-scope execution");
+        }
+
+        if (!environment.HasWithObjectInChain())
         {
             return callable.PlanSeed;
         }

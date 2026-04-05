@@ -2185,8 +2185,9 @@ public static partial class TypedAstEvaluator
         // The static analysis of the eval code alone doesn't tell us about the outer context.
         var allowScriptSlotAnalysis = context.RealmState.Options.AllowScriptSlotAnalysis &&
                                       executionKind != ExecutionKind.Eval;
+        var allowsIdentifierCaching = AllowsIdentifierCaching(program);
         context.AllowIdentifierCache = allowScriptSlotAnalysis &&
-                                       AllowsIdentifierCaching(program);
+                                       allowsIdentifierCaching;
         context.DrainAwaitMicrotasks = drainAwaitMicrotasks;
         if (inheritedPrivateNameScopes is { IsDefault: false, Length: > 0 } scopes)
         {
@@ -2347,11 +2348,15 @@ public static partial class TypedAstEvaluator
         // If we plan to execute this program via the IR path, we must initialize the slot layout
         // BEFORE hoisting so that user bindings get created after internal IR slots. Otherwise,
         // internal 0-based IR slot writes can overwrite hoisted user bindings.
-        var requiresDynamicScopeExecutor = executionKind == ExecutionKind.Eval || !AllowsIdentifierCaching(program);
+        var requiresDynamicScopeExecutor = DynamicScopeDetector.ContainsWithStatement(programBlock) ||
+                                           executionEnvironment.HasWithObjectInChain();
+        var canUseNoSlotIr = executionKind == ExecutionKind.Eval || !allowsIdentifierCaching;
+        var canUseIrPlan = !requiresDynamicScopeExecutor &&
+                           (context.AllowIdentifierCache || canUseNoSlotIr);
         ScriptPlanCache? scriptPlanCache = null;
         ExecutionPlan? scriptPlan = null;
-        var enableScriptSlots = allowScriptSlotAnalysis && !requiresDynamicScopeExecutor;
-        if (enableScriptSlots)
+        var enableScriptSlots = allowScriptSlotAnalysis && context.AllowIdentifierCache;
+        if (canUseIrPlan)
         {
             scriptPlanCache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
             if (scriptPlanCache.Succeeded)
@@ -2441,7 +2446,7 @@ public static partial class TypedAstEvaluator
         if (requiresDynamicScopeExecutor)
         {
             context.RealmState.Logger?.LogInformation(
-                "Executing script via dynamic-scope executor (eval/with path)");
+                "Executing script via dynamic-scope executor (captured with path)");
             var dynamicResult = EvaluateStatementList(program.Body, executionEnvironment, context);
             if (context.IsThrow)
             {
@@ -2451,11 +2456,18 @@ public static partial class TypedAstEvaluator
             return dynamicResult;
         }
 
-        if (!enableScriptSlots || scriptPlanCache is not { Succeeded: true } || scriptPlan is null)
+        if (!canUseIrPlan)
         {
-            var failureReason = !enableScriptSlots
-                ? "script slot analysis disabled for non-dynamic script execution"
-                : scriptPlanCache?.FailureReason ?? "IR script plan is unavailable";
+            const string failureReason = "script slot analysis disabled for non-dynamic script execution";
+            context.RealmState.Logger?.LogInformation(
+                "Rejecting non-dynamic script because IR script plan is unavailable: {FailureReason}",
+                failureReason);
+            throw new NotSupportedException($"IR plan generation failed for script: {failureReason}");
+        }
+
+        if (scriptPlanCache is not { Succeeded: true } || scriptPlan is null)
+        {
+            var failureReason = scriptPlanCache?.FailureReason ?? "IR script plan is unavailable";
             context.RealmState.Logger?.LogInformation(
                 "Rejecting non-dynamic script because IR script plan is unavailable: {FailureReason}",
                 failureReason);

@@ -1,4 +1,5 @@
 using Xunit.Abstractions;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -34,8 +35,9 @@ public sealed class ScriptSlotAnalysisTests : InternalTestBase
     }
 
     [Fact]
-    public async Task ScriptSlotAnalysis_FallsBackOnDirectEval()
+    public async Task ScriptSlotAnalysis_DirectEvalWithoutCapturedWith_UsesIrPath()
     {
+        var logger = new TestLogger(Output, "ScriptDirectEval", minLogLevel: LogLevel.Debug);
         const string script = """
             var x = 1;
             eval("x = 5");
@@ -44,11 +46,18 @@ public sealed class ScriptSlotAnalysisTests : InternalTestBase
 
         await using var engine = CreateEngine(() => new JsEngineOptions
         {
-            AllowScriptSlotAnalysis = true
+            AllowScriptSlotAnalysis = true,
+            DebugMode = true,
+            Logger = logger
         });
 
         var result = await engine.Evaluate(script);
         Assert.Equal(5d, result);
+        Assert.DoesNotContain(
+            logger.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "Executing script via dynamic-scope executor",
+                StringComparison.Ordinal));
     }
 
     [Fact]

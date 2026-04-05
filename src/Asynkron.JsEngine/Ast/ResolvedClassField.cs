@@ -7,5 +7,8 @@ using Asynkron.JsEngine.Execution.Instructions;
 namespace Asynkron.JsEngine.Ast;
 
 internal readonly record struct ResolvedClassField(
-    ClassField Field,
+    string Name,
+    bool IsStatic,
+    bool IsPrivate,
+    string? AnonymousFunctionName,
     ExpressionProgram? InitializerProgram);

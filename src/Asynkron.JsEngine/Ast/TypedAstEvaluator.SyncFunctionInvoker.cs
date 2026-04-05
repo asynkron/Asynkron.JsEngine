@@ -1766,8 +1766,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
             foreach (var resolvedField in _instanceFields)
             {
-                var field = resolvedField.Field;
-                if (field.IsPrivate && PrivateNameScope is not null && instance is not IPrivateBrandHolder)
+                if (resolvedField.IsPrivate && PrivateNameScope is not null && instance is not IPrivateBrandHolder)
                 {
                     throw StandardLibrary.ThrowTypeError("Invalid private field receiver", context, context.RealmState);
                 }
@@ -1799,22 +1798,16 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     initEnv.DefineJsValue(Symbol.Arguments, argumentsValue, isLexicalBinding: false);
                 }
 
-                var propertyName = field.Name;
+                var propertyName = resolvedField.Name;
 
                 context.RealmState.Logger?.LogInformation(
-                    "Initializing instance field '{PropertyName}' (computed={IsComputed}, private={IsPrivate})",
+                    "Initializing instance field '{PropertyName}' (private={IsPrivate})",
                     propertyName,
-                    field.IsComputed,
-                    field.IsPrivate);
+                    resolvedField.IsPrivate);
 
                 var valueJs = JsValue.Undefined;
-                if (field.Initializer is not null)
+                if (resolvedField.InitializerProgram is { } initializerProgram)
                 {
-                    if (resolvedField.InitializerProgram is not { } initializerProgram)
-                    {
-                        throw new InvalidOperationException("Class field initializer is missing lowered bytecode.");
-                    }
-
                     valueJs = EvaluateLoweredExpressionProgram(
                         initializerProgram,
                         initEnv,
@@ -1830,15 +1823,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                         typedFunction.SetSuperBinding(fieldSuperBinding.Constructor, fieldSuperBinding.Prototype);
                     }
 
-                    if (field.Initializer.IsAnonymousFunctionDefinitionNode())
+                    if (resolvedField.AnonymousFunctionName is { } displayName)
                     {
-                        var displayName = field.IsComputed ? propertyName : field.Name;
-                        var atIndex = displayName.IndexOf('@', StringComparison.Ordinal);
-                        if (atIndex > 0)
-                        {
-                            displayName = displayName[..atIndex];
-                        }
-
                         SetAnonymousFunctionName(valueJs, displayName);
                     }
                 }

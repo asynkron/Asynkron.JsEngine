@@ -14,8 +14,7 @@ public static partial class TypedAstEvaluator
         PrivateNameScope? privateNameScope,
         Func<IDisposable?>? privateScopeFactory)
     {
-        var field = resolvedField.Field;
-        var propertyName = field.Name;
+        var propertyName = resolvedField.Name;
 
         if (string.Equals(propertyName, "prototype", StringComparison.Ordinal))
         {
@@ -23,26 +22,14 @@ public static partial class TypedAstEvaluator
                 context.RealmState);
         }
 
-        if (field.IsPrivate && privateNameScope is not null && constructorAccessor is not IPrivateBrandHolder)
+        if (resolvedField.IsPrivate && privateNameScope is not null && constructorAccessor is not IPrivateBrandHolder)
         {
             throw StandardLibrary.ThrowTypeError("Invalid private field receiver", context, context.RealmState);
         }
 
         var valueJs = JsValue.Undefined;
-        var displayName = field.IsComputed ? propertyName : field.Name;
-        var atIndex = displayName.IndexOf('@', StringComparison.Ordinal);
-        if (atIndex > 0)
+        if (resolvedField.InitializerProgram is { } initializerProgram)
         {
-            displayName = displayName[..atIndex];
-        }
-
-        if (field.Initializer is not null)
-        {
-            if (resolvedField.InitializerProgram is not { } initializerProgram)
-            {
-                throw new InvalidOperationException("Class field initializer is missing lowered bytecode.");
-            }
-
             using var handle = privateScopeFactory?.Invoke();
             using var classFieldInitScope = context.EnterClassFieldInitializer();
             var initEnv = CreateStaticInitializationEnvironment(constructorAccessor, environment, out var superBinding);
@@ -63,7 +50,7 @@ public static partial class TypedAstEvaluator
                 typedFunction.SetSuperBinding(superBinding.Constructor, superBinding.Prototype);
             }
 
-            if (field.Initializer.IsAnonymousFunctionDefinitionNode())
+            if (resolvedField.AnonymousFunctionName is { } displayName)
             {
                 SetAnonymousFunctionName(valueJs, displayName);
             }

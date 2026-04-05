@@ -2475,6 +2475,38 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsClassFieldAnonymousFunctionNameInference()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var program = _engine.ParseProgram(
+                "class Box {\n" +
+                "    [\"v\" + \"alue\"] = function() {};\n" +
+                "    #secret = function() {};\n" +
+                "\n" +
+                "    getNames() {\n" +
+                "        return [this.value.name, this.#secret.name];\n" +
+                "    }\n" +
+                "}\n" +
+                "\n" +
+                "const names = new Box().getNames();\n" +
+                "names[0] + \":\" + names[1];");
+
+            var result = await _engine.Evaluate(program);
+
+            Assert.Equal("value:#secret", result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
     public async Task AssertNoAstEvaluation_Enabled_AllowsClassStaticBlockExecution()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;

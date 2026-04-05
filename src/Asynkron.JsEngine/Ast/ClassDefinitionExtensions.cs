@@ -67,7 +67,7 @@ public static partial class TypedAstEvaluator
                     var field = resolvedFields[element.Index];
                     context.RealmState.Logger?.LogInformation(
                         "Initializing static field '{Name}' (index {Index})",
-                        field.Field.Name,
+                        field.Name,
                         element.Index);
                     if (!field.TryInitializeStaticField(
                             constructorAccessor,
@@ -295,7 +295,7 @@ public static partial class TypedAstEvaluator
         if (constructorAccessor is SyncFunctionInvoker typedFunction)
         {
             typedFunction.SetSuperBinding(superConstructor, superPrototype);
-            var instanceFields = resolvedFields.Where(static field => !field.Field.IsStatic).ToImmutableArray();
+            var instanceFields = resolvedFields.Where(static field => !field.IsStatic).ToImmutableArray();
             _ = evaluationEnvironment;
             _ = context;
             _ = privateNameScope;
@@ -444,11 +444,26 @@ public static partial class TypedAstEvaluator
                 field.IsPrivate);
 
             builder.Add(new ResolvedClassField(
-                field with { Name = propertyName, IsComputed = false, ComputedName = null },
+                propertyName,
+                field.IsStatic,
+                field.IsPrivate,
+                GetAnonymousFunctionName(field, propertyName),
                 fieldInitializerPrograms.IsDefaultOrEmpty ? null : fieldInitializerPrograms[index]));
         }
 
         return builder.ToImmutable();
+    }
+
+    private static string? GetAnonymousFunctionName(ClassField field, string propertyName)
+    {
+        if (field.Initializer?.IsAnonymousFunctionDefinitionNode() != true)
+        {
+            return null;
+        }
+
+        var displayName = field.IsComputed ? propertyName : field.Name;
+        var atIndex = displayName.IndexOf('@', StringComparison.Ordinal);
+        return atIndex > 0 ? displayName[..atIndex] : displayName;
     }
 
     [UsedImplicitly]

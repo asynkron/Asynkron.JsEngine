@@ -1,6 +1,7 @@
 #region
 
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.StdLib;
 
 #endregion
@@ -23,8 +24,9 @@ public static partial class TypedAstEvaluator
             RealmState realmState,
             bool isLexicallyStrict,
             bool hasFunctionNameEnvironment = false,
-            bool isConstructorFunction = true)
-            : base(function, closure, realmState, isLexicallyStrict, hasFunctionNameEnvironment, isConstructorFunction)
+            bool isConstructorFunction = true,
+            FunctionExecutionPlanSeed planSeed = default)
+            : base(function, closure, realmState, isLexicallyStrict, hasFunctionNameEnvironment, isConstructorFunction, planSeed)
             => Initialize();
 
         protected override string FunctionTypeName => "AsyncGeneratorFunction";

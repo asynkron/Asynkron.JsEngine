@@ -2,6 +2,7 @@
 
 using System.Collections.Immutable;
 using System.Diagnostics;
+using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Runtime;
 using Microsoft.Extensions.Logging;
 
@@ -29,9 +30,11 @@ public static partial class TypedAstEvaluator
         bool hasFunctionNameEnvironment,
         IJsObjectLike? homeObject,
         PrivateNameScope? privateNameScope,
-        ImmutableArray<PrivateNameScope> capturedPrivateNameScopes)
+        ImmutableArray<PrivateNameScope> capturedPrivateNameScopes,
+        FunctionExecutionPlanSeed planSeed = default)
     {
         private readonly RealmState _realmState = realmState;
+        private readonly FunctionExecutionPlanSeed _planSeed = planSeed;
         private ExecutionPlanRunner? _inner;
 
         /// <summary>
@@ -67,7 +70,9 @@ public static partial class TypedAstEvaluator
                         hasFunctionNameEnvironment,
                         homeObject,
                         privateNameScope,
-                        capturedPrivateNameScopes);
+                        capturedPrivateNameScopes,
+                        planOverride: _planSeed.Plan,
+                        planFailureOverride: _planSeed.Failure);
                     _inner.Initialize();
 
                     // Start execution - async functions don't receive an argument on first call

@@ -36,8 +36,8 @@ public static partial class TypedAstEvaluator
                 propertyName,
                 member.IsStatic,
                 member.IsPrivate,
-                member.Function.IsAsync,
-                member.Function.WasAsync,
+                member.Callable.Function.IsAsync,
+                member.Callable.Function.WasAsync,
                 member.Kind);
 
             var baseDisplayName = member.IsPrivate ? member.Name : propertyName;
@@ -59,11 +59,12 @@ public static partial class TypedAstEvaluator
 
             // Get value as JsValue and extract callable
             // Class methods are non-constructors, so pass isConstructorFunction: false
-            var valueJs = JsValue.FromObjectUnsafe(member.Function.CreateFunctionValue(
+            var valueJs = JsValue.FromObjectUnsafe(member.Callable.Function.CreateFunctionValue(
                 environment,
                 context,
                 false,
-                false));
+                false,
+                member.Callable.PlanSeed));
             if (context.ShouldStopEvaluation)
             {
                 return;

@@ -19,14 +19,18 @@ internal readonly record struct LoweredClassField(
 internal readonly record struct LoweredClassMember(
     ClassMemberKind Kind,
     string Name,
-    FunctionExpression Function,
+    LoweredClassCallable Callable,
     bool IsStatic,
     bool IsComputed,
     bool IsPrivate);
 
+internal readonly record struct LoweredClassCallable(
+    FunctionExpression Function,
+    FunctionExecutionPlanSeed PlanSeed);
+
 internal readonly record struct LoweredClassDefinition(
     SourceReference? Source,
-    FunctionExpression Constructor,
+    LoweredClassCallable Constructor,
     ImmutableArray<LoweredClassMember> Members,
     ImmutableArray<LoweredClassField> Fields,
     ImmutableArray<ClassStaticElement> StaticElements,
@@ -122,7 +126,7 @@ internal sealed class ClassDefinitionProgramCache
             loweredMembers.Add(new LoweredClassMember(
                 member.Kind,
                 member.Name,
-                member.Function,
+                LowerCallable(member.Function),
                 member.IsStatic,
                 member.IsComputed,
                 member.IsPrivate));
@@ -177,7 +181,7 @@ internal sealed class ClassDefinitionProgramCache
 
         var loweredDefinition = new LoweredClassDefinition(
             definition.Source,
-            definition.Constructor,
+            LowerConstructor(definition),
             loweredMembers.ToImmutable(),
             loweredFields.ToImmutable(),
             definition.StaticElements,
@@ -214,5 +218,26 @@ internal sealed class ClassDefinitionProgramCache
             ClassExpression { Name: null } => true,
             _ => false
         };
+    }
+
+    private static LoweredClassCallable LowerConstructor(ClassDefinition definition)
+    {
+        var constructor = definition.Constructor;
+        if (definition.Extends is not null &&
+            !constructor.IsDefaultDerivedConstructor &&
+            constructor.IsImplicitDefaultDerivedConstructor())
+        {
+            constructor = constructor with { IsDefaultDerivedConstructor = true };
+        }
+
+        return LowerCallable(constructor);
+    }
+
+    private static LoweredClassCallable LowerCallable(FunctionExpression function)
+    {
+        var planResult = ExecutionPlanBuilder.Build(function, reportDiagnostics: false);
+        return new LoweredClassCallable(
+            function,
+            FunctionExecutionPlanSeed.FromResult(planResult));
     }
 }

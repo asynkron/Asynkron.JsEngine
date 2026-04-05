@@ -2,6 +2,7 @@
 
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Runtime;
 
 #endregion
@@ -33,11 +34,14 @@ public static partial class TypedAstEvaluator
         bool hasFunctionNameEnvironment,
         IJsObjectLike? homeObject,
         PrivateNameScope? privateNameScope,
-        ImmutableArray<PrivateNameScope> capturedPrivateNameScopes)
+        ImmutableArray<PrivateNameScope> capturedPrivateNameScopes,
+        FunctionExecutionPlanSeed planSeed)
     {
         private readonly ExecutionPlanRunner _inner = new(function, closure, arguments, thisValue, callable,
             realmState, isLexicallyStrict, hasFunctionNameEnvironment, homeObject, privateNameScope,
-            capturedPrivateNameScopes);
+            capturedPrivateNameScopes,
+            planOverride: planSeed.Plan,
+            planFailureOverride: planSeed.Failure);
 
         // WAITING ON FULL ASYNC GENERATOR IR SUPPORT:
         // For now we reuse the sync generator IR plan and runtime to execute

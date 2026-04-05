@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
+using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -27,7 +28,8 @@ public static partial class TypedAstEvaluator
         RealmState realmState,
         bool isLexicallyStrict,
         bool hasFunctionNameEnvironment,
-        bool isConstructorFunction)
+        bool isConstructorFunction,
+        FunctionExecutionPlanSeed planSeed)
         : IJsCallable, IJsObjectLike, IPropertyDefinitionHost,
             IExtensibilityControl,
             IFunctionNameTarget, ICallableMetadata
@@ -36,6 +38,7 @@ public static partial class TypedAstEvaluator
         private protected readonly FunctionExpression _function = function;
         private protected readonly bool _hasFunctionNameEnvironment = hasFunctionNameEnvironment;
         private protected readonly bool _isLexicallyStrict = isLexicallyStrict;
+        private protected readonly FunctionExecutionPlanSeed _planSeed = planSeed;
         private readonly Dictionary<string, JsValue> _privateSlots = new(StringComparer.Ordinal);
         private protected readonly JsObject _properties = new();
 
@@ -621,7 +624,8 @@ public static partial class TypedAstEvaluator
                 _hasFunctionNameEnvironment,
                 _homeObject,
                 PrivateNameScope,
-                _capturedPrivateNameScopes);
+                _capturedPrivateNameScopes,
+                _planSeed);
         }
     }
 
@@ -638,6 +642,7 @@ public static partial class TypedAstEvaluator
         private readonly IJsObjectLike? _homeObject;
         private readonly PrivateNameScope? _privateNameScope;
         private readonly ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes;
+        private readonly FunctionExecutionPlanSeed _planSeed;
 
         public GeneratorInvocationContext(
             FunctionExpression function,
@@ -650,7 +655,8 @@ public static partial class TypedAstEvaluator
             bool hasFunctionNameEnvironment,
             IJsObjectLike? homeObject,
             PrivateNameScope? privateNameScope,
-            ImmutableArray<PrivateNameScope> capturedPrivateNameScopes)
+            ImmutableArray<PrivateNameScope> capturedPrivateNameScopes,
+            FunctionExecutionPlanSeed planSeed)
         {
             _function = function;
             _closure = closure;
@@ -663,6 +669,7 @@ public static partial class TypedAstEvaluator
             _homeObject = homeObject;
             _privateNameScope = privateNameScope;
             _capturedPrivateNameScopes = capturedPrivateNameScopes;
+            _planSeed = planSeed;
         }
 
         public ExecutionPlanRunner CreateRunner()
@@ -678,7 +685,9 @@ public static partial class TypedAstEvaluator
                 _hasFunctionNameEnvironment,
                 _homeObject,
                 _privateNameScope,
-                _capturedPrivateNameScopes);
+                _capturedPrivateNameScopes,
+                planOverride: _planSeed.Plan,
+                planFailureOverride: _planSeed.Failure);
         }
 
         public AsyncGeneratorInvoker CreateAsyncGeneratorInvoker()
@@ -694,7 +703,8 @@ public static partial class TypedAstEvaluator
                 _hasFunctionNameEnvironment,
                 _homeObject,
                 _privateNameScope,
-                _capturedPrivateNameScopes);
+                _capturedPrivateNameScopes,
+                _planSeed);
         }
     }
 }

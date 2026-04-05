@@ -2097,7 +2097,31 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         var privateMethod = cache.Definition.Members[2];
         Assert.Equal("#secret", privateMethod.Name);
         Assert.True(privateMethod.IsPrivate);
-        Assert.Empty(privateMethod.Function.Parameters);
+        Assert.Empty(privateMethod.Callable.Function.Parameters);
+    }
+
+    [Fact]
+    public async Task ClassDefinition_CallablePlans_AreCachedIntoRuntimeDescriptor()
+    {
+        var cache = await GetClassDefinitionProgramCache("""
+            class Box {
+                constructor(value) {
+                    this.value = value + 1;
+                }
+
+                read() {
+                    return this.value;
+                }
+            }
+            """, "Box");
+
+        Assert.True(cache.Succeeded, $"Class definition program cache should build. Failure: {cache.FailureReason}");
+        Assert.True(cache.Definition.Constructor.PlanSeed.Succeeded);
+        Assert.NotNull(cache.Definition.Constructor.PlanSeed.Plan);
+
+        var member = Assert.Single(cache.Definition.Members);
+        Assert.True(member.Callable.PlanSeed.Succeeded);
+        Assert.NotNull(member.Callable.PlanSeed.Plan);
     }
 
     [Fact]
@@ -2129,6 +2153,8 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             $"Class definition program cache should build. Failure: {instruction.Descriptor.ProgramCache.FailureReason}");
         Assert.Equal("Box", instruction.Descriptor.Name.Name);
         Assert.Single(instruction.Descriptor.ProgramCache.Definition.Members);
+        Assert.True(instruction.Descriptor.ProgramCache.Definition.Constructor.PlanSeed.Succeeded);
+        Assert.True(instruction.Descriptor.ProgramCache.Definition.Members[0].Callable.PlanSeed.Succeeded);
         var field = Assert.Single(instruction.Descriptor.ProgramCache.Definition.Fields);
         Assert.Equal("total", field.DeclaredName);
         Assert.False(field.IsComputed);

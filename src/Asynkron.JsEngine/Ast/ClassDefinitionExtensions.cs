@@ -249,20 +249,13 @@ public static partial class TypedAstEvaluator
             return JsValue.Undefined;
         }
 
-        var constructorDefinition = definition.Constructor;
         var hasExtends = programCache.ExtendsProgram is not null;
-        if (hasExtends &&
-            !constructorDefinition.IsDefaultDerivedConstructor &&
-            constructorDefinition.IsImplicitDefaultDerivedConstructor())
-        {
-            constructorDefinition = constructorDefinition with { IsDefaultDerivedConstructor = true };
-        }
-
-        var constructorCallable = constructorDefinition.CreateFunctionValue(
+        var constructorCallable = definition.Constructor.Function.CreateFunctionValue(
             evaluationEnvironment,
             context,
             isConstructorFunction: true,
-            skipInternalNameBinding: true);
+            skipInternalNameBinding: true,
+            planSeed: definition.Constructor.PlanSeed);
         var constructorJsValue = JsValue.FromObjectUnsafe(constructorCallable);
         if (context.ShouldStopEvaluation)
         {

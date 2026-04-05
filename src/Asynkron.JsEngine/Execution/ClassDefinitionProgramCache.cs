@@ -9,11 +9,18 @@ using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine.Execution;
 
+internal readonly record struct LoweredClassField(
+    string DeclaredName,
+    bool IsStatic,
+    bool IsPrivate,
+    bool IsComputed,
+    bool AllowsAnonymousFunctionNameInference);
+
 internal readonly record struct LoweredClassDefinition(
     SourceReference? Source,
     FunctionExpression Constructor,
     ImmutableArray<ClassMember> Members,
-    ImmutableArray<ClassField> Fields,
+    ImmutableArray<LoweredClassField> Fields,
     ImmutableArray<ClassStaticElement> StaticElements,
     ImmutableArray<ExecutionPlan> StaticBlockPlans);
 
@@ -106,6 +113,7 @@ internal sealed class ClassDefinitionProgramCache
             memberPrograms.Add(memberProgram);
         }
 
+        var loweredFields = ImmutableArray.CreateBuilder<LoweredClassField>(definition.Fields.Length);
         var fieldPrograms = ImmutableArray.CreateBuilder<ExpressionProgram?>(definition.Fields.Length);
         var fieldInitializerPrograms = ImmutableArray.CreateBuilder<ExpressionProgram?>(definition.Fields.Length);
         foreach (var field in definition.Fields)
@@ -143,13 +151,19 @@ internal sealed class ClassDefinitionProgramCache
             }
 
             fieldInitializerPrograms.Add(initializerProgram);
+            loweredFields.Add(new LoweredClassField(
+                field.Name,
+                field.IsStatic,
+                field.IsPrivate,
+                field.IsComputed,
+                IsAnonymousFunctionDefinition(field.Initializer)));
         }
 
         var loweredDefinition = new LoweredClassDefinition(
             definition.Source,
             definition.Constructor,
             definition.Members,
-            definition.Fields,
+            loweredFields.ToImmutable(),
             definition.StaticElements,
             staticBlockPlans.ToImmutable());
 
@@ -173,5 +187,16 @@ internal sealed class ClassDefinitionProgramCache
             memberNamePrograms: ImmutableArray<ExpressionProgram?>.Empty,
             fieldNamePrograms: ImmutableArray<ExpressionProgram?>.Empty,
             fieldInitializerPrograms: ImmutableArray<ExpressionProgram?>.Empty);
+    }
+
+    private static bool IsAnonymousFunctionDefinition(ExpressionNode? initializer)
+    {
+        return initializer switch
+        {
+            SequenceExpression => false,
+            FunctionExpression { Name: null } => true,
+            ClassExpression { Name: null } => true,
+            _ => false
+        };
     }
 }

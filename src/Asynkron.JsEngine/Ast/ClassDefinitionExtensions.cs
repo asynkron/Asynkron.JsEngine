@@ -403,7 +403,7 @@ public static partial class TypedAstEvaluator
     // ClassFieldDefinitionEvaluation evaluates computed field names during class evaluation,
     // so resolve all field keys eagerly in declaration order (static + instance).
     private static ImmutableArray<ResolvedClassField> ResolveFieldNames(this LoweredClassDefinition _,
-        ImmutableArray<ClassField> fields,
+        ImmutableArray<LoweredClassField> fields,
         ImmutableArray<ExpressionProgram?> fieldNamePrograms,
         ImmutableArray<ExpressionProgram?> fieldInitializerPrograms,
         JsEnvironment environment,
@@ -419,7 +419,7 @@ public static partial class TypedAstEvaluator
         for (var index = 0; index < fields.Length; index++)
         {
             var field = fields[index];
-            var propertyName = field.Name;
+            var propertyName = field.DeclaredName;
             if (!field.TryResolveFieldName(
                     fieldNamePrograms.IsDefaultOrEmpty ? null : fieldNamePrograms[index],
                     environment,
@@ -437,7 +437,7 @@ public static partial class TypedAstEvaluator
 
             context.RealmState.Logger?.LogInformation(
                 "Class field resolved name: original='{Original}' resolved='{Resolved}' (computed={IsComputed}, static={IsStatic}, private={IsPrivate})",
-                field.Name,
+                field.DeclaredName,
                 propertyName,
                 field.IsComputed,
                 field.IsStatic,
@@ -454,14 +454,14 @@ public static partial class TypedAstEvaluator
         return builder.ToImmutable();
     }
 
-    private static string? GetAnonymousFunctionName(ClassField field, string propertyName)
+    private static string? GetAnonymousFunctionName(LoweredClassField field, string propertyName)
     {
-        if (field.Initializer?.IsAnonymousFunctionDefinitionNode() != true)
+        if (!field.AllowsAnonymousFunctionNameInference)
         {
             return null;
         }
 
-        var displayName = field.IsComputed ? propertyName : field.Name;
+        var displayName = field.IsComputed ? propertyName : field.DeclaredName;
         var atIndex = displayName.IndexOf('@', StringComparison.Ordinal);
         return atIndex > 0 ? displayName[..atIndex] : displayName;
     }

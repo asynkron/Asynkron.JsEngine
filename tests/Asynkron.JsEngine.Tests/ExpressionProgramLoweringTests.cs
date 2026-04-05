@@ -2032,6 +2032,35 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ClassDefinition_FieldMetadata_IsLoweredIntoRuntimeDescriptor()
+    {
+        var cache = await GetClassDefinitionProgramCache("""
+            class Box {
+                ["v" + "alue"] = function() {};
+                #secret = function() {};
+                static total = 1;
+            }
+            """, "Box");
+
+        Assert.True(cache.Succeeded, $"Class definition program cache should build. Failure: {cache.FailureReason}");
+        Assert.Equal(3, cache.Definition.Fields.Length);
+
+        var computedField = cache.Definition.Fields[0];
+        Assert.True(computedField.IsComputed);
+        Assert.True(computedField.AllowsAnonymousFunctionNameInference);
+
+        var privateField = cache.Definition.Fields[1];
+        Assert.Equal("#secret", privateField.DeclaredName);
+        Assert.True(privateField.IsPrivate);
+        Assert.True(privateField.AllowsAnonymousFunctionNameInference);
+
+        var staticField = cache.Definition.Fields[2];
+        Assert.Equal("total", staticField.DeclaredName);
+        Assert.True(staticField.IsStatic);
+        Assert.False(staticField.AllowsAnonymousFunctionNameInference);
+    }
+
+    [Fact]
     public async Task ClassDeclarationInstruction_UsesCachedRuntimeMetadata()
     {
         var program = _engine.ParseProgram("""
@@ -2060,7 +2089,9 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             $"Class definition program cache should build. Failure: {instruction.Descriptor.ProgramCache.FailureReason}");
         Assert.Equal("Box", instruction.Descriptor.Name.Name);
         Assert.Single(instruction.Descriptor.ProgramCache.Definition.Members);
-        Assert.Single(instruction.Descriptor.ProgramCache.Definition.Fields);
+        var field = Assert.Single(instruction.Descriptor.ProgramCache.Definition.Fields);
+        Assert.Equal("total", field.DeclaredName);
+        Assert.False(field.IsComputed);
         Assert.Single(instruction.Descriptor.ProgramCache.Definition.StaticBlockPlans);
         AssertProgramContains<LoadLiteralExpressionOp>(
             instruction.Descriptor.ProgramCache.MemberNamePrograms.Single(),

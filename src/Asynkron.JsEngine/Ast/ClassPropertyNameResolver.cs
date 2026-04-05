@@ -1,6 +1,7 @@
 #region
 
 using System.Globalization;
+using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Runtime;
 
@@ -28,14 +29,14 @@ internal static class ClassPropertyNameResolver
             out propertyName);
     }
 
-    public static bool TryResolveFieldName(this ClassField field, ExpressionProgram? computedNameProgram,
+    public static bool TryResolveFieldName(this LoweredClassField field, ExpressionProgram? computedNameProgram,
         JsEnvironment environment,
         EvaluationContext context,
         PrivateNameScope? privateNameScope,
         out string propertyName)
     {
         return TryResolveNameCore(
-            field.Name,
+            field.DeclaredName,
             field.IsComputed,
             computedNameProgram,
             field.IsPrivate,

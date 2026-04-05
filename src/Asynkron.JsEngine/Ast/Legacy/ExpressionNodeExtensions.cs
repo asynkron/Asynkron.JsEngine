@@ -163,7 +163,11 @@ public static partial class TypedAstEvaluator
             // Explicit if statements generate less IL than switch expressions
             LiteralExpression literal => literal.Value,
             IdentifierExpression identifier => identifier.EvaluateIdentifier(environment, context),
-            BinaryExpression binary => binary.EvaluateBinary(environment, context),
+            BinaryExpression binary => EvaluateCachedExpressionProgram(
+                binary,
+                environment,
+                context,
+                "Dynamic binary expression"),
             AssignmentExpression assignment => assignment.EvaluateAssignment(environment, context),
             UnaryExpression unary => unary.EvaluateUnary(environment, context),
             CallExpression call => call.EvaluateCall(environment, context),
@@ -217,14 +221,31 @@ public static partial class TypedAstEvaluator
             ConditionalExpression conditional => conditional.EvaluateConditional(environment, context),
             FunctionExpression functionExpression => JsValue.FromObjectUnsafe(
                 functionExpression.CreateFunctionValue(environment, context)),
-            DestructuringAssignmentExpression destructuringAssignment => destructuringAssignment
-                .EvaluateDestructuringAssignment(environment, context),
-            PropertyAssignmentExpression propertyAssignment => propertyAssignment.EvaluatePropertyAssignment(
-                environment, context),
-            IndexAssignmentExpression indexAssignment => indexAssignment.EvaluateIndexAssignment(environment,
-                context),
-            SequenceExpression sequence => sequence.EvaluateSequence(environment, context),
-            NewExpression newExpression => newExpression.EvaluateNew(environment, context),
+            DestructuringAssignmentExpression destructuringAssignment => EvaluateCachedExpressionProgram(
+                destructuringAssignment,
+                environment,
+                context,
+                "Dynamic destructuring assignment"),
+            PropertyAssignmentExpression propertyAssignment => EvaluateCachedExpressionProgram(
+                propertyAssignment,
+                environment,
+                context,
+                "Dynamic property assignment"),
+            IndexAssignmentExpression indexAssignment => EvaluateCachedExpressionProgram(
+                indexAssignment,
+                environment,
+                context,
+                "Dynamic index assignment"),
+            SequenceExpression sequence => EvaluateCachedExpressionProgram(
+                sequence,
+                environment,
+                context,
+                "Dynamic sequence expression"),
+            NewExpression newExpression => EvaluateCachedExpressionProgram(
+                newExpression,
+                environment,
+                context,
+                "Dynamic new expression"),
             NewTargetExpression => environment.TryGetJsValue(Symbol.NewTarget, out var newTarget)
                 ? newTarget
                 : JsValue.Undefined,

@@ -38,7 +38,10 @@ public static partial class TypedAstEvaluator
                 context);
         }
 
-        var awaitedValue = expression.Expression.EvaluateExpression(environment, context);
+        var awaitedValue = expression.Expression.EvaluateDynamicExpressionOperand(
+            environment,
+            context,
+            "Dynamic await operand");
         if (context.ShouldStopEvaluation)
         {
             return awaitedValue;

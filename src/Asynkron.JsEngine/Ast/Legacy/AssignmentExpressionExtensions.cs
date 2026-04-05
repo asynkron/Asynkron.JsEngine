@@ -277,7 +277,10 @@ public static partial class TypedAstEvaluator
             ? context.EnterFunctionNameHint(assignment!.Target)
             : null;
 
-        var jsValue = rhs.EvaluateExpression(environment, context);
+        var jsValue = rhs.EvaluateDynamicExpressionOperand(
+            environment,
+            context,
+            "Dynamic assignment right-hand side");
         if (context.ShouldStopEvaluation)
         {
             return jsValue;
@@ -312,7 +315,11 @@ public static partial class TypedAstEvaluator
         if (expression.IsImmutableTarget)
         {
             // Still need to evaluate RHS for potential side effects
-            var rhsValue = expression.Value.EvaluateExpression(environment, context);
+            var rhsValue = EvaluateAssignmentRhsWithNameHintJsValue(
+                expression,
+                expression.Value,
+                environment,
+                context);
             if (context.ShouldStopEvaluation)
             {
                 return rhsValue;

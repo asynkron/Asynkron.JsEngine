@@ -171,6 +171,22 @@ public static partial class TypedAstEvaluator
         };
     }
 
+    [MethodImpl(JsEngineConstants.Inlining)]
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateDynamicExpressionOperand(
+        this ExpressionNode expression,
+        JsEnvironment environment,
+        EvaluationContext context,
+        string failureLabel)
+    {
+        return expression switch
+        {
+            AwaitExpression awaitExpression => awaitExpression.EvaluateAwait(environment, context),
+            YieldExpression yieldExpression => yieldExpression.EvaluateYield(environment, context),
+            _ => EvaluateCachedExpressionProgram(expression, environment, context, failureLabel)
+        };
+    }
+
     /// <summary>
     /// Slow path for less common expression types. Marked NoInlining to keep hot path small.
     /// </summary>
@@ -536,7 +552,10 @@ public static partial class TypedAstEvaluator
                     return outcome is DeleteBindingResult.Deleted or DeleteBindingResult.NotFound;
                 }
             default:
-                _ = operand.EvaluateExpression(environment, context);
+                _ = operand.EvaluateDynamicExpressionOperand(
+                    environment,
+                    context,
+                    "Dynamic delete operand");
                 return true;
         }
     }

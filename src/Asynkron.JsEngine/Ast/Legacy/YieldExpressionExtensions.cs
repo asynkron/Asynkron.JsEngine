@@ -94,7 +94,10 @@ public static partial class TypedAstEvaluator
         var yieldedValue = JsValue.Undefined;
         if (expression.Expression is not null)
         {
-            yieldedValue = expression.Expression.EvaluateExpression(environment, context);
+            yieldedValue = expression.Expression.EvaluateDynamicExpressionOperand(
+                environment,
+                context,
+                "Dynamic yield operand");
             if (context.ShouldStopEvaluation)
             {
                 return yieldedValue;

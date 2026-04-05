@@ -103,6 +103,58 @@ public static partial class TypedAstEvaluator
 
     [MethodImpl(JsEngineConstants.Inlining)]
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateVariableDeclarationJsValue(this VariableDeclaration declaration,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        foreach (var declarator in declaration.Declarators)
+        {
+            declaration.Kind.EvaluateVariableDeclarator(declarator, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                break;
+            }
+        }
+
+        return JsValue.Unit;
+    }
+
+    [MethodImpl(JsEngineConstants.Inlining)]
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateForJsValue(this ForStatement statement, JsEnvironment environment,
+        EvaluationContext context,
+        Symbol? loopLabel)
+    {
+        var plan = ((IAstCacheable<LoopPlan>)statement).GetOrCreateCache();
+        var loopEnvironment =
+            JsEnvironment.CreateInstance(environment, creatingSource: statement.Source, description: "for-loop");
+        return plan.EvaluateLoopPlanJsValue(loopEnvironment, context, loopLabel);
+    }
+
+    [MethodImpl(JsEngineConstants.Inlining)]
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
+    private static JsValue EvaluateLabeledJsValue(this LabeledStatement statement, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        context.PushLabel(statement.Label);
+        try
+        {
+            var result = statement.Statement.EvaluateStatementJsValue(environment, context, statement.Label);
+            if (context.TryClearBreak(statement.Label) && result.IsUnit)
+            {
+                return JsValue.Undefined;
+            }
+
+            return result;
+        }
+        finally
+        {
+            context.PopLabel();
+        }
+    }
+
+    [MethodImpl(JsEngineConstants.Inlining)]
+    [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static JsValue EvaluateReturnJsValue(this ReturnStatement statement, JsEnvironment environment,
         EvaluationContext context)
     {

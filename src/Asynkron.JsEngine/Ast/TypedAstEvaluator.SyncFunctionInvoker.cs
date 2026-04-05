@@ -742,6 +742,13 @@ public static partial class TypedAstEvaluator
                 }
             }
 
+            if (!_function.IsGenerator && !IsAsyncFunction && _planSeed.Failure is not null)
+            {
+                RealmState.ReturnContext(context);
+                throw new NotSupportedException(
+                    $"IR plan generation failed for function: {_planSeed.FailureReason}");
+            }
+
             RealmState.Logger?.LogInformation(
                 "[SyncFunctionInvoker.Invoke.ALL] _function.Hash={Hash} _allowIdentifierCache={AllowCache} _function.Name={Name}",
                 _function.GetHashCode(),

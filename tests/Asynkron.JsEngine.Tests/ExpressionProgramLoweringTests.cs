@@ -2125,6 +2125,33 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ClassDefinition_CallablePlanFailures_AreCachedIntoRuntimeDescriptor()
+    {
+        var parsedProgram = _engine.ParseProgram("""
+            class Box {
+                read(value) {
+                    return value + 1;
+                }
+            }
+            """);
+        var program = ReplaceClassMethodBodyWithUnsupportedModuleStatement(parsedProgram, "Box", "read");
+        await _engine.Evaluate(program);
+
+        var declaration = Assert.IsType<ClassDeclaration>(
+            program.Body.Single(statement => statement is ClassDeclaration classDeclaration &&
+                                             classDeclaration.Name.Name == "Box"));
+        var cache = ((IAstCacheable<ClassDefinitionProgramCache>)declaration.Definition).GetOrCreateCache();
+
+        Assert.True(cache.Succeeded, $"Class definition program cache should build. Failure: {cache.FailureReason}");
+
+        var member = Assert.Single(cache.Definition.Members);
+        Assert.False(member.Callable.PlanSeed.Succeeded);
+        Assert.Null(member.Callable.PlanSeed.Plan);
+        Assert.NotNull(member.Callable.PlanSeed.Failure);
+        Assert.Contains("ExportAllStatement", member.Callable.PlanSeed.FailureReason, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ClassDeclarationInstruction_UsesCachedRuntimeMetadata()
     {
         var program = _engine.ParseProgram("""
@@ -2248,6 +2275,55 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
                                              classDeclaration.Name.Name == className));
 
         return ((IAstCacheable<ClassDefinitionProgramCache>)declaration.Definition).GetOrCreateCache();
+    }
+
+    private static ProgramNode ReplaceClassMethodBodyWithUnsupportedModuleStatement(
+        ProgramNode program,
+        string className,
+        string methodName)
+    {
+        var declarationIndex = -1;
+        for (var i = 0; i < program.Body.Length; i++)
+        {
+            if (program.Body[i] is ClassDeclaration classDeclaration && classDeclaration.Name.Name == className)
+            {
+                declarationIndex = i;
+                break;
+            }
+        }
+
+        var declaration = Assert.IsType<ClassDeclaration>(program.Body[declarationIndex]);
+        var memberIndex = -1;
+        for (var i = 0; i < declaration.Definition.Members.Length; i++)
+        {
+            if (declaration.Definition.Members[i].Name == methodName)
+            {
+                memberIndex = i;
+                break;
+            }
+        }
+
+        var member = declaration.Definition.Members[memberIndex];
+        var rewrittenMember = member with
+        {
+            Function = member.Function with
+            {
+                Body = new BlockStatement(
+                    null,
+                    [new ExportAllStatement(null, "./unsupported.js")],
+                    true)
+            }
+        };
+        var rewrittenMembers = declaration.Definition.Members.SetItem(memberIndex, rewrittenMember);
+        var rewrittenDeclaration = declaration with
+        {
+            Definition = declaration.Definition with { Members = rewrittenMembers }
+        };
+
+        return program with
+        {
+            Body = program.Body.SetItem(declarationIndex, rewrittenDeclaration)
+        };
     }
 
     private static void AssertProgramContains<TOp>(ExpressionProgram? program, Func<ExpressionOpView, bool>? predicate = null)

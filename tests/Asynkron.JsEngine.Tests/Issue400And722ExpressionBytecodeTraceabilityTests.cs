@@ -92,7 +92,7 @@ public sealed class Issue400And722ExpressionBytecodeTraceabilityTests : IAsyncLi
         Assert.True(program.ContainsStringConstant("helper"));
         Assert.True(program.ContainsStringConstant("Box"));
         Assert.True(program.ContainsIdentifierConstant(identifier => identifier.Name.Name == "alpha"));
-        Assert.True(program.ContainsObjectConstant<FunctionExpression>(function => function.Name!.Name == "helperImpl"));
+        Assert.True(program.ContainsObjectConstant<FunctionLiteralDescriptor>(d => d.Function.Name!.Name == "helperImpl"));
         Assert.True(program.ContainsObjectConstant<ClassExpression>(classExpression => classExpression.Name!.Name == "Box"));
     }
 

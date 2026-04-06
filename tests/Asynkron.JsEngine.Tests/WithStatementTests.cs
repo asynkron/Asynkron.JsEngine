@@ -1,5 +1,6 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
+using Microsoft.Extensions.Logging;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -277,51 +278,65 @@ public sealed class WithStatementTests(ITestOutputHelper output) : InternalTestB
     }
 
     [Fact(Timeout = 2000)]
-    public async Task With_FunctionLiteralCreatedInsideWithBlock_RejectsCachedIrSeed()
+    public async Task With_FunctionLiteralCreatedInsideWithBlock_UsesIrPlanInsteadOfDynamicScopeExecutor()
     {
-        await using var engine = CreateEngine();
-        var exception = await Assert.ThrowsAnyAsync<Exception>(async () =>
+        var logger = new TestLogger(output, "WithLiteral", minLogLevel: LogLevel.Debug);
+        await using var engine = CreateEngine(() => new JsEngineOptions
         {
-            await engine.Evaluate("""
-                const scope = {
-                    parseInt: function() { return 'obj_parseInt'; }
-                };
-
-                with (scope) {
-                    const read = function() {
-                        return parseInt;
-                    };
-
-                    read();
-                }
-                """);
+            DebugMode = true,
+            Logger = logger
         });
 
-        var notSupported = Assert.IsType<NotSupportedException>(exception.GetBaseException());
-        Assert.Contains("IR plan generation failed for function", notSupported.Message, StringComparison.Ordinal);
+        var result = await engine.Evaluate("""
+            const scope = {
+                parseInt: function() { return 'obj_parseInt'; }
+            };
+
+            with (scope) {
+                const read = function() {
+                    return parseInt();
+                };
+
+                read();
+            }
+            """);
+
+        Assert.Equal("obj_parseInt", result);
+        Assert.DoesNotContain(
+            logger.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "Executing sync function via dynamic-scope executor func=<anonymous>",
+                StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 2000)]
-    public async Task With_FunctionDeclarationCreatedInsideWithBlock_RejectsCachedIrSeed()
+    public async Task With_FunctionDeclarationCreatedInsideWithBlock_UsesIrPlanInsteadOfDynamicScopeExecutor()
     {
-        await using var engine = CreateEngine();
-        var exception = await Assert.ThrowsAnyAsync<Exception>(async () =>
+        var logger = new TestLogger(output, "WithDeclaration", minLogLevel: LogLevel.Debug);
+        await using var engine = CreateEngine(() => new JsEngineOptions
         {
-            await engine.Evaluate("""
-                const scope = { value: 41 };
-
-                with (scope) {
-                    function read() {
-                        return value + 1;
-                    }
-
-                    read();
-                }
-                """);
+            DebugMode = true,
+            Logger = logger
         });
 
-        var notSupported = Assert.IsType<NotSupportedException>(exception.GetBaseException());
-        Assert.Contains("IR plan generation failed for function", notSupported.Message, StringComparison.Ordinal);
+        var result = await engine.Evaluate("""
+            const scope = { value: 41 };
+
+            with (scope) {
+                function read() {
+                    return value + 1;
+                }
+
+                read();
+            }
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(
+            logger.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "Executing sync function via dynamic-scope executor func=read",
+                StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 2000)]

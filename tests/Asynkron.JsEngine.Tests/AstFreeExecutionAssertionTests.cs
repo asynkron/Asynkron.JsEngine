@@ -883,14 +883,12 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AssertNoAstEvaluation_Enabled_WithScopedFunctionLiteralWithCapturedDynamicScope_ThrowsPlanFailureInsteadOfAstFallback()
+    public async Task AssertNoAstEvaluation_Enabled_AllowsWithScopedFunctionLiteralWithCapturedDynamicScopeExecution()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;
 
         try
         {
-            EvaluationContext.AssertNoAstEvaluation = false;
-
             var program = _engine.ParseProgram("""
                 const scopeObj = { value: 41 };
 
@@ -905,12 +903,18 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
                 globalThis.readLiteral = makeReader();
                 """);
 
+            var makeReader = Assert.IsType<FunctionDeclaration>(program.Body[1]);
+            var withStatement = Assert.IsType<WithStatement>(Assert.Single(makeReader.Function.Body.Statements));
+            var withBody = Assert.IsType<BlockStatement>(withStatement.Body);
+            var returnStatement = Assert.IsType<ReturnStatement>(Assert.Single(withBody.Statements));
+            var readLiteral = Assert.IsType<FunctionExpression>(returnStatement.Expression);
+            AssertPlanBuilds(readLiteral);
+
             await _engine.Evaluate(program);
 
             EvaluationContext.AssertNoAstEvaluation = true;
-            var exception = Assert.Throws<NotSupportedException>(() => InvokeGlobalFunction("readLiteral"));
-
-            Assert.Contains("IR plan generation failed for function", exception.Message);
+            var result = InvokeGlobalFunction("readLiteral");
+            Assert.Equal(42.0, result);
         }
         finally
         {
@@ -919,14 +923,12 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AssertNoAstEvaluation_Enabled_WithScopedFunctionDeclarationWithCapturedDynamicScope_ThrowsPlanFailureInsteadOfAstFallback()
+    public async Task AssertNoAstEvaluation_Enabled_AllowsWithScopedFunctionDeclarationWithCapturedDynamicScopeExecution()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;
 
         try
         {
-            EvaluationContext.AssertNoAstEvaluation = false;
-
             var program = _engine.ParseProgram("""
                 const scopeObj = { value: 41 };
 
@@ -943,12 +945,17 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
                 globalThis.readDeclaration = makeReader();
                 """);
 
+            var makeReader = Assert.IsType<FunctionDeclaration>(program.Body[1]);
+            var withStatement = Assert.IsType<WithStatement>(Assert.Single(makeReader.Function.Body.Statements));
+            var withBody = Assert.IsType<BlockStatement>(withStatement.Body);
+            var readDeclaration = Assert.IsType<FunctionDeclaration>(withBody.Statements[0]);
+            AssertPlanBuilds(readDeclaration.Function);
+
             await _engine.Evaluate(program);
 
             EvaluationContext.AssertNoAstEvaluation = true;
-            var exception = Assert.Throws<NotSupportedException>(() => InvokeGlobalFunction("readDeclaration"));
-
-            Assert.Contains("IR plan generation failed for function", exception.Message);
+            var result = InvokeGlobalFunction("readDeclaration");
+            Assert.Equal(42.0, result);
         }
         finally
         {

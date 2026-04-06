@@ -755,23 +755,31 @@ public static partial class TypedAstEvaluator
                 _allowIdentifierCache,
                 _function.Name?.Name ?? "<anonymous>");
 
-            // Direct-eval callables can still execute via IR as long as the closure chain has no
-            // active with-object environments. In that mode the runner keeps identifier caching off
-            // and relies on dictionary resolution instead of slot/flat-slot fast paths.
-            var canUseIrPlan = _allowIdentifierCache || !_closure.HasWithObjectInChain();
-            if (!_function.IsGenerator && !IsAsyncFunction && canUseIrPlan)
+            ExecutionPlan? plan = null;
+            string? failureReason = null;
+            var usedCachedPlanSeed = false;
+            if (!_function.IsGenerator && !IsAsyncFunction)
             {
-                var plan = _planSeed.Plan;
-                var failureReason = _planSeed.FailureReason;
-                var usedCachedPlanSeed = plan is not null || _planSeed.Failure is not null;
-                var planCache = default(ExecutionPlanCache);
+                plan = _planSeed.Plan;
+                failureReason = _planSeed.FailureReason;
+                usedCachedPlanSeed = plan is not null || _planSeed.Failure is not null;
                 if (!usedCachedPlanSeed)
                 {
-                    planCache = ((IAstCacheable<ExecutionPlanCache>)_function).GetOrCreateCache();
+                    var planCache = ((IAstCacheable<ExecutionPlanCache>)_function).GetOrCreateCache();
                     plan = planCache.Plan;
                     failureReason = planCache.FailureReason;
                 }
+            }
 
+            // Sync callables can use the IR runner whenever they have a lowered plan or an explicit
+            // lowering failure to surface. That keeps captured with-closures on the no-slot IR path
+            // and prevents silent re-entry into legacy AST execution.
+            var canUseIrPlan =
+                !_function.IsGenerator &&
+                !IsAsyncFunction &&
+                (_allowIdentifierCache || !_closure.HasWithObjectInChain() || plan is not null || failureReason is not null);
+            if (canUseIrPlan)
+            {
                 RealmState.Logger?.LogInformation(
                     "[SyncFunctionInvoker.Invoke] _function.Hash={Hash} planSource={PlanSource} planSucceeded={Succeeded} plan.Hash={PlanHash}",
                     _function.GetHashCode(),

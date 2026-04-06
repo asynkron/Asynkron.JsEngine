@@ -399,9 +399,10 @@ public static partial class TypedAstEvaluator
             return planSeed;
         }
 
-        return FunctionExecutionPlanSeed.Reject(
-            ExecutionPlanFailureCode.AstReentryDetected,
-            "sync callable closes over a with environment");
+        // Sync callables closed over an active with-chain can still execute through the
+        // no-slot IR runner. Keep the cached plan/failure result intact instead of forcing
+        // them back onto legacy AST execution.
+        return planSeed;
     }
 
     private static IJsCallable CreateFunctionValue(this FunctionExpression functionExpression, JsEnvironment environment,

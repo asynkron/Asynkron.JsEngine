@@ -3084,6 +3084,59 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsDirectEvalInsideWithExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var program = _engine.ParseProgram("""
+                var result = 0;
+                with ({ value: 42 }) {
+                    eval("result = value");
+                }
+                result;
+                """);
+
+            var result = await _engine.Evaluate(program);
+
+            Assert.Equal(42d, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsDirectEvalVarDeclarationInsideWithExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var program = _engine.ParseProgram("""
+                with ({ value: 42 }) {
+                    eval("var created = value");
+                }
+                created;
+                """);
+
+            var result = await _engine.Evaluate(program);
+
+            Assert.Equal(42d, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
     public async Task AssertNoAstEvaluation_Enabled_ThrowsOnWithStatementExecution()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;

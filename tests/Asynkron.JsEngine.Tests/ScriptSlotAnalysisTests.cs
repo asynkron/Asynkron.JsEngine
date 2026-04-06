@@ -135,4 +135,59 @@ public sealed class ScriptSlotAnalysisTests : InternalTestBase
                 "Executing script via dynamic-scope executor",
                 StringComparison.Ordinal));
     }
+
+    [Fact]
+    public async Task ScriptSlotAnalysis_DirectEvalInsideWithWithoutCapturedClosure_UsesIrPath()
+    {
+        var logger = new TestLogger(Output, "EvalAmbientWithAssignment", minLogLevel: LogLevel.Debug);
+        const string script = """
+            var result = 0;
+            with ({ value: 42 }) {
+                eval("result = value");
+            }
+            result;
+            """;
+
+        await using var engine = CreateEngine(() => new JsEngineOptions
+        {
+            AllowScriptSlotAnalysis = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate(script);
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(
+            logger.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "Executing script via dynamic-scope executor",
+                StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ScriptSlotAnalysis_DirectEvalVarDeclarationInsideWithWithoutCapturedClosure_UsesIrPath()
+    {
+        var logger = new TestLogger(Output, "EvalAmbientWithVar", minLogLevel: LogLevel.Debug);
+        const string script = """
+            with ({ value: 42 }) {
+                eval("var created = value");
+            }
+            created;
+            """;
+
+        await using var engine = CreateEngine(() => new JsEngineOptions
+        {
+            AllowScriptSlotAnalysis = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate(script);
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(
+            logger.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "Executing script via dynamic-scope executor",
+                StringComparison.Ordinal));
+    }
 }

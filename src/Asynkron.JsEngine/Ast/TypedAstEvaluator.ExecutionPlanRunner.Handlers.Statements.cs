@@ -87,6 +87,17 @@ public static partial class TypedAstEvaluator
             var instruction = Unsafe.As<AssignmentSlotInstruction>(instr);
             var isAnonymousFunctionDefinition = instruction.AllowNameInference;
 
+            // §13.15.2: When with/eval scope is active and no static slot resolution,
+            // resolve the LHS assignment reference BEFORE evaluating the RHS.
+            // This ensures delete operations in the RHS don't affect LHS resolution.
+            var usePreResolvedRef = !context.AllowIdentifierCache
+                && instruction.FlatSlotId < 0
+                && instruction.ScopeId < 0;
+
+            var lhsRef = usePreResolvedRef
+                ? environment.ResolveIdentifierAssignmentReference(instruction.TargetSymbol, context)
+                : default;
+
             using var functionNameHint = isAnonymousFunctionDefinition
                 ? context.EnterFunctionNameHint(instruction.TargetSymbol)
                 : null;
@@ -117,24 +128,31 @@ public static partial class TypedAstEvaluator
                     return InstructionResult.Continue;
             }
 
-            var variable = FlatSlotAccessor.Create(runner, instruction.FlatSlotId);
-            if (variable.UseFlatSlot)
+            if (usePreResolvedRef)
             {
-                variable.EnsureAssignable(instruction.TargetSymbol, runner._realmState);
-                variable.Variable.Write(assignedValue);
-            }
-            else if (instruction.ScopeId >= 0 && instruction.SlotIndex >= 0)
-            {
-                environment.TryWriteIdentifierWithSlot(
-                    instruction.TargetSymbol,
-                    instruction.ScopeId,
-                    instruction.SlotIndex,
-                    assignedValue,
-                    context);
+                lhsRef.SetValue(assignedValue);
             }
             else
             {
-                environment.SetIdentifierJsValue(instruction.TargetSymbol, assignedValue, context);
+                var variable = FlatSlotAccessor.Create(runner, instruction.FlatSlotId);
+                if (variable.UseFlatSlot)
+                {
+                    variable.EnsureAssignable(instruction.TargetSymbol, runner._realmState);
+                    variable.Variable.Write(assignedValue);
+                }
+                else if (instruction.ScopeId >= 0 && instruction.SlotIndex >= 0)
+                {
+                    environment.TryWriteIdentifierWithSlot(
+                        instruction.TargetSymbol,
+                        instruction.ScopeId,
+                        instruction.SlotIndex,
+                        assignedValue,
+                        context);
+                }
+                else
+                {
+                    environment.SetIdentifierJsValue(instruction.TargetSymbol, assignedValue, context);
+                }
             }
 
             if (runner._isScriptMode && !instruction.SuppressCompletionValue)

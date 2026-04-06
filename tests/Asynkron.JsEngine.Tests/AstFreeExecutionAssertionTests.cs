@@ -3054,6 +3054,37 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsClassComputedFieldNameWithUpdateExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var program = _engine.ParseProgram("""
+                let i = 0;
+                const Box = class {
+                    [i++] = i++;
+                    static [i++] = i++;
+                    [i++] = i++;
+                };
+
+                const box = new Box();
+                `${i}:${box[0]}:${Box[1]}:${box[2]}`;
+                """);
+
+            var result = await _engine.Evaluate(program);
+
+            Assert.Equal("6:4:3:5", result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
     public async Task AssertNoAstEvaluation_Enabled_AllowsInstanceFieldInitializerSuperExecution()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;
@@ -3108,6 +3139,46 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
             var result = await _engine.Evaluate(program);
 
             Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsClassFieldInitializerCallLikeSurfaceExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var program = _engine.ParseProgram("""
+                const helper = value => value + 1;
+                const factory = () => value => value + 1;
+
+                class Base {
+                    static get value() { return 41; }
+                    get value() { return 41; }
+                }
+
+                class Box extends Base {
+                    field = helper?.(41);
+                    nested = factory?.()(41);
+                    viaSuper = super.value + 1;
+                    methodValue = { answer() { return 42; } }.answer();
+                    static total = super.value + 1;
+                }
+
+                const box = new Box();
+                `${box.field}:${box.nested}:${box.viaSuper}:${box.methodValue}:${Box.total}`;
+                """);
+
+            var result = await _engine.Evaluate(program);
+
+            Assert.Equal("42:42:42:42:42", result);
         }
         finally
         {

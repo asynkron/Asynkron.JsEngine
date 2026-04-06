@@ -2257,6 +2257,26 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ClassDefinition_ComputedFieldNames_WithUpdateExpressions_AreLoweredToExpressionProgramCache()
+    {
+        var cache = await GetClassDefinitionProgramCache("""
+            let i = 0;
+            class Box {
+                [i++] = i++;
+                static [i++] = i++;
+                [i++] = i++;
+            }
+            """, "Box");
+
+        Assert.True(cache.Succeeded, $"Class definition program cache should build. Failure: {cache.FailureReason}");
+        Assert.Equal(3, cache.FieldNamePrograms.Length);
+        Assert.All(cache.FieldNamePrograms, program => Assert.NotNull(program));
+        AssertProgramContains<UpdateIdentifierExpressionOp>(cache.FieldNamePrograms[0], op => op.Name.Name == "i");
+        AssertProgramContains<UpdateIdentifierExpressionOp>(cache.FieldNamePrograms[1], op => op.Name.Name == "i");
+        AssertProgramContains<UpdateIdentifierExpressionOp>(cache.FieldNamePrograms[2], op => op.Name.Name == "i");
+    }
+
+    [Fact]
     public async Task ClassDefinition_FieldInitializers_AreLoweredToExpressionProgramCache()
     {
         var cache = await GetClassDefinitionProgramCache("""
@@ -2269,6 +2289,52 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         Assert.True(cache.Succeeded, $"Class definition program cache should build. Failure: {cache.FailureReason}");
         Assert.Equal(2, cache.FieldInitializerPrograms.Length);
         Assert.All(cache.FieldInitializerPrograms, program => Assert.NotNull(program));
+    }
+
+    [Fact]
+    public async Task ClassDefinition_FieldInitializers_WithOptionalCallAndSuper_AreLoweredToExpressionProgramCache()
+    {
+        var cache = await GetClassDefinitionProgramCache("""
+            const helper = value => value + 1;
+            const factory = () => value => value + 1;
+
+            class Base {
+                static get value() {
+                    return 41;
+                }
+
+                get value() {
+                    return 41;
+                }
+            }
+
+            class Box extends Base {
+                field = helper?.(41);
+                nested = factory?.()(41);
+                viaSuper = super.value + 1;
+                methodValue = { answer() { return 42; } }.answer();
+                static total = super.value + 1;
+            }
+            """, "Box");
+
+        Assert.True(cache.Succeeded, $"Class definition program cache should build. Failure: {cache.FailureReason}");
+        Assert.Equal(5, cache.FieldInitializerPrograms.Length);
+        Assert.All(cache.FieldInitializerPrograms, program => Assert.NotNull(program));
+
+        AssertProgramContains<JumpIfNullishExpressionOp>(cache.FieldInitializerPrograms[0], op => op.ReplaceWithUndefined);
+        AssertProgramContains<CallExpressionOp>(cache.FieldInitializerPrograms[0], op => op.ArgumentCount == 1 && !op.HasExplicitThis);
+
+        AssertProgramContains<JumpIfShortCircuitedExpressionOp>(cache.FieldInitializerPrograms[1]);
+        AssertProgramContains<CallExpressionOp>(cache.FieldInitializerPrograms[1], op => op.ArgumentCount == 0 && !op.HasExplicitThis);
+        AssertProgramContains<CallExpressionOp>(cache.FieldInitializerPrograms[1], op => op.ArgumentCount == 1 && !op.HasExplicitThis);
+
+        AssertProgramContains<GetNamedSuperPropertyExpressionOp>(cache.FieldInitializerPrograms[2], op => op.PropertyName == "value");
+
+        AssertProgramContains<CreateObjectExpressionOp>(cache.FieldInitializerPrograms[3]);
+        AssertProgramContains<DefineObjectMethodExpressionOp>(cache.FieldInitializerPrograms[3], op => op.PropertyName == "answer");
+        AssertProgramContains<CallExpressionOp>(cache.FieldInitializerPrograms[3], op => op.ArgumentCount == 0 && op.HasExplicitThis);
+
+        AssertProgramContains<GetNamedSuperPropertyExpressionOp>(cache.FieldInitializerPrograms[4], op => op.PropertyName == "value");
     }
 
     [Fact]

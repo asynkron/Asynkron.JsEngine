@@ -240,6 +240,86 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
         }
     }
 
+    [Fact]
+    public async Task SyncSmokeProbe_ClassDefinitionComputedNameAndInitializerSurfaces_DoNotFailPlanBuild()
+    {
+        await using var engine = CreateEngine();
+
+        var cases = new (string Name, string Source, Action<ProgramNode> AssertBuilds)[]
+        {
+            (
+                "computed class element name pack",
+                """
+                let i = 0;
+                var empty = Object.create(null);
+
+                class Box {
+                    [i++] = i++;
+                    static [i++] = i++;
+                    [i++] = i++;
+
+                    get ['x' in empty]() {
+                        return 'via get';
+                    }
+
+                    set ['x' in empty](param) {
+                        this._setter = param;
+                    }
+                }
+                """,
+                program =>
+                {
+                    AssertScriptPlanBuilds(program, "computed class element name pack");
+                    AssertClassDefinitionBuilds(program, "Box");
+                }),
+            (
+                "class field initializer pack",
+                """
+                const helper = value => value + 1;
+                const factory = () => value => value + 1;
+
+                class Base {
+                    static get value() {
+                        return 41;
+                    }
+
+                    get value() {
+                        return 41;
+                    }
+                }
+
+                class Box extends Base {
+                    field = helper?.(41);
+                    nested = factory?.()(41);
+                    viaSuper = super.value + 1;
+                    methodValue = { answer() { return 42; } }.answer();
+                    static total = super.value + 1;
+                }
+                """,
+                program =>
+                {
+                    AssertScriptPlanBuilds(program, "class field initializer pack");
+                    AssertClassDefinitionBuilds(program, "Base");
+                    AssertClassDefinitionBuilds(program, "Box");
+                })
+        };
+
+        foreach (var testCase in cases)
+        {
+            var program = engine.ParseProgram(testCase.Source);
+            try
+            {
+                await engine.Evaluate(program);
+            }
+            catch
+            {
+                // The smoke probe cares about plan build, not runtime completion.
+            }
+
+            testCase.AssertBuilds(program);
+        }
+    }
+
     private static void AssertScriptPlanBuilds(ProgramNode program, string description)
     {
         var cache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();

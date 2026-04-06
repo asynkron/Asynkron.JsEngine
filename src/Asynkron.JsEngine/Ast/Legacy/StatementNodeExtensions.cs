@@ -2347,58 +2347,52 @@ public static partial class TypedAstEvaluator
         // If we plan to execute this program via the IR path, we must initialize the slot layout
         // BEFORE hoisting so that user bindings get created after internal IR slots. Otherwise,
         // internal 0-based IR slot writes can overwrite hoisted user bindings.
-        var canUseNoSlotIr = executionKind == ExecutionKind.Eval || !allowsIdentifierCaching;
-        var canUseIrPlan = context.AllowIdentifierCache || canUseNoSlotIr;
-        ScriptPlanCache? scriptPlanCache = null;
+        var scriptPlanCache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
         ExecutionPlan? scriptPlan = null;
         var enableScriptSlots = context.AllowIdentifierCache;
-        if (canUseIrPlan)
+        if (scriptPlanCache.Succeeded)
         {
-            scriptPlanCache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
-            if (scriptPlanCache.Succeeded)
+            scriptPlan = scriptPlanCache.Plan!;
+
+            // Only initialize slot layout up-front when this execution environment hasn't already
+            // allocated slots (e.g. strict-wrapper script environments). For true GlobalEnvironment
+            // runs, existing slots (Symbol.This, prior script bindings) may already exist and would
+            // require an index offset to remain correct.
+            if (!executionEnvironment.HasSlots)
             {
-                scriptPlan = scriptPlanCache.Plan!;
-
-                // Only initialize slot layout up-front when this execution environment hasn't already
-                // allocated slots (e.g. strict-wrapper script environments). For true GlobalEnvironment
-                // runs, existing slots (Symbol.This, prior script bindings) may already exist and would
-                // require an index offset to remain correct.
-                if (!executionEnvironment.HasSlots)
+                var rootSlotMap = scriptPlan.SafeRootSlotMap;
+                var mapMax = 0;
+                foreach (var idx in rootSlotMap.Values)
                 {
-                    var rootSlotMap = scriptPlan.SafeRootSlotMap;
-                    var mapMax = 0;
-                    foreach (var idx in rootSlotMap.Values)
+                    if (idx >= mapMax)
                     {
-                        if (idx >= mapMax)
-                        {
-                            mapMax = idx + 1;
-                        }
+                        mapMax = idx + 1;
+                    }
+                }
+
+                var requiredSlots = Math.Max(Math.Max(scriptPlan.RootSlotCount, scriptPlan.SlotSymbols.Length),
+                    mapMax);
+                if (requiredSlots == 0)
+                {
+                    requiredSlots = scriptPlan.SlotCount;
+                }
+
+                if (requiredSlots > 0)
+                {
+                    var scopeLexicals = scriptPlan.SafeScopeLexicalBindings;
+                    var rootLexicals = scriptPlan.SafeRootLexicalBindings;
+                    if (rootLexicals.Count == 0 && scopeLexicals.TryGetValue(0, out var fromScope0))
+                    {
+                        rootLexicals = fromScope0;
                     }
 
-                    var requiredSlots = Math.Max(Math.Max(scriptPlan.RootSlotCount, scriptPlan.SlotSymbols.Length),
-                        mapMax);
-                    if (requiredSlots == 0)
-                    {
-                        requiredSlots = scriptPlan.SlotCount;
-                    }
-
-                    if (requiredSlots > 0)
-                    {
-                        var scopeLexicals = scriptPlan.SafeScopeLexicalBindings;
-                        var rootLexicals = scriptPlan.SafeRootLexicalBindings;
-                        if (rootLexicals.Count == 0 && scopeLexicals.TryGetValue(0, out var fromScope0))
-                        {
-                            rootLexicals = fromScope0;
-                        }
-
-                        executionEnvironment.ResetSlotLayoutForPlan(
-                            requiredSlots,
-                            rootSlotMap,
-                            rootLexicals,
-                            scriptPlan.SlotSymbols,
-                            scriptPlan.LayoutId,
-                            scriptPlan.RootScopeId);
-                    }
+                    executionEnvironment.ResetSlotLayoutForPlan(
+                        requiredSlots,
+                        rootSlotMap,
+                        rootLexicals,
+                        scriptPlan.SlotSymbols,
+                        scriptPlan.LayoutId,
+                        scriptPlan.RootScopeId);
                 }
             }
         }
@@ -2438,18 +2432,9 @@ public static partial class TypedAstEvaluator
             reverseFunctionHoist: reverseFunctionHoist,
             functionHoistDedupe: functionHoistDedupe);
 
-        if (!canUseIrPlan)
+        if (!scriptPlanCache.Succeeded || scriptPlan is null)
         {
-            const string failureReason = "identifier caching is unavailable for non-dynamic script execution";
-            context.RealmState.Logger?.LogInformation(
-                "Rejecting non-dynamic script because IR script plan is unavailable: {FailureReason}",
-                failureReason);
-            throw new NotSupportedException($"IR plan generation failed for script: {failureReason}");
-        }
-
-        if (scriptPlanCache is not { Succeeded: true } || scriptPlan is null)
-        {
-            var failureReason = scriptPlanCache?.FailureReason ?? "IR script plan is unavailable";
+            var failureReason = scriptPlanCache.FailureReason ?? "IR script plan is unavailable";
             context.RealmState.Logger?.LogInformation(
                 "Rejecting non-dynamic script because IR script plan is unavailable: {FailureReason}",
                 failureReason);

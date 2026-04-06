@@ -599,6 +599,47 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ClassMethod_PrivateFieldAccess_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetClassMethodPlan(
+            "class Box {\n" +
+            "    #value = 41;\n" +
+            "\n" +
+            "    read() {\n" +
+            "        return this.#value + 1;\n" +
+            "    }\n" +
+            "}\n",
+            "Box",
+            "read");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<GetNamedPropertyExpressionOp>(instruction.ReturnProgram, op => op.PropertyName == "#value");
+    }
+
+    [Fact]
+    public async Task ClassMethod_PrivateMethodCall_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetClassMethodPlan(
+            "class Box {\n" +
+            "    #read() {\n" +
+            "        return 40;\n" +
+            "    }\n" +
+            "\n" +
+            "    invoke() {\n" +
+            "        return this.#read() + 2;\n" +
+            "    }\n" +
+            "}\n",
+            "Box",
+            "invoke");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<LoadNamedCallTargetExpressionOp>(instruction.ReturnProgram, op => op.PropertyName == "#read");
+        AssertProgramContains<CallExpressionOp>(instruction.ReturnProgram, op => op.ArgumentCount == 0 && op.HasExplicitThis);
+    }
+
+    [Fact]
     public async Task DerivedConstructor_SuperCall_IsLoweredToExpressionProgram()
     {
         var plan = await GetClassConstructorPlan("""

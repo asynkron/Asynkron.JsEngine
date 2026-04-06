@@ -618,6 +618,85 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsClassMethodWithPrivateFieldExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram(
+                "class Box {\n" +
+                "    #value = 41;\n" +
+                "\n" +
+                "    read() {\n" +
+                "        return this.#value + 1;\n" +
+                "    }\n" +
+                "}\n" +
+                "\n" +
+                "globalThis.box = new Box();\n");
+            var boxDeclaration = Assert.IsType<ClassDeclaration>(program.Body[0]);
+            AssertPlanBuilds(Assert.Single(boxDeclaration.Definition.Members.Where(member => member.Name == "read")).Function);
+
+            await _engine.Evaluate(program);
+
+            EvaluationContext.AssertNoAstEvaluation = true;
+            Assert.True(_engine.GlobalObject.TryGetProperty("box", out var boxValue));
+            Assert.True(boxValue.TryGetObject<IJsPropertyAccessor>(out var boxAccessor));
+            Assert.True(boxAccessor.TryGetProperty("read", out var methodValue));
+
+            var method = Assert.IsAssignableFrom<IJsCallable>(methodValue.ObjectValue);
+            var result = method.Invoke([], boxValue);
+            Assert.Equal(42d, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsClassMethodWithPrivateMethodCallExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram(
+                "class Box {\n" +
+                "    #value = 41;\n" +
+                "\n" +
+                "    #read() {\n" +
+                "        return this.#value + 1;\n" +
+                "    }\n" +
+                "\n" +
+                "    invoke() {\n" +
+                "        return this.#read();\n" +
+                "    }\n" +
+                "}\n" +
+                "\n" +
+                "globalThis.box = new Box();\n");
+            var boxDeclaration = Assert.IsType<ClassDeclaration>(program.Body[0]);
+            AssertPlanBuilds(Assert.Single(boxDeclaration.Definition.Members.Where(member => member.Name == "#read")).Function);
+            AssertPlanBuilds(Assert.Single(boxDeclaration.Definition.Members.Where(member => member.Name == "invoke")).Function);
+
+            await _engine.Evaluate(program);
+
+            EvaluationContext.AssertNoAstEvaluation = true;
+            Assert.True(_engine.GlobalObject.TryGetProperty("box", out var boxValue));
+            Assert.True(boxValue.TryGetObject<IJsPropertyAccessor>(out var boxAccessor));
+            Assert.True(boxAccessor.TryGetProperty("invoke", out var methodValue));
+
+            var method = Assert.IsAssignableFrom<IJsCallable>(methodValue.ObjectValue);
+            var result = method.Invoke([], boxValue);
+            Assert.Equal(42d, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
     private static (FunctionExpression BaseMethod, FunctionExpression DerivedMethod) GetClassMethods(
         ProgramNode program,
         string baseClassName,

@@ -773,14 +773,13 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Verifies that the flag can be toggled on and off for the explicit dynamic-scope executor path.
+    /// Verifies that toggling the flag does not force with-bodied sync functions back onto AST execution.
     /// </summary>
     [Fact]
-    public async Task AssertNoAstEvaluation_CanBeToggledDuringExecution()
+    public async Task AssertNoAstEvaluation_CanBeToggledDuringWithFunctionIrExecution()
     {
-        // Arrange
         var originalValue = EvaluationContext.AssertNoAstEvaluation;
-        
+
         try
         {
             var program = _engine.ParseProgram("""
@@ -792,22 +791,22 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
                     }
                 }
                 """);
-            
-            // First, execute normally
+
+            var readWith = Assert.IsType<FunctionDeclaration>(program.Body[1]);
+            AssertPlanBuilds(readWith.Function);
+
             EvaluationContext.AssertNoAstEvaluation = false;
             await _engine.Evaluate(program);
             var result1 = InvokeGlobalFunction("readWith");
             Assert.Equal(42.0, result1);
-            
-            // Now enable assertion - should throw
+
             EvaluationContext.AssertNoAstEvaluation = true;
-            var exception = Assert.Throws<InvalidOperationException>(() => InvokeGlobalFunction("readWith"));
-            Assert.Contains("WithStatement", exception.Message);
-            
-            // Disable again - should work
-            EvaluationContext.AssertNoAstEvaluation = false;
             var result2 = InvokeGlobalFunction("readWith");
             Assert.Equal(42.0, result2);
+
+            EvaluationContext.AssertNoAstEvaluation = false;
+            var result3 = InvokeGlobalFunction("readWith");
+            Assert.Equal(42.0, result3);
         }
         finally
         {
@@ -3084,7 +3083,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AssertNoAstEvaluation_Enabled_ThrowsOnWithStatementExecution()
+    public async Task AssertNoAstEvaluation_Enabled_AllowsWithStatementExecution()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;
 
@@ -3099,12 +3098,14 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
                 }
                 """);
 
+            var readWith = Assert.IsType<FunctionDeclaration>(program.Body[1]);
+            AssertPlanBuilds(readWith.Function);
+
             await _engine.Evaluate(program);
             EvaluationContext.AssertNoAstEvaluation = true;
 
-            var exception = Assert.Throws<InvalidOperationException>(() => InvokeGlobalFunction("readWith"));
-
-            Assert.Contains("WithStatement", exception.Message);
+            var result = InvokeGlobalFunction("readWith");
+            Assert.Equal(42.0, result);
         }
         finally
         {

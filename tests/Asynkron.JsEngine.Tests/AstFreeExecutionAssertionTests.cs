@@ -3147,6 +3147,51 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsEvalProducedInstanceFieldArrowWithSuperExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var program = _engine.ParseProgram("""
+                var executed = false;
+
+                class Base {
+                    constructor() {
+                        this.value = 7;
+                    }
+
+                    get read() {
+                        return this.value;
+                    }
+                }
+
+                class Derived extends Base {
+                    field = eval('executed = true; () => super.read;');
+
+                    constructor() {
+                        super();
+                    }
+                }
+
+                const instance = new Derived();
+                const arrow = instance.field;
+                `${executed}:${arrow.call({ value: 99 })}`;
+                """);
+
+            var result = await _engine.Evaluate(program);
+
+            Assert.Equal("true:7", result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
     public async Task AssertNoAstEvaluation_Enabled_AllowsClassFieldInitializerCallLikeSurfaceExecution()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;

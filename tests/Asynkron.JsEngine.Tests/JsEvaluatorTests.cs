@@ -331,35 +331,6 @@ public sealed class JsEvaluatorTests(ITestOutputHelper output) : InternalTestBas
         Assert.Equal(10d, result);
     }
 
-    [Fact(Skip = "Bug #363: Class field initializers with eval and super need special handling")]
-    public async Task ClassFieldInitializerCanAccessSuper()
-    {
-        await using var engine = CreateEngine();
-        var source = """
-                     var executed = false;
-                     class Base {
-                         constructor() { this.value = 1; }
-                         get read() { return this.value; }
-                     }
-                     class Derived extends Base {
-                         field = eval('executed = true; () => super.read;');
-                         constructor() {
-                             super();
-                         }
-                     }
-                     var instance = new Derived();
-                     var getter = instance.field;
-                     var result = getter.call(instance);
-                     ({ executed, result });
-                     """;
-
-        var outcome = Assert.IsType<JsObject>(await engine.Evaluate(source));
-        Assert.True(outcome.TryGetProperty("executed", out var executedValue));
-        Assert.True(JsOps.ToBoolean(executedValue));
-        Assert.True(outcome.TryGetProperty("result", out var resultValue));
-        Assert.Equal(1d, JsOps.ToNumber(resultValue));
-    }
-
     [Fact(Timeout = 2000)]
     public async Task HostFunctionReceivesThisBinding()
     {

@@ -87,25 +87,32 @@ public sealed class ClassElementEvalTests(ITestOutputHelper output) : InternalTe
     }
 
     [Fact(Timeout = 2000)]
-    public async Task EvalProducedArrowFunctionCanUseSuper()
+    public async Task EvalProducedArrowFunctionRetainsFieldInitializerSuperBinding()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        var executed = false;
                                                        class Base {
-                                                           method() {
-                                                               return 7;
+                                                           constructor() {
+                                                               this.value = 7;
+                                                           }
+
+                                                           get read() {
+                                                               return this.value;
                                                            }
                                                        }
 
                                                        class Derived extends Base {
-                                                           field = eval('executed = true; () => super.method();');
+                                                           field = eval('executed = true; () => super.read;');
+                                                           constructor() {
+                                                               super();
+                                                           }
                                                        }
 
                                                        var instance = new Derived();
                                                        var arrow = instance.field;
-                                                       executed && arrow() === 7;
+                                                       executed && arrow.call({ value: 99 }) === 7;
 
                                            """);
 

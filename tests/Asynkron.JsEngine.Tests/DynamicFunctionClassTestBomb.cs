@@ -46,15 +46,14 @@ public sealed class DynamicFunctionClassTestBomb(ITestOutputHelper output) : Int
         AssertBrandCheckResult(result);
     }
 
-    /// H2: The exact top-level script should also work when script slot analysis is enabled.
+    /// H2: The exact top-level script should also work when debug diagnostics are enabled.
     [Fact(Timeout = 10000)]
-    public async Task H2_TopLevelScript_WithScriptSlotAnalysis()
+    public async Task H2_TopLevelScript_WithDebugDiagnostics()
     {
         await using var engine = CreateEngine(() => new JsEngineOptions
         {
             Logger = CurrentLogger,
             DebugMode = true,
-            AllowScriptSlotAnalysis = true,
         });
 
         var result = await engine.Evaluate(PrivateMethodClassSource);

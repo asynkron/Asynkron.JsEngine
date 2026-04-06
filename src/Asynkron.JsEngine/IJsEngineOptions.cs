@@ -32,12 +32,6 @@ public interface IJsEngineOptions
     bool DebugMode { get; }
 
     /// <summary>
-    ///     Enables script-level slot analysis and identifier caching when it is safe to do so
-    ///     (no direct eval/with). Defaults to false for safety.
-    /// </summary>
-    bool AllowScriptSlotAnalysis { get; }
-
-    /// <summary>
     ///     Optional logger used for realm-level diagnostics such as identifier slot hit/miss tracing.
     /// </summary>
     ILogger? Logger { get; }

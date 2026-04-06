@@ -2180,13 +2180,12 @@ public static partial class TypedAstEvaluator
             program.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy,
             cancellationToken,
             executionKind);
-        // For eval, always disable identifier caching/slot analysis because eval runs in the caller's
+        // For eval, always disable identifier caching because eval runs in the caller's
         // lexical environment which may contain 'with' statements or allow deletable bindings.
         // The static analysis of the eval code alone doesn't tell us about the outer context.
-        var allowScriptSlotAnalysis = context.RealmState.Options.AllowScriptSlotAnalysis &&
-                                      executionKind != ExecutionKind.Eval;
+        var allowIdentifierCache = executionKind != ExecutionKind.Eval;
         var allowsIdentifierCaching = AllowsIdentifierCaching(program);
-        context.AllowIdentifierCache = allowScriptSlotAnalysis &&
+        context.AllowIdentifierCache = allowIdentifierCache &&
                                        allowsIdentifierCaching;
         context.DrainAwaitMicrotasks = drainAwaitMicrotasks;
         if (inheritedPrivateNameScopes is { IsDefault: false, Length: > 0 } scopes)
@@ -2352,7 +2351,7 @@ public static partial class TypedAstEvaluator
         var canUseIrPlan = context.AllowIdentifierCache || canUseNoSlotIr;
         ScriptPlanCache? scriptPlanCache = null;
         ExecutionPlan? scriptPlan = null;
-        var enableScriptSlots = allowScriptSlotAnalysis && context.AllowIdentifierCache;
+        var enableScriptSlots = context.AllowIdentifierCache;
         if (canUseIrPlan)
         {
             scriptPlanCache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
@@ -2441,7 +2440,7 @@ public static partial class TypedAstEvaluator
 
         if (!canUseIrPlan)
         {
-            const string failureReason = "script slot analysis disabled for non-dynamic script execution";
+            const string failureReason = "identifier caching is unavailable for non-dynamic script execution";
             context.RealmState.Logger?.LogInformation(
                 "Rejecting non-dynamic script because IR script plan is unavailable: {FailureReason}",
                 failureReason);

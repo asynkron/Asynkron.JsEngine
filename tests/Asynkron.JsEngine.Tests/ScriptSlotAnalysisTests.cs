@@ -11,7 +11,7 @@ public sealed class ScriptSlotAnalysisTests : InternalTestBase
     }
 
     [Fact]
-    public async Task ScriptSlotAnalysisToggle_ProducesSameResult()
+    public async Task ScriptSlotAnalysis_SimpleScriptUsesIrByDefault()
     {
         const string script = """
             let a = 1;
@@ -19,19 +19,11 @@ public sealed class ScriptSlotAnalysisTests : InternalTestBase
             a + b;
             """;
 
-        await using var engineNoSlots = CreateEngine(() => new JsEngineOptions
-        {
-            AllowScriptSlotAnalysis = false
-        });
-        await using var engineWithSlots = CreateEngine(() => new JsEngineOptions
-        {
-            AllowScriptSlotAnalysis = true
-        });
+        await using var engine = CreateEngine();
 
-        await Assert.ThrowsAsync<NotSupportedException>(async () => await engineNoSlots.Evaluate(script));
-        var resultWith = await engineWithSlots.Evaluate(script);
+        var result = await engine.Evaluate(script);
 
-        Assert.Equal(3d, resultWith);
+        Assert.Equal(3d, result);
     }
 
     [Fact]
@@ -46,7 +38,6 @@ public sealed class ScriptSlotAnalysisTests : InternalTestBase
 
         await using var engine = CreateEngine(() => new JsEngineOptions
         {
-            AllowScriptSlotAnalysis = true,
             DebugMode = true,
             Logger = logger
         });
@@ -61,7 +52,7 @@ public sealed class ScriptSlotAnalysisTests : InternalTestBase
     }
 
     [Fact]
-    public async Task ScriptSlotAnalysis_DisabledWhenWithIsPresent()
+    public async Task ScriptSlotAnalysis_WithStatementUsesNoSlotIrPath()
     {
         const string script = """
             var obj = { value: 7 };
@@ -72,10 +63,7 @@ public sealed class ScriptSlotAnalysisTests : InternalTestBase
             result;
             """;
 
-        await using var engine = CreateEngine(() => new JsEngineOptions
-        {
-            AllowScriptSlotAnalysis = true
-        });
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate(script);
         Assert.Equal(7d, result);
@@ -96,7 +84,6 @@ public sealed class ScriptSlotAnalysisTests : InternalTestBase
 
         await using var engine = CreateEngine(() => new JsEngineOptions
         {
-            AllowScriptSlotAnalysis = true,
             DebugMode = true,
             Logger = logger
         });
@@ -122,7 +109,6 @@ public sealed class ScriptSlotAnalysisTests : InternalTestBase
 
         await using var engine = CreateEngine(() => new JsEngineOptions
         {
-            AllowScriptSlotAnalysis = true,
             DebugMode = true,
             Logger = logger
         });
@@ -150,7 +136,6 @@ public sealed class ScriptSlotAnalysisTests : InternalTestBase
 
         await using var engine = CreateEngine(() => new JsEngineOptions
         {
-            AllowScriptSlotAnalysis = true,
             DebugMode = true,
             Logger = logger
         });
@@ -178,7 +163,6 @@ public sealed class ScriptSlotAnalysisTests : InternalTestBase
 
         await using var engine = CreateEngine(() => new JsEngineOptions
         {
-            AllowScriptSlotAnalysis = true,
             DebugMode = true,
             Logger = logger
         });

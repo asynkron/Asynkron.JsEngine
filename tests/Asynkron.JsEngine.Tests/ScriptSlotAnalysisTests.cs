@@ -135,4 +135,60 @@ public sealed class ScriptSlotAnalysisTests : InternalTestBase
                 "Executing script via dynamic-scope executor",
                 StringComparison.Ordinal));
     }
+
+    [Fact]
+    public async Task ScriptSlotAnalysis_DirectEvalInsideWithWithoutCapturedClosure_UsesIrPath()
+    {
+        var logger = new TestLogger(Output, "EvalInsideWith", minLogLevel: LogLevel.Debug);
+        const string script = """
+            const scope = { value: 41 };
+            with (scope) {
+                eval("value += 1;");
+            }
+            scope.value;
+            """;
+
+        await using var engine = CreateEngine(() => new JsEngineOptions
+        {
+            AllowScriptSlotAnalysis = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate(script);
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(
+            logger.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "Executing script via dynamic-scope executor",
+                StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ScriptSlotAnalysis_DirectEvalVarDeclarationInsideWithWithoutCapturedClosure_UsesIrPath()
+    {
+        var logger = new TestLogger(Output, "EvalVarInsideWith", minLogLevel: LogLevel.Debug);
+        const string script = """
+            const scope = { seed: 41 };
+            with (scope) {
+                eval("var created = seed + 1;");
+            }
+            created;
+            """;
+
+        await using var engine = CreateEngine(() => new JsEngineOptions
+        {
+            AllowScriptSlotAnalysis = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate(script);
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(
+            logger.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "Executing script via dynamic-scope executor",
+                StringComparison.Ordinal));
+    }
 }

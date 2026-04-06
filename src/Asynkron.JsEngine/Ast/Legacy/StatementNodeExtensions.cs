@@ -2348,10 +2348,8 @@ public static partial class TypedAstEvaluator
         // If we plan to execute this program via the IR path, we must initialize the slot layout
         // BEFORE hoisting so that user bindings get created after internal IR slots. Otherwise,
         // internal 0-based IR slot writes can overwrite hoisted user bindings.
-        var requiresDynamicScopeExecutor = executionEnvironment.HasWithObjectInChain();
         var canUseNoSlotIr = executionKind == ExecutionKind.Eval || !allowsIdentifierCaching;
-        var canUseIrPlan = !requiresDynamicScopeExecutor &&
-                           (context.AllowIdentifierCache || canUseNoSlotIr);
+        var canUseIrPlan = context.AllowIdentifierCache || canUseNoSlotIr;
         ScriptPlanCache? scriptPlanCache = null;
         ExecutionPlan? scriptPlan = null;
         var enableScriptSlots = allowScriptSlotAnalysis && context.AllowIdentifierCache;
@@ -2440,22 +2438,6 @@ public static partial class TypedAstEvaluator
             lexicalNames: lexicalNames,
             reverseFunctionHoist: reverseFunctionHoist,
             functionHoistDedupe: functionHoistDedupe);
-
-        // Scripts entered under an already-active with-scope still need the explicit
-        // dynamic-scope executor. Top-level with/eval programs can use the IR runner
-        // in no-slot mode when identifier caching is disabled.
-        if (requiresDynamicScopeExecutor)
-        {
-            context.RealmState.Logger?.LogInformation(
-                "Executing script via dynamic-scope executor (captured with path)");
-            var dynamicResult = EvaluateStatementList(program.Body, executionEnvironment, context);
-            if (context.IsThrow)
-            {
-                throw new ThrowSignal(context.FlowValue);
-            }
-
-            return dynamicResult;
-        }
 
         if (!canUseIrPlan)
         {

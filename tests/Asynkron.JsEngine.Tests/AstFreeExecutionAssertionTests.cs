@@ -2042,6 +2042,73 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsDeleteOptionalNamedPropertyExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function drop(box) {
+                    return delete box?.value;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var box = new JsObject();
+            box["value"] = 41d;
+
+            var nullResult = InvokeGlobalFunction("drop", JsValue.Null);
+            Assert.True(nullResult.IsBoolean && nullResult.AsBoolean());
+
+            var objectResult = InvokeGlobalFunction("drop", JsValue.FromJsObject(box));
+            Assert.True(objectResult.IsBoolean && objectResult.AsBoolean());
+            Assert.False(box.TryGetProperty("value", out _));
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsDeleteOptionalComputedPropertyExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                globalThis.keyCalls = 0;
+
+                function drop(box) {
+                    return delete box?.[globalThis.keyCalls++, "value"];
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var nullResult = InvokeGlobalFunction("drop", JsValue.Null);
+            Assert.True(nullResult.IsBoolean && nullResult.AsBoolean());
+            Assert.Equal(0d, _engine.GlobalObject["keyCalls"]);
+
+            var box = new JsObject();
+            box["value"] = 41d;
+            var objectResult = InvokeGlobalFunction("drop", JsValue.FromJsObject(box));
+            Assert.True(objectResult.IsBoolean && objectResult.AsBoolean());
+            Assert.Equal(1d, _engine.GlobalObject["keyCalls"]);
+            Assert.False(box.TryGetProperty("value", out _));
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
     public async Task AssertNoAstEvaluation_Enabled_AllowsDeleteNonReferenceExecution()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;

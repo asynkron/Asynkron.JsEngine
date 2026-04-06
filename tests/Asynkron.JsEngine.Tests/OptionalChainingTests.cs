@@ -130,6 +130,35 @@ public sealed class OptionalChainingTests(ITestOutputHelper output) : InternalTe
     }
 
     [Fact(Timeout = 2000)]
+    public async Task OptionalDeleteNamedProperty()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let obj = { name: 'Alice' };
+                                                       let removed = delete obj?.name;
+                                                       removed && !('name' in obj);
+
+                                           """);
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task OptionalDeleteComputedPropertyShortCircuitsPropertyEvaluation()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let obj = null;
+                                                       let keyCalls = 0;
+                                                       let removed = delete obj?.[(keyCalls++, 'name')];
+                                                       removed && keyCalls === 0;
+
+                                           """);
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task OptionalChainingShortCircuit()
     {
         await using var engine = CreateEngine();

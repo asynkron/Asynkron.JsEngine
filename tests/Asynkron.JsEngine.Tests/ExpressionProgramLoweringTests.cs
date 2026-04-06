@@ -1548,6 +1548,44 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ReturnInstruction_DeleteOptionalNamedProperty_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function drop(box) {
+                return delete box?.value;
+            }
+            """, "drop");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<JumpIfNullishExpressionOp>(instruction.ReturnProgram, op => !op.ReplaceWithUndefined);
+        AssertProgramContains<DeleteNamedPropertyExpressionOp>(
+            instruction.ReturnProgram,
+            op => op.PropertyName == "value");
+        AssertProgramContains<LoadLiteralExpressionOp>(
+            instruction.ReturnProgram,
+            op => op.Value.IsBoolean && op.Value.AsBoolean());
+    }
+
+    [Fact]
+    public async Task ReturnInstruction_DeleteOptionalComputedProperty_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function drop(box, key) {
+                return delete box?.[key];
+            }
+            """, "drop");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<JumpIfNullishExpressionOp>(instruction.ReturnProgram, op => !op.ReplaceWithUndefined);
+        AssertProgramContains<DeleteComputedPropertyExpressionOp>(instruction.ReturnProgram);
+        AssertProgramContains<LoadLiteralExpressionOp>(
+            instruction.ReturnProgram,
+            op => op.Value.IsBoolean && op.Value.AsBoolean());
+    }
+
+    [Fact]
     public async Task ReturnInstruction_DeleteNonReferenceExpression_IsLoweredToExpressionProgram()
     {
         var plan = await GetFunctionPlan("""

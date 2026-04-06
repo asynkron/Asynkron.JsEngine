@@ -342,6 +342,66 @@ internal static class ExpressionProgramCompiler
                     case MemberExpression
                         {
                             Target: not SuperExpression,
+                            IsOptional: true,
+                            IsComputed: false,
+                            Property: LiteralExpression { Value.IsString: true } propertyLiteral
+                        } optionalNamedDelete:
+                        if (!TryCompileExpression(optionalNamedDelete.Target, builder, out failureReason))
+                        {
+                            return false;
+                        }
+
+                        var optionalNamedShortCircuitIndex = builder.Count;
+                        builder.Add(PackedExpressionOp.JumpIfNullish(-1));
+                        builder.Add(PackedExpressionOp.DeleteNamedProperty(
+                            builder.InternString(propertyLiteral.Value.AsString())));
+                        var optionalNamedEndJumpIndex = builder.Count;
+                        builder.Add(PackedExpressionOp.Jump(-1));
+                        var optionalNamedShortCircuitTarget = builder.Count;
+                        builder[optionalNamedShortCircuitIndex] =
+                            PackedExpressionOp.JumpIfNullish(optionalNamedShortCircuitTarget);
+                        builder.Add(PackedExpressionOp.Pop);
+                        builder.Add(PackedExpressionOp.LoadLiteralConstant(
+                            builder.InternLiteral(JsValue.True)));
+                        builder[optionalNamedEndJumpIndex] = PackedExpressionOp.Jump(builder.Count);
+                        failureReason = null;
+                        return true;
+
+                    case MemberExpression
+                        {
+                            Target: not SuperExpression,
+                            IsOptional: true,
+                            IsComputed: true
+                        } optionalComputedDelete:
+                        if (!TryCompileExpression(optionalComputedDelete.Target, builder, out failureReason))
+                        {
+                            return false;
+                        }
+
+                        var optionalComputedShortCircuitIndex = builder.Count;
+                        builder.Add(PackedExpressionOp.JumpIfNullish(-1));
+
+                        if (!TryCompileExpression(optionalComputedDelete.Property, builder, out failureReason))
+                        {
+                            return false;
+                        }
+
+                        builder.Add(PackedExpressionOp.DeleteComputedProperty);
+                        var optionalComputedEndJumpIndex = builder.Count;
+                        builder.Add(PackedExpressionOp.Jump(-1));
+                        var optionalComputedShortCircuitTarget = builder.Count;
+                        builder[optionalComputedShortCircuitIndex] =
+                            PackedExpressionOp.JumpIfNullish(optionalComputedShortCircuitTarget);
+                        builder.Add(PackedExpressionOp.Pop);
+                        builder.Add(PackedExpressionOp.LoadLiteralConstant(
+                            builder.InternLiteral(JsValue.True)));
+                        builder[optionalComputedEndJumpIndex] = PackedExpressionOp.Jump(builder.Count);
+                        failureReason = null;
+                        return true;
+
+                    case MemberExpression
+                        {
+                            Target: not SuperExpression,
                             IsOptional: false,
                             IsComputed: false,
                             Property: LiteralExpression { Value.IsString: true } propertyLiteral

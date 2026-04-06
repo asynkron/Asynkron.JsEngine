@@ -198,28 +198,18 @@ public static partial class TypedAstEvaluator
         LoweredClassCallable callable,
         JsEnvironment environment)
     {
-        if (!callable.PlanSeed.Succeeded ||
-            callable.Function.IsAsync ||
-            callable.Function.IsGenerator)
+        if (callable.Function.IsAsync ||
+            callable.Function.IsGenerator ||
+            !environment.HasWithObjectInChain())
         {
             return callable.PlanSeed;
         }
 
-        if (!AllowsIdentifierCaching(callable.Function))
-        {
-            return FunctionExecutionPlanSeed.Reject(
-                ExecutionPlanFailureCode.AstReentryDetected,
-                "class-created sync callable requires dynamic-scope execution");
-        }
-
-        if (!environment.HasWithObjectInChain())
-        {
-            return callable.PlanSeed;
-        }
-
-        return FunctionExecutionPlanSeed.Reject(
-            ExecutionPlanFailureCode.AstReentryDetected,
-            "class-created sync callable closes over a with environment");
+        // Class-created sync callables closing over a with-chain can use the same
+        // no-slot IR runner as ordinary sync function callables. Preserve the cached
+        // plan or lowering failure so invocation either stays on IR or surfaces an
+        // explicit lowering failure instead of forcing AST re-entry.
+        return callable.PlanSeed;
     }
 
     private static JsValue CreateClassValue(this ClassDefinition definition, JsEnvironment environment,

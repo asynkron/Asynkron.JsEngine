@@ -536,7 +536,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AssertNoAstEvaluation_Enabled_ClassMethodWithCapturedDynamicScope_ThrowsPlanFailureInsteadOfAstFallback()
+    public async Task AssertNoAstEvaluation_Enabled_AllowsClassMethodWithCapturedDynamicScopeExecution()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;
 
@@ -558,6 +558,12 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
                 globalThis.Box = makeBox();
                 globalThis.box = Object.create(globalThis.Box.prototype);
                 """);
+            var makeBox = Assert.IsType<FunctionDeclaration>(program.Body[1]);
+            var withStatement = Assert.IsType<WithStatement>(Assert.Single(makeBox.Function.Body.Statements));
+            var withBody = Assert.IsType<BlockStatement>(withStatement.Body);
+            var returnStatement = Assert.IsType<ReturnStatement>(Assert.Single(withBody.Statements));
+            var boxExpression = Assert.IsType<ClassExpression>(returnStatement.Expression);
+            AssertPlanBuilds(Assert.Single(boxExpression.Definition.Members.Where(member => member.Name == "read")).Function);
 
             await _engine.Evaluate(program);
 
@@ -567,9 +573,8 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
             Assert.True(boxAccessor.TryGetProperty("read", out var methodValue));
 
             var method = Assert.IsAssignableFrom<IJsCallable>(methodValue.ObjectValue);
-            var exception = Assert.Throws<NotSupportedException>(
-                () => method.Invoke([], boxValue));
-            Assert.Contains("IR plan generation failed for function", exception.Message);
+            var result = method.Invoke([], boxValue);
+            Assert.Equal(42d, result);
         }
         finally
         {
@@ -578,7 +583,7 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AssertNoAstEvaluation_Enabled_ClassMethodWithDirectEval_ThrowsPlanFailureInsteadOfAstFallback()
+    public async Task AssertNoAstEvaluation_Enabled_AllowsClassMethodWithDirectEvalExecution()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;
 
@@ -593,6 +598,8 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
 
                 globalThis.box = Object.create(Box.prototype);
                 """);
+            var boxDeclaration = Assert.IsType<ClassDeclaration>(program.Body[0]);
+            AssertPlanBuilds(Assert.Single(boxDeclaration.Definition.Members.Where(member => member.Name == "read")).Function);
 
             await _engine.Evaluate(program);
 
@@ -602,9 +609,8 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
             Assert.True(boxAccessor.TryGetProperty("read", out var methodValue));
 
             var method = Assert.IsAssignableFrom<IJsCallable>(methodValue.ObjectValue);
-            var exception = Assert.Throws<NotSupportedException>(
-                () => method.Invoke(new SingleValueArgs(41), boxValue));
-            Assert.Contains("IR plan generation failed for function", exception.Message);
+            var result = method.Invoke(new SingleValueArgs(41), boxValue);
+            Assert.Equal(42d, result);
         }
         finally
         {
@@ -956,6 +962,95 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
             EvaluationContext.AssertNoAstEvaluation = true;
             var result = InvokeGlobalFunction("readDeclaration");
             Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsWithScopedClassMethodWithCapturedDynamicScopeExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                const scopeObj = { value: 41 };
+
+                function makeBox() {
+                    with (scopeObj) {
+                        return class Box {
+                            read() {
+                                return value + 1;
+                            }
+                        };
+                    }
+                }
+
+                globalThis.WithScopedBox = makeBox();
+                """);
+
+            var makeBox = Assert.IsType<FunctionDeclaration>(program.Body[1]);
+            var withStatement = Assert.IsType<WithStatement>(Assert.Single(makeBox.Function.Body.Statements));
+            var withBody = Assert.IsType<BlockStatement>(withStatement.Body);
+            var returnStatement = Assert.IsType<ReturnStatement>(Assert.Single(withBody.Statements));
+            var boxExpression = Assert.IsType<ClassExpression>(returnStatement.Expression);
+            AssertPlanBuilds(Assert.Single(boxExpression.Definition.Members.Where(member => member.Name == "read")).Function);
+
+            await _engine.Evaluate(program);
+
+            EvaluationContext.AssertNoAstEvaluation = true;
+            var result = await _engine.Evaluate("""
+                const box = new globalThis.WithScopedBox();
+                box.read();
+                """);
+            Assert.Equal(42d, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsWithScopedClassConstructorWithCapturedDynamicScopeExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                const scopeObj = { value: 41 };
+
+                function makeBox() {
+                    with (scopeObj) {
+                        return class Box {
+                            constructor() {
+                                this.total = value + 1;
+                            }
+                        };
+                    }
+                }
+
+                globalThis.WithScopedCtorBox = makeBox();
+                """);
+
+            var makeBox = Assert.IsType<FunctionDeclaration>(program.Body[1]);
+            var withStatement = Assert.IsType<WithStatement>(Assert.Single(makeBox.Function.Body.Statements));
+            var withBody = Assert.IsType<BlockStatement>(withStatement.Body);
+            var returnStatement = Assert.IsType<ReturnStatement>(Assert.Single(withBody.Statements));
+            var boxExpression = Assert.IsType<ClassExpression>(returnStatement.Expression);
+            AssertPlanBuilds(boxExpression.Definition.Constructor);
+
+            await _engine.Evaluate(program);
+
+            EvaluationContext.AssertNoAstEvaluation = true;
+            var result = await _engine.Evaluate("""
+                new globalThis.WithScopedCtorBox().total;
+                """);
+            Assert.Equal(42d, result);
         }
         finally
         {

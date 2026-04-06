@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -187,106 +188,130 @@ public sealed class ClassStatementTests(ITestOutputHelper output) : InternalTest
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ClassMethodCreatedInsideWithCapturedClosure_RejectsCachedIrSeed()
+    public async Task ClassMethodCreatedInsideWithCapturedClosure_UsesIrPlanInsteadOfDynamicScopeExecutor()
     {
-        await using var engine = CreateEngine();
-
-        var exception = await Assert.ThrowsAnyAsync<Exception>(async () =>
+        var logger = new TestLogger(output, "ClassMethodWithClosure", minLogLevel: LogLevel.Debug);
+        await using var engine = CreateEngine(() => new JsEngineOptions
         {
-            await engine.Evaluate("""
-                const scope = { value: 41 };
-
-                function makeBox() {
-                    with (scope) {
-                        return class Box {
-                            read() {
-                                return value + 1;
-                            }
-                        };
-                    }
-                }
-
-                const Box = makeBox();
-                const box = new Box();
-                box.read();
-                """);
+            DebugMode = true,
+            Logger = logger
         });
 
-        var notSupported = Assert.IsType<NotSupportedException>(exception.GetBaseException());
-        Assert.Contains("IR plan generation failed for function", notSupported.Message, StringComparison.Ordinal);
+        var result = await engine.Evaluate("""
+            const scope = { value: 41 };
+
+            function makeBox() {
+                with (scope) {
+                    return class Box {
+                        read() {
+                            return value + 1;
+                        }
+                    };
+                }
+            }
+
+            const Box = makeBox();
+            const box = new Box();
+            box.read();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(
+            logger.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "Executing sync function via dynamic-scope executor",
+                StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ClassConstructorCreatedInsideWithCapturedClosure_RejectsCachedIrSeed()
+    public async Task ClassConstructorCreatedInsideWithCapturedClosure_UsesIrPlanInsteadOfDynamicScopeExecutor()
     {
-        await using var engine = CreateEngine();
-
-        var exception = await Assert.ThrowsAnyAsync<Exception>(async () =>
+        var logger = new TestLogger(output, "ClassConstructorWithClosure", minLogLevel: LogLevel.Debug);
+        await using var engine = CreateEngine(() => new JsEngineOptions
         {
-            await engine.Evaluate("""
-                const scope = { value: 41 };
-
-                function makeBox() {
-                    with (scope) {
-                        return class Box {
-                            constructor() {
-                                this.total = value + 1;
-                            }
-                        };
-                    }
-                }
-
-                const Box = makeBox();
-                new Box().total;
-                """);
+            DebugMode = true,
+            Logger = logger
         });
 
-        var notSupported = Assert.IsType<NotSupportedException>(exception.GetBaseException());
-        Assert.Contains("IR plan generation failed for function", notSupported.Message, StringComparison.Ordinal);
+        var result = await engine.Evaluate("""
+            const scope = { value: 41 };
+
+            function makeBox() {
+                with (scope) {
+                    return class Box {
+                        constructor() {
+                            this.total = value + 1;
+                        }
+                    };
+                }
+            }
+
+            const Box = makeBox();
+            new Box().total;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(
+            logger.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "Executing sync function via dynamic-scope executor",
+                StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ClassMethodWithDirectEval_RejectsCachedIrSeed()
+    public async Task ClassMethodWithDirectEval_UsesIrPlanInsteadOfDynamicScopeExecutor()
     {
-        await using var engine = CreateEngine();
-
-        var exception = await Assert.ThrowsAnyAsync<Exception>(async () =>
+        var logger = new TestLogger(output, "ClassMethodDirectEval", minLogLevel: LogLevel.Debug);
+        await using var engine = CreateEngine(() => new JsEngineOptions
         {
-            await engine.Evaluate("""
-                class Box {
-                    read(value) {
-                        return eval("value + 1");
-                    }
-                }
-
-                new Box().read(41);
-                """);
+            DebugMode = true,
+            Logger = logger
         });
 
-        var notSupported = Assert.IsType<NotSupportedException>(exception.GetBaseException());
-        Assert.Contains("IR plan generation failed for function", notSupported.Message, StringComparison.Ordinal);
+        var result = await engine.Evaluate("""
+            class Box {
+                read(value) {
+                    return eval("value + 1");
+                }
+            }
+
+            new Box().read(41);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(
+            logger.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "Executing sync function via dynamic-scope executor",
+                StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ClassConstructorWithDirectEval_RejectsCachedIrSeed()
+    public async Task ClassConstructorWithDirectEval_UsesIrPlanInsteadOfDynamicScopeExecutor()
     {
-        await using var engine = CreateEngine();
-
-        var exception = await Assert.ThrowsAnyAsync<Exception>(async () =>
+        var logger = new TestLogger(output, "ClassConstructorDirectEval", minLogLevel: LogLevel.Debug);
+        await using var engine = CreateEngine(() => new JsEngineOptions
         {
-            await engine.Evaluate("""
-                class Box {
-                    constructor(value) {
-                        this.total = eval("value + 1");
-                    }
-                }
-
-                new Box(41).total;
-                """);
+            DebugMode = true,
+            Logger = logger
         });
 
-        var notSupported = Assert.IsType<NotSupportedException>(exception.GetBaseException());
-        Assert.Contains("IR plan generation failed for function", notSupported.Message, StringComparison.Ordinal);
+        var result = await engine.Evaluate("""
+            class Box {
+                constructor(value) {
+                    this.total = eval("value + 1");
+                }
+            }
+
+            new Box(41).total;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(
+            logger.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "Executing sync function via dynamic-scope executor",
+                StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 2000)]

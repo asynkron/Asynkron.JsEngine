@@ -5,6 +5,7 @@
   "private": true,
   "main": "scripts/server.js",
   "scripts": {
+    "express": "dotnet run --project . -- scripts/express/app.js",
     "polka": "dotnet run --project . -- scripts/polka/app.js"
   },
   "keywords": [],
@@ -12,6 +13,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "express": "^4.22.1",
     "polka": "^0.5.2"
   }
 }

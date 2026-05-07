@@ -259,51 +259,6 @@ internal sealed class ScopeSlotCollector : AstVisitor
         }
     }
 
-    private void CollectBindingTargetSlots(BindingTarget target, int scopeId)
-    {
-        while (true)
-        {
-            switch (target)
-            {
-                case IdentifierBinding identifier:
-                    AllocateSlotInScope(scopeId, identifier.Name);
-                    GetOrCreateScopeInfo(scopeId).LexicalBindings.Add(identifier.Name);
-                    return;
-                case ArrayBinding arrayBinding:
-                    foreach (var element in arrayBinding.Elements)
-                    {
-                        if (element.Target is not null)
-                        {
-                            CollectBindingTargetSlots(element.Target, scopeId);
-                        }
-                    }
-
-                    if (arrayBinding.RestElement is not null)
-                    {
-                        target = arrayBinding.RestElement;
-                        continue;
-                    }
-
-                    return;
-                case ObjectBinding objectBinding:
-                    foreach (var property in objectBinding.Properties)
-                    {
-                        CollectBindingTargetSlots(property.Target, scopeId);
-                    }
-
-                    if (objectBinding.RestElement is not null)
-                    {
-                        target = objectBinding.RestElement;
-                        continue;
-                    }
-
-                    return;
-                default:
-                    return;
-            }
-        }
-    }
-
     public void VisitInstruction(ExecutionInstruction instruction)
     {
         switch (instruction)

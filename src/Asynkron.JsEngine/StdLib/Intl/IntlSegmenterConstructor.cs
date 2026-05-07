@@ -29,6 +29,8 @@ public sealed partial class IntlSegmenterConstructor(IJsObjectLike prototype, Re
         // Override invoke handler to check NewTarget (for calls without new)
         constructor.SetInvokeWithContext((args, thisValue, _, newTarget) =>
         {
+            GC.KeepAlive(thisValue);
+
             // Intl.Segmenter step 1: If NewTarget is undefined, throw a TypeError exception.
             if (newTarget.IsUndefined)
             {

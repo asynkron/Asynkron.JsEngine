@@ -27,26 +27,6 @@ internal static class JsValueExtensions
         };
     }
 
-    private static string ArrayToString(JsArray array)
-    {
-        // Use the logical length and element lookup so holes become empty strings,
-        // matching Array.prototype.join/ToString behaviour.
-        var length = array.Length > int.MaxValue ? int.MaxValue : (int)array.Length;
-        var builder = new StringBuilder(length * 2);
-        for (var i = 0; i < length; i++)
-        {
-            if (i > 0)
-            {
-                builder.Append(',');
-            }
-
-            var element = array.GetElement(i);
-            builder.Append(element.ToJsStringForArray());
-        }
-
-        return builder.ToString();
-    }
-
     public static double ToNumber(this object? value)
     {
         return value switch

@@ -29,6 +29,8 @@ public sealed partial class IntlListFormatConstructor(IJsObjectLike prototype, R
         // Override invoke handler to check NewTarget (for calls without new)
         constructor.SetInvokeWithContext((args, thisValue, _, newTarget) =>
         {
+            GC.KeepAlive(thisValue);
+
             // Intl.ListFormat step 1: If NewTarget is undefined, throw a TypeError exception.
             if (newTarget.IsUndefined)
             {

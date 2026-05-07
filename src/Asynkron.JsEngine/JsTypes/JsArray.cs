@@ -1230,6 +1230,9 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     private bool TryShrinkLength(uint newLength, EvaluationContext? context, bool throwOnWritableFailure)
     {
+        _ = context;
+        _ = throwOnWritableFailure;
+
         // Fast path: dense array with no property descriptors on numeric indices.
         // No non-configurable elements to worry about — just truncate the list directly.
         // This turns O(n log n) sort + O(n) delete into O(1) for the common case

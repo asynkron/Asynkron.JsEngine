@@ -110,11 +110,12 @@ public sealed partial class SharedArrayBufferPrototype : JsPrototype
         else
         {
             newBufferValue = Construct(speciesConstructor, [(double)newLen], speciesConstructor, Realm);
-            if (!newBufferValue.TryGetObject<IJsPropertyAccessor>(out newBufferObject))
+            if (!newBufferValue.TryGetObject<IJsPropertyAccessor>(out var constructedBufferObject))
             {
                 throw ThrowTypeError("SharedArrayBuffer species constructor did not return an object", realm: Realm);
             }
 
+            newBufferObject = constructedBufferObject;
             targetBuffer = RequireArrayBuffer(newBufferValue, Realm);
             if (!ReferenceEquals(targetBuffer, newBufferObject))
             {

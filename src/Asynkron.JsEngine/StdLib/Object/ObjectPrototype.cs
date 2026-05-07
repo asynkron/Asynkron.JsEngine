@@ -416,7 +416,7 @@ public sealed partial class ObjectPrototype
         {
             throw ThrowTypeError("__defineGetter__ getter must be callable", realm: Realm);
         }
-        var propertyName = JsOps.ToPropertyName(args.GetArgument(0));
+        var propertyName = JsOps.GetRequiredPropertyName(args.GetArgument(0));
 
         var desc = new PropertyDescriptor
         {
@@ -445,7 +445,7 @@ public sealed partial class ObjectPrototype
         {
             throw ThrowTypeError("__defineSetter__ setter must be callable", realm: Realm);
         }
-        var propertyName = JsOps.ToPropertyName(args.GetArgument(0));
+        var propertyName = JsOps.GetRequiredPropertyName(args.GetArgument(0));
 
         var desc = new PropertyDescriptor
         {

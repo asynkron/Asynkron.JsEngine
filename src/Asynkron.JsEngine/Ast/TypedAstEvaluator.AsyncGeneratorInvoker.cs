@@ -181,7 +181,7 @@ public static partial class TypedAstEvaluator
             var (onFulfilled, onRejected) = AsyncResumeCallback.Rent(this, resolve, reject);
             if (JsPromise.TryGetInternalPromise(step.PendingPromise, out var pendingPromise))
             {
-                pendingPromise.Then(onFulfilled, onRejected);
+                pendingPromise!.Then(onFulfilled, onRejected);
                 return;
             }
 

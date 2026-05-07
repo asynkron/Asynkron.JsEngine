@@ -4419,65 +4419,6 @@ internal static class GeneratorYieldLowerer
             }
         }
 
-        /// <summary>
-        /// Checks if a binding target has nested patterns (ArrayBinding/ObjectBinding) where
-        /// the element or property has a yield in its default value.
-        /// Example: [ {} = yield ] - the {} is an ObjectBinding with a yield default
-        /// These cases are complex for iterator close semantics in for-of loops and should
-        /// fall back to AST evaluation.
-        /// </summary>
-        private static bool BindingHasNestedPatternWithYieldInDefault(BindingTarget target)
-        {
-            switch (target)
-            {
-                case ArrayBinding arrayBinding:
-                    foreach (var element in arrayBinding.Elements)
-                    {
-                        // Check if this element has a nested pattern with yield in default
-                        if (element.Target is (ArrayBinding or ObjectBinding) &&
-                            element.DefaultValue is not null &&
-                            AstShapeAnalyzer.ContainsYield(element.DefaultValue))
-                        {
-                            return true;
-                        }
-
-                        // Recursively check nested bindings
-                        if (element.Target is not null && BindingHasNestedPatternWithYieldInDefault(element.Target))
-                        {
-                            return true;
-                        }
-                    }
-
-                    return arrayBinding.RestElement is not null &&
-                        BindingHasNestedPatternWithYieldInDefault(arrayBinding.RestElement);
-
-                case ObjectBinding objectBinding:
-                    foreach (var prop in objectBinding.Properties)
-                    {
-                        // Check if this property has a nested pattern with yield in default
-                        if (prop.Target is (ArrayBinding or ObjectBinding) &&
-                            prop.DefaultValue is not null &&
-                            AstShapeAnalyzer.ContainsYield(prop.DefaultValue))
-                        {
-                            return true;
-                        }
-
-                        // Recursively check nested bindings
-                        if (BindingHasNestedPatternWithYieldInDefault(prop.Target))
-                        {
-                            return true;
-                        }
-                    }
-
-                    return objectBinding.RestElement is not null &&
-                        BindingHasNestedPatternWithYieldInDefault(objectBinding.RestElement);
-
-                default:
-                    // IdentifierBinding and AssignmentTargetBinding don't have nested patterns
-                    return false;
-            }
-        }
-
         private static bool TryRewriteIncrementWithTwoYields(ExpressionNode expression,
             out YieldExpression leftYield, out YieldExpression rightYield, out BinaryExpression incrementBinary,
             out Symbol? assignmentTarget)

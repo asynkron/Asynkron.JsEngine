@@ -35,6 +35,8 @@ public static class TypedArrayHelper
         string constructorName,
         RealmState realm) where T : TypedArrayBase
     {
+        _ = fromArray;
+
         var sharedTypedArrayCtor = EnsureTypedArrayIntrinsic(realm);
         var sharedPrototype = realm.TypedArrayPrototype;
         var prototype = new JsObject();
@@ -42,6 +44,9 @@ public static class TypedArrayHelper
         HostFunction constructor = null!;
         constructor = new HostFunction((thisValue, args) =>
         {
+            _ = thisValue;
+            _ = args;
+
             // Calling without new: throw TypeError per spec step 2
             throw ThrowTypeError(constructorName + " is not a function", realm: realm);
         })

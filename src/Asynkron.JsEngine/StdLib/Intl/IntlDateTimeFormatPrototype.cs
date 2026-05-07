@@ -1188,6 +1188,8 @@ public sealed partial class IntlDateTimeFormatPrototype
     private static string FormatTime(DateTimeOffset dto, DateTimeFormatInternalSlots slots, CultureInfo culture,
         bool includeSeconds, bool includeTimeZone, bool longTimeZone, string? displayTimeZoneId)
     {
+        _ = culture;
+
         var sb = new StringBuilder();
         var use12 = slots.HourCycle is "h11" or "h12";
 
@@ -1561,7 +1563,7 @@ public sealed partial class IntlDateTimeFormatPrototype
         };
     }
 
-    private static string FormatYear(DateTimeOffset dto, string width)
+    private static string FormatYear(DateTimeOffset dto, string? width)
     {
         return width switch
         {
@@ -1570,7 +1572,7 @@ public sealed partial class IntlDateTimeFormatPrototype
         };
     }
 
-    private static string FormatMonth(DateTimeOffset dto, string width, CultureInfo culture)
+    private static string FormatMonth(DateTimeOffset dto, string? width, CultureInfo culture)
     {
         return width switch
         {
@@ -1582,7 +1584,7 @@ public sealed partial class IntlDateTimeFormatPrototype
         };
     }
 
-    private static string FormatDay(DateTimeOffset dto, string width)
+    private static string FormatDay(DateTimeOffset dto, string? width)
     {
         return width switch
         {

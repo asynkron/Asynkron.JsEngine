@@ -1288,6 +1288,8 @@ public static class DateHelper
     /// </summary>
     internal static JsValue ToDateTimeOptions(JsValue optionsArg, string required, string defaults, RealmState realm)
     {
+        _ = realm;
+
         JsObject options;
         if (optionsArg.IsUndefined)
         {

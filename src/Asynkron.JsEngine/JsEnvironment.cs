@@ -1329,7 +1329,10 @@ public sealed class JsEnvironment : IRentable
         var count = _slotCount;
         for (var i = 0; i < count; i++)
         {
-            yield return slots[i].Name;
+            if (slots[i].Name is { } name)
+            {
+                yield return name;
+            }
         }
     }
 
@@ -1413,45 +1416,6 @@ public sealed class JsEnvironment : IRentable
                     propertyName,
                     isStrictReference,
                     allowMissingAssignment);
-                return true;
-            }
-
-            if (current.FindSlotIndex(name) >= 0)
-            {
-                break;
-            }
-
-            current = current.Enclosing;
-        }
-
-        binding = default;
-        return false;
-    }
-
-    /// <summary>
-    /// Resolves a with binding for WRITE operations without checking unscopables.
-    /// Per ES spec, unscopables only affect reads (GetBindingValue), not writes (SetMutableBinding).
-    /// </summary>
-    private bool TryResolveWithBindingForWrite(
-        Symbol name,
-        EvaluationContext context,
-        out ObjectEnvironmentBinding binding)
-    {
-        var current = this;
-        var hops = 0;
-        const int maxLookupDepth = 10_000;
-        var isStrictReference = IsStrict || context.CurrentScope.IsStrict || context.IsStrictSource;
-
-        while (current is not null && hops++ < maxLookupDepth)
-        {
-            // For writes, only check if property exists - DON'T check unscopables
-            if (current._withObject is not null && HasWithPropertyForAssignment(current._withObject, name))
-            {
-                binding = new ObjectEnvironmentBinding(
-                    current._withObject,
-                    name.Name,
-                    isStrictReference,
-                    false);
                 return true;
             }
 
@@ -3347,12 +3311,17 @@ public sealed class JsEnvironment : IRentable
                         continue;
                     }
 
-                    if (!result.ContainsKey(slot.Name.Name))
+                    if (slot.Name is not { } name)
+                    {
+                        continue;
+                    }
+
+                    if (!result.ContainsKey(name.Name))
                     {
                         var value = slot.HasSpecialBinding
                             ? ((ISpecialBinding)slot.Value.ObjectValue!).GetJsValue()
                             : slot.Value;
-                        result[slot.Name.Name] = value.ToObject();
+                        result[name.Name] = value.ToObject();
                     }
                 }
             }
@@ -3396,7 +3365,10 @@ public sealed class JsEnvironment : IRentable
                         : slot.Value;
                     slotVars[i] = value.ToObject();
 
-                    dictVars[slot.Name.Name] = value.ToObject();
+                    if (slot.Name is { } name)
+                    {
+                        dictVars[name.Name] = value.ToObject();
+                    }
                 }
             }
 
@@ -4165,7 +4137,7 @@ public sealed class JsEnvironment : IRentable
             RealmState.Logger?.LogTrace(
                 "Identifier slot read hit env={Env} name={Name} slotScope={ScopeId} slot={Slot} valueKind={Kind}",
                 GetHashCode(),
-                slot.Name.Name,
+                slot.Name?.Name ?? $"#{index.ToString(CultureInfo.InvariantCulture)}",
                 FormatScopeIdForLog(ScopeId),
                 index,
                 slot.Value.Kind);
@@ -4374,7 +4346,10 @@ public sealed class JsEnvironment : IRentable
         slot.Flags &= ~SlotFlags.Uninitialized;
         if (_bindingObservers is not null)
         {
-            NotifyBindingObservers(slot.Name, value);
+            if (slot.Name is { } name)
+            {
+                NotifyBindingObservers(name, value);
+            }
         }
     }
 

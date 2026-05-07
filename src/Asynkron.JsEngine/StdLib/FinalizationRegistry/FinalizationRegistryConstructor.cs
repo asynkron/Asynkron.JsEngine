@@ -84,16 +84,13 @@ public sealed partial class FinalizationRegistryConstructor(IJsObjectLike protot
             instanceObj = defaultInstance;
         }
 
-        if (instanceObj is not null)
+        InternalState.AddOrUpdate(instanceObj, new FinalizationRegistryState
         {
-            InternalState.AddOrUpdate(instanceObj, new FinalizationRegistryState
-            {
-                CleanupCallback = cleanupCallback,
-                Cells = new JsArray(Realm)
-            });
-        }
+            CleanupCallback = cleanupCallback,
+            Cells = new JsArray(Realm)
+        });
 
-        return new JsValue(instanceObj);
+        return JsValue.FromObjectUnsafe(instanceObj);
     }
 
     /// <summary>

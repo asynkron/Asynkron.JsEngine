@@ -41,12 +41,10 @@ public static partial class TypedAstEvaluator
                 var isAtVarEnvironment = ReferenceEquals(varEnvironment, environment) ||
                                          environment.IsEvalDeclarationEnvironment;
 
-                var hasExistingFunctionScopedBinding = false;
                 var isHoistedUndefinedBinding = false;
                 if (isAtVarEnvironment && !ctx.CurrentScope.IsStrict &&
                     varEnvironment.HasFunctionScopedBinding(funcDecl.Name))
                 {
-                    hasExistingFunctionScopedBinding = true;
                     var existingValue = varEnvironment.GetBindingValueDirect(funcDecl.Name);
                     if (existingValue.IsUndefined)
                     {

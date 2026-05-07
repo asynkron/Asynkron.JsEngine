@@ -3384,6 +3384,8 @@ public sealed class JsRegExp
     /// </summary>
     private static string InsertQuantifierResets(string pattern, Dictionary<string, string[]> duplicateGroupNames)
     {
+        _ = duplicateGroupNames;
+
         // Phase 1: Walk pattern to determine which groups contain duplicate captures.
         // For each group, record the duplicate captures in its descendant alternatives so
         // resets only clear captures relevant to that group, not unrelated siblings.
@@ -5458,70 +5460,6 @@ public sealed class JsRegExp
             return $"(?:{element}(?:\\u200D{element})+)";
         }
 
-        string BuildResolvedStringPropertyPattern(string propertyName)
-        {
-            var ranges = UnicodePropertyData.Resolve(propertyName);
-            if (ranges is null)
-            {
-                throw new ParseException(
-                    $"Invalid regular expression: invalid unicode property escape \\p{{{propertyName}}}.");
-            }
-
-            return BuildResolvedPropertyEscapePattern(ranges, negate: false);
-        }
-
-        static (int Start, int End)[] SubtractRanges((int Start, int End)[] minuend, (int Start, int End)[] subtrahend)
-        {
-            if (minuend.Length == 0)
-            {
-                return [];
-            }
-
-            if (subtrahend.Length == 0)
-            {
-                return minuend;
-            }
-
-            var result = new List<(int Start, int End)>();
-            var j = 0;
-
-            foreach (var (start, end) in minuend)
-            {
-                var currentStart = start;
-
-                while (j < subtrahend.Length && subtrahend[j].End < currentStart)
-                {
-                    j++;
-                }
-
-                var k = j;
-                while (k < subtrahend.Length && subtrahend[k].Start <= end)
-                {
-                    var (otherStart, otherEnd) = subtrahend[k];
-                    if (otherStart > currentStart)
-                    {
-                        result.Add((currentStart, Math.Min(end, otherStart - 1)));
-                    }
-
-                    if (otherEnd >= end)
-                    {
-                        currentStart = end + 1;
-                        break;
-                    }
-
-                    currentStart = Math.Max(currentStart, otherEnd + 1);
-                    k++;
-                }
-
-                if (currentStart <= end)
-                {
-                    result.Add((currentStart, end));
-                }
-            }
-
-            return [.. result];
-        }
-
         string BuildBasicEmojiPattern()
         {
             var emojiPresentation = UnicodePropertyData.Resolve("Emoji_Presentation") ?? [];
@@ -5756,34 +5694,6 @@ public sealed class JsRegExp
             sb.Append(EscapeCharClassCodeUnit(start));
             sb.Append('-');
             sb.Append(EscapeCharClassCodeUnit(end));
-        }
-
-        return sb.ToString();
-    }
-
-    private static string BuildAstralAlternation(List<(int Start, int End)> ranges)
-    {
-        if (ranges.Count == 0)
-        {
-            return string.Empty;
-        }
-
-        var sb = new StringBuilder();
-        var first = true;
-        foreach (var (start, end) in ranges)
-        {
-            for (var cp = start; cp <= end; cp++)
-            {
-                if (!first)
-                {
-                    sb.Append('|');
-                }
-
-                sb.Append("(?:");
-                sb.Append(FormatAstralAsSurrogates(cp));
-                sb.Append(')');
-                first = false;
-            }
         }
 
         return sb.ToString();

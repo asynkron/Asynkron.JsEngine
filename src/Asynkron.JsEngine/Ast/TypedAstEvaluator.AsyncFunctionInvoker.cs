@@ -43,7 +43,7 @@ public static partial class TypedAstEvaluator
         /// </summary>
         public JsValue Execute()
         {
-            var promiseCtor = realmState.PromiseConstructor;
+            var promiseCtor = _realmState.PromiseConstructor;
             if (promiseCtor is null)
             {
                 throw new InvalidOperationException("Promise constructor is not available.");
@@ -65,7 +65,7 @@ public static partial class TypedAstEvaluator
                         arguments,
                         thisValue,
                         callable,
-                        realmState,
+                        _realmState,
                         isLexicallyStrict,
                         hasFunctionNameEnvironment,
                         homeObject,
@@ -159,7 +159,7 @@ public static partial class TypedAstEvaluator
             var (onFulfilled, onRejected) = AsyncResumeCallback.Rent(this, resolve, reject);
             if (JsPromise.TryGetInternalPromise(step.PendingPromise, out var pendingPromise))
             {
-                pendingPromise.Then(onFulfilled, onRejected);
+                pendingPromise!.Then(onFulfilled, onRejected);
                 return;
             }
 
@@ -203,7 +203,7 @@ public static partial class TypedAstEvaluator
                 var isRejection = _isRejection;
                 var sibling = _sibling;
 
-                _executor!._realmState.Logger?.LogInformation(
+                executor._realmState.Logger?.LogInformation(
                     "[AsyncFunctionInvoker] ResumeCallback isRejection={IsRejection} argKind={Kind}",
                     isRejection,
                     args.Count > 0 ? args[0].Kind.ToString() : "none");

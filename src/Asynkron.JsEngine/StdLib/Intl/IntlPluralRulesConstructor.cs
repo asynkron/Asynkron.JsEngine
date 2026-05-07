@@ -134,6 +134,8 @@ public sealed partial class IntlPluralRulesConstructor(IJsObjectLike prototype, 
 
         constructor.SetInvokeWithContext((args, thisValue, _, newTarget) =>
         {
+            GC.KeepAlive(thisValue);
+
             if (newTarget.IsUndefined)
             {
                 throw ThrowTypeError("Intl.PluralRules constructor requires 'new'", realm: Realm);

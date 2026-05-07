@@ -99,7 +99,11 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
             .Collect()
             .SelectMany((items, _) => items
                 .GroupBy(item => item.MethodSymbol.ContainingType, SymbolEqualityComparer.Default)
-                .Select(group => new HostFunctionContainerTarget((INamedTypeSymbol)group.Key, ImmutableArray.CreateRange(group))))
+                .Select(group => group.Key is INamedTypeSymbol typeSymbol
+                    ? new HostFunctionContainerTarget(typeSymbol, ImmutableArray.CreateRange(group))
+                    : null)
+                .Where(target => target is not null)
+                .Select(target => target!))
             .Combine(wellKnownTypes)
             .Select<(HostFunctionContainerTarget, WellKnownTypes), HostFunctionContainerInfo?>((data, _) =>
                 TransformHostFunctionContainer(data.Item1, data.Item2))

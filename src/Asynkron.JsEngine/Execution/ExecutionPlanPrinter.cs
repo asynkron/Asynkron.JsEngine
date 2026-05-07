@@ -443,34 +443,4 @@ internal static class ExecutionPlanPrinter
         };
     }
 
-    private static string FormatStatement(StatementNode stmt)
-    {
-        return stmt switch
-        {
-            BlockStatement block => $"{{ {block.Statements.Length} stmts }}",
-            IfStatement => "if (...)",
-            ForStatement => "for (...)",
-            WhileStatement => "while (...)",
-            DoWhileStatement => "do ... while (...)",
-            ForEachStatement forEach => forEach.Kind switch
-            {
-                ForEachKind.Of => "for ... of",
-                ForEachKind.In => "for ... in",
-                ForEachKind.AwaitOf => "for await ... of",
-                _ => "for-each"
-            },
-            TryStatement => "try { ... }",
-            SwitchStatement => "switch (...)",
-            LabeledStatement labeled => $"{labeled.Label.Name}: ...",
-            ExpressionStatement exprStmt => FormatExpression(exprStmt.Expression),
-            VariableDeclaration varDecl => $"{varDecl.Kind} ({varDecl.Declarators.Length} decls)",
-            ReturnStatement => "return",
-            ThrowStatement => "throw",
-            BreakStatement brk => brk.Label != null ? $"break {brk.Label.Name}" : "break",
-            ContinueStatement cont => cont.Label != null ? $"continue {cont.Label.Name}" : "continue",
-            EmptyStatement => ";",
-            WithStatement => "with (...)",
-            _ => stmt.GetType().Name
-        };
-    }
 }

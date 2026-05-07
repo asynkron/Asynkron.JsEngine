@@ -5260,7 +5260,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
 
             var isPromise = JsPromise.TryGetInternalPromise(awaitedValue, out var settledPromise);
             if (isPromise &&
-                settledPromise.TryGetSettled(out var settledValue, out var isRejected))
+                settledPromise!.TryGetSettled(out var settledValue, out var isRejected))
             {
                 if (isRejected)
                 {
@@ -5294,7 +5294,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
 
             if (isPromise)
             {
-                settledPromise.Then(onFulfilledFn, onRejectedFn);
+                settledPromise!.Then(onFulfilledFn, onRejectedFn);
                 return false;
             }
 
@@ -5854,6 +5854,8 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             Action<JsValue> continuation,
             bool advanceTopLevelStatement)
         {
+            _ = advanceTopLevelStatement;
+
             var tempBuilder = ImmutableArray.CreateBuilder<AwaitTempBinding>();
             var rewrittenExpression = RewriteAwaitExpressionToSyntheticIdentifier(expression, tempBuilder);
             if (AstShapeAnalyzer.ContainsAwait(rewrittenExpression))
@@ -6730,6 +6732,8 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         {
             _engine.QueueMicrotask(JsCallableMicrotask.Rent(new HostFunction(_args =>
             {
+                _ = _args;
+
                 if (_completion.Task.IsCompleted)
                 {
                     return JsValue.Null;

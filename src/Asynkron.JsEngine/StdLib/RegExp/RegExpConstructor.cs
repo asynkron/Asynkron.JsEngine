@@ -45,7 +45,7 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
             var isNewTarget = newTarget.TryGetObject<IJsCallable>(out var callable);
             if (isNewTarget)
             {
-                effectiveNewTarget = callable;
+                effectiveNewTarget = callable!;
             }
             else
             {
@@ -72,8 +72,9 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
                 }
             }
 
-            JsObject? thisObj = null;
-            thisArg.TryGetObject<JsObject>(out thisObj);
+            var thisObj = thisArg.TryGetObject<JsObject>(out var matchedThisObj)
+                ? matchedThisObj
+                : null;
             return ConstructRegExp(args, effectiveNewTarget, targetCtor, thisObj);
         });
 

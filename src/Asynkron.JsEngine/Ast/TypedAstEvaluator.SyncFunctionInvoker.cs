@@ -621,6 +621,8 @@ public static partial class TypedAstEvaluator
             EvaluationContext callingContext,
             JsEnvironment reuseEnvironment)
         {
+            _ = reuseEnvironment;
+
             return InvokeWithContextSlow([arg0], thisValue, callingContext, JsValue.Undefined);
         }
 

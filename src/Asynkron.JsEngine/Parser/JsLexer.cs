@@ -1986,24 +1986,6 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
         return false;
     }
 
-    private bool TryPeekHexEscape(out int codePoint)
-    {
-        codePoint = 0;
-        if (_current + 2 >= source.Length || source[_current] != 'x')
-        {
-            return false;
-        }
-
-        if (!IsHexDigit(source[_current + 1]) || !IsHexDigit(source[_current + 2]))
-        {
-            return false;
-        }
-
-        var hexSpan = source.AsSpan(_current + 1, 2);
-        codePoint = int.Parse(hexSpan, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-        return true;
-    }
-
     private static DecodedString DecodeEscapeSequences(string rawString)
     {
         var result = new StringBuilder(rawString.Length);

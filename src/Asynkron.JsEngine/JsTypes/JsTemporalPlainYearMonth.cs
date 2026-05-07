@@ -24,7 +24,7 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
         Month = month;
         Calendar = calendar;
         // Reference day is used internally for calendar calculations
-        ReferenceDay = referenceDay ?? GetDefaultReferenceDay(calendar);
+        ReferenceDay = referenceDay ?? GetDefaultReferenceDay();
     }
 
     public int Year { get; }
@@ -32,7 +32,7 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
     public string Calendar { get; }
     internal int ReferenceDay { get; }
 
-    private static int GetDefaultReferenceDay(string calendar)
+    private static int GetDefaultReferenceDay()
     {
         return 1;
     }

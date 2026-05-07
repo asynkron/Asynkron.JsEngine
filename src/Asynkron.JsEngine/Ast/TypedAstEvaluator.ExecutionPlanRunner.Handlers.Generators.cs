@@ -190,12 +190,14 @@ public static partial class TypedAstEvaluator
         {
             var instruction = Unsafe.As<YieldStarInstruction>(instr);
             var currentIndex = runner._programCounter;
-            if (!TryGetSymbolValueJsValue(environment, instruction.StateSlotSymbol,
+            var stateSlotSymbol = instruction.StateSlotSymbol
+                                  ?? throw new InvalidOperationException("YieldStarInstruction is missing a state slot.");
+            if (!TryGetSymbolValueJsValue(environment, stateSlotSymbol,
                     out var stateValue) ||
                 !stateValue.TryGetObject<YieldStarState>(out var yieldStarState))
             {
                 yieldStarState = new YieldStarState();
-                StoreSymbolValue(environment, instruction.StateSlotSymbol, yieldStarState);
+                StoreSymbolValue(environment, stateSlotSymbol, yieldStarState);
             }
 
             if (yieldStarState.PendingAbrupt != AbruptKind.None &&
@@ -208,7 +210,7 @@ public static partial class TypedAstEvaluator
                 yieldStarState.PendingValue = JsValue.Undefined;
                 yieldStarState.State = null;
                 yieldStarState.AwaitingResume = false;
-                environment.AssignJsValue(instruction.StateSlotSymbol, JsValue.Null);
+                environment.AssignJsValue(stateSlotSymbol, JsValue.Null);
 
                 switch (pendingKind)
                 {
@@ -321,7 +323,7 @@ public static partial class TypedAstEvaluator
                     context.Clear();
                     yieldStarState.State = null;
                     yieldStarState.AwaitingResume = false;
-                    environment.AssignJsValue(instruction.StateSlotSymbol, JsValue.Null);
+                    environment.AssignJsValue(stateSlotSymbol, JsValue.Null);
                     if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
                     {
                         break;
@@ -353,7 +355,7 @@ public static partial class TypedAstEvaluator
 
                     yieldStarState.State = null;
                     yieldStarState.AwaitingResume = false;
-                    environment.AssignJsValue(instruction.StateSlotSymbol, JsValue.Null);
+                    environment.AssignJsValue(stateSlotSymbol, JsValue.Null);
 
                     if (pendingKind == AbruptKind.Throw)
                     {
@@ -379,7 +381,7 @@ public static partial class TypedAstEvaluator
                 {
                     yieldStarState.State = null;
                     yieldStarState.AwaitingResume = false;
-                    environment.AssignJsValue(instruction.StateSlotSymbol, JsValue.Null);
+                    environment.AssignJsValue(stateSlotSymbol, JsValue.Null);
                     if (instruction.ResultSlotSymbol is { } throwResultSlot)
                     {
                         StoreSymbolValue(environment, throwResultSlot, iteratorResult.Value);
@@ -393,7 +395,7 @@ public static partial class TypedAstEvaluator
                 {
                     yieldStarState.State = null;
                     yieldStarState.AwaitingResume = false;
-                    environment.AssignJsValue(instruction.StateSlotSymbol, JsValue.Null);
+                    environment.AssignJsValue(stateSlotSymbol, JsValue.Null);
                     if (instruction.ResultSlotSymbol is { } resultSlot)
                     {
                         StoreSymbolValue(environment, resultSlot, iteratorResult.Value);

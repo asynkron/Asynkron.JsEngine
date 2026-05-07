@@ -323,23 +323,6 @@ internal static class ExpressionStatementEmitter
         return true;
     }
 
-    private static bool IsParenthesizedIdentifierAssignment(AssignmentExpression expression)
-    {
-        if (expression.Source is null)
-        {
-            return false;
-        }
-
-        var source = expression.Source.Source;
-        var index = expression.Source.StartPosition - 1;
-        while (index >= 0 && char.IsWhiteSpace(source, index))
-        {
-            index--;
-        }
-
-        return index >= 0 && source[index] == '(';
-    }
-
     private static bool ShouldAllowAssignmentNameInference(AssignmentExpression expression)
     {
         return IsAnonymousFunctionDefinitionForNameInference(expression.Value);

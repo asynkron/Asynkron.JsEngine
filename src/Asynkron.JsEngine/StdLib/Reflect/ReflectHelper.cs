@@ -653,22 +653,6 @@ public static class ReflectHelper
         return true;
     }
 
-    private static bool IsProxySetTrapReturnFalse(ThrowSignal signal)
-    {
-        if (!signal.ThrownValue.TryGetObject<JsObject>(out var errorObj))
-        {
-            return false;
-        }
-
-        if (!errorObj.TryGetProperty("message", out var messageValue) ||
-            !messageValue.TryGetString(out var message))
-        {
-            return false;
-        }
-
-        return string.Equals(message, "Proxy 'set' trap returned a falsy value", StringComparison.Ordinal);
-    }
-
     internal static JsValue ReflectSetPrototypeOf(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (realm is null)

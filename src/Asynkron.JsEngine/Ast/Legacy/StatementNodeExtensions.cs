@@ -264,7 +264,7 @@ public static partial class TypedAstEvaluator
         {
             true => useLoopPool switch
             {
-                true => pooledLoopEnv,
+                true => pooledLoopEnv.Value!,
                 _ => useTypedArrayLoopEnv
                     ? environment
                     : JsEnvironment.CreateInstance(environment, false, false, statement.Source, "for-each-loop")

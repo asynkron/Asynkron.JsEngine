@@ -452,6 +452,9 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
         string? calendarOption, string? hourCycleOption, string? numberingSystemOption,
         bool? hour12)
     {
+        _ = calendarOption;
+        _ = numberingSystemOption;
+
         // Start with base locale (no unicode extensions)
         var extensions = new List<string>();
 

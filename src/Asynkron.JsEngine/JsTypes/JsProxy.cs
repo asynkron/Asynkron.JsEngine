@@ -1084,6 +1084,8 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     private static bool IsCompatiblePropertyDescriptor(bool extensible, PropertyDescriptor desc,
         PropertyDescriptor current)
     {
+        _ = extensible;
+
         // If current descriptor is the same reference, it's compatible
         if (ReferenceEquals(desc, current))
         {
@@ -1146,33 +1148,6 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         }
 
         return true;
-    }
-
-    private static IEnumerable<object?> ExtractKeys(JsValue trapResult)
-    {
-        if (!trapResult.IsObject)
-        {
-            yield break;
-        }
-
-        if (trapResult.TryGetObject<JsArray>(out var jsArray))
-        {
-            foreach (var item in jsArray.Items)
-            {
-                yield return item;
-            }
-
-            yield break;
-        }
-
-        var obj = trapResult.AsObject();
-        if (obj is IEnumerable enumerable)
-        {
-            foreach (var item in enumerable)
-            {
-                yield return item;
-            }
-        }
     }
 
     private bool TryGetTrap(string trapName, out IJsCallable callable)

@@ -70,6 +70,36 @@ This third script adds multiple local JavaScript modules, a static browser UI,
 `POST` and `PATCH` routes, request bodies, a native `path` module, and JSON
 persistence through host-backed `fs.writeFileSync`.
 
+Run the real Express package app:
+
+```bash
+cd examples/NodeHostDemo
+npm install
+npm run express
+```
+
+Then try:
+
+```bash
+curl http://localhost:9615/
+curl http://localhost:9615/api/status
+curl 'http://localhost:9615/api/hello/roger?x=1'
+curl -i -X OPTIONS http://localhost:9615/api/echo
+curl -X POST http://localhost:9615/api/echo \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"hello from middleware"}'
+curl -X POST http://localhost:9615/api/echo \
+  -H 'Content-Type: application/json' \
+  -d '{bad json'
+curl http://localhost:9615/not-found
+curl http://localhost:9615/api/audit
+```
+
+This fourth script loads the real `express` npm package from `node_modules`
+and demonstrates real Express middleware with `app.use(...)`: request IDs,
+response timing, CORS/preflight handling, host-backed JSON body parsing, an
+in-memory audit trail, and 404 handling.
+
 Run the real Polka package app:
 
 ```bash
@@ -86,7 +116,7 @@ curl http://localhost:9615/api/status
 curl 'http://localhost:9615/api/hello/roger?x=1'
 ```
 
-This fourth script loads `polka` from `node_modules` through the CommonJS
+This fifth script loads `polka` from `node_modules` through the CommonJS
 resolver and runs the framework code unchanged. The host still only supplies
 the native edges: package resolution, `http`, `querystring`, and enough
 request/response behavior for Polka's router.

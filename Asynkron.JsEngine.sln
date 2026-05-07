@@ -79,6 +79,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Scripts", "Scripts", "{9BC3
 		tools\profile-scripts\fib.js = tools\profile-scripts\fib.js
 	EndProjectSection
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NodeHostDemo", "examples\NodeHostDemo\NodeHostDemo.csproj", "{788CD51C-5015-485C-B237-840D6A60ED2B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -197,6 +199,18 @@ Global
 		{36599B14-23F5-483B-A715-BFC5B1663D83}.Release|x64.Build.0 = Release|Any CPU
 		{36599B14-23F5-483B-A715-BFC5B1663D83}.Release|x86.ActiveCfg = Release|Any CPU
 		{36599B14-23F5-483B-A715-BFC5B1663D83}.Release|x86.Build.0 = Release|Any CPU
+		{788CD51C-5015-485C-B237-840D6A60ED2B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{788CD51C-5015-485C-B237-840D6A60ED2B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{788CD51C-5015-485C-B237-840D6A60ED2B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{788CD51C-5015-485C-B237-840D6A60ED2B}.Debug|x64.Build.0 = Debug|Any CPU
+		{788CD51C-5015-485C-B237-840D6A60ED2B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{788CD51C-5015-485C-B237-840D6A60ED2B}.Debug|x86.Build.0 = Debug|Any CPU
+		{788CD51C-5015-485C-B237-840D6A60ED2B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{788CD51C-5015-485C-B237-840D6A60ED2B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{788CD51C-5015-485C-B237-840D6A60ED2B}.Release|x64.ActiveCfg = Release|Any CPU
+		{788CD51C-5015-485C-B237-840D6A60ED2B}.Release|x64.Build.0 = Release|Any CPU
+		{788CD51C-5015-485C-B237-840D6A60ED2B}.Release|x86.ActiveCfg = Release|Any CPU
+		{788CD51C-5015-485C-B237-840D6A60ED2B}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -213,5 +227,6 @@ Global
 		{EC08E5A7-AF36-4FA2-AE61-E27C17F4A091} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{36599B14-23F5-483B-A715-BFC5B1663D83} = {95C5BFA4-0A4E-46B9-AB43-9040A770C140}
 		{9BC3EB28-7705-423A-9DB2-6335CCB3A7A4} = {95C5BFA4-0A4E-46B9-AB43-9040A770C140}
+		{788CD51C-5015-485C-B237-840D6A60ED2B} = {B36A84DF-456D-A817-6EDD-3EC3E7F6E11F}
 	EndGlobalSection
 EndGlobal

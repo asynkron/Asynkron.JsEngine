@@ -40,7 +40,7 @@ public sealed partial class ProxyConstructor(IJsObjectLike prototype, RealmState
 
         // Per spec 26.2.1.1 step 1: If NewTarget is undefined, throw a TypeError exception.
         // Proxy must be called with new; calling as a function is not allowed.
-        constructor.SetInvokeWithContext((args, thisValue, context, newTarget) =>
+        constructor.SetInvokeWithContext((args, thisValue, _, newTarget) =>
         {
             if (newTarget.IsUndefined)
             {

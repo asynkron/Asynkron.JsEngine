@@ -791,7 +791,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         {
             StandardLibrary.IteratorClose(iterator, Realm, operation);
         }
-        catch (Exception)
+        catch (ThrowSignal)
         {
             // Preserve the original abrupt completion when IteratorClose also fails.
         }

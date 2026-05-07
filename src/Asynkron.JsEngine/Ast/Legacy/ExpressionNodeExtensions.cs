@@ -1842,8 +1842,8 @@ public static partial class TypedAstEvaluator
             // marker is defined alongside it for derived constructors.
             else if (environment.TryFindBindingJsValue(Symbol.This, true, out var thisEnv, out _))
             {
-                thisInitializationEnvironment = thisEnv;
-                if (thisEnv.TryGetJsValue(Symbol.ThisInitialized, out var initValue))
+                thisInitializationEnvironment = thisEnv.ResolveConstructorThisEnvironment();
+                if (thisInitializationEnvironment.TryGetJsValue(Symbol.ThisInitialized, out var initValue))
                 {
                     thisInitializationValue = initValue;
                 }
@@ -1938,6 +1938,10 @@ public static partial class TypedAstEvaluator
                     hasThisBinding,
                     beforeType);
                 targetEnvironment.AssignJsValue(Symbol.This, JsValue.FromObjectUnsafe(thisAfterSuper));
+                if (!ReferenceEquals(environment, targetEnvironment))
+                {
+                    environment.AssignJsValue(Symbol.This, JsValue.FromObjectUnsafe(thisAfterSuper));
+                }
                 try
                 {
                     targetEnvironment.TryGetJsValue(Symbol.This, out var afterThis);

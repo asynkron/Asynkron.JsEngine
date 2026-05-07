@@ -1,0 +1,17 @@
+{
+  "name": "asynkron-jsengine-nodehostdemo",
+  "version": "1.0.0",
+  "description": "Node-shaped host examples for Asynkron.JsEngine.",
+  "private": true,
+  "main": "scripts/server.js",
+  "scripts": {
+    "polka": "dotnet run --project . -- scripts/polka/app.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "polka": "^0.5.2"
+  }
+}

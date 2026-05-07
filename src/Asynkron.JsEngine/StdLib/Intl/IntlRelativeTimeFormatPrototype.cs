@@ -111,7 +111,7 @@ public sealed partial class IntlRelativeTimeFormatPrototype
     {
         if (string.Equals(numeric, "auto", StringComparison.Ordinal))
         {
-            var special = TryGetAutoStringForFormat(value, unit, locale, style);
+            var special = TryGetAutoStringForFormat(value, unit, locale);
             if (special is not null)
             {
                 return special;
@@ -124,10 +124,10 @@ public sealed partial class IntlRelativeTimeFormatPrototype
 
         if (IsNegativeOrNegativeZero(value))
         {
-            return ApplyPattern(GetPastPattern(locale, style), formattedNumber, unitDisplay);
+            return ApplyPattern(GetPastPattern(locale), formattedNumber, unitDisplay);
         }
 
-        return ApplyPattern(GetFuturePattern(locale, style), formattedNumber, unitDisplay);
+        return ApplyPattern(GetFuturePattern(locale), formattedNumber, unitDisplay);
     }
 
     // ------- FormatToParts -------
@@ -137,7 +137,7 @@ public sealed partial class IntlRelativeTimeFormatPrototype
     {
         if (string.Equals(numeric, "auto", StringComparison.Ordinal))
         {
-            var special = TryGetAutoStringForParts(value, unit, locale, style);
+            var special = TryGetAutoStringForParts(value, unit, locale);
             if (special is not null)
             {
                 var literalParts = new JsArray(Realm);
@@ -163,11 +163,11 @@ public sealed partial class IntlRelativeTimeFormatPrototype
         if (IsNegativeOrNegativeZero(value))
         {
             AddNumberParts(parts, formattedNumber, unit, decimalSep, groupSep);
-            parts.Push(CreateLiteralPart($" {unitDisplay}" + GetPastSuffix(locale, style)));
+            parts.Push(CreateLiteralPart($" {unitDisplay}" + GetPastSuffix(locale)));
         }
         else
         {
-            parts.Push(CreateLiteralPart(GetFuturePrefix(locale, style)));
+            parts.Push(CreateLiteralPart(GetFuturePrefix(locale)));
             AddNumberParts(parts, formattedNumber, unit, decimalSep, groupSep);
             parts.Push(CreateLiteralPart($" {unitDisplay}"));
         }
@@ -325,7 +325,7 @@ public sealed partial class IntlRelativeTimeFormatPrototype
         return pattern.Replace("{0}", number).Replace("{1}", unitDisplay);
     }
 
-    private static string GetFuturePattern(string locale, string style)
+    private static string GetFuturePattern(string locale)
     {
         var lang = ExtractLanguage(locale);
         return lang switch
@@ -335,7 +335,7 @@ public sealed partial class IntlRelativeTimeFormatPrototype
         };
     }
 
-    private static string GetPastPattern(string locale, string style)
+    private static string GetPastPattern(string locale)
     {
         var lang = ExtractLanguage(locale);
         return lang switch
@@ -345,7 +345,7 @@ public sealed partial class IntlRelativeTimeFormatPrototype
         };
     }
 
-    private static string GetFuturePrefix(string locale, string style)
+    private static string GetFuturePrefix(string locale)
     {
         var lang = ExtractLanguage(locale);
         return lang switch
@@ -355,7 +355,7 @@ public sealed partial class IntlRelativeTimeFormatPrototype
         };
     }
 
-    private static string GetPastSuffix(string locale, string style)
+    private static string GetPastSuffix(string locale)
     {
         var lang = ExtractLanguage(locale);
         return lang switch
@@ -528,7 +528,7 @@ public sealed partial class IntlRelativeTimeFormatPrototype
     // format() uses all auto strings (including ones that look numeric like "in 1 second")
     // formatToParts() only uses truly non-numeric auto strings (like "yesterday", "now")
 
-    private static string? TryGetAutoStringForFormat(double value, string unit, string locale, string style)
+    private static string? TryGetAutoStringForFormat(double value, string unit, string locale)
     {
         // -0 should be treated as 0 for auto lookup
         var lookupValue = (value == 0 && double.IsNegative(value)) ? 0.0 : value;
@@ -543,13 +543,13 @@ public sealed partial class IntlRelativeTimeFormatPrototype
 
         return lang switch
         {
-            "en" => GetEnglishAutoFormat(intValue, unit, style),
-            "pl" => GetPolishAutoFormat(intValue, unit, style),
-            _ => GetEnglishAutoFormat(intValue, unit, style)
+            "en" => GetEnglishAutoFormat(intValue, unit),
+            "pl" => GetPolishAutoFormat(intValue, unit),
+            _ => GetEnglishAutoFormat(intValue, unit)
         };
     }
 
-    private static string? TryGetAutoStringForParts(double value, string unit, string locale, string style)
+    private static string? TryGetAutoStringForParts(double value, string unit, string locale)
     {
         // -0 should be treated as 0 for auto lookup
         var lookupValue = (value == 0 && double.IsNegative(value)) ? 0.0 : value;
@@ -572,7 +572,7 @@ public sealed partial class IntlRelativeTimeFormatPrototype
     }
 
     // For format(): all CLDR relative fields including numeric-looking ones
-    private static string? GetEnglishAutoFormat(int value, string unit, string style)
+    private static string? GetEnglishAutoFormat(int value, string unit)
     {
         return (unit, value) switch
         {
@@ -631,7 +631,7 @@ public sealed partial class IntlRelativeTimeFormatPrototype
         };
     }
 
-    private static string? GetPolishAutoFormat(int value, string unit, string style)
+    private static string? GetPolishAutoFormat(int value, string unit)
     {
         return (unit, value) switch
         {
@@ -657,7 +657,7 @@ public sealed partial class IntlRelativeTimeFormatPrototype
 
     private static string? GetPolishAutoParts(int value, string unit)
     {
-        return GetPolishAutoFormat(value, unit, "long");
+        return GetPolishAutoFormat(value, unit);
     }
 
     private static string ExtractLanguage(string locale)

@@ -2767,6 +2767,13 @@ public sealed class JsEnvironment : IRentable
                     {
                         slot.SetValueAndClearTdz(value);
                     }
+
+                    if (ReferenceEquals(name, Symbol.This))
+                    {
+                        current._thisValue = value;
+                        current._hasThisValue = true;
+                    }
+
                     if (!slot.IsLexical)
                     {
                         globalObject?.SetProperty(name.Name, value);

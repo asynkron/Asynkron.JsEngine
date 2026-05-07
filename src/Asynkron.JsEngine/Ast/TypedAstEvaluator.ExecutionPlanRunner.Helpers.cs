@@ -2593,8 +2593,8 @@ public static partial class TypedAstEvaluator
                 }
                 else if (environment.TryFindBindingJsValue(Symbol.This, true, out var thisEnv, out _))
                 {
-                    thisInitializationEnvironment = thisEnv;
-                    if (thisEnv.TryGetJsValue(Symbol.ThisInitialized, out var initValue))
+                    thisInitializationEnvironment = thisEnv.ResolveConstructorThisEnvironment();
+                    if (thisInitializationEnvironment.TryGetJsValue(Symbol.ThisInitialized, out var initValue))
                     {
                         thisInitializationValue = initValue;
                     }
@@ -2675,6 +2675,10 @@ public static partial class TypedAstEvaluator
                     ? JsValue.Undefined
                     : JsValue.FromObjectUnsafe(thisAfterSuper);
                 targetEnvironment.AssignJsValue(Symbol.This, initializedThis);
+                if (!ReferenceEquals(environment, targetEnvironment))
+                {
+                    environment.AssignJsValue(Symbol.This, initializedThis);
+                }
 
                 if (targetEnvironment.TryGetObject<SuperBinding>(Symbol.Super, out var binding))
                 {

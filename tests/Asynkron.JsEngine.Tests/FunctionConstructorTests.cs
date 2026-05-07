@@ -7,6 +7,32 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class FunctionConstructorTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
+    public async Task HostFunctionApplyExpandsArgumentsObject()
+    {
+        await using var engine = CreateEngine();
+        engine.SetGlobalFunction("__captureApplyArgs", args =>
+        {
+            var parts = new string[args.Count];
+            for (var i = 0; i < args.Count; i++)
+            {
+                parts[i] = args[i].ToObject()?.ToString() ?? "";
+            }
+
+            return string.Join(",", parts);
+        });
+
+        var result = await engine.Evaluate("""
+            function forward() {
+                return __captureApplyArgs.apply(null, arguments);
+            }
+
+            forward('port', 9615);
+        """);
+
+        Assert.Equal("port,9615", result);
+    }
+
+    [Fact]
     public async Task NewFunctionCreatesCallableBody()
     {
         await using var engine = CreateEngine();

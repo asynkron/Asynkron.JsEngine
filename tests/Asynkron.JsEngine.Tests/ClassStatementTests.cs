@@ -75,6 +75,33 @@ public sealed class ClassStatementTests(ITestOutputHelper output) : InternalTest
     }
 
     [Fact(Timeout = 2000)]
+    public async Task DerivedConstructorDefaultParameterInitializesThisAfterSuper()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                constructor(value) {
+                    this.base = value;
+                }
+            }
+
+            class Derived extends Base {
+                constructor(options = { value: 42 }) {
+                    super(options.value);
+                    this.derived = true;
+                }
+            }
+
+            var instance = new Derived();
+            [instance.base, instance.derived];
+            """);
+
+        var array = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.Equal(42.0, array.Items[0]);
+        Assert.True(array.Items[1].AsBoolean());
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task ClassNameBindingInsideClassBody()
     {
         await using var engine = CreateEngine();

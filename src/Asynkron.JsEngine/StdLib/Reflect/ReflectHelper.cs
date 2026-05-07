@@ -33,7 +33,17 @@ public static class ReflectHelper
     /// <summary>
     /// Implements the abstract operation CreateListFromArrayLike (ES2023 7.3.22).
     /// </summary>
-    private static JsValue[] CreateListFromArrayLike(JsValue obj, RealmState? realm)
+    internal static IReadOnlyList<JsValue> CreateFunctionApplyArgumentList(JsValue obj, RealmState? realm)
+    {
+        if (obj.IsNullOrUndefined)
+        {
+            return ArgumentSlice.Empty;
+        }
+
+        return CreateListFromArrayLike(obj, realm);
+    }
+
+    internal static JsValue[] CreateListFromArrayLike(JsValue obj, RealmState? realm)
     {
         if (obj.IsNullOrUndefined)
         {

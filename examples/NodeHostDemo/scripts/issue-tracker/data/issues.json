@@ -1,0 +1,31 @@
+{
+  "issues": [
+    {
+      "id": 1,
+      "title": "Serve static HTML through JsEngine",
+      "owner": "ada",
+      "status": "closed",
+      "priority": "high",
+      "createdAt": "2026-05-07T08:00:00.000Z",
+      "updatedAt": "2026-05-07T08:20:00.000Z"
+    },
+    {
+      "id": 2,
+      "title": "Persist JSON updates with host fs.writeFileSync",
+      "owner": "grace",
+      "status": "open",
+      "priority": "high",
+      "createdAt": "2026-05-07T08:30:00.000Z",
+      "updatedAt": "2026-05-07T08:30:00.000Z"
+    },
+    {
+      "id": 3,
+      "title": "Add request bodies to the native HTTP bridge",
+      "owner": "linus",
+      "status": "in-progress",
+      "priority": "medium",
+      "createdAt": "2026-05-07T09:00:00.000Z",
+      "updatedAt": "2026-05-07T09:10:00.000Z"
+    }
+  ]
+}

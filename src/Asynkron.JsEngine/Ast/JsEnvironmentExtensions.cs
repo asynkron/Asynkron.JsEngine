@@ -231,6 +231,20 @@ public static partial class TypedAstEvaluator
         return binding.Constructor;
     }
 
+    internal static JsEnvironment ResolveConstructorThisEnvironment(this JsEnvironment environment)
+    {
+        var current = environment;
+        while (current.Enclosing is not null &&
+               (current.IsBodyEnvironment ||
+                current.IsParameterEnvironment ||
+                !current.HasBindingLocal(Symbol.This)))
+        {
+            current = current.Enclosing;
+        }
+
+        return current;
+    }
+
     internal static Exception CreateSuperReferenceError(this JsEnvironment environment, EvaluationContext context)
     {
         environment.RealmState?.Logger?.LogInformation("SuperBinding: reference error thisInit? {ThisInit}",

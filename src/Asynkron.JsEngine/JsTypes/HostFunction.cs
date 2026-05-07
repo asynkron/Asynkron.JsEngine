@@ -213,23 +213,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
                     // Use the thisValue (the function being applied) when called via prototype chain
                     var target = thisValue.TryGetObject<IJsCallable>(out var thisObj) ? thisObj : jsCallable;
                     var thisArg = args.GetArgument(0);
-                    IReadOnlyList<JsValue> argList;
-                    if (args.Count > 1 && args[1].TryGetObject<JsArray>(out var jsArray))
-                    {
-                        // items[i] is already JsValue from JsArray.Items
-                        var items = jsArray.Items;
-                        var jsValues = new JsValue[items.Count];
-                        for (var i = 0; i < items.Count; i++)
-                        {
-                            jsValues[i] = items[i];
-                        }
-
-                        argList = jsValues;
-                    }
-                    else
-                    {
-                        argList = ArgumentSlice.Empty;
-                    }
+                    var argList = CreateFunctionApplyArgumentList(args.GetArgument(1), RealmState);
 
                     return target.Invoke(argList, thisArg);
                 }, isConstructor: false);

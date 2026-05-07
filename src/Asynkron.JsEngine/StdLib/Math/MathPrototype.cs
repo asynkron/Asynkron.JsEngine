@@ -496,7 +496,7 @@ public sealed partial class MathPrototype
     /// Shewchuk's exact floating-point summation algorithm (Python fsum style).
     /// </summary>
     [JsHostMethod("sumPrecise", Length = 1d)]
-    public JsValue SumPrecise(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue SumPrecise(IReadOnlyList<JsValue> args)
     {
         var items = args.GetArgument(0);
 
@@ -562,14 +562,14 @@ public sealed partial class MathPrototype
 
         if (values.Count == 0)
         {
-            if (!sawFiniteNonZero && !sawPositiveZero) return JsValue.FromDouble(-0d);
+            if (!sawFiniteNonZero && sawNegativeZero && !sawPositiveZero) return JsValue.FromDouble(-0d);
             return JsValue.Zero;
         }
 
         var result = SumPreciseFinite(values);
 
         // ReSharper disable once CompareOfFloatsByEqualityOperator
-        if (result == 0d && !sawFiniteNonZero && !sawPositiveZero) return JsValue.FromDouble(-0d);
+        if (result == 0d && !sawFiniteNonZero && sawNegativeZero && !sawPositiveZero) return JsValue.FromDouble(-0d);
 
         return JsValue.FromDouble(result);
     }

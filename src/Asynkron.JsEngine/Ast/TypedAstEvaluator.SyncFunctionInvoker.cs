@@ -455,23 +455,7 @@ public static partial class TypedAstEvaluator
                     value = (JsValue)new HostFunction((_, args) =>
                     {
                         var thisArg = args.GetArgument(0);
-                        IReadOnlyList<JsValue> argList;
-                        if (args.Count > 1 && args[1].TryGetObject<JsArray>(out var jsArray))
-                        {
-                            // items[i] is already JsValue from JsArray.Items
-                            var items = jsArray.Items;
-                            var jsValues = new JsValue[items.Count];
-                            for (var i = 0; i < items.Count; i++)
-                            {
-                                jsValues[i] = items[i];
-                            }
-
-                            argList = jsValues;
-                        }
-                        else
-                        {
-                            argList = ArgumentSlice.Empty;
-                        }
+                        var argList = ReflectHelper.CreateFunctionApplyArgumentList(args.GetArgument(1), RealmState);
 
                         return callable.Invoke(argList, thisArg);
                     }, isConstructor: false);

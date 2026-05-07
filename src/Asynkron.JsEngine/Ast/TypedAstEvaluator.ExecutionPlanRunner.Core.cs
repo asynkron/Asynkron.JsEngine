@@ -131,7 +131,7 @@ public static partial class TypedAstEvaluator
             _arguments = [];
             _callable = null!;
             _function = null!;
-            _thisValue = environment.TryGetJsValue(Symbol.This, out var thisValue)
+            _thisValue = environment.TryFindBindingJsValue(Symbol.This, allowUninitialized: true, out _, out var thisValue)
                 ? thisValue
                 : JsValue.Undefined;
             _newTarget = newTarget;

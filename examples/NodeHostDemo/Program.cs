@@ -62,6 +62,7 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
         _engine.SetGlobalValue("process", CreateProcessObject());
         _engine.SetGlobalFunction("setImmediate", InvokeImmediately);
         _engine.SetGlobalFunction("clearImmediate", _ => JsValue.Undefined);
+        InstallGlobalBuffer();
         InstallNodeCompatibilityShims();
     }
 
@@ -289,6 +290,19 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
               return { Buffer: Buffer, SlowBuffer: Buffer };
             })()
             """));
+    }
+
+    private void InstallGlobalBuffer()
+    {
+        var bufferModule = CreateBufferModule();
+        _moduleCache["buffer"] = bufferModule;
+
+        if (bufferModule.TryGetObject<JsObject>(out var moduleObject) &&
+            moduleObject.TryGetProperty("Buffer", out var bufferConstructor) &&
+            bufferConstructor.TryGetObject<IJsCallable>(out var bufferObject))
+        {
+            _engine.SetGlobalValue("Buffer", bufferObject);
+        }
     }
 
     private JsObject CreateCryptoModule()

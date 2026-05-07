@@ -32,8 +32,13 @@ internal static class StatementEmitter
                     return BlockEmitter.TryEmitBlock(ctx, block, nextIndex, out entryIndex);
 
                 case FunctionDeclaration funcDecl:
+                    if (!ctx.IsInNestedScope)
+                    {
+                        entryIndex = DeclarationEmitter.EmitFunctionDeclaration(ctx, nextIndex);
+                        return true;
+                    }
+
                     // Block-scoped function declarations need to be instantiated at runtime.
-                    // Function-scoped declarations are hoisted (no-op at runtime).
                     entryIndex = ctx.Append(new FunctionDeclarationInstruction(
                         nextIndex,
                         FunctionDeclarationDescriptor.Create(funcDecl)));

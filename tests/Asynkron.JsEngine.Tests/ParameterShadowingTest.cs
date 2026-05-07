@@ -34,4 +34,25 @@ public sealed class ParameterShadowingTest(ITestOutputHelper output) : InternalT
         ");
         Assert.Equal(10.0, result);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task VarDeclaration_ShadowsNamedFunctionExpressionName()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            function Route(path) {
+                this.path = path;
+            }
+
+            var original = function route(path) {
+                var route = new Route(path);
+                return route.path;
+            };
+
+            original('/');
+            """);
+
+        Assert.Equal("/", result);
+    }
 }

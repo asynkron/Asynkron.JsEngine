@@ -1373,6 +1373,11 @@ public sealed class JsEnvironment : IRentable
                 return true;
             }
 
+            if (!Unsafe.IsNullRef(ref slot))
+            {
+                return false;
+            }
+
             if (current._withObject is not null && HasVisibleWithBinding(current._withObject, name))
             {
                 break;

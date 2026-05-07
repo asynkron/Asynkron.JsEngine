@@ -2350,8 +2350,13 @@ public static partial class TypedAstEvaluator
 
             if (!calleeValue.TryGetObject<IJsCallable>(out var callable))
             {
+                var calleeDescription = calleeValue.IsUndefined
+                    ? "undefined"
+                    : calleeValue.IsNull
+                        ? "null"
+                        : JsOps.ToJsString(calleeValue);
                 var error = StandardLibrary.CreateTypeError(
-                    "Attempted to call a non-callable value.",
+                    $"Attempted to call a non-callable value '{calleeDescription}' of type '{calleeValue.Kind}'.",
                     context,
                     context.RealmState);
                 context.SetThrow(error);

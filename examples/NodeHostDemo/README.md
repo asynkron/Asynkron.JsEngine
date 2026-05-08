@@ -97,8 +97,9 @@ curl http://localhost:9615/api/audit
 
 This fourth script loads the real `express` npm package from `node_modules`
 and demonstrates real Express middleware with `app.use(...)`: request IDs,
-response timing, CORS/preflight handling, host-backed JSON body parsing, an
-in-memory audit trail, and 404 handling.
+request logging through the host-backed `console`, response timing,
+CORS/preflight handling, host-backed JSON body parsing, an in-memory audit
+trail, and 404 handling.
 
 Run the real Polka package app:
 

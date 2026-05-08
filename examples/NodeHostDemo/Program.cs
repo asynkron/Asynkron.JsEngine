@@ -60,6 +60,7 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
         _scriptDirectory = Path.GetDirectoryName(scriptPath) ?? Directory.GetCurrentDirectory();
         _engine.SetGlobalFunction("require", Require);
         _engine.SetGlobalValue("process", CreateProcessObject());
+        _engine.SetGlobalValue("console", CreateConsoleObject());
         _engine.SetGlobalFunction("setImmediate", InvokeImmediately);
         _engine.SetGlobalFunction("clearImmediate", _ => JsValue.Undefined);
         InstallGlobalBuffer();
@@ -194,6 +195,53 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
             return JsValue.FromDouble(elapsed.TotalSeconds);
         }));
         return process;
+    }
+
+    private JsObject CreateConsoleObject()
+    {
+        var console = new JsObject();
+        SetProperty(console, "log", CreateHostFunction(args =>
+        {
+            Console.Out.WriteLine(FormatConsoleArguments(args));
+            return JsValue.Undefined;
+        }));
+        SetProperty(console, "info", CreateHostFunction(args =>
+        {
+            Console.Out.WriteLine(FormatConsoleArguments(args));
+            return JsValue.Undefined;
+        }));
+        SetProperty(console, "warn", CreateHostFunction(args =>
+        {
+            Console.Error.WriteLine(FormatConsoleArguments(args));
+            return JsValue.Undefined;
+        }));
+        SetProperty(console, "error", CreateHostFunction(args =>
+        {
+            Console.Error.WriteLine(FormatConsoleArguments(args));
+            return JsValue.Undefined;
+        }));
+        return console;
+    }
+
+    private static string FormatConsoleArguments(IReadOnlyList<JsValue> args)
+    {
+        if (args.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder();
+        for (var i = 0; i < args.Count; i++)
+        {
+            if (i > 0)
+            {
+                builder.Append(' ');
+            }
+
+            builder.Append(ToHostString(args[i]));
+        }
+
+        return builder.ToString();
     }
 
     private static JsValue InvokeImmediately(IReadOnlyList<JsValue> args)

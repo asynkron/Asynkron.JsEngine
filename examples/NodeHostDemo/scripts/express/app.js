@@ -5,7 +5,9 @@ var startedAt = new Date().toISOString();
 var auditTrail = [];
 var nextRequestId = 1;
 
+console.log('[express] starting demo at', startedAt);
 app.use(assignRequestId);
+app.use(logRequest);
 app.use(measureResponseTime);
 app.use(recordAuditEntry);
 app.use(cors);
@@ -24,6 +26,7 @@ app.get('/api/status', function (req, res) {
     uptimeSeconds: process.uptime(),
     middleware: [
       'assignRequestId',
+      'logRequest',
       'measureResponseTime',
       'recordAuditEntry',
       'cors',
@@ -65,11 +68,17 @@ app.use(function notFound(req, res) {
 });
 
 app.listen(9615);
+console.log('[express] listening on http://localhost:9615/');
 
 function assignRequestId(req, res, next) {
   req.id = 'req-' + nextRequestId++;
   req.startedAt = Date.now();
   res.setHeader('X-Request-Id', req.id);
+  next();
+}
+
+function logRequest(req, res, next) {
+  console.log('[express]', req.id, '->', req.method, req.originalUrl || req.url);
   next();
 }
 
@@ -117,17 +126,27 @@ function parseJsonBodyFromHost(req, res, next) {
 function recordAuditEntry(req, res, next) {
   var end = res.end;
   res.end = function (body) {
+    var durationMs = Date.now() - req.startedAt;
     auditTrail.push({
       id: req.id,
       method: req.method,
       url: req.originalUrl || req.url,
       statusCode: res.statusCode || 200,
-      durationMs: Date.now() - req.startedAt
+      durationMs: durationMs
     });
 
     if (auditTrail.length > 20) {
       auditTrail.shift();
     }
+
+    console.log(
+      '[express]',
+      req.id,
+      '<-',
+      res.statusCode || 200,
+      req.method,
+      req.originalUrl || req.url,
+      durationMs + 'ms');
 
     end.call(res, body);
   };

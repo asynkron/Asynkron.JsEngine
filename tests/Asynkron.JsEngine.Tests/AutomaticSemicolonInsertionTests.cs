@@ -27,6 +27,21 @@ public sealed class AutomaticSemicolonInsertionTestsBase(ITestOutputHelper outpu
     }
 
     [Fact(Timeout = 2000)]
+    public async Task ReturnBeforeClosingBraceUsesAutomaticSemicolonInsertion()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            function test() {
+                if (true) { return }
+                return 42
+            }
+            test();
+        ");
+
+        Assert.Equal(Symbol.Undefined, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task ReturnWithObjectOnSameLine()
     {
         // return { on same line should parse the object with computed property

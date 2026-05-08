@@ -265,9 +265,7 @@ public static partial class TypedAstEvaluator
                         context,
                         mode,
                         hasInitializer: property.DefaultProgram is not null || !propertyValue.IsUndefined,
-                        allowNameInference: false,
-                        skipBlockedBindingLookup: mode == BindingMode.DefineVar &&
-                                                  property.Target is IdentifierBindingTargetProgram);
+                        allowNameInference: false);
                 }
                 if (context.ShouldStopEvaluation)
                 {

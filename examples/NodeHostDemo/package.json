@@ -6,6 +6,8 @@
   "main": "scripts/server.js",
   "scripts": {
     "express": "dotnet run --project . -- scripts/express/app.js",
+    "official-express-ejs": "dotnet run --project . -- third_party/express/examples/ejs/index.js",
+    "prepare:official-express-ejs": "mkdir -p third_party && (test -d third_party/express/.git || git clone --depth 1 https://github.com/expressjs/express.git third_party/express) && npm --prefix third_party/express install",
     "polka": "dotnet run --project . -- scripts/polka/app.js"
   },
   "keywords": [],

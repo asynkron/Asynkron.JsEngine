@@ -101,6 +101,29 @@ request logging through the host-backed `console`, response timing,
 CORS/preflight handling, host-backed JSON body parsing, an in-memory audit
 trail, and 404 handling.
 
+Run an unchanged example from the official Express repository:
+
+```bash
+cd examples/NodeHostDemo
+npm run prepare:official-express-ejs
+npm run official-express-ejs
+```
+
+Then try:
+
+```bash
+curl http://localhost:3000/
+curl http://localhost:3000/stylesheets/style.css
+```
+
+This script clones [expressjs/express](https://github.com/expressjs/express)
+into `examples/NodeHostDemo/third_party/express`, installs that repository's
+dependencies, and runs `examples/ejs/index.js` unchanged through JsEngine. It
+exercises the real Express app, router, `express.static(...)`, EJS view
+rendering, nested package resolution, `node:` built-in aliases, async
+`fs.stat`, static file streaming, `TextDecoder`, and Node-shaped
+request/response host methods.
+
 Run the real Polka package app:
 
 ```bash

@@ -64,6 +64,7 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
         _engine.SetGlobalFunction("setImmediate", InvokeImmediately);
         _engine.SetGlobalFunction("clearImmediate", _ => JsValue.Undefined);
         InstallGlobalBuffer();
+        InstallTextEncodingGlobals();
         InstallNodeCompatibilityShims();
     }
 
@@ -71,8 +72,9 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
 
     public async Task RunAsync(CancellationToken cancellationToken)
     {
-        var source = await File.ReadAllTextAsync(_scriptPath, cancellationToken).ConfigureAwait(false);
-        await _engine.Evaluate(source, cancellationToken).ConfigureAwait(false);
+        await Task.Yield();
+        cancellationToken.ThrowIfCancellationRequested();
+        LoadScriptModule(_scriptPath, _scriptDirectory);
     }
 
     public static async Task WaitForShutdownAsync(CancellationToken cancellationToken)
@@ -135,7 +137,7 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
 
     private JsValue RequireFrom(string baseDirectory, IReadOnlyList<JsValue> args)
     {
-        var moduleName = GetRequiredString(args, 0, "require");
+        var moduleName = NormalizeBuiltInModuleName(GetRequiredString(args, 0, "require"));
         if (TryCreateBuiltInModule(moduleName, out var builtInModule))
         {
             return builtInModule;
@@ -160,6 +162,7 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
             "fs" => CreateFsModule(),
             "http" => CreateHttpModule(),
             "net" => CreateNetModule(),
+            "os" => CreateOsModule(),
             "path" => CreatePathModule(),
             "querystring" => CreateQueryStringModule(this),
             "stream" => CreateStreamModule(),
@@ -179,15 +182,25 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
         return true;
     }
 
+    private static string NormalizeBuiltInModuleName(string moduleName)
+    {
+        const string nodePrefix = "node:";
+        return moduleName.StartsWith(nodePrefix, StringComparison.Ordinal)
+            ? moduleName[nodePrefix.Length..]
+            : moduleName;
+    }
+
     private JsObject CreateProcessObject()
     {
         var process = new JsObject();
         SetProperty(process, "cwd", CreateHostFunction(_ => _scriptDirectory));
+        SetProperty(process, "argv", JsValue.FromObjectUnsafe(_engine.EvaluateSync("[]")));
         SetProperty(process, "env", new JsObject());
         SetProperty(process, "noDeprecation", false);
+        SetProperty(process, "platform", GetNodePlatform());
         SetProperty(process, "traceDeprecation", false);
         SetProperty(process, "stderr", CreateStderrObject());
-        SetProperty(process, "stdout", CreateStderrObject());
+        SetProperty(process, "stdout", CreateStdoutObject());
         SetProperty(process, "nextTick", CreateHostFunction(InvokeImmediately));
         SetProperty(process, "uptime", CreateHostFunction(_ =>
         {
@@ -195,6 +208,21 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
             return JsValue.FromDouble(elapsed.TotalSeconds);
         }));
         return process;
+    }
+
+    private static string GetNodePlatform()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return "win32";
+        }
+
+        if (OperatingSystem.IsMacOS())
+        {
+            return "darwin";
+        }
+
+        return "linux";
     }
 
     private JsObject CreateConsoleObject()
@@ -353,6 +381,106 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
         }
     }
 
+    private void InstallTextEncodingGlobals()
+    {
+        _engine.SetGlobalValue("TextDecoder", CreateTextDecoderConstructor());
+        _engine.EvaluateSync("""
+            TextEncoder = function TextEncoder() {
+              if (!(this instanceof TextEncoder)) {
+                return new TextEncoder();
+              }
+
+              this.encoding = 'utf-8';
+            };
+
+            TextEncoder.prototype.encode = function encode(input) {
+              var binary = unescape(encodeURIComponent(String(input === undefined ? '' : input)));
+              var bytes = new Uint8Array(binary.length);
+              for (var i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+              }
+
+              return bytes;
+            };
+            """);
+    }
+
+    private HostFunction CreateTextDecoderConstructor()
+    {
+        var constructor = new HostFunction((thisValue, args) =>
+        {
+            var label = args.Count > 0 ? ToHostString(args[0]) : "utf-8";
+            var encoding = NormalizeTextEncodingLabel(label);
+            var target = thisValue.TryGetObject<JsObject>(out var thisObject) ? thisObject : new JsObject();
+
+            SetProperty(target, "encoding", GetTextEncodingName(encoding));
+            SetProperty(target, "decode", CreateHostFunction(decodeArgs =>
+            {
+                if (decodeArgs.Count == 0 || decodeArgs[0].IsNullOrUndefined)
+                {
+                    return string.Empty;
+                }
+
+                return encoding.GetString(GetByteSourceBytes(decodeArgs[0]));
+            }));
+
+            return thisValue.TryGetObject<JsObject>(out _) ? JsValue.Undefined : target;
+        })
+        {
+            Realm = _engine.GlobalObject
+        };
+
+        return constructor;
+    }
+
+    private static Encoding NormalizeTextEncodingLabel(string label)
+    {
+        var normalized = label.Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "" or "utf-8" or "utf8" or "unicode-1-1-utf-8" => Encoding.UTF8,
+            "latin1" or "iso-8859-1" => Encoding.Latin1,
+            _ => throw new NotSupportedException($"TextDecoder encoding '{label}' is not implemented by this demo host.")
+        };
+    }
+
+    private static string GetTextEncodingName(Encoding encoding)
+    {
+        return encoding.CodePage == Encoding.Latin1.CodePage ? "iso-8859-1" : "utf-8";
+    }
+
+    private static byte[] GetByteSourceBytes(JsValue value)
+    {
+        if (value.TryGetObject<JsObject>(out var bufferObject) &&
+            bufferObject.TryGetProperty("_bufferString", out var bufferString) &&
+            bufferString.TryGetString(out var bufferText))
+        {
+            return Encoding.Latin1.GetBytes(bufferText);
+        }
+
+        if (!value.TryGetObject<IJsPropertyAccessor>(out var arrayLike) ||
+            !arrayLike.TryGetProperty("length", out var lengthValue) ||
+            !lengthValue.TryGetDouble(out var lengthDouble))
+        {
+            return [];
+        }
+
+        var length = Math.Max(0, (int)lengthDouble);
+        var bytes = new byte[length];
+        for (var i = 0; i < length; i++)
+        {
+            if (!arrayLike.TryGetProperty(i.ToString(CultureInfo.InvariantCulture), out var element) ||
+                !element.TryGetDouble(out var byteValue))
+            {
+                continue;
+            }
+
+            bytes[i] = unchecked((byte)(int)byteValue);
+        }
+
+        return bytes;
+    }
+
     private JsObject CreateCryptoModule()
     {
         var crypto = new JsObject();
@@ -472,6 +600,29 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
             return true;
         }));
         return stderr;
+    }
+
+    private JsObject CreateStdoutObject()
+    {
+        var stdout = new JsObject();
+        SetProperty(stdout, "isTTY", false);
+        SetProperty(stdout, "write", CreateHostFunction(args =>
+        {
+            if (args.Count > 0)
+            {
+                Console.Out.Write(ToHostString(args[0]));
+            }
+
+            return true;
+        }));
+        return stdout;
+    }
+
+    private JsObject CreateOsModule()
+    {
+        var os = new JsObject();
+        SetProperty(os, "release", CreateHostFunction(_ => Environment.OSVersion.VersionString));
+        return os;
     }
 
     private JsObject CreateTtyModule()
@@ -681,6 +832,78 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
             return File.Exists(resolvedPath) || Directory.Exists(resolvedPath);
         }));
 
+        SetProperty(fs, "statSync", CreateHostFunction(args =>
+        {
+            var requestedPath = GetRequiredString(args, 0, "fs.statSync");
+            var resolvedPath = ResolveScriptPath(requestedPath);
+            var exists = File.Exists(resolvedPath) || Directory.Exists(resolvedPath);
+            if (!exists)
+            {
+                throw new FileNotFoundException($"ENOENT: no such file or directory, stat '{requestedPath}'", resolvedPath);
+            }
+
+            var isFile = File.Exists(resolvedPath);
+            var stats = new JsObject();
+            SetProperty(stats, "isFile", CreateHostFunction(_ => isFile));
+            SetProperty(stats, "isDirectory", CreateHostFunction(_ => !isFile));
+            return stats;
+        }));
+
+        SetProperty(fs, "stat", CreateHostFunction(args =>
+        {
+            var requestedPath = GetRequiredString(args, 0, "fs.stat");
+            if (!TryGetCallable(args, 1, out var callback))
+            {
+                throw new ArgumentException("fs.stat requires a callback function.");
+            }
+
+            var resolvedPath = ResolveScriptPath(requestedPath);
+            if (!File.Exists(resolvedPath) && !Directory.Exists(resolvedPath))
+            {
+                callback.Invoke([(JsValue)CreateFileSystemError("ENOENT", requestedPath)], JsValue.Undefined);
+                return JsValue.Undefined;
+            }
+
+            callback.Invoke([JsValue.Null, (JsValue)CreateStatsObject(resolvedPath)], JsValue.Undefined);
+            return JsValue.Undefined;
+        }));
+
+        SetProperty(fs, "realpathSync", CreateHostFunction(args =>
+        {
+            var requestedPath = GetRequiredString(args, 0, "fs.realpathSync");
+            return ResolveScriptPath(requestedPath);
+        }));
+
+        SetProperty(fs, "createReadStream", CreateHostFunction(args =>
+        {
+            var requestedPath = GetRequiredString(args, 0, "fs.createReadStream");
+            var resolvedPath = ResolveScriptPath(requestedPath);
+            var stream = new JsObject();
+
+            SetProperty(stream, "on", CreateHostFunction((thisValue, _) => thisValue.IsUndefined ? stream : thisValue));
+            SetProperty(stream, "destroy", CreateHostFunction(_ => JsValue.Undefined));
+            SetProperty(stream, "pipe", CreateHostFunction((thisValue, pipeArgs) =>
+            {
+                if (!File.Exists(resolvedPath))
+                {
+                    return thisValue.IsUndefined ? stream : thisValue;
+                }
+
+                var contents = File.ReadAllText(resolvedPath);
+                if (pipeArgs.Count > 0 &&
+                    pipeArgs[0].TryGetObject<JsObject>(out var target) &&
+                    target.TryGetProperty("end", out var endValue) &&
+                    endValue.TryGetObject<IJsCallable>(out var end))
+                {
+                    end.Invoke([(JsValue)contents], pipeArgs[0]);
+                }
+
+                return pipeArgs.Count > 0 ? pipeArgs[0] : thisValue.IsUndefined ? stream : thisValue;
+            }));
+
+            return stream;
+        }));
+
         SetProperty(fs, "ReadStream", JsValue.FromObjectUnsafe(_engine.EvaluateSync("""
             (function () {
               function ReadStream() {
@@ -693,6 +916,35 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
             """)));
 
         return fs;
+    }
+
+    private JsObject CreateStatsObject(string resolvedPath)
+    {
+        var isFile = File.Exists(resolvedPath);
+        var stats = new JsObject();
+        SetProperty(stats, "isFile", CreateHostFunction(_ => isFile));
+        SetProperty(stats, "isDirectory", CreateHostFunction(_ => !isFile));
+        SetProperty(stats, "size", isFile ? new FileInfo(resolvedPath).Length : 0);
+        SetProperty(stats, "ino", 0);
+
+        var lastWriteTime = isFile
+            ? File.GetLastWriteTimeUtc(resolvedPath)
+            : Directory.GetLastWriteTimeUtc(resolvedPath);
+        var unixMilliseconds = new DateTimeOffset(lastWriteTime).ToUnixTimeMilliseconds();
+        var dateExpression = "new Date(" + unixMilliseconds.ToString(CultureInfo.InvariantCulture) + ")";
+        var modified = JsValue.FromObjectUnsafe(_engine.EvaluateSync(dateExpression));
+        SetProperty(stats, "mtime", modified);
+        SetProperty(stats, "ctime", modified);
+        return stats;
+    }
+
+    private static JsObject CreateFileSystemError(string code, string requestedPath)
+    {
+        var error = new JsObject();
+        SetProperty(error, "code", code);
+        SetProperty(error, "message", $"{code}: no such file or directory, stat '{requestedPath}'");
+        SetProperty(error, "path", requestedPath);
+        return error;
     }
 
     private JsObject CreateNetModule()
@@ -745,6 +997,20 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
             return Path.GetRelativePath(from, to);
         }));
 
+        SetProperty(path, "normalize", CreateHostFunction(args =>
+        {
+            var requestedPath = GetRequiredString(args, 0, "path.normalize");
+            if (requestedPath.Length == 0)
+            {
+                return ".";
+            }
+
+            var normalized = Path.GetFullPath(requestedPath, _scriptDirectory);
+            return Path.IsPathRooted(requestedPath)
+                ? normalized
+                : Path.GetRelativePath(_scriptDirectory, normalized);
+        }));
+
         SetProperty(path, "resolve", CreateHostFunction(args =>
         {
             var resolvedPath = _scriptDirectory;
@@ -770,6 +1036,14 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
             return Path.GetExtension(requestedPath);
         }));
 
+        SetProperty(path, "isAbsolute", CreateHostFunction(args =>
+        {
+            var requestedPath = GetRequiredString(args, 0, "path.isAbsolute");
+            return Path.IsPathRooted(requestedPath);
+        }));
+
+        SetProperty(path, "sep", Path.DirectorySeparatorChar.ToString());
+
         return path;
     }
 
@@ -783,6 +1057,15 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
         }));
 
         SetProperty(http, "STATUS_CODES", CreateStatusCodesObject());
+        SetProperty(http, "METHODS", JsValue.FromObjectUnsafe(_engine.EvaluateSync("""
+            [
+              'ACL', 'BIND', 'CHECKOUT', 'CONNECT', 'COPY', 'DELETE', 'GET', 'HEAD',
+              'LINK', 'LOCK', 'M-SEARCH', 'MERGE', 'MKACTIVITY', 'MKCALENDAR',
+              'MKCOL', 'MOVE', 'NOTIFY', 'OPTIONS', 'PATCH', 'POST', 'PROPFIND',
+              'PROPPATCH', 'PURGE', 'PUT', 'REBIND', 'REPORT', 'SEARCH', 'SOURCE',
+              'SUBSCRIBE', 'TRACE', 'UNBIND', 'UNLINK', 'UNLOCK', 'UNSUBSCRIBE'
+            ]
+            """)));
         SetProperty(http, "IncomingMessage", JsValue.FromObjectUnsafe(_engine.EvaluateSync("""
             (function () {
               function IncomingMessage() {
@@ -965,6 +1248,7 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
             }
             catch (Exception ex)
             {
+                Console.Error.WriteLine(ex);
                 if (!response.HasEnded)
                 {
                     response.SendError(500, ex.Message);
@@ -993,7 +1277,33 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
         SetProperty(req, "url", request.RawUrl ?? request.Url?.PathAndQuery ?? "/");
         SetProperty(req, "headers", headers);
         SetProperty(req, "body", body);
+        SetProperty(req, "complete", true);
+        SetProperty(req, "readable", false);
+        SetProperty(req, "socket", CreateSocketObject());
+        SetProperty(req, "on", CreateNoOpChainFunction(req));
+        SetProperty(req, "once", CreateNoOpChainFunction(req));
+        SetProperty(req, "removeListener", CreateNoOpChainFunction(req));
+        SetProperty(req, "pause", CreateNoOpChainFunction(req));
+        SetProperty(req, "resume", CreateNoOpChainFunction(req));
+        SetProperty(req, "unpipe", CreateNoOpChainFunction(req));
         return req;
+    }
+
+    private static JsObject CreateSocketObject()
+    {
+        var socket = new JsObject();
+        SetProperty(socket, "readable", false);
+        SetProperty(socket, "writable", true);
+        SetProperty(socket, "destroy", new HostFunction(_ => JsValue.Undefined, isConstructor: false));
+        SetProperty(socket, "on", CreateNoOpChainFunction(socket));
+        SetProperty(socket, "once", CreateNoOpChainFunction(socket));
+        SetProperty(socket, "removeListener", CreateNoOpChainFunction(socket));
+        return socket;
+    }
+
+    private static HostFunction CreateNoOpChainFunction(JsObject fallbackThis)
+    {
+        return new HostFunction((thisValue, _) => thisValue.IsUndefined ? fallbackThis : thisValue, isConstructor: false);
     }
 
     private string ResolveScriptPath(string requestedPath)
@@ -1364,6 +1674,12 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
             _responseObject = response;
             SetProperty(response, "statusCode", _response.StatusCode);
             SetProperty(response, "finished", false);
+            SetProperty(response, "headersSent", false);
+            SetProperty(response, "socket", CreateSocketObject());
+            SetProperty(response, "on", CreateNoOpChainFunction(response));
+            SetProperty(response, "once", CreateNoOpChainFunction(response));
+            SetProperty(response, "removeListener", CreateNoOpChainFunction(response));
+            SetProperty(response, "emit", runtime.CreateHostFunction(_ => false));
 
             SetProperty(response, "setHeader", runtime.CreateHostFunction(args =>
             {
@@ -1379,6 +1695,40 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
                 return string.Equals(key, "Content-Type", StringComparison.OrdinalIgnoreCase)
                     ? _response.ContentType ?? string.Empty
                     : _response.Headers[key] ?? string.Empty;
+            }));
+
+            SetProperty(response, "getHeaderNames", runtime.CreateHostFunction(_ =>
+            {
+                var names = new List<JsValue>();
+                foreach (var key in _response.Headers.AllKeys)
+                {
+                    if (key is not null)
+                    {
+                        names.Add(key.ToLowerInvariant());
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(_response.ContentType))
+                {
+                    names.Add("content-type");
+                }
+
+                return JsValue.FromJsArray(new JsArray(names));
+            }));
+
+            SetProperty(response, "removeHeader", runtime.CreateHostFunction(args =>
+            {
+                var key = GetRequiredString(args, 0, "res.removeHeader");
+                if (string.Equals(key, "Content-Type", StringComparison.OrdinalIgnoreCase))
+                {
+                    _response.ContentType = null;
+                }
+                else
+                {
+                    _response.Headers.Remove(key);
+                }
+
+                return JsValue.Undefined;
             }));
 
             SetProperty(response, "writeHead", runtime.CreateHostFunction(args =>
@@ -1445,6 +1795,7 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
             if (_responseObject is not null)
             {
                 SetProperty(_responseObject, "finished", true);
+                SetProperty(_responseObject, "headersSent", true);
             }
         }
 

@@ -264,7 +264,7 @@ public sealed class JsAstParser(
             var keyword = Previous();
             ExpressionNode? expression = null;
 
-            if (!Check(TokenType.Semicolon) && !HasLineTerminatorBefore())
+            if (!Check(TokenType.Semicolon) && !CanInsertSemicolon())
             {
                 expression = ParseExpression();
             }

@@ -8,7 +8,9 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
+using SkiaSharp;
 
 namespace AvaloniaSvgBrowserDemo;
 
@@ -17,6 +19,18 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        if (args.Length > 0 && string.Equals(args[0], "--presentation-smoke", StringComparison.Ordinal))
+        {
+            RunPresentationSmoke();
+            return;
+        }
+
+        if (args.Length > 0 && string.Equals(args[0], "--presentation-mask-smoke", StringComparison.Ordinal))
+        {
+            RunPresentationMaskSmoke();
+            return;
+        }
+
         BuildAvaloniaApp()
             .StartWithClassicDesktopLifetime(args);
     }
@@ -26,6 +40,63 @@ internal static class Program
         return AppBuilder.Configure<App>()
             .UsePlatformDetect();
     }
+
+    private static void RunPresentationSmoke()
+    {
+        var baseDirectory = AppContext.BaseDirectory;
+        var deck = PresentationDeck.Load(baseDirectory, "1");
+        var document = new SvgSlideDocument(
+            deck.CurrentPath,
+            Path.Combine(baseDirectory, "rendered-slide.svg"),
+            static () => { });
+        using var host = new SlideScriptHost(document, deck);
+        host.Run(Path.Combine(baseDirectory, "scripts", "presentation.js"));
+
+        var startingIndex = deck.CurrentIndex;
+        host.DispatchKey("ArrowRight");
+        DispatchSmokeFrames(host);
+        var expectedNextIndex = (startingIndex + 1) % deck.Count;
+        if (deck.CurrentIndex != expectedNextIndex)
+        {
+            throw new InvalidOperationException(string.Create(
+                CultureInfo.InvariantCulture,
+                $"ArrowRight navigated to {deck.CurrentIndex}, expected {expectedNextIndex}."));
+        }
+
+        host.DispatchKey("ArrowLeft");
+        DispatchSmokeFrames(host);
+        if (deck.CurrentIndex != startingIndex)
+        {
+            throw new InvalidOperationException(string.Create(
+                CultureInfo.InvariantCulture,
+                $"ArrowLeft navigated to {deck.CurrentIndex}, expected {startingIndex}."));
+        }
+    }
+
+    private static void DispatchSmokeFrames(SlideScriptHost host)
+    {
+        for (var time = 0; time <= 640; time += 16)
+        {
+            host.DispatchFrame(time);
+        }
+    }
+
+    private static void RunPresentationMaskSmoke()
+    {
+        var baseDirectory = AppContext.BaseDirectory;
+        var deck = PresentationDeck.Load(baseDirectory, "28");
+        var document = new SvgSlideDocument(
+            deck.CurrentPath,
+            Path.Combine(baseDirectory, "rendered-slide.svg"),
+            static () => { });
+        var analysis = document.AnalyzeGeneratedImageMasks();
+        if (analysis.GroupCount < 2 || !analysis.HasTransparentPixels || !analysis.HasOpaquePixels)
+        {
+            throw new InvalidOperationException(string.Create(
+                CultureInfo.InvariantCulture,
+                $"Expected page 28 to contain two usable image masks, got {analysis}."));
+        }
+    }
 }
 
 internal sealed class App : Application
@@ -34,14 +105,14 @@ internal sealed class App : Application
     {
         if (ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new DemoWindow();
+            desktop.MainWindow = new DemoWindow(desktop.Args ?? []);
         }
 
         base.OnFrameworkInitializationCompleted();
     }
 }
 
-internal sealed class DemoWindow : Window
+internal sealed partial class DemoWindow : Window
 {
     private readonly SvgSlideView _svgView;
     private readonly SvgSlideDocument _document;
@@ -49,7 +120,7 @@ internal sealed class DemoWindow : Window
     private readonly DispatcherTimer _timer;
     private readonly DateTimeOffset _startedAt = DateTimeOffset.UtcNow;
 
-    public DemoWindow()
+    public DemoWindow(IReadOnlyList<string> args)
     {
         _svgView = new SvgSlideView
         {
@@ -66,18 +137,20 @@ internal sealed class DemoWindow : Window
         CanResize = true;
 
         var baseDirectory = AppContext.BaseDirectory;
-        var svgPath = Path.Combine(baseDirectory, "assets", "slide.svg");
-        var scriptPath = Path.Combine(baseDirectory, "scripts", "slide.js");
+        var launch = ResolveLaunch(baseDirectory, args);
         var renderedPath = Path.Combine(baseDirectory, "rendered-slide.svg");
 
-        _document = new SvgSlideDocument(svgPath, renderedPath, RenderSvg);
+        _document = new SvgSlideDocument(launch.SvgPath, renderedPath, RenderSvg);
         _svgView.Document = _document;
         _document.Flush();
 
-        Content = CreateLayout();
+        Content = CreateLayout(launch);
 
-        _scriptHost = new SlideScriptHost(_document);
-        _scriptHost.Run(scriptPath);
+        _scriptHost = new SlideScriptHost(_document, launch.Deck);
+        if (launch.ScriptPath is not null)
+        {
+            _scriptHost.Run(launch.ScriptPath);
+        }
 
         _timer = new DispatcherTimer
         {
@@ -94,7 +167,7 @@ internal sealed class DemoWindow : Window
         Closed += (_, _) => _scriptHost.Dispose();
     }
 
-    private Control CreateLayout()
+    private Control CreateLayout(LaunchOptions launch)
     {
         var root = new Grid
         {
@@ -109,7 +182,7 @@ internal sealed class DemoWindow : Window
 
         var status = new TextBlock
         {
-            Text = "JsEngine is animating this SVG. Press Space, then R.",
+            Text = launch.StatusText,
             Foreground = Brushes.White,
             Background = new SolidColorBrush(Color.FromArgb(210, 5, 7, 13)),
             Padding = new Thickness(14, 8),
@@ -122,6 +195,119 @@ internal sealed class DemoWindow : Window
         return root;
     }
 
+    private static LaunchOptions ResolveLaunch(string baseDirectory, IReadOnlyList<string> args)
+    {
+        if (args.Count > 0 && !string.IsNullOrWhiteSpace(args[0]))
+        {
+            if (string.Equals(args[0], "--presentation", StringComparison.Ordinal))
+            {
+                var pageNumber = args.Count > 1
+                    ? args[1]
+                    : "2";
+                var presentationDeck = PresentationDeck.Load(baseDirectory, pageNumber);
+                return new LaunchOptions(
+                    presentationDeck.CurrentPath,
+                    Path.Combine(baseDirectory, "scripts", "presentation.js"),
+                    presentationDeck,
+                    string.Create(
+                        CultureInfo.InvariantCulture,
+                        $"Rendering presentation page {presentationDeck.CurrentPageNumber}/{presentationDeck.Count}. Use Left/Right arrows."));
+            }
+
+            var svgPath = Path.GetFullPath(args[0]);
+            return new LaunchOptions(
+                svgPath,
+                null,
+                null,
+                string.Create(CultureInfo.InvariantCulture, $"Rendering {Path.GetFileName(svgPath)}."));
+        }
+
+        var defaultDeck = PresentationDeck.Load(baseDirectory, "1");
+        return new LaunchOptions(
+            defaultDeck.CurrentPath,
+            Path.Combine(baseDirectory, "scripts", "presentation.js"),
+            defaultDeck,
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"Rendering presentation page {defaultDeck.CurrentPageNumber}/{defaultDeck.Count}. Use Left/Right arrows."));
+    }
+
+    private sealed record LaunchOptions(
+        string SvgPath,
+        string? ScriptPath,
+        PresentationDeck? Deck,
+        string StatusText);
+}
+
+internal sealed class PresentationDeck
+{
+    private readonly string[] _slidePaths;
+
+    private PresentationDeck(string[] slidePaths, int currentIndex)
+    {
+        _slidePaths = slidePaths;
+        CurrentIndex = currentIndex;
+    }
+
+    public int Count => _slidePaths.Length;
+
+    public int CurrentIndex { get; private set; }
+
+    public int CurrentPageNumber => CurrentIndex + 1;
+
+    public string CurrentPath => GetPath(CurrentIndex);
+
+    public static PresentationDeck Load(string baseDirectory, string requestedPageNumber)
+    {
+        var pagesDirectory = Path.Combine(
+            baseDirectory,
+            "assets",
+            "beyond-the-vibe",
+            "pages");
+
+        var slidePaths = Directory
+            .EnumerateFiles(pagesDirectory, "page-*.svg")
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        if (slidePaths.Length == 0)
+        {
+            throw new InvalidOperationException(
+                string.Create(CultureInfo.InvariantCulture, $"No presentation SVG pages found in {pagesDirectory}."));
+        }
+
+        var currentIndex = 1;
+        if (int.TryParse(requestedPageNumber, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedPage))
+        {
+            currentIndex = Math.Clamp(parsedPage - 1, 0, slidePaths.Length - 1);
+        }
+
+        return new PresentationDeck(slidePaths, currentIndex);
+    }
+
+    public string GetPath(int index)
+    {
+        if (index < 0 || index >= _slidePaths.Length)
+        {
+            return string.Empty;
+        }
+
+        return _slidePaths[index];
+    }
+
+    public string Load(int index)
+    {
+        if (index < 0 || index >= _slidePaths.Length)
+        {
+            return CurrentPath;
+        }
+
+        CurrentIndex = index;
+        return CurrentPath;
+    }
+}
+
+internal sealed partial class DemoWindow
+{
     private void TickFrame()
     {
         var elapsed = DateTimeOffset.UtcNow - _startedAt;
@@ -156,6 +342,16 @@ internal sealed class DemoWindow : Window
             return "Space";
         }
 
+        if (eventArgs.Key == Key.Left)
+        {
+            return "ArrowLeft";
+        }
+
+        if (eventArgs.Key == Key.Right)
+        {
+            return "ArrowRight";
+        }
+
         var keyText = eventArgs.Key.ToString();
         return keyText.Length == 1
             ? keyText.ToUpperInvariant()
@@ -180,13 +376,16 @@ internal sealed class SlideScriptHost : IDisposable
     private readonly List<IJsCallable> _frameCallbacks = [];
     private readonly Dictionary<string, List<IJsCallable>> _keyCallbacks = new(StringComparer.OrdinalIgnoreCase);
     private readonly SvgSlideDocument _document;
+    private readonly PresentationDeck? _deck;
 
-    public SlideScriptHost(SvgSlideDocument document)
+    public SlideScriptHost(SvgSlideDocument document, PresentationDeck? deck)
     {
         _document = document;
+        _deck = deck;
         _engine.SetGlobalValue("console", CreateConsoleObject());
         _engine.SetGlobalValue("svg", CreateSvgObject());
         _engine.SetGlobalValue("slide", CreateSlideObject());
+        _engine.SetGlobalValue("presentation", CreatePresentationObject());
     }
 
     public void Run(string scriptPath)
@@ -248,6 +447,7 @@ internal sealed class SlideScriptHost : IDisposable
             var id = GetString(args, 0);
             return CreateElementObject(id);
         }));
+        SetProperty(svg, "layer", JsValue.FromObjectUnsafe(CreateLayerObject()));
         return svg;
     }
 
@@ -283,6 +483,39 @@ internal sealed class SlideScriptHost : IDisposable
         return slide;
     }
 
+    private JsObject CreatePresentationObject()
+    {
+        var presentation = new JsObject();
+        SetProperty(presentation, "count", CreateHostFunction(_ =>
+            new JsValue(_deck?.Count ?? 0)));
+        SetProperty(presentation, "current", CreateHostFunction(_ =>
+            new JsValue(_deck?.CurrentIndex ?? 0)));
+        SetProperty(presentation, "path", CreateHostFunction(args =>
+        {
+            if (_deck is null)
+            {
+                return new JsValue(string.Empty);
+            }
+
+            return new JsValue(_deck.GetPath(GetInt32(args, 0)));
+        }));
+        SetProperty(presentation, "load", CreateHostFunction(args =>
+        {
+            if (_deck is null)
+            {
+                return JsValue.Undefined;
+            }
+
+            var path = _deck.Load(GetInt32(args, 0));
+            _document.Load(path);
+            Console.WriteLine(string.Create(
+                CultureInfo.InvariantCulture,
+                $"Presentation page {_deck.CurrentPageNumber}/{_deck.Count}: {Path.GetFileName(path)}"));
+            return new JsValue(_deck.CurrentIndex);
+        }));
+        return presentation;
+    }
+
     private JsObject CreateElementObject(string id)
     {
         var element = new JsObject();
@@ -302,6 +535,58 @@ internal sealed class SlideScriptHost : IDisposable
             return JsValue.Undefined;
         }));
         return element;
+    }
+
+    private JsObject CreateLayerObject()
+    {
+        var layer = new JsObject();
+        SetProperty(layer, "clear", CreateHostFunction(_ =>
+        {
+            _document.ClearLayer();
+            return JsValue.Undefined;
+        }));
+        SetProperty(layer, "rect", CreateHostFunction(args =>
+        {
+            _document.AddLayerElement(
+                "rect",
+                GetString(args, 0),
+                [
+                    new("x", GetDouble(args, 1).ToString(CultureInfo.InvariantCulture)),
+                    new("y", GetDouble(args, 2).ToString(CultureInfo.InvariantCulture)),
+                    new("width", GetDouble(args, 3).ToString(CultureInfo.InvariantCulture)),
+                    new("height", GetDouble(args, 4).ToString(CultureInfo.InvariantCulture)),
+                    new("fill", GetString(args, 5)),
+                    new("opacity", GetDouble(args, 6, 1).ToString(CultureInfo.InvariantCulture))
+                ]);
+            return CreateElementObject(GetString(args, 0));
+        }));
+        SetProperty(layer, "circle", CreateHostFunction(args =>
+        {
+            _document.AddLayerElement(
+                "circle",
+                GetString(args, 0),
+                [
+                    new("cx", GetDouble(args, 1).ToString(CultureInfo.InvariantCulture)),
+                    new("cy", GetDouble(args, 2).ToString(CultureInfo.InvariantCulture)),
+                    new("r", GetDouble(args, 3).ToString(CultureInfo.InvariantCulture)),
+                    new("fill", GetString(args, 4)),
+                    new("opacity", GetDouble(args, 5, 1).ToString(CultureInfo.InvariantCulture))
+                ]);
+            return CreateElementObject(GetString(args, 0));
+        }));
+        SetProperty(layer, "text", CreateHostFunction(args =>
+        {
+            _document.AddLayerText(
+                GetString(args, 0),
+                GetString(args, 1),
+                GetDouble(args, 2),
+                GetDouble(args, 3),
+                GetDouble(args, 4, 28),
+                GetString(args, 5),
+                GetDouble(args, 6, 1));
+            return CreateElementObject(GetString(args, 0));
+        }));
+        return layer;
     }
 
     private HostFunction CreateHostFunction(JsSimpleHandler handler)
@@ -337,6 +622,32 @@ internal sealed class SlideScriptHost : IDisposable
             : value.ToString();
     }
 
+    private static int GetInt32(IReadOnlyList<JsValue> args, int index)
+    {
+        if (args.Count <= index)
+        {
+            return 0;
+        }
+
+        var text = args[index].ToString();
+        return int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
+            ? value
+            : 0;
+    }
+
+    private static double GetDouble(IReadOnlyList<JsValue> args, int index, double defaultValue = 0)
+    {
+        if (args.Count <= index)
+        {
+            return defaultValue;
+        }
+
+        var text = args[index].ToString();
+        return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+            ? value
+            : defaultValue;
+    }
+
     private static string FormatConsoleArguments(IReadOnlyList<JsValue> args)
     {
         return string.Join(" ", args.Select(static arg => arg.ToString()));
@@ -357,8 +668,12 @@ internal sealed class SlideScriptHost : IDisposable
 
 internal sealed class SvgSlideDocument
 {
-    private readonly XDocument _document;
+    private const string LayerId = "jsengine-layer";
     private readonly Action _render;
+    private readonly Dictionary<string, XElement> _elementsById = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Bitmap> _imageCache = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Bitmap> _maskedImageCache = new(StringComparer.Ordinal);
+    private XDocument _document;
     private bool _dirty;
     private double _viewBoxWidth = 1280;
     private double _viewBoxHeight = 720;
@@ -368,9 +683,25 @@ internal sealed class SvgSlideDocument
         RenderedPath = renderedPath;
         _render = render;
         _dirty = true;
+        RebuildElementIndex();
     }
 
     public string RenderedPath { get; }
+
+    public void Load(string sourcePath)
+    {
+        _document = XDocument.Load(sourcePath, LoadOptions.PreserveWhitespace);
+        _imageCache.Clear();
+        _maskedImageCache.Clear();
+        ReadViewBox();
+        RebuildElementIndex();
+        _dirty = true;
+    }
+
+    public bool ContainsElement(string id)
+    {
+        return _elementsById.ContainsKey(id);
+    }
 
     public void SetAttribute(string id, string name, string value)
     {
@@ -386,6 +717,69 @@ internal sealed class SvgSlideDocument
         _dirty = true;
     }
 
+    public void ClearLayer()
+    {
+        if (_document.Root is null)
+        {
+            return;
+        }
+
+        GetLayer(createIfMissing: false)?.RemoveNodes();
+        RebuildElementIndex();
+        _dirty = true;
+    }
+
+    public void AddLayerElement(string localName, string id, IReadOnlyList<XAttribute> attributes)
+    {
+        if (_document.Root is null || string.IsNullOrWhiteSpace(id))
+        {
+            return;
+        }
+
+        RemoveElementIfExists(id);
+        var element = new XElement(_document.Root.Name.Namespace + localName, new XAttribute("id", id));
+        foreach (var attribute in attributes)
+        {
+            if (!string.IsNullOrWhiteSpace(attribute.Value))
+            {
+                element.SetAttributeValue(attribute.Name, attribute.Value);
+            }
+        }
+
+        GetLayer(createIfMissing: true)?.Add(element);
+        RebuildElementIndex();
+        _dirty = true;
+    }
+
+    public void AddLayerText(
+        string id,
+        string text,
+        double x,
+        double y,
+        double fontSize,
+        string fill,
+        double opacity)
+    {
+        if (_document.Root is null || string.IsNullOrWhiteSpace(id))
+        {
+            return;
+        }
+
+        RemoveElementIfExists(id);
+        var element = new XElement(
+            _document.Root.Name.Namespace + "text",
+            new XAttribute("id", id),
+            new XAttribute("x", x.ToString(CultureInfo.InvariantCulture)),
+            new XAttribute("y", y.ToString(CultureInfo.InvariantCulture)),
+            new XAttribute("font-size", fontSize.ToString(CultureInfo.InvariantCulture)),
+            new XAttribute("fill", string.IsNullOrWhiteSpace(fill) ? "#ffffff" : fill),
+            new XAttribute("opacity", opacity.ToString(CultureInfo.InvariantCulture)),
+            text);
+        GetLayer(createIfMissing: true)?.Add(element);
+        RebuildElementIndex();
+        _dirty = true;
+    }
+
     public void Flush()
     {
         if (!_dirty)
@@ -395,6 +789,7 @@ internal sealed class SvgSlideDocument
 
         _document.Save(RenderedPath, SaveOptions.DisableFormatting);
         ReadViewBox();
+        RebuildElementIndex();
         _dirty = false;
         _render();
     }
@@ -412,27 +807,121 @@ internal sealed class SvgSlideDocument
 
         using (context.PushTransform(Matrix.CreateScale(scale, scale) * Matrix.CreateTranslation(offsetX, offsetY)))
         {
+            var state = SvgRenderState.Default;
             foreach (var child in _document.Root.Elements())
             {
-                RenderElement(context, child, inheritedOpacity: 1.0);
+                RenderElement(context, child, state);
             }
         }
     }
 
+    public SvgMaskAnalysis AnalyzeGeneratedImageMasks()
+    {
+        var groupCount = 0;
+        var hasTransparentPixels = false;
+        var hasOpaquePixels = false;
+
+        foreach (var group in _document.Descendants().Where(static element => element.Name.LocalName == "g"))
+        {
+            if (!TryResolveMaskedImageGroup(group, out _, out _, out var maskImage))
+            {
+                continue;
+            }
+
+            groupCount++;
+            if (hasTransparentPixels && hasOpaquePixels)
+            {
+                continue;
+            }
+
+            var maskHref = ReadHref(maskImage);
+            if (string.IsNullOrWhiteSpace(maskHref) || !TryReadDataUrlBytes(maskHref, out var maskBytes))
+            {
+                continue;
+            }
+
+            using var maskBitmap = SKBitmap.Decode(maskBytes);
+            if (maskBitmap is null)
+            {
+                continue;
+            }
+
+            for (var y = 0; y < maskBitmap.Height; y++)
+            {
+                for (var x = 0; x < maskBitmap.Width; x++)
+                {
+                    var mask = maskBitmap.GetPixel(x, y);
+                    var alpha = (int)Math.Round(mask.Red * 0.2126 + mask.Green * 0.7152 + mask.Blue * 0.0722);
+                    hasTransparentPixels |= alpha <= 8;
+                    hasOpaquePixels |= alpha >= 247;
+                    if (hasTransparentPixels && hasOpaquePixels)
+                    {
+                        break;
+                    }
+                }
+
+                if (hasTransparentPixels && hasOpaquePixels)
+                {
+                    break;
+                }
+            }
+        }
+
+        return new SvgMaskAnalysis(groupCount, hasTransparentPixels, hasOpaquePixels);
+    }
+
     private XElement GetElementById(string id)
     {
-        var element = _document
-            .Descendants()
-            .FirstOrDefault(candidate =>
-                string.Equals((string?)candidate.Attribute("id"), id, StringComparison.Ordinal));
-
-        if (element is null)
+        if (!_elementsById.TryGetValue(id, out var element))
         {
             throw new InvalidOperationException(
                 string.Create(CultureInfo.InvariantCulture, $"SVG element not found: {id}"));
         }
 
         return element;
+    }
+
+    private XElement? GetLayer(bool createIfMissing)
+    {
+        if (_document.Root is null)
+        {
+            return null;
+        }
+
+        var layer = _document
+            .Descendants()
+            .FirstOrDefault(candidate =>
+                string.Equals((string?)candidate.Attribute("id"), LayerId, StringComparison.Ordinal));
+        if (layer is not null || !createIfMissing)
+        {
+            return layer;
+        }
+
+        layer = new XElement(_document.Root.Name.Namespace + "g", new XAttribute("id", LayerId));
+        _document.Root.Add(layer);
+        return layer;
+    }
+
+    private void RemoveElementIfExists(string id)
+    {
+        if (_elementsById.TryGetValue(id, out var existing))
+        {
+            existing.Remove();
+            _elementsById.Remove(id);
+        }
+    }
+
+    private void RebuildElementIndex()
+    {
+        _elementsById.Clear();
+        foreach (var element in _document.Descendants())
+        {
+            var id = (string?)element.Attribute("id");
+            if (!string.IsNullOrEmpty(id))
+            {
+                _elementsById[id] = element;
+            }
+        }
     }
 
     private void ReadViewBox()
@@ -445,8 +934,8 @@ internal sealed class SvgSlideDocument
         var viewBox = (string?)_document.Root.Attribute("viewBox");
         if (string.IsNullOrWhiteSpace(viewBox))
         {
-            _viewBoxWidth = ReadDouble(_document.Root, "width", _viewBoxWidth);
-            _viewBoxHeight = ReadDouble(_document.Root, "height", _viewBoxHeight);
+            _viewBoxWidth = ReadDouble(_document.Root, "width", _viewBoxWidth, SvgRenderState.Default);
+            _viewBoxHeight = ReadDouble(_document.Root, "height", _viewBoxHeight, SvgRenderState.Default);
             return;
         }
 
@@ -460,40 +949,56 @@ internal sealed class SvgSlideDocument
         }
     }
 
-    private static void RenderElement(DrawingContext context, XElement element, double inheritedOpacity)
+    private void RenderElement(DrawingContext context, XElement element, SvgRenderState inheritedState)
     {
-        var opacity = inheritedOpacity * ReadDouble(element, "opacity", 1.0);
-        if (opacity <= 0)
+        var state = inheritedState.Inherit(element);
+        if (state.Opacity <= 0)
         {
             return;
         }
 
         var localName = element.Name.LocalName;
-        if (localName == "g")
+        if (localName == "defs" || localName == "clipPath")
         {
-            using var transform = PushElementTransform(context, element);
+            return;
+        }
+
+        using var transform = PushElementTransform(context, element);
+        using var clip = PushElementClip(context, element);
+        if (localName == "g" && TryRenderMaskedImageGroup(context, element, state))
+        {
+            return;
+        }
+
+        if (localName is "g" or "svg")
+        {
             foreach (var child in element.Elements())
             {
-                RenderElement(context, child, opacity);
+                RenderElement(context, child, state);
             }
 
             return;
         }
 
-        using var _ = PushElementTransform(context, element);
         switch (localName)
         {
             case "rect":
-                RenderRect(context, element, opacity);
+                RenderRect(context, element, state);
                 break;
             case "circle":
-                RenderCircle(context, element, opacity);
+                RenderCircle(context, element, state);
                 break;
             case "path":
-                RenderPath(context, element, opacity);
+                RenderPath(context, element, state);
                 break;
             case "text":
-                RenderText(context, element, opacity);
+                RenderText(context, element, state);
+                break;
+            case "use":
+                RenderUse(context, element, state);
+                break;
+            case "image":
+                RenderImage(context, element, state);
                 break;
         }
     }
@@ -506,56 +1011,86 @@ internal sealed class SvgSlideDocument
             return null;
         }
 
-        if (TryParseTranslate(transform, out var x, out var y))
+        if (TryParseTransform(transform, out var matrix))
         {
-            return context.PushTransform(Matrix.CreateTranslation(x, y));
+            return context.PushTransform(matrix);
         }
 
         return null;
     }
 
-    private static void RenderRect(DrawingContext context, XElement element, double opacity)
+    private IDisposable? PushElementClip(DrawingContext context, XElement element)
     {
-        var x = ReadDouble(element, "x", 0);
-        var y = ReadDouble(element, "y", 0);
-        var width = ReadDouble(element, "width", 0);
-        var height = ReadDouble(element, "height", 0);
-        var rx = ReadDouble(element, "rx", 0);
-        var fill = ReadBrush(element, "fill", opacity);
-        var pen = ReadPen(element, opacity);
+        var clipPath = (string?)element.Attribute("clip-path");
+        if (string.IsNullOrWhiteSpace(clipPath) ||
+            !TryParseUrlReference(clipPath, out var clipId) ||
+            !_elementsById.TryGetValue(clipId, out var clipElement))
+        {
+            return null;
+        }
+
+        var geometries = new GeometryGroup();
+        foreach (var child in clipElement.Elements())
+        {
+            if (child.Name.LocalName != "path")
+            {
+                continue;
+            }
+
+            var data = ReadAttribute(child, "d", SvgRenderState.Default);
+            if (!string.IsNullOrWhiteSpace(data))
+            {
+                geometries.Children.Add(Geometry.Parse(data));
+            }
+        }
+
+        return geometries.Children.Count == 0
+            ? null
+            : context.PushGeometryClip(geometries);
+    }
+
+    private static void RenderRect(DrawingContext context, XElement element, SvgRenderState state)
+    {
+        var x = ReadDouble(element, "x", 0, state);
+        var y = ReadDouble(element, "y", 0, state);
+        var width = ReadDouble(element, "width", 0, state);
+        var height = ReadDouble(element, "height", 0, state);
+        var rx = ReadDouble(element, "rx", 0, state);
+        var fill = state.CreateFillBrush();
+        var pen = state.CreatePen();
         context.DrawRectangle(fill, pen, new Rect(x, y, width, height), rx, rx);
     }
 
-    private static void RenderCircle(DrawingContext context, XElement element, double opacity)
+    private static void RenderCircle(DrawingContext context, XElement element, SvgRenderState state)
     {
-        var cx = ReadDouble(element, "cx", 0);
-        var cy = ReadDouble(element, "cy", 0);
-        var r = ReadDouble(element, "r", 0);
-        var fill = ReadBrush(element, "fill", opacity);
-        var pen = ReadPen(element, opacity);
+        var cx = ReadDouble(element, "cx", 0, state);
+        var cy = ReadDouble(element, "cy", 0, state);
+        var r = ReadDouble(element, "r", 0, state);
+        var fill = state.CreateFillBrush();
+        var pen = state.CreatePen();
         context.DrawEllipse(fill, pen, new Point(cx, cy), r, r);
     }
 
-    private static void RenderPath(DrawingContext context, XElement element, double opacity)
+    private static void RenderPath(DrawingContext context, XElement element, SvgRenderState state)
     {
-        var d = (string?)element.Attribute("d");
+        var d = ReadAttribute(element, "d", state);
         if (string.IsNullOrWhiteSpace(d))
         {
             return;
         }
 
         var geometry = Geometry.Parse(d);
-        var fill = ReadBrush(element, "fill", opacity);
-        var pen = ReadPen(element, opacity);
+        var fill = state.CreateFillBrush();
+        var pen = state.CreatePen();
         context.DrawGeometry(fill, pen, geometry);
     }
 
-    private static void RenderText(DrawingContext context, XElement element, double opacity)
+    private static void RenderText(DrawingContext context, XElement element, SvgRenderState state)
     {
-        var x = ReadDouble(element, "x", 0);
-        var y = ReadDouble(element, "y", 0);
-        var fontSize = ReadDouble(element, "font-size", 20);
-        var brush = ReadBrush(element, "fill", opacity) ?? Brushes.White;
+        var x = ReadDouble(element, "x", 0, state);
+        var y = ReadDouble(element, "y", 0, state);
+        var fontSize = ReadDouble(element, "font-size", 20, state);
+        var brush = state.CreateFillBrush() ?? Brushes.White;
         var formatted = new FormattedText(
             element.Value,
             CultureInfo.InvariantCulture,
@@ -567,62 +1102,530 @@ internal sealed class SvgSlideDocument
         context.DrawText(formatted, new Point(x, y - fontSize));
     }
 
-    private static IBrush? ReadBrush(XElement element, string attributeName, double opacity)
+    private void RenderUse(DrawingContext context, XElement element, SvgRenderState state)
     {
-        var value = (string?)element.Attribute(attributeName);
-        if (string.IsNullOrWhiteSpace(value) || string.Equals(value, "none", StringComparison.OrdinalIgnoreCase))
+        var reference = ReadHref(element);
+        if (string.IsNullOrWhiteSpace(reference) || !reference.StartsWith('#'))
         {
-            return null;
+            return;
         }
 
-        return Color.TryParse(value, out var color)
-            ? new SolidColorBrush(color, opacity)
+        var id = reference[1..];
+        if (!_elementsById.TryGetValue(id, out var target))
+        {
+            return;
+        }
+
+        var x = ReadDouble(element, "x", 0, state);
+        var y = ReadDouble(element, "y", 0, state);
+        using var translation = context.PushTransform(Matrix.CreateTranslation(x, y));
+        if (target.Name.LocalName == "g")
+        {
+            foreach (var child in target.Elements())
+            {
+                RenderElement(context, child, state);
+            }
+
+            return;
+        }
+
+        RenderElement(context, target, state);
+    }
+
+    private void RenderImage(DrawingContext context, XElement element, SvgRenderState state)
+    {
+        var href = ReadHref(element);
+        if (string.IsNullOrWhiteSpace(href))
+        {
+            return;
+        }
+
+        var image = GetBitmap(href);
+        if (image is null)
+        {
+            return;
+        }
+
+        var x = ReadDouble(element, "x", 0, state);
+        var y = ReadDouble(element, "y", 0, state);
+        var width = ReadDouble(element, "width", image.Size.Width, state);
+        var height = ReadDouble(element, "height", image.Size.Height, state);
+        context.DrawImage(image, new Rect(x, y, width, height));
+    }
+
+    private bool TryRenderMaskedImageGroup(DrawingContext context, XElement group, SvgRenderState state)
+    {
+        if (!TryResolveMaskedImageGroup(group, out var colorUse, out var colorImage, out var maskImage))
+        {
+            return false;
+        }
+
+        var colorHref = ReadHref(colorImage);
+        var maskHref = ReadHref(maskImage);
+        if (string.IsNullOrWhiteSpace(colorHref) || string.IsNullOrWhiteSpace(maskHref))
+        {
+            return false;
+        }
+
+        var image = GetMaskedBitmap(colorHref, maskHref);
+        if (image is null)
+        {
+            return false;
+        }
+
+        using var opacity = state.Opacity < 1
+            ? (IDisposable)context.PushOpacity(state.Opacity)
             : null;
+        using var useTransform = PushElementTransform(context, colorUse);
+
+        var x = ReadDouble(colorImage, "x", 0, state);
+        var y = ReadDouble(colorImage, "y", 0, state);
+        var width = ReadDouble(colorImage, "width", image.Size.Width, state);
+        var height = ReadDouble(colorImage, "height", image.Size.Height, state);
+        context.DrawImage(image, new Rect(x, y, width, height));
+        return true;
     }
 
-    private static IPen? ReadPen(XElement element, double opacity)
+    private bool TryResolveMaskedImageGroup(
+        XElement group,
+        out XElement colorUse,
+        out XElement colorImage,
+        out XElement maskImage)
     {
-        var stroke = ReadBrush(element, "stroke", opacity);
-        if (stroke is null)
+        colorUse = null!;
+        colorImage = null!;
+        maskImage = null!;
+
+        var maskReference = (string?)group.Attribute("mask");
+        if (string.IsNullOrWhiteSpace(maskReference) ||
+            !TryParseUrlReference(maskReference, out var maskId) ||
+            !_elementsById.TryGetValue(maskId, out var maskElement))
+        {
+            return false;
+        }
+
+        colorUse = group
+            .Elements()
+            .FirstOrDefault(static child => child.Name.LocalName == "use")!;
+        if (colorUse is null ||
+            !TryGetReferencedElement(colorUse, out colorImage) ||
+            colorImage.Name.LocalName != "image" ||
+            !TryGetMaskImage(maskElement, out maskImage))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool TryGetReferencedElement(XElement useElement, out XElement target)
+    {
+        var reference = ReadHref(useElement);
+        if (!string.IsNullOrWhiteSpace(reference) &&
+            reference.StartsWith('#') &&
+            _elementsById.TryGetValue(reference[1..], out target!))
+        {
+            return true;
+        }
+
+        target = null!;
+        return false;
+    }
+
+    private bool TryGetMaskImage(XElement maskElement, out XElement imageElement)
+    {
+        foreach (var useElement in maskElement.Descendants().Where(static element => element.Name.LocalName == "use"))
+        {
+            if (TryGetReferencedElement(useElement, out var referencedElement) &&
+                referencedElement.Name.LocalName == "image")
+            {
+                imageElement = referencedElement;
+                return true;
+            }
+        }
+
+        imageElement = null!;
+        return false;
+    }
+
+    private Bitmap? GetBitmap(string href)
+    {
+        if (_imageCache.TryGetValue(href, out var cached))
+        {
+            return cached;
+        }
+
+        if (!href.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
 
-        var width = ReadDouble(element, "stroke-width", 1);
-        return new Pen(stroke, width);
+        var commaIndex = href.IndexOf(',');
+        if (commaIndex < 0)
+        {
+            return null;
+        }
+
+        var header = href[..commaIndex];
+        var payload = href[(commaIndex + 1)..];
+        if (!header.Contains(";base64", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var bytes = Convert.FromBase64String(payload);
+        using var stream = new MemoryStream(bytes);
+        var bitmap = new Bitmap(stream);
+        _imageCache[href] = bitmap;
+        return bitmap;
     }
 
-    private static double ReadDouble(XElement element, string name, double defaultValue)
+    private Bitmap? GetMaskedBitmap(string colorHref, string maskHref)
     {
-        var value = (string?)element.Attribute(name);
+        var cacheKey = string.Concat(colorHref, "|", maskHref);
+        if (_maskedImageCache.TryGetValue(cacheKey, out var cached))
+        {
+            return cached;
+        }
+
+        if (!TryReadDataUrlBytes(colorHref, out var colorBytes) ||
+            !TryReadDataUrlBytes(maskHref, out var maskBytes))
+        {
+            return null;
+        }
+
+        using var colorBitmap = SKBitmap.Decode(colorBytes);
+        using var maskBitmap = SKBitmap.Decode(maskBytes);
+        if (colorBitmap is null || maskBitmap is null)
+        {
+            return null;
+        }
+
+        var width = colorBitmap.Width;
+        var height = colorBitmap.Height;
+        var outputInfo = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var output = new SKBitmap(outputInfo);
+
+        for (var y = 0; y < height; y++)
+        {
+            var maskY = y * maskBitmap.Height / height;
+            for (var x = 0; x < width; x++)
+            {
+                var maskX = x * maskBitmap.Width / width;
+                var color = colorBitmap.GetPixel(x, y);
+                var mask = maskBitmap.GetPixel(maskX, maskY);
+                var alpha = (byte)Math.Clamp(
+                    (int)Math.Round(mask.Red * 0.2126 + mask.Green * 0.7152 + mask.Blue * 0.0722),
+                    0,
+                    255);
+                output.SetPixel(x, y, new SKColor(color.Red, color.Green, color.Blue, alpha));
+            }
+        }
+
+        using var image = SKImage.FromBitmap(output);
+        using var encoded = image.Encode(SKEncodedImageFormat.Png, 100);
+        using var stream = new MemoryStream(encoded.ToArray());
+        var bitmap = new Bitmap(stream);
+        _maskedImageCache[cacheKey] = bitmap;
+        return bitmap;
+    }
+
+    private static bool TryReadDataUrlBytes(string href, out byte[] bytes)
+    {
+        bytes = [];
+        if (!href.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var commaIndex = href.IndexOf(',');
+        if (commaIndex < 0)
+        {
+            return false;
+        }
+
+        var header = href[..commaIndex];
+        if (!header.Contains(";base64", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        bytes = Convert.FromBase64String(href[(commaIndex + 1)..]);
+        return true;
+    }
+
+    private static double ReadDouble(XElement element, string name, double defaultValue, SvgRenderState state)
+    {
+        var value = ReadAttribute(element, name, state);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return defaultValue;
+        }
+
+        value = value.Trim();
+        if (value.EndsWith("pt", StringComparison.OrdinalIgnoreCase) ||
+            value.EndsWith("px", StringComparison.OrdinalIgnoreCase))
+        {
+            value = value[..^2];
+        }
+
         return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
             ? parsed
             : defaultValue;
     }
 
-    private static bool TryParseTranslate(string transform, out double x, out double y)
+    private static string? ReadHref(XElement element)
     {
-        x = 0;
-        y = 0;
-        const string prefix = "translate(";
-        if (!transform.StartsWith(prefix, StringComparison.Ordinal) || !transform.EndsWith(')'))
+        foreach (var attribute in element.Attributes())
+        {
+            if (attribute.Name.LocalName == "href")
+            {
+                return attribute.Value;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? ReadAttribute(XElement element, string name, SvgRenderState state)
+    {
+        var attribute = (string?)element.Attribute(name);
+        if (!string.IsNullOrWhiteSpace(attribute))
+        {
+            return attribute;
+        }
+
+        var styleValue = ReadStyleValue(element, name);
+        return string.IsNullOrWhiteSpace(styleValue)
+            ? state.ReadInheritedValue(name)
+            : styleValue;
+    }
+
+    private static string? ReadStyleValue(XElement element, string name)
+    {
+        var style = (string?)element.Attribute("style");
+        if (string.IsNullOrWhiteSpace(style))
+        {
+            return null;
+        }
+
+        foreach (var declaration in style.Split(';', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var separator = declaration.IndexOf(':');
+            if (separator < 0)
+            {
+                continue;
+            }
+
+            var key = declaration[..separator].Trim();
+            if (string.Equals(key, name, StringComparison.OrdinalIgnoreCase))
+            {
+                return declaration[(separator + 1)..].Trim();
+            }
+        }
+
+        return null;
+    }
+
+    private static bool TryParseUrlReference(string value, out string id)
+    {
+        id = string.Empty;
+        value = value.Trim();
+        const string prefix = "url(#";
+        if (!value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) || !value.EndsWith(')'))
         {
             return false;
         }
 
-        var inner = transform[prefix.Length..^1];
-        var parts = inner.Split([' ', ','], StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 0 ||
-            !double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out x))
-        {
-            return false;
-        }
+        id = value[prefix.Length..^1];
+        return id.Length > 0;
+    }
 
-        if (parts.Length > 1)
+    private static bool TryParseTransform(string transform, out Matrix matrix)
+    {
+        matrix = Matrix.Identity;
+        var remaining = transform.AsSpan().Trim();
+        while (!remaining.IsEmpty)
         {
-            _ = double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out y);
+            var open = remaining.IndexOf('(');
+            var close = remaining.IndexOf(')');
+            if (open <= 0 || close <= open)
+            {
+                return false;
+            }
+
+            var name = remaining[..open].Trim().ToString();
+            var values = ParseNumberList(remaining[(open + 1)..close].ToString());
+            if (!TryCreateTransformMatrix(name, values, out var next))
+            {
+                return false;
+            }
+
+            matrix *= next;
+            remaining = remaining[(close + 1)..].Trim();
         }
 
         return true;
     }
+
+    private static bool TryCreateTransformMatrix(string name, double[] values, out Matrix matrix)
+    {
+        matrix = Matrix.Identity;
+        switch (name)
+        {
+            case "matrix" when values.Length == 6:
+                matrix = new Matrix(values[0], values[1], values[2], values[3], values[4], values[5]);
+                return true;
+            case "translate" when values.Length >= 1:
+                matrix = Matrix.CreateTranslation(values[0], values.Length >= 2 ? values[1] : 0);
+                return true;
+            case "scale" when values.Length >= 1:
+                matrix = Matrix.CreateScale(values[0], values.Length >= 2 ? values[1] : values[0]);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static double[] ParseNumberList(string value)
+    {
+        return value
+            .Split([' ', ',', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+            .Select(static part => double.Parse(part, NumberStyles.Float, CultureInfo.InvariantCulture))
+            .ToArray();
+    }
+
+    private sealed record SvgRenderState(
+        double Opacity,
+        Color? Fill,
+        double FillOpacity,
+        Color? Stroke,
+        double StrokeOpacity,
+        double StrokeWidth)
+    {
+        public static SvgRenderState Default { get; } = new(
+            Opacity: 1,
+            Fill: Colors.Black,
+            FillOpacity: 1,
+            Stroke: null,
+            StrokeOpacity: 1,
+            StrokeWidth: 1);
+
+        public SvgRenderState Inherit(XElement element)
+        {
+            var opacity = Opacity * ReadOpacity(element, "opacity", 1);
+            var fill = ReadColor(element, "fill", Fill);
+            var stroke = ReadColor(element, "stroke", Stroke);
+            return this with
+            {
+                Opacity = opacity,
+                Fill = fill,
+                FillOpacity = FillOpacity * ReadOpacity(element, "fill-opacity", 1),
+                Stroke = stroke,
+                StrokeOpacity = StrokeOpacity * ReadOpacity(element, "stroke-opacity", 1),
+                StrokeWidth = ReadDouble(element, "stroke-width", StrokeWidth, this)
+            };
+        }
+
+        public string? ReadInheritedValue(string name)
+        {
+            return name switch
+            {
+                "fill" => Fill?.ToString(),
+                "stroke" => Stroke?.ToString(),
+                "stroke-width" => StrokeWidth.ToString(CultureInfo.InvariantCulture),
+                "fill-opacity" => FillOpacity.ToString(CultureInfo.InvariantCulture),
+                "stroke-opacity" => StrokeOpacity.ToString(CultureInfo.InvariantCulture),
+                "opacity" => Opacity.ToString(CultureInfo.InvariantCulture),
+                _ => null
+            };
+        }
+
+        public IBrush? CreateFillBrush()
+        {
+            return Fill is null
+                ? null
+                : new SolidColorBrush(Fill.Value, Opacity * FillOpacity);
+        }
+
+        public IPen? CreatePen()
+        {
+            return Stroke is null
+                ? null
+                : new Pen(new SolidColorBrush(Stroke.Value, Opacity * StrokeOpacity), StrokeWidth);
+        }
+
+        private static double ReadOpacity(XElement element, string name, double defaultValue)
+        {
+            var value = ReadLocalAttribute(element, name);
+            return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
+                ? parsed
+                : defaultValue;
+        }
+
+        private static Color? ReadColor(XElement element, string name, Color? defaultValue)
+        {
+            var value = ReadLocalAttribute(element, name);
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return defaultValue;
+            }
+
+            value = value.Trim();
+            if (string.Equals(value, "none", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            return TryParseColor(value, out var color)
+                ? color
+                : defaultValue;
+        }
+
+        private static string? ReadLocalAttribute(XElement element, string name)
+        {
+            var attribute = (string?)element.Attribute(name);
+            return string.IsNullOrWhiteSpace(attribute)
+                ? ReadStyleValue(element, name)
+                : attribute;
+        }
+
+        private static bool TryParseColor(string value, out Color color)
+        {
+            value = value.Trim();
+            if (value.StartsWith("rgb(", StringComparison.OrdinalIgnoreCase) && value.EndsWith(')'))
+            {
+                var parts = value[4..^1].Split(',', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 3)
+                {
+                    color = Color.FromRgb(
+                        ParseColorChannel(parts[0]),
+                        ParseColorChannel(parts[1]),
+                        ParseColorChannel(parts[2]));
+                    return true;
+                }
+            }
+
+            return Color.TryParse(value, out color);
+        }
+
+        private static byte ParseColorChannel(string value)
+        {
+            value = value.Trim();
+            var multiplier = 1.0;
+            if (value.EndsWith('%'))
+            {
+                value = value[..^1];
+                multiplier = 255.0 / 100.0;
+            }
+
+            var parsed = double.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture) * multiplier;
+            return (byte)Math.Clamp((int)Math.Round(parsed), 0, 255);
+        }
+    }
 }
+
+internal readonly record struct SvgMaskAnalysis(
+    int GroupCount,
+    bool HasTransparentPixels,
+    bool HasOpaquePixels);

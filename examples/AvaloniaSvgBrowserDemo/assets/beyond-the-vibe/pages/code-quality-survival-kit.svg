@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="959.76pt" height="540pt" viewBox="0 0 959.76 540">
+  <rect x="0" y="0" width="959.76" height="540" fill="#0d0d0d"/>
+  <text x="54" y="76" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="700" fill="#00b0f0">Quality is survival infrastructure</text>
+  <text x="56" y="116" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700" fill="#e5e7eb">At this size, “clean code” is not taste. It is how the runtime keeps moving.</text>
+
+  <rect x="62" y="166" width="250" height="220" fill="#0b2a3b" stroke="#00b0f0" stroke-width="2"/>
+  <text x="96" y="206" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#ffc000">.editorconfig</text>
+  <text x="98" y="248" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#e5e7eb">Analyzer rules are explicit</text>
+  <text x="98" y="278" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#e5e7eb">Unused code is visible</text>
+  <text x="98" y="308" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#e5e7eb">Culture rules are visible</text>
+  <text x="98" y="338" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#e5e7eb">Warnings stay visible</text>
+
+  <rect x="355" y="166" width="250" height="220" fill="#2b1855" stroke="#a78bfa" stroke-width="2"/>
+  <text x="386" y="206" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#ffc000">Analyzer pressure</text>
+  <text x="388" y="248" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#e5e7eb">Roslynator flags dead seams</text>
+  <text x="388" y="278" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#e5e7eb">Nullable warnings expose risk</text>
+  <text x="388" y="308" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#e5e7eb">Style drift gets surfaced early</text>
+  <text x="388" y="338" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#e5e7eb">Build output becomes a todo list</text>
+
+  <rect x="648" y="166" width="250" height="220" fill="#0b3a31" stroke="#34d399" stroke-width="2"/>
+  <text x="676" y="206" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#ffc000">Strict habits</text>
+  <text x="678" y="248" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#e5e7eb">Small focused fixes</text>
+  <text x="678" y="278" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#e5e7eb">Narrow proof packs first</text>
+  <text x="678" y="308" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#e5e7eb">No “just one fallback” culture</text>
+  <text x="678" y="338" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#e5e7eb">Delete seams when proven dead</text>
+
+  <text x="148" y="448" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700" fill="#f3f4f6">The goal:</text>
+  <text x="254" y="448" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700" fill="#ffc000">make bad changes noisy before they become architecture.</text>
+</svg>

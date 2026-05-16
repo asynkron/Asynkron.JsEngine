@@ -25,8 +25,20 @@ function ecmaEaseOut(value) {
   return 1 - Math.pow(1 - value, 3);
 }
 
+function ecmaGlowText(ctx, id, value, x, y, size, fill, opacity) {
+  const text = ctx.svg.layer.text(id, value, x, y, size, fill, opacity);
+  text.set("font-family", "Arial, Helvetica, sans-serif");
+  text.set("font-weight", "700");
+  text.set("letter-spacing", "0");
+  return text;
+}
+
 slideScript("ecma-262-94000-unit-tests.svg", {
   enter: function (ctx) {
+    ecmaGlowText(ctx, "ecma-unit-glow-outer", "94 000 unit tests", 262, 326, 56, "#ffc000", 0);
+    ecmaGlowText(ctx, "ecma-unit-glow-mid", "94 000 unit tests", 263, 325, 54, "#ffd966", 0);
+    ecmaGlowText(ctx, "ecma-unit-glow-core", "94 000 unit tests", 264, 324, 52, "#fff2a8", 0);
+
     for (let index = 0; index < ecmaConfetti.length; index++) {
       const piece = ecmaConfetti[index];
       ctx.svg.layer.circle(piece.id, piece.x, piece.y, piece.size, piece.color, 0);
@@ -34,6 +46,21 @@ slideScript("ecma-262-94000-unit-tests.svg", {
   },
 
   frame: function (ctx, time, elapsed) {
+    const pulse = (Math.sin(elapsed * 0.005) + 1) / 2;
+    const glow = 0.38 + pulse * 0.42;
+    ctx.svg.id("ecma-unit-glow-outer").set("opacity", (glow * 0.20).toFixed(3));
+    ctx.svg.id("ecma-unit-glow-outer").set("font-size", (59 + pulse * 5).toFixed(2));
+    ctx.svg.id("ecma-unit-glow-outer").set("x", (258 - pulse * 4).toFixed(2));
+    ctx.svg.id("ecma-unit-glow-outer").set("y", (327 + pulse * 2).toFixed(2));
+
+    ctx.svg.id("ecma-unit-glow-mid").set("opacity", (glow * 0.24).toFixed(3));
+    ctx.svg.id("ecma-unit-glow-mid").set("font-size", (56 + pulse * 3).toFixed(2));
+    ctx.svg.id("ecma-unit-glow-mid").set("x", (260 - pulse * 2).toFixed(2));
+    ctx.svg.id("ecma-unit-glow-mid").set("y", (326 + pulse).toFixed(2));
+
+    ctx.svg.id("ecma-unit-glow-core").set("opacity", (0.08 + pulse * 0.08).toFixed(3));
+    ctx.svg.id("ecma-unit-glow-core").set("font-size", (53 + pulse * 1.4).toFixed(2));
+
     for (let index = 0; index < ecmaConfetti.length; index++) {
       const piece = ecmaConfetti[index];
       const local = (elapsed - piece.delay) % 1500;

@@ -112,8 +112,8 @@ internal static class Program
     private static void RunPresentationMaskSmoke()
     {
         var baseDirectory = AppContext.BaseDirectory;
-        var deck = PresentationDeck.Load(baseDirectory, "28");
-        var path = deck.Load("ecma-262-94000-unit-tests.svg", 27);
+        var deck = PresentationDeck.Load(baseDirectory, "27");
+        var path = deck.Load("ecma-262-94000-unit-tests.svg", 26);
         var document = new SvgSlideDocument(
             path,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
@@ -123,7 +123,7 @@ internal static class Program
         {
             throw new InvalidOperationException(string.Create(
                 CultureInfo.InvariantCulture,
-                $"Expected page 28 to contain two usable image masks, got {analysis}."));
+                $"Expected page 27 to contain two usable image masks, got {analysis}."));
         }
     }
 
@@ -152,8 +152,8 @@ internal static class Program
             throw new InvalidOperationException("Expected Space to advance the AST walking trace.");
         }
 
-        var deck = PresentationDeck.Load(baseDirectory, "28");
-        deck.Load("ecma-262-94000-unit-tests.svg", 27);
+        var deck = PresentationDeck.Load(baseDirectory, "27");
+        deck.Load("ecma-262-94000-unit-tests.svg", 26);
         var document = new SvgSlideDocument(
             deck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
@@ -167,7 +167,7 @@ internal static class Program
             throw new InvalidOperationException("Expected ECMA slide sidecar to create its overlay elements.");
         }
 
-        deck.Load("test262-goal-explosion.svg", 28);
+        deck.Load("test262-goal-explosion.svg", 27);
         document = new SvgSlideDocument(
             deck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),

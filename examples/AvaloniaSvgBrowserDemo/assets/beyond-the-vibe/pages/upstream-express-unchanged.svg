@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="959.76pt" height="540pt" viewBox="0 0 959.76 540">
+  <rect x="0" y="0" width="959.76" height="540" fill="#0d0d0d"/>
+  <text x="54" y="76" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="700" fill="#00b0f0">The payoff</text>
+  <text x="56" y="116" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700" fill="#e5e7eb">Run an unchanged upstream Express example through JsEngine.</text>
+
+  <rect x="82" y="162" width="362" height="214" fill="#101827" stroke="#00b0f0" stroke-width="2"/>
+  <text x="108" y="198" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#ffc000">Command</text>
+  <text x="108" y="238" font-family="Menlo, Consolas, monospace" font-size="13" fill="#e5e7eb">cd examples/NodeHostDemo</text>
+  <text x="108" y="268" font-family="Menlo, Consolas, monospace" font-size="13" fill="#e5e7eb">npm run prepare:official-express-ejs</text>
+  <text x="108" y="298" font-family="Menlo, Consolas, monospace" font-size="13" fill="#e5e7eb">npm run official-express-ejs</text>
+  <text x="108" y="342" font-family="Menlo, Consolas, monospace" font-size="13" fill="#9ca3af">curl http://localhost:3000/</text>
+
+  <rect x="516" y="162" width="360" height="214" fill="#0b3a31" stroke="#34d399" stroke-width="2"/>
+  <text x="542" y="198" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#ffc000">What runs</text>
+  <text x="544" y="238" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#e5e7eb">expressjs/express cloned from GitHub</text>
+  <text x="544" y="270" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#e5e7eb">examples/ejs/index.js unchanged</text>
+  <text x="544" y="302" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#e5e7eb">EJS rendering + express.static</text>
+  <text x="544" y="334" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#e5e7eb">real npm package code on JsEngine</text>
+
+  <path d="M 444 269 L 514 269" stroke="#d8d8d8" stroke-width="2" fill="none"/>
+  <path d="M 514 269 L 503 263 L 503 275 Z" fill="#d8d8d8"/>
+
+  <text x="104" y="444" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="700" fill="#f3f4f6">That is the demo:</text>
+  <text x="306" y="444" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="700" fill="#ffc000">real framework code, real host boundary,</text>
+  <text x="306" y="480" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="700" fill="#ffc000">no rewritten app.</text>
+</svg>

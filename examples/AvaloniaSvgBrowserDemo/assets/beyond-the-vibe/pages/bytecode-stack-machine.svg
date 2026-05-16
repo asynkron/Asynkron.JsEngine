@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="959.76pt" height="540pt" viewBox="0 0 959.76 540">
+  <rect x="0" y="0" width="959.76" height="540" fill="#0d0d0d"/>
+  <text x="54" y="76" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="700" fill="#00b0f0">Expression bytecode</text>
+  <text x="56" y="116" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700" fill="#e5e7eb">Expressions compile into a compact stack program.</text>
+
+  <rect x="74" y="168" width="276" height="76" fill="#101827" stroke="#00b0f0" stroke-width="2"/>
+  <text x="98" y="203" font-family="Menlo, Consolas, monospace" font-size="24" font-weight="700" fill="#f3f4f6">x + y * 2</text>
+  <text x="99" y="229" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#9ca3af">source expression</text>
+
+  <path d="M 350 206 L 420 206" stroke="#d8d8d8" stroke-width="2" fill="none"/>
+  <path d="M 420 206 L 409 200 L 409 212 Z" fill="#d8d8d8"/>
+
+  <rect x="430" y="134" width="196" height="214" fill="#0b2a3b" stroke="#00b0f0" stroke-width="2"/>
+  <text x="454" y="166" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="700" fill="#ffc000">ExpressionProgram</text>
+  <text x="456" y="202" font-family="Menlo, Consolas, monospace" font-size="15" fill="#e5e7eb">LoadSlot x</text>
+  <text x="456" y="230" font-family="Menlo, Consolas, monospace" font-size="15" fill="#e5e7eb">LoadSlot y</text>
+  <text x="456" y="258" font-family="Menlo, Consolas, monospace" font-size="15" fill="#e5e7eb">PushConst 2</text>
+  <text x="456" y="286" font-family="Menlo, Consolas, monospace" font-size="15" fill="#e5e7eb">Mul</text>
+  <text x="456" y="314" font-family="Menlo, Consolas, monospace" font-size="15" fill="#e5e7eb">Add</text>
+
+  <path d="M 626 242 L 696 242" stroke="#d8d8d8" stroke-width="2" fill="none"/>
+  <path d="M 696 242 L 685 236 L 685 248 Z" fill="#d8d8d8"/>
+
+  <rect x="706" y="134" width="178" height="214" fill="#241427" stroke="#fb7185" stroke-width="2"/>
+  <text x="748" y="166" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="700" fill="#ffc000">Operand stack</text>
+  <rect x="748" y="284" width="96" height="36" fill="#3a2017" stroke="#ffc000" stroke-width="1.5"/>
+  <text x="786" y="307" font-family="Menlo, Consolas, monospace" font-size="15" fill="#f3f4f6">result</text>
+  <rect x="748" y="240" width="96" height="36" fill="#0b3a31" stroke="#34d399" stroke-width="1.5"/>
+  <text x="782" y="263" font-family="Menlo, Consolas, monospace" font-size="15" fill="#f3f4f6">temp</text>
+  <rect x="748" y="196" width="96" height="36" fill="#2b1855" stroke="#a78bfa" stroke-width="1.5"/>
+  <text x="789" y="219" font-family="Menlo, Consolas, monospace" font-size="15" fill="#f3f4f6">lhs</text>
+
+  <rect x="112" y="392" width="740" height="62" fill="#101827" stroke="#334155" stroke-width="1.5"/>
+  <text x="140" y="428" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#f3f4f6">This is the hot path:</text>
+  <text x="354" y="428" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#ffc000">simple ops, fixed stack depth, fewer allocations</text>
+</svg>

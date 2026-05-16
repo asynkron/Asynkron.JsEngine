@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="959.76pt" height="540pt" viewBox="0 0 959.76 540">
+  <rect x="0" y="0" width="959.76" height="540" fill="#0d0d0d"/>
+  <text x="54" y="76" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="700" fill="#00b0f0">Duplication radar</text>
+  <text x="56" y="116" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700" fill="#e5e7eb">The codebase is too large for vibes-based cleanup.</text>
+
+  <circle cx="284" cy="286" r="134" fill="#101827" stroke="#334155" stroke-width="2"/>
+  <circle cx="284" cy="286" r="92" fill="none" stroke="#334155" stroke-width="1.5"/>
+  <circle cx="284" cy="286" r="48" fill="none" stroke="#334155" stroke-width="1.5"/>
+  <path d="M 284 286 L 386 214" stroke="#34d399" stroke-width="3" fill="none"/>
+  <circle cx="386" cy="214" r="9" fill="#34d399"/>
+  <path d="M 284 286 L 212 178" stroke="#ffc000" stroke-width="3" fill="none"/>
+  <circle cx="212" cy="178" r="9" fill="#ffc000"/>
+  <path d="M 284 286 L 164 334" stroke="#fb7185" stroke-width="3" fill="none"/>
+  <circle cx="164" cy="334" r="9" fill="#fb7185"/>
+  <text x="226" y="296" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700" fill="#00b0f0">quickdup</text>
+
+  <rect x="508" y="176" width="312" height="58" fill="#0b2a3b" stroke="#00b0f0" stroke-width="2"/>
+  <text x="532" y="211" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700" fill="#f3f4f6">Find repeated implementation shapes</text>
+
+  <rect x="508" y="256" width="312" height="58" fill="#3a2017" stroke="#ffc000" stroke-width="2"/>
+  <text x="532" y="291" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700" fill="#f3f4f6">Ask: common abstraction or coincidence?</text>
+
+  <rect x="508" y="336" width="312" height="58" fill="#4b1530" stroke="#fb7185" stroke-width="2"/>
+  <text x="532" y="371" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700" fill="#f3f4f6">Refactor only when it reduces risk</text>
+
+  <text x="146" y="462" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#e5e7eb">Mechanical smell detector first. Human judgment second.</text>
+</svg>

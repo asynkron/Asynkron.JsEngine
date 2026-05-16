@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="959.76pt" height="540pt" viewBox="0 0 959.76 540">
+  <rect x="0" y="0" width="959.76" height="540" fill="#0d0d0d"/>
+  <text x="54" y="76" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="700" fill="#00b0f0">Node-shaped host</text>
+  <text x="56" y="116" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700" fill="#e5e7eb">The app stays JavaScript. The native edge stays in .NET.</text>
+
+  <rect x="78" y="182" width="250" height="184" fill="#0b2a3b" stroke="#00b0f0" stroke-width="2"/>
+  <text x="112" y="226" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="700" fill="#f3f4f6">JavaScript app</text>
+  <text x="112" y="268" font-family="Menlo, Consolas, monospace" font-size="14" fill="#e5e7eb">require("express")</text>
+  <text x="112" y="296" font-family="Menlo, Consolas, monospace" font-size="14" fill="#e5e7eb">app.use(...)</text>
+  <text x="112" y="324" font-family="Menlo, Consolas, monospace" font-size="14" fill="#e5e7eb">res.render(...)</text>
+
+  <path d="M 328 274 L 438 274" stroke="#d8d8d8" stroke-width="2" fill="none"/>
+  <path d="M 438 274 L 427 268 L 427 280 Z" fill="#d8d8d8"/>
+
+  <rect x="446" y="162" width="176" height="224" fill="#2b1855" stroke="#a78bfa" stroke-width="2"/>
+  <text x="484" y="204" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#f3f4f6">CommonJS</text>
+  <text x="477" y="246" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#e5e7eb">local modules</text>
+  <text x="477" y="274" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#e5e7eb">node_modules</text>
+  <text x="477" y="302" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#e5e7eb">node: aliases</text>
+  <text x="477" y="330" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#e5e7eb">package resolution</text>
+
+  <path d="M 622 274 L 732 274" stroke="#d8d8d8" stroke-width="2" fill="none"/>
+  <path d="M 732 274 L 721 268 L 721 280 Z" fill="#d8d8d8"/>
+
+  <rect x="740" y="182" width="152" height="184" fill="#0b3a31" stroke="#34d399" stroke-width="2"/>
+  <text x="772" y="226" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="700" fill="#f3f4f6">.NET host</text>
+  <text x="770" y="268" font-family="Menlo, Consolas, monospace" font-size="14" fill="#e5e7eb">fs</text>
+  <text x="770" y="296" font-family="Menlo, Consolas, monospace" font-size="14" fill="#e5e7eb">http</text>
+  <text x="770" y="324" font-family="Menlo, Consolas, monospace" font-size="14" fill="#e5e7eb">path / timers</text>
+
+  <rect x="150" y="426" width="660" height="56" fill="#101827" stroke="#334155" stroke-width="1.5"/>
+  <text x="188" y="461" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#ffc000">We did not build a toy Express clone. We built the Node surface area it needed.</text>
+</svg>

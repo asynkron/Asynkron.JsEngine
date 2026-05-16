@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Diagnostics;
+using System.Text;
 using System.Xml.Linq;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
@@ -32,6 +33,12 @@ internal static class Program
             return;
         }
 
+        if (args.Length > 0 && string.Equals(args[0], "--presentation-sidecar-smoke", StringComparison.Ordinal))
+        {
+            RunPresentationSidecarSmoke();
+            return;
+        }
+
         if (args.Length > 0 && string.Equals(args[0], "--presentation-preload-smoke", StringComparison.Ordinal))
         {
             BuildAvaloniaApp().SetupWithoutStarting();
@@ -57,7 +64,11 @@ internal static class Program
             deck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
             static () => { });
-        using var host = new SlideScriptHost(document, deck);
+        var statusUpdates = new List<int>();
+        using var host = new SlideScriptHost(
+            document,
+            deck,
+            (loadedDeck, _) => statusUpdates.Add(loadedDeck.CurrentIndex));
         host.Run(Path.Combine(baseDirectory, "scripts", "presentation.js"));
 
         var startingIndex = deck.CurrentIndex;
@@ -79,11 +90,20 @@ internal static class Program
                 CultureInfo.InvariantCulture,
                 $"ArrowLeft navigated to {deck.CurrentIndex}, expected {startingIndex}."));
         }
+
+        if (statusUpdates.Count < 3 ||
+            statusUpdates[0] != startingIndex ||
+            statusUpdates[^2] != expectedNextIndex ||
+            statusUpdates[^1] != startingIndex)
+        {
+            throw new InvalidOperationException(
+                "Expected presentation status updates to follow JS-driven navigation.");
+        }
     }
 
-    private static void DispatchSmokeFrames(SlideScriptHost host)
+    private static void DispatchSmokeFrames(SlideScriptHost host, int durationMilliseconds = 640)
     {
-        for (var time = 0; time <= 640; time += 16)
+        for (var time = 0; time <= durationMilliseconds; time += 16)
         {
             host.DispatchFrame(time);
         }
@@ -104,6 +124,73 @@ internal static class Program
             throw new InvalidOperationException(string.Create(
                 CultureInfo.InvariantCulture,
                 $"Expected page 28 to contain two usable image masks, got {analysis}."));
+        }
+    }
+
+    private static void RunPresentationSidecarSmoke()
+    {
+        var baseDirectory = AppContext.BaseDirectory;
+        var astDeck = PresentationDeck.Load(baseDirectory, "14");
+        astDeck.Load("ast-walking-evaluation.svg", 13);
+        var astDocument = new SvgSlideDocument(
+            astDeck.CurrentPath,
+            Path.Combine(baseDirectory, "rendered-slide.svg"),
+            static () => { });
+        using var astHost = new SlideScriptHost(astDocument, astDeck);
+        astHost.Run(Path.Combine(baseDirectory, "scripts", "presentation.js"));
+
+        if (!astDocument.ContainsElement("ast-generated-bg") ||
+            !astDocument.ContainsElement("ast-node-8a") ||
+            !string.Equals(astDocument.GetElementText("ast-step-counter"), "1 / 12", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Expected AST walking sidecar to generate its initial trace view.");
+        }
+
+        astHost.DispatchKey("Space");
+        if (!string.Equals(astDocument.GetElementText("ast-step-counter"), "2 / 12", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Expected Space to advance the AST walking trace.");
+        }
+
+        var deck = PresentationDeck.Load(baseDirectory, "28");
+        deck.Load("ecma-262-94000-unit-tests.svg", 27);
+        var document = new SvgSlideDocument(
+            deck.CurrentPath,
+            Path.Combine(baseDirectory, "rendered-slide.svg"),
+            static () => { });
+        using var host = new SlideScriptHost(document, deck);
+        host.Run(Path.Combine(baseDirectory, "scripts", "presentation.js"));
+        DispatchSmokeFrames(host);
+
+        if (!document.ContainsElement("ecma-confetti-l-00"))
+        {
+            throw new InvalidOperationException("Expected ECMA slide sidecar to create its overlay elements.");
+        }
+
+        deck.Load("test262-goal-explosion.svg", 28);
+        document = new SvgSlideDocument(
+            deck.CurrentPath,
+            Path.Combine(baseDirectory, "rendered-slide.svg"),
+            static () => { });
+        using var goalHost = new SlideScriptHost(document, deck);
+        goalHost.Run(Path.Combine(baseDirectory, "scripts", "presentation.js"));
+        DispatchSmokeFrames(goalHost, 15_000);
+
+        if (!document.ContainsElement("goal-generated-bg") ||
+            !document.ContainsElement("goal-node-719") ||
+            !document.ContainsElement("goal-force-719"))
+        {
+            throw new InvalidOperationException("Expected Test262 goal sidecar to rebuild the slide from SVG elements.");
+        }
+
+        var greenTests = document.CountElementsWithAttributePrefix("goal-node-", "fill", "#22c55e");
+        var redTests = document.CountElementsWithAttributePrefix("goal-node-", "fill", "#ef4444");
+        var grayTests = document.CountElementsWithAttributePrefix("goal-node-", "fill", "#9ca3af");
+        if (greenTests < 660 || redTests is < 10 or > 45 || grayTests != 0)
+        {
+            throw new InvalidOperationException(string.Create(
+                CultureInfo.InvariantCulture,
+                $"Expected mostly green tests with a few red failures left, got green={greenTests}, red={redTests}, gray={grayTests}."));
         }
     }
 
@@ -150,6 +237,7 @@ internal sealed partial class DemoWindow : Window
     private readonly SlideScriptHost _scriptHost;
     private readonly DispatcherTimer _timer;
     private readonly DateTimeOffset _startedAt = DateTimeOffset.UtcNow;
+    private TextBlock? _statusText;
 
     public DemoWindow(IReadOnlyList<string> args)
     {
@@ -178,7 +266,7 @@ internal sealed partial class DemoWindow : Window
 
         Content = CreateLayout(launch);
 
-        _scriptHost = new SlideScriptHost(_document, launch.Deck);
+        _scriptHost = new SlideScriptHost(_document, launch.Deck, UpdatePresentationStatus);
         if (launch.ScriptPath is not null)
         {
             _scriptHost.Run(launch.ScriptPath);
@@ -226,7 +314,7 @@ internal sealed partial class DemoWindow : Window
 
         root.Children.Add(_svgView);
 
-        var status = new TextBlock
+        _statusText = new TextBlock
         {
             Text = launch.StatusText,
             Foreground = Brushes.White,
@@ -235,10 +323,28 @@ internal sealed partial class DemoWindow : Window
             FontSize = 15,
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
-        Grid.SetRow(status, 1);
-        root.Children.Add(status);
+        Grid.SetRow(_statusText, 1);
+        root.Children.Add(_statusText);
 
         return root;
+    }
+
+    private void UpdatePresentationStatus(PresentationDeck deck, string path)
+    {
+        var statusText = string.Create(
+            CultureInfo.InvariantCulture,
+            $"Rendering presentation page {deck.CurrentPageNumber}/{deck.Count}: {Path.GetFileName(path)}. Use Left/Right arrows.");
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_statusText is not null)
+            {
+                _statusText.Text = statusText;
+            }
+
+            Title = string.Create(
+                CultureInfo.InvariantCulture,
+                $"JsEngine Avalonia SVG Browser - {deck.CurrentPageNumber}/{deck.Count}");
+        });
     }
 
     private static LaunchOptions ResolveLaunch(string baseDirectory, IReadOnlyList<string> args)
@@ -448,11 +554,16 @@ internal sealed class SlideScriptHost : IDisposable
     private readonly Dictionary<string, List<IJsCallable>> _keyCallbacks = new(StringComparer.OrdinalIgnoreCase);
     private readonly SvgSlideDocument _document;
     private readonly PresentationDeck? _deck;
+    private readonly Action<PresentationDeck, string>? _presentationLoaded;
 
-    public SlideScriptHost(SvgSlideDocument document, PresentationDeck? deck)
+    public SlideScriptHost(
+        SvgSlideDocument document,
+        PresentationDeck? deck,
+        Action<PresentationDeck, string>? presentationLoaded = null)
     {
         _document = document;
         _deck = deck;
+        _presentationLoaded = presentationLoaded;
         _engine.SetGlobalValue("console", CreateConsoleObject());
         _engine.SetGlobalValue("svg", CreateSvgObject());
         _engine.SetGlobalValue("slide", CreateSlideObject());
@@ -461,9 +572,35 @@ internal sealed class SlideScriptHost : IDisposable
 
     public void Run(string scriptPath)
     {
-        var script = File.ReadAllText(scriptPath);
+        var script = BuildScriptBundle(scriptPath);
         _engine.EvaluateSync(script);
         _document.Flush();
+    }
+
+    private static string BuildScriptBundle(string scriptPath)
+    {
+        var scriptDirectory = Path.GetDirectoryName(scriptPath) ?? AppContext.BaseDirectory;
+        var builder = new StringBuilder();
+        builder.AppendLine(File.ReadAllText(scriptPath));
+
+        var sidecarDirectory = Path.Combine(scriptDirectory, "slides");
+        if (Directory.Exists(sidecarDirectory))
+        {
+            foreach (var sidecarPath in Directory.EnumerateFiles(sidecarDirectory, "*.js").Order(StringComparer.Ordinal))
+            {
+                builder.AppendLine();
+                builder.AppendLine(string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"// sidecar: {Path.GetFileName(sidecarPath)}"));
+                builder.AppendLine("(function () {");
+                builder.AppendLine(File.ReadAllText(sidecarPath));
+                builder.AppendLine("})();");
+            }
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("startPresentation();");
+        return builder.ToString();
     }
 
     public void DispatchFrame(double milliseconds)
@@ -581,6 +718,7 @@ internal sealed class SlideScriptHost : IDisposable
                 ? _deck.Load(GetString(args, 0), GetInt32(args, 1))
                 : _deck.Load(GetInt32(args, 0));
             _document.Load(path);
+            _presentationLoaded?.Invoke(_deck, path);
             Console.WriteLine(string.Create(
                 CultureInfo.InvariantCulture,
                 $"Presentation page {_deck.CurrentPageNumber}/{_deck.Count}: {Path.GetFileName(path)}"));
@@ -643,6 +781,20 @@ internal sealed class SlideScriptHost : IDisposable
                     new("cy", GetDouble(args, 2).ToString(CultureInfo.InvariantCulture)),
                     new("r", GetDouble(args, 3).ToString(CultureInfo.InvariantCulture)),
                     new("fill", GetString(args, 4)),
+                    new("opacity", GetDouble(args, 5, 1).ToString(CultureInfo.InvariantCulture))
+                ]);
+            return CreateElementObject(GetString(args, 0));
+        }));
+        SetProperty(layer, "path", CreateHostFunction(args =>
+        {
+            _document.AddLayerElement(
+                "path",
+                GetString(args, 0),
+                [
+                    new("d", GetString(args, 1)),
+                    new("fill", GetString(args, 2)),
+                    new("stroke", GetString(args, 3)),
+                    new("stroke-width", GetDouble(args, 4, 1).ToString(CultureInfo.InvariantCulture)),
                     new("opacity", GetDouble(args, 5, 1).ToString(CultureInfo.InvariantCulture))
                 ]);
             return CreateElementObject(GetString(args, 0));
@@ -807,6 +959,26 @@ internal sealed class SvgSlideDocument
     public bool ContainsElement(string id)
     {
         return _elementsById.ContainsKey(id);
+    }
+
+    public string GetElementText(string id)
+    {
+        return GetElementById(id).Value;
+    }
+
+    public int CountElementsWithAttributePrefix(string idPrefix, string name, string value)
+    {
+        var count = 0;
+        foreach (var (id, element) in _elementsById)
+        {
+            if (id.StartsWith(idPrefix, StringComparison.Ordinal) &&
+                string.Equals((string?)element.Attribute(name), value, StringComparison.Ordinal))
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     public void SetAttribute(string id, string name, string value)

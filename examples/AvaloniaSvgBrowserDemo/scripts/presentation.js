@@ -66,6 +66,39 @@ let current = presentation.current();
 let phase = "idle";
 let target = current;
 let transitionStarted = 0;
+let slideEnteredAt = 0;
+
+const slideScripts = {};
+const slideContext = {
+  svg: svg,
+  slide: slide,
+  presentation: presentation,
+  slides: slides,
+  current: function () {
+    return current;
+  },
+  file: function () {
+    return slides[current];
+  }
+};
+
+function slideScript(fileName, hooks) {
+  slideScripts[fileName] = hooks || {};
+}
+
+function getSlideHooks(index) {
+  return slideScripts[slides[index]];
+}
+
+function runSlideHook(index, name, a, b) {
+  const hooks = getSlideHooks(index);
+  const handler = hooks && hooks[name];
+  if (typeof handler === "function") {
+    return handler(slideContext, a, b);
+  }
+
+  return undefined;
+}
 
 function setCaption() {
   svg.layer.text(
@@ -103,6 +136,8 @@ function showSlide(index) {
   current = (index + slides.length) % slides.length;
   presentation.load(slides[current], current);
   buildOverlay();
+  runSlideHook(current, "enter");
+  slideEnteredAt = -1;
   console.log("slide", current + 1, "of", slides.length, slides[current]);
 }
 
@@ -116,16 +151,22 @@ function requestSlide(index) {
     return;
   }
 
+  runSlideHook(current, "leave");
   phase = "fade-out";
   transitionStarted = -1;
 }
 
 slide.onFrame(function (time) {
+  if (slideEnteredAt < 0) {
+    slideEnteredAt = time;
+  }
+
   const pulse = 0.55 + (Math.sin(time * 0.006) + 1) * 0.25;
   svg.id("jsengine-spark-a").set("opacity", pulse.toFixed(3));
   svg.id("jsengine-spark-a").set("r", (7 + pulse * 5).toFixed(2));
   svg.id("jsengine-spark-b").set("opacity", (0.45 + pulse * 0.32).toFixed(3));
   svg.id("jsengine-spark-c").set("opacity", (0.35 + pulse * 0.28).toFixed(3));
+  runSlideHook(current, "frame", time, time - slideEnteredAt);
 
   if (phase === "idle") {
     return;
@@ -156,20 +197,46 @@ slide.onFrame(function (time) {
 });
 
 slide.onKey("ArrowRight", function () {
+  if (runSlideHook(current, "key", "ArrowRight") === true) {
+    return;
+  }
+
   requestSlide(current + 1);
 });
 
 slide.onKey("ArrowLeft", function () {
+  if (runSlideHook(current, "key", "ArrowLeft") === true) {
+    return;
+  }
+
   requestSlide(current - 1);
 });
 
 slide.onKey("Home", function () {
+  if (runSlideHook(current, "key", "Home") === true) {
+    return;
+  }
+
   requestSlide(0);
 });
 
 slide.onKey("End", function () {
+  if (runSlideHook(current, "key", "End") === true) {
+    return;
+  }
+
   requestSlide(slides.length - 1);
 });
 
-showSlide(current);
-console.log("presentation deck loaded", slides.length, "slides");
+slide.onKey("Space", function () {
+  runSlideHook(current, "key", "Space");
+});
+
+slide.onKey("R", function () {
+  runSlideHook(current, "key", "R");
+});
+
+function startPresentation() {
+  showSlide(current);
+  console.log("presentation deck loaded", slides.length, "slides");
+}

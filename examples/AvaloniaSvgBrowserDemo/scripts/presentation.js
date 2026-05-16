@@ -59,6 +59,7 @@ slides[54] = "code-quality-survival-kit.svg";
 slides[55] = "quickdup-duplication-radar.svg";
 slides[56] = "node-host-boundary.svg";
 slides[57] = "upstream-express-unchanged.svg";
+slides[58] = "express-live-demo.svg";
 
 let current = presentation.current();
 let phase = "idle";
@@ -132,7 +133,7 @@ function showSlide(index) {
   }
 
   current = (index + slides.length) % slides.length;
-  presentation.load(slides[current], current);
+  presentation.load(slides[current], current, slides.length);
   buildOverlay();
   runSlideHook(current, "enter");
   slideEnteredAt = -1;
@@ -232,6 +233,10 @@ slide.onKey("Space", function () {
 
 slide.onKey("R", function () {
   runSlideHook(current, "key", "R");
+});
+
+slide.onClick(function (x, y) {
+  runSlideHook(current, "click", x, y);
 });
 
 function startPresentation() {

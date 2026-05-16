@@ -1,28 +1,30 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="959.76pt" height="540pt" viewBox="0 0 959.76 540">
   <rect x="0" y="0" width="959.76" height="540" fill="#0d0d0d"/>
-  <text x="54" y="76" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="700" fill="#00b0f0">Duplication radar</text>
-  <text x="56" y="116" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700" fill="#e5e7eb">The codebase is too large for vibes-based cleanup.</text>
 
-  <circle cx="284" cy="286" r="134" fill="#101827" stroke="#334155" stroke-width="2"/>
-  <circle cx="284" cy="286" r="92" fill="none" stroke="#334155" stroke-width="1.5"/>
-  <circle cx="284" cy="286" r="48" fill="none" stroke="#334155" stroke-width="1.5"/>
-  <path d="M 284 286 L 386 214" stroke="#34d399" stroke-width="3" fill="none"/>
-  <circle cx="386" cy="214" r="9" fill="#34d399"/>
-  <path d="M 284 286 L 212 178" stroke="#ffc000" stroke-width="3" fill="none"/>
-  <circle cx="212" cy="178" r="9" fill="#ffc000"/>
-  <path d="M 284 286 L 164 334" stroke="#fb7185" stroke-width="3" fill="none"/>
-  <circle cx="164" cy="334" r="9" fill="#fb7185"/>
-  <text x="226" y="296" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700" fill="#00b0f0">quickdup</text>
+  <text x="479.88" y="80" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="700" fill="#00b0f0">I built a tool for it</text>
 
-  <rect x="508" y="176" width="312" height="58" fill="#0b2a3b" stroke="#00b0f0" stroke-width="2"/>
-  <text x="532" y="211" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700" fill="#f3f4f6">Find repeated implementation shapes</text>
+  <rect x="0" y="116" width="959.76" height="424" fill="#101820"/>
+  <text x="18" y="148" font-family="Menlo, Consolas, monospace" font-size="12" fill="#9ca3af">$ quickdup -path src -ext .cs -top 5</text>
+  <text x="18" y="178" font-family="Menlo, Consolas, monospace" font-size="12" fill="#cbd5e1">Parsed 1,248 files, 183,402 lines of code</text>
+  <text x="18" y="204" font-family="Menlo, Consolas, monospace" font-size="12" fill="#facc15">Pattern #0  rank 91.4  occurrences 7  size 18 lines</text>
+  <text x="46" y="228" font-family="Menlo, Consolas, monospace" font-size="12" fill="#94a3b8">src/Asynkron.JsEngine/StdLib/.../ArrayPrototype.cs:214</text>
+  <text x="46" y="252" font-family="Menlo, Consolas, monospace" font-size="12" fill="#94a3b8">src/Asynkron.JsEngine/StdLib/.../TypedArrayPrototype.cs:377</text>
+  <text x="18" y="286" font-family="Menlo, Consolas, monospace" font-size="12" fill="#34d399">Fingerprint: indent delta + first token + token similarity</text>
+  <text x="18" y="314" font-family="Menlo, Consolas, monospace" font-size="12" fill="#fb7185">Candidate duplicate. Ask an AI agent to verify before refactoring.</text>
 
-  <rect x="508" y="256" width="312" height="58" fill="#3a2017" stroke="#ffc000" stroke-width="2"/>
-  <text x="532" y="291" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700" fill="#f3f4f6">Ask: common abstraction or coincidence?</text>
+  <text x="690" y="150" font-family="Menlo, Consolas, monospace" font-size="12" fill="#334155">results.json</text>
+  <text x="690" y="174" font-family="Menlo, Consolas, monospace" font-size="12" fill="#334155">{ "hash": "56c2f5f9b27ed5a0",</text>
+  <text x="706" y="198" font-family="Menlo, Consolas, monospace" font-size="12" fill="#334155">"occurrences": 7,</text>
+  <text x="706" y="222" font-family="Menlo, Consolas, monospace" font-size="12" fill="#334155">"similarity": 0.94,</text>
+  <text x="706" y="246" font-family="Menlo, Consolas, monospace" font-size="12" fill="#334155">"rank": 91.4 }</text>
 
-  <rect x="508" y="336" width="312" height="58" fill="#4b1530" stroke="#fb7185" stroke-width="2"/>
-  <text x="532" y="371" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700" fill="#f3f4f6">Refactor only when it reduces risk</text>
+  <rect x="218" y="170" width="552" height="276" fill="#05070d" opacity="0.86"/>
+  <text x="246" y="222" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700" fill="#00b0f0">Presenting Asynkron.QuickDup</text>
+  <text x="246" y="262" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="700" fill="#f8fafc">AI-era code clone detector.</text>
+  <text x="246" y="304" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="700" fill="#f8fafc">Structural shape fingerprinting.</text>
+  <text x="246" y="346" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="700" fill="#f8fafc">Fast candidate generator.</text>
+  <text x="246" y="388" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="700" fill="#f8fafc">Let AI verify. Let humans decide.</text>
 
-  <text x="146" y="462" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#e5e7eb">Mechanical smell detector first. Human judgment second.</text>
+  <text x="246" y="424" font-family="Menlo, Consolas, monospace" font-size="13" fill="#cbd5e1">github.com/asynkron/Asynkron.QuickDup</text>
 </svg>

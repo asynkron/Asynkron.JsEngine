@@ -284,6 +284,11 @@ internal sealed partial class DemoWindow : Window
             (_, eventArgs) => DispatchKey(eventArgs),
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
+        AddHandler(
+            PointerPressedEvent,
+            (_, eventArgs) => DispatchPointer(eventArgs),
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
         Closed += (_, _) => _scriptHost.Dispose();
     }
 
@@ -333,7 +338,7 @@ internal sealed partial class DemoWindow : Window
     {
         var statusText = string.Create(
             CultureInfo.InvariantCulture,
-            $"Rendering presentation page {deck.CurrentPageNumber}/{deck.Count}: {Path.GetFileName(path)}. Use Left/Right arrows.");
+            $"Rendering presentation page {deck.CurrentPageNumber}/{deck.DisplayCount}: {Path.GetFileName(path)}. Use Left/Right arrows.");
         Dispatcher.UIThread.Post(() =>
         {
             if (_statusText is not null)
@@ -343,7 +348,7 @@ internal sealed partial class DemoWindow : Window
 
             Title = string.Create(
                 CultureInfo.InvariantCulture,
-                $"JsEngine Avalonia SVG Browser - {deck.CurrentPageNumber}/{deck.Count}");
+                $"JsEngine Avalonia SVG Browser - {deck.CurrentPageNumber}/{deck.DisplayCount}");
         });
     }
 
@@ -401,6 +406,7 @@ internal sealed class PresentationDeck
     {
         _slidePaths = slidePaths;
         CurrentIndex = currentIndex;
+        DisplayCount = slidePaths.Length;
         _currentPath = GetPath(currentIndex);
         foreach (var slidePath in slidePaths)
         {
@@ -409,6 +415,8 @@ internal sealed class PresentationDeck
     }
 
     public int Count => _slidePaths.Length;
+
+    public int DisplayCount { get; private set; }
 
     public IReadOnlyList<string> SlidePaths => _slidePaths;
 
@@ -469,6 +477,11 @@ internal sealed class PresentationDeck
 
     public string Load(string fileName, int displayIndex)
     {
+        return Load(fileName, displayIndex, Count);
+    }
+
+    public string Load(string fileName, int displayIndex, int displayCount)
+    {
         var normalizedFileName = Path.GetFileName(fileName);
         if (string.IsNullOrWhiteSpace(normalizedFileName) ||
             !_slidePathsByName.TryGetValue(normalizedFileName, out var path))
@@ -478,6 +491,7 @@ internal sealed class PresentationDeck
         }
 
         CurrentIndex = Math.Clamp(displayIndex, 0, _slidePaths.Length - 1);
+        DisplayCount = Math.Max(1, displayCount);
         _currentPath = path;
         return path;
     }
@@ -509,6 +523,18 @@ internal sealed partial class DemoWindow
 
         Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"Avalonia key: {key}"));
         _scriptHost.DispatchKey(key);
+        eventArgs.Handled = true;
+    }
+
+    private void DispatchPointer(PointerPressedEventArgs eventArgs)
+    {
+        var point = eventArgs.GetPosition(_svgView);
+        if (!_document.TryMapToSvgPoint(point, _svgView.Bounds, out var x, out var y))
+        {
+            return;
+        }
+
+        _scriptHost.DispatchClick(x, y);
         eventArgs.Handled = true;
     }
 
@@ -551,10 +577,12 @@ internal sealed class SlideScriptHost : IDisposable
 {
     private readonly JsEngine _engine = new();
     private readonly List<IJsCallable> _frameCallbacks = [];
+    private readonly List<IJsCallable> _clickCallbacks = [];
     private readonly Dictionary<string, List<IJsCallable>> _keyCallbacks = new(StringComparer.OrdinalIgnoreCase);
     private readonly SvgSlideDocument _document;
     private readonly PresentationDeck? _deck;
     private readonly Action<PresentationDeck, string>? _presentationLoaded;
+    private readonly ExpressDemoProcessHost _demoProcessHost = new(AppContext.BaseDirectory);
 
     public SlideScriptHost(
         SvgSlideDocument document,
@@ -568,6 +596,7 @@ internal sealed class SlideScriptHost : IDisposable
         _engine.SetGlobalValue("svg", CreateSvgObject());
         _engine.SetGlobalValue("slide", CreateSlideObject());
         _engine.SetGlobalValue("presentation", CreatePresentationObject());
+        _engine.SetGlobalValue("demo", CreateDemoObject());
     }
 
     public void Run(string scriptPath)
@@ -631,8 +660,26 @@ internal sealed class SlideScriptHost : IDisposable
         _document.Flush();
     }
 
+    public void DispatchClick(double x, double y)
+    {
+        if (_clickCallbacks.Count == 0)
+        {
+            return;
+        }
+
+        var xValue = new JsValue(x);
+        var yValue = new JsValue(y);
+        foreach (var callback in _clickCallbacks.ToArray())
+        {
+            callback.Invoke([xValue, yValue], JsValue.Undefined);
+        }
+
+        _document.Flush();
+    }
+
     public void Dispose()
     {
+        _demoProcessHost.Dispose();
         _engine.Dispose();
     }
 
@@ -688,7 +735,37 @@ internal sealed class SlideScriptHost : IDisposable
             callbacks.Add(callback);
             return JsValue.Undefined;
         }));
+        SetProperty(slide, "onClick", CreateHostFunction(args =>
+        {
+            if (TryGetCallable(args, 0, out var callback))
+            {
+                _clickCallbacks.Add(callback);
+            }
+
+            return JsValue.Undefined;
+        }));
         return slide;
+    }
+
+    private JsObject CreateDemoObject()
+    {
+        var demo = new JsObject();
+        SetProperty(demo, "startExpress", CreateHostFunction(_ =>
+            new JsValue(_demoProcessHost.StartExpress())));
+        SetProperty(demo, "stopExpress", CreateHostFunction(_ =>
+        {
+            _demoProcessHost.StopExpress();
+            return JsValue.Undefined;
+        }));
+        SetProperty(demo, "curl", CreateHostFunction(args =>
+            new JsValue(_demoProcessHost.RunCurl(GetString(args, 0)))));
+        SetProperty(demo, "hostOutput", CreateHostFunction(_ =>
+            new JsValue(_demoProcessHost.HostOutput())));
+        SetProperty(demo, "curlOutput", CreateHostFunction(_ =>
+            new JsValue(_demoProcessHost.CurlOutput())));
+        SetProperty(demo, "isExpressRunning", CreateHostFunction(_ =>
+            new JsValue(_demoProcessHost.IsExpressRunning())));
+        return demo;
     }
 
     private JsObject CreatePresentationObject()
@@ -714,14 +791,17 @@ internal sealed class SlideScriptHost : IDisposable
                 return JsValue.Undefined;
             }
 
+            var displayCount = args.Count > 2
+                ? GetInt32(args, 2)
+                : _deck.DisplayCount;
             var path = args.Count > 0 && args[0].Kind == JsValueKind.String
-                ? _deck.Load(GetString(args, 0), GetInt32(args, 1))
+                ? _deck.Load(GetString(args, 0), GetInt32(args, 1), displayCount)
                 : _deck.Load(GetInt32(args, 0));
             _document.Load(path);
             _presentationLoaded?.Invoke(_deck, path);
             Console.WriteLine(string.Create(
                 CultureInfo.InvariantCulture,
-                $"Presentation page {_deck.CurrentPageNumber}/{_deck.Count}: {Path.GetFileName(path)}"));
+                $"Presentation page {_deck.CurrentPageNumber}/{_deck.DisplayCount}: {Path.GetFileName(path)}"));
             return new JsValue(_deck.CurrentIndex);
         }));
         return presentation;
@@ -888,6 +968,298 @@ internal sealed class SlideScriptHost : IDisposable
                 Enumerable = true,
                 Configurable = true
             });
+    }
+}
+
+internal sealed class ExpressDemoProcessHost : IDisposable
+{
+    private readonly object _sync = new();
+    private readonly string _nodeHostDirectory;
+    private readonly StringBuilder _hostOutput = new();
+    private readonly StringBuilder _curlOutput = new();
+    private Process? _serverProcess;
+    private int _curlSequence;
+
+    public ExpressDemoProcessHost(string baseDirectory)
+    {
+        _nodeHostDirectory = FindNodeHostDirectory(baseDirectory);
+    }
+
+    public string StartExpress()
+    {
+        lock (_sync)
+        {
+            if (IsExpressRunningCore())
+            {
+                AppendHost("Express host is already running.");
+                return "already-running";
+            }
+
+            _hostOutput.Clear();
+            if (string.IsNullOrEmpty(_nodeHostDirectory))
+            {
+                AppendHost("Could not find examples/NodeHostDemo.");
+                return "missing-node-host-demo";
+            }
+
+            var startInfo = CreateExpressStartInfo();
+            AppendHost("$ " + startInfo.FileName + " " + startInfo.Arguments);
+            startInfo.WorkingDirectory = _nodeHostDirectory;
+            startInfo.RedirectStandardOutput = true;
+            startInfo.RedirectStandardError = true;
+            startInfo.UseShellExecute = false;
+            startInfo.CreateNoWindow = true;
+
+            var process = new Process
+            {
+                StartInfo = startInfo,
+                EnableRaisingEvents = true
+            };
+            process.OutputDataReceived += (_, eventArgs) => AppendHost(eventArgs.Data);
+            process.ErrorDataReceived += (_, eventArgs) => AppendHost(eventArgs.Data);
+            process.Exited += (_, _) => AppendHost(string.Create(
+                CultureInfo.InvariantCulture,
+                $"[process exited {process.ExitCode}]"));
+
+            try
+            {
+                process.Start();
+                process.BeginOutputReadLine();
+                process.BeginErrorReadLine();
+                _serverProcess = process;
+                return "started";
+            }
+            catch (Exception ex)
+            {
+                process.Dispose();
+                AppendHost(string.Create(CultureInfo.InvariantCulture, $"Failed to start: {ex.Message}"));
+                return "failed";
+            }
+        }
+    }
+
+    public string RunCurl(string path)
+    {
+        var normalizedPath = string.IsNullOrWhiteSpace(path)
+            ? "/"
+            : path.Trim();
+        if (!normalizedPath.StartsWith('/'))
+        {
+            normalizedPath = "/" + normalizedPath;
+        }
+
+        var url = "http://localhost:9615" + normalizedPath;
+        var sequence = Interlocked.Increment(ref _curlSequence);
+        lock (_sync)
+        {
+            _curlOutput.Clear();
+            AppendCurl(string.Create(CultureInfo.InvariantCulture, $"$ curl -i -sS {url}"));
+            if (!IsExpressRunningCore())
+            {
+                AppendCurl("Express host is not running yet.");
+            }
+        }
+
+        _ = RunCurlAsync(url, sequence);
+        return "started";
+    }
+
+    public void StopExpress()
+    {
+        Process? process;
+        lock (_sync)
+        {
+            process = _serverProcess;
+            _serverProcess = null;
+        }
+
+        if (process is null)
+        {
+            AppendHost("Express host is not running.");
+            return;
+        }
+
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendHost(string.Create(CultureInfo.InvariantCulture, $"Failed to stop: {ex.Message}"));
+        }
+        finally
+        {
+            process.Dispose();
+            AppendHost("Express host stopped.");
+        }
+    }
+
+    public string HostOutput()
+    {
+        lock (_sync)
+        {
+            return _hostOutput.ToString();
+        }
+    }
+
+    public string CurlOutput()
+    {
+        lock (_sync)
+        {
+            return _curlOutput.ToString();
+        }
+    }
+
+    public bool IsExpressRunning()
+    {
+        lock (_sync)
+        {
+            return IsExpressRunningCore();
+        }
+    }
+
+    public void Dispose()
+    {
+        StopExpress();
+    }
+
+    private async Task RunCurlAsync(string url, int sequence)
+    {
+        if (!IsExpressRunning())
+        {
+            return;
+        }
+
+        var startInfo = new ProcessStartInfo("curl", $"-i -sS {url}")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        try
+        {
+            using var process = Process.Start(startInfo);
+            if (process is null)
+            {
+                AppendCurl("Failed to start curl.");
+                return;
+            }
+
+            var outputTask = process.StandardOutput.ReadToEndAsync();
+            var errorTask = process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync().ConfigureAwait(false);
+            var output = await outputTask.ConfigureAwait(false);
+            var error = await errorTask.ConfigureAwait(false);
+
+            if (sequence != Volatile.Read(ref _curlSequence))
+            {
+                return;
+            }
+
+            AppendCurl(output);
+            AppendCurl(error);
+            AppendCurl(string.Create(CultureInfo.InvariantCulture, $"[curl exited {process.ExitCode}]"));
+        }
+        catch (Exception ex)
+        {
+            AppendCurl(string.Create(CultureInfo.InvariantCulture, $"curl failed: {ex.Message}"));
+        }
+    }
+
+    private bool IsExpressRunningCore()
+    {
+        return _serverProcess is { HasExited: false };
+    }
+
+    private ProcessStartInfo CreateExpressStartInfo()
+    {
+        var expressPackage = Path.Combine(_nodeHostDirectory, "node_modules", "express", "package.json");
+        if (File.Exists(expressPackage))
+        {
+            return new ProcessStartInfo("npm", "run express");
+        }
+
+        if (OperatingSystem.IsWindows())
+        {
+            return new ProcessStartInfo("cmd", "/c npm install && npm run express");
+        }
+
+        return new ProcessStartInfo("/bin/sh", "-lc \"npm install && npm run express\"");
+    }
+
+    private void AppendHost(string? line)
+    {
+        if (string.IsNullOrEmpty(line))
+        {
+            return;
+        }
+
+        lock (_sync)
+        {
+            _hostOutput.AppendLine(line);
+            TrimOutput(_hostOutput);
+        }
+    }
+
+    private void AppendCurl(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        lock (_sync)
+        {
+            _curlOutput.AppendLine(text.TrimEnd());
+            TrimOutput(_curlOutput);
+        }
+    }
+
+    private static void TrimOutput(StringBuilder builder)
+    {
+        const int MaxCharacters = 6_000;
+        if (builder.Length <= MaxCharacters)
+        {
+            return;
+        }
+
+        builder.Remove(0, builder.Length - MaxCharacters);
+    }
+
+    private static string FindNodeHostDirectory(string baseDirectory)
+    {
+        foreach (var candidateRoot in EnumerateCandidateRoots(baseDirectory))
+        {
+            var candidate = Path.Combine(candidateRoot, "examples", "NodeHostDemo");
+            if (File.Exists(Path.Combine(candidate, "NodeHostDemo.csproj")))
+            {
+                return candidate;
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static IEnumerable<string> EnumerateCandidateRoots(string baseDirectory)
+    {
+        var current = new DirectoryInfo(Environment.CurrentDirectory);
+        while (current is not null)
+        {
+            yield return current.FullName;
+            current = current.Parent;
+        }
+
+        current = new DirectoryInfo(baseDirectory);
+        while (current is not null)
+        {
+            yield return current.FullName;
+            current = current.Parent;
+        }
     }
 }
 
@@ -1091,6 +1463,16 @@ internal sealed class SvgSlideDocument
                 RenderElement(context, child, state);
             }
         }
+    }
+
+    public bool TryMapToSvgPoint(Point point, Rect bounds, out double x, out double y)
+    {
+        var scale = Math.Min(bounds.Width / _viewBoxWidth, bounds.Height / _viewBoxHeight);
+        var offsetX = bounds.X + (bounds.Width - _viewBoxWidth * scale) / 2;
+        var offsetY = bounds.Y + (bounds.Height - _viewBoxHeight * scale) / 2;
+        x = (point.X - offsetX) / scale;
+        y = (point.Y - offsetY) / scale;
+        return x >= 0 && x <= _viewBoxWidth && y >= 0 && y <= _viewBoxHeight;
     }
 
     public SvgMaskAnalysis AnalyzeGeneratedImageMasks()
@@ -1408,6 +1790,16 @@ internal sealed class SvgSlideDocument
             new Typeface("Arial"),
             fontSize,
             brush);
+
+        var anchor = ReadAttribute(element, "text-anchor", state);
+        if (string.Equals(anchor, "middle", StringComparison.OrdinalIgnoreCase))
+        {
+            x -= formatted.Width / 2;
+        }
+        else if (string.Equals(anchor, "end", StringComparison.OrdinalIgnoreCase))
+        {
+            x -= formatted.Width;
+        }
 
         context.DrawText(formatted, new Point(x, y - fontSize));
     }
@@ -1811,7 +2203,8 @@ internal sealed class SvgSlideDocument
         double FillOpacity,
         Color? Stroke,
         double StrokeOpacity,
-        double StrokeWidth)
+        double StrokeWidth,
+        string TextAnchor)
     {
         public static SvgRenderState Default { get; } = new(
             Opacity: 1,
@@ -1819,7 +2212,8 @@ internal sealed class SvgSlideDocument
             FillOpacity: 1,
             Stroke: null,
             StrokeOpacity: 1,
-            StrokeWidth: 1);
+            StrokeWidth: 1,
+            TextAnchor: "start");
 
         public SvgRenderState Inherit(XElement element)
         {
@@ -1833,7 +2227,8 @@ internal sealed class SvgSlideDocument
                 FillOpacity = FillOpacity * ReadOpacity(element, "fill-opacity", 1),
                 Stroke = stroke,
                 StrokeOpacity = StrokeOpacity * ReadOpacity(element, "stroke-opacity", 1),
-                StrokeWidth = ReadDouble(element, "stroke-width", StrokeWidth, this)
+                StrokeWidth = ReadDouble(element, "stroke-width", StrokeWidth, this),
+                TextAnchor = ReadTextAnchor(element, TextAnchor)
             };
         }
 
@@ -1847,6 +2242,7 @@ internal sealed class SvgSlideDocument
                 "fill-opacity" => FillOpacity.ToString(CultureInfo.InvariantCulture),
                 "stroke-opacity" => StrokeOpacity.ToString(CultureInfo.InvariantCulture),
                 "opacity" => Opacity.ToString(CultureInfo.InvariantCulture),
+                "text-anchor" => TextAnchor,
                 _ => null
             };
         }
@@ -1871,6 +2267,14 @@ internal sealed class SvgSlideDocument
             return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
                 ? parsed
                 : defaultValue;
+        }
+
+        private static string ReadTextAnchor(XElement element, string defaultValue)
+        {
+            var value = ReadLocalAttribute(element, "text-anchor");
+            return string.IsNullOrWhiteSpace(value)
+                ? defaultValue
+                : value.Trim();
         }
 
         private static Color? ReadColor(XElement element, string name, Color? defaultValue)

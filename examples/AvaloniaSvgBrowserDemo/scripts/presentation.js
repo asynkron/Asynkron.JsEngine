@@ -1,9 +1,66 @@
 console.log("presentation.js is running inside JsEngine");
 
 const slides = [];
-for (let index = 0; index < presentation.count(); index++) {
-  slides.push(presentation.path(index));
-}
+slides[0] = "beyond-the-vibe-cover.svg";
+slides[1] = "speaker-roger-johansson.svg";
+slides[2] = "agenda-what-to-expect.svg";
+slides[3] = "part-1-just-vibing.svg";
+slides[4] = "rewind-november-2025.svg";
+slides[5] = "social-ai-skepticism.svg";
+slides[6] = "why-build-js-engine.svg";
+slides[7] = "first-jsengine-prompt.svg";
+slides[8] = "first-run-command-line.svg";
+slides[9] = "twenty-four-hours-later.svg";
+slides[10] = "test-suite-first-successes.svg";
+slides[11] = "continuation-passing-style-translator.svg";
+slides[12] = "initial-architecture-sexpr.svg";
+slides[13] = "ast-walking-evaluation.svg";
+slides[14] = "initial-itch-can-i-do-this.svg";
+slides[15] = "parser-ast-runtime-redesign-map.svg";
+slides[16] = "agent-observability-eyes.svg";
+slides[17] = "performance-question.svg";
+slides[18] = "asynkron-profiler-tool.svg";
+slides[19] = "getting-stuck-limited-js-understanding.svg";
+slides[20] = "goal-centered-test-ideas.svg";
+slides[21] = "goal-to-tests-arrow.svg";
+slides[22] = "goal-to-unknowns.svg";
+slides[23] = "robot-boxing-agent-feedback.svg";
+slides[24] = "two-weeks-later-found-it.svg";
+slides[25] = "two-weeks-later-found-it-duplicate.svg";
+slides[26] = "ecma-262-spec-angels.svg";
+slides[27] = "ecma-262-94000-unit-tests.svg";
+slides[28] = "test262-goal-explosion.svg";
+slides[29] = "how-hard-can-it-be.svg";
+slides[30] = "pretty-darn-hard.svg";
+slides[31] = "annex-b-chaos.svg";
+slides[32] = "run-94000-tests-ide-question.svg";
+slides[33] = "immature-runtime-test262-pain.svg";
+slides[34] = "test262-suite-breakdown.svg";
+slides[35] = "part-2-scaling-up-fast.svg";
+slides[36] = "too-many-tests-stuck.svg";
+slides[37] = "testrunner-tool-teaser.svg";
+slides[38] = "asynkron-testrunner-tool.svg";
+slides[39] = "testrunner-bug-reports-question.svg";
+slides[40] = "eighty-thousand-failing-tests.svg";
+slides[41] = "ralph-loop-tool-teaser.svg";
+slides[42] = "ralph-loop-pseudocode.svg";
+slides[43] = "ralph-loop-autopilot.svg";
+slides[44] = "bad-design-uncovered.svg";
+slides[45] = "three-execution-modes-replay-generator.svg";
+slides[46] = "ast-walking-cps-mode.svg";
+slides[47] = "three-modes-reject-ast-walking.svg";
+slides[48] = "three-modes-ir-vs-replay.svg";
+slides[49] = "generator-replay-output.svg";
+slides[50] = "three-modes-final-ir-only.svg";
+slides[51] = "almost-done-devil.svg";
+slides[52] = "make-the-real-thing-architecture.svg";
+slides[53] = "test-bomb-layered-test.svg";
+slides[54] = "code-quality-standards.svg";
+slides[55] = "process-is-wrong.svg";
+slides[56] = "cleanup-drawing-mop.svg";
+slides[57] = "cleanup-drawing-vacuum.svg";
+slides[58] = "mona-lisa-first-pass.svg";
+slides[59] = "mona-lisa-iteration.svg";
 
 let current = presentation.current();
 let phase = "idle";
@@ -44,7 +101,7 @@ function showSlide(index) {
   }
 
   current = (index + slides.length) % slides.length;
-  presentation.load(current);
+  presentation.load(slides[current], current);
   buildOverlay();
   console.log("slide", current + 1, "of", slides.length, slides[current]);
 }
@@ -114,5 +171,5 @@ slide.onKey("End", function () {
   requestSlide(slides.length - 1);
 });
 
-buildOverlay();
+showSlide(current);
 console.log("presentation deck loaded", slides.length, "slides");

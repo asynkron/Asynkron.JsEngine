@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Diagnostics;
 using System.Xml.Linq;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
@@ -28,6 +29,13 @@ internal static class Program
         if (args.Length > 0 && string.Equals(args[0], "--presentation-mask-smoke", StringComparison.Ordinal))
         {
             RunPresentationMaskSmoke();
+            return;
+        }
+
+        if (args.Length > 0 && string.Equals(args[0], "--presentation-preload-smoke", StringComparison.Ordinal))
+        {
+            BuildAvaloniaApp().SetupWithoutStarting();
+            RunPresentationPreloadSmoke();
             return;
         }
 
@@ -85,8 +93,9 @@ internal static class Program
     {
         var baseDirectory = AppContext.BaseDirectory;
         var deck = PresentationDeck.Load(baseDirectory, "28");
+        var path = deck.Load("ecma-262-94000-unit-tests.svg", 27);
         var document = new SvgSlideDocument(
-            deck.CurrentPath,
+            path,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
             static () => { });
         var analysis = document.AnalyzeGeneratedImageMasks();
@@ -96,6 +105,28 @@ internal static class Program
                 CultureInfo.InvariantCulture,
                 $"Expected page 28 to contain two usable image masks, got {analysis}."));
         }
+    }
+
+    private static void RunPresentationPreloadSmoke()
+    {
+        var baseDirectory = AppContext.BaseDirectory;
+        var deck = PresentationDeck.Load(baseDirectory, "1");
+        var document = new SvgSlideDocument(
+            deck.CurrentPath,
+            Path.Combine(baseDirectory, "rendered-slide.svg"),
+            static () => { });
+        var stopwatch = Stopwatch.StartNew();
+        var assetCount = document.Preload(deck.SlidePaths);
+        if (assetCount < 100)
+        {
+            throw new InvalidOperationException(string.Create(
+                CultureInfo.InvariantCulture,
+                $"Expected to preload the presentation image assets, got {assetCount}."));
+        }
+
+        Console.WriteLine(string.Create(
+            CultureInfo.InvariantCulture,
+            $"Preloaded {assetCount} presentation image assets in {stopwatch.ElapsedMilliseconds} ms."));
     }
 }
 
@@ -142,6 +173,7 @@ internal sealed partial class DemoWindow : Window
 
         _document = new SvgSlideDocument(launch.SvgPath, renderedPath, RenderSvg);
         _svgView.Document = _document;
+        PreloadDeckAssets(launch);
         _document.Flush();
 
         Content = CreateLayout(launch);
@@ -165,6 +197,20 @@ internal sealed partial class DemoWindow : Window
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
         Closed += (_, _) => _scriptHost.Dispose();
+    }
+
+    private void PreloadDeckAssets(LaunchOptions launch)
+    {
+        if (launch.Deck is null)
+        {
+            return;
+        }
+
+        var stopwatch = Stopwatch.StartNew();
+        var assetCount = _document.Preload(launch.Deck.SlidePaths);
+        Console.WriteLine(string.Create(
+            CultureInfo.InvariantCulture,
+            $"Preloaded {assetCount} presentation image assets in {stopwatch.ElapsedMilliseconds} ms."));
     }
 
     private Control CreateLayout(LaunchOptions launch)
@@ -241,21 +287,30 @@ internal sealed partial class DemoWindow : Window
 
 internal sealed class PresentationDeck
 {
+    private readonly Dictionary<string, string> _slidePathsByName = new(StringComparer.Ordinal);
     private readonly string[] _slidePaths;
+    private string _currentPath;
 
     private PresentationDeck(string[] slidePaths, int currentIndex)
     {
         _slidePaths = slidePaths;
         CurrentIndex = currentIndex;
+        _currentPath = GetPath(currentIndex);
+        foreach (var slidePath in slidePaths)
+        {
+            _slidePathsByName[Path.GetFileName(slidePath)] = slidePath;
+        }
     }
 
     public int Count => _slidePaths.Length;
+
+    public IReadOnlyList<string> SlidePaths => _slidePaths;
 
     public int CurrentIndex { get; private set; }
 
     public int CurrentPageNumber => CurrentIndex + 1;
 
-    public string CurrentPath => GetPath(CurrentIndex);
+    public string CurrentPath => _currentPath;
 
     public static PresentationDeck Load(string baseDirectory, string requestedPageNumber)
     {
@@ -266,7 +321,7 @@ internal sealed class PresentationDeck
             "pages");
 
         var slidePaths = Directory
-            .EnumerateFiles(pagesDirectory, "page-*.svg")
+            .EnumerateFiles(pagesDirectory, "*.svg")
             .Order(StringComparer.Ordinal)
             .ToArray();
         if (slidePaths.Length == 0)
@@ -302,7 +357,23 @@ internal sealed class PresentationDeck
         }
 
         CurrentIndex = index;
+        _currentPath = GetPath(index);
         return CurrentPath;
+    }
+
+    public string Load(string fileName, int displayIndex)
+    {
+        var normalizedFileName = Path.GetFileName(fileName);
+        if (string.IsNullOrWhiteSpace(normalizedFileName) ||
+            !_slidePathsByName.TryGetValue(normalizedFileName, out var path))
+        {
+            throw new InvalidOperationException(
+                string.Create(CultureInfo.InvariantCulture, $"Presentation slide not found: {fileName}"));
+        }
+
+        CurrentIndex = Math.Clamp(displayIndex, 0, _slidePaths.Length - 1);
+        _currentPath = path;
+        return path;
     }
 }
 
@@ -506,7 +577,9 @@ internal sealed class SlideScriptHost : IDisposable
                 return JsValue.Undefined;
             }
 
-            var path = _deck.Load(GetInt32(args, 0));
+            var path = args.Count > 0 && args[0].Kind == JsValueKind.String
+                ? _deck.Load(GetString(args, 0), GetInt32(args, 1))
+                : _deck.Load(GetInt32(args, 0));
             _document.Load(path);
             Console.WriteLine(string.Create(
                 CultureInfo.InvariantCulture,
@@ -691,11 +764,44 @@ internal sealed class SvgSlideDocument
     public void Load(string sourcePath)
     {
         _document = XDocument.Load(sourcePath, LoadOptions.PreserveWhitespace);
-        _imageCache.Clear();
-        _maskedImageCache.Clear();
         ReadViewBox();
         RebuildElementIndex();
         _dirty = true;
+    }
+
+    public int Preload(IReadOnlyList<string> sourcePaths)
+    {
+        var originalDocument = _document;
+        var originalElementsById = _elementsById.ToArray();
+        var originalViewBoxWidth = _viewBoxWidth;
+        var originalViewBoxHeight = _viewBoxHeight;
+        var originalDirty = _dirty;
+        var preloaded = 0;
+
+        try
+        {
+            foreach (var sourcePath in sourcePaths)
+            {
+                _document = XDocument.Load(sourcePath, LoadOptions.PreserveWhitespace);
+                RebuildElementIndex();
+                preloaded += PreloadCurrentDocumentImages();
+            }
+        }
+        finally
+        {
+            _document = originalDocument;
+            _elementsById.Clear();
+            foreach (var (key, value) in originalElementsById)
+            {
+                _elementsById[key] = value;
+            }
+
+            _viewBoxWidth = originalViewBoxWidth;
+            _viewBoxHeight = originalViewBoxHeight;
+            _dirty = originalDirty;
+        }
+
+        return preloaded;
     }
 
     public bool ContainsElement(string id)
@@ -868,6 +974,38 @@ internal sealed class SvgSlideDocument
         }
 
         return new SvgMaskAnalysis(groupCount, hasTransparentPixels, hasOpaquePixels);
+    }
+
+    private int PreloadCurrentDocumentImages()
+    {
+        var preloaded = 0;
+        foreach (var imageElement in _document.Descendants().Where(static element => element.Name.LocalName == "image"))
+        {
+            var href = ReadHref(imageElement);
+            if (!string.IsNullOrWhiteSpace(href) && GetBitmap(href) is not null)
+            {
+                preloaded++;
+            }
+        }
+
+        foreach (var group in _document.Descendants().Where(static element => element.Name.LocalName == "g"))
+        {
+            if (!TryResolveMaskedImageGroup(group, out _, out var colorImage, out var maskImage))
+            {
+                continue;
+            }
+
+            var colorHref = ReadHref(colorImage);
+            var maskHref = ReadHref(maskImage);
+            if (!string.IsNullOrWhiteSpace(colorHref) &&
+                !string.IsNullOrWhiteSpace(maskHref) &&
+                GetMaskedBitmap(colorHref, maskHref) is not null)
+            {
+                preloaded++;
+            }
+        }
+
+        return preloaded;
     }
 
     private XElement GetElementById(string id)

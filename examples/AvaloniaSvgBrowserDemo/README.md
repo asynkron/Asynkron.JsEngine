@@ -27,7 +27,7 @@ DOM:
 - `presentation.count()`
 - `presentation.path(index)`
 - `presentation.current()`
-- `presentation.load(index)`
+- `presentation.load(indexOrFileName)`
 - `slide.onFrame(callback)`
 - `slide.onKey(key, callback)`
 - `svg.id(id).set(name, value)`
@@ -38,9 +38,12 @@ DOM:
 - `svg.layer.circle(id, cx, cy, r, fill, opacity)`
 - `svg.layer.text(id, text, x, y, size, fill, opacity)`
 
-`presentation.js` builds its own `slides` array from the host bridge, handles
-`ArrowLeft`, `ArrowRight`, `Home`, and `End`, draws a JS-owned overlay layer,
-and runs a fade transition entirely from JsEngine callbacks.
+`presentation.js` owns the slide order with an explicit `slides[index] =
+"file-name.svg"` list, handles `ArrowLeft`, `ArrowRight`, `Home`, and `End`,
+draws a JS-owned overlay layer, and runs a fade transition entirely from
+JsEngine callbacks. On startup, the host preloads the deck's image assets and
+generated SVG image-mask composites so navigation does not block on alpha-heavy
+slides.
 
 Smoke-test the JS navigation without opening a window:
 
@@ -52,4 +55,10 @@ Smoke-test the generated SVG image-mask handling used by the angel slide:
 
 ```bash
 dotnet run --project examples/AvaloniaSvgBrowserDemo -- --presentation-mask-smoke
+```
+
+Smoke-test startup preloading without opening the window:
+
+```bash
+dotnet run --project examples/AvaloniaSvgBrowserDemo -- --presentation-preload-smoke
 ```

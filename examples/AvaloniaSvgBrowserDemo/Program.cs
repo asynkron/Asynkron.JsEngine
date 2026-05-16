@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Diagnostics;
+using System.Net.Sockets;
 using System.Text;
 using System.Xml.Linq;
 using Asynkron.JsEngine;
@@ -19,7 +20,7 @@ namespace AvaloniaSvgBrowserDemo;
 internal static class Program
 {
     [STAThread]
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
         if (args.Length > 0 && string.Equals(args[0], "--presentation-smoke", StringComparison.Ordinal))
         {
@@ -43,6 +44,12 @@ internal static class Program
         {
             BuildAvaloniaApp().SetupWithoutStarting();
             RunPresentationPreloadSmoke();
+            return;
+        }
+
+        if (args.Length > 0 && string.Equals(args[0], "--presentation-live-demo-smoke", StringComparison.Ordinal))
+        {
+            await RunPresentationLiveDemoSmoke().ConfigureAwait(false);
             return;
         }
 
@@ -214,6 +221,57 @@ internal static class Program
         Console.WriteLine(string.Create(
             CultureInfo.InvariantCulture,
             $"Preloaded {assetCount} presentation image assets in {stopwatch.ElapsedMilliseconds} ms."));
+    }
+
+    private static async Task RunPresentationLiveDemoSmoke()
+    {
+        var baseDirectory = AppContext.BaseDirectory;
+        var deck = PresentationDeck.Load(baseDirectory, "59");
+        var document = new SvgSlideDocument(
+            deck.CurrentPath,
+            Path.Combine(baseDirectory, "rendered-slide.svg"),
+            static () => { });
+        using var host = new SlideScriptHost(document, deck);
+        host.Run(Path.Combine(baseDirectory, "scripts", "presentation.js"));
+
+        host.DispatchClick(100, 145);
+        host.DispatchClick(310, 145);
+
+        var stopwatch = Stopwatch.StartNew();
+        while (stopwatch.Elapsed < TimeSpan.FromSeconds(45))
+        {
+            host.DispatchFrame(stopwatch.Elapsed.TotalMilliseconds);
+            var curlText = GetTerminalText(document, "express-demo-curl-line-", 13);
+            if (string.Equals(document.GetElementText("express-demo-state"), "upstream app ready on localhost:3000", StringComparison.Ordinal) &&
+                curlText.Contains("tobi@learnboost.com", StringComparison.Ordinal) &&
+                curlText.Contains("[curl exited 0]", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            await Task.Delay(250).ConfigureAwait(false);
+        }
+
+        var diagnostic = string.Create(
+            CultureInfo.InvariantCulture,
+            $"status={document.GetElementText("express-demo-state")}{Environment.NewLine}" +
+            $"host:{Environment.NewLine}{GetTerminalText(document, "express-demo-host-line-", 13)}" +
+            $"curl:{Environment.NewLine}{GetTerminalText(document, "express-demo-curl-line-", 13)}");
+        throw new InvalidOperationException(
+            "Expected the live Express demo slide to start the upstream app and complete curl /." +
+            Environment.NewLine +
+            diagnostic);
+    }
+
+    private static string GetTerminalText(SvgSlideDocument document, string idPrefix, int lineCount)
+    {
+        var builder = new StringBuilder();
+        for (var index = 0; index < lineCount; index++)
+        {
+            builder.AppendLine(document.GetElementText(idPrefix + index));
+        }
+
+        return builder.ToString();
     }
 }
 
@@ -763,6 +821,10 @@ internal sealed class SlideScriptHost : IDisposable
             new JsValue(_demoProcessHost.HostOutput())));
         SetProperty(demo, "curlOutput", CreateHostFunction(_ =>
             new JsValue(_demoProcessHost.CurlOutput())));
+        SetProperty(demo, "expressStatus", CreateHostFunction(_ =>
+            new JsValue(_demoProcessHost.ExpressStatus())));
+        SetProperty(demo, "isExpressReady", CreateHostFunction(_ =>
+            new JsValue(_demoProcessHost.IsExpressReady())));
         SetProperty(demo, "isExpressRunning", CreateHostFunction(_ =>
             new JsValue(_demoProcessHost.IsExpressRunning())));
         return demo;
@@ -973,11 +1035,13 @@ internal sealed class SlideScriptHost : IDisposable
 
 internal sealed class ExpressDemoProcessHost : IDisposable
 {
+    private const int OfficialExpressPort = 3000;
     private readonly object _sync = new();
     private readonly string _nodeHostDirectory;
     private readonly StringBuilder _hostOutput = new();
     private readonly StringBuilder _curlOutput = new();
     private Process? _serverProcess;
+    private bool _serverReady;
     private int _curlSequence;
 
     public ExpressDemoProcessHost(string baseDirectory)
@@ -995,6 +1059,7 @@ internal sealed class ExpressDemoProcessHost : IDisposable
                 return "already-running";
             }
 
+            _serverReady = false;
             _hostOutput.Clear();
             if (string.IsNullOrEmpty(_nodeHostDirectory))
             {
@@ -1017,9 +1082,20 @@ internal sealed class ExpressDemoProcessHost : IDisposable
             };
             process.OutputDataReceived += (_, eventArgs) => AppendHost(eventArgs.Data);
             process.ErrorDataReceived += (_, eventArgs) => AppendHost(eventArgs.Data);
-            process.Exited += (_, _) => AppendHost(string.Create(
-                CultureInfo.InvariantCulture,
-                $"[process exited {process.ExitCode}]"));
+            process.Exited += (_, _) =>
+            {
+                lock (_sync)
+                {
+                    if (ReferenceEquals(_serverProcess, process))
+                    {
+                        _serverReady = false;
+                    }
+                }
+
+                AppendHost(string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"[process exited {process.ExitCode}]"));
+            };
 
             try
             {
@@ -1027,6 +1103,7 @@ internal sealed class ExpressDemoProcessHost : IDisposable
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
                 _serverProcess = process;
+                _ = MonitorReadinessAsync(process);
                 return "started";
             }
             catch (Exception ex)
@@ -1048,7 +1125,9 @@ internal sealed class ExpressDemoProcessHost : IDisposable
             normalizedPath = "/" + normalizedPath;
         }
 
-        var url = "http://localhost:9615" + normalizedPath;
+        var url = string.Create(
+            CultureInfo.InvariantCulture,
+            $"http://localhost:{OfficialExpressPort}{normalizedPath}");
         var sequence = Interlocked.Increment(ref _curlSequence);
         lock (_sync)
         {
@@ -1057,6 +1136,12 @@ internal sealed class ExpressDemoProcessHost : IDisposable
             if (!IsExpressRunningCore())
             {
                 AppendCurl("Express host is not running yet.");
+                return "host-not-running";
+            }
+
+            if (!_serverReady)
+            {
+                AppendCurl("Waiting for upstream Express listener on localhost:3000...");
             }
         }
 
@@ -1071,6 +1156,7 @@ internal sealed class ExpressDemoProcessHost : IDisposable
         {
             process = _serverProcess;
             _serverProcess = null;
+            _serverReady = false;
         }
 
         if (process is null)
@@ -1121,6 +1207,29 @@ internal sealed class ExpressDemoProcessHost : IDisposable
         }
     }
 
+    public bool IsExpressReady()
+    {
+        lock (_sync)
+        {
+            return _serverReady && IsExpressRunningCore();
+        }
+    }
+
+    public string ExpressStatus()
+    {
+        lock (_sync)
+        {
+            if (!IsExpressRunningCore())
+            {
+                return "stopped";
+            }
+
+            return _serverReady
+                ? "ready"
+                : "starting";
+        }
+    }
+
     public void Dispose()
     {
         StopExpress();
@@ -1128,8 +1237,13 @@ internal sealed class ExpressDemoProcessHost : IDisposable
 
     private async Task RunCurlAsync(string url, int sequence)
     {
-        if (!IsExpressRunning())
+        if (!await WaitForExpressReadyAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false))
         {
+            if (sequence == Volatile.Read(ref _curlSequence))
+            {
+                AppendCurl("Upstream Express listener did not become ready within 30 seconds.");
+            }
+
             return;
         }
 
@@ -1171,6 +1285,95 @@ internal sealed class ExpressDemoProcessHost : IDisposable
         }
     }
 
+    private async Task MonitorReadinessAsync(Process process)
+    {
+        AppendHost("[waiting for upstream Express listener on localhost:3000]");
+
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (!IsCurrentProcessRunning(process))
+            {
+                return;
+            }
+
+            if (await CanConnectToExpressAsync().ConfigureAwait(false))
+            {
+                lock (_sync)
+                {
+                    if (!ReferenceEquals(_serverProcess, process) || process.HasExited)
+                    {
+                        return;
+                    }
+
+                    _serverReady = true;
+                }
+
+                AppendHost("[listener ready on http://localhost:3000]");
+                return;
+            }
+
+            await Task.Delay(250).ConfigureAwait(false);
+        }
+
+        if (IsCurrentProcessRunning(process))
+        {
+            AppendHost("[upstream listener did not become ready within 30 seconds]");
+        }
+    }
+
+    private async Task<bool> WaitForExpressReadyAsync(TimeSpan timeout)
+    {
+        var deadline = DateTimeOffset.UtcNow.Add(timeout);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            lock (_sync)
+            {
+                if (!IsExpressRunningCore())
+                {
+                    return false;
+                }
+
+                if (_serverReady)
+                {
+                    return true;
+                }
+            }
+
+            await Task.Delay(250).ConfigureAwait(false);
+        }
+
+        return false;
+    }
+
+    private bool IsCurrentProcessRunning(Process process)
+    {
+        lock (_sync)
+        {
+            return ReferenceEquals(_serverProcess, process) && !process.HasExited;
+        }
+    }
+
+    private static async Task<bool> CanConnectToExpressAsync()
+    {
+        try
+        {
+            using var client = new TcpClient();
+            await client.ConnectAsync("127.0.0.1", OfficialExpressPort)
+                .WaitAsync(TimeSpan.FromMilliseconds(250))
+                .ConfigureAwait(false);
+            return true;
+        }
+        catch (SocketException)
+        {
+            return false;
+        }
+        catch (TimeoutException)
+        {
+            return false;
+        }
+    }
+
     private bool IsExpressRunningCore()
     {
         return _serverProcess is { HasExited: false };
@@ -1178,18 +1381,24 @@ internal sealed class ExpressDemoProcessHost : IDisposable
 
     private ProcessStartInfo CreateExpressStartInfo()
     {
-        var expressPackage = Path.Combine(_nodeHostDirectory, "node_modules", "express", "package.json");
-        if (File.Exists(expressPackage))
+        var upstreamPackage = Path.Combine(
+            _nodeHostDirectory,
+            "third_party",
+            "express",
+            "node_modules",
+            "express",
+            "package.json");
+        if (File.Exists(upstreamPackage))
         {
-            return new ProcessStartInfo("npm", "run express");
+            return new ProcessStartInfo("npm", "run official-express-ejs");
         }
 
         if (OperatingSystem.IsWindows())
         {
-            return new ProcessStartInfo("cmd", "/c npm install && npm run express");
+            return new ProcessStartInfo("cmd", "/c npm run prepare:official-express-ejs && npm run official-express-ejs");
         }
 
-        return new ProcessStartInfo("/bin/sh", "-lc \"npm install && npm run express\"");
+        return new ProcessStartInfo("/bin/sh", "-lc \"npm run prepare:official-express-ejs && npm run official-express-ejs\"");
     }
 
     private void AppendHost(string? line)

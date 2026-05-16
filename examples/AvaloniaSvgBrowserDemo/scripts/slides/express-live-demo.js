@@ -1,12 +1,12 @@
 const expressDemoButtons = [
-  { id: "start", label: "Start Express host", x: 56, y: 124, w: 180, h: 42, fill: "#0b3a31", stroke: "#34d399" },
-  { id: "curl", label: "curl /api/status", x: 252, y: 124, w: 158, h: 42, fill: "#3a2017", stroke: "#ffc000" },
+  { id: "start", label: "Start upstream app", x: 56, y: 124, w: 180, h: 42, fill: "#0b3a31", stroke: "#34d399" },
+  { id: "curl", label: "curl /", x: 252, y: 124, w: 158, h: 42, fill: "#3a2017", stroke: "#ffc000" },
   { id: "stop", label: "Stop host", x: 426, y: 124, w: 116, h: 42, fill: "#4b1530", stroke: "#fb7185" }
 ];
 
 let expressDemoLastHost = "";
 let expressDemoLastCurl = "";
-let expressDemoLastRunning = false;
+let expressDemoLastStatus = "";
 
 function expressDemoText(ctx, id, value, x, y, size, fill, opacity) {
   const text = ctx.svg.layer.text(id, value, x, y, size, fill, opacity);
@@ -54,21 +54,33 @@ function expressDemoRenderLines(ctx, prefix, value, x, y, maxLines, maxChars) {
 }
 
 function expressDemoSetStatus(ctx) {
-  const running = demo.isExpressRunning();
-  if (running === expressDemoLastRunning) {
+  const status = demo.expressStatus();
+  if (status === expressDemoLastStatus) {
     return;
   }
 
-  expressDemoLastRunning = running;
-  ctx.svg.id("express-demo-state-dot").set("fill", running ? "#22c55e" : "#ef4444");
-  ctx.svg.id("express-demo-state").text(running ? "host running on localhost:9615" : "host stopped");
+  expressDemoLastStatus = status;
+  if (status === "ready") {
+    ctx.svg.id("express-demo-state-dot").set("fill", "#22c55e");
+    ctx.svg.id("express-demo-state").text("upstream app ready on localhost:3000");
+    return;
+  }
+
+  if (status === "starting") {
+    ctx.svg.id("express-demo-state-dot").set("fill", "#ffc000");
+    ctx.svg.id("express-demo-state").text("starting upstream app... waiting for localhost:3000");
+    return;
+  }
+
+  ctx.svg.id("express-demo-state-dot").set("fill", "#ef4444");
+  ctx.svg.id("express-demo-state").text("host stopped");
 }
 
 slideScript("express-live-demo.svg", {
   enter: function (ctx) {
     expressDemoLastHost = "";
     expressDemoLastCurl = "";
-    expressDemoLastRunning = false;
+    expressDemoLastStatus = "";
 
     for (let index = 0; index < expressDemoButtons.length; index++) {
       const button = expressDemoButtons[index];
@@ -96,8 +108,8 @@ slideScript("express-live-demo.svg", {
       expressDemoText(ctx, "express-demo-curl-line-" + index, "", 520, 252 + index * 16, 11, "#d1d5db", 1);
     }
 
-    expressDemoRenderLines(ctx, "express-demo-host-line", "$ click Start Express host", 76, 252, 13, 50);
-    expressDemoRenderLines(ctx, "express-demo-curl-line", "$ click curl /api/status", 520, 252, 13, 50);
+    expressDemoRenderLines(ctx, "express-demo-host-line", "$ click Start upstream app", 76, 252, 13, 50);
+    expressDemoRenderLines(ctx, "express-demo-curl-line", "$ click curl / after host is ready", 520, 252, 13, 50);
     expressDemoSetStatus(ctx);
   },
 
@@ -127,7 +139,7 @@ slideScript("express-live-demo.svg", {
       if (button.id === "start") {
         demo.startExpress();
       } else if (button.id === "curl") {
-        demo.curl("/api/status");
+        demo.curl("/");
       } else if (button.id === "stop") {
         demo.stopExpress();
       }
@@ -145,7 +157,7 @@ slideScript("express-live-demo.svg", {
     }
 
     if (key === "R") {
-      demo.curl("/api/status");
+      demo.curl("/");
       return true;
     }
 

@@ -2,5 +2,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="959.76pt" height="540pt" viewBox="0 0 959.76 540">
   <rect x="0" y="0" width="959.76" height="540" fill="#0d0d0d"/>
   <text x="54" y="70" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="700" fill="#00b0f0">Live inside the slide</text>
-  <text x="56" y="108" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700" fill="#e5e7eb">JsEngine drives the slide. The slide starts the JsEngine Express host.</text>
+  <text x="56" y="108" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700" fill="#e5e7eb">JsEngine drives the slide. The slide starts the cloned expressjs/express EJS example.</text>
 </svg>

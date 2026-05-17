@@ -99,6 +99,77 @@ public sealed class ArrayBuiltinsSpecTests(ITestOutputHelper output) : InternalT
         Assert.NotNull(message);
     }
 
+    [Fact(Timeout = 2000)]
+    public async Task Array_at_ReturnsUndefinedForSparseHolesAndObservesPrototype()
+    {
+        await using var engine = CreateEngine();
+
+        var result = Assert.IsType<JsObject>(await engine.Evaluate("""
+            "use strict";
+            var sparse = [0, 1, , 3, 4, , 6];
+            var observedInherited;
+            var assert = {};
+            assert.sameValue = function(actual, expected, message) {
+              if (actual === 0 && expected === 0 && 1 / actual !== 1 / expected) {
+                throw new Error(message);
+              }
+              if (actual !== expected && !(actual !== actual && expected !== expected)) {
+                throw new Error(message);
+              }
+            };
+            var assertSameValueMinusZeroPassed = true;
+            try {
+              assert.sameValue(sparse.at(-0), 0, "a.at(-0) must return 0");
+            } catch (_) {
+              assertSameValueMinusZeroPassed = false;
+            }
+            try {
+              Array.prototype[2] = 42;
+              observedInherited = [0, 1, , 3].at(2);
+            } finally {
+              delete Array.prototype[2];
+            }
+
+            ({
+              at0: sparse.at(0),
+              at1: sparse.at(1),
+              at2IsUndefined: sparse.at(2) === undefined,
+              at5IsUndefined: sparse.at(5) === undefined,
+              at6: sparse.at(6),
+              atMinusZeroIsPositiveZero: Object.is(sparse.at(-0), 0),
+              atMinusZeroReciprocalIsInfinity: 1 / sparse.at(-0) === Infinity,
+              assertSameValueMinusZeroPassed,
+              atMinus1: sparse.at(-1),
+              atMinus2IsUndefined: sparse.at(-2) === undefined,
+              atMinus3: sparse.at(-3),
+              atMinus4: sparse.at(-4),
+              atMinus5IsUndefined: sparse.at(-5) === undefined,
+              atMinus6: sparse.at(-6),
+              inherited: observedInherited,
+              beforeStartIsUndefined: sparse.at(-8) === undefined,
+              afterEndIsUndefined: sparse.at(7) === undefined
+            });
+        """));
+
+        Assert.Equal(0d, result["at0"]);
+        Assert.Equal(1d, result["at1"]);
+        Assert.Equal(true, result["at2IsUndefined"]);
+        Assert.Equal(true, result["at5IsUndefined"]);
+        Assert.Equal(6d, result["at6"]);
+        Assert.Equal(true, result["atMinusZeroIsPositiveZero"]);
+        Assert.Equal(true, result["atMinusZeroReciprocalIsInfinity"]);
+        Assert.Equal(true, result["assertSameValueMinusZeroPassed"]);
+        Assert.Equal(6d, result["atMinus1"]);
+        Assert.Equal(true, result["atMinus2IsUndefined"]);
+        Assert.Equal(4d, result["atMinus3"]);
+        Assert.Equal(3d, result["atMinus4"]);
+        Assert.Equal(true, result["atMinus5IsUndefined"]);
+        Assert.Equal(1d, result["atMinus6"]);
+        Assert.Equal(42d, result["inherited"]);
+        Assert.Equal(true, result["beforeStartIsUndefined"]);
+        Assert.Equal(true, result["afterEndIsUndefined"]);
+    }
+
     [Fact(Timeout = 5000)]
     public async Task Array_filter_ThrowsTypeError_WhenResultIsNonExtensible()
     {

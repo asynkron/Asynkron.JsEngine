@@ -345,7 +345,13 @@ public sealed partial class ArrayPrototype
             return JsValue.Undefined;
         }
 
-        return GetElementOrUndefinedJsValue(target, ToIndexString(index));
+        _ = JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(target), ToIndexString(index), out var value, evalContext);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
+        return value;
     }
 
     [JsHostMethod("flat", Length = 0d)]

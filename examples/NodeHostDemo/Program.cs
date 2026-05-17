@@ -174,6 +174,7 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
             "path" => CreatePathModule(),
             "querystring" => CreateQueryStringModule(this),
             "stream" => CreateStreamModule(),
+            "string_decoder" => CreateStringDecoderModule(),
             "tty" => CreateTtyModule(),
             "url" => CreateUrlModule(),
             "util" => CreateUtilModule(),
@@ -1046,6 +1047,33 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
             """));
     }
 
+    private JsValue CreateStringDecoderModule()
+    {
+        return JsValue.FromObjectUnsafe(_engine.EvaluateSync("""
+            (function () {
+              function StringDecoder(encoding) {
+                this.encoding = encoding || 'utf8';
+              }
+
+              StringDecoder.prototype.write = function (buffer) {
+                if (buffer === undefined || buffer === null) {
+                  return '';
+                }
+
+                return typeof buffer.toString === 'function'
+                  ? buffer.toString(this.encoding)
+                  : String(buffer);
+              };
+
+              StringDecoder.prototype.end = function (buffer) {
+                return buffer === undefined || buffer === null ? '' : this.write(buffer);
+              };
+
+              return { StringDecoder: StringDecoder };
+            })()
+            """));
+    }
+
     private JsValue CreateUtilModule()
     {
         return JsValue.FromObjectUnsafe(_engine.EvaluateSync("""
@@ -1590,7 +1618,7 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
         });
     }
 
-    private static JsObject CreateRequestObject(HttpListenerRequest request, string body)
+    private JsObject CreateRequestObject(HttpListenerRequest request, string body)
     {
         var headers = new JsObject();
         foreach (var key in request.Headers.AllKeys)
@@ -1609,10 +1637,10 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
         SetProperty(req, "headers", headers);
         SetProperty(req, "body", body);
         SetProperty(req, "complete", true);
-        SetProperty(req, "readable", false);
+        SetProperty(req, "readable", true);
         SetProperty(req, "socket", CreateSocketObject());
-        SetProperty(req, "on", CreateNoOpChainFunction(req));
-        SetProperty(req, "once", CreateNoOpChainFunction(req));
+        SetProperty(req, "on", CreateRequestOnFunction(req, body));
+        SetProperty(req, "once", CreateRequestOnFunction(req, body));
         SetProperty(req, "removeListener", CreateNoOpChainFunction(req));
         SetProperty(req, "pause", CreateNoOpChainFunction(req));
         SetProperty(req, "resume", CreateNoOpChainFunction(req));
@@ -1623,13 +1651,53 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
     private static JsObject CreateSocketObject()
     {
         var socket = new JsObject();
-        SetProperty(socket, "readable", false);
+        SetProperty(socket, "readable", true);
         SetProperty(socket, "writable", true);
         SetProperty(socket, "destroy", new HostFunction(_ => JsValue.Undefined, isConstructor: false));
         SetProperty(socket, "on", CreateNoOpChainFunction(socket));
         SetProperty(socket, "once", CreateNoOpChainFunction(socket));
         SetProperty(socket, "removeListener", CreateNoOpChainFunction(socket));
         return socket;
+    }
+
+    private HostFunction CreateRequestOnFunction(JsObject request, string body)
+    {
+        var bodyDispatched = false;
+        var endDispatched = false;
+
+        return CreateHostFunction((thisValue, args) =>
+        {
+            if (args.Count < 2 ||
+                !args[0].TryGetString(out var eventName) ||
+                !TryGetCallable(args, 1, out var callback))
+            {
+                return thisValue.IsUndefined ? (JsValue)request : thisValue;
+            }
+
+            switch (eventName)
+            {
+                case "data" when !bodyDispatched:
+                    bodyDispatched = true;
+                    ScheduleMacrotask(() =>
+                    {
+                        if (body.Length > 0)
+                        {
+                            callback.Invoke([(JsValue)body], request);
+                        }
+                    });
+                    break;
+                case "end" when !endDispatched:
+                    endDispatched = true;
+                    ScheduleMacrotask(() =>
+                    {
+                        SetProperty(request, "readable", false);
+                        callback.Invoke([], request);
+                    });
+                    break;
+            }
+
+            return thisValue.IsUndefined ? (JsValue)request : thisValue;
+        });
     }
 
     private static HostFunction CreateNoOpChainFunction(JsObject fallbackThis)

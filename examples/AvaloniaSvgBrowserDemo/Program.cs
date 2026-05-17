@@ -1936,6 +1936,9 @@ internal sealed class SvgSlideDocument
             case "circle":
                 RenderCircle(context, element, state);
                 break;
+            case "line":
+                RenderLine(context, element, state);
+                break;
             case "path":
                 RenderPath(context, element, state);
                 break;
@@ -2020,6 +2023,21 @@ internal sealed class SvgSlideDocument
         var fill = state.CreateFillBrush();
         var pen = state.CreatePen();
         context.DrawEllipse(fill, pen, new Point(cx, cy), r, r);
+    }
+
+    private static void RenderLine(DrawingContext context, XElement element, SvgRenderState state)
+    {
+        var x1 = ReadDouble(element, "x1", 0, state);
+        var y1 = ReadDouble(element, "y1", 0, state);
+        var x2 = ReadDouble(element, "x2", 0, state);
+        var y2 = ReadDouble(element, "y2", 0, state);
+        var pen = state.CreatePen();
+        if (pen is null)
+        {
+            return;
+        }
+
+        context.DrawLine(pen, new Point(x1, y1), new Point(x2, y2));
     }
 
     private static void RenderPath(DrawingContext context, XElement element, SvgRenderState state)

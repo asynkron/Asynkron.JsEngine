@@ -62,6 +62,26 @@ public sealed class ArrayBuiltinsSpecTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Array_indexOf_TreatsNegativeZeroFromIndexAsZero()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("[true].indexOf(true, -0);");
+
+        Assert.Equal(0d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Array_indexOf_TreatsNegativeZeroElementAsStrictlyEqualToPositiveZero()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("[-0].indexOf(+0);");
+
+        Assert.Equal(0d, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Array_at_SymbolIndexThrowsTypeError()
     {
         await using var engine = CreateEngine();

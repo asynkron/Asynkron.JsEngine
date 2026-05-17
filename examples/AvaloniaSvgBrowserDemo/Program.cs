@@ -325,12 +325,19 @@ internal sealed class App : Application
 
 internal sealed partial class DemoWindow : Window
 {
+    private static readonly TimeSpan PresentationDuration = TimeSpan.FromMinutes(45);
     private readonly SvgSlideView _svgView;
     private readonly SvgSlideDocument _document;
     private readonly SlideScriptHost _scriptHost;
     private readonly DispatcherTimer _timer;
     private readonly DateTimeOffset _startedAt = DateTimeOffset.UtcNow;
+    private readonly PresentationDeck? _presentationDeck;
     private TextBlock? _statusText;
+    private TextBlock? _presentationTimerText;
+    private TextBlock? _slideTimerText;
+    private Button? _presentationTimerButton;
+    private DateTimeOffset? _presentationTimerStartedAt;
+    private DateTimeOffset _slideTimerStartedAt = DateTimeOffset.UtcNow;
 
     public DemoWindow(IReadOnlyList<string> args)
     {
@@ -352,6 +359,7 @@ internal sealed partial class DemoWindow : Window
         var launch = ResolveLaunch(baseDirectory, args);
         var renderedPath = Path.Combine(baseDirectory, "rendered-slide.svg");
 
+        _presentationDeck = launch.Deck;
         _document = new SvgSlideDocument(launch.SvgPath, renderedPath, RenderSvg);
         _svgView.Document = _document;
         PreloadDeckAssets(launch);
@@ -410,7 +418,14 @@ internal sealed partial class DemoWindow : Window
             }
         };
 
-        root.Children.Add(_svgView);
+        var slideLayer = new Grid();
+        slideLayer.Children.Add(_svgView);
+        if (launch.Deck is not null)
+        {
+            AddPresentationTimerOverlay(slideLayer);
+        }
+
+        root.Children.Add(slideLayer);
 
         _statusText = new TextBlock
         {
@@ -425,6 +440,60 @@ internal sealed partial class DemoWindow : Window
         root.Children.Add(_statusText);
 
         return root;
+    }
+
+    private void AddPresentationTimerOverlay(Panel slideLayer)
+    {
+        var timerPanel = new StackPanel
+        {
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 28, 30, 0),
+            Spacing = 6
+        };
+
+        _presentationTimerText = new TextBlock
+        {
+            Text = FormatPresentationTimer(TimeSpan.Zero),
+            Foreground = Brushes.White,
+            Background = new SolidColorBrush(Color.FromArgb(220, 5, 7, 13)),
+            Padding = new Thickness(18, 8),
+            FontSize = 24,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            IsVisible = false
+        };
+        timerPanel.Children.Add(_presentationTimerText);
+
+        _slideTimerText = new TextBlock
+        {
+            Text = FormatElapsedTimer(TimeSpan.Zero),
+            Foreground = Brushes.White,
+            Background = new SolidColorBrush(Color.FromArgb(205, 5, 7, 13)),
+            Padding = new Thickness(18, 6),
+            FontSize = 18,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            IsVisible = false
+        };
+        timerPanel.Children.Add(_slideTimerText);
+        slideLayer.Children.Add(timerPanel);
+
+        _presentationTimerButton = new Button
+        {
+            Content = "Start Timers",
+            Foreground = Brushes.White,
+            Background = new SolidColorBrush(Color.FromRgb(0, 56, 70)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0, 176, 240)),
+            BorderThickness = new Thickness(2),
+            Padding = new Thickness(18, 10),
+            FontSize = 16,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, 32, 32)
+        };
+        _presentationTimerButton.Click += (_, _) => ResetPresentationTimer();
+        slideLayer.Children.Add(_presentationTimerButton);
+
+        RefreshPresentationTimerUi();
     }
 
     private void UpdatePresentationStatus(PresentationDeck deck, string path)
@@ -442,6 +511,8 @@ internal sealed partial class DemoWindow : Window
             Title = string.Create(
                 CultureInfo.InvariantCulture,
                 $"JsEngine Avalonia SVG Browser - {deck.CurrentPageNumber}/{deck.DisplayCount}");
+            ResetSlideTimer();
+            RefreshPresentationTimerUi();
         });
     }
 
@@ -596,6 +667,7 @@ internal sealed partial class DemoWindow
     {
         var elapsed = DateTimeOffset.UtcNow - _startedAt;
         _scriptHost.DispatchFrame(elapsed.TotalMilliseconds);
+        RefreshPresentationTimerUi();
     }
 
     private void RenderSvg()
@@ -621,6 +693,11 @@ internal sealed partial class DemoWindow
 
     private void DispatchPointer(PointerPressedEventArgs eventArgs)
     {
+        if (!ReferenceEquals(eventArgs.Source, _svgView))
+        {
+            return;
+        }
+
         var point = eventArgs.GetPosition(_svgView);
         if (!_document.TryMapToSvgPoint(point, _svgView.Bounds, out var x, out var y))
         {
@@ -652,6 +729,81 @@ internal sealed partial class DemoWindow
         return keyText.Length == 1
             ? keyText.ToUpperInvariant()
             : keyText;
+    }
+
+    private void ResetPresentationTimer()
+    {
+        _presentationTimerStartedAt = DateTimeOffset.UtcNow;
+        ResetSlideTimer();
+        RefreshPresentationTimerUi();
+    }
+
+    private void ResetSlideTimer()
+    {
+        _slideTimerStartedAt = DateTimeOffset.UtcNow;
+    }
+
+    private void RefreshPresentationTimerUi()
+    {
+        if (_presentationDeck is null)
+        {
+            return;
+        }
+
+        if (_presentationTimerButton is not null)
+        {
+            _presentationTimerButton.IsVisible = _presentationDeck.CurrentIndex == 0;
+            _presentationTimerButton.Content = _presentationTimerStartedAt is null
+                ? "Start Timers"
+                : "Reset Timer";
+        }
+
+        if (_presentationTimerText is null)
+        {
+            return;
+        }
+
+        if (_presentationTimerStartedAt is null)
+        {
+            _presentationTimerText.IsVisible = false;
+            if (_slideTimerText is not null)
+            {
+                _slideTimerText.IsVisible = false;
+            }
+
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        _presentationTimerText.Text = FormatPresentationTimer(now - _presentationTimerStartedAt.Value);
+        _presentationTimerText.Foreground = now - _presentationTimerStartedAt.Value > PresentationDuration
+            ? new SolidColorBrush(Color.FromRgb(255, 92, 138))
+            : Brushes.White;
+        _presentationTimerText.IsVisible = true;
+        if (_slideTimerText is not null)
+        {
+            _slideTimerText.Text = "Slide " + FormatElapsedTimer(now - _slideTimerStartedAt);
+            _slideTimerText.IsVisible = true;
+        }
+    }
+
+    private static string FormatPresentationTimer(TimeSpan elapsed)
+    {
+        var remaining = PresentationDuration - elapsed;
+        var isNegative = remaining < TimeSpan.Zero;
+        var absolute = remaining.Duration();
+        var minutes = (int)Math.Floor(absolute.TotalMinutes);
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{(isNegative ? "-" : string.Empty)}{minutes:00}:{absolute.Seconds:00}");
+    }
+
+    private static string FormatElapsedTimer(TimeSpan elapsed)
+    {
+        var minutes = (int)Math.Floor(elapsed.TotalMinutes);
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{minutes:00}:{elapsed.Seconds:00}");
     }
 }
 

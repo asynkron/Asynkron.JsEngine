@@ -7,6 +7,7 @@ using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
@@ -336,6 +337,9 @@ internal sealed partial class DemoWindow : Window
     private TextBlock? _presentationTimerText;
     private TextBlock? _slideTimerText;
     private Button? _presentationTimerButton;
+    private Border? _hostOutputPanel;
+    private SelectableTextBlock? _hostOutputTextBlock;
+    private ScrollViewer? _hostOutputScrollViewer;
     private DateTimeOffset? _presentationTimerStartedAt;
     private DateTimeOffset _slideTimerStartedAt = DateTimeOffset.UtcNow;
     private Point _pointerPressedAt;
@@ -343,6 +347,7 @@ internal sealed partial class DemoWindow : Window
     private bool _isPointerDownOnSlide;
     private bool _didPanPointer;
     private double _lastPinchScale = 1;
+    private string _lastNativeHostOutput = string.Empty;
 
     public DemoWindow(IReadOnlyList<string> args)
     {
@@ -460,6 +465,7 @@ internal sealed partial class DemoWindow : Window
 
         var slideLayer = new Grid();
         slideLayer.Children.Add(_svgView);
+        AddLiveDemoHostOutputOverlay(slideLayer);
         if (launch.Deck is not null)
         {
             AddPresentationTimerOverlay(slideLayer);
@@ -480,6 +486,37 @@ internal sealed partial class DemoWindow : Window
         root.Children.Add(_statusText);
 
         return root;
+    }
+
+    private void AddLiveDemoHostOutputOverlay(Panel slideLayer)
+    {
+        _hostOutputTextBlock = new SelectableTextBlock
+        {
+            TextWrapping = TextWrapping.NoWrap,
+            FontFamily = new FontFamily("Menlo, Consolas, monospace"),
+            FontSize = 14,
+            LineHeight = 18,
+            Foreground = Brushes.White,
+            SelectionBrush = new SolidColorBrush(Color.FromArgb(210, 0, 176, 240)),
+            SelectionForegroundBrush = Brushes.White,
+            Margin = new Thickness(12, 9)
+        };
+
+        _hostOutputScrollViewer = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = _hostOutputTextBlock
+        };
+
+        _hostOutputPanel = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(252, 3, 9, 20)),
+            IsVisible = false,
+            Child = _hostOutputScrollViewer,
+            ZIndex = 3
+        };
+        slideLayer.Children.Add(_hostOutputPanel);
     }
 
     private void AddPresentationTimerOverlay(Panel slideLayer)
@@ -554,6 +591,7 @@ internal sealed partial class DemoWindow : Window
             _svgView.ResetView();
             ResetSlideTimer();
             RefreshPresentationTimerUi();
+            UpdateLiveDemoHostOutputOverlay();
         });
     }
 
@@ -709,6 +747,7 @@ internal sealed partial class DemoWindow
         var elapsed = DateTimeOffset.UtcNow - _startedAt;
         _scriptHost.DispatchFrame(elapsed.TotalMilliseconds);
         RefreshPresentationTimerUi();
+        UpdateLiveDemoHostOutputOverlay();
     }
 
     private void RenderSvg()
@@ -717,6 +756,55 @@ internal sealed partial class DemoWindow
         {
             _svgView.InvalidateVisual();
         });
+    }
+
+    private void UpdateLiveDemoHostOutputOverlay()
+    {
+        if (_hostOutputPanel is null || _hostOutputTextBlock is null || _presentationDeck is null)
+        {
+            return;
+        }
+
+        var isLiveDemo = string.Equals(
+            Path.GetFileName(_presentationDeck.CurrentPath),
+            "express-live-demo.svg",
+            StringComparison.Ordinal);
+        _hostOutputPanel.IsVisible = isLiveDemo;
+        if (!isLiveDemo)
+        {
+            _lastNativeHostOutput = string.Empty;
+            return;
+        }
+
+        var outputBounds = _svgView.MapSvgRectToControlRect(new Rect(76, 238, 364, 218));
+        _hostOutputPanel.Width = outputBounds.Width;
+        _hostOutputPanel.Height = outputBounds.Height;
+        _hostOutputPanel.Margin = new Thickness(outputBounds.X, outputBounds.Y, 0, 0);
+        _hostOutputPanel.HorizontalAlignment = HorizontalAlignment.Left;
+        _hostOutputPanel.VerticalAlignment = VerticalAlignment.Top;
+
+        var output = _scriptHost.ExpressHostOutput();
+        if (string.IsNullOrWhiteSpace(output))
+        {
+            output = "$ click Start upstream app";
+        }
+
+        if (string.Equals(output, _lastNativeHostOutput, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _lastNativeHostOutput = output;
+        _hostOutputTextBlock.Text = output.TrimEnd();
+        if (_hostOutputScrollViewer is not null)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                _hostOutputScrollViewer.Offset = new Vector(
+                    _hostOutputScrollViewer.Offset.X,
+                    Math.Max(0, _hostOutputScrollViewer.Extent.Height - _hostOutputScrollViewer.Viewport.Height));
+            });
+        }
     }
 
     private void DispatchKey(KeyEventArgs eventArgs)
@@ -1008,6 +1096,21 @@ internal sealed class SvgSlideView : Control
 
     public Point PointerPositionOrCenter => _pointerPosition ?? Bounds.Center;
 
+    public Rect MapSvgRectToControlRect(Rect svgRect)
+    {
+        if (Document is null)
+        {
+            return new Rect();
+        }
+
+        var baseRect = Document.MapSvgRectToViewRect(svgRect, Bounds);
+        return new Rect(
+            baseRect.X * _zoom + _pan.X,
+            baseRect.Y * _zoom + _pan.Y,
+            baseRect.Width * _zoom,
+            baseRect.Height * _zoom);
+    }
+
     public override void Render(DrawingContext context)
     {
         base.Render(context);
@@ -1206,6 +1309,11 @@ internal sealed class SlideScriptHost : IDisposable
     {
         _demoProcessHost.Dispose();
         _engine.Dispose();
+    }
+
+    public string ExpressHostOutput()
+    {
+        return _demoProcessHost.HostOutput();
     }
 
     private JsObject CreateConsoleObject()
@@ -2161,6 +2269,18 @@ internal sealed class SvgSlideDocument
         x = (point.X - offsetX) / scale;
         y = (point.Y - offsetY) / scale;
         return x >= 0 && x <= _viewBoxWidth && y >= 0 && y <= _viewBoxHeight;
+    }
+
+    public Rect MapSvgRectToViewRect(Rect svgRect, Rect bounds)
+    {
+        var scale = Math.Min(bounds.Width / _viewBoxWidth, bounds.Height / _viewBoxHeight);
+        var offsetX = bounds.X + (bounds.Width - _viewBoxWidth * scale) / 2;
+        var offsetY = bounds.Y + (bounds.Height - _viewBoxHeight * scale) / 2;
+        return new Rect(
+            offsetX + svgRect.X * scale,
+            offsetY + svgRect.Y * scale,
+            svgRect.Width * scale,
+            svgRect.Height * scale);
     }
 
     public SvgMaskAnalysis AnalyzeGeneratedImageMasks()

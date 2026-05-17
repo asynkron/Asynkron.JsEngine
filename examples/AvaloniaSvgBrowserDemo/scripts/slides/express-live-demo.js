@@ -104,22 +104,14 @@ slideScript("express-live-demo.svg", {
     expressDemoLabel(ctx, "express-demo-curl-title", "terminal 2: curl", 702, 220, 18, "#ffc000");
 
     for (let index = 0; index < 13; index++) {
-      expressDemoText(ctx, "express-demo-host-line-" + index, "", 76, 252 + index * 16, 11, "#d1d5db", 1);
       expressDemoText(ctx, "express-demo-curl-line-" + index, "", 520, 252 + index * 16, 11, "#d1d5db", 1);
     }
 
-    expressDemoRenderLines(ctx, "express-demo-host-line", "$ click Start upstream app", 76, 252, 13, 50);
     expressDemoRenderLines(ctx, "express-demo-curl-line", "$ click curl /users after host is ready", 520, 252, 13, 50);
     expressDemoSetStatus(ctx);
   },
 
   frame: function (ctx) {
-    const hostOutput = demo.hostOutput();
-    if (hostOutput !== expressDemoLastHost) {
-      expressDemoLastHost = hostOutput;
-      expressDemoRenderLines(ctx, "express-demo-host-line", hostOutput, 76, 252, 13, 50);
-    }
-
     const curlOutput = demo.curlOutput();
     if (curlOutput !== expressDemoLastCurl) {
       expressDemoLastCurl = curlOutput;

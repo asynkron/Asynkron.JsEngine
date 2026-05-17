@@ -338,6 +338,11 @@ internal sealed partial class DemoWindow : Window
     private Button? _presentationTimerButton;
     private DateTimeOffset? _presentationTimerStartedAt;
     private DateTimeOffset _slideTimerStartedAt = DateTimeOffset.UtcNow;
+    private Point _pointerPressedAt;
+    private Point _lastPointerPosition;
+    private bool _isPointerDownOnSlide;
+    private bool _didPanPointer;
+    private double _lastPinchScale = 1;
 
     public DemoWindow(IReadOnlyList<string> args)
     {
@@ -387,7 +392,42 @@ internal sealed partial class DemoWindow : Window
             handledEventsToo: true);
         AddHandler(
             PointerPressedEvent,
-            (_, eventArgs) => DispatchPointer(eventArgs),
+            (_, eventArgs) => HandlePointerPressed(eventArgs),
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
+        AddHandler(
+            PointerMovedEvent,
+            (_, eventArgs) => HandlePointerMoved(eventArgs),
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
+        AddHandler(
+            PointerReleasedEvent,
+            (_, eventArgs) => HandlePointerReleased(eventArgs),
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
+        AddHandler(
+            PointerWheelChangedEvent,
+            (_, eventArgs) => HandlePointerWheel(eventArgs),
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
+        AddHandler(
+            PinchEvent,
+            (_, eventArgs) => HandlePinch(eventArgs),
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
+        AddHandler(
+            PinchEndedEvent,
+            (_, eventArgs) => HandlePinchEnded(eventArgs),
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
+        AddHandler(
+            PointerTouchPadGestureMagnifyEvent,
+            (_, eventArgs) => HandleTouchPadMagnify(eventArgs),
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
+        AddHandler(
+            PointerExitedEvent,
+            (_, eventArgs) => HandlePointerExited(eventArgs),
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
         Closed += (_, _) => _scriptHost.Dispose();
@@ -511,6 +551,7 @@ internal sealed partial class DemoWindow : Window
             Title = string.Create(
                 CultureInfo.InvariantCulture,
                 $"JsEngine Avalonia SVG Browser - {deck.CurrentPageNumber}/{deck.DisplayCount}");
+            _svgView.ResetView();
             ResetSlideTimer();
             RefreshPresentationTimerUi();
         });
@@ -686,12 +727,19 @@ internal sealed partial class DemoWindow
             return;
         }
 
+        if (key == "Escape" || key == "0")
+        {
+            _svgView.ResetView();
+            eventArgs.Handled = true;
+            return;
+        }
+
         Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"Avalonia key: {key}"));
         _scriptHost.DispatchKey(key);
         eventArgs.Handled = true;
     }
 
-    private void DispatchPointer(PointerPressedEventArgs eventArgs)
+    private void HandlePointerPressed(PointerPressedEventArgs eventArgs)
     {
         if (!ReferenceEquals(eventArgs.Source, _svgView))
         {
@@ -699,13 +747,135 @@ internal sealed partial class DemoWindow
         }
 
         var point = eventArgs.GetPosition(_svgView);
-        if (!_document.TryMapToSvgPoint(point, _svgView.Bounds, out var x, out var y))
+        _svgView.ShowPointer(point);
+        _pointerPressedAt = point;
+        _lastPointerPosition = point;
+        _isPointerDownOnSlide = true;
+        _didPanPointer = false;
+        eventArgs.Pointer.Capture(_svgView);
+        eventArgs.Handled = true;
+    }
+
+    private void HandlePointerMoved(PointerEventArgs eventArgs)
+    {
+        if (!ReferenceEquals(eventArgs.Source, _svgView) && !_isPointerDownOnSlide)
         {
             return;
         }
 
-        _scriptHost.DispatchClick(x, y);
+        var point = eventArgs.GetPosition(_svgView);
+        _svgView.ShowPointer(point);
+        if (!_isPointerDownOnSlide || !_svgView.IsZoomed)
+        {
+            return;
+        }
+
+        var delta = point - _lastPointerPosition;
+        if (Math.Abs(delta.X) > 0.01 || Math.Abs(delta.Y) > 0.01)
+        {
+            _svgView.PanBy(delta);
+            _lastPointerPosition = point;
+        }
+
+        if (Distance(point, _pointerPressedAt) > 4)
+        {
+            _didPanPointer = true;
+        }
+
         eventArgs.Handled = true;
+    }
+
+    private void HandlePointerReleased(PointerReleasedEventArgs eventArgs)
+    {
+        if (!_isPointerDownOnSlide)
+        {
+            return;
+        }
+
+        var point = eventArgs.GetPosition(_svgView);
+        _svgView.ShowPointer(point);
+        _isPointerDownOnSlide = false;
+        eventArgs.Pointer.Capture(null);
+        if (!_didPanPointer && TryMapPointerToSvg(point, out var x, out var y))
+        {
+            _scriptHost.DispatchClick(x, y);
+        }
+
+        eventArgs.Handled = true;
+    }
+
+    private void HandlePointerWheel(PointerWheelEventArgs eventArgs)
+    {
+        if (!ReferenceEquals(eventArgs.Source, _svgView))
+        {
+            return;
+        }
+
+        var point = eventArgs.GetPosition(_svgView);
+        _svgView.ShowPointer(point);
+        if (Math.Abs(eventArgs.Delta.Y) > 0.01)
+        {
+            _svgView.ZoomAt(point, Math.Pow(1.16, eventArgs.Delta.Y));
+            eventArgs.Handled = true;
+        }
+
+        if (_svgView.IsZoomed && Math.Abs(eventArgs.Delta.X) > 0.01)
+        {
+            _svgView.PanBy(new Vector(eventArgs.Delta.X * 55, 0));
+            eventArgs.Handled = true;
+        }
+    }
+
+    private void HandlePinch(PinchEventArgs eventArgs)
+    {
+        if (!ReferenceEquals(eventArgs.Source, _svgView))
+        {
+            return;
+        }
+
+        var factor = eventArgs.Scale / _lastPinchScale;
+        _lastPinchScale = eventArgs.Scale;
+        _svgView.ShowPointer(eventArgs.ScaleOrigin);
+        _svgView.ZoomAt(eventArgs.ScaleOrigin, factor);
+        eventArgs.Handled = true;
+    }
+
+    private void HandlePinchEnded(PinchEndedEventArgs eventArgs)
+    {
+        if (!ReferenceEquals(eventArgs.Source, _svgView))
+        {
+            return;
+        }
+
+        _lastPinchScale = 1;
+        eventArgs.Handled = true;
+    }
+
+    private void HandleTouchPadMagnify(PointerDeltaEventArgs eventArgs)
+    {
+        if (!ReferenceEquals(eventArgs.Source, _svgView))
+        {
+            return;
+        }
+
+        var point = _svgView.PointerPositionOrCenter;
+        var factor = Math.Pow(1.12, eventArgs.Delta.Y);
+        _svgView.ShowPointer(point);
+        _svgView.ZoomAt(point, factor);
+        eventArgs.Handled = true;
+    }
+
+    private void HandlePointerExited(PointerEventArgs eventArgs)
+    {
+        if (!_isPointerDownOnSlide)
+        {
+            _svgView.HidePointer();
+        }
+    }
+
+    private bool TryMapPointerToSvg(Point point, out double x, out double y)
+    {
+        return _document.TryMapToSvgPoint(_svgView.MapToBaseViewPoint(point), _svgView.Bounds, out x, out y);
     }
 
     private static string NormalizeKey(KeyEventArgs eventArgs)
@@ -725,10 +895,27 @@ internal sealed partial class DemoWindow
             return "ArrowRight";
         }
 
+        if (eventArgs.Key == Key.Escape)
+        {
+            return "Escape";
+        }
+
+        if (eventArgs.Key is Key.D0 or Key.NumPad0)
+        {
+            return "0";
+        }
+
         var keyText = eventArgs.Key.ToString();
         return keyText.Length == 1
             ? keyText.ToUpperInvariant()
             : keyText;
+    }
+
+    private static double Distance(Point a, Point b)
+    {
+        var dx = a.X - b.X;
+        var dy = a.Y - b.Y;
+        return Math.Sqrt(dx * dx + dy * dy);
     }
 
     private void ResetPresentationTimer()
@@ -809,12 +996,105 @@ internal sealed partial class DemoWindow
 
 internal sealed class SvgSlideView : Control
 {
+    private const double MinZoom = 1;
+    private const double MaxZoom = 6;
+    private double _zoom = 1;
+    private Vector _pan;
+    private Point? _pointerPosition;
+
     public SvgSlideDocument? Document { get; set; }
+
+    public bool IsZoomed => _zoom > 1.001;
+
+    public Point PointerPositionOrCenter => _pointerPosition ?? Bounds.Center;
 
     public override void Render(DrawingContext context)
     {
         base.Render(context);
-        Document?.Render(context, Bounds);
+        using (context.PushClip(Bounds))
+        {
+            using (context.PushTransform(Matrix.CreateScale(_zoom, _zoom) * Matrix.CreateTranslation(_pan.X, _pan.Y)))
+            {
+                Document?.Render(context, Bounds);
+            }
+
+            RenderPointerSpotlight(context);
+        }
+    }
+
+    public void ShowPointer(Point point)
+    {
+        _pointerPosition = point;
+        InvalidateVisual();
+    }
+
+    public void HidePointer()
+    {
+        _pointerPosition = null;
+        InvalidateVisual();
+    }
+
+    public void ZoomAt(Point point, double factor)
+    {
+        if (double.IsNaN(factor) || double.IsInfinity(factor) || factor <= 0)
+        {
+            return;
+        }
+
+        var oldZoom = _zoom;
+        _zoom = Math.Clamp(_zoom * factor, MinZoom, MaxZoom);
+        if (Math.Abs(_zoom - oldZoom) < 0.0001)
+        {
+            return;
+        }
+
+        var ratio = _zoom / oldZoom;
+        _pan = new Vector(
+            point.X - (point.X - _pan.X) * ratio,
+            point.Y - (point.Y - _pan.Y) * ratio);
+        if (!IsZoomed)
+        {
+            _pan = default;
+        }
+
+        InvalidateVisual();
+    }
+
+    public void PanBy(Vector delta)
+    {
+        if (!IsZoomed)
+        {
+            return;
+        }
+
+        _pan += delta;
+        InvalidateVisual();
+    }
+
+    public void ResetView()
+    {
+        _zoom = 1;
+        _pan = default;
+        InvalidateVisual();
+    }
+
+    public Point MapToBaseViewPoint(Point point)
+    {
+        return new Point(
+            (point.X - _pan.X) / _zoom,
+            (point.Y - _pan.Y) / _zoom);
+    }
+
+    private void RenderPointerSpotlight(DrawingContext context)
+    {
+        if (_pointerPosition is not { } point)
+        {
+            return;
+        }
+
+        var fill = new SolidColorBrush(Color.FromArgb(92, 255, 42, 76));
+        var stroke = new Pen(new SolidColorBrush(Color.FromArgb(190, 255, 82, 115)), 2);
+        context.DrawEllipse(fill, stroke, point, 22, 22);
     }
 }
 

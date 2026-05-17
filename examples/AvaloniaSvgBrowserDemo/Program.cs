@@ -199,6 +199,22 @@ internal static class Program
                 CultureInfo.InvariantCulture,
                 $"Expected mostly green tests with a few red failures left, got green={greenTests}, red={redTests}, gray={grayTests}."));
         }
+
+        deck.Load("jsengine-presentation-reveal.svg", 60);
+        document = new SvgSlideDocument(
+            deck.CurrentPath,
+            Path.Combine(baseDirectory, "rendered-slide.svg"),
+            static () => { });
+        using var revealHost = new SlideScriptHost(document, deck);
+        revealHost.Run(Path.Combine(baseDirectory, "scripts", "presentation.js"));
+        DispatchSmokeFrames(revealHost);
+
+        if (!document.ContainsElement("reveal-face-19") ||
+            !document.ContainsElement("reveal-edge-19") ||
+            document.CountElementsWithAttributePrefix("reveal-face-", "points", "0,0 1,0 0,1") != 0)
+        {
+            throw new InvalidOperationException("Expected reveal sidecar to render JS-computed 3D mesh polygons.");
+        }
     }
 
     private static void RunPresentationPreloadSmoke()
@@ -934,6 +950,20 @@ internal sealed class SlideScriptHost : IDisposable
                 GetString(args, 0),
                 [
                     new("d", GetString(args, 1)),
+                    new("fill", GetString(args, 2)),
+                    new("stroke", GetString(args, 3)),
+                    new("stroke-width", GetDouble(args, 4, 1).ToString(CultureInfo.InvariantCulture)),
+                    new("opacity", GetDouble(args, 5, 1).ToString(CultureInfo.InvariantCulture))
+                ]);
+            return CreateElementObject(GetString(args, 0));
+        }));
+        SetProperty(layer, "polygon", CreateHostFunction(args =>
+        {
+            _document.AddLayerElement(
+                "polygon",
+                GetString(args, 0),
+                [
+                    new("points", GetString(args, 1)),
                     new("fill", GetString(args, 2)),
                     new("stroke", GetString(args, 3)),
                     new("stroke-width", GetDouble(args, 4, 1).ToString(CultureInfo.InvariantCulture)),
@@ -1890,6 +1920,9 @@ internal sealed class SvgSlideDocument
             case "path":
                 RenderPath(context, element, state);
                 break;
+            case "polygon":
+                RenderPolygon(context, element, state);
+                break;
             case "text":
                 RenderText(context, element, state);
                 break;
@@ -1979,6 +2012,42 @@ internal sealed class SvgSlideDocument
         }
 
         var geometry = Geometry.Parse(d);
+        var fill = state.CreateFillBrush();
+        var pen = state.CreatePen();
+        context.DrawGeometry(fill, pen, geometry);
+    }
+
+    private static void RenderPolygon(DrawingContext context, XElement element, SvgRenderState state)
+    {
+        var points = ReadAttribute(element, "points", state);
+        if (string.IsNullOrWhiteSpace(points))
+        {
+            return;
+        }
+
+        var coordinates = points.Split([' ', ','], StringSplitOptions.RemoveEmptyEntries);
+        if (coordinates.Length < 6 || coordinates.Length % 2 != 0)
+        {
+            return;
+        }
+
+        var data = new StringBuilder();
+        for (var index = 0; index < coordinates.Length; index += 2)
+        {
+            if (!double.TryParse(coordinates[index], NumberStyles.Float, CultureInfo.InvariantCulture, out var x) ||
+                !double.TryParse(coordinates[index + 1], NumberStyles.Float, CultureInfo.InvariantCulture, out var y))
+            {
+                return;
+            }
+
+            data.Append(index == 0 ? "M " : " L ");
+            data.Append(x.ToString(CultureInfo.InvariantCulture));
+            data.Append(' ');
+            data.Append(y.ToString(CultureInfo.InvariantCulture));
+        }
+
+        data.Append(" Z");
+        var geometry = Geometry.Parse(data.ToString());
         var fill = state.CreateFillBrush();
         var pen = state.CreatePen();
         context.DrawGeometry(fill, pen, geometry);

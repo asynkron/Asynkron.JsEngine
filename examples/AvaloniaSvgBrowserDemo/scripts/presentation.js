@@ -60,6 +60,8 @@ slides[55] = "quickdup-duplication-radar.svg";
 slides[56] = "node-host-boundary.svg";
 slides[57] = "upstream-express-unchanged.svg";
 slides[58] = "express-live-demo.svg";
+slides[59] = "express-demo-stack.svg";
+slides[60] = "jsengine-presentation-reveal.svg";
 
 let current = presentation.current();
 let phase = "idle";

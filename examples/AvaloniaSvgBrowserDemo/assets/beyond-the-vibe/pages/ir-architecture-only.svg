@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="959.76pt" height="540pt" viewBox="0 0 959.76 540">
+  <rect x="0" y="0" width="959.76" height="540" fill="#0d0d0d"/>
+  <g font-family="Arial Rounded MT Bold">
+    <text x="64" y="44" font-size="26" fill="#00aff0">IR architecture</text>
+    <text x="64" y="72" font-size="12" fill="#d1d5db">Statement execution moved to IR. Expressions were still AST-walked at this point.</text>
+
+    <text x="64" y="108" font-size="12" fill="#ffc000">statement IR</text>
+    <rect x="60" y="124" width="122" height="46" fill="#0b2b44" stroke="#38bdf8" stroke-width="1.6"/>
+    <text x="80" y="143" font-size="8.5" fill="#f3f4f6">Function bodies</text>
+    <text x="81" y="156" font-size="7.5" fill="#d1d5db">source statements</text>
+
+    <rect x="218" y="124" width="122" height="46" fill="#3a1f18" stroke="#fbbf24" stroke-width="1.6"/>
+    <text x="246" y="142" font-size="8.5" fill="#f3f4f6">Yield lowerer</text>
+    <text x="238" y="155" font-size="7.5" fill="#d1d5db">normalizes pauseable</text>
+    <text x="260" y="166" font-size="7.5" fill="#d1d5db">shapes</text>
+
+    <rect x="376" y="124" width="122" height="46" fill="#063b34" stroke="#34d399" stroke-width="1.6"/>
+    <text x="407" y="142" font-size="8.5" fill="#f3f4f6">Execution Plan</text>
+    <text x="423" y="155" font-size="8" fill="#d1d5db">Builder</text>
+
+    <rect x="534" y="96" width="162" height="104" fill="#120f22" stroke="#5b4b86" stroke-width="1.2"/>
+    <text x="580" y="115" font-size="8.5" fill="#e5e7eb">Statement emitters</text>
+    <g fill="#2e185b" stroke="#9b7cff" stroke-width="1.4">
+      <rect x="554" y="130" width="52" height="22"/>
+      <rect x="624" y="130" width="52" height="22"/>
+      <rect x="554" y="164" width="52" height="22"/>
+      <rect x="624" y="164" width="52" height="22"/>
+    </g>
+    <text x="570" y="145" font-size="8" fill="#f3f4f6">Block</text>
+    <text x="633" y="145" font-size="8" fill="#f3f4f6">Loop</text>
+    <text x="565" y="179" font-size="8" fill="#f3f4f6">Try</text>
+    <text x="631" y="179" font-size="8" fill="#f3f4f6">Switch</text>
+
+    <rect x="736" y="96" width="150" height="50" fill="#4a132e" stroke="#ff5c8a" stroke-width="1.6"/>
+    <text x="778" y="114" font-size="8" fill="#f3f4f6">Slot Assignment</text>
+    <text x="799" y="126" font-size="8" fill="#f3f4f6">Rewriter</text>
+    <text x="770" y="138" font-size="6.7" fill="#d1d5db">scope ids, flat slots</text>
+
+    <rect x="736" y="184" width="150" height="50" fill="#063b34" stroke="#34d399" stroke-width="1.6"/>
+    <text x="782" y="202" font-size="8.5" fill="#f3f4f6">Execution Plan</text>
+    <text x="766" y="216" font-size="7.4" fill="#d1d5db">instructions + layout</text>
+    <text x="794" y="227" font-size="7.4" fill="#d1d5db">metadata</text>
+
+    <line x1="182" y1="147" x2="218" y2="147" stroke="#cbd5e1" stroke-width="1.9"/>
+    <polygon points="218,147 207,141 207,153" fill="#cbd5e1"/>
+    <line x1="340" y1="147" x2="376" y2="147" stroke="#cbd5e1" stroke-width="1.9"/>
+    <polygon points="376,147 365,141 365,153" fill="#cbd5e1"/>
+    <line x1="498" y1="147" x2="534" y2="147" stroke="#cbd5e1" stroke-width="1.9"/>
+    <polygon points="534,147 523,141 523,153" fill="#cbd5e1"/>
+    <line x1="696" y1="122" x2="736" y2="122" stroke="#cbd5e1" stroke-width="1.9"/>
+    <polygon points="736,122 725,116 725,128" fill="#cbd5e1"/>
+    <line x1="811" y1="146" x2="811" y2="184" stroke="#cbd5e1" stroke-width="1.9"/>
+    <polygon points="811,184 805,173 817,173" fill="#cbd5e1"/>
+
+    <text x="64" y="288" font-size="12" fill="#ffc000">runtime shape with AST-walked expressions</text>
+    <rect x="86" y="318" width="150" height="54" fill="#063b34" stroke="#34d399" stroke-width="1.6"/>
+    <text x="119" y="338" font-size="8.5" fill="#f3f4f6">ExecutionPlanRunner</text>
+    <text x="114" y="352" font-size="7.5" fill="#d1d5db">walks statement IR</text>
+    <text x="107" y="364" font-size="7.5" fill="#d1d5db">instruction by instruction</text>
+
+    <rect x="304" y="318" width="150" height="54" fill="#2e185b" stroke="#9b7cff" stroke-width="1.6"/>
+    <text x="343" y="338" font-size="8.5" fill="#f3f4f6">Statement handlers</text>
+    <text x="330" y="352" font-size="7.5" fill="#d1d5db">branch, loop, call,</text>
+    <text x="334" y="364" font-size="7.5" fill="#d1d5db">bind, throw, return</text>
+
+    <rect x="522" y="318" width="150" height="54" fill="#0b2b44" stroke="#38bdf8" stroke-width="1.6"/>
+    <text x="557" y="338" font-size="8.5" fill="#f3f4f6">Expression AST</text>
+    <text x="565" y="352" font-size="7.5" fill="#d1d5db">payload nodes</text>
+    <text x="543" y="364" font-size="7.5" fill="#d1d5db">identifier, call, binary...</text>
+
+    <rect x="740" y="318" width="150" height="54" fill="#4a132e" stroke="#ff5c8a" stroke-width="1.6"/>
+    <text x="785" y="338" font-size="8.5" fill="#f3f4f6">AST evaluator</text>
+    <text x="769" y="352" font-size="7.5" fill="#d1d5db">EvaluateExpression(...)</text>
+    <text x="779" y="364" font-size="7.5" fill="#d1d5db">returns JsValue</text>
+
+    <rect x="304" y="424" width="150" height="48" fill="#201714" stroke="#fbbf24" stroke-width="1.6"/>
+    <text x="347" y="443" font-size="8.5" fill="#f3f4f6">Environment</text>
+    <text x="329" y="457" font-size="7.5" fill="#d1d5db">slots, bindings, scopes</text>
+
+    <rect x="522" y="424" width="150" height="48" fill="#063b47" stroke="#22d3ee" stroke-width="1.6"/>
+    <text x="563" y="443" font-size="8.5" fill="#f3f4f6">Objects / calls</text>
+    <text x="554" y="457" font-size="7.5" fill="#d1d5db">JsValue, JsObject, funcs</text>
+
+    <rect x="740" y="424" width="150" height="48" fill="#500f27" stroke="#ff5c8a" stroke-width="1.6"/>
+    <text x="792" y="443" font-size="8.5" fill="#f3f4f6">Signals</text>
+    <text x="766" y="457" font-size="7.5" fill="#d1d5db">return, throw, break</text>
+
+    <line x1="811" y1="234" x2="161" y2="318" stroke="#cbd5e1" stroke-width="1.7"/>
+    <polygon points="161,318 174,311 176,323" fill="#cbd5e1"/>
+    <line x1="236" y1="345" x2="304" y2="345" stroke="#cbd5e1" stroke-width="1.9"/>
+    <polygon points="304,345 293,339 293,351" fill="#cbd5e1"/>
+    <line x1="454" y1="345" x2="522" y2="345" stroke="#cbd5e1" stroke-width="1.9"/>
+    <polygon points="522,345 511,339 511,351" fill="#cbd5e1"/>
+    <line x1="672" y1="345" x2="740" y2="345" stroke="#cbd5e1" stroke-width="1.9"/>
+    <polygon points="740,345 729,339 729,351" fill="#cbd5e1"/>
+
+    <line x1="379" y1="372" x2="379" y2="424" stroke="#cbd5e1" stroke-width="1.7"/>
+    <polygon points="379,424 373,413 385,413" fill="#cbd5e1"/>
+    <line x1="597" y1="372" x2="597" y2="424" stroke="#cbd5e1" stroke-width="1.7"/>
+    <polygon points="597,424 591,413 603,413" fill="#cbd5e1"/>
+    <line x1="815" y1="372" x2="815" y2="424" stroke="#cbd5e1" stroke-width="1.7"/>
+    <polygon points="815,424 809,413 821,413" fill="#cbd5e1"/>
+
+    <path d="M740 358 C690 392 596 402 454 356" fill="none" stroke="#7dd3fc" stroke-width="1.7"/>
+    <polygon points="454,356 466,355 462,367" fill="#7dd3fc"/>
+
+    <text x="64" y="510" font-size="12" fill="#d1d5db">Key idea: the big win here was statement IR and slot layout. Expressions still used AST walking.</text>
+  </g>
+</svg>

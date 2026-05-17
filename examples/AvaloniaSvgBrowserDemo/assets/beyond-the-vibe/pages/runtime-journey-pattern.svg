@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="959.76pt" height="540pt" viewBox="0 0 959.76 540">
+  <rect x="0" y="0" width="959.76" height="540" fill="#0d0d0d"/>
+  <g font-family="Arial Rounded MT Bold">
+    <text x="74" y="72" font-size="38" fill="#00aff0">The pattern</text>
+    <text x="75" y="116" font-size="18" fill="#f3f4f6">The story is not Node. The story is pressure turning a runtime into a system.</text>
+
+    <rect x="92" y="166" width="158" height="104" fill="#003846" stroke="#00b0f0" stroke-width="2"/>
+    <text x="120" y="207" font-size="21" fill="#f3f4f6">Lisp-ish</text>
+    <text x="117" y="239" font-size="15" fill="#e5e7eb">S-expressions</text>
+
+    <line x1="250" y1="218" x2="312" y2="218" stroke="#e5e7eb" stroke-width="3"/>
+    <polygon points="312,218 298,210 298,226" fill="#e5e7eb"/>
+
+    <rect x="326" y="166" width="158" height="104" fill="#2e185b" stroke="#9b7cff" stroke-width="2"/>
+    <text x="365" y="207" font-size="21" fill="#f3f4f6">Test262</text>
+    <text x="352" y="239" font-size="14" fill="#e5e7eb">correctness wall</text>
+
+    <line x1="484" y1="218" x2="546" y2="218" stroke="#e5e7eb" stroke-width="3"/>
+    <polygon points="546,218 532,210 532,226" fill="#e5e7eb"/>
+
+    <rect x="560" y="166" width="158" height="104" fill="#004d3c" stroke="#00d084" stroke-width="2"/>
+    <text x="599" y="207" font-size="21" fill="#f3f4f6">Tooling</text>
+    <text x="589" y="239" font-size="15" fill="#e5e7eb">survival layer</text>
+
+    <line x1="718" y1="218" x2="780" y2="218" stroke="#e5e7eb" stroke-width="3"/>
+    <polygon points="780,218 766,210 766,226" fill="#e5e7eb"/>
+
+    <rect x="794" y="166" width="110" height="104" fill="#4a132e" stroke="#ff5c8a" stroke-width="2"/>
+    <text x="830" y="207" font-size="21" fill="#f3f4f6">IR</text>
+    <text x="820" y="235" font-size="13" fill="#e5e7eb">bytecode</text>
+    <text x="837" y="253" font-size="13" fill="#e5e7eb">path</text>
+
+    <rect x="104" y="325" width="750" height="94" fill="#101b2d" stroke="#2a4564" stroke-width="2"/>
+    <text x="139" y="367" font-size="22" fill="#f3f4f6">Same idea all the way down:</text>
+    <text x="455" y="367" font-size="22" fill="#ffc000">JavaScript as the app layer.</text>
+    <text x="139" y="401" font-size="20" fill="#f3f4f6">Native power enters only through deliberate host boundaries.</text>
+
+    <text x="180" y="475" font-size="16" fill="#9ca3af">That is why the presentation, the demo host, and the final mesh can all be driven by JsEngine.</text>
+  </g>
+</svg>

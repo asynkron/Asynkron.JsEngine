@@ -47,10 +47,6 @@ function slide16PartialOval(progress) {
   return path;
 }
 
-function slide16Patch(ctx, id, x, y, width, height) {
-  ctx.svg.layer.rect(id, x, y, width, height, "#0d0d0d", 0.94);
-}
-
 slide16AddWords("slide16-improved", ["Improved", "Lexer/Parser"], 362, 44, 17, "#f3f4f6");
 slide16AddWords("slide16-memory", ["Memory", "models"], 177, 110, 17, "#f3f4f6");
 slide16AddWords("slide16-sexpr", ["S-Expr", "to", "Typed", "AST"], 490, 100, 17, "#f3f4f6");
@@ -65,10 +61,6 @@ slide16AddWords("slide16-tests", ["~1500", "unit", "tests,", "including", "some"
 
 slideScript("parser-ast-runtime-redesign-map.svg", {
   enter: function (ctx) {
-    slide16Patch(ctx, "slide16-cover-top", 165, 32, 660, 180);
-    slide16Patch(ctx, "slide16-cover-mid", 150, 220, 680, 155);
-    slide16Patch(ctx, "slide16-cover-bottom", 172, 388, 650, 36);
-
     for (let index = 0; index < slide16Words.length; index++) {
       const item = slide16Words[index];
       slide16Text(ctx, item.id, item.word, item.x, item.y, item.size, item.color, 0);

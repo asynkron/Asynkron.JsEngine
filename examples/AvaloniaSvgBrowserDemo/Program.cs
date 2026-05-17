@@ -137,6 +137,33 @@ internal static class Program
     private static void RunPresentationSidecarSmoke()
     {
         var baseDirectory = AppContext.BaseDirectory;
+        var cpsDeck = PresentationDeck.Load(baseDirectory, "12");
+        cpsDeck.Load("continuation-passing-style-translator.svg", 11);
+        var cpsDocument = new SvgSlideDocument(
+            cpsDeck.CurrentPath,
+            Path.Combine(baseDirectory, "rendered-slide.svg"),
+            static () => { });
+        using var cpsHost = new SlideScriptHost(cpsDocument, cpsDeck);
+        cpsHost.Run(Path.Combine(baseDirectory, "scripts", "presentation.js"));
+
+        if (!cpsDocument.ContainsElement("cps-generated-bg") ||
+            !string.Equals(cpsDocument.GetElementText("cps-stage-label"), "1 / 3", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Expected CPS translator sidecar to generate its first stage.");
+        }
+
+        cpsHost.DispatchKey("Space");
+        if (!string.Equals(cpsDocument.GetElementText("cps-stage-label"), "2 / 3", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Expected Space to reveal the S-expression stage.");
+        }
+
+        cpsHost.DispatchKey("Space");
+        if (!string.Equals(cpsDocument.GetElementText("cps-stage-label"), "3 / 3", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Expected Space to reveal the CPS-transformed stage.");
+        }
+
         var astDeck = PresentationDeck.Load(baseDirectory, "14");
         astDeck.Load("ast-walking-evaluation.svg", 13);
         var astDocument = new SvgSlideDocument(
@@ -157,6 +184,24 @@ internal static class Program
         if (!string.Equals(astDocument.GetElementText("ast-step-counter"), "2 / 12", StringComparison.Ordinal))
         {
             throw new InvalidOperationException("Expected Space to advance the AST walking trace.");
+        }
+
+        var redesignDeck = PresentationDeck.Load(baseDirectory, "16");
+        redesignDeck.Load("parser-ast-runtime-redesign-map.svg", 15);
+        var redesignDocument = new SvgSlideDocument(
+            redesignDeck.CurrentPath,
+            Path.Combine(baseDirectory, "rendered-slide.svg"),
+            static () => { });
+        using var redesignHost = new SlideScriptHost(redesignDocument, redesignDeck);
+        redesignHost.Run(Path.Combine(baseDirectory, "scripts", "presentation.js"));
+        DispatchSmokeFrames(redesignHost, 5_600);
+
+        if (!redesignDocument.ContainsElement("slide16-improved-word-0") ||
+            !redesignDocument.ContainsElement("slide16-circle") ||
+            redesignDocument.ContainsElement("slide16-cover-top"))
+        {
+            throw new InvalidOperationException(
+                "Expected page 16 sidecar to own the animated text without static cover patches.");
         }
 
         var deck = PresentationDeck.Load(baseDirectory, "27");
@@ -200,7 +245,7 @@ internal static class Program
                 $"Expected mostly green tests with a few red failures left, got green={greenTests}, red={redTests}, gray={grayTests}."));
         }
 
-        deck.Load("jsengine-presentation-reveal.svg", 60);
+        deck.Load("jsengine-presentation-reveal.svg", 62);
         document = new SvgSlideDocument(
             deck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
@@ -242,7 +287,8 @@ internal static class Program
     private static async Task RunPresentationLiveDemoSmoke()
     {
         var baseDirectory = AppContext.BaseDirectory;
-        var deck = PresentationDeck.Load(baseDirectory, "59");
+        var deck = PresentationDeck.Load(baseDirectory, "61");
+        deck.Load("express-live-demo.svg", 60);
         var document = new SvgSlideDocument(
             deck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),

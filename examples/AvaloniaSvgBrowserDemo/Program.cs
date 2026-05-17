@@ -13,6 +13,8 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Rendering.SceneGraph;
+using Avalonia.Skia;
 using Avalonia.Threading;
 using SkiaSharp;
 
@@ -224,17 +226,33 @@ internal static class Program
             deck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
             static () => { });
-        using var revealHost = new SlideScriptHost(document, deck);
+        var revealMesh = new NativeTriangleMesh(static () => { });
+        using var revealHost = new SlideScriptHost(document, deck, nativeMesh: revealMesh);
         revealHost.Run(Path.Combine(baseDirectory, "scripts", "presentation.js"));
         DispatchSmokeFrames(revealHost);
 
-        if (!document.ContainsElement("reveal-face-19") ||
-            !document.ContainsElement("reveal-edge-19") ||
-            document.CountElementsWithAttributePrefix("reveal-face-", "points", "0,0 1,0 0,1") != 0)
+        if (revealMesh.TriangleCount != RevealFacesCount)
         {
-            throw new InvalidOperationException("Expected reveal sidecar to render JS-computed 3D mesh polygons.");
+            throw new InvalidOperationException(string.Create(
+                CultureInfo.InvariantCulture,
+                $"Expected reveal sidecar to render {RevealFacesCount} native Skia mesh triangles, got {revealMesh.TriangleCount}."));
+        }
+
+        if (!document.ContainsElement("reveal-light-core") ||
+            !document.ContainsElement("reveal-light-glow"))
+        {
+            throw new InvalidOperationException("Expected reveal sidecar to render the point-light marker.");
+        }
+
+        revealHost.DispatchKey("ArrowLeft");
+        DispatchSmokeFrames(revealHost, 720);
+        if (revealMesh.TriangleCount != 0)
+        {
+            throw new InvalidOperationException("Expected reveal mesh to clear when navigating away from the slide.");
         }
     }
+
+    private const int RevealFacesCount = 20;
 
     private static void RunPresentationPreloadSmoke()
     {
@@ -329,6 +347,7 @@ internal sealed partial class DemoWindow : Window
     private static readonly TimeSpan PresentationDuration = TimeSpan.FromMinutes(45);
     private readonly SvgSlideView _svgView;
     private readonly SvgSlideDocument _document;
+    private readonly NativeTriangleMesh _nativeMesh;
     private readonly SlideScriptHost _scriptHost;
     private readonly DispatcherTimer _timer;
     private readonly DateTimeOffset _startedAt = DateTimeOffset.UtcNow;
@@ -356,6 +375,8 @@ internal sealed partial class DemoWindow : Window
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch
         };
+        _nativeMesh = new NativeTriangleMesh(RenderSvg);
+        _svgView.NativeMesh = _nativeMesh;
 
         Title = "JsEngine Avalonia SVG Browser";
         Width = 1280;
@@ -377,7 +398,7 @@ internal sealed partial class DemoWindow : Window
 
         Content = CreateLayout(launch);
 
-        _scriptHost = new SlideScriptHost(_document, launch.Deck, UpdatePresentationStatus);
+        _scriptHost = new SlideScriptHost(_document, launch.Deck, UpdatePresentationStatus, _nativeMesh);
         if (launch.ScriptPath is not null)
         {
             _scriptHost.Run(launch.ScriptPath);
@@ -1082,6 +1103,174 @@ internal sealed partial class DemoWindow
     }
 }
 
+internal sealed class NativeTriangleMesh
+{
+    private readonly object _sync = new();
+    private readonly List<NativeTriangle> _pendingTriangles = [];
+    private readonly Action _render;
+    private NativeTriangle[] _triangles = [];
+
+    public NativeTriangleMesh(Action render)
+    {
+        _render = render;
+    }
+
+    public int TriangleCount
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _triangles.Length;
+            }
+        }
+    }
+
+    public void Begin()
+    {
+        lock (_sync)
+        {
+            _pendingTriangles.Clear();
+        }
+    }
+
+    public void AddTriangle(
+        Point a,
+        SKColor colorA,
+        Point b,
+        SKColor colorB,
+        Point c,
+        SKColor colorC)
+    {
+        lock (_sync)
+        {
+            _pendingTriangles.Add(new NativeTriangle(a, colorA, b, colorB, c, colorC));
+        }
+    }
+
+    public void End()
+    {
+        lock (_sync)
+        {
+            _triangles = _pendingTriangles.ToArray();
+        }
+
+        _render();
+    }
+
+    public void Clear()
+    {
+        lock (_sync)
+        {
+            _pendingTriangles.Clear();
+            _triangles = [];
+        }
+
+        _render();
+    }
+
+    public void Render(DrawingContext context, SvgSlideDocument document, Rect bounds)
+    {
+        NativeTriangle[] snapshot;
+        lock (_sync)
+        {
+            snapshot = _triangles;
+        }
+
+        if (snapshot.Length == 0)
+        {
+            return;
+        }
+
+        var points = new SKPoint[snapshot.Length * 3];
+        var colors = new SKColor[points.Length];
+        for (var index = 0; index < snapshot.Length; index++)
+        {
+            var triangle = snapshot[index];
+            var offset = index * 3;
+            WriteVertex(points, colors, offset, document.MapSvgPointToViewPoint(triangle.A, bounds), triangle.ColorA);
+            WriteVertex(points, colors, offset + 1, document.MapSvgPointToViewPoint(triangle.B, bounds), triangle.ColorB);
+            WriteVertex(points, colors, offset + 2, document.MapSvgPointToViewPoint(triangle.C, bounds), triangle.ColorC);
+        }
+
+        context.Custom(new NativeTriangleMeshDrawOperation(bounds, points, colors));
+    }
+
+    private static void WriteVertex(SKPoint[] points, SKColor[] colors, int index, Point point, SKColor color)
+    {
+        points[index] = new SKPoint((float)point.X, (float)point.Y);
+        colors[index] = color;
+    }
+
+    private readonly record struct NativeTriangle(
+        Point A,
+        SKColor ColorA,
+        Point B,
+        SKColor ColorB,
+        Point C,
+        SKColor ColorC);
+}
+
+internal sealed class NativeTriangleMeshDrawOperation : ICustomDrawOperation
+{
+    private readonly SKPoint[] _points;
+    private readonly SKColor[] _colors;
+
+    public NativeTriangleMeshDrawOperation(Rect bounds, SKPoint[] points, SKColor[] colors)
+    {
+        Bounds = bounds;
+        _points = points;
+        _colors = colors;
+    }
+
+    public Rect Bounds { get; }
+
+    public bool HitTest(Point p)
+    {
+        return false;
+    }
+
+    public void Render(Avalonia.Media.ImmediateDrawingContext context)
+    {
+        var leaseFeature = context.TryGetFeature<ISkiaSharpApiLeaseFeature>();
+        if (leaseFeature is null)
+        {
+            return;
+        }
+
+        using var lease = leaseFeature.Lease();
+        using var fillPaint = new SKPaint
+        {
+            Color = SKColors.White,
+            IsAntialias = true
+        };
+        using var linePaint = new SKPaint
+        {
+            Color = new SKColor(229, 247, 255, 155),
+            IsAntialias = true,
+            StrokeWidth = 1.35f,
+            Style = SKPaintStyle.Stroke
+        };
+
+        lease.SkCanvas.DrawVertices(SKVertexMode.Triangles, _points, _colors, fillPaint);
+        for (var index = 0; index < _points.Length; index += 3)
+        {
+            lease.SkCanvas.DrawLine(_points[index], _points[index + 1], linePaint);
+            lease.SkCanvas.DrawLine(_points[index + 1], _points[index + 2], linePaint);
+            lease.SkCanvas.DrawLine(_points[index + 2], _points[index], linePaint);
+        }
+    }
+
+    public void Dispose()
+    {
+    }
+
+    public bool Equals(ICustomDrawOperation? other)
+    {
+        return false;
+    }
+}
+
 internal sealed class SvgSlideView : Control
 {
     private const double MinZoom = 1;
@@ -1091,6 +1280,8 @@ internal sealed class SvgSlideView : Control
     private Point? _pointerPosition;
 
     public SvgSlideDocument? Document { get; set; }
+
+    public NativeTriangleMesh? NativeMesh { get; set; }
 
     public bool IsZoomed => _zoom > 1.001;
 
@@ -1119,6 +1310,10 @@ internal sealed class SvgSlideView : Control
             using (context.PushTransform(Matrix.CreateScale(_zoom, _zoom) * Matrix.CreateTranslation(_pan.X, _pan.Y)))
             {
                 Document?.Render(context, Bounds);
+                if (Document is not null)
+                {
+                    NativeMesh?.Render(context, Document, Bounds);
+                }
             }
 
             RenderPointerSpotlight(context);
@@ -1210,18 +1405,22 @@ internal sealed class SlideScriptHost : IDisposable
     private readonly SvgSlideDocument _document;
     private readonly PresentationDeck? _deck;
     private readonly Action<PresentationDeck, string>? _presentationLoaded;
+    private readonly NativeTriangleMesh _nativeMesh;
     private readonly ExpressDemoProcessHost _demoProcessHost = new(AppContext.BaseDirectory);
 
     public SlideScriptHost(
         SvgSlideDocument document,
         PresentationDeck? deck,
-        Action<PresentationDeck, string>? presentationLoaded = null)
+        Action<PresentationDeck, string>? presentationLoaded = null,
+        NativeTriangleMesh? nativeMesh = null)
     {
         _document = document;
         _deck = deck;
         _presentationLoaded = presentationLoaded;
+        _nativeMesh = nativeMesh ?? new NativeTriangleMesh(static () => { });
         _engine.SetGlobalValue("console", CreateConsoleObject());
         _engine.SetGlobalValue("svg", CreateSvgObject());
+        _engine.SetGlobalValue("nativeMesh", CreateNativeMeshObject());
         _engine.SetGlobalValue("slide", CreateSlideObject());
         _engine.SetGlobalValue("presentation", CreatePresentationObject());
         _engine.SetGlobalValue("demo", CreateDemoObject());
@@ -1339,6 +1538,95 @@ internal sealed class SlideScriptHost : IDisposable
         return svg;
     }
 
+    private JsObject CreateNativeMeshObject()
+    {
+        var mesh = new JsObject();
+        SetProperty(mesh, "begin", CreateHostFunction(_ =>
+        {
+            _nativeMesh.Begin();
+            return JsValue.Undefined;
+        }));
+        SetProperty(mesh, "triangle", CreateHostFunction(args =>
+        {
+            _nativeMesh.AddTriangle(
+                new Point(GetDouble(args, 0), GetDouble(args, 1)),
+                ParseSkColor(GetString(args, 2)),
+                new Point(GetDouble(args, 3), GetDouble(args, 4)),
+                ParseSkColor(GetString(args, 5)),
+                new Point(GetDouble(args, 6), GetDouble(args, 7)),
+                ParseSkColor(GetString(args, 8)));
+            return JsValue.Undefined;
+        }));
+        SetProperty(mesh, "triangleRgba", CreateHostFunction(args =>
+        {
+            AddRgbaTriangle(args, 0);
+            return JsValue.Undefined;
+        }));
+        SetProperty(mesh, "trianglesRgba", CreateHostFunction(args =>
+        {
+            _nativeMesh.Begin();
+            for (var index = 0; index + 17 < args.Count; index += 18)
+            {
+                AddRgbaTriangle(args, index);
+            }
+
+            _nativeMesh.End();
+            return JsValue.Undefined;
+        }));
+        SetProperty(mesh, "trianglesRgbaArray", CreateHostFunction(args =>
+        {
+            if (args.Count == 0 || args[0].ObjectValue is not JsArray values)
+            {
+                return JsValue.Undefined;
+            }
+
+            _nativeMesh.Begin();
+            var count = (int)values.Length;
+            for (var index = 0; index + 17 < count; index += 18)
+            {
+                AddRgbaTriangle(values, index);
+            }
+
+            _nativeMesh.End();
+            return JsValue.Undefined;
+        }));
+        SetProperty(mesh, "end", CreateHostFunction(_ =>
+        {
+            _nativeMesh.End();
+            return JsValue.Undefined;
+        }));
+        SetProperty(mesh, "clear", CreateHostFunction(_ =>
+        {
+            _nativeMesh.Clear();
+            return JsValue.Undefined;
+        }));
+        SetProperty(mesh, "count", CreateHostFunction(_ =>
+            new JsValue(_nativeMesh.TriangleCount)));
+        return mesh;
+    }
+
+    private void AddRgbaTriangle(IReadOnlyList<JsValue> args, int offset)
+    {
+        _nativeMesh.AddTriangle(
+            new Point(GetDouble(args, offset), GetDouble(args, offset + 1)),
+            GetSkColor(args, offset + 2),
+            new Point(GetDouble(args, offset + 6), GetDouble(args, offset + 7)),
+            GetSkColor(args, offset + 8),
+            new Point(GetDouble(args, offset + 12), GetDouble(args, offset + 13)),
+            GetSkColor(args, offset + 14));
+    }
+
+    private void AddRgbaTriangle(JsArray values, int offset)
+    {
+        _nativeMesh.AddTriangle(
+            new Point(GetDouble(values.GetElement(offset)), GetDouble(values.GetElement(offset + 1))),
+            GetSkColor(values, offset + 2),
+            new Point(GetDouble(values.GetElement(offset + 6)), GetDouble(values.GetElement(offset + 7))),
+            GetSkColor(values, offset + 8),
+            new Point(GetDouble(values.GetElement(offset + 12)), GetDouble(values.GetElement(offset + 13))),
+            GetSkColor(values, offset + 14));
+    }
+
     private JsObject CreateSlideObject()
     {
         var slide = new JsObject();
@@ -1435,6 +1723,7 @@ internal sealed class SlideScriptHost : IDisposable
                 ? _deck.Load(GetString(args, 0), GetInt32(args, 1), displayCount)
                 : _deck.Load(GetInt32(args, 0));
             _document.Load(path);
+            _nativeMesh.Clear();
             _presentationLoaded?.Invoke(_deck, path);
             Console.WriteLine(string.Create(
                 CultureInfo.InvariantCulture,
@@ -1598,15 +1887,88 @@ internal sealed class SlideScriptHost : IDisposable
             return defaultValue;
         }
 
-        var text = args[index].ToString();
+        return GetDouble(args[index], defaultValue);
+    }
+
+    private static double GetDouble(JsValue argument, double defaultValue = 0)
+    {
+        if (argument.Kind is JsValueKind.Number or JsValueKind.Boolean)
+        {
+            return argument.NumberValue;
+        }
+
+        var text = argument.ToString();
         return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
             ? value
             : defaultValue;
     }
 
+    private static SKColor GetSkColor(IReadOnlyList<JsValue> args, int index)
+    {
+        return new SKColor(
+            GetByte(args, index),
+            GetByte(args, index + 1),
+            GetByte(args, index + 2),
+            GetByte(args, index + 3, 255));
+    }
+
+    private static SKColor GetSkColor(JsArray values, int index)
+    {
+        return new SKColor(
+            GetByte(values, index),
+            GetByte(values, index + 1),
+            GetByte(values, index + 2),
+            GetByte(values, index + 3, 255));
+    }
+
+    private static byte GetByte(IReadOnlyList<JsValue> args, int index, byte defaultValue = 0)
+    {
+        var value = GetDouble(args, index, defaultValue);
+        if (value <= 0)
+        {
+            return 0;
+        }
+
+        if (value >= 255)
+        {
+            return 255;
+        }
+
+        return (byte)Math.Round(value);
+    }
+
+    private static byte GetByte(JsArray values, int index, byte defaultValue = 0)
+    {
+        var value = GetDouble(values.GetElement(index), defaultValue);
+        if (value <= 0)
+        {
+            return 0;
+        }
+
+        if (value >= 255)
+        {
+            return 255;
+        }
+
+        return (byte)Math.Round(value);
+    }
+
     private static string FormatConsoleArguments(IReadOnlyList<JsValue> args)
     {
         return string.Join(" ", args.Select(static arg => arg.ToString()));
+    }
+
+    private static Color ParseColor(string value)
+    {
+        return Color.TryParse(value, out var color)
+            ? color
+            : Colors.White;
+    }
+
+    private static SKColor ParseSkColor(string value)
+    {
+        var color = ParseColor(value);
+        return new SKColor(color.R, color.G, color.B, color.A);
     }
 
     private static void SetProperty(JsObject target, string name, JsValue value)
@@ -2281,6 +2643,14 @@ internal sealed class SvgSlideDocument
             offsetY + svgRect.Y * scale,
             svgRect.Width * scale,
             svgRect.Height * scale);
+    }
+
+    public Point MapSvgPointToViewPoint(Point point, Rect bounds)
+    {
+        var scale = Math.Min(bounds.Width / _viewBoxWidth, bounds.Height / _viewBoxHeight);
+        var offsetX = bounds.X + (bounds.Width - _viewBoxWidth * scale) / 2;
+        var offsetY = bounds.Y + (bounds.Height - _viewBoxHeight * scale) / 2;
+        return new Point(offsetX + point.X * scale, offsetY + point.Y * scale);
     }
 
     public SvgMaskAnalysis AnalyzeGeneratedImageMasks()

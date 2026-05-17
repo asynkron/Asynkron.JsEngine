@@ -67,6 +67,7 @@ slides[62] = "express-live-demo.svg";
 slides[63] = "express-demo-stack.svg";
 slides[64] = "runtime-journey-pattern.svg";
 slides[65] = "jsengine-presentation-reveal.svg";
+slides[66] = "how-far-did-we-push-it.svg";
 
 let current = presentation.current();
 let phase = "idle";

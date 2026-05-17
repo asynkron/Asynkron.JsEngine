@@ -1,7 +1,9 @@
 using System.Globalization;
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.Execution.Instructions;
 
@@ -2364,7 +2366,7 @@ internal static class ExpressionProgramCompiler
     {
         private readonly List<PackedExpressionOp> _operations = [];
         private readonly List<JsValue> _literalConstants = [];
-        private readonly Dictionary<JsValue, int> _literalConstantMap = [];
+        private readonly Dictionary<JsValue, int> _literalConstantMap = new(SameValueLiteralComparer.Instance);
         private readonly List<string> _stringConstants = [];
         private readonly Dictionary<string, int> _stringConstantMap = new(StringComparer.Ordinal);
         private readonly List<object> _objectConstants = [];
@@ -2462,6 +2464,42 @@ internal static class ExpressionProgramCompiler
                 _objectConstants.Count == 0 ? ImmutableArray<object>.Empty : [.. _objectConstants],
                 _identifierConstants.Count == 0 ? ImmutableArray<IdentifierOperand>.Empty : [.. _identifierConstants],
                 _spreadMaskConstants.Count == 0 ? ImmutableArray<ImmutableArray<int>>.Empty : [.. _spreadMaskConstants]);
+        }
+    }
+
+    private sealed class SameValueLiteralComparer : IEqualityComparer<JsValue>
+    {
+        public static readonly SameValueLiteralComparer Instance = new();
+
+        private SameValueLiteralComparer()
+        {
+        }
+
+        public bool Equals(JsValue x, JsValue y)
+        {
+            return JsOps.SameValue(x, y);
+        }
+
+        public int GetHashCode(JsValue value)
+        {
+            return value.Kind switch
+            {
+                JsValueKind.Undefined => HashCode.Combine(value.Kind),
+                JsValueKind.Null => HashCode.Combine(value.Kind),
+                JsValueKind.Unit => HashCode.Combine(value.Kind),
+                JsValueKind.Boolean => HashCode.Combine(value.Kind, value.NumberValue != 0.0),
+                JsValueKind.Number => HashCode.Combine(
+                    value.Kind,
+                    double.IsNaN(value.NumberValue)
+                        ? long.MaxValue
+                        : BitConverter.DoubleToInt64Bits(value.NumberValue)),
+                JsValueKind.String => HashCode.Combine(value.Kind, StringComparer.Ordinal.GetHashCode(value.AsString())),
+                JsValueKind.BigInt => HashCode.Combine(value.Kind, value.ObjectValue),
+                JsValueKind.Symbol or JsValueKind.Object => HashCode.Combine(
+                    value.Kind,
+                    RuntimeHelpers.GetHashCode(value.ObjectValue!)),
+                _ => HashCode.Combine(value.Kind)
+            };
         }
     }
 }

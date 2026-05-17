@@ -53,16 +53,23 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
     private readonly string _scriptPath;
     private readonly List<MiniHttpServer> _servers = [];
     private readonly Dictionary<string, JsValue> _moduleCache = new(StringComparer.Ordinal);
+    private readonly Queue<ScheduledCallback> _nextTickQueue = [];
+    private readonly HashSet<int> _clearedImmediateHandles = [];
+    private readonly object _engineExecutionLock = new();
+    private readonly IJsCallable _arrayFactory;
+    private int _pendingScheduledCallbackCount;
+    private int _nextImmediateHandle;
 
     public MiniNodeRuntime(string scriptPath)
     {
         _scriptPath = scriptPath;
         _scriptDirectory = Path.GetDirectoryName(scriptPath) ?? Directory.GetCurrentDirectory();
+        _arrayFactory = CreateArrayFactory();
         _engine.SetGlobalFunction("require", Require);
         _engine.SetGlobalValue("process", CreateProcessObject());
         _engine.SetGlobalValue("console", CreateConsoleObject());
-        _engine.SetGlobalFunction("setImmediate", InvokeImmediately);
-        _engine.SetGlobalFunction("clearImmediate", _ => JsValue.Undefined);
+        _engine.SetGlobalFunction("setImmediate", ScheduleImmediate);
+        _engine.SetGlobalFunction("clearImmediate", ClearImmediate);
         InstallGlobalBuffer();
         InstallTextEncodingGlobals();
         InstallNodeCompatibilityShims();
@@ -75,6 +82,7 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
         await Task.Yield();
         cancellationToken.ThrowIfCancellationRequested();
         LoadScriptModule(_scriptPath, _scriptDirectory);
+        DrainQueuedCallbacks();
     }
 
     public static async Task WaitForShutdownAsync(CancellationToken cancellationToken)
@@ -194,20 +202,49 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
     {
         var process = new JsObject();
         SetProperty(process, "cwd", CreateHostFunction(_ => _scriptDirectory));
-        SetProperty(process, "argv", JsValue.FromObjectUnsafe(_engine.EvaluateSync("[]")));
+        SetProperty(process, "argv", CreateJsArray([]));
         SetProperty(process, "env", new JsObject());
         SetProperty(process, "noDeprecation", false);
         SetProperty(process, "platform", GetNodePlatform());
         SetProperty(process, "traceDeprecation", false);
         SetProperty(process, "stderr", CreateStderrObject());
         SetProperty(process, "stdout", CreateStdoutObject());
-        SetProperty(process, "nextTick", CreateHostFunction(InvokeImmediately));
+        SetProperty(process, "nextTick", CreateHostFunction(ScheduleNextTick));
         SetProperty(process, "uptime", CreateHostFunction(_ =>
         {
             var elapsed = DateTimeOffset.UtcNow - _startedAt;
             return JsValue.FromDouble(elapsed.TotalSeconds);
         }));
+        SetProperty(process, "hrtime", CreateHostFunction(args =>
+        {
+            var elapsed = DateTimeOffset.UtcNow - _startedAt;
+            var seconds = (long)elapsed.TotalSeconds;
+            var nanoseconds = (long)((elapsed - TimeSpan.FromSeconds(seconds)).Ticks * 100);
+
+            if (args.Count > 0 &&
+                args[0].TryGetObject<JsObject>(out var previous))
+            {
+                var previousSeconds = ReadNumberProperty(previous, "0");
+                var previousNanoseconds = ReadNumberProperty(previous, "1");
+                seconds -= (long)previousSeconds;
+                nanoseconds -= (long)previousNanoseconds;
+                if (nanoseconds < 0)
+                {
+                    seconds--;
+                    nanoseconds += 1_000_000_000;
+                }
+            }
+
+            return CreateJsArray([(JsValue)seconds, (JsValue)nanoseconds]);
+        }));
         return process;
+    }
+
+    private static double ReadNumberProperty(JsObject obj, string propertyName)
+    {
+        return obj.TryGetProperty(propertyName, out var value) && value.TryGetDouble(out var number)
+            ? number
+            : 0;
     }
 
     private static string GetNodePlatform()
@@ -272,21 +309,113 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
         return builder.ToString();
     }
 
-    private static JsValue InvokeImmediately(IReadOnlyList<JsValue> args)
+    private JsValue ScheduleNextTick(IReadOnlyList<JsValue> args)
+    {
+        EnqueueCallback(_nextTickQueue, handle: 0, args);
+        return JsValue.Undefined;
+    }
+
+    private JsValue ScheduleImmediate(IReadOnlyList<JsValue> args)
     {
         if (!TryGetCallable(args, 0, out var callback))
         {
             return JsValue.Undefined;
         }
 
+        var handle = ++_nextImmediateHandle;
+        var callbackArgs = CreateCallbackArgs(args);
+        ScheduleMacrotask(() =>
+        {
+            if (!_clearedImmediateHandles.Remove(handle))
+            {
+                callback.Invoke(callbackArgs, JsValue.Undefined);
+            }
+        });
+        return handle;
+    }
+
+    private JsValue ClearImmediate(IReadOnlyList<JsValue> args)
+    {
+        if (args.Count > 0 && args[0].TryGetDouble(out var handle))
+        {
+            _clearedImmediateHandles.Add((int)handle);
+        }
+
+        return JsValue.Undefined;
+    }
+
+    private static void EnqueueCallback(Queue<ScheduledCallback> queue, int handle, IReadOnlyList<JsValue> args)
+    {
+        if (!TryGetCallable(args, 0, out var callback))
+        {
+            return;
+        }
+
+        queue.Enqueue(new ScheduledCallback(handle, callback, CreateCallbackArgs(args)));
+    }
+
+    private static JsValue[] CreateCallbackArgs(IReadOnlyList<JsValue> args)
+    {
         var callbackArgs = new JsValue[Math.Max(0, args.Count - 1)];
         for (var i = 1; i < args.Count; i++)
         {
             callbackArgs[i - 1] = args[i];
         }
 
-        callback.Invoke(callbackArgs, JsValue.Undefined);
-        return JsValue.Undefined;
+        return callbackArgs;
+    }
+
+    private void DrainQueuedCallbacks()
+    {
+        const int maxQueuedCallbacksPerTurn = 100_000;
+        var executed = 0;
+
+        while (_nextTickQueue.Count > 0)
+        {
+            if (++executed > maxQueuedCallbacksPerTurn)
+            {
+                throw new InvalidOperationException("Queued JavaScript callbacks did not drain.");
+            }
+
+            var scheduled = _nextTickQueue.Dequeue();
+
+            scheduled.Callback.Invoke(scheduled.Args, JsValue.Undefined);
+        }
+    }
+
+    private void ScheduleMacrotask(Action callback)
+    {
+        Interlocked.Increment(ref _pendingScheduledCallbackCount);
+        ScheduleEngineTask(() =>
+        {
+            try
+            {
+                DrainQueuedCallbacks();
+                callback();
+                DrainQueuedCallbacks();
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _pendingScheduledCallbackCount);
+            }
+        });
+    }
+
+    private void ScheduleEngineTask(Action callback)
+    {
+        var thread = new Thread(state =>
+        {
+            var (runtime, queuedCallback) = ((MiniNodeRuntime Runtime, Action Callback))state!;
+            lock (runtime._engineExecutionLock)
+            {
+                queuedCallback();
+            }
+        }, maxStackSize: 16 * 1024 * 1024)
+        {
+            IsBackground = true,
+            Name = "NodeHostDemo JavaScript callback"
+        };
+        thread.Start((this, callback));
     }
 
     private JsValue CreateAsyncHooksModule()
@@ -326,8 +455,44 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
                 return makeBuffer(value);
               }
 
-              Buffer.prototype.toString = function () {
-                return this._bufferString || '';
+              function toHex(text) {
+                var result = '';
+                for (var i = 0; i < text.length; i++) {
+                  var hex = text.charCodeAt(i).toString(16);
+                  result += hex.length === 1 ? '0' + hex : hex.slice(-2);
+                }
+
+                return result;
+              }
+
+              function toBase64(text) {
+                var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+                var result = '';
+                for (var i = 0; i < text.length; i += 3) {
+                  var a = text.charCodeAt(i) & 255;
+                  var b = i + 1 < text.length ? text.charCodeAt(i + 1) & 255 : 0;
+                  var c = i + 2 < text.length ? text.charCodeAt(i + 2) & 255 : 0;
+                  var triplet = (a << 16) | (b << 8) | c;
+                  result += chars[(triplet >> 18) & 63];
+                  result += chars[(triplet >> 12) & 63];
+                  result += i + 1 < text.length ? chars[(triplet >> 6) & 63] : '=';
+                  result += i + 2 < text.length ? chars[triplet & 63] : '=';
+                }
+
+                return result;
+              }
+
+              Buffer.prototype.toString = function (encoding) {
+                var text = this._bufferString || '';
+                if (encoding === 'hex') {
+                  return toHex(text);
+                }
+
+                if (encoding === 'base64') {
+                  return toBase64(text);
+                }
+
+                return text;
               };
 
               Buffer.prototype.fill = function (value) {
@@ -335,6 +500,32 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
                 this._bufferString = new Array(this.length + 1).join(text.charAt(0));
                 return this;
               };
+
+              Buffer.prototype.slice = function (start, end) {
+                var length = this.length || 0;
+                var from = start === undefined ? 0 : Number(start);
+                var to = end === undefined ? length : Number(end);
+
+                if (from < 0) {
+                  from = Math.max(length + from, 0);
+                } else {
+                  from = Math.min(from, length);
+                }
+
+                if (to < 0) {
+                  to = Math.max(length + to, 0);
+                } else {
+                  to = Math.min(to, length);
+                }
+
+                if (to < from) {
+                  to = from;
+                }
+
+                return Buffer((this._bufferString || '').slice(from, to));
+              };
+
+              Buffer.prototype.subarray = Buffer.prototype.slice;
 
               Buffer.from = function (value) {
                 return Buffer(value);
@@ -507,14 +698,108 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
             {
                 var format = digestArgs.Count > 0 ? ToHostString(digestArgs[0]) : string.Empty;
                 var bytes = System.Security.Cryptography.SHA1.HashData(Encoding.UTF8.GetBytes(input.ToString()));
-                return string.Equals(format, "base64", StringComparison.OrdinalIgnoreCase)
-                    ? Convert.ToBase64String(bytes)
-                    : Convert.ToHexString(bytes).ToLowerInvariant();
+                return FormatDigest(bytes, format);
             }));
 
             return hash;
         }));
+        SetProperty(crypto, "createHmac", CreateHostFunction(args =>
+        {
+            var algorithm = GetRequiredString(args, 0, "crypto.createHmac");
+            if (!string.Equals(algorithm, "sha256", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new NotSupportedException("Only sha256 HMAC is implemented by this demo host.");
+            }
+
+            var key = Encoding.UTF8.GetBytes(GetRequiredString(args, 1, "crypto.createHmac"));
+            var input = new StringBuilder();
+            var hmac = new JsObject();
+            SetProperty(hmac, "update", CreateHostFunction((thisValue, updateArgs) =>
+            {
+                if (updateArgs.Count > 0)
+                {
+                    input.Append(ToHostString(updateArgs[0]));
+                }
+
+                return thisValue.IsUndefined ? (JsValue)hmac : thisValue;
+            }));
+            SetProperty(hmac, "digest", CreateHostFunction(digestArgs =>
+            {
+                var format = digestArgs.Count > 0 ? ToHostString(digestArgs[0]) : string.Empty;
+                using var hash = new System.Security.Cryptography.HMACSHA256(key);
+                var bytes = hash.ComputeHash(Encoding.UTF8.GetBytes(input.ToString()));
+                return FormatDigest(bytes, format);
+            }));
+
+            return hmac;
+        }));
+        var randomBytes = CreateHostFunction(args =>
+        {
+            var size = GetRequiredInt(args, 0, "crypto.randomBytes");
+            var buffer = CreateRandomBuffer(size);
+            if (TryGetCallable(args, 1, out var callback))
+            {
+                ScheduleMacrotask(() => callback.Invoke([JsValue.Null, buffer], JsValue.Undefined));
+            }
+
+            return buffer;
+        });
+        SetProperty(crypto, "randomBytes", randomBytes);
+        SetProperty(crypto, "pseudoRandomBytes", randomBytes);
+        SetProperty(crypto, "timingSafeEqual", CreateHostFunction(args =>
+        {
+            var left = ToHostString(args.Count > 0 ? args[0] : JsValue.EmptyString);
+            var right = ToHostString(args.Count > 1 ? args[1] : JsValue.EmptyString);
+            if (left.Length != right.Length)
+            {
+                throw new ArgumentException("Input buffers must have the same length.");
+            }
+
+            var diff = 0;
+            for (var i = 0; i < left.Length; i++)
+            {
+                diff |= left[i] ^ right[i];
+            }
+
+            return diff == 0;
+        }));
         return crypto;
+    }
+
+    private JsValue FormatDigest(byte[] bytes, string format)
+    {
+        if (string.IsNullOrEmpty(format))
+        {
+            return CreateBufferFromBytes(bytes);
+        }
+
+        return string.Equals(format, "base64", StringComparison.OrdinalIgnoreCase)
+            ? Convert.ToBase64String(bytes)
+            : Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    private JsValue CreateRandomBuffer(int size)
+    {
+        if (size < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(size), "Random byte length must be non-negative.");
+        }
+
+        var bytes = new byte[size];
+        System.Security.Cryptography.RandomNumberGenerator.Fill(bytes);
+        return CreateBufferFromBytes(bytes);
+    }
+
+    private JsValue CreateBufferFromBytes(byte[] bytes)
+    {
+        var chars = new char[bytes.Length];
+        for (var i = 0; i < bytes.Length; i++)
+        {
+            chars[i] = (char)bytes[i];
+        }
+
+        var literal = JsonSerializer.Serialize(new string(chars));
+        return JsValue.FromObjectUnsafe(_engine.EvaluateSync("Buffer.from(" + literal + ")"));
     }
 
     private JsValue CreateEventsModule()
@@ -816,6 +1101,33 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
             return File.ReadAllText(resolvedPath);
         }));
 
+        SetProperty(fs, "readFile", CreateHostFunction(args =>
+        {
+            var requestedPath = GetRequiredString(args, 0, "fs.readFile");
+            var callbackIndex = TryGetCallable(args, 1, out var callback)
+                ? 1
+                : 2;
+            if (callbackIndex == 2 && !TryGetCallable(args, callbackIndex, out callback))
+            {
+                throw new ArgumentException("fs.readFile requires a callback.");
+            }
+
+            var resolvedPath = ResolveScriptPath(requestedPath);
+            ScheduleMacrotask(() =>
+            {
+                try
+                {
+                    callback.Invoke([JsValue.Null, (JsValue)File.ReadAllText(resolvedPath)], JsValue.Undefined);
+                }
+                catch (FileNotFoundException)
+                {
+                    callback.Invoke([(JsValue)CreateFileSystemError("ENOENT", requestedPath)], JsValue.Undefined);
+                }
+            });
+
+            return JsValue.Undefined;
+        }));
+
         SetProperty(fs, "writeFileSync", CreateHostFunction(args =>
         {
             var requestedPath = GetRequiredString(args, 0, "fs.writeFileSync");
@@ -830,6 +1142,25 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
             var requestedPath = GetRequiredString(args, 0, "fs.existsSync");
             var resolvedPath = ResolveScriptPath(requestedPath);
             return File.Exists(resolvedPath) || Directory.Exists(resolvedPath);
+        }));
+
+        SetProperty(fs, "readdirSync", CreateHostFunction(args =>
+        {
+            var requestedPath = GetRequiredString(args, 0, "fs.readdirSync");
+            var resolvedPath = ResolveScriptPath(requestedPath);
+            if (!Directory.Exists(resolvedPath))
+            {
+                throw new DirectoryNotFoundException($"ENOENT: no such file or directory, scandir '{requestedPath}'");
+            }
+
+            var names = Directory
+                .EnumerateFileSystemEntries(resolvedPath)
+                .Select(Path.GetFileName)
+                .Where(static name => !string.IsNullOrEmpty(name))
+                .Order(StringComparer.Ordinal)
+                .Select(static name => (JsValue)name!)
+                .ToArray();
+            return CreateJsArray(names);
         }));
 
         SetProperty(fs, "statSync", CreateHostFunction(args =>
@@ -1230,21 +1561,21 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
         string requestBody,
         TaskCompletionSource completion)
     {
-        _engine.ScheduleTask(() =>
+        ScheduleEngineTask(() =>
         {
-            var response = new ResponseHost(context.Response);
+            var response = new ResponseHost(context.Response, completion);
             try
             {
                 callback.Invoke(
                     [(JsValue)CreateRequestObject(context.Request, requestBody), (JsValue)response.CreateResponseObject(this)],
                     JsValue.Undefined);
 
-                if (!response.HasEnded)
+                DrainQueuedCallbacks();
+                if (!response.HasEnded &&
+                    Interlocked.CompareExchange(ref _pendingScheduledCallbackCount, 0, 0) == 0)
                 {
                     response.End(JsValue.EmptyString);
                 }
-
-                completion.SetResult();
             }
             catch (Exception ex)
             {
@@ -1254,7 +1585,7 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
                     response.SendError(500, ex.Message);
                 }
 
-                completion.SetException(ex);
+                completion.TrySetException(ex);
             }
         });
     }
@@ -1446,6 +1777,33 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
         {
             Realm = _engine.GlobalObject
         };
+    }
+
+    private IJsCallable CreateArrayFactory()
+    {
+        var factoryValue = JsValue.FromObjectUnsafe(_engine.EvaluateSync("(function () { return []; })"));
+        if (!factoryValue.TryGetCallable(out var callable))
+        {
+            throw new InvalidOperationException("Could not create JavaScript array factory.");
+        }
+
+        return callable;
+    }
+
+    private JsValue CreateJsArray(IReadOnlyList<JsValue> values)
+    {
+        var arrayValue = _arrayFactory.Invoke([], JsValue.Undefined);
+        if (!arrayValue.TryGetArray(out var array))
+        {
+            throw new InvalidOperationException("JavaScript array factory did not return an array.");
+        }
+
+        for (var index = 0; index < values.Count; index++)
+        {
+            array.SetProperty(index.ToString(CultureInfo.InvariantCulture), values[index]);
+        }
+
+        return arrayValue;
     }
 
     private static void SetProperty(JsObject target, string name, JsValue value)
@@ -1655,14 +2013,27 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
         }
     }
 
+    private sealed class ScheduledCallback(int handle, IJsCallable callback, JsValue[] args)
+    {
+        public int Handle { get; } = handle;
+
+        public IJsCallable Callback { get; } = callback;
+
+        public JsValue[] Args { get; } = args;
+    }
+
     private sealed class ResponseHost
     {
         private readonly HttpListenerResponse _response;
+        private readonly TaskCompletionSource _completion;
+        private readonly StringBuilder _body = new();
+        private bool _headersStarted;
         private JsObject? _responseObject;
 
-        public ResponseHost(HttpListenerResponse response)
+        public ResponseHost(HttpListenerResponse response, TaskCompletionSource completion)
         {
             _response = response;
+            _completion = completion;
             _response.StatusCode = 200;
         }
 
@@ -1675,6 +2046,7 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
             SetProperty(response, "statusCode", _response.StatusCode);
             SetProperty(response, "finished", false);
             SetProperty(response, "headersSent", false);
+            SetProperty(response, "_header", JsValue.Undefined);
             SetProperty(response, "socket", CreateSocketObject());
             SetProperty(response, "on", CreateNoOpChainFunction(response));
             SetProperty(response, "once", CreateNoOpChainFunction(response));
@@ -1684,17 +2056,32 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
             SetProperty(response, "setHeader", runtime.CreateHostFunction(args =>
             {
                 var key = GetRequiredString(args, 0, "res.setHeader");
-                var value = args.Count > 1 ? ToHostString(args[1]) : string.Empty;
-                SetHeader(key, value);
+                if (args.Count > 1 && TryGetHeaderString(args[1], out var value))
+                {
+                    SetHeader(key, value);
+                }
+                else
+                {
+                    RemoveHeader(key);
+                }
+
                 return JsValue.Undefined;
             }));
 
             SetProperty(response, "getHeader", runtime.CreateHostFunction(args =>
             {
                 var key = GetRequiredString(args, 0, "res.getHeader");
-                return string.Equals(key, "Content-Type", StringComparison.OrdinalIgnoreCase)
-                    ? _response.ContentType ?? string.Empty
-                    : _response.Headers[key] ?? string.Empty;
+                if (string.Equals(key, "Content-Type", StringComparison.OrdinalIgnoreCase))
+                {
+                    return string.IsNullOrEmpty(_response.ContentType)
+                        ? JsValue.Undefined
+                        : (JsValue)_response.ContentType;
+                }
+
+                var value = _response.Headers[key];
+                return value is null
+                    ? JsValue.Undefined
+                    : (JsValue)value;
             }));
 
             SetProperty(response, "getHeaderNames", runtime.CreateHostFunction(_ =>
@@ -1713,21 +2100,13 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
                     names.Add("content-type");
                 }
 
-                return JsValue.FromJsArray(new JsArray(names));
+                return runtime.CreateJsArray(names);
             }));
 
             SetProperty(response, "removeHeader", runtime.CreateHostFunction(args =>
             {
                 var key = GetRequiredString(args, 0, "res.removeHeader");
-                if (string.Equals(key, "Content-Type", StringComparison.OrdinalIgnoreCase))
-                {
-                    _response.ContentType = null;
-                }
-                else
-                {
-                    _response.Headers.Remove(key);
-                }
-
+                RemoveHeader(key);
                 return JsValue.Undefined;
             }));
 
@@ -1735,6 +2114,18 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
             {
                 WriteHead(args);
                 return JsValue.Undefined;
+            }));
+
+            SetProperty(response, "_implicitHeader", runtime.CreateHostFunction(_ =>
+            {
+                InvokeImplicitHeader();
+                return JsValue.Undefined;
+            }));
+
+            SetProperty(response, "write", runtime.CreateHostFunction(args =>
+            {
+                Write(args.Count > 0 ? args[0] : JsValue.EmptyString);
+                return true;
             }));
 
             SetProperty(response, "end", runtime.CreateHostFunction(args =>
@@ -1764,6 +2155,7 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
 
             if (args.Count <= 1 || !args[1].TryGetObject<JsObject>(out var headers))
             {
+                MarkHeadersStarted();
                 return;
             }
 
@@ -1774,8 +2166,28 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
                     continue;
                 }
 
-                SetHeader(key, ToHostString(value));
+                if (TryGetHeaderString(value, out var headerValue))
+                {
+                    SetHeader(key, headerValue);
+                }
+                else
+                {
+                    RemoveHeader(key);
+                }
             }
+
+            MarkHeadersStarted();
+        }
+
+        public void Write(JsValue body)
+        {
+            if (HasEnded)
+            {
+                return;
+            }
+
+            InvokeImplicitHeader();
+            _body.Append(ToHostString(body));
         }
 
         public void End(JsValue body)
@@ -1785,8 +2197,14 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
                 return;
             }
 
-            var text = ToHostString(body);
+            if (!body.IsNullOrUndefined)
+            {
+                _body.Append(ToHostString(body));
+            }
+
             ApplyResponseProperties();
+            InvokeImplicitHeader();
+            var text = _body.ToString();
             var bytes = Encoding.UTF8.GetBytes(text);
             _response.ContentLength64 = bytes.Length;
             _response.OutputStream.Write(bytes, 0, bytes.Length);
@@ -1797,6 +2215,8 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
                 SetProperty(_responseObject, "finished", true);
                 SetProperty(_responseObject, "headersSent", true);
             }
+
+            _completion.TrySetResult();
         }
 
         public void SendError(int statusCode, string message)
@@ -1820,6 +2240,106 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
             }
 
             _response.Headers[key] = value;
+        }
+
+        private void RemoveHeader(string key)
+        {
+            if (string.Equals(key, "Content-Type", StringComparison.OrdinalIgnoreCase))
+            {
+                _response.ContentType = null;
+                return;
+            }
+
+            _response.Headers.Remove(key);
+        }
+
+        private static bool TryGetHeaderString(JsValue value, out string headerValue)
+        {
+            if (value.IsNullOrUndefined)
+            {
+                headerValue = string.Empty;
+                return false;
+            }
+
+            if (value.TryGetArray(out var array))
+            {
+                if (array.Length == 0)
+                {
+                    headerValue = string.Empty;
+                    return false;
+                }
+
+                var values = new List<string>();
+                for (var index = 0; index < (int)array.Length; index++)
+                {
+                    var item = array.GetElement(index);
+                    if (!item.IsNullOrUndefined)
+                    {
+                        values.Add(ToHostString(item));
+                    }
+                }
+
+                headerValue = string.Join(", ", values);
+                return values.Count > 0;
+            }
+
+            if (value.TryGetObject<JsObject>(out var obj) &&
+                obj.TryGetProperty("length", out var lengthValue) &&
+                lengthValue.TryGetDouble(out var length))
+            {
+                if (length == 0)
+                {
+                    headerValue = string.Empty;
+                    return false;
+                }
+
+                var values = new List<string>();
+                for (var index = 0; index < (int)length; index++)
+                {
+                    if (obj.TryGetProperty(index.ToString(CultureInfo.InvariantCulture), out var item) &&
+                        !item.IsNullOrUndefined)
+                    {
+                        values.Add(ToHostString(item));
+                    }
+                }
+
+                headerValue = string.Join(", ", values);
+                return values.Count > 0;
+            }
+
+            headerValue = ToHostString(value);
+            return true;
+        }
+
+        private void InvokeImplicitHeader()
+        {
+            if (_headersStarted)
+            {
+                return;
+            }
+
+            ApplyResponseProperties();
+
+            if (_responseObject is not null &&
+                _responseObject.TryGetProperty("writeHead", out var writeHeadValue) &&
+                writeHeadValue.TryGetCallable(out var writeHead))
+            {
+                writeHead.Invoke([(JsValue)_response.StatusCode], _responseObject);
+                return;
+            }
+
+            WriteHead([(JsValue)_response.StatusCode]);
+        }
+
+        private void MarkHeadersStarted()
+        {
+            _headersStarted = true;
+
+            if (_responseObject is not null)
+            {
+                SetProperty(_responseObject, "_header", "sent");
+                SetProperty(_responseObject, "headersSent", true);
+            }
         }
 
         private void ApplyResponseProperties()

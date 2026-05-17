@@ -1,6 +1,6 @@
 const expressDemoButtons = [
   { id: "start", label: "Start upstream app", x: 56, y: 124, w: 180, h: 42, fill: "#0b3a31", stroke: "#34d399" },
-  { id: "curl", label: "curl /", x: 252, y: 124, w: 158, h: 42, fill: "#3a2017", stroke: "#ffc000" },
+  { id: "curl", label: "curl /users", x: 252, y: 124, w: 158, h: 42, fill: "#3a2017", stroke: "#ffc000" },
   { id: "stop", label: "Stop host", x: 426, y: 124, w: 116, h: 42, fill: "#4b1530", stroke: "#fb7185" }
 ];
 
@@ -109,7 +109,7 @@ slideScript("express-live-demo.svg", {
     }
 
     expressDemoRenderLines(ctx, "express-demo-host-line", "$ click Start upstream app", 76, 252, 13, 50);
-    expressDemoRenderLines(ctx, "express-demo-curl-line", "$ click curl / after host is ready", 520, 252, 13, 50);
+    expressDemoRenderLines(ctx, "express-demo-curl-line", "$ click curl /users after host is ready", 520, 252, 13, 50);
     expressDemoSetStatus(ctx);
   },
 
@@ -139,7 +139,7 @@ slideScript("express-live-demo.svg", {
       if (button.id === "start") {
         demo.startExpress();
       } else if (button.id === "curl") {
-        demo.curl("/");
+        demo.curl("/users");
       } else if (button.id === "stop") {
         demo.stopExpress();
       }

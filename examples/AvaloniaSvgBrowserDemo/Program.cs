@@ -243,7 +243,7 @@ internal static class Program
             host.DispatchFrame(stopwatch.Elapsed.TotalMilliseconds);
             var curlText = GetTerminalText(document, "express-demo-curl-line-", 13);
             if (string.Equals(document.GetElementText("express-demo-state"), "upstream app ready on localhost:3000", StringComparison.Ordinal) &&
-                curlText.Contains("tobi@learnboost.com", StringComparison.Ordinal) &&
+                curlText.Contains("TJ", StringComparison.Ordinal) &&
                 curlText.Contains("[curl exited 0]", StringComparison.Ordinal))
             {
                 return;
@@ -258,7 +258,7 @@ internal static class Program
             $"host:{Environment.NewLine}{GetTerminalText(document, "express-demo-host-line-", 13)}" +
             $"curl:{Environment.NewLine}{GetTerminalText(document, "express-demo-curl-line-", 13)}");
         throw new InvalidOperationException(
-            "Expected the live Express demo slide to start the upstream app and complete curl /." +
+            "Expected the live Express demo slide to start the upstream MVC app and complete curl /users." +
             Environment.NewLine +
             diagnostic);
     }
@@ -1385,20 +1385,18 @@ internal sealed class ExpressDemoProcessHost : IDisposable
             _nodeHostDirectory,
             "third_party",
             "express",
-            "node_modules",
-            "express",
             "package.json");
         if (File.Exists(upstreamPackage))
         {
-            return new ProcessStartInfo("npm", "run official-express-ejs");
+            return new ProcessStartInfo("npm", "run official-express-mvc");
         }
 
         if (OperatingSystem.IsWindows())
         {
-            return new ProcessStartInfo("cmd", "/c npm run prepare:official-express-ejs && npm run official-express-ejs");
+            return new ProcessStartInfo("cmd", "/c npm run prepare:official-express && npm run official-express-mvc");
         }
 
-        return new ProcessStartInfo("/bin/sh", "-lc \"npm run prepare:official-express-ejs && npm run official-express-ejs\"");
+        return new ProcessStartInfo("/bin/sh", "-lc \"npm run prepare:official-express && npm run official-express-mvc\"");
     }
 
     private void AppendHost(string? line)

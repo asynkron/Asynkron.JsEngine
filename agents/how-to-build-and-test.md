@@ -11,7 +11,13 @@ dotnet build
 # Main test suite
 dotnet test tests/Asynkron.JsEngine.Tests
 ```
-Never use `--no-build`; keep code compiled with latest changes.
+Do not use `--no-build` for ad hoc test runs; keep code compiled with latest
+changes.
+
+Exception: `make quality` intentionally runs `build-internal` followed by
+`test-internal-no-build`. Keep that build-before-no-build sequence intact; it
+was added for issue #753 / PR #888 after the quality gate was SIGTERMed during a
+single build-and-test `test-internal` run.
 
 ## Narrow Test Runs
 ```bash

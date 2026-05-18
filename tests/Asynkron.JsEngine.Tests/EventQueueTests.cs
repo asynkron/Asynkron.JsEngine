@@ -95,20 +95,37 @@ public sealed class EventQueueTests(ITestOutputHelper output) : InternalTestBase
     {
         await using var engine = CreateEngine();
         var capturedValues = new List<JsValue>();
+        var capturedValuesLock = new object();
 
         engine.SetGlobalFunction("capture", args =>
         {
-            capturedValues.AddRange(args);
+            lock (capturedValuesLock)
+            {
+                capturedValues.AddRange(args);
+            }
+
             return JsValue.Null;
         });
 
-        engine.ScheduleTask(() => capturedValues.Add("from-task"));
+        engine.ScheduleTask(() =>
+        {
+            lock (capturedValuesLock)
+            {
+                capturedValues.Add("from-task");
+            }
+        });
 
         await engine.Evaluate("capture(1, 2, 3);");
 
-        Assert.Contains(1d, capturedValues);
-        Assert.Contains(2d, capturedValues);
-        Assert.Contains(3d, capturedValues);
-        Assert.Contains("from-task", capturedValues);
+        JsValue[] snapshot;
+        lock (capturedValuesLock)
+        {
+            snapshot = capturedValues.ToArray();
+        }
+
+        Assert.Contains(1d, snapshot);
+        Assert.Contains(2d, snapshot);
+        Assert.Contains(3d, snapshot);
+        Assert.Contains("from-task", snapshot);
     }
 }

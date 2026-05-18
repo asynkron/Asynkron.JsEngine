@@ -12,6 +12,7 @@ internal static class AtomicsWaiterManager
 
     internal sealed class Waiter : IDisposable
     {
+        private int _disposed;
         private int _state;
 
         internal Waiter()
@@ -50,7 +51,7 @@ internal static class AtomicsWaiterManager
                 // Ignore cancellation races.
             }
 
-            try { Semaphore.Release(); } catch (SemaphoreFullException) { }
+            ReleaseSemaphore();
             PromiseCompletionSource?.TrySetResult((JsValue)"ok");
         }
 
@@ -67,6 +68,11 @@ internal static class AtomicsWaiterManager
 
         public void Dispose()
         {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            {
+                return;
+            }
+
             try
             {
                 TimeoutTokenSource?.Dispose();
@@ -78,6 +84,22 @@ internal static class AtomicsWaiterManager
 
             TimeoutTokenSource = null;
             Semaphore.Dispose();
+        }
+
+        private void ReleaseSemaphore()
+        {
+            try
+            {
+                Semaphore.Release();
+            }
+            catch (SemaphoreFullException)
+            {
+                // Already signaled.
+            }
+            catch (ObjectDisposedException)
+            {
+                // Async waiters can be disposed by promise cleanup races.
+            }
         }
     }
 

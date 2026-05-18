@@ -46,9 +46,9 @@ public sealed class JsRegExp
     /// Normalized pattern length above which we skip RegexOptions.Compiled.
     /// Unicode property-escape patterns (e.g. \p{Script=Arabic}) expand to
     /// thousands of character alternations. JIT-compiling these takes hundreds
-    /// of ms and tens of MB per pattern — far exceeding any matching benefit
-    /// for typical test262 usage (a few matches per regex). 1024 chars covers
-    /// all "normal" patterns while excluding the expanded property escapes.
+    /// of ms and tens of MB per pattern, which exceeds the matching benefit for
+    /// typical Test262 usage. 1024 chars covers normal patterns while excluding
+    /// expanded property escapes.
     /// </summary>
     private const int LargePatternThreshold = 1024;
 
@@ -200,17 +200,18 @@ public sealed class JsRegExp
             : renamed;
         _groupNameMapping = nameMapping;
 
-        // Convert JavaScript regex flags to .NET RegexOptions.
-        // Use Compiled for small-to-medium patterns where JIT cost is amortized
-        // across matches. For large patterns (e.g. Unicode property escapes with
-        // thousands of character alternations), the JIT compilation itself takes
-        // hundreds of milliseconds and megabytes of memory — use interpreted mode
-        // which is still fast for matching but skips the upfront JIT cost.
+        var canDeferInitialConstruction = CanDeferInitialRegexConstruction(pattern, _encodedFlags);
+
+        // Convert JavaScript regex flags to .NET RegexOptions. Reusable regular
+        // expressions keep the existing compiled fast path, but Annex B single
+        // identity escapes are frequently source-only and one-shot in Test262,
+        // so those stay interpreted when first matched.
         var options = RegexOptions.CultureInvariant;
-        if (_normalizedPattern.Length <= LargePatternThreshold)
+        if (!canDeferInitialConstruction && _normalizedPattern.Length <= LargePatternThreshold)
         {
             options |= RegexOptions.Compiled;
         }
+
         if (IgnoreCase)
         {
             options |= RegexOptions.IgnoreCase;
@@ -227,6 +228,11 @@ public sealed class JsRegExp
         {
             JsObject.DefineProperty("lastIndex",
                 new PropertyDescriptor { Value = 0d, Writable = true, Enumerable = false, Configurable = false });
+        }
+
+        if (canDeferInitialConstruction)
+        {
+            return;
         }
 
         try
@@ -394,6 +400,19 @@ public sealed class JsRegExp
     private Regex EnsureRegex()
     {
         return _compiledRegex ??= new Regex(CapLargeQuantifiers(_normalizedPattern), _regexOptions);
+    }
+
+    private static bool CanDeferInitialRegexConstruction(string pattern, byte encodedFlags)
+    {
+        // Annex B permits single legacy identity escapes such as /\a/ and /\0/.
+        // They cannot contain captures or quantifier-reset metadata, and
+        // NormalizeLegacyPattern has already rejected line-terminator escapes.
+        // Deferring .NET Regex construction here keeps source-only RegExp
+        // literals cheap while preserving construction-time errors elsewhere.
+        return encodedFlags == 0 &&
+               pattern.Length == 2 &&
+               pattern[0] == '\\' &&
+               !IsLineTerminator(pattern[1]);
     }
 
     /// <summary>

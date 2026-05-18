@@ -490,6 +490,11 @@ public sealed partial class MathPrototype
             return x;
         }
 
+        if (x == 0)
+        {
+            return x;
+        }
+
         // Convert to Half (float16) and back to double
         // This performs the rounding to float16 precision
         var half = (Half)x;

@@ -85,6 +85,7 @@ internal sealed class Test262AgentRuntime : IDisposable
 
         foreach (var agent in agents)
         {
+            agent.WaitUntilBroadcastReady(TimeSpan.FromSeconds(5));
             agent.EnqueueBroadcast(buffer);
         }
 
@@ -190,6 +191,11 @@ internal sealed class Test262AgentRuntime : IDisposable
             }
         }
 
+        internal void WaitUntilBroadcastReady(TimeSpan timeout)
+        {
+            _callbackReady.Wait(timeout);
+        }
+
         private void Run()
         {
             var engine = _runtime._createAgentEngine();
@@ -248,8 +254,10 @@ internal sealed class Test262AgentRuntime : IDisposable
 
                 try
                 {
-                    _broadcastCallback.Invoke(new SingleValueArgs(JsValue.FromObjectUnsafe(pending)), JsValue.Undefined);
-                    engine.DrainMicrotasks();
+                    var result = _broadcastCallback.Invoke(
+                        new SingleValueArgs(JsValue.FromObjectUnsafe(pending)),
+                        JsValue.Undefined);
+                    DrainBroadcastCallback(engine, result);
                 }
                 catch (Exception ex)
                 {
@@ -257,6 +265,26 @@ internal sealed class Test262AgentRuntime : IDisposable
                 }
 
                 pending = null;
+            }
+        }
+
+        private void DrainBroadcastCallback(JsEngine engine, JsValue result)
+        {
+            if (!JsPromise.TryGetInternalPromise(result, out var promise) || promise is null)
+            {
+                engine.DrainMicrotasks();
+                return;
+            }
+
+            while (Volatile.Read(ref _leaving) == 0)
+            {
+                engine.DrainMicrotasks();
+                if (promise.TryGetSettled(out _, out _))
+                {
+                    return;
+                }
+
+                Thread.Yield();
             }
         }
 

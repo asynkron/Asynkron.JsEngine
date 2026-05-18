@@ -50,8 +50,8 @@ internal static class AtomicsWaiterManager
                 // Ignore cancellation races.
             }
 
-            PromiseCompletionSource?.TrySetResult((JsValue)"ok");
             try { Semaphore.Release(); } catch (SemaphoreFullException) { }
+            PromiseCompletionSource?.TrySetResult((JsValue)"ok");
         }
 
         internal bool TryTimeout()

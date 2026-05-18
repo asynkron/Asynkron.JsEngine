@@ -37,6 +37,11 @@ open-coding casts at individual call sites.
    order before delegating to host `Half` conversion. In particular, signed zero
    must be returned before binary16 conversion so host casting cannot erase the
    JavaScript-observable sign.
+9. For 32-bit integer math built-ins such as `Math.imul`, follow the exact
+   abstract operation sequence from the spec. `ToUInt32` operands, unchecked
+   modulo-2^32 arithmetic, and the final signed Int32 interpretation are not
+   interchangeable with multiplying `ToInt32` operands or relying on host
+   overflow behavior.
 
 ## Why
 
@@ -78,3 +83,10 @@ the spec's signed-zero special case must be handled before delegating to
 `System.Half`; otherwise a host cast can turn a required `-0` result into `+0`.
 Pin this with both focused internal coverage and the exact Test262 method group
 when a Math built-in depends on host numeric conversion.
+
+Issue #801 / PR #928 fixed `Math.imul` after signed Int32 operands made simple
+cases pass while failing modulo multiplication edges such as
+`0xffffffff * 5`, `2147483647 * 2147483647`, and `65535 * 65535`. The durable
+lesson is that 32-bit built-ins need the spec's unsigned modulo domain before
+the signed return interpretation; local coverage should pin the boundary table
+alongside the focused Test262 method group.

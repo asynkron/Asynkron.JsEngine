@@ -232,7 +232,18 @@ public sealed partial class MathPrototype
     {
         var y = JsOps.ToNumber(args.GetArgument(0));
         var x = JsOps.ToNumber(args.GetArgument(1));
+
+        if (IsNegativeZero(y) && x == 0d && !IsNegativeZero(x))
+        {
+            return JsValue.FromDouble(-0d);
+        }
+
         return Math.Atan2(y, x);
+    }
+
+    private static bool IsNegativeZero(double value)
+    {
+        return value == 0d && BitConverter.DoubleToInt64Bits(value) < 0;
     }
 
     [JsHostMethod("exp", Length = 1d)]

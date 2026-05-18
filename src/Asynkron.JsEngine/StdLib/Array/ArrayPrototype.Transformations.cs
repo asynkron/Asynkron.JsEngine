@@ -70,7 +70,7 @@ public sealed partial class ArrayPrototype
         var evalContext = Realm?.CreateContext();
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
         var length = ToLengthOrZero(lengthValue, evalContext);
-        if (evalContext?.IsThrow == true)
+        if (evalContext?.IsThrow is true)
         {
             throw new ThrowSignal(evalContext.FlowValue);
         }
@@ -83,7 +83,7 @@ public sealed partial class ArrayPrototype
 
         var fromIndexArg = args.Count > 1 ? args[1] : JsValue.FromDouble(0d);
         var fromIndex = ToIntegerOrInfinity(fromIndexArg, evalContext);
-        if (evalContext?.IsThrow == true)
+        if (evalContext?.IsThrow is true)
         {
             throw new ThrowSignal(evalContext.FlowValue);
         }

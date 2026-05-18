@@ -7,7 +7,7 @@ XUNIT_ARGS ?= xUnit.MaxParallelThreads=1 -timeout 20000
 quality:
 	rtk git diff --check
 	$(MAKE) build-internal
-	$(MAKE) test-internal-no-build
+	$(MAKE) test-internal
 
 build-internal:
 	rtk dotnet build src/Asynkron.JsEngine/Asynkron.JsEngine.csproj -c $(CONFIGURATION)

@@ -33,6 +33,54 @@ public sealed class DataViewAdditionalMethodsTests(ITestOutputHelper output) : I
     }
 
     [Fact(Timeout = 2000)]
+    public async Task DataView_SetFloat16_ReturnsUndefinedAndWritesExpectedBytes()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            const buffer = new ArrayBuffer(2);
+            const view = new DataView(buffer);
+            const cases = [
+                [0, 0x00, 0x00],
+                [-0, 0x80, 0x00],
+                [1, 0x3c, 0x00],
+                [-2, 0xc0, 0x00],
+                [65504, 0x7b, 0xff],
+                [Infinity, 0x7c, 0x00],
+                [-Infinity, 0xfc, 0x00],
+            ];
+
+            for (const [value, high, low] of cases) {
+                if (view.setFloat16(0, value) !== undefined) {
+                    throw new Error('setFloat16 must return undefined');
+                }
+
+                if (view.getUint8(0) !== high || view.getUint8(1) !== low) {
+                    throw new Error('big-endian bytes mismatch for ' + value);
+                }
+
+                if (view.setFloat16(0, value, true) !== undefined) {
+                    throw new Error('setFloat16 little-endian must return undefined');
+                }
+
+                if (view.getUint8(0) !== low || view.getUint8(1) !== high) {
+                    throw new Error('little-endian bytes mismatch for ' + value);
+                }
+            }
+
+            view.setUint8(0, 0);
+            view.setUint8(1, 0);
+            if (view.setFloat16(0) !== undefined) {
+                throw new Error('missing value must still return undefined');
+            }
+
+            const nanBits = view.getUint16(0);
+            ((nanBits & 0x7c00) === 0x7c00) && ((nanBits & 0x03ff) !== 0);
+        ");
+
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task DataView_GetBigInt64_ReadsSigned64BitInt()
     {
         await using var engine = CreateEngine();

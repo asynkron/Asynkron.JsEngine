@@ -2487,14 +2487,16 @@ internal static class ExpressionProgramCompiler
 
             var left = x.NumberValue;
             var right = y.NumberValue;
+            var leftBits = BitConverter.DoubleToUInt64Bits(left);
+            var rightBits = BitConverter.DoubleToUInt64Bits(right);
             if (double.IsNaN(left) && double.IsNaN(right))
             {
                 return true;
             }
 
-            if (left == 0d && right == 0d)
+            if ((leftBits << 1) == 0UL && (rightBits << 1) == 0UL)
             {
-                return BitConverter.DoubleToInt64Bits(left) == BitConverter.DoubleToInt64Bits(right);
+                return leftBits == rightBits;
             }
 
             return left.Equals(right);

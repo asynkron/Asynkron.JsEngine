@@ -39,3 +39,15 @@ Only after ALL checks pass.
 - Do NOT create PR if any step fails
 - Iterate until all checks pass
 - If user asks to "just create the PR" without checks, explain this is mandatory and run the checks
+
+## Makefile Quality Contract
+
+Preserve the `make quality` split between `build-internal` and
+`test-internal-no-build`. The `--no-build` test target is allowed only in this
+quality-gate path because `quality` performs the build immediately first.
+
+Why: issue #753 / PR #888 repaired a build-back failure where the gate was
+SIGTERMed during `test-internal` after debug builds had already completed.
+Collapsing `quality` back to a single build-and-test command can reintroduce the
+same orchestration-window failure. Standalone `test-internal` must continue to
+build before it tests.

@@ -46,8 +46,18 @@ Preserve the `make quality` split between `build-internal` and
 `test-internal-no-build`. The `--no-build` test target is allowed only in this
 quality-gate path because `quality` performs the build immediately first.
 
+Keep Makefile command tools configurable through variables such as
+`DOTNET ?= dotnet` and `GIT ?= git`. Do not hardcode `rtk`, `rtk proxy`, or
+another local agent wrapper inside repository Make targets; wrap the shell
+invocation externally when the current agent environment requires it.
+
 Why: issue #753 / PR #888 repaired a build-back failure where the gate was
 SIGTERMed during `test-internal` after debug builds had already completed.
 Collapsing `quality` back to a single build-and-test command can reintroduce the
 same orchestration-window failure. Standalone `test-internal` must continue to
 build before it tests.
+
+Issue #755 / PR #905 later repaired review feedback where the Makefile
+preserved the correct quality sequence but still embedded the local `rtk`
+wrapper. Repository targets must remain runnable outside the agent runtime while
+agent sessions can still invoke them as `rtk make quality`.

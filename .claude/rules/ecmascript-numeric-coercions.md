@@ -25,6 +25,10 @@ open-coding casts at individual call sites.
    keep a small internal regression that captures the conversion table,
    observable storage result, and return value so the behavior stays pinned in
    the faster local suite.
+6. For Math, Number, and other numeric built-ins with signed-zero semantics,
+   decide explicitly whether the operation must preserve `-0` or normalize it
+   to `+0`. Plain equality cannot prove the sign; pin the behavior with
+   `Object.is(...)` or reciprocal-infinity checks such as `1 / result`.
 
 ## Why
 
@@ -45,3 +49,10 @@ zero, unsigned modulo wrapping, large integer wrapping, NaN, infinity, and
 return-value checks to drift between entry points. Passing Test262 today is also
 not enough when the issue exposes a previously unpinned edge: keep the local
 guard so future refactors see the failure quickly.
+
+Issue #797 / PR #922 fixed `Math.abs(-0)`: the built-in must return positive
+zero under SameValue semantics, while nearby operations such as `Math.round`
+preserve negative zero in selected cases. The durable rule is to make signed
+zero policy explicit at the built-in boundary and test it with an observable
+sign check; `== 0` and ordinary numeric equality erase the distinction that
+Test262 asserts.

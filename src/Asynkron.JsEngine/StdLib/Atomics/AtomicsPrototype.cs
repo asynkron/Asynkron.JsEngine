@@ -304,11 +304,6 @@ public sealed partial class AtomicsPrototype : JsPrototype
         var engine = Realm.Engine ?? throw new InvalidOperationException("Atomics.waitAsync requires an engine.");
         var promiseTask = completionSource.Task;
 
-        _ = promiseTask.ContinueWith(_ => waiter.Dispose(),
-            CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
-
         if (!double.IsInfinity(timeout))
         {
             var timeoutMs = (long)Math.Ceiling(timeout);
@@ -320,7 +315,11 @@ public sealed partial class AtomicsPrototype : JsPrototype
             }
         }
 
-        var promise = engine.CreatePromiseFromTask(promiseTask, static v => v);
+        var promise = engine.CreatePromiseFromTask(promiseTask, v =>
+        {
+            waiter.Dispose();
+            return v;
+        });
 
         return CreateWaitAsyncResult(isAsync: true, value: promise);
 

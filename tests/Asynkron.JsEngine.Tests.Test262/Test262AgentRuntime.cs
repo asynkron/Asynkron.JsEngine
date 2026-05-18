@@ -18,6 +18,7 @@ internal sealed class Test262AgentRuntime : IDisposable
     private readonly object _agentsLock = new();
     private readonly List<AgentInstance> _agents = new();
     private volatile bool _disposed;
+    private const int AgentShutdownJoinTimeoutMs = 250;
 
     internal Test262AgentRuntime(Func<JsEngine> createAgentEngine, IReadOnlyDictionary<string, string> harnessSources)
     {
@@ -72,7 +73,7 @@ internal sealed class Test262AgentRuntime : IDisposable
 
     private JsValue Broadcast(IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || !args[0].TryGetObject<JsArrayBuffer>(out var buffer))
+        if (args.Count == 0 || !TryGetBroadcastBuffer(args[0], out var buffer))
         {
             return JsValue.Undefined;
         }
@@ -89,6 +90,30 @@ internal sealed class Test262AgentRuntime : IDisposable
         }
 
         return JsValue.Undefined;
+    }
+
+    private static bool TryGetBroadcastBuffer(JsValue value, out JsArrayBuffer buffer)
+    {
+        if (value.TryGetObject(out buffer!))
+        {
+            return true;
+        }
+
+        if (value.TryGetObject<TypedArrayBase>(out var typedArray))
+        {
+            buffer = typedArray.Buffer;
+            return true;
+        }
+
+        if (value.TryGetPropertyAccessor(out var accessor) &&
+            accessor.TryGetProperty("buffer", out var bufferValue) &&
+            bufferValue.TryGetObject(out buffer!))
+        {
+            return true;
+        }
+
+        buffer = null!;
+        return false;
     }
 
     private JsValue Sleep(IReadOnlyList<JsValue> args)
@@ -155,6 +180,7 @@ internal sealed class Test262AgentRuntime : IDisposable
 
         private IJsCallable? _broadcastCallback;
         private int _leaving;
+        private Thread? _thread;
 
         internal AgentInstance(Test262AgentRuntime runtime, string source)
         {
@@ -170,6 +196,7 @@ internal sealed class Test262AgentRuntime : IDisposable
                 Name = "test262-agent",
             };
 
+            _thread = thread;
             thread.Start();
         }
 
@@ -192,7 +219,7 @@ internal sealed class Test262AgentRuntime : IDisposable
 
         private void Run()
         {
-            var engine = _runtime._createAgentEngine();
+            using var engine = _runtime._createAgentEngine();
             engine.GlobalObject["global"] = engine.GlobalObject;
 
             if (_runtime._harnessSources.TryGetValue("assert.js", out var assertSource))
@@ -333,6 +360,17 @@ internal sealed class Test262AgentRuntime : IDisposable
             }
 
             _callbackReady.Set();
+
+            var thread = _thread;
+            if (thread is not null &&
+                thread != Thread.CurrentThread &&
+                !thread.Join(TimeSpan.FromMilliseconds(AgentShutdownJoinTimeoutMs)))
+            {
+                return;
+            }
+
+            _broadcastQueue.Dispose();
+            _callbackReady.Dispose();
         }
     }
 }

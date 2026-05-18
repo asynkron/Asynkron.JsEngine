@@ -321,14 +321,14 @@ public sealed partial class ArrayPrototype
         var evalContext = Realm?.CreateContext();
         var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
         var length = (long)ToLengthOrZero(lengthValue, evalContext);
-        if (evalContext?.IsThrow == true)
+        if (evalContext?.IsThrow is true)
         {
             throw new ThrowSignal(evalContext.FlowValue);
         }
 
         var indexArg = args.GetArgument(0);
         var relativeIndex = ToIntegerOrInfinity(indexArg, evalContext);
-        if (evalContext?.IsThrow == true)
+        if (evalContext?.IsThrow is true)
         {
             throw new ThrowSignal(evalContext.FlowValue);
         }
@@ -346,7 +346,7 @@ public sealed partial class ArrayPrototype
         }
 
         _ = JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(target), ToIndexString(index), out var value, evalContext);
-        if (evalContext?.IsThrow == true)
+        if (evalContext?.IsThrow is true)
         {
             throw new ThrowSignal(evalContext.FlowValue);
         }

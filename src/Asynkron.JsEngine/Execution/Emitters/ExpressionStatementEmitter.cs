@@ -216,7 +216,7 @@ internal static class ExpressionStatementEmitter
                     AwaitStateKey: ((IAstCacheable<Symbol>)logicalAwait).GetOrCreateCache(),
                     AwaitedProgram: awaitedProgram,
                     SuppressCompletionValue: suppressCompletion,
-                    AllowNameInference: ShouldAllowAssignmentNameInference(logicalCompoundAssign)));
+                    AllowNameInference: ShouldAllowLogicalAssignmentNameInference(logicalCompoundAssign, logicalBinary.Right)));
                 return true;
             }
 
@@ -236,7 +236,7 @@ internal static class ExpressionStatementEmitter
                 logicalBinary.Operator,
                 RhsProgram: logicalRhsProgram,
                 SuppressCompletionValue: suppressCompletion,
-                AllowNameInference: ShouldAllowAssignmentNameInference(logicalCompoundAssign)));
+                AllowNameInference: ShouldAllowLogicalAssignmentNameInference(logicalCompoundAssign, logicalBinary.Right)));
             return true;
         }
 
@@ -326,6 +326,29 @@ internal static class ExpressionStatementEmitter
     private static bool ShouldAllowAssignmentNameInference(AssignmentExpression expression)
     {
         return IsAnonymousFunctionDefinitionForNameInference(expression.Value);
+    }
+
+    private static bool ShouldAllowLogicalAssignmentNameInference(AssignmentExpression expression, ExpressionNode rhs)
+    {
+        return IsAnonymousFunctionDefinitionForNameInference(rhs) &&
+               !IsParenthesizedIdentifierAssignment(expression);
+    }
+
+    private static bool IsParenthesizedIdentifierAssignment(AssignmentExpression expression)
+    {
+        if (expression.Source is null)
+        {
+            return false;
+        }
+
+        var source = expression.Source.Source;
+        var index = expression.Source.StartPosition - 1;
+        while (index >= 0 && char.IsWhiteSpace(source, index))
+        {
+            index--;
+        }
+
+        return index >= 0 && source[index] == '(';
     }
 
     private static bool IsAnonymousFunctionDefinitionForNameInference(ExpressionNode? expression)

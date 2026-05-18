@@ -117,4 +117,123 @@ public sealed class LogicalAssignmentOperatorsTests(ITestOutputHelper output) : 
                                            """);
         Assert.Equal(42d, result);
     }
+
+    [Theory(Timeout = 2000)]
+    [InlineData("&&=", "1")]
+    [InlineData("||=", "0")]
+    [InlineData("??=", "null")]
+    public async Task LogicalAssignment_AppliesNameInferenceForIdentifierAssignments(string op, string initialValue)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate($$"""
+
+                                                       let fn = {{initialValue}};
+                                                       fn {{op}} function() {};
+                                                       let arrow = {{initialValue}};
+                                                       arrow {{op}} () => 1;
+                                                       let cls = {{initialValue}};
+                                                       cls {{op}} class {};
+                                                       fn.name + "," + arrow.name + "," + cls.name;
+
+                                           """);
+        Assert.Equal("fn,arrow,cls", result);
+    }
+
+    [Theory(Timeout = 2000)]
+    [InlineData("&&=", "1")]
+    [InlineData("||=", "0")]
+    [InlineData("??=", "null")]
+    public async Task LogicalAssignment_DoesNotApplyNameInferenceForMemberAssignments(string op, string initialValue)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate($$"""
+
+                                                       let obj = { fn: {{initialValue}} };
+                                                       obj.fn {{op}} function() {};
+                                                       obj.fn.name;
+
+                                           """);
+        Assert.Equal(string.Empty, result);
+    }
+
+    [Theory(Timeout = 2000)]
+    [InlineData("&&=", "1")]
+    [InlineData("||=", "0")]
+    [InlineData("??=", "null")]
+    public async Task LogicalAssignment_StrictGetterOnlyMemberThrowsWhenAssignmentBranchRuns(
+        string op,
+        string initialValue)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate($$"""
+
+                                                       "use strict";
+                                                       let obj = {};
+                                                       Object.defineProperty(obj, "value", {
+                                                           get: function() { return {{initialValue}}; }
+                                                       });
+                                                       try {
+                                                           obj.value {{op}} 2;
+                                                           "no throw";
+                                                       } catch (error) {
+                                                           error.name;
+                                                       }
+
+                                           """);
+        Assert.Equal("TypeError", result);
+    }
+
+    [Theory(Timeout = 2000)]
+    [InlineData("&&=", "1")]
+    [InlineData("||=", "0")]
+    [InlineData("??=", "null")]
+    public async Task LogicalAssignment_StrictNonWritableMemberThrowsWhenAssignmentBranchRuns(
+        string op,
+        string initialValue)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate($$"""
+
+                                                       "use strict";
+                                                       let obj = {};
+                                                       Object.defineProperty(obj, "value", {
+                                                           value: {{initialValue}},
+                                                           writable: false
+                                                       });
+                                                       try {
+                                                           obj.value {{op}} 2;
+                                                           "no throw";
+                                                       } catch (error) {
+                                                           error.name;
+                                                       }
+
+                                           """);
+        Assert.Equal("TypeError", result);
+    }
+
+    [Theory(Timeout = 2000)]
+    [InlineData("&&=", "0")]
+    [InlineData("||=", "1")]
+    [InlineData("??=", "1")]
+    public async Task LogicalAssignment_SkipsStrictMemberWriteWhenShortCircuiting(string op, string initialValue)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate($$"""
+
+                                                       "use strict";
+                                                       let obj = {};
+                                                       Object.defineProperty(obj, "value", {
+                                                           value: {{initialValue}},
+                                                           writable: false
+                                                       });
+                                                       try {
+                                                           let result = (obj.value {{op}} 2);
+                                                           result;
+                                                       } catch (error) {
+                                                           error.name;
+                                                       }
+
+                                           """);
+        Assert.Equal(double.Parse(initialValue, System.Globalization.CultureInfo.InvariantCulture), result);
+    }
 }

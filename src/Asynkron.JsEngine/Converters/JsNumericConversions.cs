@@ -34,6 +34,9 @@ internal static class JsNumericConversions
         return (int)modulo;
     }
 
+    public static short ToInt16(double number)
+        => unchecked((short)ToInt32(number));
+
     public static uint ToUInt32(double number)
     {
         if (double.IsNaN(number) || double.IsInfinity(number) || number == 0d)

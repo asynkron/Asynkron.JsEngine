@@ -29,6 +29,10 @@ open-coding casts at individual call sites.
    decide explicitly whether the operation must preserve `-0` or normalize it
    to `+0`. Plain equality cannot prove the sign; pin the behavior with
    `Object.is(...)` or reciprocal-infinity checks such as `1 / result`.
+7. For host math wrappers, preserve the ECMAScript argument coercion order
+   before applying any signed-zero correction. Do not assume `System.Math` or
+   another host library matches every JavaScript signed-zero quadrant; check the
+   spec-visible result at the built-in boundary.
 
 ## Why
 
@@ -56,3 +60,10 @@ preserve negative zero in selected cases. The durable rule is to make signed
 zero policy explicit at the built-in boundary and test it with an observable
 sign check; `== 0` and ordinary numeric equality erase the distinction that
 Test262 asserts.
+
+Issue #798 / PR #923 repeated the signed-zero lesson for `Math.atan2(-0, +0)`.
+The fix still had to run `ToNumber(y)` before `ToNumber(x)`, then override the
+host `Math.Atan2` result only for the spec-required negative-zero quadrant. That
+recurrence is why Math built-ins need both an explicit signed-zero policy and a
+proof that host-library delegation has not erased JavaScript-observable zero
+signs.

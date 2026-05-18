@@ -159,6 +159,31 @@ public sealed class LabeledBreakContinueTests(ITestOutputHelper output) : Intern
     }
 
     [Fact(Timeout = 2000)]
+    public async Task LabeledBreakOutOfLexicalBlockDoesNotLeakBinding()
+    {
+        var source = @"
+            var result = '';
+            outer: {
+                let x = 1;
+                result += 'inside,';
+                break outer;
+            }
+            try {
+                x;
+                result += 'leaked';
+            } catch (e) {
+                result += e.name;
+            }
+            result;
+        ";
+
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(source);
+
+        Assert.Equal("inside,ReferenceError", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task NestedLabeledBreaks()
     {
         var source = @"

@@ -231,7 +231,7 @@ internal static class LoopEmitterHelpers
         var pushedIterationScope = false;
         if (config.HasPerIterationBindings && config.IterationScopeId >= 0)
         {
-            ctx.PushScope(config.IterationScopeId);
+            ctx.PushScope(config.IterationScopeId, config.CanReuseIterationEnvironment);
             pushedIterationScope = true;
         }
 

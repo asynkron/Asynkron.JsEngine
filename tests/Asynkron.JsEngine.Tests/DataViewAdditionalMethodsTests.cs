@@ -82,6 +82,44 @@ public sealed class DataViewAdditionalMethodsTests(ITestOutputHelper output) : I
     }
 
     [Fact(Timeout = 2000)]
+    public async Task DataView_SetUint8_ReturnsUndefinedAndUsesUint8ModuloConversion()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            const buffer = new ArrayBuffer(1);
+            const view = new DataView(buffer);
+            const typedArray = new Uint8Array(buffer);
+            const cases = [
+                [2147483648, 0],
+                [4294967295, 255],
+                [4294967296, 0],
+                [-1, 255],
+                [-255, 1],
+                [255.99999999999, 255],
+                [undefined, 0],
+                [NaN, 0],
+                [Infinity, 0],
+                [-Infinity, 0],
+            ];
+
+            for (const [value, expected] of cases) {
+                const actualReturn = view.setUint8(0, value);
+                if (actualReturn !== undefined) {
+                    throw new Error('setUint8 must return undefined for ' + value);
+                }
+
+                if (typedArray[0] !== expected) {
+                    throw new Error('setUint8 conversion mismatch for ' + value);
+                }
+            }
+
+            true;
+        ");
+
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task DataView_SetUint16_ReturnsUndefinedAndUsesUint16ModuloConversion()
     {
         await using var engine = CreateEngine();

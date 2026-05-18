@@ -325,9 +325,10 @@ public sealed partial class MathPrototype
     {
         var left = JsOps.ToNumber(args.GetArgument(0));
         var right = JsOps.ToNumber(args.GetArgument(1));
-        var a = JsNumericConversions.ToInt32(left);
-        var b = JsNumericConversions.ToInt32(right);
-        return (double)(a * b);
+        var a = JsNumericConversions.ToUInt32(left);
+        var b = JsNumericConversions.ToUInt32(right);
+        var product = unchecked(a * b);
+        return (double)unchecked((int)product);
     }
 
     [JsHostMethod("fround", Length = 1d)]

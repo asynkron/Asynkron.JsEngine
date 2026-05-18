@@ -311,7 +311,7 @@ public static partial class TypedAstEvaluator
                     if (kind == AbruptKind.Continue &&
                         frame.LoopContinueTarget >= 0 &&
                         value is int targetIndex &&
-                        targetIndex == frame.LoopContinueTarget)
+                        IsSameLoopContinueTarget(targetIndex, frame.LoopContinueTarget))
                     {
                         // Same-loop continue stays within the protected loop body.
                         // Skip IteratorClose/finally handling, but keep the try frame active
@@ -347,6 +347,33 @@ public static partial class TypedAstEvaluator
                 }
 
                 TryCatchStateRef.TryStack.Pop();
+            }
+
+            return false;
+        }
+
+        private bool IsSameLoopContinueTarget(int targetIndex, int loopContinueTarget)
+        {
+            if (_plan is null)
+            {
+                return false;
+            }
+
+            var instructions = _plan.Instructions;
+            var remainingCleanupDepth = instructions.Length;
+            while (targetIndex >= 0 && targetIndex < instructions.Length && remainingCleanupDepth-- > 0)
+            {
+                if (targetIndex == loopContinueTarget)
+                {
+                    return true;
+                }
+
+                if (instructions[targetIndex] is not PopEnvironmentInstruction popEnvironment)
+                {
+                    return false;
+                }
+
+                targetIndex = popEnvironment.Next;
             }
 
             return false;

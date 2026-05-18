@@ -362,12 +362,11 @@ internal sealed class Test262AgentRuntime : IDisposable
             _callbackReady.Set();
 
             var thread = _thread;
-            if (thread is not null && thread != Thread.CurrentThread)
+            if (thread is not null &&
+                thread != Thread.CurrentThread &&
+                !thread.Join(TimeSpan.FromMilliseconds(AgentShutdownJoinTimeoutMs)))
             {
-                if (!thread.Join(TimeSpan.FromMilliseconds(AgentShutdownJoinTimeoutMs)))
-                {
-                    return;
-                }
+                return;
             }
 
             _broadcastQueue.Dispose();

@@ -56,6 +56,17 @@ public sealed class MathMethodsTests(ITestOutputHelper output) : InternalTestBas
         Assert.Equal(-2d, result);
     }
 
+    [Theory(Timeout = 2000)]
+    [InlineData("Math.imul(0xffffffff, 5);", -5d)]
+    [InlineData("Math.imul(2147483647, 2147483647);", 1d)]
+    [InlineData("Math.imul(65535, 65535);", -131071d)]
+    public async Task Math_Imul_UsesUint32ModuloMultiplication(string expression, double expected)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(expression);
+        Assert.Equal(expected, result);
+    }
+
     [Fact(Timeout = 2000)]
     public async Task Math_Fround_ConvertsToFloat32()
     {

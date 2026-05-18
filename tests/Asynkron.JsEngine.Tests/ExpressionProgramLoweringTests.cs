@@ -1888,26 +1888,30 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task FunctionDeclarationInstruction_CallablePlan_IsCachedIntoRuntimeDescriptor()
+    public async Task HoistedFunctionDeclarationInstruction_IsNoOpAndCallablePlan_IsCachedIntoFunction()
     {
-        var plan = await GetScriptPlan("""
+        var program = _engine.ParseProgram("""
             function read(value) {
                 return value + 1;
             }
             """);
+        await _engine.Evaluate(program);
 
-        var instruction = Assert.Single(
-            plan.Instructions.OfType<FunctionDeclarationInstruction>(),
-            i => i.Descriptor is not null);
-        var descriptor = Assert.IsType<FunctionDeclarationDescriptor>(instruction.Descriptor);
+        var plan = GetScriptPlan(program);
 
-        Assert.Equal("read", descriptor.Name.Name);
-        Assert.True(descriptor.PlanSeed.Succeeded);
-        Assert.NotNull(descriptor.PlanSeed.Plan);
+        var instruction = Assert.Single(plan.Instructions.OfType<FunctionDeclarationInstruction>());
+        Assert.Null(instruction.Descriptor);
+
+        var declaration = Assert.IsType<FunctionDeclaration>(
+            program.Body.Single(statement => statement is FunctionDeclaration functionDeclaration &&
+                                             functionDeclaration.Name.Name == "read"));
+        var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Callable plan should build. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
     }
 
     [Fact]
-    public async Task FunctionDeclarationInstruction_CallablePlanFailure_IsCachedIntoRuntimeDescriptor()
+    public async Task HoistedFunctionDeclarationInstruction_IsNoOpAndCallablePlanFailure_IsCachedIntoFunction()
     {
         var parsedProgram = _engine.ParseProgram("""
             function read(value) {
@@ -1918,15 +1922,17 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         await _engine.Evaluate(program);
 
         var plan = GetScriptPlan(program);
-        var instruction = Assert.Single(
-            plan.Instructions.OfType<FunctionDeclarationInstruction>(),
-            i => i.Descriptor is not null);
-        var descriptor = Assert.IsType<FunctionDeclarationDescriptor>(instruction.Descriptor);
+        var instruction = Assert.Single(plan.Instructions.OfType<FunctionDeclarationInstruction>());
+        Assert.Null(instruction.Descriptor);
 
-        Assert.False(descriptor.PlanSeed.Succeeded);
-        Assert.Null(descriptor.PlanSeed.Plan);
-        Assert.NotNull(descriptor.PlanSeed.Failure);
-        Assert.Contains("ExportAllStatement", descriptor.PlanSeed.FailureReason, StringComparison.Ordinal);
+        var declaration = Assert.IsType<FunctionDeclaration>(
+            program.Body.Single(statement => statement is FunctionDeclaration functionDeclaration &&
+                                             functionDeclaration.Name.Name == "read"));
+        var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Function).GetOrCreateCache();
+        Assert.False(cache.Succeeded);
+        Assert.Null(cache.Plan);
+        Assert.NotNull(cache.Failure);
+        Assert.Contains("ExportAllStatement", cache.FailureReason, StringComparison.Ordinal);
     }
 
     [Fact]

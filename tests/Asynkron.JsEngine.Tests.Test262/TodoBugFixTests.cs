@@ -21,6 +21,16 @@ public sealed class TodoBugFixTests : Test262Test
         RunTestCode(test, strict);
     }
 
+    // FIXED: indexOf handles negative-zero fromIndex and strict equality between -0 and +0
+    [TestCase("built-ins/Array/prototype/indexOf/15.4.4.14-5-9.js", false)]
+    [TestCase("built-ins/Array/prototype/indexOf/15.4.4.14-5-9.js", true)]
+    [TestCase("built-ins/Array/prototype/indexOf/15.4.4.14-9-b-ii-7.js", false)]
+    [TestCase("built-ins/Array/prototype/indexOf/15.4.4.14-9-b-ii-7.js", true)]
+    public void Array_indexOf_negative_zero_cases(string test, bool strict)
+    {
+        RunTestCode(test, strict);
+    }
+
     // FIXED: includes should check length before ToIntegerOrInfinity(fromIndex)
     [TestCase("built-ins/Array/prototype/includes/length-zero-returns-false.js", false)]
     [TestCase("built-ins/Array/prototype/includes/length-zero-returns-false.js", true)]

@@ -110,6 +110,25 @@ public sealed class MathMethodsTests(ITestOutputHelper output) : InternalTestBas
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Math_Hypot_ReturnsPositiveZeroForAllZeroInputs()
+    {
+        await using var engine = CreateEngine();
+        var result = (bool)(await engine.Evaluate("""
+
+            Object.is(1 / Math.hypot(0), Infinity) &&
+            Object.is(1 / Math.hypot(-0), Infinity) &&
+            Object.is(1 / Math.hypot(0, 0), Infinity) &&
+            Object.is(1 / Math.hypot(0, -0), Infinity) &&
+            Object.is(1 / Math.hypot(-0, 0), Infinity) &&
+            Object.is(1 / Math.hypot(-0, -0), Infinity) &&
+            Object.is(1 / Math.hypot(0, -0, -0), Infinity);
+
+        """))!;
+
+        Assert.True(result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Math_Acosh_CalculatesInverseHyperbolicCosine()
     {
         await using var engine = CreateEngine();

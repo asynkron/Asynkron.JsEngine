@@ -60,4 +60,9 @@ internal static class JsNumericConversions
 
         return (uint)modulo;
     }
+
+    public static ushort ToUInt16(double number)
+    {
+        return unchecked((ushort)ToUInt32(number));
+    }
 }

@@ -18,6 +18,7 @@ internal sealed class Test262AgentRuntime : IDisposable
     private readonly object _agentsLock = new();
     private readonly List<AgentInstance> _agents = new();
     private volatile bool _disposed;
+    private const int AgentShutdownJoinTimeoutMs = 250;
 
     internal Test262AgentRuntime(Func<JsEngine> createAgentEngine, IReadOnlyDictionary<string, string> harnessSources)
     {
@@ -363,7 +364,10 @@ internal sealed class Test262AgentRuntime : IDisposable
             var thread = _thread;
             if (thread is not null && thread != Thread.CurrentThread)
             {
-                thread.Join(TimeSpan.FromSeconds(5));
+                if (!thread.Join(TimeSpan.FromMilliseconds(AgentShutdownJoinTimeoutMs)))
+                {
+                    return;
+                }
             }
 
             _broadcastQueue.Dispose();

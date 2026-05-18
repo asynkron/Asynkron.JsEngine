@@ -673,6 +673,31 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
         Assert.True((bool)result!);
     }
 
+    [Fact(Timeout = 10000)]
+    public async Task RegexLiteral_LeadingBmpEscape_SourceRoundTripsWithoutCompiledRegexChurn()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            for (var cu = 0; cu <= 0x03ff; ++cu) {
+              var eliminated =
+                cu === 0x002A || cu === 0x002F || cu === 0x005C ||
+                cu === 0x002B || cu === 0x003F || cu === 0x0028 ||
+                cu === 0x0029 || cu === 0x005B || cu === 0x005D ||
+                cu === 0x007B || cu === 0x007D;
+              var lineTerminator = cu === 0x000A || cu === 0x000D;
+              if (!eliminated && !lineTerminator) {
+                var xx = "\\" + String.fromCharCode(cu);
+                var pattern = eval("/" + xx + "/");
+                if (pattern.source !== xx) {
+                  throw new Error("Code unit: " + cu.toString(16));
+                }
+              }
+            }
+            true;
+        """);
+        Assert.True((bool)result!);
+    }
+
     [Fact(Timeout = 2000)]
     public async Task RegExp_NamedGroups_SimpleMatch()
     {
@@ -933,4 +958,3 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
         Assert.Equal("OK", result);
     }
 }
-

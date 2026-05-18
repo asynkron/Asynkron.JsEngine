@@ -1,7 +1,9 @@
 using System.Globalization;
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.Execution.Instructions;
 
@@ -786,6 +788,7 @@ internal static class ExpressionProgramCompiler
         failureReason = null;
         return true;
     }
+
 
     private static bool TryCompileAssignmentExpression(
         AssignmentExpression expression,
@@ -2364,7 +2367,7 @@ internal static class ExpressionProgramCompiler
     {
         private readonly List<PackedExpressionOp> _operations = [];
         private readonly List<JsValue> _literalConstants = [];
-        private readonly Dictionary<JsValue, int> _literalConstantMap = new(LiteralConstantComparer.Instance);
+        private readonly Dictionary<JsValue, int> _literalConstantMap = new(SameValueLiteralComparer.Instance);
         private readonly List<string> _stringConstants = [];
         private readonly Dictionary<string, int> _stringConstantMap = new(StringComparer.Ordinal);
         private readonly List<object> _objectConstants = [];
@@ -2465,57 +2468,39 @@ internal static class ExpressionProgramCompiler
         }
     }
 
-    private sealed class LiteralConstantComparer : IEqualityComparer<JsValue>
+    private sealed class SameValueLiteralComparer : IEqualityComparer<JsValue>
     {
-        public static readonly LiteralConstantComparer Instance = new();
+        public static readonly SameValueLiteralComparer Instance = new();
 
-        private LiteralConstantComparer()
+        private SameValueLiteralComparer()
         {
         }
 
         public bool Equals(JsValue x, JsValue y)
         {
-            if (x.Kind != y.Kind)
-            {
-                return false;
-            }
-
-            return x.Kind switch
-            {
-                JsValueKind.Number => NumberEquals(x.NumberValue, y.NumberValue),
-                _ => x.Equals(y)
-            };
+            return JsOps.SameValue(x, y);
         }
 
         public int GetHashCode(JsValue value)
         {
-            if (!value.IsNumber)
+            return value.Kind switch
             {
-                return value.GetHashCode();
-            }
-
-            var number = value.NumberValue;
-            if (number == 0d)
-            {
-                return HashCode.Combine(value.Kind, BitConverter.DoubleToInt64Bits(number));
-            }
-
-            return HashCode.Combine(value.Kind, double.IsNaN(number) ? double.NaN.GetHashCode() : number.GetHashCode());
-        }
-
-        private static bool NumberEquals(double left, double right)
-        {
-            if (double.IsNaN(left))
-            {
-                return double.IsNaN(right);
-            }
-
-            if (left == 0d && right == 0d)
-            {
-                return BitConverter.DoubleToInt64Bits(left) == BitConverter.DoubleToInt64Bits(right);
-            }
-
-            return left.Equals(right);
+                JsValueKind.Undefined => HashCode.Combine(value.Kind),
+                JsValueKind.Null => HashCode.Combine(value.Kind),
+                JsValueKind.Unit => HashCode.Combine(value.Kind),
+                JsValueKind.Boolean => HashCode.Combine(value.Kind, value.NumberValue != 0.0),
+                JsValueKind.Number => HashCode.Combine(
+                    value.Kind,
+                    double.IsNaN(value.NumberValue)
+                        ? long.MaxValue
+                        : BitConverter.DoubleToInt64Bits(value.NumberValue)),
+                JsValueKind.String => HashCode.Combine(value.Kind, StringComparer.Ordinal.GetHashCode(value.AsString())),
+                JsValueKind.BigInt => HashCode.Combine(value.Kind, value.ObjectValue),
+                JsValueKind.Symbol or JsValueKind.Object => HashCode.Combine(
+                    value.Kind,
+                    RuntimeHelpers.GetHashCode(value.ObjectValue!)),
+                _ => HashCode.Combine(value.Kind)
+            };
         }
     }
 }

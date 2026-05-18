@@ -187,6 +187,15 @@ public sealed class MathMethodsTests(ITestOutputHelper output) : InternalTestBas
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Math_Atan2_Preserves_NegativeZero_When_X_Is_PositiveZero()
+    {
+        await using var engine = CreateEngine();
+        var result = (double)(await engine.Evaluate("1 / Math.atan2(-0, 0);"))!;
+
+        Assert.Equal(double.NegativeInfinity, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Math_Round_NegativeZeroEdgeCases()
     {
         await using var engine = CreateEngine();

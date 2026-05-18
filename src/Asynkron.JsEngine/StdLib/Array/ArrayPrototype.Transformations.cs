@@ -163,7 +163,7 @@ public sealed partial class ArrayPrototype
         {
             if (TryGetExistingElement(accessor, i, out var value) && AreStrictlyEqual(value, searchElement))
             {
-                return new JsValue((double)i);
+                return JsValue.FromDouble((double)i);
             }
         }
 
@@ -215,7 +215,7 @@ public sealed partial class ArrayPrototype
         {
             if (TryGetExistingElement(accessor, i, out var value) && AreStrictlyEqual(value, searchElement))
             {
-                return new JsValue((double)i);
+                return JsValue.FromDouble(i);
             }
         }
 

@@ -210,6 +210,16 @@ public sealed class MathMethodsTests(ITestOutputHelper output) : InternalTestBas
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Math_Abs_ConvertsNegativeZeroToPositiveZero()
+    {
+        await using var engine = CreateEngine();
+
+        var result = (double)(await engine.Evaluate("1 / Math.abs(-0);"))!;
+
+        Assert.Equal(double.PositiveInfinity, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Math_Round_LargeIntegersUnchanged()
     {
         await using var engine = CreateEngine();

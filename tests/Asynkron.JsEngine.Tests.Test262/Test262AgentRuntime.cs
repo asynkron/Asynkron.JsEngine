@@ -19,6 +19,9 @@ internal sealed class Test262AgentRuntime : IDisposable
     private readonly List<AgentInstance> _agents = new();
     private volatile bool _disposed;
     private const int AgentShutdownJoinTimeoutMs = 250;
+    private const int AgentInitialBroadcastIdleExitMs = 10000;
+    private const int AgentProcessedBroadcastIdleExitMs = 1000;
+    private static readonly TimeSpan BroadcastCallbackDrainTimeout = TimeSpan.FromSeconds(30);
 
     internal Test262AgentRuntime(Func<JsEngine> createAgentEngine, IReadOnlyDictionary<string, string> harnessSources)
     {
@@ -259,18 +262,29 @@ internal sealed class Test262AgentRuntime : IDisposable
             }
 
             JsArrayBuffer? pending = null;
+            var processedBroadcast = false;
             while (Volatile.Read(ref _leaving) == 0)
             {
                 if (pending is null)
                 {
-                    try
-                    {
-                        pending = _broadcastQueue.Take();
-                    }
-                    catch
+                    if (!_broadcastQueue.TryTake(
+                            out pending,
+                            processedBroadcast
+                                ? AgentProcessedBroadcastIdleExitMs
+                                : AgentInitialBroadcastIdleExitMs))
                     {
                         break;
                     }
+                }
+
+                if (pending is null)
+                {
+                    if (_broadcastQueue.IsAddingCompleted)
+                    {
+                        break;
+                    }
+
+                    continue;
                 }
 
                 if (_broadcastCallback is null)
@@ -292,6 +306,7 @@ internal sealed class Test262AgentRuntime : IDisposable
                 }
 
                 pending = null;
+                processedBroadcast = true;
             }
         }
 
@@ -303,10 +318,18 @@ internal sealed class Test262AgentRuntime : IDisposable
                 return;
             }
 
+            var deadline = Stopwatch.GetTimestamp() +
+                (long)(BroadcastCallbackDrainTimeout.TotalSeconds * Stopwatch.Frequency);
+
             while (Volatile.Read(ref _leaving) == 0)
             {
                 engine.DrainMicrotasks();
                 if (promise.TryGetSettled(out _, out _))
+                {
+                    return;
+                }
+
+                if (Stopwatch.GetTimestamp() >= deadline)
                 {
                     return;
                 }

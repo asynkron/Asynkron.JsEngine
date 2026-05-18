@@ -1,0 +1,50 @@
+{
+  "issue_id": 742,
+  "repo": "asynkron/Asynkron.JsEngine",
+  "title": "Create issues for remaining todo items",
+  "stage": "investigate",
+  "stage_entered_at": "2026-04-28T11:13:28.119233Z",
+  "status": "active",
+  "branch_name": "agent-go/issue-742",
+  "worktree_path": "/Users/rogerjohansson/git/asynkron/Asynkron.JsEngine/.faktorial/worktrees/742",
+  "base_branch": "main",
+  "head_sha": "00fecd1de76491afe557d7a07b4f373ed40c93eb",
+  "task_type": "normal",
+  "planning_started_at": "2026-04-28T11:13:14.848066Z",
+  "planning_until": "2026-04-28T11:23:14.848066Z",
+  "planning_size": "small",
+  "planning_area": "agents create each",
+  "planning_group_key": "agents-create-each",
+  "planning_confidence": 0.55,
+  "planning_reason": "provisional size from compact issue description; area from issue text",
+  "priority_class": "unknown",
+  "repair_kind": "none",
+  "claimed_by": "Plutten.local",
+  "claim_id": "99162-742-1777374809212009000",
+  "claim_pid": 99162,
+  "claim_expires_at": "2026-04-28T13:23:29.21201+02:00",
+  "tokens_spent": 0,
+  "token_usage": {},
+  "agent_name": "codex",
+  "agent_model": "gpt-5.5",
+  "attempt_counts": {
+    "new": 1,
+    "planning": 1
+  },
+  "last_worker_result": {
+    "success": true,
+    "next_stage": "investigate",
+    "reason": "initialized branch and worktree",
+    "token_usage": {},
+    "patch": {
+      "branch_name": "agent-go/issue-742",
+      "worktree_path": "/Users/rogerjohansson/git/asynkron/Asynkron.JsEngine/.faktorial/worktrees/742",
+      "pr_number": 0,
+      "head_sha": "00fecd1de76491afe557d7a07b4f373ed40c93eb"
+    }
+  },
+  "last_synced_at": "2026-04-28T11:16:44.900125Z",
+  "created_at": "2026-04-28T11:13:14.848066Z",
+  "updated_at": "2026-04-28T11:16:44.924485Z",
+  "version": 14
+}

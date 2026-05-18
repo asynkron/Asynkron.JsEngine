@@ -481,6 +481,30 @@ public sealed class TypedArrayTests(ITestOutputHelper output) : InternalTestBase
     }
 
     [Fact(Timeout = 2000)]
+    public async Task DataView_SetInt16_UsesInt16WrappingAndPositiveZero()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let buffer = new ArrayBuffer(8);
+                                                       let view = new DataView(buffer);
+                                                       let byteConversionValues = {
+                                                           values: [-0, 2147483648],
+                                                           expected: { Int16: [0] }
+                                                       };
+                                                       let returnValue = view.setInt16(0, byteConversionValues.values[1], false);
+                                                       let actual = view.getInt16(0);
+                                                       let expected = byteConversionValues.expected.Int16[0];
+                                                       returnValue === undefined
+                                                           && Object.is(expected, 0)
+                                                           && Object.is(actual, expected)
+                                                           && 1 / actual === Infinity;
+
+                                           """);
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task DataView_GetSetInt32()
     {
         await using var engine = CreateEngine();

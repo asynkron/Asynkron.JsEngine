@@ -17,7 +17,12 @@ public sealed partial class MathPrototype
     public static JsValue Abs(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
-        return double.IsNaN(x) ? double.NaN : Math.Abs(x);
+        if (double.IsNaN(x))
+        {
+            return double.NaN;
+        }
+
+        return x == 0 ? 0d : Math.Abs(x);
     }
 
     [JsHostMethod("ceil", Length = 1d)]
@@ -232,7 +237,18 @@ public sealed partial class MathPrototype
     {
         var y = JsOps.ToNumber(args.GetArgument(0));
         var x = JsOps.ToNumber(args.GetArgument(1));
+
+        if (IsNegativeZero(y) && x == 0d && !IsNegativeZero(x))
+        {
+            return JsValue.FromDouble(-0d);
+        }
+
         return Math.Atan2(y, x);
+    }
+
+    private static bool IsNegativeZero(double value)
+    {
+        return value == 0d && BitConverter.DoubleToInt64Bits(value) < 0;
     }
 
     [JsHostMethod("exp", Length = 1d)]
@@ -309,9 +325,10 @@ public sealed partial class MathPrototype
     {
         var left = JsOps.ToNumber(args.GetArgument(0));
         var right = JsOps.ToNumber(args.GetArgument(1));
-        var a = JsNumericConversions.ToInt32(left);
-        var b = JsNumericConversions.ToInt32(right);
-        return (double)(a * b);
+        var a = JsNumericConversions.ToUInt32(left);
+        var b = JsNumericConversions.ToUInt32(right);
+        var product = unchecked(a * b);
+        return (double)unchecked((int)product);
     }
 
     [JsHostMethod("fround", Length = 1d)]
@@ -481,6 +498,11 @@ public sealed partial class MathPrototype
         }
 
         if (double.IsInfinity(x))
+        {
+            return x;
+        }
+
+        if (x == 0)
         {
             return x;
         }

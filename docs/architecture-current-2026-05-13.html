@@ -1,0 +1,766 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Asynkron.JsEngine Current Architecture - Focused Diagrams</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #020617;
+      --panel: #0f172a;
+      --text: #e5edf7;
+      --muted: #94a3b8;
+      --line: #334155;
+      --cyan: #22d3ee;
+      --emerald: #34d399;
+      --violet: #a78bfa;
+      --amber: #fbbf24;
+      --rose: #fb7185;
+      --orange: #fb923c;
+      --blue: #60a5fa;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        linear-gradient(rgba(30, 41, 59, 0.72) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(30, 41, 59, 0.72) 1px, transparent 1px),
+        radial-gradient(circle at 14% 10%, rgba(34, 211, 238, 0.14), transparent 24%),
+        radial-gradient(circle at 82% 6%, rgba(167, 139, 250, 0.14), transparent 24%),
+        var(--bg);
+      background-size: 40px 40px, 40px 40px, auto, auto, auto;
+      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    main {
+      width: min(1520px, calc(100vw - 48px));
+      margin: 0 auto;
+      padding: 34px 0 48px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 24px;
+      align-items: start;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(30px, 4vw, 54px);
+      line-height: 1.04;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      max-width: 1040px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .stamp {
+      min-width: 360px;
+      padding: 14px 16px;
+      border: 1px solid rgba(148, 163, 184, 0.32);
+      border-radius: 10px;
+      background: rgba(15, 23, 42, 0.92);
+      box-shadow: 0 22px 60px rgba(0, 0, 0, 0.42);
+    }
+
+    .stamp b {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--cyan);
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .stamp div {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.65;
+    }
+
+    .nav {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .nav a {
+      display: block;
+      min-height: 76px;
+      padding: 12px;
+      color: var(--muted);
+      text-decoration: none;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      border-radius: 8px;
+      background: rgba(15, 23, 42, 0.82);
+      font-size: 10px;
+      line-height: 1.45;
+    }
+
+    .nav strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--text);
+      font-size: 11px;
+    }
+
+    .diagram {
+      margin: 18px 0 26px;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 14px;
+      background: rgba(2, 6, 23, 0.82);
+      box-shadow: 0 26px 90px rgba(0, 0, 0, 0.5);
+      overflow-x: auto;
+    }
+
+    .diagram-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 16px 0;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    .diagram-title strong {
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    svg {
+      display: block;
+      width: 1480px;
+      max-width: none;
+      height: 690px;
+    }
+
+    .boundary {
+      fill: rgba(15, 23, 42, 0.22);
+      stroke: rgba(148, 163, 184, 0.24);
+      stroke-width: 1.2;
+      stroke-dasharray: 7 5;
+    }
+
+    .group-title {
+      fill: #cbd5e1;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .arrow {
+      fill: none;
+      stroke: #64748b;
+      stroke-width: 1.8;
+      marker-end: url(#arrowhead);
+    }
+
+    .cyan { stroke: var(--cyan); }
+    .emerald { stroke: var(--emerald); }
+    .violet { stroke: var(--violet); }
+    .amber {
+      stroke: var(--amber);
+      stroke-dasharray: 7 7;
+    }
+    .rose {
+      stroke: var(--rose);
+      stroke-dasharray: 7 7;
+    }
+    .orange { stroke: var(--orange); }
+
+    .mask { fill: #0f172a; }
+
+    .box {
+      fill: rgba(30, 41, 59, 0.5);
+      stroke: #94a3b8;
+      stroke-width: 1.5;
+    }
+
+    .host { fill: rgba(8, 51, 68, 0.4); stroke: var(--cyan); }
+    .compile { fill: rgba(6, 78, 59, 0.4); stroke: var(--emerald); }
+    .runtime { fill: rgba(76, 29, 149, 0.4); stroke: var(--violet); }
+    .dynamic { fill: rgba(120, 53, 15, 0.34); stroke: var(--amber); }
+    .state { fill: rgba(251, 146, 60, 0.3); stroke: var(--orange); }
+    .compat { fill: rgba(136, 19, 55, 0.4); stroke: var(--rose); }
+
+    .label {
+      fill: #f8fafc;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .sub {
+      fill: #cbd5e1;
+      font-size: 9px;
+      font-weight: 500;
+    }
+
+    .code {
+      fill: #bae6fd;
+      font-size: 8px;
+      font-weight: 600;
+    }
+
+    .note {
+      fill: #94a3b8;
+      font-size: 8px;
+      font-weight: 500;
+    }
+
+    .port {
+      fill: rgba(15, 23, 42, 0.96);
+      stroke: rgba(148, 163, 184, 0.52);
+      stroke-width: 1;
+    }
+
+    .port-text {
+      fill: #e2e8f0;
+      font-size: 8px;
+      font-weight: 600;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin: 18px 0 0;
+    }
+
+    .card {
+      padding: 16px;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      border-radius: 10px;
+      background: rgba(15, 23, 42, 0.84);
+    }
+
+    .card h2 {
+      margin: 0 0 10px;
+      color: var(--emerald);
+      font-size: 14px;
+      letter-spacing: 0;
+    }
+
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.65;
+    }
+
+    .card code {
+      color: #bae6fd;
+      font-family: inherit;
+      font-size: 10px;
+    }
+
+    footer {
+      margin-top: 22px;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 1020px) {
+      main { width: min(100vw - 24px, 1520px); }
+      header, .nav, .cards { grid-template-columns: 1fr; }
+      .stamp { min-width: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Asynkron.JsEngine Current Architecture</h1>
+        <p class="subtitle">
+          Focused architecture diagrams for the latest checked main. Each diagram isolates one subsystem so the actual
+          boundaries are visible: compiler frontend, AST analysis, IR lowering/execution, legacy AST evaluation, and
+          runtime services/host integration.
+        </p>
+      </div>
+      <aside class="stamp">
+        <b>Snapshot</b>
+        <div>Branch: main == origin/main</div>
+        <div>Commit: bb7bd7280795a37a32a63eb4ab8ed2853cc42d57</div>
+        <div>Date: 2026-05-13</div>
+        <div>Source: src/Asynkron.JsEngine plus examples host seam</div>
+      </aside>
+    </header>
+
+    <nav class="nav" aria-label="Diagram index">
+      <a href="#frontend"><strong>1. Compiler Frontend</strong>Source text, lexer, parser, typed AST and syntax errors.</a>
+      <a href="#analysis"><strong>2. AST Analysis</strong>Cacheable plans, hoisting, scope dynamicness and plan seeds.</a>
+      <a href="#ir"><strong>3. IR Lowering</strong>ExecutionPlanBuilder, emitters, expression bytecode and runner.</a>
+      <a href="#ast"><strong>4. AST Evaluation</strong>Legacy statement/expression walk and dynamic scope fallback.</a>
+      <a href="#runtime"><strong>5. Runtime Services</strong>Realm, stdlib, modules, queues and Node-style host APIs.</a>
+    </nav>
+
+    <section id="frontend" class="diagram" aria-label="Compiler frontend, lexer and parser">
+      <div class="diagram-title">
+        <strong>1. Compiler Frontend: source text -> tokens -> typed AST</strong>
+        <span>Focus: lexical modes, parser shape construction, early syntax decisions and AST outputs.</span>
+      </div>
+      <svg viewBox="0 0 1480 690" role="img">
+        <defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#64748b"></polygon></marker></defs>
+        <rect x="36" y="56" width="298" height="560" rx="12" class="boundary"></rect>
+        <text x="56" y="82" class="group-title">entry and source options</text>
+        <rect x="386" y="56" width="316" height="560" rx="12" class="boundary"></rect>
+        <text x="406" y="82" class="group-title">lexer</text>
+        <rect x="754" y="56" width="330" height="560" rx="12" class="boundary"></rect>
+        <text x="774" y="82" class="group-title">parser</text>
+        <rect x="1136" y="56" width="306" height="560" rx="12" class="boundary"></rect>
+        <text x="1156" y="82" class="group-title">typed AST outputs</text>
+
+        <path d="M286 162 C330 162 342 162 386 162" class="arrow cyan"></path>
+        <path d="M654 162 C700 162 708 162 754 162" class="arrow emerald"></path>
+        <path d="M1034 162 C1078 162 1092 162 1136 162" class="arrow emerald"></path>
+        <path d="M544 282 C544 334 920 334 920 386" class="arrow orange"></path>
+        <path d="M918 502 C996 548 1058 548 1136 502" class="arrow violet"></path>
+        <path d="M920 262 C920 302 1290 302 1290 342" class="arrow rose"></path>
+
+        <rect x="66" y="118" width="220" height="88" rx="6" class="mask"></rect>
+        <rect x="66" y="118" width="220" height="88" rx="6" class="box host"></rect>
+        <text x="176" y="142" text-anchor="middle" class="label">JsEngine parse API</text>
+        <text x="176" y="162" text-anchor="middle" class="sub">Parse, ParseProgram, Execute</text>
+        <text x="176" y="180" text-anchor="middle" class="sub">forceStrict, top-level await</text>
+        <text x="176" y="196" text-anchor="middle" class="code">JsEngine.ParseTypedProgram</text>
+
+        <rect x="66" y="284" width="220" height="88" rx="6" class="mask"></rect>
+        <rect x="66" y="284" width="220" height="88" rx="6" class="box host"></rect>
+        <text x="176" y="308" text-anchor="middle" class="label">SourceReference</text>
+        <text x="176" y="328" text-anchor="middle" class="sub">source spans for nodes</text>
+        <text x="176" y="346" text-anchor="middle" class="sub">error location and diagnostics</text>
+        <text x="176" y="362" text-anchor="middle" class="code">Parser/SourceReference.cs</text>
+
+        <rect x="66" y="452" width="220" height="88" rx="6" class="mask"></rect>
+        <rect x="66" y="452" width="220" height="88" rx="6" class="box compat"></rect>
+        <text x="176" y="476" text-anchor="middle" class="label">Compatibility inputs</text>
+        <text x="176" y="496" text-anchor="middle" class="sub">Test262 and npm package JS</text>
+        <text x="176" y="514" text-anchor="middle" class="sub">HTML comments, modules, scripts</text>
+        <text x="176" y="530" text-anchor="middle" class="code">examples/NodeHostDemo</text>
+
+        <rect x="416" y="118" width="238" height="104" rx="6" class="mask"></rect>
+        <rect x="416" y="118" width="238" height="104" rx="6" class="box compile"></rect>
+        <text x="535" y="142" text-anchor="middle" class="label">JsLexer</text>
+        <text x="535" y="162" text-anchor="middle" class="sub">scans text into Token values</text>
+        <text x="535" y="180" text-anchor="middle" class="sub">tracks line, column and comments</text>
+        <text x="535" y="198" text-anchor="middle" class="code">Parser/JsLexer.cs</text>
+
+        <rect x="416" y="284" width="238" height="104" rx="6" class="mask"></rect>
+        <rect x="416" y="284" width="238" height="104" rx="6" class="box compile"></rect>
+        <text x="535" y="308" text-anchor="middle" class="label">Token model</text>
+        <text x="535" y="328" text-anchor="middle" class="sub">TokenType enum and Token record</text>
+        <text x="535" y="346" text-anchor="middle" class="sub">regex, template, string pieces</text>
+        <text x="535" y="364" text-anchor="middle" class="code">TokenType, Token, TemplateStringPart</text>
+
+        <rect x="416" y="452" width="238" height="104" rx="6" class="mask"></rect>
+        <rect x="416" y="452" width="238" height="104" rx="6" class="box dynamic"></rect>
+        <text x="535" y="476" text-anchor="middle" class="label">Early lexical errors</text>
+        <text x="535" y="496" text-anchor="middle" class="sub">legacy octal, escapes, invalid chars</text>
+        <text x="535" y="514" text-anchor="middle" class="sub">regex/template decoding decisions</text>
+        <text x="535" y="532" text-anchor="middle" class="code">DecodedString + ParseException</text>
+
+        <rect x="784" y="118" width="250" height="112" rx="6" class="mask"></rect>
+        <rect x="784" y="118" width="250" height="112" rx="6" class="box compile"></rect>
+        <text x="909" y="142" text-anchor="middle" class="label">JsAstParser.DirectParser</text>
+        <text x="909" y="162" text-anchor="middle" class="sub">recursive descent statement parser</text>
+        <text x="909" y="180" text-anchor="middle" class="sub">ParseProgram, ParseStatement</text>
+        <text x="909" y="198" text-anchor="middle" class="sub">strict/module/top-level await context</text>
+        <text x="909" y="216" text-anchor="middle" class="code">Parser/JsAstParser.cs</text>
+
+        <rect x="784" y="286" width="250" height="112" rx="6" class="mask"></rect>
+        <rect x="784" y="286" width="250" height="112" rx="6" class="box compile"></rect>
+        <text x="909" y="310" text-anchor="middle" class="label">Expression parser</text>
+        <text x="909" y="330" text-anchor="middle" class="sub">ParseExpression and precedence forms</text>
+        <text x="909" y="348" text-anchor="middle" class="sub">calls, members, classes, functions</text>
+        <text x="909" y="366" text-anchor="middle" class="sub">arrow and async cover grammar</text>
+        <text x="909" y="384" text-anchor="middle" class="code">ExpressionNode tree</text>
+
+        <rect x="784" y="454" width="250" height="112" rx="6" class="mask"></rect>
+        <rect x="784" y="454" width="250" height="112" rx="6" class="box dynamic"></rect>
+        <text x="909" y="478" text-anchor="middle" class="label">Syntax validation</text>
+        <text x="909" y="498" text-anchor="middle" class="sub">strict mode restrictions</text>
+        <text x="909" y="516" text-anchor="middle" class="sub">function/class parameter validation</text>
+        <text x="909" y="534" text-anchor="middle" class="sub">template and tagged template rules</text>
+        <text x="909" y="552" text-anchor="middle" class="code">ParseException path</text>
+
+        <rect x="1166" y="118" width="236" height="104" rx="6" class="mask"></rect>
+        <rect x="1166" y="118" width="236" height="104" rx="6" class="box runtime"></rect>
+        <text x="1284" y="142" text-anchor="middle" class="label">ProgramNode</text>
+        <text x="1284" y="162" text-anchor="middle" class="sub">immutable statement list</text>
+        <text x="1284" y="180" text-anchor="middle" class="sub">script/module top-level root</text>
+        <text x="1284" y="198" text-anchor="middle" class="code">Ast/ProgramNode.cs</text>
+
+        <rect x="1166" y="300" width="236" height="104" rx="6" class="mask"></rect>
+        <rect x="1166" y="300" width="236" height="104" rx="6" class="box runtime"></rect>
+        <text x="1284" y="324" text-anchor="middle" class="label">Typed AST nodes</text>
+        <text x="1284" y="344" text-anchor="middle" class="sub">StatementNode and ExpressionNode</text>
+        <text x="1284" y="362" text-anchor="middle" class="sub">FunctionExpression, ClassDefinition</text>
+        <text x="1284" y="380" text-anchor="middle" class="code">Ast/*.cs</text>
+
+        <rect x="1166" y="476" width="236" height="104" rx="6" class="mask"></rect>
+        <rect x="1166" y="476" width="236" height="104" rx="6" class="box state"></rect>
+        <text x="1284" y="500" text-anchor="middle" class="label">Downstream contract</text>
+        <text x="1284" y="520" text-anchor="middle" class="sub">nodes are cacheable analysis anchors</text>
+        <text x="1284" y="538" text-anchor="middle" class="sub">same tree feeds IR or AST eval</text>
+        <text x="1284" y="556" text-anchor="middle" class="code">IAstCacheable&lt;T&gt;</text>
+      </svg>
+    </section>
+
+    <section id="analysis" class="diagram" aria-label="AST analysis and cached plans">
+      <div class="diagram-title">
+        <strong>2. AST Analysis: immutable tree -> cached semantic plans</strong>
+        <span>Focus: the non-execution work that makes both IR and AST paths cheaper and more correct.</span>
+      </div>
+      <svg viewBox="0 0 1480 690" role="img">
+        <defs><marker id="arrowhead2" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#64748b"></polygon></marker></defs>
+        <path d="M232 168 C300 168 314 168 382 168" class="arrow emerald" marker-end="url(#arrowhead2)"></path>
+        <path d="M632 168 C696 168 710 168 774 168" class="arrow emerald" marker-end="url(#arrowhead2)"></path>
+        <path d="M1034 168 C1098 168 1112 168 1176 168" class="arrow violet" marker-end="url(#arrowhead2)"></path>
+        <path d="M518 330 C518 392 918 392 918 454" class="arrow orange" marker-end="url(#arrowhead2)"></path>
+        <path d="M916 276 C916 338 1294 338 1294 400" class="arrow rose" marker-end="url(#arrowhead2)"></path>
+        <path d="M634 512 C700 512 708 512 774 512" class="arrow emerald" marker-end="url(#arrowhead2)"></path>
+
+        <rect x="62" y="108" width="170" height="120" rx="6" class="mask"></rect>
+        <rect x="62" y="108" width="170" height="120" rx="6" class="box runtime"></rect>
+        <text x="147" y="132" text-anchor="middle" class="label">Typed AST</text>
+        <text x="147" y="154" text-anchor="middle" class="sub">ProgramNode</text>
+        <text x="147" y="172" text-anchor="middle" class="sub">BlockStatement</text>
+        <text x="147" y="190" text-anchor="middle" class="sub">FunctionExpression</text>
+        <text x="147" y="210" text-anchor="middle" class="code">cache owner nodes</text>
+
+        <rect x="382" y="86" width="250" height="164" rx="6" class="mask"></rect>
+        <rect x="382" y="86" width="250" height="164" rx="6" class="box compile"></rect>
+        <text x="507" y="110" text-anchor="middle" class="label">AstCache.GetOrCreate</text>
+        <text x="507" y="132" text-anchor="middle" class="sub">Volatile.Read fast path</text>
+        <text x="507" y="150" text-anchor="middle" class="sub">Interlocked.CompareExchange install</text>
+        <text x="507" y="168" text-anchor="middle" class="sub">node-local lazy plans</text>
+        <rect x="412" y="194" width="190" height="22" rx="4" class="port"></rect>
+        <text x="507" y="209" text-anchor="middle" class="port-text">IAstCacheable&lt;TCache&gt;</text>
+
+        <rect x="774" y="86" width="260" height="164" rx="6" class="mask"></rect>
+        <rect x="774" y="86" width="260" height="164" rx="6" class="box compile"></rect>
+        <text x="904" y="110" text-anchor="middle" class="label">Declaration plans</text>
+        <text x="904" y="132" text-anchor="middle" class="sub">HoistPlan</text>
+        <text x="904" y="150" text-anchor="middle" class="sub">HoistableDeclarationsPlan</text>
+        <text x="904" y="168" text-anchor="middle" class="sub">FunctionParameterNamesPlan</text>
+        <text x="904" y="186" text-anchor="middle" class="sub">SwitchInstantiationPlan</text>
+        <text x="904" y="210" text-anchor="middle" class="code">function declaration instantiation data</text>
+
+        <rect x="1176" y="86" width="230" height="164" rx="6" class="mask"></rect>
+        <rect x="1176" y="86" width="230" height="164" rx="6" class="box runtime"></rect>
+        <text x="1291" y="110" text-anchor="middle" class="label">Invoker setup</text>
+        <text x="1291" y="132" text-anchor="middle" class="sub">parameter names</text>
+        <text x="1291" y="150" text-anchor="middle" class="sub">lexical templates</text>
+        <text x="1291" y="168" text-anchor="middle" class="sub">arguments object decision</text>
+        <text x="1291" y="186" text-anchor="middle" class="sub">fast-path eligibility</text>
+        <text x="1291" y="210" text-anchor="middle" class="code">SyncFunctionInvoker ctor</text>
+
+        <rect x="382" y="436" width="252" height="132" rx="6" class="mask"></rect>
+        <rect x="382" y="436" width="252" height="132" rx="6" class="box dynamic"></rect>
+        <text x="508" y="460" text-anchor="middle" class="label">Dynamic scope analyzer</text>
+        <text x="508" y="482" text-anchor="middle" class="sub">with or direct eval detection</text>
+        <text x="508" y="500" text-anchor="middle" class="sub">parameters with direct eval</text>
+        <text x="508" y="518" text-anchor="middle" class="sub">closure with-object chain</text>
+        <text x="508" y="544" text-anchor="middle" class="code">ScopeDynamicnessAnalyzer</text>
+
+        <rect x="774" y="436" width="260" height="132" rx="6" class="mask"></rect>
+        <rect x="774" y="436" width="260" height="132" rx="6" class="box compile"></rect>
+        <text x="904" y="460" text-anchor="middle" class="label">Plan caches</text>
+        <text x="904" y="482" text-anchor="middle" class="sub">ExecutionPlanCache</text>
+        <text x="904" y="500" text-anchor="middle" class="sub">ScriptPlanCache</text>
+        <text x="904" y="518" text-anchor="middle" class="sub">IteratorDriverPlan and LoopPlan</text>
+        <text x="904" y="544" text-anchor="middle" class="code">Execution/*.cs</text>
+
+        <rect x="1176" y="374" width="230" height="194" rx="6" class="mask"></rect>
+        <rect x="1176" y="374" width="230" height="194" rx="6" class="box compat"></rect>
+        <text x="1291" y="398" text-anchor="middle" class="label">Execution mode decision</text>
+        <text x="1291" y="420" text-anchor="middle" class="sub">IR with slots when safe</text>
+        <text x="1291" y="438" text-anchor="middle" class="sub">IR without user slots for dynamic code</text>
+        <text x="1291" y="456" text-anchor="middle" class="sub">legacy AST when unsupported</text>
+        <text x="1291" y="474" text-anchor="middle" class="sub">script/global dictionary behavior</text>
+        <text x="1291" y="500" text-anchor="middle" class="code">AllowsIdentifierCaching gate</text>
+      </svg>
+    </section>
+
+    <section id="ir" class="diagram" aria-label="IR lowering and execution">
+      <div class="diagram-title">
+        <strong>3. IR Lowering and IR Execution: plans, instructions and expression bytecode</strong>
+        <span>Focus: how executable IR is built and how the runner consumes it.</span>
+      </div>
+      <svg viewBox="0 0 1480 690" role="img">
+        <defs><marker id="arrowhead3" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#64748b"></polygon></marker></defs>
+        <path d="M258 148 C318 148 324 148 384 148" class="arrow emerald" marker-end="url(#arrowhead3)"></path>
+        <path d="M636 148 C694 148 704 148 762 148" class="arrow emerald" marker-end="url(#arrowhead3)"></path>
+        <path d="M1014 148 C1072 148 1082 148 1140 148" class="arrow violet" marker-end="url(#arrowhead3)"></path>
+        <path d="M512 266 C512 320 888 320 888 374" class="arrow emerald" marker-end="url(#arrowhead3)"></path>
+        <path d="M888 490 C888 554 1008 554 1096 504" class="arrow orange" marker-end="url(#arrowhead3)"></path>
+        <path d="M1214 266 C1214 328 1214 336 1214 398" class="arrow violet" marker-end="url(#arrowhead3)"></path>
+
+        <rect x="62" y="88" width="196" height="120" rx="6" class="mask"></rect>
+        <rect x="62" y="88" width="196" height="120" rx="6" class="box runtime"></rect>
+        <text x="160" y="112" text-anchor="middle" class="label">FunctionExpression</text>
+        <text x="160" y="134" text-anchor="middle" class="sub">body statements</text>
+        <text x="160" y="152" text-anchor="middle" class="sub">async/generator flags</text>
+        <text x="160" y="170" text-anchor="middle" class="sub">scope ids and caches</text>
+        <text x="160" y="190" text-anchor="middle" class="code">IAstCacheable&lt;ExecutionPlanCache&gt;</text>
+
+        <rect x="384" y="70" width="252" height="156" rx="6" class="mask"></rect>
+        <rect x="384" y="70" width="252" height="156" rx="6" class="box compile"></rect>
+        <text x="510" y="94" text-anchor="middle" class="label">ExecutionPlanBuilder</text>
+        <text x="510" y="116" text-anchor="middle" class="sub">GeneratorYieldLowerer pre-pass</text>
+        <text x="510" y="134" text-anchor="middle" class="sub">TryBuildStatementList</text>
+        <text x="510" y="152" text-anchor="middle" class="sub">statement emitters per construct</text>
+        <text x="510" y="170" text-anchor="middle" class="sub">loop, try, switch, with emitters</text>
+        <text x="510" y="196" text-anchor="middle" class="code">Execution/Emitters/*</text>
+
+        <rect x="762" y="70" width="252" height="156" rx="6" class="mask"></rect>
+        <rect x="762" y="70" width="252" height="156" rx="6" class="box compile"></rect>
+        <text x="888" y="94" text-anchor="middle" class="label">SlotAssignmentRewriter</text>
+        <text x="888" y="116" text-anchor="middle" class="sub">user variable slot maps</text>
+        <text x="888" y="134" text-anchor="middle" class="sub">scope id remapping</text>
+        <text x="888" y="152" text-anchor="middle" class="sub">flat slot ids for O(1) lookup</text>
+        <text x="888" y="170" text-anchor="middle" class="sub">skipped for unsafe dynamic scopes</text>
+        <text x="888" y="196" text-anchor="middle" class="code">RootSlotMap + FlatSlotMappings</text>
+
+        <rect x="1140" y="70" width="252" height="156" rx="6" class="mask"></rect>
+        <rect x="1140" y="70" width="252" height="156" rx="6" class="box runtime"></rect>
+        <text x="1266" y="94" text-anchor="middle" class="label">ExecutionPlan</text>
+        <text x="1266" y="116" text-anchor="middle" class="sub">immutable instruction stream</text>
+        <text x="1266" y="134" text-anchor="middle" class="sub">entry point and synthetic slots</text>
+        <text x="1266" y="152" text-anchor="middle" class="sub">root lexical bindings and layout id</text>
+        <text x="1266" y="170" text-anchor="middle" class="sub">flat slot initialization metadata</text>
+        <text x="1266" y="196" text-anchor="middle" class="code">Execution/ExecutionPlan.cs</text>
+
+        <rect x="384" y="374" width="252" height="148" rx="6" class="mask"></rect>
+        <rect x="384" y="374" width="252" height="148" rx="6" class="box compile"></rect>
+        <text x="510" y="398" text-anchor="middle" class="label">ExpressionProgramCompiler</text>
+        <text x="510" y="420" text-anchor="middle" class="sub">lowers expression payloads</text>
+        <text x="510" y="438" text-anchor="middle" class="sub">PackedExpressionOp operations</text>
+        <text x="510" y="456" text-anchor="middle" class="sub">literal/string/object/id pools</text>
+        <text x="510" y="474" text-anchor="middle" class="sub">MaxStackDepth computed from ops</text>
+        <text x="510" y="500" text-anchor="middle" class="code">Execution/Instructions/ExpressionOp.cs</text>
+
+        <rect x="762" y="374" width="252" height="148" rx="6" class="mask"></rect>
+        <rect x="762" y="374" width="252" height="148" rx="6" class="box runtime"></rect>
+        <text x="888" y="398" text-anchor="middle" class="label">Instruction handlers</text>
+        <text x="888" y="420" text-anchor="middle" class="sub">InstructionKind byte discriminator</text>
+        <text x="888" y="438" text-anchor="middle" class="sub">static array dispatch by enum index</text>
+        <text x="888" y="456" text-anchor="middle" class="sub">control, declarations, iterators</text>
+        <text x="888" y="474" text-anchor="middle" class="sub">operators, generators, try/catch</text>
+        <text x="888" y="500" text-anchor="middle" class="code">ExecutionPlanRunner.Handlers.*</text>
+
+        <rect x="1140" y="374" width="252" height="148" rx="6" class="mask"></rect>
+        <rect x="1140" y="374" width="252" height="148" rx="6" class="box state"></rect>
+        <text x="1266" y="398" text-anchor="middle" class="label">ExecutionPlanRunner</text>
+        <text x="1266" y="420" text-anchor="middle" class="sub">program counter over instructions</text>
+        <text x="1266" y="438" text-anchor="middle" class="sub">EvaluateExpressionProgram stack VM</text>
+        <text x="1266" y="456" text-anchor="middle" class="sub">completion, yield, async, try state</text>
+        <text x="1266" y="474" text-anchor="middle" class="sub">environment stack and flat slots</text>
+        <text x="1266" y="500" text-anchor="middle" class="code">TypedAstEvaluator.ExecutionPlanRunner.*</text>
+
+        <rect x="650" y="572" width="440" height="54" rx="6" class="mask"></rect>
+        <rect x="650" y="572" width="440" height="54" rx="6" class="box dynamic"></rect>
+        <text x="870" y="594" text-anchor="middle" class="label">Failure boundary</text>
+        <text x="870" y="614" text-anchor="middle" class="sub">unsupported lowering or unsafe dynamic scope becomes a reported failure or fallback route</text>
+      </svg>
+    </section>
+
+    <section id="ast" class="diagram" aria-label="AST evaluation and fallback">
+      <div class="diagram-title">
+        <strong>4. AST Evaluation and Fallback: dynamic JavaScript semantics path</strong>
+        <span>Focus: the intentionally preserved tree-walking path and why it still exists.</span>
+      </div>
+      <svg viewBox="0 0 1480 690" role="img">
+        <defs><marker id="arrowhead4" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#64748b"></polygon></marker></defs>
+        <path d="M258 154 C322 154 336 154 400 154" class="arrow amber" marker-end="url(#arrowhead4)"></path>
+        <path d="M650 154 C712 154 724 154 786 154" class="arrow amber" marker-end="url(#arrowhead4)"></path>
+        <path d="M1036 154 C1096 154 1110 154 1170 154" class="arrow violet" marker-end="url(#arrowhead4)"></path>
+        <path d="M524 284 C524 336 914 336 914 388" class="arrow orange" marker-end="url(#arrowhead4)"></path>
+        <path d="M914 522 C978 572 1106 572 1170 522" class="arrow violet" marker-end="url(#arrowhead4)"></path>
+        <path d="M1258 284 C1258 346 1258 354 1258 416" class="arrow rose" marker-end="url(#arrowhead4)"></path>
+
+        <rect x="70" y="94" width="188" height="120" rx="6" class="mask"></rect>
+        <rect x="70" y="94" width="188" height="120" rx="6" class="box dynamic"></rect>
+        <text x="164" y="118" text-anchor="middle" class="label">Fallback triggers</text>
+        <text x="164" y="140" text-anchor="middle" class="sub">with object environments</text>
+        <text x="164" y="158" text-anchor="middle" class="sub">direct eval binding mutation</text>
+        <text x="164" y="176" text-anchor="middle" class="sub">unsupported IR construct</text>
+        <text x="164" y="196" text-anchor="middle" class="code">AllowsIdentifierCaching == false</text>
+
+        <rect x="400" y="82" width="250" height="144" rx="6" class="mask"></rect>
+        <rect x="400" y="82" width="250" height="144" rx="6" class="box dynamic"></rect>
+        <text x="525" y="106" text-anchor="middle" class="label">Legacy statement evaluator</text>
+        <text x="525" y="128" text-anchor="middle" class="sub">EvaluateProgramJsValue</text>
+        <text x="525" y="146" text-anchor="middle" class="sub">EvaluateStatementJsValue</text>
+        <text x="525" y="164" text-anchor="middle" class="sub">block, if, loops, switch, try</text>
+        <text x="525" y="182" text-anchor="middle" class="sub">with statement object environment</text>
+        <text x="525" y="206" text-anchor="middle" class="code">Ast/Legacy/StatementNodeExtensions.cs</text>
+
+        <rect x="786" y="82" width="250" height="144" rx="6" class="mask"></rect>
+        <rect x="786" y="82" width="250" height="144" rx="6" class="box dynamic"></rect>
+        <text x="911" y="106" text-anchor="middle" class="label">Legacy expression evaluator</text>
+        <text x="911" y="128" text-anchor="middle" class="sub">EvaluateExpressionJsValue</text>
+        <text x="911" y="146" text-anchor="middle" class="sub">AssignmentReference resolution</text>
+        <text x="911" y="164" text-anchor="middle" class="sub">property/call/member semantics</text>
+        <text x="911" y="182" text-anchor="middle" class="sub">direct eval call annotation</text>
+        <text x="911" y="206" text-anchor="middle" class="code">Ast/Legacy/ExpressionNodeExtensions.cs</text>
+
+        <rect x="1170" y="82" width="220" height="144" rx="6" class="mask"></rect>
+        <rect x="1170" y="82" width="220" height="144" rx="6" class="box runtime"></rect>
+        <text x="1280" y="106" text-anchor="middle" class="label">JsEnvironment lookup</text>
+        <text x="1280" y="128" text-anchor="middle" class="sub">dictionary name lookup</text>
+        <text x="1280" y="146" text-anchor="middle" class="sub">object environment chain</text>
+        <text x="1280" y="164" text-anchor="middle" class="sub">global and with bindings</text>
+        <text x="1280" y="182" text-anchor="middle" class="sub">TDZ and lexical bindings</text>
+        <text x="1280" y="206" text-anchor="middle" class="code">JsEnvironment.cs</text>
+
+        <rect x="400" y="388" width="250" height="134" rx="6" class="mask"></rect>
+        <rect x="400" y="388" width="250" height="134" rx="6" class="box state"></rect>
+        <text x="525" y="412" text-anchor="middle" class="label">EvaluationContext</text>
+        <text x="525" y="434" text-anchor="middle" class="sub">scope stack and strictness</text>
+        <text x="525" y="452" text-anchor="middle" class="sub">call depth and cancellation</text>
+        <text x="525" y="470" text-anchor="middle" class="sub">throw/return/break/continue signals</text>
+        <text x="525" y="496" text-anchor="middle" class="code">context flags drive abrupt completion</text>
+
+        <rect x="786" y="388" width="250" height="134" rx="6" class="mask"></rect>
+        <rect x="786" y="388" width="250" height="134" rx="6" class="box state"></rect>
+        <text x="911" y="412" text-anchor="middle" class="label">Fast islands inside AST path</text>
+        <text x="911" y="434" text-anchor="middle" class="sub">IteratorDriverPlanExtensions</text>
+        <text x="911" y="452" text-anchor="middle" class="sub">loop plan caches</text>
+        <text x="911" y="470" text-anchor="middle" class="sub">slot reads when safe</text>
+        <text x="911" y="496" text-anchor="middle" class="code">AST path is not purely naive walking</text>
+
+        <rect x="1170" y="388" width="220" height="134" rx="6" class="mask"></rect>
+        <rect x="1170" y="388" width="220" height="134" rx="6" class="box compat"></rect>
+        <text x="1280" y="412" text-anchor="middle" class="label">Deletion pressure</text>
+        <text x="1280" y="434" text-anchor="middle" class="sub">IR should absorb safe shapes</text>
+        <text x="1280" y="452" text-anchor="middle" class="sub">dynamic seams remain explicit</text>
+        <text x="1280" y="470" text-anchor="middle" class="sub">AST eval use is scanned/proven</text>
+        <text x="1280" y="496" text-anchor="middle" class="code">EvaluateExpression seam audits</text>
+      </svg>
+    </section>
+
+    <section id="runtime" class="diagram" aria-label="Runtime services, host and modules">
+      <div class="diagram-title">
+        <strong>5. Runtime Services and Host Integration: realm, stdlib, modules, async and Node demos</strong>
+        <span>Focus: the runtime shell around the evaluator.</span>
+      </div>
+      <svg viewBox="0 0 1480 690" role="img">
+        <defs><marker id="arrowhead5" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#64748b"></polygon></marker></defs>
+        <path d="M272 142 C336 142 350 142 414 142" class="arrow cyan" marker-end="url(#arrowhead5)"></path>
+        <path d="M666 142 C730 142 744 142 808 142" class="arrow violet" marker-end="url(#arrowhead5)"></path>
+        <path d="M1060 142 C1122 142 1138 142 1200 142" class="arrow violet" marker-end="url(#arrowhead5)"></path>
+        <path d="M540 264 C540 334 540 342 540 412" class="arrow cyan" marker-end="url(#arrowhead5)"></path>
+        <path d="M934 264 C934 334 934 342 934 412" class="arrow orange" marker-end="url(#arrowhead5)"></path>
+        <path d="M1200 474 C1138 474 1122 474 1060 474" class="arrow cyan" marker-end="url(#arrowhead5)"></path>
+        <path d="M414 474 C350 474 336 474 272 474" class="arrow rose" marker-end="url(#arrowhead5)"></path>
+
+        <rect x="72" y="86" width="200" height="112" rx="6" class="mask"></rect>
+        <rect x="72" y="86" width="200" height="112" rx="6" class="box host"></rect>
+        <text x="172" y="110" text-anchor="middle" class="label">JsEngine constructor</text>
+        <text x="172" y="132" text-anchor="middle" class="sub">creates RealmState</text>
+        <text x="172" y="150" text-anchor="middle" class="sub">GlobalObject and GlobalEnvironment</text>
+        <text x="172" y="168" text-anchor="middle" class="sub">globalThis/global aliases</text>
+        <text x="172" y="184" text-anchor="middle" class="code">JsEngine.cs</text>
+
+        <rect x="414" y="70" width="252" height="144" rx="6" class="mask"></rect>
+        <rect x="414" y="70" width="252" height="144" rx="6" class="box runtime"></rect>
+        <text x="540" y="94" text-anchor="middle" class="label">RealmState</text>
+        <text x="540" y="116" text-anchor="middle" class="sub">intrinsic constructors/prototypes</text>
+        <text x="540" y="134" text-anchor="middle" class="sub">context pool, logger, options</text>
+        <text x="540" y="152" text-anchor="middle" class="sub">private names and template cache</text>
+        <text x="540" y="170" text-anchor="middle" class="sub">per-engine object graph</text>
+        <text x="540" y="194" text-anchor="middle" class="code">Runtime/RealmState.cs</text>
+
+        <rect x="808" y="70" width="252" height="144" rx="6" class="mask"></rect>
+        <rect x="808" y="70" width="252" height="144" rx="6" class="box runtime"></rect>
+        <text x="934" y="94" text-anchor="middle" class="label">Standard library bootstrap</text>
+        <text x="934" y="116" text-anchor="middle" class="sub">Object, Function, Array, Promise</text>
+        <text x="934" y="134" text-anchor="middle" class="sub">Map/Set, Proxy, Reflect, JSON</text>
+        <text x="934" y="152" text-anchor="middle" class="sub">Intl, Temporal, typed arrays, Atomics</text>
+        <text x="934" y="170" text-anchor="middle" class="sub">constructors stored back into realm</text>
+        <text x="934" y="194" text-anchor="middle" class="code">StdLib/*</text>
+
+        <rect x="1200" y="70" width="220" height="144" rx="6" class="mask"></rect>
+        <rect x="1200" y="70" width="220" height="144" rx="6" class="box runtime"></rect>
+        <text x="1310" y="94" text-anchor="middle" class="label">Object/value model</text>
+        <text x="1310" y="116" text-anchor="middle" class="sub">JsValue tagged carrier</text>
+        <text x="1310" y="134" text-anchor="middle" class="sub">JsObject descriptors</text>
+        <text x="1310" y="152" text-anchor="middle" class="sub">IJsCallable/IPropertyAccessor</text>
+        <text x="1310" y="170" text-anchor="middle" class="sub">arrays, proxy, regexp, typed arrays</text>
+        <text x="1310" y="194" text-anchor="middle" class="code">JsTypes/*</text>
+
+        <rect x="72" y="418" width="200" height="132" rx="6" class="mask"></rect>
+        <rect x="72" y="418" width="200" height="132" rx="6" class="box compat"></rect>
+        <text x="172" y="442" text-anchor="middle" class="label">NodeHostDemo</text>
+        <text x="172" y="464" text-anchor="middle" class="sub">CommonJS require resolver</text>
+        <text x="172" y="482" text-anchor="middle" class="sub">module cache and npm packages</text>
+        <text x="172" y="500" text-anchor="middle" class="sub">fs/http/EventEmitter-style host APIs</text>
+        <text x="172" y="526" text-anchor="middle" class="code">examples/NodeHostDemo</text>
+
+        <rect x="414" y="404" width="252" height="160" rx="6" class="mask"></rect>
+        <rect x="414" y="404" width="252" height="160" rx="6" class="box host"></rect>
+        <text x="540" y="428" text-anchor="middle" class="label">Host API surface</text>
+        <text x="540" y="450" text-anchor="middle" class="sub">SetGlobal/RegisterGlobal</text>
+        <text x="540" y="468" text-anchor="middle" class="sub">RegisterHostFunction variants</text>
+        <text x="540" y="486" text-anchor="middle" class="sub">Task to Promise bridge</text>
+        <text x="540" y="504" text-anchor="middle" class="sub">DebugAwareHostFunction</text>
+        <text x="540" y="530" text-anchor="middle" class="code">HostFunction and IJsCallable</text>
+
+        <rect x="808" y="404" width="252" height="160" rx="6" class="mask"></rect>
+        <rect x="808" y="404" width="252" height="160" rx="6" class="box state"></rect>
+        <text x="934" y="428" text-anchor="middle" class="label">Async and scheduling</text>
+        <text x="934" y="450" text-anchor="middle" class="sub">Promise jobs and microtasks</text>
+        <text x="934" y="468" text-anchor="middle" class="sub">queueMicrotask global</text>
+        <text x="934" y="486" text-anchor="middle" class="sub">setTimeout/setInterval queues</text>
+        <text x="934" y="504" text-anchor="middle" class="sub">AwaitScheduler for async IR</text>
+        <text x="934" y="530" text-anchor="middle" class="code">JsEngine event loop owns delivery</text>
+
+        <rect x="1200" y="404" width="220" height="160" rx="6" class="mask"></rect>
+        <rect x="1200" y="404" width="220" height="160" rx="6" class="box host"></rect>
+        <text x="1310" y="428" text-anchor="middle" class="label">ES module runtime</text>
+        <text x="1310" y="450" text-anchor="middle" class="sub">ModuleEntry registry</text>
+        <text x="1310" y="468" text-anchor="middle" class="sub">instantiation/evaluation</text>
+        <text x="1310" y="486" text-anchor="middle" class="sub">import.meta and namespace objects</text>
+        <text x="1310" y="504" text-anchor="middle" class="sub">JSON modules and top-level await</text>
+        <text x="1310" y="530" text-anchor="middle" class="code">LoadModule + EnsureModuleEvaluated</text>
+      </svg>
+    </section>
+
+    <section class="cards" aria-label="Architecture summary">
+      <article class="card">
+        <h2>Compiler Frontend</h2>
+        <p><code>JsLexer</code> and <code>JsAstParser</code> are a real compiler frontend. They produce typed immutable AST nodes with source spans, not direct runtime behavior.</p>
+      </article>
+      <article class="card">
+        <h2>Two Execution Worlds</h2>
+        <p>The intended fast path is AST -> cached analysis -> IR -> <code>ExecutionPlanRunner</code>. The AST evaluator remains for dynamic JavaScript semantics and unsupported IR shapes.</p>
+      </article>
+      <article class="card">
+        <h2>Host Boundary</h2>
+        <p>The Node-style demos sit outside the engine core. They exercise <code>HostFunction</code>, module loading and async scheduling while JavaScript semantics stay in the runtime.</p>
+      </article>
+    </section>
+
+    <footer>
+      Generated from current source inspection on 2026-05-13. The diagrams intentionally separate compiler frontend,
+      AST analysis, IR lowering/execution, legacy AST evaluation, and runtime host services so each architecture seam is visible.
+    </footer>
+  </main>
+</body>
+</html>

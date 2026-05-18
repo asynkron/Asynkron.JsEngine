@@ -56,6 +56,17 @@ public sealed class MathMethodsTests(ITestOutputHelper output) : InternalTestBas
         Assert.Equal(-2d, result);
     }
 
+    [Theory(Timeout = 2000)]
+    [InlineData("Math.imul(0xffffffff, 5);", -5d)]
+    [InlineData("Math.imul(2147483647, 2147483647);", 1d)]
+    [InlineData("Math.imul(65535, 65535);", -131071d)]
+    public async Task Math_Imul_UsesUint32ModuloMultiplication(string expression, double expected)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(expression);
+        Assert.Equal(expected, result);
+    }
+
     [Fact(Timeout = 2000)]
     public async Task Math_Fround_ConvertsToFloat32()
     {
@@ -187,6 +198,15 @@ public sealed class MathMethodsTests(ITestOutputHelper output) : InternalTestBas
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Math_Atan2_Preserves_NegativeZero_When_X_Is_PositiveZero()
+    {
+        await using var engine = CreateEngine();
+        var result = (double)(await engine.Evaluate("1 / Math.atan2(-0, 0);"))!;
+
+        Assert.Equal(double.NegativeInfinity, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Math_Round_NegativeZeroEdgeCases()
     {
         await using var engine = CreateEngine();
@@ -207,6 +227,16 @@ public sealed class MathMethodsTests(ITestOutputHelper output) : InternalTestBas
         // This tests that Number.EPSILON is correctly set to 2^-52, not double.Epsilon
         var result4 = (double)(await engine.Evaluate("1 / Math.round(0.5 - Number.EPSILON / 4);"))!;
         Assert.Equal(double.PositiveInfinity, result4);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Math_Abs_ConvertsNegativeZeroToPositiveZero()
+    {
+        await using var engine = CreateEngine();
+
+        var result = (double)(await engine.Evaluate("1 / Math.abs(-0);"))!;
+
+        Assert.Equal(double.PositiveInfinity, result);
     }
 
     [Fact(Timeout = 2000)]

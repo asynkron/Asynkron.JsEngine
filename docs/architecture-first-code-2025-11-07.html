@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Asynkron.JsEngine First Code Architecture</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      padding: 2rem;
+      background: #020617;
+      color: #e2e8f0;
+      font-family: "JetBrains Mono", monospace;
+    }
+    .container { max-width: 1220px; margin: 0 auto; }
+    .header { margin-bottom: 1.5rem; }
+    .header-row { display: flex; align-items: center; gap: 0.875rem; margin-bottom: 0.5rem; }
+    .pulse-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #22d3ee;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+    h1 { font-size: 1.45rem; font-weight: 700; letter-spacing: 0; }
+    .subtitle { margin-left: 1.875rem; color: #94a3b8; font-size: 0.84rem; line-height: 1.55; }
+    .diagram-container {
+      overflow-x: auto;
+      padding: 1.25rem;
+      border: 1px solid #1e293b;
+      border-radius: 1rem;
+      background: rgba(15, 23, 42, 0.55);
+    }
+    svg { width: 100%; min-width: 1000px; display: block; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+    .card {
+      padding: 1.1rem;
+      border: 1px solid #1e293b;
+      border-radius: 0.75rem;
+      background: rgba(15, 23, 42, 0.55);
+    }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .cyan { background: #22d3ee; }
+    .emerald { background: #34d399; }
+    .violet { background: #a78bfa; }
+    .amber { background: #fbbf24; }
+    .rose { background: #fb7185; }
+    .card h3 { color: #f8fafc; font-size: 0.88rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; line-height: 1.55; }
+    .footer { margin-top: 1.25rem; text-align: center; color: #64748b; font-size: 0.72rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Asynkron.JsEngine Architecture at First Code Commit</h1>
+      </div>
+      <p class="subtitle">
+        Snapshot: 44d2699010c7b5e60a325c7b3cc10d18879407b0, 2025-11-07, commit message "first".
+        The literal repository root commit only contained .gitignore, LICENSE, and README.md, so this is the earliest commit with executable engine architecture.
+      </p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1000 740" role="img" aria-label="First code architecture for Asynkron.JsEngine">
+        <defs>
+          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#64748b"></polygon>
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"></path>
+          </pattern>
+        </defs>
+
+        <rect width="100%" height="100%" fill="url(#grid)"></rect>
+
+        <path d="M145 225 L250 225" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"></path>
+        <path d="M410 225 L515 165" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"></path>
+        <path d="M410 225 L515 285" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"></path>
+        <path d="M675 165 L770 225" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"></path>
+        <path d="M675 285 L770 225" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"></path>
+        <path d="M920 225 L920 410 L810 410" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrowhead)"></path>
+        <path d="M770 410 L650 410" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"></path>
+        <path d="M650 485 L650 560 L520 560" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrowhead)"></path>
+        <path d="M650 485 L650 660 L520 660" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrowhead)"></path>
+        <path d="M650 485 L790 560" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrowhead)"></path>
+        <path d="M650 485 L790 660" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrowhead)"></path>
+        <path d="M145 560 L250 560" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"></path>
+        <path d="M380 560 L520 245" stroke="#64748b" stroke-width="1.5" fill="none" stroke-dasharray="5,5" marker-end="url(#arrowhead)"></path>
+
+        <rect x="20" y="40" width="960" height="670" rx="12" fill="rgba(251, 191, 36, 0.05)" stroke="#fbbf24" stroke-width="1" stroke-dasharray="8,4"></rect>
+        <text x="36" y="62" fill="#fbbf24" font-size="10" font-weight="600">Earliest executable architecture: single net8.0 library + xUnit tests</text>
+
+        <rect x="35" y="185" width="110" height="80" rx="6" fill="#0f172a"></rect>
+        <rect x="35" y="185" width="110" height="80" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"></rect>
+        <text x="90" y="210" fill="white" font-size="11" font-weight="600" text-anchor="middle">Caller</text>
+        <text x="90" y="228" fill="#94a3b8" font-size="9" text-anchor="middle">C# host code</text>
+        <text x="90" y="244" fill="#94a3b8" font-size="9" text-anchor="middle">JS source string</text>
+
+        <rect x="250" y="175" width="160" height="100" rx="6" fill="#0f172a"></rect>
+        <rect x="250" y="175" width="160" height="100" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"></rect>
+        <text x="330" y="198" fill="white" font-size="12" font-weight="600" text-anchor="middle">JsEngine</text>
+        <text x="330" y="218" fill="#94a3b8" font-size="9" text-anchor="middle">public facade</text>
+        <text x="330" y="235" fill="#94a3b8" font-size="8" text-anchor="middle">Parse(source)</text>
+        <text x="330" y="249" fill="#94a3b8" font-size="8" text-anchor="middle">Evaluate(source | Cons)</text>
+        <text x="330" y="263" fill="#22d3ee" font-size="8" text-anchor="middle">SetGlobal / SetGlobalFunction</text>
+
+        <rect x="515" y="115" width="160" height="100" rx="6" fill="#0f172a"></rect>
+        <rect x="515" y="115" width="160" height="100" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"></rect>
+        <text x="595" y="138" fill="white" font-size="12" font-weight="600" text-anchor="middle">Lexer</text>
+        <text x="595" y="158" fill="#94a3b8" font-size="9" text-anchor="middle">handwritten scanner</text>
+        <text x="595" y="176" fill="#94a3b8" font-size="8" text-anchor="middle">source -> Token list</text>
+        <text x="595" y="192" fill="#34d399" font-size="8" text-anchor="middle">Token.cs + TokenType</text>
+
+        <rect x="515" y="245" width="160" height="100" rx="6" fill="#0f172a"></rect>
+        <rect x="515" y="245" width="160" height="100" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"></rect>
+        <text x="595" y="268" fill="white" font-size="12" font-weight="600" text-anchor="middle">Parser</text>
+        <text x="595" y="288" fill="#94a3b8" font-size="9" text-anchor="middle">recursive descent</text>
+        <text x="595" y="306" fill="#94a3b8" font-size="8" text-anchor="middle">statements + expressions</text>
+        <text x="595" y="322" fill="#34d399" font-size="8" text-anchor="middle">throws ParseException</text>
+
+        <rect x="770" y="165" width="150" height="120" rx="6" fill="#0f172a"></rect>
+        <rect x="770" y="165" width="150" height="120" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"></rect>
+        <text x="845" y="188" fill="white" font-size="12" font-weight="600" text-anchor="middle">S-expression IR</text>
+        <text x="845" y="209" fill="#94a3b8" font-size="9" text-anchor="middle">Cons cells</text>
+        <text x="845" y="226" fill="#94a3b8" font-size="9" text-anchor="middle">interned Symbol atoms</text>
+        <text x="845" y="243" fill="#94a3b8" font-size="8" text-anchor="middle">JsSymbols contract</text>
+        <text x="845" y="260" fill="#a78bfa" font-size="8" text-anchor="middle">(program (let ...) ...)</text>
+
+        <rect x="520" y="370" width="290" height="115" rx="6" fill="#0f172a"></rect>
+        <rect x="520" y="370" width="290" height="115" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"></rect>
+        <text x="665" y="394" fill="white" font-size="12" font-weight="600" text-anchor="middle">Evaluator</text>
+        <text x="665" y="415" fill="#94a3b8" font-size="9" text-anchor="middle">tree-walks Cons program</text>
+        <text x="665" y="432" fill="#94a3b8" font-size="8" text-anchor="middle">EvaluateProgram / EvaluateStatement / EvaluateExpression</text>
+        <text x="665" y="449" fill="#94a3b8" font-size="8" text-anchor="middle">implements if, loops, switch, try/catch/finally</text>
+        <text x="665" y="466" fill="#34d399" font-size="8" text-anchor="middle">returns object? and propagates control via signals</text>
+
+        <rect x="250" y="520" width="130" height="80" rx="6" fill="#0f172a"></rect>
+        <rect x="250" y="520" width="130" height="80" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"></rect>
+        <text x="315" y="543" fill="white" font-size="11" font-weight="600" text-anchor="middle">Tests</text>
+        <text x="315" y="562" fill="#94a3b8" font-size="9" text-anchor="middle">xUnit project</text>
+        <text x="315" y="579" fill="#94a3b8" font-size="8" text-anchor="middle">ParserTests</text>
+        <text x="315" y="593" fill="#94a3b8" font-size="8" text-anchor="middle">EvaluatorTests</text>
+
+        <rect x="35" y="520" width="110" height="80" rx="6" fill="#0f172a"></rect>
+        <rect x="35" y="520" width="110" height="80" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"></rect>
+        <text x="90" y="543" fill="white" font-size="11" font-weight="600" text-anchor="middle">Test cases</text>
+        <text x="90" y="562" fill="#94a3b8" font-size="8" text-anchor="middle">arithmetic</text>
+        <text x="90" y="576" fill="#94a3b8" font-size="8" text-anchor="middle">closures</text>
+        <text x="90" y="590" fill="#94a3b8" font-size="8" text-anchor="middle">objects, arrays</text>
+
+        <rect x="270" y="630" width="250" height="65" rx="6" fill="#0f172a"></rect>
+        <rect x="270" y="630" width="250" height="65" rx="6" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1.5"></rect>
+        <text x="395" y="653" fill="white" font-size="11" font-weight="600" text-anchor="middle">Control-flow signals</text>
+        <text x="395" y="672" fill="#94a3b8" font-size="8" text-anchor="middle">ReturnSignal, ThrowSignal</text>
+        <text x="395" y="686" fill="#94a3b8" font-size="8" text-anchor="middle">BreakSignal, ContinueSignal</text>
+
+        <rect x="270" y="530" width="250" height="65" rx="6" fill="#0f172a" opacity="0"></rect>
+        <rect x="270" y="530" width="250" height="65" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"></rect>
+        <text x="395" y="553" fill="white" font-size="11" font-weight="600" text-anchor="middle">Environment</text>
+        <text x="395" y="572" fill="#94a3b8" font-size="8" text-anchor="middle">nested lexical scopes</text>
+        <text x="395" y="586" fill="#94a3b8" font-size="8" text-anchor="middle">let / const / var function-scope hoisting</text>
+
+        <rect x="790" y="520" width="150" height="80" rx="6" fill="#0f172a"></rect>
+        <rect x="790" y="520" width="150" height="80" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"></rect>
+        <text x="865" y="543" fill="white" font-size="11" font-weight="600" text-anchor="middle">Callables</text>
+        <text x="865" y="562" fill="#94a3b8" font-size="8" text-anchor="middle">IJsCallable</text>
+        <text x="865" y="576" fill="#94a3b8" font-size="8" text-anchor="middle">JsFunction closures</text>
+        <text x="865" y="590" fill="#94a3b8" font-size="8" text-anchor="middle">HostFunction interop</text>
+
+        <rect x="790" y="630" width="150" height="65" rx="6" fill="#0f172a"></rect>
+        <rect x="790" y="630" width="150" height="65" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"></rect>
+        <text x="865" y="653" fill="white" font-size="11" font-weight="600" text-anchor="middle">JS heap model</text>
+        <text x="865" y="672" fill="#94a3b8" font-size="8" text-anchor="middle">JsObject + __proto__</text>
+        <text x="865" y="686" fill="#94a3b8" font-size="8" text-anchor="middle">JsArray length/indexes, SuperBinding</text>
+
+        <text x="40" y="685" fill="#64748b" font-size="8">Literal root commit b56a9075: repo metadata only; no engine architecture to draw.</text>
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header"><div class="card-dot cyan"></div><h3>Pipeline</h3></div>
+        <ul>
+          <li>* `JsEngine.Parse` creates `Lexer`, tokenizes source, then feeds `Parser`.</li>
+          <li>* `Parser.ParseProgram` emits a `Cons` tree tagged by shared `JsSymbols`.</li>
+          <li>* `JsEngine.Evaluate` delegates the tree to `Evaluator.EvaluateProgram`.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-dot emerald"></div><h3>Runtime Model</h3></div>
+        <ul>
+          <li>* Execution is a direct S-expression tree walk returning `object?` values.</li>
+          <li>* `Environment` stores symbol bindings and models lexical nesting.</li>
+          <li>* `Return`, `throw`, `break`, and `continue` use dedicated C# signal exceptions.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-dot violet"></div><h3>Object Model</h3></div>
+        <ul>
+          <li>* `JsObject` is a dictionary with `__proto__` traversal.</li>
+          <li>* `JsArray` wraps indexed storage plus object-like properties.</li>
+          <li>* `JsFunction` captures closure environments; `HostFunction` bridges C# callbacks.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer">
+      Generated from git snapshot inspection in /tmp/asynkron-jsengine-first-code. No current source files were read as architecture truth for this historical view.
+    </div>
+  </div>
+</body>
+</html>

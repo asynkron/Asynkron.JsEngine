@@ -110,7 +110,7 @@ public sealed partial class DataViewPrototype
         var offset = args.Count > 0 ? ToIndex(args[0], Realm) : 0;
         var valueArg = args.Count > 1 ? args[1] : JsValue.Undefined;
         var valueNumber = JsOps.ToNumber(valueArg);
-        var value = (short)JsNumericConversions.ToInt32(valueNumber);
+        var value = JsNumericConversions.ToInt16(valueNumber);
         var littleEndian = args.Count > 2 && args[2].IsTruthy;
         return WithRangeError(() =>
         {
@@ -139,7 +139,7 @@ public sealed partial class DataViewPrototype
         var offset = args.Count > 0 ? ToIndex(args[0], Realm) : 0;
         var valueArg = args.Count > 1 ? args[1] : JsValue.Undefined;
         var valueNumber = JsOps.ToNumber(valueArg);
-        var value = unchecked((ushort)JsNumericConversions.ToUInt32(valueNumber));
+        var value = JsNumericConversions.ToUInt16(valueNumber);
         var littleEndian = args.Count > 2 && args[2].IsTruthy;
         return WithRangeError(() =>
         {

@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.JsTypes;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -78,6 +79,99 @@ public sealed class DataViewAdditionalMethodsTests(ITestOutputHelper output) : I
         ");
 
         Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task DataView_SetUint8_ReturnsUndefinedAndUsesUint8ModuloConversion()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            const buffer = new ArrayBuffer(1);
+            const view = new DataView(buffer);
+            const typedArray = new Uint8Array(buffer);
+            const cases = [
+                [2147483648, 0],
+                [4294967295, 255],
+                [4294967296, 0],
+                [-1, 255],
+                [-255, 1],
+                [255.99999999999, 255],
+                [undefined, 0],
+                [NaN, 0],
+                [Infinity, 0],
+                [-Infinity, 0],
+            ];
+
+            for (const [value, expected] of cases) {
+                const actualReturn = view.setUint8(0, value);
+                if (actualReturn !== undefined) {
+                    throw new Error('setUint8 must return undefined for ' + value);
+                }
+
+                if (typedArray[0] !== expected) {
+                    throw new Error('setUint8 conversion mismatch for ' + value);
+                }
+            }
+
+            true;
+        ");
+
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task DataView_SetUint16_ReturnsUndefinedAndUsesUint16ModuloConversion()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            const buffer = new ArrayBuffer(2);
+            const view = new DataView(buffer);
+            const cases = [
+                [2147483647, 65535],
+                [2147483648, 0],
+                [4294967295, 65535],
+                [4294967296, 0],
+                [-1, 65535],
+                [-65535, 1],
+                [65519.99999999999, 65519],
+                [undefined, 0],
+                [NaN, 0],
+                [Infinity, 0],
+            ];
+
+            for (const [value, expected] of cases) {
+                const actualReturn = view.setUint16(0, value);
+                if (actualReturn !== undefined) {
+                    throw new Error('setUint16 must return undefined for ' + value);
+                }
+
+                if (view.getUint16(0) !== expected) {
+                    throw new Error('setUint16 conversion mismatch for ' + value);
+                }
+            }
+
+            true;
+        ");
+
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task DataView_SetUint16_FallbackUsesSameUint16Conversion()
+    {
+        await using var engine = CreateEngine();
+        var buffer = new JsArrayBuffer(2, realmState: engine.RealmState);
+        var view = new JsDataView(buffer);
+
+        Assert.True(view.TryGetProperty("setUint16", out var methodValue));
+        var method = Assert.IsAssignableFrom<IJsCallable>(methodValue.ObjectValue);
+
+        var result = method.Invoke(
+            [new JsValue(0d), new JsValue(2147483647d), JsValue.False],
+            JsValue.FromObjectUnsafe(view));
+
+        Assert.True(result.IsUndefined);
+        Assert.Equal((ushort)65535, view.GetUint16(0));
     }
 
     [Fact(Timeout = 2000)]

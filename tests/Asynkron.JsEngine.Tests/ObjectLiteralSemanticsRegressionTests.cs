@@ -223,4 +223,37 @@ public sealed class ObjectLiteralSemanticsRegressionTests(ITestOutputHelper outp
         Assert.Equal("baz", array.GetElement(2).AsString());
         Assert.Equal("foo", array.GetElement(3).AsString());
     }
+
+    [Fact]
+    public async Task ComputedObjectLiteralSetter_DefinesSetterDescriptor()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var key = "value";
+            var seen = "unset";
+            var obj = {
+              set [key](next) {
+                seen = next;
+              }
+            };
+
+            var descriptor = Object.getOwnPropertyDescriptor(obj, "value");
+            obj.value = "called";
+
+            [
+              typeof descriptor.set,
+              descriptor.get === undefined,
+              descriptor.enumerable,
+              descriptor.configurable,
+              seen
+            ];
+            """);
+
+        var array = Assert.IsType<JsArray>(result);
+        Assert.Equal("function", array.GetElement(0).AsString());
+        Assert.True(array.GetElement(1).AsBoolean());
+        Assert.True(array.GetElement(2).AsBoolean());
+        Assert.True(array.GetElement(3).AsBoolean());
+        Assert.Equal("called", array.GetElement(4).AsString());
+    }
 }

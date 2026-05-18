@@ -198,7 +198,8 @@ internal static class ControlFlowEmitter
             return false;
         }
 
-        entryIndex = ctx.Append(new BreakInstruction(target, scopeId));
+        var cleanupTarget = ctx.BuildScopeExitTarget(target, scopeId);
+        entryIndex = ctx.Append(new BreakInstruction(cleanupTarget, scopeId));
         return true;
     }
 
@@ -221,7 +222,8 @@ internal static class ControlFlowEmitter
             return false;
         }
 
-        entryIndex = ctx.Append(new ContinueInstruction(target, scopeId));
+        var cleanupTarget = ctx.BuildScopeExitTarget(target, scopeId);
+        entryIndex = ctx.Append(new ContinueInstruction(cleanupTarget, scopeId));
         return true;
     }
 

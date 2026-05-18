@@ -12,6 +12,9 @@ quality:
 	$(MAKE) test-internal-no-build
 
 build-internal:
+	$(DOTNET) build src/Asynkron.JsEngine/Asynkron.JsEngine.csproj -c $(CONFIGURATION)
+	$(DOTNET) build src/Asynkron.JsEngine.Generators/Asynkron.JsEngine.Generators.csproj -c $(CONFIGURATION)
+	$(DOTNET) build tests/Asynkron.JsEngine.Tests.Helpers/Asynkron.JsEngine.Tests.Helpers.csproj -c $(CONFIGURATION)
 	$(DOTNET) build tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj -c $(CONFIGURATION)
 
 test-internal:

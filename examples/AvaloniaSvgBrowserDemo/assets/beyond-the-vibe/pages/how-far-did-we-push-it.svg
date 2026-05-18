@@ -4,40 +4,6 @@
   <rect x="0" y="0" width="959.76" height="160" fill="#18004a" opacity="0.65"/>
   <rect x="0" y="160" width="959.76" height="380" fill="#0b0b0d"/>
 
-  <g opacity="0.88">
-    <circle cx="45" cy="32" r="1.5" fill="#ffffff"/>
-    <circle cx="91" cy="86" r="1.2" fill="#00f0ff"/>
-    <circle cx="141" cy="45" r="1.4" fill="#ffc000"/>
-    <circle cx="205" cy="104" r="1.1" fill="#ffffff"/>
-    <circle cx="272" cy="30" r="1.5" fill="#ff4f81"/>
-    <circle cx="349" cy="78" r="1.2" fill="#ffffff"/>
-    <circle cx="432" cy="36" r="1.5" fill="#00f0ff"/>
-    <circle cx="527" cy="102" r="1.2" fill="#ffc000"/>
-    <circle cx="612" cy="29" r="1.4" fill="#ffffff"/>
-    <circle cx="701" cy="82" r="1.3" fill="#ff4f81"/>
-    <circle cx="795" cy="39" r="1.4" fill="#ffffff"/>
-    <circle cx="889" cy="100" r="1.2" fill="#00f0ff"/>
-    <circle cx="72" cy="492" r="1.2" fill="#ffffff"/>
-    <circle cx="222" cy="466" r="1.3" fill="#ff4f81"/>
-    <circle cx="484" cy="504" r="1.3" fill="#ffc000"/>
-    <circle cx="781" cy="477" r="1.2" fill="#00f0ff"/>
-    <circle cx="914" cy="438" r="1.5" fill="#ffffff"/>
-  </g>
-
-  <g opacity="0.92">
-    <path d="M60 124 L69 124 L73 111 L77 124 L86 124 L79 130 L82 143 L73 135 L64 143 L67 130 Z" fill="#ffc000"/>
-    <path d="M875 128 L884 128 L888 115 L892 128 L901 128 L894 134 L897 147 L888 139 L879 147 L882 134 Z" fill="#00f0ff"/>
-    <path d="M838 238 L847 238 L851 225 L855 238 L864 238 L857 244 L860 257 L851 249 L842 257 L845 244 Z" fill="#ff4f81"/>
-    <path d="M114 346 L123 346 L127 333 L131 346 L140 346 L133 352 L136 365 L127 357 L118 365 L121 352 Z" fill="#00f0ff"/>
-  </g>
-
-  <g opacity="0.42">
-    <polygon points="0,118 215,88 0,182" fill="#00b0f0"/>
-    <polygon points="959.76,70 764,111 959.76,178" fill="#ff0088"/>
-    <polygon points="90,540 235,430 335,540" fill="#2b00b9"/>
-    <polygon points="697,540 861,418 959.76,540" fill="#56008f"/>
-  </g>
-
   <g text-anchor="middle">
     <text x="481" y="48" font-size="23" fill="#00f0ff">BEYOND THE VIBE</text>
 
@@ -51,8 +17,8 @@
   </g>
 
   <g>
-    <rect x="56" y="214" width="257" height="214" fill="#071c2d" stroke="#00b0f0" stroke-width="3" opacity="0.98"/>
-    <rect x="56" y="214" width="257" height="42" fill="#003846" opacity="0.95"/>
+    <rect x="56" y="214" width="257" height="214" fill="#071c2d" fill-opacity="0.64" stroke="#00b0f0" stroke-width="3"/>
+    <rect x="56" y="214" width="257" height="42" fill="#003846" fill-opacity="0.76"/>
     <text x="80" y="244" font-size="24" fill="#ffc000">Tests</text>
 
     <text x="80" y="284" font-size="17" fill="#f3f4f6">Total tests</text>
@@ -65,8 +31,8 @@
     <text x="80" y="408" font-size="13" fill="#9ca3af">main failing area: RegEx</text>
     <text x="80" y="423" font-size="13" fill="#9ca3af">variable lookbehind</text>
 
-    <rect x="351" y="214" width="257" height="214" fill="#25124f" stroke="#a78bfa" stroke-width="3" opacity="0.98"/>
-    <rect x="351" y="214" width="257" height="42" fill="#351b70" opacity="0.95"/>
+    <rect x="351" y="214" width="257" height="214" fill="#25124f" fill-opacity="0.64" stroke="#a78bfa" stroke-width="3"/>
+    <rect x="351" y="214" width="257" height="42" fill="#351b70" fill-opacity="0.76"/>
     <text x="375" y="244" font-size="24" fill="#ffc000">Milestones</text>
 
     <text x="375" y="285" font-size="18" fill="#f3f4f6">Language Spec</text>
@@ -77,8 +43,8 @@
     <text x="375" y="400" font-size="14" fill="#9ca3af">support</text>
     <text x="375" y="419" font-size="14" fill="#f3f4f6">Unmodified ExpressJS demo</text>
 
-    <rect x="646" y="214" width="257" height="214" fill="#004233" stroke="#00d084" stroke-width="3" opacity="0.98"/>
-    <rect x="646" y="214" width="257" height="42" fill="#005541" opacity="0.95"/>
+    <rect x="646" y="214" width="257" height="214" fill="#004233" fill-opacity="0.64" stroke="#00d084" stroke-width="3"/>
+    <rect x="646" y="214" width="257" height="42" fill="#005541" fill-opacity="0.76"/>
     <text x="670" y="244" font-size="24" fill="#ffc000">Projects born</text>
 
     <text x="670" y="290" font-size="19" fill="#f3f4f6">Asynkron.Profiler</text>

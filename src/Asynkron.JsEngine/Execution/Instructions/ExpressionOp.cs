@@ -523,7 +523,7 @@ internal readonly struct PackedExpressionOp
     {
         return new PackedExpressionOp(
             ExpressionOpKind.DefineComputedObjectAccessor,
-            int0: (int)AccessorKind);
+            flags: AccessorKind == ObjectAccessorKind.Setter ? Flag0 : (byte)0);
     }
 
     public static PackedExpressionOp GetNamedProperty(

@@ -122,8 +122,8 @@ internal static class Program
     private static void RunPresentationMaskSmoke()
     {
         var baseDirectory = AppContext.BaseDirectory;
-        var deck = PresentationDeck.Load(baseDirectory, "27");
-        var path = deck.Load("ecma-262-94000-unit-tests.svg", 26);
+        var deck = PresentationDeck.Load(baseDirectory, "25");
+        var path = deck.Load("ecma-262-94000-unit-tests.svg", 24);
         var document = new SvgSlideDocument(
             path,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
@@ -140,8 +140,8 @@ internal static class Program
     private static void RunPresentationSidecarSmoke()
     {
         var baseDirectory = AppContext.BaseDirectory;
-        var astDeck = PresentationDeck.Load(baseDirectory, "14");
-        astDeck.Load("ast-walking-evaluation.svg", 13);
+        var astDeck = PresentationDeck.Load(baseDirectory, "12");
+        astDeck.Load("ast-walking-evaluation.svg", 11);
         var astDocument = new SvgSlideDocument(
             astDeck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
@@ -156,14 +156,20 @@ internal static class Program
             throw new InvalidOperationException("Expected AST walking sidecar to generate its initial trace view.");
         }
 
+        DispatchSmokeFrames(astHost, 4_000);
+        if (!string.Equals(astDocument.GetElementText("ast-step-counter"), "1 / 12", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Expected AST walking trace to stay on the first step without manual input.");
+        }
+
         astHost.DispatchKey("Space");
         if (!string.Equals(astDocument.GetElementText("ast-step-counter"), "2 / 12", StringComparison.Ordinal))
         {
             throw new InvalidOperationException("Expected Space to advance the AST walking trace.");
         }
 
-        var redesignDeck = PresentationDeck.Load(baseDirectory, "16");
-        redesignDeck.Load("parser-ast-runtime-redesign-map.svg", 15);
+        var redesignDeck = PresentationDeck.Load(baseDirectory, "14");
+        redesignDeck.Load("parser-ast-runtime-redesign-map.svg", 13);
         var redesignDocument = new SvgSlideDocument(
             redesignDeck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
@@ -180,8 +186,8 @@ internal static class Program
                 "Expected page 16 sidecar to own the animated text without static cover patches.");
         }
 
-        var deck = PresentationDeck.Load(baseDirectory, "27");
-        deck.Load("ecma-262-94000-unit-tests.svg", 26);
+        var deck = PresentationDeck.Load(baseDirectory, "25");
+        deck.Load("ecma-262-94000-unit-tests.svg", 24);
         var document = new SvgSlideDocument(
             deck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
@@ -195,33 +201,7 @@ internal static class Program
             throw new InvalidOperationException("Expected ECMA slide sidecar to create its overlay elements.");
         }
 
-        deck.Load("test262-goal-explosion.svg", 27);
-        document = new SvgSlideDocument(
-            deck.CurrentPath,
-            Path.Combine(baseDirectory, "rendered-slide.svg"),
-            static () => { });
-        using var goalHost = new SlideScriptHost(document, deck);
-        goalHost.Run(Path.Combine(baseDirectory, "scripts", "presentation.js"));
-        DispatchSmokeFrames(goalHost, 15_000);
-
-        if (!document.ContainsElement("goal-generated-bg") ||
-            !document.ContainsElement("goal-node-719") ||
-            !document.ContainsElement("goal-force-719"))
-        {
-            throw new InvalidOperationException("Expected Test262 goal sidecar to rebuild the slide from SVG elements.");
-        }
-
-        var greenTests = document.CountElementsWithAttributePrefix("goal-node-", "fill", "#22c55e");
-        var redTests = document.CountElementsWithAttributePrefix("goal-node-", "fill", "#ef4444");
-        var grayTests = document.CountElementsWithAttributePrefix("goal-node-", "fill", "#9ca3af");
-        if (greenTests < 660 || redTests is < 10 or > 45 || grayTests != 0)
-        {
-            throw new InvalidOperationException(string.Create(
-                CultureInfo.InvariantCulture,
-                $"Expected mostly green tests with a few red failures left, got green={greenTests}, red={redTests}, gray={grayTests}."));
-        }
-
-        deck.Load("jsengine-presentation-reveal.svg", 63);
+        deck.Load("jsengine-presentation-reveal.svg", 58);
         document = new SvgSlideDocument(
             deck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
@@ -251,7 +231,7 @@ internal static class Program
             throw new InvalidOperationException("Expected reveal mesh to clear when navigating away from the slide.");
         }
 
-        deck.Load("how-far-did-we-push-it.svg", 64);
+        deck.Load("how-far-did-we-push-it.svg", 59);
         document = new SvgSlideDocument(
             deck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
@@ -267,7 +247,7 @@ internal static class Program
 
         finalHost.DispatchKey("ArrowLeft");
         DispatchSmokeFrames(finalHost, 720);
-        if (deck.CurrentIndex != 63 || document.ContainsElement("push-star-0"))
+        if (deck.CurrentIndex != 58 || document.ContainsElement("push-star-0"))
         {
             throw new InvalidOperationException("Expected final slide starfield to stop cleanly when navigating away.");
         }
@@ -300,8 +280,8 @@ internal static class Program
     private static async Task RunPresentationLiveDemoSmoke()
     {
         var baseDirectory = AppContext.BaseDirectory;
-        var deck = PresentationDeck.Load(baseDirectory, "61");
-        deck.Load("express-live-demo.svg", 60);
+        var deck = PresentationDeck.Load(baseDirectory, "57");
+        deck.Load("express-live-demo.svg", 56);
         var document = new SvgSlideDocument(
             deck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),

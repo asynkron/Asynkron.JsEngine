@@ -39,7 +39,6 @@ const astWalkEdges = [
 ];
 
 let astWalkCurrentStep = -1;
-let astWalkManualStep = -1;
 
 function astWalkText(ctx, id, value, x, y, size, fill, opacity) {
   const text = ctx.svg.layer.text(id, value, x, y, size, fill, opacity);
@@ -143,7 +142,6 @@ function astWalkApplyStep(ctx, stepIndex) {
 slideScript("ast-walking-evaluation.svg", {
   enter: function (ctx) {
     astWalkCurrentStep = -1;
-    astWalkManualStep = -1;
 
     ctx.svg.layer.rect("ast-generated-bg", 0, 0, 960, 540, "#0d0d0d", 1);
     astWalkText(ctx, "ast-generated-title", "AST Walking", 24, 54, 56, "#00b0f0", 1);
@@ -172,28 +170,14 @@ slideScript("ast-walking-evaluation.svg", {
     astWalkApplyStep(ctx, 0);
   },
 
-  frame: function (ctx, time, elapsed) {
-    if (astWalkManualStep >= 0) {
-      astWalkApplyStep(ctx, astWalkManualStep);
-      return;
-    }
-
-    const step = Math.min(astWalkSteps.length - 1, Math.floor(elapsed / 1650));
-    astWalkApplyStep(ctx, step);
-  },
-
   key: function (ctx, key) {
     if (key === "Space") {
-      const next = astWalkManualStep < 0
-        ? Math.min(astWalkSteps.length - 1, astWalkCurrentStep + 1)
-        : (astWalkManualStep + 1) % astWalkSteps.length;
-      astWalkManualStep = next;
-      astWalkApplyStep(ctx, astWalkManualStep);
+      const next = (astWalkCurrentStep + 1) % astWalkSteps.length;
+      astWalkApplyStep(ctx, next);
       return true;
     }
 
     if (key === "R") {
-      astWalkManualStep = 0;
       astWalkApplyStep(ctx, 0);
       return true;
     }

@@ -62,14 +62,24 @@ public sealed class ArrayBuiltinsSpecTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Array_indexOf_TreatsNegativeZeroFromIndexAsPositiveZero()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("Object.is([true].indexOf(true, -0), 0);");
+
+        Assert.True(Assert.IsType<bool>(result));
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Array_indexOfAndLastIndexOf_TreatSignedZeroAsStrictlyEqual()
     {
         await using var engine = CreateEngine();
 
-        Assert.Equal(false, await engine.Evaluate("Object.is(-0, 0);"));
-        Assert.Equal(true, await engine.Evaluate("Object.is(NaN, NaN);"));
-        Assert.Equal(true, await engine.Evaluate("Object.is([-0].indexOf(+0), 0);"));
-        Assert.Equal(true, await engine.Evaluate("Object.is([-0].lastIndexOf(+0), 0);"));
+        Assert.False(Assert.IsType<bool>(await engine.Evaluate("Object.is(-0, 0);")));
+        Assert.True(Assert.IsType<bool>(await engine.Evaluate("Object.is(NaN, NaN);")));
+        Assert.True(Assert.IsType<bool>(await engine.Evaluate("Object.is([-0].indexOf(+0), 0);")));
+        Assert.True(Assert.IsType<bool>(await engine.Evaluate("Object.is([-0].lastIndexOf(+0), 0);")));
         Assert.Equal(-1d, await engine.Evaluate("[NaN].indexOf(NaN);"));
         Assert.Equal(-1d, await engine.Evaluate("[NaN].lastIndexOf(NaN);"));
     }

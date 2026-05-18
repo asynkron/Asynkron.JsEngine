@@ -789,6 +789,7 @@ internal static class ExpressionProgramCompiler
         return true;
     }
 
+
     private static bool TryCompileAssignmentExpression(
         AssignmentExpression expression,
         ExpressionProgramBuilder builder,

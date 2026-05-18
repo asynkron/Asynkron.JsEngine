@@ -2364,7 +2364,7 @@ internal static class ExpressionProgramCompiler
     {
         private readonly List<PackedExpressionOp> _operations = [];
         private readonly List<JsValue> _literalConstants = [];
-        private readonly Dictionary<JsValue, int> _literalConstantMap = [];
+        private readonly Dictionary<JsValue, int> _literalConstantMap = new(LiteralConstantComparer.Instance);
         private readonly List<string> _stringConstants = [];
         private readonly Dictionary<string, int> _stringConstantMap = new(StringComparer.Ordinal);
         private readonly List<object> _objectConstants = [];
@@ -2462,6 +2462,60 @@ internal static class ExpressionProgramCompiler
                 _objectConstants.Count == 0 ? ImmutableArray<object>.Empty : [.. _objectConstants],
                 _identifierConstants.Count == 0 ? ImmutableArray<IdentifierOperand>.Empty : [.. _identifierConstants],
                 _spreadMaskConstants.Count == 0 ? ImmutableArray<ImmutableArray<int>>.Empty : [.. _spreadMaskConstants]);
+        }
+    }
+
+    private sealed class LiteralConstantComparer : IEqualityComparer<JsValue>
+    {
+        public static readonly LiteralConstantComparer Instance = new();
+
+        private LiteralConstantComparer()
+        {
+        }
+
+        public bool Equals(JsValue x, JsValue y)
+        {
+            if (x.Kind != y.Kind)
+            {
+                return false;
+            }
+
+            return x.Kind switch
+            {
+                JsValueKind.Number => NumberEquals(x.NumberValue, y.NumberValue),
+                _ => x.Equals(y)
+            };
+        }
+
+        public int GetHashCode(JsValue value)
+        {
+            if (!value.IsNumber)
+            {
+                return value.GetHashCode();
+            }
+
+            var number = value.NumberValue;
+            if (number == 0d)
+            {
+                return HashCode.Combine(value.Kind, BitConverter.DoubleToInt64Bits(number));
+            }
+
+            return HashCode.Combine(value.Kind, double.IsNaN(number) ? double.NaN.GetHashCode() : number.GetHashCode());
+        }
+
+        private static bool NumberEquals(double left, double right)
+        {
+            if (double.IsNaN(left))
+            {
+                return double.IsNaN(right);
+            }
+
+            if (left == 0d && right == 0d)
+            {
+                return BitConverter.DoubleToInt64Bits(left) == BitConverter.DoubleToInt64Bits(right);
+            }
+
+            return left.Equals(right);
         }
     }
 }

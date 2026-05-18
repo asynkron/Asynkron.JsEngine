@@ -102,7 +102,7 @@ internal static class BlockEmitter
             }
         }
 
-        ctx.PushScope(scopeId);
+        ctx.PushScope(scopeId, allowPooling);
 
         var bodyEntry = popEnvIndex;
         if (nonFunctionStatements.Count > 0 &&

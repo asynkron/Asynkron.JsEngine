@@ -19,10 +19,10 @@ internal sealed class EmitContext(
     Stack<ExecutionPlanBuilder.LoopScope> loopScopes,
     int rootScopeId)
 {
-    private readonly Stack<int> _scopeStack = new();
+    private readonly Stack<ScopeFrame> _scopeStack = new();
     private readonly int _rootScopeId = rootScopeId;
 
-    public int CurrentScopeId => _scopeStack.Count > 0 ? _scopeStack.Peek() : _rootScopeId;
+    public int CurrentScopeId => _scopeStack.Count > 0 ? _scopeStack.Peek().ScopeId : _rootScopeId;
 
     /// <summary>
     /// Whether we're currently in a nested scope (e.g., per-iteration scope for for-of).
@@ -102,11 +102,11 @@ internal sealed class EmitContext(
         loopScopes.Pop();
     }
 
-    public void PushScope(int scopeId)
+    public void PushScope(int scopeId, bool allowPooling = false)
     {
         if (scopeId >= 0)
         {
-            _scopeStack.Push(scopeId);
+            _scopeStack.Push(new ScopeFrame(scopeId, allowPooling));
         }
     }
 
@@ -117,10 +117,44 @@ internal sealed class EmitContext(
             return;
         }
 
-        if (_scopeStack.Peek() == scopeId)
+        if (_scopeStack.Peek().ScopeId == scopeId)
         {
             _scopeStack.Pop();
         }
+    }
+
+    public int BuildScopeExitTarget(int targetIndex, int targetScopeId)
+    {
+        if (targetScopeId < 0 || _scopeStack.Count == 0)
+        {
+            return targetIndex;
+        }
+
+        var exitTarget = targetIndex;
+        List<ScopeFrame>? scopesToPop = null;
+        foreach (var scope in _scopeStack)
+        {
+            if (scope.ScopeId == targetScopeId)
+            {
+                break;
+            }
+
+            scopesToPop ??= [];
+            scopesToPop.Add(scope);
+        }
+
+        if (scopesToPop is null)
+        {
+            return targetIndex;
+        }
+
+        for (var i = scopesToPop.Count - 1; i >= 0; i--)
+        {
+            var scope = scopesToPop[i];
+            exitTarget = Append(new PopEnvironmentInstruction(scope.ScopeId, scope.AllowPooling, exitTarget));
+        }
+
+        return exitTarget;
     }
 
     /// <summary>
@@ -450,4 +484,6 @@ internal sealed class EmitContext(
             }
         }
     }
+
+    private readonly record struct ScopeFrame(int ScopeId, bool AllowPooling);
 }

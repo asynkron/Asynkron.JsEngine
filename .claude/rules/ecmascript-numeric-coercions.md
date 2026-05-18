@@ -42,6 +42,10 @@ open-coding casts at individual call sites.
    modulo-2^32 arithmetic, and the final signed Int32 interpretation are not
    interchangeable with multiplying `ToInt32` operands or relying on host
    overflow behavior.
+10. For aggregate numeric built-ins such as `Math.hypot`, track all-zero finite
+    inputs explicitly when the spec requires canonical positive zero. Preserve
+    the surrounding special-value order, especially Infinity before NaN, and pin
+    all `+0`/`-0` argument combinations with reciprocal-infinity assertions.
 
 ## Why
 
@@ -90,3 +94,9 @@ cases pass while failing modulo multiplication edges such as
 lesson is that 32-bit built-ins need the spec's unsigned modulo domain before
 the signed return interpretation; local coverage should pin the boundary table
 alongside the focused Test262 method group.
+
+Issue #800 / PR #927 fixed `Math.hypot` after Test262 exposed that every finite
+all-zero argument list, including mixed `+0` and `-0`, must return canonical
+`+0`. The fix kept the existing Infinity-before-NaN behavior and added focused
+reciprocal-infinity assertions so a future refactor cannot hide the zero sign
+behind ordinary numeric equality.

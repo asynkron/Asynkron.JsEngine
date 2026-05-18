@@ -33,6 +33,10 @@ open-coding casts at individual call sites.
    before applying any signed-zero correction. Do not assume `System.Math` or
    another host library matches every JavaScript signed-zero quadrant; check the
    spec-visible result at the built-in boundary.
+8. For binary16/float16 math built-ins, preserve the ECMAScript special-value
+   order before delegating to host `Half` conversion. In particular, signed zero
+   must be returned before binary16 conversion so host casting cannot erase the
+   JavaScript-observable sign.
 
 ## Why
 
@@ -67,3 +71,10 @@ host `Math.Atan2` result only for the spec-required negative-zero quadrant. That
 recurrence is why Math built-ins need both an explicit signed-zero policy and a
 proof that host-library delegation has not erased JavaScript-observable zero
 signs.
+
+Issue #799 / PR #925 repeated the same boundary problem for `Math.f16round`.
+The built-in still needs normal `ToNumber` coercion and binary16 rounding, but
+the spec's signed-zero special case must be handled before delegating to
+`System.Half`; otherwise a host cast can turn a required `-0` result into `+0`.
+Pin this with both focused internal coverage and the exact Test262 method group
+when a Math built-in depends on host numeric conversion.

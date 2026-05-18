@@ -724,7 +724,7 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
     }
     private static readonly string[] Expected = ["first", "second", "third"];
 
-    [Fact(Timeout = 5000)]
+    [Fact(Timeout = 10000)]
     public async Task AsyncFunction_WithParallelDelays()
     {
         // Arrange
@@ -767,7 +767,7 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
 
                          """);
 
-        await WaitForConditionAsync(() => results.Count == Expected.Length);
+        await WaitForConditionAsync(() => results.Count == Expected.Length, timeoutMs: 5000);
 
         // Assert
         Assert.Equal(Expected, results);

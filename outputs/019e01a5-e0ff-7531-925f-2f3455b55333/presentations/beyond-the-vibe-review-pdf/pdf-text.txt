@@ -1,0 +1,180 @@
+Roger Johansson
+Creator of:
+• Proto.Actor
+• Akka .NET
+• Faktorial.AI
+• Asynkron.JsEngine  This talk
+
+Company: Asynkron
+Twitter: @rogeralsing
+Github: rogeralsing
+Mail: roger@asynkron.se
+                        What to expect
+•   Hopefully convince some skeptics of what AI can accomplish
+•   Building a JavaScript engine, the journey, not JavaScript as a language
+•   Levels of agentic programming, from prompting to full automation
+•   Scaling an AI project, process, tools, verification, and quality gates
+•   Anecdotes, lessons learned, and key insights
+
+
+• No absolute truths, just impressions. I’m probably wrong about a lot of this.
+            Part 1
+Just vibing… no intent, no purpose
+Rewind to November 2025
+Why build a JS Engine?
+           …and why do it with 100% AI?
+It started with this prompt
+I want to create a JS execution engine using C#. It will
+need a js parser/grammar. I want to represent the result
+of the parser as S-expressions / CDR/Cons. The execution
+engine can then treat the code similar to lisp.
+… 24 Hours later
+                                               Continuation Passing Style
+
+Raw JavaScript   Translated to S-Expressions
+Architecture
+Execution model
+The initial itch, can I do this?
+   Adding more tests, design, architecture, trying to understand JS etc.
+                                                 S-Expr to Typed AST
+          Memory models
+
+                           Redesign Generators
+
+
+Redesign Async Await                          Improved Lexer/Parser
+
+
+
+
+Runtime logs                   The first steps towards a StdLib
+
+                                              Runtime spy – capture variables at given points
+
+
+
+               ~1500 unit tests, including some known benchmark source files
+… two weeks later I found it
+ECMAScript Language Spec
+ECMAScript Language Spec
+    94 000 unit tests
+…How hard can it be?
+…Turns out, pretty darn hard
+What the heck is AnnexB?
+Sloppy vs Strict mode
+Variable hoisting
+Do people use legacy Octal literals?
+There are RegEx tests for ”Old Hungarian” and ”Old South Albanian”?
+Event loop, Tasks vs Microtasks
+Module loading, sync, async
+Truthy
+Arrays with holes
+Prototypal inheritance
+The Standard Library - ~44 000 tests
+Language Specs ~44 000 tests
+How do you even run 94 000 tests?
+                   …Can you even load this into your IDE?
+94 000 tests and:
+
+An immature runtime
+Bugs
+Infinite recursion
+Memory explosion
+Thread pool starvation
+Circular dependencies, StdLib relies on working Language features, and vice versa
+Language Tests
+• For-loops
+• Named function
+• Anon function
+Standard Library Tests
+• Array.sort
+AnnexB Tests
+• …
+Temporal Tests
+• …
+
+             Still in pure vibe coding mode, absolutely no exciting insights yet
+             Still very undecided how far I want to take this
+             Maybe just full Language support?
+  Part 2
+Scaling up, fast
+    Too many tests,
+     Freezing tests,
+     Crashing tests,
+   IDE can´t handle it
+I´m not making progress
+…So I built a tool
+  …So I built a tool
+
+
+Asynkron.TestRunner
+Process isolation.
+Multi Process.
+Work pulling pattern.
+Blame detector.
+Still same old Xunit/Nunit tests
+If the testrunner knows what
+  passed, failed, or crashed.
+  Why not let the testrunner
+    create the bug reports?
+           But…
+ Now the same test runner
+handed you a bug report with
+   80 000 failing tests…
+…So I built a tool
+      Not really, it was a Ralph loop
+
+foreach bug in bugreports:
+    prompt = ”Fix this bug…” + bug.Desc
+    RunAgent(prompt)
+Fixing bugs also means
+uncovering bad design
+  ...really bad design
+ ”Replaying generator”
+…Three execution modes
+              AST Walking + CPS
+
+
+
+
+IR Lowering                       Replay Generator
+              AST Walking + CPS
+
+
+
+
+IR Lowering                       Replay Generator
+                             Output:
+function* myGenerator() {
+     console.log(”one”);     one
+     yield 1;                one
+     console.log(”two”);     two
+     yield 2;                one
+     console.log(”three”);   two
+     yield 3;                three
+}
+              AST Walking + CPS
+
+
+
+
+IR Lowering                       Replay Generator
+ Test Bomb
+Layered Test
+You are almost
+    done!!
+Performance, where are all the bottlenecks or hotspots?
+What about memory? Contention? Exceptions?
+How do you ensure any form of code quality?
+• C# take-no-prisoners. Warnings as errors, bump all Analyzers to error.
+• How do we detect code duplication?
+What about architecture, is the LISP model enough?
+CPS, Generators, Replay, AST Eval, IR, ByteCode, IL?
+Profiling
+Frontend
+”The mega flow”
+I need something better…
+I need something better…
+Code duplication
+I think the process is wrong
+

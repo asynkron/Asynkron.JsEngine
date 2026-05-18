@@ -1,0 +1,8 @@
+{
+  "name": "Main health",
+  "commands": [
+    "dotnet build Asynkron.JsEngine.sln",
+    "dotnet test tests/Asynkron.JsEngine.Tests"
+  ],
+  "timeout": "20m"
+}

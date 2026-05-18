@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="6.5" refY="4" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 8 4 L 0 8 Z" fill="#d8d8d8"/>
+    </marker>
+    <style>
+      .title { font: 700 56px Arial, Helvetica, sans-serif; fill: #00b0f0; letter-spacing: 0; }
+      .node-text { font: 700 15.5px Arial, Helvetica, sans-serif; fill: #f3f4f6; letter-spacing: 0; dominant-baseline: middle; text-anchor: middle; }
+      .edge { fill: none; stroke: #d8d8d8; stroke-width: 1.15; marker-end: url(#arrow); }
+      .root { fill: #0b2a3b; stroke: #00b0f0; stroke-width: 1.7; }
+      .branch { fill: #2b1855; stroke: #a78bfa; stroke-width: 1.7; }
+      .operator { fill: #0b3a31; stroke: #34d399; stroke-width: 1.7; }
+      .literal { fill: #3a2017; stroke: #ffc000; stroke-width: 1.7; }
+      .lookup { fill: #4b1530; stroke: #fb7185; stroke-width: 1.7; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="540" fill="#0d0d0d"/>
+  <text class="title" x="24" y="54">AST Walking</text>
+
+  <path class="edge" d="M 436 157 C 356 176 326 176 326 200"/>
+  <path class="edge" d="M 515 157 L 515 200"/>
+  <path class="edge" d="M 594 157 C 685 177 706 177 706 200"/>
+
+  <path class="edge" d="M 326 242 L 326 284"/>
+  <path class="edge" d="M 515 242 L 515 284"/>
+  <path class="edge" d="M 706 242 L 706 284"/>
+
+  <path class="edge" d="M 244 327 C 204 346 191 346 191 369"/>
+  <path class="edge" d="M 367 327 C 401 345 408 345 408 369"/>
+  <path class="edge" d="M 408 412 L 408 453"/>
+
+  <rect class="root" x="436" y="115" width="158" height="42"/>
+  <text class="node-text" x="515" y="136">1. if special form</text>
+
+  <rect class="branch" x="263" y="200" width="126" height="42"/>
+  <text class="node-text" x="326" y="221">2. condition</text>
+
+  <rect class="branch" x="441" y="200" width="148" height="42"/>
+  <text class="node-text" x="515" y="221">7a. then branch</text>
+
+  <rect class="branch" x="632" y="200" width="148" height="42"/>
+  <text class="node-text" x="706" y="221">7b. else branch</text>
+
+  <rect class="operator" x="244" y="284" width="164" height="43"/>
+  <text class="node-text" x="326" y="306">3. gt operator call</text>
+
+  <rect class="operator" x="450" y="284" width="130" height="43"/>
+  <text class="node-text" x="515" y="306">8a. thenExpr</text>
+
+  <rect class="operator" x="642" y="284" width="128" height="43"/>
+  <text class="node-text" x="706" y="306">8b. elseExpr</text>
+
+  <rect class="literal" x="181" y="369" width="124" height="43"/>
+  <text class="node-text" x="243" y="391">4. 10 literal</text>
+
+  <rect class="literal" x="347" y="369" width="122" height="43"/>
+  <text class="node-text" x="408" y="391">5. x symbol</text>
+
+  <rect class="lookup" x="300" y="453" width="217" height="42"/>
+  <text class="node-text" x="408.5" y="474">6. lookup x in environment</text>
+</svg>

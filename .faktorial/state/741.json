@@ -1,0 +1,23 @@
+{
+  "issue_id": 741,
+  "repo": "asynkron/Asynkron.JsEngine",
+  "title": "main is red: 00fecd1",
+  "stage": "planning",
+  "stage_entered_at": "2026-04-28T11:12:45.07816Z",
+  "status": "active",
+  "branch_name": "agent-go/issue-741",
+  "worktree_path": "/Users/rogerjohansson/git/asynkron/Asynkron.JsEngine/.faktorial/worktrees/741",
+  "base_branch": "main",
+  "task_type": "normal",
+  "planning_started_at": "2026-04-28T11:12:45.07816Z",
+  "planning_until": "2026-04-28T11:22:45.07816Z",
+  "priority_class": "critical",
+  "repair_kind": "main_ci_red",
+  "tokens_spent": 0,
+  "token_usage": {},
+  "attempt_counts": {},
+  "last_synced_at": "2026-04-28T11:16:45.157996Z",
+  "created_at": "2026-04-28T11:12:45.07816Z",
+  "updated_at": "2026-04-28T11:16:45.199887Z",
+  "version": 9
+}

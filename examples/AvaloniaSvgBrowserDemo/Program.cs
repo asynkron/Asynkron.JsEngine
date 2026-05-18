@@ -221,7 +221,7 @@ internal static class Program
                 $"Expected mostly green tests with a few red failures left, got green={greenTests}, red={redTests}, gray={grayTests}."));
         }
 
-        deck.Load("jsengine-presentation-reveal.svg", 65);
+        deck.Load("jsengine-presentation-reveal.svg", 63);
         document = new SvgSlideDocument(
             deck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
@@ -249,6 +249,27 @@ internal static class Program
         if (revealMesh.TriangleCount != 0)
         {
             throw new InvalidOperationException("Expected reveal mesh to clear when navigating away from the slide.");
+        }
+
+        deck.Load("how-far-did-we-push-it.svg", 64);
+        document = new SvgSlideDocument(
+            deck.CurrentPath,
+            Path.Combine(baseDirectory, "rendered-slide.svg"),
+            static () => { });
+        using var finalHost = new SlideScriptHost(document, deck);
+        finalHost.Run(Path.Combine(baseDirectory, "scripts", "presentation.js"));
+
+        if (!document.ContainsElement("push-star-0") ||
+            !document.ContainsElement("push-warp-ring-a"))
+        {
+            throw new InvalidOperationException("Expected final slide sidecar to render the JS-driven starfield.");
+        }
+
+        finalHost.DispatchKey("ArrowLeft");
+        DispatchSmokeFrames(finalHost, 720);
+        if (deck.CurrentIndex != 63 || document.ContainsElement("push-star-0"))
+        {
+            throw new InvalidOperationException("Expected final slide starfield to stop cleanly when navigating away.");
         }
     }
 
@@ -279,8 +300,8 @@ internal static class Program
     private static async Task RunPresentationLiveDemoSmoke()
     {
         var baseDirectory = AppContext.BaseDirectory;
-        var deck = PresentationDeck.Load(baseDirectory, "63");
-        deck.Load("express-live-demo.svg", 62);
+        var deck = PresentationDeck.Load(baseDirectory, "61");
+        deck.Load("express-live-demo.svg", 60);
         var document = new SvgSlideDocument(
             deck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
@@ -1103,6 +1124,12 @@ internal sealed partial class DemoWindow
     }
 }
 
+internal enum LayerPlacement
+{
+    Foreground,
+    Background
+}
+
 internal sealed class NativeTriangleMesh
 {
     private readonly object _sync = new();
@@ -1534,7 +1561,8 @@ internal sealed class SlideScriptHost : IDisposable
             var id = GetString(args, 0);
             return CreateElementObject(id);
         }));
-        SetProperty(svg, "layer", JsValue.FromObjectUnsafe(CreateLayerObject()));
+        SetProperty(svg, "layer", JsValue.FromObjectUnsafe(CreateLayerObject(LayerPlacement.Foreground)));
+        SetProperty(svg, "background", JsValue.FromObjectUnsafe(CreateLayerObject(LayerPlacement.Background)));
         return svg;
     }
 
@@ -1754,17 +1782,18 @@ internal sealed class SlideScriptHost : IDisposable
         return element;
     }
 
-    private JsObject CreateLayerObject()
+    private JsObject CreateLayerObject(LayerPlacement placement)
     {
         var layer = new JsObject();
         SetProperty(layer, "clear", CreateHostFunction(_ =>
         {
-            _document.ClearLayer();
+            _document.ClearLayer(placement);
             return JsValue.Undefined;
         }));
         SetProperty(layer, "rect", CreateHostFunction(args =>
         {
             _document.AddLayerElement(
+                placement,
                 "rect",
                 GetString(args, 0),
                 [
@@ -1780,6 +1809,7 @@ internal sealed class SlideScriptHost : IDisposable
         SetProperty(layer, "circle", CreateHostFunction(args =>
         {
             _document.AddLayerElement(
+                placement,
                 "circle",
                 GetString(args, 0),
                 [
@@ -1794,6 +1824,7 @@ internal sealed class SlideScriptHost : IDisposable
         SetProperty(layer, "path", CreateHostFunction(args =>
         {
             _document.AddLayerElement(
+                placement,
                 "path",
                 GetString(args, 0),
                 [
@@ -1808,6 +1839,7 @@ internal sealed class SlideScriptHost : IDisposable
         SetProperty(layer, "polygon", CreateHostFunction(args =>
         {
             _document.AddLayerElement(
+                placement,
                 "polygon",
                 GetString(args, 0),
                 [
@@ -1822,6 +1854,7 @@ internal sealed class SlideScriptHost : IDisposable
         SetProperty(layer, "text", CreateHostFunction(args =>
         {
             _document.AddLayerText(
+                placement,
                 GetString(args, 0),
                 GetString(args, 1),
                 GetDouble(args, 2),
@@ -2424,6 +2457,7 @@ internal sealed class ExpressDemoProcessHost : IDisposable
 internal sealed class SvgSlideDocument
 {
     private const string LayerId = "jsengine-layer";
+    private const string BackgroundLayerId = "jsengine-background-layer";
     private readonly Action _render;
     private readonly Dictionary<string, XElement> _elementsById = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Bitmap> _imageCache = new(StringComparer.Ordinal);
@@ -2527,17 +2561,31 @@ internal sealed class SvgSlideDocument
 
     public void ClearLayer()
     {
+        ClearLayer(LayerPlacement.Foreground);
+    }
+
+    public void ClearLayer(LayerPlacement placement)
+    {
         if (_document.Root is null)
         {
             return;
         }
 
-        GetLayer(createIfMissing: false)?.RemoveNodes();
+        GetLayer(placement, createIfMissing: false)?.RemoveNodes();
         RebuildElementIndex();
         _dirty = true;
     }
 
     public void AddLayerElement(string localName, string id, IReadOnlyList<XAttribute> attributes)
+    {
+        AddLayerElement(LayerPlacement.Foreground, localName, id, attributes);
+    }
+
+    public void AddLayerElement(
+        LayerPlacement placement,
+        string localName,
+        string id,
+        IReadOnlyList<XAttribute> attributes)
     {
         if (_document.Root is null || string.IsNullOrWhiteSpace(id))
         {
@@ -2554,12 +2602,25 @@ internal sealed class SvgSlideDocument
             }
         }
 
-        GetLayer(createIfMissing: true)?.Add(element);
+        GetLayer(placement, createIfMissing: true)?.Add(element);
         RebuildElementIndex();
         _dirty = true;
     }
 
     public void AddLayerText(
+        string id,
+        string text,
+        double x,
+        double y,
+        double fontSize,
+        string fill,
+        double opacity)
+    {
+        AddLayerText(LayerPlacement.Foreground, id, text, x, y, fontSize, fill, opacity);
+    }
+
+    public void AddLayerText(
+        LayerPlacement placement,
         string id,
         string text,
         double x,
@@ -2583,7 +2644,7 @@ internal sealed class SvgSlideDocument
             new XAttribute("fill", string.IsNullOrWhiteSpace(fill) ? "#ffffff" : fill),
             new XAttribute("opacity", opacity.ToString(CultureInfo.InvariantCulture)),
             text);
-        GetLayer(createIfMissing: true)?.Add(element);
+        GetLayer(placement, createIfMissing: true)?.Add(element);
         RebuildElementIndex();
         _dirty = true;
     }
@@ -2751,25 +2812,53 @@ internal sealed class SvgSlideDocument
         return element;
     }
 
-    private XElement? GetLayer(bool createIfMissing)
+    private XElement? GetLayer(LayerPlacement placement, bool createIfMissing)
     {
         if (_document.Root is null)
         {
             return null;
         }
 
+        var layerId = placement == LayerPlacement.Background
+            ? BackgroundLayerId
+            : LayerId;
         var layer = _document
             .Descendants()
             .FirstOrDefault(candidate =>
-                string.Equals((string?)candidate.Attribute("id"), LayerId, StringComparison.Ordinal));
+                string.Equals((string?)candidate.Attribute("id"), layerId, StringComparison.Ordinal));
         if (layer is not null || !createIfMissing)
         {
             return layer;
         }
 
-        layer = new XElement(_document.Root.Name.Namespace + "g", new XAttribute("id", LayerId));
-        _document.Root.Add(layer);
+        layer = new XElement(_document.Root.Name.Namespace + "g", new XAttribute("id", layerId));
+        if (placement == LayerPlacement.Background)
+        {
+            InsertBackgroundLayer(layer);
+        }
+        else
+        {
+            _document.Root.Add(layer);
+        }
+
         return layer;
+    }
+
+    private void InsertBackgroundLayer(XElement layer)
+    {
+        var lastInitialBackground = _document.Root?
+            .Elements()
+            .TakeWhile(static element =>
+                element.Name.LocalName == "rect" &&
+                string.IsNullOrEmpty((string?)element.Attribute("id")))
+            .LastOrDefault();
+        if (lastInitialBackground is not null)
+        {
+            lastInitialBackground.AddAfterSelf(layer);
+            return;
+        }
+
+        _document.Root?.AddFirst(layer);
     }
 
     private void RemoveElementIfExists(string id)

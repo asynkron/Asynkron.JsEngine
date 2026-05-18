@@ -1,0 +1,162 @@
+DECK: /Users/rogerjohansson/git/asynkron/presentation/beyond-the-vibe.pptx
+SLIDES: 53
+
+--- SLIDE 01 (slide1.xml) ---
+[no extracted text]
+
+--- SLIDE 02 (slide2.xml) ---
+Creator of : Proto.Actor Akka .NET Faktorial.AI Asynkron.JsEngine  This talk Company: Asynkron Twitter: @rogeralsing Github : rogeralsing Mail: roger@asynkron.se Roger Johansson
+
+--- SLIDE 03 (slide3.xml) ---
+Hopefully convince some skeptics of what AI can accomplish Building a JavaScript engine , the journey , not JavaScript as a language Levels of agentic programming , from prompting to full automation Scaling an AI project , process, tools , verification , and quality gates Anecdotes , lessons learned , and key insights No absolute truths , just impressions. I’m probably wrong about a lot of this . What to expect
+
+--- SLIDE 04 (slide4.xml) ---
+Part 1 Just vibing … no intent , no purpose
+
+--- SLIDE 05 (slide5.xml) ---
+Rewind to November 2025
+
+--- SLIDE 06 (slide6.xml) ---
+[no extracted text]
+
+--- SLIDE 07 (slide7.xml) ---
+Why build a JS Engine? …and why do it with 100% AI?
+
+--- SLIDE 08 (slide8.xml) ---
+It started with this prompt I want to create a JS execution engine using C#. It will need a js parser/ grammar . I want to represent the result of the parser as S-expressions / CDR/ Cons . The execution engine can then treat the code similar to lisp .
+
+--- SLIDE 09 (slide9.xml) ---
+[no extracted text]
+
+--- SLIDE 10 (slide10.xml) ---
+… 24 Hours later
+
+--- SLIDE 11 (slide11.xml) ---
+[no extracted text]
+
+--- SLIDE 12 (slide12.xml) ---
+Raw JavaScript Translated to S-Expressions Continuation Passing Style
+
+--- SLIDE 13 (slide13.xml) ---
+Architecture
+
+--- SLIDE 14 (slide14.xml) ---
+Execution model
+
+--- SLIDE 15 (slide15.xml) ---
+The initial itch , can I do this ? Adding more tests, design, architecture , trying to understand JS etc.
+
+--- SLIDE 16 (slide16.xml) ---
+Memory models S- Expr to Typed AST Redesign Generators Redesign Async Await Improved Lexer /Parser Runtime logs Runtime spy – capture variables at given points The first steps towards a StdLib ~1500 unit tests, including some known benchmark source files
+
+--- SLIDE 17 (slide17.xml) ---
+… two weeks later I found it
+
+--- SLIDE 18 (slide18.xml) ---
+ECMAScript Language Spec
+
+--- SLIDE 19 (slide19.xml) ---
+ECMAScript Language Spec 94 000 unit tests
+
+--- SLIDE 20 (slide20.xml) ---
+… How hard can it be?
+
+--- SLIDE 21 (slide21.xml) ---
+… Turns out , pretty darn hard
+
+--- SLIDE 22 (slide22.xml) ---
+What the heck is AnnexB ? Sloppy vs Strict mode Variable hoisting Do people use legacy Octal literals ? There are RegEx tests for ”Old Hungarian” and ”Old South Albanian ”? Event loop, Tasks vs Microtasks Module loading , sync , async Truthy Arrays with holes Prototypal inheritance The Standard Library - ~44 000 tests Language Specs ~44 000 tests
+
+--- SLIDE 23 (slide23.xml) ---
+How do you even run 94 000 tests? … Can you even load this into your IDE?
+
+--- SLIDE 24 (slide24.xml) ---
+94 000 tests and: An immature runtime Bugs Infinite recursion Memory explosion Thread pool starvation Circular dependencies , StdLib relies on working Language features, and vice versa
+
+--- SLIDE 25 (slide25.xml) ---
+Language Tests For-loops Named function Anon function Standard Library Tests Array.sort AnnexB Tests … Temporal Tests … Still in pure vibe coding mode, absolutely no exciting insights yet Still very undecided how far I want to take this Maybe just full Language support?
+
+--- SLIDE 26 (slide26.xml) ---
+Part 2 Scaling up , fast
+
+--- SLIDE 27 (slide27.xml) ---
+Too many tests, Freezing tests, Crashing tests, IDE can´t handle it I´m not making progress
+
+--- SLIDE 28 (slide28.xml) ---
+…So I built a tool
+
+--- SLIDE 29 (slide29.xml) ---
+…So I built a tool Asynkron.TestRunner Process isolation. Multi Process. Work pulling pattern . Blame detector . Still same old Xunit / Nunit tests
+
+--- SLIDE 30 (slide30.xml) ---
+If the testrunner knows what passed , failed , or crashed . Why not let the testrunner create the bug reports ?
+
+--- SLIDE 31 (slide31.xml) ---
+But … Now the same test runner handed you a bug report with 80 000 failing tests…
+
+--- SLIDE 32 (slide32.xml) ---
+…So I built a tool
+
+--- SLIDE 33 (slide33.xml) ---
+Not really , it was a Ralph loop foreach bug in bugreports: prompt = ” Fix this bug… ” + bug.Desc RunAgent ( prompt )
+
+--- SLIDE 34 (slide34.xml) ---
+Fixing bugs also means uncovering bad design ... really bad design
+
+--- SLIDE 35 (slide35.xml) ---
+” Replaying generator” …Three execution modes
+
+--- SLIDE 36 (slide36.xml) ---
+AST Walking + CPS IR Lowering Replay Generator
+
+--- SLIDE 37 (slide37.xml) ---
+AST Walking + CPS IR Lowering Replay Generator
+
+--- SLIDE 38 (slide38.xml) ---
+function * myGenerator () { console.log (” one ”); yield 1; console.log (” two ”); yield 2; console.log (” three ”); yield 3; } Output: one one two one two three
+
+--- SLIDE 39 (slide39.xml) ---
+AST Walking + CPS IR Lowering 👍 Replay Generator
+
+--- SLIDE 40 (slide40.xml) ---
+Test Bomb Layered Test
+
+--- SLIDE 41 (slide41.xml) ---
+You are almost done !!
+
+--- SLIDE 42 (slide42.xml) ---
+Performance , where are all the bottlenecks or hotspots ? What about memory ? Contention ? Exceptions ? How do you ensure any form of code quality ? C# take -no- prisoners . Warnings as errors , bump all Analyzers to error . How do we detect code duplication ? What about architecture , is the LISP model enough ? CPS, Generators, Replay , AST Eval , IR, ByteCode , IL?
+
+--- SLIDE 43 (slide43.xml) ---
+Profiling
+
+--- SLIDE 44 (slide44.xml) ---
+Frontend
+
+--- SLIDE 45 (slide45.xml) ---
+”The mega flow ”
+
+--- SLIDE 46 (slide46.xml) ---
+I need something better …
+
+--- SLIDE 47 (slide47.xml) ---
+I need something better …
+
+--- SLIDE 48 (slide48.xml) ---
+Code duplication
+
+--- SLIDE 49 (slide49.xml) ---
+I think the process is wrong
+
+--- SLIDE 50 (slide50.xml) ---
+[no extracted text]
+
+--- SLIDE 51 (slide51.xml) ---
+[no extracted text]
+
+--- SLIDE 52 (slide52.xml) ---
+[no extracted text]
+
+--- SLIDE 53 (slide53.xml) ---
+[no extracted text]
+

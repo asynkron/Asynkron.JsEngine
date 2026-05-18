@@ -342,11 +342,12 @@ public sealed partial class MathPrototype
     {
         if (args.Count == 0)
         {
-            return 0d;
+            return JsValue.Zero;
         }
 
         var hasInfinity = false;
         var hasNaN = false;
+        var allFiniteInputsAreZero = true;
         double sumOfSquares = 0;
         foreach (var arg in args)
         {
@@ -363,12 +364,22 @@ public sealed partial class MathPrototype
                 continue;
             }
 
+            if (number != 0d)
+            {
+                allFiniteInputsAreZero = false;
+            }
+
             sumOfSquares += number * number;
         }
 
         if (hasInfinity)
         {
             return double.PositiveInfinity;
+        }
+
+        if (allFiniteInputsAreZero && !hasNaN)
+        {
+            return JsValue.Zero;
         }
 
         return hasNaN ? double.NaN : Math.Sqrt(sumOfSquares);

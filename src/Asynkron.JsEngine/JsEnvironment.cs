@@ -3182,6 +3182,16 @@ public sealed class JsEnvironment : IRentable
     {
         var propertyName = binding.PropertyName;
         var bindingObject = binding.BindingObject;
+        if (binding.IsStrictReference &&
+            !binding.AllowMissingAssignment &&
+            !HasProperty(bindingObject, propertyName))
+        {
+            realm ??= (bindingObject as JsObject)?.RealmState;
+            throw StandardLibrary.ThrowReferenceError(
+                $"ReferenceError: {propertyName} is not defined",
+                realm: realm);
+        }
+
         var receiverValue = JsValue.FromObjectUnsafe(bindingObject);
         if (ReflectHelper.SetPropertyWithReceiver(bindingObject, propertyName, value, receiverValue))
         {

@@ -33,6 +33,75 @@ public sealed class WithStatementTests(ITestOutputHelper output) : InternalTestB
     }
 
     [Fact(Timeout = 2000)]
+    public async Task With_StrictPostfixIncrementThrowsReferenceErrorWhenGetterDeletesBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var count = 0;
+            var caught = false;
+            var scope = {
+                get x() {
+                    delete this.x;
+                    return 2;
+                }
+            };
+
+            with (scope) {
+                (function() {
+                    "use strict";
+                    try {
+                        count++;
+                        x++;
+                        count++;
+                    } catch (e) {
+                        caught = e instanceof ReferenceError;
+                    }
+                    count++;
+                })();
+            }
+
+            ({ caught, count, hasX: "x" in scope });
+            """);
+
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.True(obj.TryGetProperty("caught", out var caught));
+        Assert.True(caught.AsBoolean());
+        Assert.True(obj.TryGetProperty("count", out var count));
+        Assert.Equal(2d, count.AsDouble());
+        Assert.True(obj.TryGetProperty("hasX", out var hasX));
+        Assert.False(hasX.AsBoolean());
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task With_SloppyPostfixIncrementCanRecreateBindingAfterGetterDeletesIt()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var scope = {
+                get x() {
+                    delete this.x;
+                    return 2;
+                }
+            };
+
+            var observed;
+            with (scope) {
+                observed = x++;
+            }
+
+            ({ observed, value: scope.x, hasX: "x" in scope });
+            """);
+
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.True(obj.TryGetProperty("observed", out var observed));
+        Assert.Equal(2d, observed.AsDouble());
+        Assert.True(obj.TryGetProperty("value", out var value));
+        Assert.Equal(3d, value.AsDouble());
+        Assert.True(obj.TryGetProperty("hasX", out var hasX));
+        Assert.True(hasX.AsBoolean());
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task With_UnscopablesGetterSkippedWhenPropertyAbsent()
     {
         await using var engine = CreateEngine();

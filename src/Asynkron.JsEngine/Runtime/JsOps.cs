@@ -626,14 +626,18 @@ internal static class JsOps
     [MethodImpl(JsEngineConstants.Inlining)]
     private static bool SameValueNumber(double left, double right)
     {
-        return left switch
+        if (double.IsNaN(left) && double.IsNaN(right))
         {
-            // NaN equals NaN in SameValue
-            double.NaN when double.IsNaN(right) => true,
-            // -0 and +0 are different in SameValue
-            0.0 when right == 0.0 => BitConverter.DoubleToInt64Bits(left) == BitConverter.DoubleToInt64Bits(right),
-            _ => left == right
-        };
+            return true;
+        }
+
+        // SameValue distinguishes -0 and +0; C# numeric equality does not.
+        if (left == 0.0 && right == 0.0)
+        {
+            return BitConverter.DoubleToInt64Bits(left) == BitConverter.DoubleToInt64Bits(right);
+        }
+
+        return left == right;
     }
 
     /// <summary>

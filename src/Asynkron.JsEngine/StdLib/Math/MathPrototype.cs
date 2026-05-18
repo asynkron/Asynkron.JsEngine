@@ -17,7 +17,12 @@ public sealed partial class MathPrototype
     public static JsValue Abs(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
-        return double.IsNaN(x) ? double.NaN : Math.Abs(x);
+        if (double.IsNaN(x))
+        {
+            return double.NaN;
+        }
+
+        return x == 0 ? 0d : Math.Abs(x);
     }
 
     [JsHostMethod("ceil", Length = 1d)]

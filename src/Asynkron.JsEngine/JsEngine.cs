@@ -6928,13 +6928,13 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                                         bodyExpression,
                                         loopEnv,
                                         isStrict,
-                                        _ => CompleteForAwaitStatement(),
+                                        _ => TryCloseForAwaitIterator(iterator, CompleteForAwaitStatement),
                                         advanceTopLevelStatement: false))
                                 {
                                     return JsValue.Null;
                                 }
 
-                                CompleteForAwaitStatement();
+                                TryCloseForAwaitIterator(iterator, CompleteForAwaitStatement);
                             }
                             catch (ThrowSignal signal)
                             {
@@ -6965,6 +6965,68 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             {
                 _statementIndex++;
                 Run();
+            }
+        }
+
+        private void TryCloseForAwaitIterator(IJsObjectLike iterator, Action continuation)
+        {
+            try
+            {
+                if (!iterator.TryGetProperty("return", out var returnMethod) ||
+                    returnMethod.IsNullOrUndefined)
+                {
+                    continuation();
+                    return;
+                }
+
+                if (!returnMethod.TryGetObject<IJsCallable>(out var returnCallable))
+                {
+                    throw StandardLibrary.ThrowTypeError(
+                        "for await iterator return must be callable",
+                        realm: _engine.RealmState);
+                }
+
+                var returnResult = returnCallable.Invoke([], JsValue.FromObjectUnsafe(iterator));
+                var onCloseFulfilled = new HostFunction(args =>
+                {
+                    if (_completion.Task.IsCompleted)
+                    {
+                        return JsValue.Null;
+                    }
+
+                    try
+                    {
+                        var closeResult = args.GetArgument(0);
+                        if (!closeResult.TryGetObjectLike(out _))
+                        {
+                            throw StandardLibrary.ThrowTypeError(
+                                "for await iterator return result must be an object",
+                                realm: _engine.RealmState);
+                        }
+
+                        continuation();
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        Fail(signal);
+                    }
+                    catch (Exception ex)
+                    {
+                        Fail(ex);
+                    }
+
+                    return JsValue.Null;
+                });
+
+                TryAwaitResolvedValue(returnResult, onCloseFulfilled);
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+            }
+            catch (Exception ex)
+            {
+                Fail(ex);
             }
         }
 

@@ -1162,6 +1162,34 @@ export default function() { return 23; };
         Assert.Equal(6.0, result);
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task TopLevelAwait_ForAwaitOfAwaitedIterableBreakClosesAsyncIterator()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.EvaluateModule("""
+                                                 var closed = 0;
+                                                 var seen = 0;
+
+                                                 async function* gen() {
+                                                   try {
+                                                     yield 1;
+                                                   } finally {
+                                                     closed++;
+                                                   }
+                                                 }
+
+                                                 for await (const value of await Promise.resolve(gen())) {
+                                                   seen += await Promise.resolve(value);
+                                                   break;
+                                                 }
+
+                                                 seen + ":" + closed
+                                                 """);
+
+        Assert.Equal("1:1", result);
+    }
+
     [Fact(Timeout = 5000, Skip = "hangs indefinitely")]
     public async Task TopLevelAwait_ForAwaitOf()
     {

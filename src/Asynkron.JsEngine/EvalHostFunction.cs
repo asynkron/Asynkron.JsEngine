@@ -283,7 +283,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         if (isDirectEval)
         {
             var callerIsArrowFunction = IsDirectEvalCallerArrowFunction(CallingJsEnvironment);
-            var hasSuperBinding = IsDirectEvalCallerMethod(CallingJsEnvironment);
+            var hasSuperBinding = HasDirectEvalSuperBinding(CallingJsEnvironment, insideClassFieldInitializer);
             // TryGetJsValue returns JsValue, and Symbol.NewTarget is stored as JsValue.Undefined when absent
             var hasNewTarget = CallingJsEnvironment?.TryGetJsValue(Symbol.NewTarget, out var newTarget) == true &&
                                !newTarget.IsUndefined;
@@ -696,6 +696,27 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                true &&
                activeFunction.TryGetObject<TypedAstEvaluator.SyncFunctionInvoker>(out var function) &&
                function.HasHomeObject;
+    }
+
+    private static bool HasDirectEvalSuperBinding(JsEnvironment? callingEnvironment, bool insideClassFieldInitializer)
+    {
+        if (callingEnvironment is null)
+        {
+            return false;
+        }
+
+        if (IsDirectEvalCallerMethod(callingEnvironment))
+        {
+            return true;
+        }
+
+        if (!insideClassFieldInitializer)
+        {
+            return false;
+        }
+
+        return callingEnvironment.TryFindBindingJsValue(Symbol.Super, true, out _, out var superBinding) &&
+               superBinding.TryGetObject<SuperBinding>(out _);
     }
 
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)

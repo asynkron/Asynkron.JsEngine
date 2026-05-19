@@ -95,8 +95,8 @@ public static partial class TypedAstEvaluator
             public int LoopContinueTarget { get; } = loopContinueTarget;
 
             /// <summary>
-            /// For for-of loops: the break target index. Breaks to other targets are inside
-            /// an enclosing protected loop and should not schedule this frame's finally.
+            /// For for-of loops: the break target index. Breaks to in-body labels
+            /// should not schedule this frame's finally; breaks leaving this loop should.
             /// </summary>
             public int LoopBreakTarget { get; } = loopBreakTarget;
 

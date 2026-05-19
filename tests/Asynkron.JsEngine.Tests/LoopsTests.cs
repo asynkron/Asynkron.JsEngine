@@ -389,4 +389,35 @@ public sealed class LoopsTests(JsEngineTestFixture fixture) : JsEngineTestBase(f
             """);
         Assert.Equal("compat:en,compat:ar,dict:en,dict:ar", result);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task ForOfLoopLabeledBreakOutOfOuterLoopClosesInnerIterator()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let closed = 0;
+            let iterable = {
+                [Symbol.iterator]() {
+                    return {
+                        next() {
+                            return { value: 1, done: false };
+                        },
+                        return() {
+                            closed++;
+                            return {};
+                        }
+                    };
+                }
+            };
+
+            outer: for (let outerValue of [1]) {
+                for (let innerValue of iterable) {
+                    break outer;
+                }
+            }
+
+            closed;
+            """);
+        Assert.Equal(1d, result);
+    }
 }

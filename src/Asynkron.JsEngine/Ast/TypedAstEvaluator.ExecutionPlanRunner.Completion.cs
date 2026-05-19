@@ -324,7 +324,8 @@ public static partial class TypedAstEvaluator
                     if (kind == AbruptKind.Break &&
                         frame.LoopBreakTarget >= 0 &&
                         value is int breakTargetIndex &&
-                        !IsSameLoopControlTarget(breakTargetIndex, frame.LoopBreakTarget))
+                        !IsSameLoopControlTarget(breakTargetIndex, frame.LoopBreakTarget) &&
+                        IsBreakTargetInsideLoopFrame(breakTargetIndex, frame.LoopBreakTarget))
                     {
                         return false;
                     }
@@ -365,6 +366,24 @@ public static partial class TypedAstEvaluator
         private bool IsSameLoopContinueTarget(int targetIndex, int loopContinueTarget)
         {
             return IsSameLoopControlTarget(targetIndex, loopContinueTarget);
+        }
+
+        private bool IsBreakTargetInsideLoopFrame(int targetIndex, int loopBreakTarget)
+        {
+            foreach (var frame in BreakableStateRef.BreakableStack)
+            {
+                if (IsSameLoopControlTarget(targetIndex, frame.BreakTarget))
+                {
+                    return frame.BreakTarget != loopBreakTarget;
+                }
+
+                if (frame.BreakTarget == loopBreakTarget)
+                {
+                    return false;
+                }
+            }
+
+            return false;
         }
 
         private bool IsSameLoopControlTarget(int targetIndex, int loopControlTarget)

@@ -27,6 +27,11 @@ mcp__rider__get_file_problems with the file path
 - Do NOT move on to other tasks while issues remain
 - Fix issues immediately while the context is fresh
 - If unsure how to fix an issue, ask the user
+- Do NOT add direct `Console.WriteLine` or `System.Console.WriteLine` diagnostics in engine runtime code. Use the configured realm/logger path instead, such as `RealmState.Logger?.LogInformation(...)` or `_realmState.Logger?.LogInformation(...)`.
+
+## Diagnostic Output Discipline
+
+Direct stdout diagnostics are observable noise in test and embedding hosts. Issue #1029 / PR #1102 removed unconditional async-function `Console.WriteLine` calls from `TypedAstEvaluator.AsyncFunctionInvoker` and `TypedAstEvaluator.SyncFunctionInvoker` after they polluted the `Expressions_asyncFunction` Test262 lane. Keep temporary tracing behind the configured logger so callers can opt in through `JsEngineOptions.DebugMode` and `Logger` without changing normal stdout behavior.
 
 ## Example Workflow
 

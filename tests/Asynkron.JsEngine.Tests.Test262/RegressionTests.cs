@@ -13,11 +13,11 @@ public class RegressionTests
         Assert.That(engine.ExecutionTimeout, Is.EqualTo(TimeSpan.FromSeconds(30)));
     }
 
-    [Test]
-    public void DecodeURIComponentFourByteFixture_UsesExtendedExecutionTimeout()
+    [TestCase("built-ins/decodeURIComponent/S15.1.3.2_A2.5_T1.js")]
+    [TestCase("test/built-ins/decodeURIComponent/S15.1.3.2_A2.5_T1.js")]
+    public void DecodeURIComponentFourByteFixture_UsesExtendedExecutionTimeout(string fileName)
     {
-        var timeout = Test262Test.GetTest262ExecutionTimeout(
-            "built-ins/decodeURIComponent/S15.1.3.2_A2.5_T1.js");
+        var timeout = Test262Test.GetTest262ExecutionTimeout(fileName);
 
         Assert.That(timeout, Is.EqualTo(TimeSpan.FromSeconds(90)));
     }

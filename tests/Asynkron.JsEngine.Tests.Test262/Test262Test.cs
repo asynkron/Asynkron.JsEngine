@@ -607,9 +607,18 @@ try {
 
     internal static TimeSpan GetTest262ExecutionTimeout(string fileName)
     {
-        return fileName == DecodeURIComponentFourByteTest
+        var normalizedFileName = NormalizeTest262Path(fileName);
+        return normalizedFileName == DecodeURIComponentFourByteTest
             ? TimeSpan.FromSeconds(90)
             : TimeSpan.FromSeconds(30);
+    }
+
+    private static string NormalizeTest262Path(string fileName)
+    {
+        const string testRootPrefix = "test/";
+        return fileName.StartsWith(testRootPrefix, StringComparison.Ordinal)
+            ? fileName[testRootPrefix.Length..]
+            : fileName;
     }
 
     private static HostFunction CreateAbstractModuleSource(JsEngine engine)

@@ -29,12 +29,15 @@ public static partial class TypedAstEvaluator
                 if (!iterState.HasEnteredLoop)
                 {
                     iterState.MarkIteratorClosed();
+                    runner.RestorePreviousIteratorDriverState(iterState);
+
                     runner._programCounter = instruction.Next;
                     returnValue = default;
                     return InstructionResult.Continue;
                 }
 
                 iterState.MarkIteratorClosed();
+                runner.RestorePreviousIteratorDriverState(iterState);
 
                 var hasPendingThrow = false;
                 if (runner.TryCatchStateRef.TryStack.Count > 0)
@@ -141,6 +144,7 @@ public static partial class TypedAstEvaluator
             }
 
             iteratorState.LoopScopeEnvironment = environment;
+            runner.IteratorStateRef.DriverStateStack.Push(runner.IteratorStateRef.CurrentDriverState);
             runner.IteratorStateRef.CurrentDriverState = iteratorState;
 
             runner.StoreValueBySlot(iteratorEnv, instruction.IteratorSlot,
@@ -184,6 +188,12 @@ public static partial class TypedAstEvaluator
             // Use cached driver state for scope-correct access from child scopes
             // (The iterator slot is in the loop scope, but we may be in a per-iteration child scope)
             var driverState = runner.IteratorStateRef.CurrentDriverState;
+            if (driverState is not null &&
+                driverState.IteratorVariable.IsValid &&
+                driverState.IteratorVariable.SlotIndex != instruction.IteratorSlotIndex)
+            {
+                driverState = null;
+            }
 
             if (driverState is null)
             {

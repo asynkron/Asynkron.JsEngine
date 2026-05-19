@@ -127,7 +127,16 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<LeaveTryInstruction>(instr);
-            runner.CompleteTryNormally(instruction.Next);
+            if (runner.TryCatchStateRef.TryStack.Count == 0 ||
+                runner.TryCatchStateRef.TryStack.Peek().LeaveTryIndex == runner._currentInstructionIndex)
+            {
+                runner.CompleteTryNormally(instruction.Next);
+            }
+            else
+            {
+                runner._programCounter = instruction.Next;
+            }
+
             returnValue = default;
             return InstructionResult.Continue;
         }

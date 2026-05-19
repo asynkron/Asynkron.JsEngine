@@ -266,8 +266,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         var containsNewTargetTopLevel = (validationFlags & EvalValidationFlags.ContainsNewTarget) != 0;
         if (isDirectEval && containsNewTargetTopLevel)
         {
-            var callerFunctionScope = CallingJsEnvironment?.GetFunctionScope();
-            var callerHasNewTarget = callerFunctionScope?.HasOwnBinding(Symbol.NewTarget) == true;
+            var callerHasNewTarget =
+                CallingJsEnvironment?.TryFindBindingJsValue(Symbol.NewTarget, true, out _, out _) == true;
             // Direct eval inside class field initializers inherits the "inside function"
             // allowance for new.target, even though the eval source itself is a ScriptBody.
             if (!callerHasNewTarget && !insideClassFieldInitializer)
@@ -281,12 +281,15 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
         if (isDirectEval)
         {
-            var hasSuperBinding = CallingJsEnvironment?.HasBinding(Symbol.Super) == true;
-            // TryGetJsValue returns JsValue, and Symbol.NewTarget is stored as JsValue.Undefined when absent
-            var hasNewTarget = CallingJsEnvironment?.TryGetJsValue(Symbol.NewTarget, out var newTarget) == true &&
+            var hasSuperBinding = HasDirectEvalSuperBinding(CallingJsEnvironment, insideClassFieldInitializer);
+            // Arrow functions inherit new.target lexically through the caller environment chain.
+            var hasNewTarget = CallingJsEnvironment?.TryFindBindingJsValue(Symbol.NewTarget, true, out _, out var newTarget) == true &&
                                !newTarget.IsUndefined;
 
-            if (!hasSuperBinding && containsSuperReferenceTopLevel)
+            // Check super call without includeFunctionBodies (top-level only)
+            var containsSuperCallTopLevel = (validationFlags & EvalValidationFlags.ContainsSuperCall) != 0;
+            var hasAllowedSuperCallContext = containsSuperCallTopLevel && hasNewTarget;
+            if (!hasSuperBinding && !hasAllowedSuperCallContext && containsSuperReferenceTopLevel)
             {
                 throw StandardLibrary.ThrowSyntaxError(
                     "super references are not allowed in direct eval outside methods.",
@@ -294,8 +297,6 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     environment.RealmState);
             }
 
-            // Check super call without includeFunctionBodies (top-level only)
-            var containsSuperCallTopLevel = (validationFlags & EvalValidationFlags.ContainsSuperCall) != 0;
             if (!hasNewTarget && containsSuperCallTopLevel)
             {
                 throw StandardLibrary.ThrowSyntaxError(
@@ -660,13 +661,44 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             var result = program.EvaluateProgram(evalEnvironment, Engine.RealmState, CancellationToken.None,
                 ExecutionKind.Eval, false, inheritedPrivateNameScopes: evalPrivateNameScopes);
 
-            return JsValue.FromObjectUnsafe(result);
+            return result?.GetType() == typeof(JsValue)
+                ? (JsValue)result
+                : JsValue.FromObjectUnsafe(result);
         }
         catch (ThrowSignal)
         {
             RollbackEvalBindings(varEnv, varDeclaredNames, preexistingVarBindings);
             throw;
         }
+    }
+
+    private static bool IsDirectEvalCallerMethod(JsEnvironment? callingEnvironment)
+    {
+        return callingEnvironment?.TryFindBindingJsValue(Symbol.ActiveFunction, true, out _, out var activeFunction) ==
+               true &&
+               activeFunction.TryGetObject<TypedAstEvaluator.SyncFunctionInvoker>(out var function) &&
+               function.HasHomeObject;
+    }
+
+    private static bool HasDirectEvalSuperBinding(JsEnvironment? callingEnvironment, bool insideClassFieldInitializer)
+    {
+        if (callingEnvironment is null)
+        {
+            return false;
+        }
+
+        if (IsDirectEvalCallerMethod(callingEnvironment))
+        {
+            return true;
+        }
+
+        if (!insideClassFieldInitializer)
+        {
+            return false;
+        }
+
+        return callingEnvironment.TryFindBindingJsValue(Symbol.Super, true, out _, out var superBinding) &&
+               superBinding.TryGetObject<SuperBinding>(out _);
     }
 
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)

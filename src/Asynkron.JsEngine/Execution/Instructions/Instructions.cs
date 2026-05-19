@@ -332,6 +332,7 @@ internal sealed record StoreResumeValueInstruction(int Next, Symbol? TargetSymbo
 /// <param name="CatchSlotSymbol">Symbol for catch parameter binding (legacy).</param>
 /// <param name="FinallyIndex">Index of finally block entry, or -1 if no finally.</param>
 /// <param name="EndFinallyIndex">Index of EndFinally instruction, or -1 if no finally.</param>
+/// <param name="LeaveTryIndex">Index of this try frame's LeaveTry instruction.</param>
 /// <param name="LoopContinueTarget">For for-of loops: the continue target index. Continue to this target skips the finally.</param>
 /// <param name="LoopBreakTarget">For for-of loops: the break target index (BreakableExit). Break to this target triggers the finally.</param>
 internal sealed record EnterTryInstruction(
@@ -340,6 +341,7 @@ internal sealed record EnterTryInstruction(
     Symbol? CatchSlotSymbol,
     int FinallyIndex,
     int EndFinallyIndex = -1,
+    int LeaveTryIndex = -1,
     int LoopContinueTarget = -1,
     int LoopBreakTarget = -1)
     : ExecutionInstruction(InstructionKind.EnterTry, Next);

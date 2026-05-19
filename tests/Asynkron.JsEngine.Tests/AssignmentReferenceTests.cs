@@ -107,6 +107,28 @@ var oldValue = x--;
     }
 
     [Fact]
+    public async Task PrefixIncrement_GlobalAccessor_CallsSetterWithNewValueAndReturnsNewValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+var observed = 'unset';
+Object.defineProperty(globalThis, 'x', {
+  get() { return 1; },
+  set(value) { observed = value; },
+  configurable: true
+});
+var newValue = ++x;
+({ newValue, observed });
+");
+
+        var obj = Assert.IsType<JsTypes.JsObject>(result);
+        Assert.True(obj.TryGetProperty("newValue", out var newValue));
+        Assert.Equal(2d, newValue.AsDouble());
+        Assert.True(obj.TryGetProperty("observed", out var observed));
+        Assert.Equal(2d, observed.AsDouble());
+    }
+
+    [Fact]
     public async Task PostfixDecrement_GlobalAccessor_PreservesOldNegativeZero()
     {
         await using var engine = CreateEngine();

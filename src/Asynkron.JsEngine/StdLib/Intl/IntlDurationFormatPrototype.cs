@@ -700,16 +700,15 @@ public sealed partial class IntlDurationFormatPrototype
                 break;
         }
 
+        var isNegative = nanoseconds.Sign < 0;
+        var absoluteNanoseconds = BigInteger.Abs(nanoseconds);
         var divisor = BigInteger.Pow(10, exponent);
-        var quotient = BigInteger.DivRem(nanoseconds, divisor, out var remainder);
-        if (remainder.Sign < 0)
-        {
-            remainder = BigInteger.Abs(remainder);
-        }
+        var quotient = BigInteger.DivRem(absoluteNanoseconds, divisor, out var remainder);
+        var sign = isNegative ? "-" : string.Empty;
 
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"{quotient}.{remainder.ToString(CultureInfo.InvariantCulture).PadLeft(exponent, '0')}");
+            $"{sign}{quotient}.{remainder.ToString(CultureInfo.InvariantCulture).PadLeft(exponent, '0')}");
     }
 
     private static BigInteger ToBigInteger(double value)

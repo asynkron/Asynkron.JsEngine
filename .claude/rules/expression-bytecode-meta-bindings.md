@@ -14,10 +14,13 @@ as separate responsibilities.
 3. Runtime bytecode loads must read the existing environment binding that owns
    the semantics. Do not synthesize fallback objects in the expression-program
    runner when the binding is missing.
-4. Prove both structure and behavior before widening Test262: lowering should
+4. When a quarantined AST fallback still exists for the same meta-property,
+   keep it on the same environment-chain binding resolver as bytecode. Do not
+   leave a local-only lookup or object-synthesis fallback behind.
+5. Prove both structure and behavior before widening Test262: lowering should
    show the dedicated op, and runtime tests should prove stable object identity
    or lexical inheritance for the relevant binding.
-5. After adding a meta-property bytecode load, recheck nearby downstream
+6. After adding a meta-property bytecode load, recheck nearby downstream
    expression consumers that can accept the meta-property as a subexpression
    before leaving their Test262 filters in place. For `import.meta`, this
    includes dynamic import AssignmentExpression fixtures such as
@@ -38,3 +41,9 @@ dynamic import AssignmentExpression filter for `import(import.meta)`. That case
 did not need a separate runtime workaround; it needed the existing meta-property
 bytecode binding to be proven through a consumer expression and then removed
 from the regression packs.
+
+Issue #780 / PR #972 showed the follow-up trap: a bytecode load that reads only
+the current function environment can miss the module's `Symbol.ImportMeta`
+binding, while the legacy AST fallback can still manufacture a fresh object.
+Both paths must resolve through the active environment chain so module functions
+share the same stable per-module `import.meta` object.

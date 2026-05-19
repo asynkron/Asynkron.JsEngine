@@ -84,6 +84,25 @@ These guard writes are not harmless implementation details. JavaScript can
 observe them through `HasProperty`, `Get`, `Set`, enumeration, proxy traps, and
 array length interactions.
 
+## Built-In Copy Operations Use Set
+
+When a built-in copies values into an existing target object, preserve the
+spec's write operation. For `Object.assign`, each enumerable source property
+write is `Set(to, key, value, true)`, not `CreateDataProperty` or
+`DefineProperty`.
+
+This distinction is observable:
+
+- an existing accessor property on the target must invoke its setter even when
+  the target is non-extensible, sealed, or frozen;
+- Symbol keys follow the same write path as string keys;
+- failed target writes, such as missing properties on non-extensible targets or
+  non-writable data properties, still throw.
+
+Do not "simplify" copy helpers into descriptor creation on the target unless the
+ECMAScript algorithm explicitly calls for that operation. Pair this class of
+change with focused regressions for accessor targets and failed writes.
+
 ## Why
 
 Issue #751 fixed `Array.prototype.at` after the direct array-element path failed
@@ -134,3 +153,10 @@ its recursion marker as `__inPush__` on the same JavaScript array used to record
 proxy `HasProperty` lookups. The marker polluted later enumeration. The durable
 lesson is that native guard state must stay hidden; otherwise guard bookkeeping
 becomes a spec-visible property access side effect.
+
+Issue #811 / PR #1007 added focused `Object.assign` regressions after the
+issue-supplied Test262 `Object_assign` group was already green but lacked a
+local guard for integrity-level accessor targets. The durable lesson is that
+`Object.assign` must remain a throwing `Set` operation on the existing target:
+integrity-level data-property restrictions do not block an existing setter, and
+the same contract applies to Symbol keys.

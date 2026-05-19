@@ -21,32 +21,38 @@ sequence directly before adding local type guards or host-runtime shortcuts.
    distinct Temporal operand kinds should fail at the spec point that follows
    conversion to formattable operands, not through incidental host conversion
    failures.
-5. For `Intl.DateTimeFormat.prototype.formatRangeToParts`, preserve source
-   tagging (`shared`, `startRange`, `endRange`) after Temporal slot filtering.
-   Do not prove only the formatted range string when the observable parts array
-   has separate boundaries and labels.
-6. Add focused coverage for both the error-order case and the successful
+5. For Intl `formatRangeToParts` helpers, preserve the source formatter's part
+   boundaries and observable part objects. Do not flatten a formatted endpoint
+   into one synthetic `integer` or `literal` part when formatter output already
+   carries `currency`, `integer`, `minusSign`, grouping, decimal, or other
+   semantic parts. Range composition should add only the range-level `source`
+   label (`shared`, `startRange`, or `endRange`) and range separator or
+   approximate-sign parts.
+6. For `Intl.DateTimeFormat.prototype.formatRangeToParts`, preserve source
+   tagging after Temporal slot filtering. Do not prove only the formatted range
+   string when the observable parts array has separate boundaries and labels.
+7. Add focused coverage for both the error-order case and the successful
    normalized path. Include the exact Test262 method group or file cluster when
    the issue came from Test262.
-7. For `Intl.DateTimeFormat` epoch-based formatting, do not let host
+8. For `Intl.DateTimeFormat` epoch-based formatting, do not let host
    `DateTimeOffset` range limits define ECMAScript proleptic Gregorian calendar
    fields. When the epoch is outside the host-supported range, derive Gregorian
    component fields from ECMAScript date math and keep `format`, `formatToParts`,
    `formatRange`, and `formatRangeToParts` on the same representation unless a
    helper proves it cannot observe out-of-range dates.
-8. For `Intl.Locale`, keep BCP47 subtag parsing grammar-owned. Preserve empty
+9. For `Intl.Locale`, keep BCP47 subtag parsing grammar-owned. Preserve empty
    subtags while validating user-provided option strings so leading, trailing,
    and doubled separators remain RangeError cases instead of disappearing
    during splitting.
-9. For Locale variant handling, detect duplicates on the normalized variant
+10. For Locale variant handling, detect duplicates on the normalized variant
    subtag before sorting canonical output. Do not canonicalize a malformed
    variant sequence by routing it through a synthetic language tag first.
-10. For Locale base-name and getter parsing, classify script, region, variant,
+11. For Locale base-name and getter parsing, classify script, region, variant,
     and extension singleton boundaries from BCP47 subtag grammar. Digit-leading
     four-character subtags are variants, not scripts, and likely-subtags
     operations must preserve arbitrary extension singletons, not only `u`, `t`,
     or `x`.
-11. For Unicode extension keyword parsing, keep the first duplicate keyword
+12. For Unicode extension keyword parsing, keep the first duplicate keyword
     value and ignore later duplicates unless the spec text being implemented
     explicitly says otherwise.
 
@@ -66,6 +72,15 @@ Issue #768 / PR #938 fixed the same Temporal effective-slot lesson for
 collapsed and non-collapsed ranges must assign the correct `source` labels to
 each part after Temporal option filtering. The repair passed the focused
 `DateTimeFormat_prototype_formatRangeToParts` Test262 method group.
+
+Issue #809 / PR #1000 fixed `Intl.NumberFormat.prototype.formatRangeToParts`
+after the implementation flattened formatted endpoints into hard-coded integer
+parts. Test262 expected the range result to reuse the existing
+`IntlNumberFormatResult.Parts` boundaries for currency and integer output,
+preserve collapsed or rounding-equal ranges as `approximatelySign` plus shared
+formatter parts, and create `type`, `value`, and `source` as ordinary data
+properties. Future Intl range-parts work should prove the parts array shape,
+not only the final range string.
 
 Issue #766 / PR #942 fixed `Intl.DateTimeFormat.prototype.format` after
 out-of-range proleptic Gregorian dates were converted through

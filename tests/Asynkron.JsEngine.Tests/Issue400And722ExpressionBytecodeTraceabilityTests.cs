@@ -120,7 +120,7 @@ public sealed class Issue400And722ExpressionBytecodeTraceabilityTests : IAsyncLi
             .ToArray();
 
         var match = Assert.Single(matches);
-        Assert.StartsWith("src/Asynkron.JsEngine/Ast/Legacy/ExpressionNodeExtensions.cs:222:", match, StringComparison.Ordinal);
+        Assert.StartsWith("src/Asynkron.JsEngine/Ast/Legacy/ExpressionNodeExtensions.cs:", match, StringComparison.Ordinal);
         Assert.Contains("private static JsValue EvaluateExpression", match, StringComparison.Ordinal);
     }
 

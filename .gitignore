@@ -421,3 +421,6 @@ FodyWeavers.xsd
 src/.quickdup/
 .quickdup/
 tools/.unicode-cache/
+
+# Faktorial local runtime state
+.faktorial/

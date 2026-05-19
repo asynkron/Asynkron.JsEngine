@@ -24,6 +24,12 @@ sequence directly before adding local type guards or host-runtime shortcuts.
 5. Add focused coverage for both the error-order case and the successful
    normalized path. Include the exact Test262 method group or file cluster when
    the issue came from Test262.
+6. For `Intl.DateTimeFormat` epoch-based formatting, do not let host
+   `DateTimeOffset` range limits define ECMAScript proleptic Gregorian calendar
+   fields. When the epoch is outside the host-supported range, derive Gregorian
+   component fields from ECMAScript date math and keep `format`, `formatToParts`,
+   `formatRange`, and `formatRangeToParts` on the same representation unless a
+   helper proves it cannot observe out-of-range dates.
 
 ## Why
 
@@ -35,3 +41,11 @@ supported Temporal `Plain*` objects must format through effective Temporal
 slots rather than falling through to Date/valueOf behavior. The fix added local
 Temporal range coverage and passed the focused `DateTimeFormat_prototype_formatRange`
 Test262 method group.
+
+Issue #766 / PR #942 fixed `Intl.DateTimeFormat.prototype.format` after
+out-of-range proleptic Gregorian dates were converted through
+`DateTimeOffset`, whose supported range is narrower than ECMAScript TimeClip.
+That clamped BC dates to the host boundary year and also risked drifting across
+parts/range helpers. Future Intl date work needs an explicit proleptic-safe
+component path, with the exact `DateTimeFormat_prototype_format` Test262 group
+and local parts/range regressions proving the behavior.

@@ -158,6 +158,12 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             var generatorContext = _realmState.CreateContext(
                 ScopeKind.Function,
                 DetermineGeneratorScopeMode());
+            using var capturedPrivateScopes = !_capturedPrivateNameScopes.IsDefaultOrEmpty
+                ? generatorContext.EnterPrivateNameScopes(_capturedPrivateNameScopes)
+                : null;
+            using var privateScope = _privateNameScope is not null
+                ? generatorContext.EnterPrivateNameScope(_privateNameScope)
+                : null;
 
             var boundThis = _thisValue;
             if (!_isStrict)

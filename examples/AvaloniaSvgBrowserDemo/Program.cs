@@ -201,7 +201,7 @@ internal static class Program
             throw new InvalidOperationException("Expected ECMA slide sidecar to create its overlay elements.");
         }
 
-        deck.Load("jsengine-presentation-reveal.svg", 58);
+        deck.Load("jsengine-presentation-reveal.svg", 57);
         document = new SvgSlideDocument(
             deck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
@@ -231,7 +231,7 @@ internal static class Program
             throw new InvalidOperationException("Expected reveal mesh to clear when navigating away from the slide.");
         }
 
-        deck.Load("how-far-did-we-push-it.svg", 59);
+        deck.Load("how-far-did-we-push-it.svg", 58);
         document = new SvgSlideDocument(
             deck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
@@ -247,7 +247,7 @@ internal static class Program
 
         finalHost.DispatchKey("ArrowLeft");
         DispatchSmokeFrames(finalHost, 720);
-        if (deck.CurrentIndex != 58 || document.ContainsElement("push-star-0"))
+        if (deck.CurrentIndex != 57 || document.ContainsElement("push-star-0"))
         {
             throw new InvalidOperationException("Expected final slide starfield to stop cleanly when navigating away.");
         }
@@ -280,8 +280,8 @@ internal static class Program
     private static async Task RunPresentationLiveDemoSmoke()
     {
         var baseDirectory = AppContext.BaseDirectory;
-        var deck = PresentationDeck.Load(baseDirectory, "57");
-        deck.Load("express-live-demo.svg", 56);
+        var deck = PresentationDeck.Load(baseDirectory, "56");
+        deck.Load("express-live-demo.svg", 55);
         var document = new SvgSlideDocument(
             deck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),

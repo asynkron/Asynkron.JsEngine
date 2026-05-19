@@ -398,4 +398,167 @@ public sealed class PrivateFieldsTests(ITestOutputHelper output) : InternalTestB
         output.WriteLine($"Case 4 - Arrow private access: {arrowResult}");
         Assert.Equal(1d, arrowResult);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task InnerOrdinaryFunctionsInInstanceElementsResolvePrivateNames()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           class C {
+                                               #field = 1;
+
+                                               #method() {
+                                                   return 2;
+                                               }
+
+                                               get #getter() {
+                                                   return 3;
+                                               }
+
+                                               set #setter(value) {
+                                                   this.#field = value;
+                                               }
+
+                                               readAll() {
+                                                   function readField(receiver) {
+                                                       return receiver.#field;
+                                                   }
+
+                                                   function readMethod(receiver) {
+                                                       return receiver.#method();
+                                                   }
+
+                                                   function readGetter(receiver) {
+                                                       return receiver.#getter;
+                                                   }
+
+                                                   function writeSetter(receiver) {
+                                                       receiver.#setter = 4;
+                                                       return receiver.#field;
+                                                   }
+
+                                                   return [
+                                                       readField(this),
+                                                       readMethod(this),
+                                                       readGetter(this),
+                                                       writeSetter(this)
+                                                   ].join(",");
+                                               }
+                                           }
+
+                                           new C().readAll();
+                                           """);
+
+        Assert.Equal("1,2,3,4", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task InnerOrdinaryFunctionsInStaticElementsResolvePrivateNames()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           class C {
+                                               static #field = 1;
+
+                                               static #method() {
+                                                   return 2;
+                                               }
+
+                                               static get #getter() {
+                                                   return 3;
+                                               }
+
+                                               static set #setter(value) {
+                                                   this.#field = value;
+                                               }
+
+                                               static readAll() {
+                                                   function readField(receiver) {
+                                                       return receiver.#field;
+                                                   }
+
+                                                   function readMethod(receiver) {
+                                                       return receiver.#method();
+                                                   }
+
+                                                   function readGetter(receiver) {
+                                                       return receiver.#getter;
+                                                   }
+
+                                                   function writeSetter(receiver) {
+                                                       receiver.#setter = 4;
+                                                       return receiver.#field;
+                                                   }
+
+                                                   return [
+                                                       readField(this),
+                                                       readMethod(this),
+                                                       readGetter(this),
+                                                       writeSetter(this)
+                                                   ].join(",");
+                                               }
+                                           }
+
+                                           C.readAll();
+                                           """);
+
+        Assert.Equal("1,2,3,4", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task PrivateNameClosurePrefersInnermostDuplicateClassScope()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           class Outer {
+                                               #x = "outer";
+
+                                               readBoth() {
+                                                   function readOuter(receiver) {
+                                                       return receiver.#x;
+                                                   }
+
+                                                   class Inner {
+                                                       #x = "inner";
+
+                                                       read() {
+                                                           function readInner(receiver) {
+                                                               return receiver.#x;
+                                                           }
+
+                                                           return readInner(this);
+                                                       }
+                                                   }
+
+                                                   return readOuter(this) + ":" + new Inner().read();
+                                               }
+                                           }
+
+                                           new Outer().readBoth();
+                                           """);
+
+        Assert.Equal("outer:inner", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task FunctionCreatedByPrivateFieldInitializerCapturesPrivateNameScope()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           class C {
+                                               #x = 42;
+                                               reader = function(receiver) {
+                                                   return receiver.#x;
+                                               };
+
+                                               read() {
+                                                   return this.reader(this);
+                                               }
+                                           }
+
+                                           new C().read();
+                                           """);
+
+        Assert.Equal(42d, result);
+    }
 }

@@ -130,12 +130,13 @@ internal static class LoopEmitterHelpers
         // ================================================================
         var cleanupEntry = -1;
         var endFinallyIndex = -1;
+        var leaveTryIndex = -1;
         int afterLoopIndex;
 
         if (config.NeedsTryFinally)
         {
             (cleanupEntry, endFinallyIndex) = driver.EmitCleanup(ctx, nextIndex);
-            var leaveTryIndex = ctx.Append(new LeaveTryInstruction(nextIndex));
+            leaveTryIndex = ctx.Append(new LeaveTryInstruction(nextIndex));
             afterLoopIndex = leaveTryIndex;
         }
         else
@@ -346,6 +347,7 @@ internal static class LoopEmitterHelpers
                 null,
                 cleanupEntry,
                 endFinallyIndex,
+                leaveTryIndex,
                 continueTarget,
                 loopExitTarget));
         }

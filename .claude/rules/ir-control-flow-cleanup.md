@@ -15,9 +15,15 @@ scope cleanup chains.
 3. When classifying a target at runtime, such as checking whether a `for-of`
    `continue` stays inside the same loop, follow leading
    `PopEnvironmentInstruction` nodes before comparing against loop targets.
-4. Add narrow tests for both sides of this class of bug: bindings from exited
+4. For `for-of` `break` handling, preserve both loop continue and loop break
+   target metadata. A break to a label inside the current loop body can skip the
+   current loop's iterator close path, but a break to an outer label is still an
+   exit from the current iterator frame and must schedule finally/IteratorClose.
+5. Add narrow tests for both sides of this class of bug: bindings from exited
    lexical scopes must not leak, and cleanup-wrapped same-loop continues must
-   not run iterator close/finally as if they exited the loop.
+   not run iterator close/finally as if they exited the loop. For nested
+   `for-of`, also test that a labeled break to an outer loop calls the inner
+   iterator's `return()` exactly once.
 
 ## Why
 
@@ -27,3 +33,8 @@ then fixed a same-loop `continue` wrapped by cleanup instructions: the for-of
 try/finally skip check had to resolve through the cleanup chain before comparing
 with the loop continue target. Treat abrupt control-flow cleanup as part of the
 IR contract, not as an incidental jump target detail.
+
+Issue #790 / PR #968 added the break-side guardrail: a labeled break out of an
+outer loop from inside an inner `for-of` must close the inner iterator. That
+failure showed that "labeled break" is not enough information; future changes
+must classify whether the target stays inside the current loop frame or exits it.

@@ -96,7 +96,7 @@ public static partial class TypedAstEvaluator
                     // For hoisted functions in sloppy mode, also update the var-scoped binding.
                     // This implements Annex B semantics where block-scoped functions also
                     // update the outer binding visible to the surrounding eval/function body.
-                    if (!isBlocked)
+                    if (!varEnvironment.IsStrict && !isBlocked)
                     {
                         // Update the var-scoped binding in the function scope.
                         ref var varBinding = ref varEnvironment.TryGetSlotRef(funcDecl.Name);
@@ -104,14 +104,24 @@ public static partial class TypedAstEvaluator
                         {
                             varEnvironment.AssignJsValue(funcDecl.Name, fnValueJs);
                         }
+                        else if (Unsafe.IsNullRef(ref varBinding))
+                        {
+                            varEnvironment.DefineFunctionScoped(
+                                funcDecl.Name,
+                                fnValueJs,
+                                hasInitializer: true,
+                                isFunctionDeclaration: true,
+                                context: ctx);
+                        }
 
                         // Also update any intermediate environments between the block and
-                        // the function scope (e.g. the body environment) that have a
-                        // non-lexical slot for this name. The IR plan may allocate hoisted
-                        // function names in the body environment for O(1) slot access;
-                        // without this update, the IR read path sees stale undefined.
+                        // the function scope (e.g. the body environment) that have a slot
+                        // for this name. The IR plan may allocate Annex B hoisted function
+                        // names in the body environment for O(1) slot access; without this
+                        // update, the IR read path sees the stale outer function value.
                         UpdateIntermediateVarBindings(
                             environment.Enclosing, varEnvironment, funcDecl.Name, fnValueJs);
+                        runner.UpdateFlatSlotsForBinding(funcDecl.Name, fnValueJs);
                     }
                 }
             }
@@ -139,7 +149,7 @@ public static partial class TypedAstEvaluator
                         break;
                     }
 
-                    if (current.IsSimpleCatchParameter(name))
+                    if (current.IsBodyEnvironment || current.IsSimpleCatchParameter(name))
                     {
                         current = current.Enclosing;
                         continue;
@@ -170,12 +180,35 @@ public static partial class TypedAstEvaluator
                 while (current is not null && !ReferenceEquals(current, stop))
                 {
                     ref var slot = ref current.TryGetSlotRef(name);
-                    if (!Unsafe.IsNullRef(ref slot) && !slot.IsLexical)
+                    if (!Unsafe.IsNullRef(ref slot))
                     {
                         slot.Value = value;
                     }
 
                     current = current.Enclosing;
+                }
+            }
+        }
+
+        private void UpdateFlatSlotsForBinding(Symbol name, JsValue value)
+        {
+            if (_flatSlots is null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < _flatSlots.Length; i++)
+            {
+                var variable = _flatSlots[i];
+                if (!variable.IsValid)
+                {
+                    continue;
+                }
+
+                ref var slot = ref variable.Environment.GetSlotByIndex(variable.SlotIndex);
+                if (ReferenceEquals(slot.Name, name))
+                {
+                    variable.Write(value);
                 }
             }
         }

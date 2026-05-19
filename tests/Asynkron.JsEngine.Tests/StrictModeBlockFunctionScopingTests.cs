@@ -241,4 +241,30 @@ public sealed class StrictModeBlockFunctionScopingTests(ITestOutputHelper output
         // fTypeBefore could be "undefined" (AnnexB) or "function" (full hoisting) - both are valid sloppy mode behavior
         Assert.DoesNotContain("ReferenceError", json, StringComparison.Ordinal);  // No ReferenceError in sloppy mode
     }
+
+    [Fact]
+    public async Task SloppyMode_BlockFunctionDeclaration_UpdatesExistingFunctionBinding()
+    {
+        await using var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            var after;
+            function run() {
+              {
+                function f() { return 'inner declaration'; }
+              }
+
+              after = f;
+
+              function f() {
+                return 'outer declaration';
+              }
+            }
+
+            run();
+            after();
+            """);
+
+        Assert.Equal("inner declaration", result?.ToString());
+    }
 }

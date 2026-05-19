@@ -883,9 +883,23 @@ public static partial class TypedAstEvaluator
                     blocksFunctionScopeOverride: true);
             }
 
-            if (!isBlocked && varEnvironment.HasFunctionScopedBinding(funcDecl.Name))
+            if (!context.CurrentScope.IsStrict && !isBlocked)
             {
-                varEnvironment.AssignJsValue(funcDecl.Name, fnValueJs);
+                if (varEnvironment.HasFunctionScopedBinding(funcDecl.Name))
+                {
+                    varEnvironment.AssignJsValue(funcDecl.Name, fnValueJs);
+                }
+                else
+                {
+                    varEnvironment.DefineFunctionScoped(
+                        funcDecl.Name,
+                        fnValueJs,
+                        hasInitializer: true,
+                        isFunctionDeclaration: true,
+                        context: context);
+                }
+
+                UpdateIntermediateVarBindings(environment.Enclosing, varEnvironment, funcDecl.Name, fnValueJs);
 
                 if (varEnvironment.IsGlobalFunctionScope)
                 {
@@ -907,7 +921,7 @@ public static partial class TypedAstEvaluator
                     break;
                 }
 
-                if (current.IsSimpleCatchParameter(name))
+                if (current.IsBodyEnvironment || current.IsSimpleCatchParameter(name))
                 {
                     current = current.Enclosing;
                     continue;
@@ -925,6 +939,25 @@ public static partial class TypedAstEvaluator
             }
 
             return false;
+        }
+
+        static void UpdateIntermediateVarBindings(
+            JsEnvironment? start,
+            JsEnvironment stop,
+            Symbol name,
+            JsValue value)
+        {
+            var current = start;
+            while (current is not null && !ReferenceEquals(current, stop))
+            {
+                ref var slot = ref current.TryGetSlotRef(name);
+                if (!System.Runtime.CompilerServices.Unsafe.IsNullRef(ref slot))
+                {
+                    slot.Value = value;
+                }
+
+                current = current.Enclosing;
+            }
         }
     }
 

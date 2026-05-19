@@ -163,7 +163,7 @@ public static class ReflectHelper
 
         var proto = ResolveConstructPrototype(newTarget, target, realm);
 
-        if (IsArrayConstructor(target, realm) || IsArrayConstructor(newTarget, realm))
+        if (IsArrayConstructor(target, realm))
         {
             TryGetRealmInfo(newTarget, out var newTargetRealmState, out _);
             var instanceRealm = proto is JsObject { RealmState: { } protoRealm }

@@ -447,4 +447,47 @@ public class RegressionTests
             await realmEngine.DisposeAsync();
         }
     }
+
+    [Test]
+    public async Task ReflectConstruct_ArrayNewTargetDoesNotChangeNonArrayTargetObjectKind()
+    {
+        await using var engine = Test262Test.CreateTest262Engine(logger: null, debugMode: false, useSnapshot: false);
+        var realmEngines = new List<JsEngine>();
+        var obj262 = new JsObject
+        {
+            ["createRealm"] = new HostFunction(_ =>
+            {
+                var realmEngine = Test262Test.CreateTest262Engine(logger: null, debugMode: false, useSnapshot: false);
+                realmEngines.Add(realmEngine);
+                var realmGlobal = realmEngine.GlobalObject;
+                realmGlobal["global"] = realmGlobal;
+                return (JsValue)realmGlobal;
+            })
+        };
+        engine.SetGlobalValue("$262", obj262);
+
+        var result = await engine.Evaluate(
+            """
+            var realm = $262.createRealm().global;
+            function F() { this.x = 1; }
+
+            var value = Reflect.construct(F, [], realm.Array);
+
+            [
+              Array.isArray(value),
+              value.x,
+              Object.getPrototypeOf(value) === realm.Array.prototype
+            ];
+            """);
+
+        var values = result as JsArray ?? throw new AssertionException("Expected array result");
+        Assert.That(values.Items[0].AsBoolean(), Is.False);
+        Assert.That(values.Items[1].AsDouble(), Is.EqualTo(1d));
+        Assert.That(values.Items[2].AsBoolean(), Is.True);
+
+        foreach (var realmEngine in realmEngines)
+        {
+            await realmEngine.DisposeAsync();
+        }
+    }
 }

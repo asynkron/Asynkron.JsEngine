@@ -70,6 +70,20 @@ if (evalContext?.IsThrow is true)
 Avoid `== true` for this pattern. It is easier to miss during review and was
 the concrete cleanup requested after the issue #751 Array.prototype.at fix.
 
+## Native Reentrancy Guards
+
+Keep native reentrancy guards out of JavaScript-visible property storage.
+
+When a built-in such as an Array prototype mutator needs to prevent recursion
+from an observable getter, setter, proxy trap, or callback, store the guard in
+private runtime state keyed by the receiver/accessor identity and clear it in
+`finally`. Do not write marker properties such as `__inPush__` onto arrays or
+array-like receivers.
+
+These guard writes are not harmless implementation details. JavaScript can
+observe them through `HasProperty`, `Get`, `Set`, enumeration, proxy traps, and
+array length interactions.
+
 ## Why
 
 Issue #751 fixed `Array.prototype.at` after the direct array-element path failed
@@ -113,3 +127,10 @@ After initialization, the key may run, but `delete super[...]` still throws
 `ReferenceError`. The durable lesson is to keep super-reference validation,
 computed-key evaluation, and the operation-specific throw as separate ordered
 steps.
+
+Issue #806 / PR #999 fixed the `Intl.NumberFormat`
+`constructor-locales-hasproperty` fixture after `Array.prototype.push` stored
+its recursion marker as `__inPush__` on the same JavaScript array used to record
+proxy `HasProperty` lookups. The marker polluted later enumeration. The durable
+lesson is that native guard state must stay hidden; otherwise guard bookkeeping
+becomes a spec-visible property access side effect.

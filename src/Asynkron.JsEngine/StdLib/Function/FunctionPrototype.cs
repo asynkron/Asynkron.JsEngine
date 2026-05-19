@@ -32,6 +32,11 @@ public sealed partial class FunctionPrototype
 
         if (isCallable)
         {
+            if (thisValue.ObjectValue is HostFunction hostFunction)
+            {
+                return new JsValue(hostFunction.GetNativeFunctionSource());
+            }
+
             return new JsValue("function () { [native code] }");
         }
 

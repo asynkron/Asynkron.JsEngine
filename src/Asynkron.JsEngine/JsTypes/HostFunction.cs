@@ -17,6 +17,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
     IJsEnvironmentAwareCallable, IAsJsValue
 {
     private bool _isConstructor = true;
+    private string? _nativeSourceDisplayName;
 
     // Cached JsValue to avoid repeated struct creation
     private readonly JsValue _cachedJsValue;
@@ -150,6 +151,19 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
 
     /// <inheritdoc />
     public ref readonly JsValue AsJsValue => ref _cachedJsValue;
+
+    internal string GetNativeFunctionSource()
+    {
+        var displayName = _nativeSourceDisplayName;
+        return string.IsNullOrEmpty(displayName)
+            ? "function () { [native code] }"
+            : $"function {displayName}() {{ [native code] }}";
+    }
+
+    internal void SetNativeSourceDisplayName(string displayName)
+    {
+        _nativeSourceDisplayName = TryBuildNativeSourceDisplayName(displayName);
+    }
 
     public void PreventExtensions()
     {
@@ -379,6 +393,73 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
     internal void SetConstructorFlagForSnapshot(bool isConstructor)
     {
         _isConstructor = isConstructor;
+    }
+
+    private static string TryBuildNativeSourceDisplayName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return string.Empty;
+        }
+
+        if (name.StartsWith("get ", StringComparison.Ordinal))
+        {
+            return BuildAccessorDisplayName("get", name[4..]);
+        }
+
+        if (name.StartsWith("set ", StringComparison.Ordinal))
+        {
+            return BuildAccessorDisplayName("set", name[4..]);
+        }
+
+        return IsNativeFunctionPropertyName(name) ? name : string.Empty;
+    }
+
+    private static string BuildAccessorDisplayName(string accessor, string propertyName)
+    {
+        return IsNativeFunctionPropertyName(propertyName)
+            ? $"{accessor} {propertyName}"
+            : accessor;
+    }
+
+    private static bool IsNativeFunctionPropertyName(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return false;
+        }
+
+        if (value[0] == '[' && value[^1] == ']')
+        {
+            return value.Length > 2 &&
+                   value.IndexOf('[', 1) < 0 &&
+                   value.IndexOf(']', 1, value.Length - 2) < 0;
+        }
+
+        if (!IsIdentifierStart(value[0]))
+        {
+            return false;
+        }
+
+        for (var i = 1; i < value.Length; i++)
+        {
+            if (!IsIdentifierPart(value[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsIdentifierStart(char c)
+    {
+        return c is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or '_' or '$';
+    }
+
+    private static bool IsIdentifierPart(char c)
+    {
+        return IsIdentifierStart(c) || c is >= '0' and <= '9';
     }
 
     public bool DeleteProperty(string name)

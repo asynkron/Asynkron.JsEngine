@@ -957,4 +957,79 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
         """);
         Assert.Equal("OK", result);
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task RegExp_NumericBackreferenceToUnmatchedGroup_MatchesEmpty()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var match = /(.*?)a(?!(a+)b\2c)\2(.*)/.exec("baaabaac");
+            [
+              match[0],
+              match[1],
+              match[2] === undefined ? "undefined" : match[2],
+              match[3],
+              match.index
+            ].join("|");
+        """);
+
+        Assert.Equal("baaabaac|ba|undefined|abaac|0", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task RegExp_LegacyNonWordBoundary_UsesEcmaWordCharacters()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var match = /\B[^z]{4}\B/.exec("devil arise\tforzzx\nevils");
+            match.index + "|" + match[0];
+        """);
+
+        Assert.Equal("3|il a", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task RegExp_UnicodeIgnoreCaseClass_UsesSimpleCaseFoldingPairs()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            [
+              /[\u0390]/ui.test("\u1fd3"),
+              /[\u1fd3]/ui.test("\u0390"),
+              /[\u03b0]/ui.test("\u1fe3"),
+              /[\u1fe3]/ui.test("\u03b0"),
+              /[\ufb05]/ui.test("\ufb06"),
+              /[\ufb06]/ui.test("\ufb05")
+            ].every(Boolean);
+        """);
+
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task RegExp_QuantifiedZeroWidthAssertion_ResetsCaptures()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            [
+              "abc".match(/(?:(?=(abc)))a/)[1],
+              "abc".match(/(?:(?=(abc)))?a/)[1] === undefined ? "undefined" : "set",
+              "abc".match(/(?:(?=(abc))){1,1}a/)[1],
+              "abc".match(/(?:(?=(abc))){0,1}a/)[1] === undefined ? "undefined" : "set"
+            ].join("|");
+        """);
+
+        Assert.Equal("abc|undefined|abc|undefined", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task RegExp_NullableQuantifier_CanContinueWithProgressingIteration()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            /(a?b??)*/.exec("ab")[0];
+        """);
+
+        Assert.Equal("ab", result);
+    }
 }

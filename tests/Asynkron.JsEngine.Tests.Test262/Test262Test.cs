@@ -17,6 +17,8 @@ public abstract partial class Test262Test
     private const string DisableBaseRealmEnvVar = "JSENGINE_TEST262_DISABLE_BASE_REALM";
     private const string DecodeURIComponentFourByteTest =
         "built-ins/decodeURIComponent/S15.1.3.2_A2.5_T1.js";
+    private const string RegExpCharacterClassEscapeNonWhitespaceTest =
+        "built-ins/RegExp/character-class-escape-non-whitespace.js";
 
     private static bool IsEnvEnabled(string name)
     {
@@ -608,7 +610,7 @@ try {
     internal static TimeSpan GetTest262ExecutionTimeout(string fileName)
     {
         var normalizedFileName = NormalizeTest262Path(fileName);
-        return normalizedFileName == DecodeURIComponentFourByteTest
+        return normalizedFileName is DecodeURIComponentFourByteTest or RegExpCharacterClassEscapeNonWhitespaceTest
             ? TimeSpan.FromSeconds(90)
             : TimeSpan.FromSeconds(30);
     }

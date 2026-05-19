@@ -22,6 +22,15 @@ public class RegressionTests
         Assert.That(timeout, Is.EqualTo(TimeSpan.FromSeconds(90)));
     }
 
+    [TestCase("built-ins/RegExp/character-class-escape-non-whitespace.js")]
+    [TestCase("test/built-ins/RegExp/character-class-escape-non-whitespace.js")]
+    public void RegExpNonWhitespaceFixture_UsesExtendedExecutionTimeout(string fileName)
+    {
+        var timeout = Test262Test.GetTest262ExecutionTimeout(fileName);
+
+        Assert.That(timeout, Is.EqualTo(TimeSpan.FromSeconds(90)));
+    }
+
     [Test]
     public void OrdinaryTest262Fixtures_UseDefaultExecutionTimeout()
     {

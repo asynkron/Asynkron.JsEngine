@@ -56,6 +56,152 @@ public sealed class IntlSupportedValuesTests(ITestOutputHelper output) : Interna
     }
 
     [Fact]
+    public async Task CollationValuesAlignWithCollatorResolvedOptions()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            (function () {
+                var collations = Intl.supportedValuesOf("collation");
+                var locales = ["en", "ar", "de", "es", "hi", "ko", "ln", "si", "sv", "zh"];
+
+                for (var i = 0; i < collations.length; i++) {
+                    var collation = collations[i];
+                    var supported = false;
+                    for (var j = 0; j < locales.length; j++) {
+                        var collator = new Intl.Collator(locales[j], { collation });
+                        if (collator.resolvedOptions().collation === collation) {
+                            supported = true;
+                            break;
+                        }
+                    }
+
+                    if (!supported) {
+                        return collation;
+                    }
+                }
+
+                return true;
+            })();
+            """);
+
+        Assert.Equal(true, result);
+    }
+
+    [Fact]
+    public async Task KnownButUnsupportedCollationsResolveToDefault()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            (function () {
+                var direct = new Intl.Collator("hi", { collation: "direct" }).resolvedOptions().collation;
+                var searchjl = new Intl.Collator("ko", { collation: "searchjl" }).resolvedOptions().collation;
+                var collations = Intl.supportedValuesOf("collation");
+                return [direct, searchjl, collations.includes("direct"), collations.includes("searchjl")];
+            })();
+            """);
+
+        var array = Assert.IsType<JsArray>(result);
+        Assert.Equal("default", array.Items[0].ToObject());
+        Assert.Equal("default", array.Items[1].ToObject());
+        Assert.Equal(false, array.Items[2].ToObject());
+        Assert.Equal(false, array.Items[3].ToObject());
+    }
+
+    [Fact]
+    public async Task CollatorOptionFromOuterForOfBindingSurvivesInnerLocaleLoop()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            "use strict";
+            (function () {
+                for (let collation of Intl.supportedValuesOf("collation")) {
+                    if (collation !== "phonebk") {
+                        continue;
+                    }
+
+                    for (let locale of ["en", "ar", "de"]) {
+                        new Intl.Collator(locale, { collation });
+                    }
+                }
+
+                return true;
+            })();
+            """);
+
+        Assert.Equal(true, result);
+    }
+
+    [Fact]
+    public async Task CollatorSupportedValuesMirrorTest262KnownCollationProbe()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            "use strict";
+            (function () {
+                function allCollations() {
+                    return [
+                        "big5han", "compat", "dict", "direct", "ducet", "emoji",
+                        "eor", "gb2312", "phonebk", "phonetic", "pinyin",
+                        "reformed", "search", "searchjl", "standard", "stroke",
+                        "trad", "unihan", "zhuyin",
+                    ];
+                }
+
+                const collations = Intl.supportedValuesOf("collation");
+                const locales = ["en", "ar", "de", "es", "hi", "ko", "ln", "si", "sv", "zh"];
+
+                for (let collation of collations) {
+                    let supported = false;
+                    for (let locale of locales) {
+                        let obj;
+                        try {
+                            obj = new Intl.Collator(locale, { collation });
+                        } catch (e) {
+                            return "throw:" + collation + ":" + locale + ":" + e.message;
+                        }
+                        if (obj.resolvedOptions().collation === collation) {
+                            supported = true;
+                            break;
+                        }
+                    }
+
+                    if (!supported) {
+                        return "unsupported:" + collation;
+                    }
+                }
+
+                for (let collation of allCollations()) {
+                    let supported = false;
+                    for (let locale of locales) {
+                        let obj;
+                        try {
+                            obj = new Intl.Collator(locale, { collation });
+                        } catch (e) {
+                            return "throw:" + collation + ":" + locale + ":" + e.message;
+                        }
+                        if (obj.resolvedOptions().collation === collation) {
+                            supported = true;
+                            break;
+                        }
+                    }
+
+                    if (supported && !collations.includes(collation)) {
+                        return "missing:" + collation;
+                    }
+
+                    if (!supported && collations.includes(collation)) {
+                        return "extra:" + collation;
+                    }
+                }
+
+                return true;
+            })();
+            """);
+
+        Assert.Equal(true, result);
+    }
+
+    [Fact]
     public async Task SupportedValuesCoerceKeysWithToString()
     {
         await using var engine = CreateEngine();
@@ -74,4 +220,3 @@ public sealed class IntlSupportedValuesTests(ITestOutputHelper output) : Interna
         Assert.Equal(baseline.Items, viaPlainObject.Items);
     }
 }
-

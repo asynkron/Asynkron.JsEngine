@@ -495,10 +495,22 @@ public static partial class TypedAstEvaluator
 
             RestoreIteratorLoopScopeEnvironment(driverState, ref environment);
 
-            IteratorStateRef.CurrentDriverState = null;
+            RestorePreviousIteratorDriverState(driverState);
             _programCounter = instruction.BreakIndex;
             suspendResult = JsValue.Undefined;
             return false;
+        }
+
+        private void RestorePreviousIteratorDriverState(IteratorDriverState completedDriverState)
+        {
+            if (!ReferenceEquals(IteratorStateRef.CurrentDriverState, completedDriverState))
+            {
+                return;
+            }
+
+            IteratorStateRef.CurrentDriverState = IteratorStateRef.DriverStateStack.Count > 0
+                ? IteratorStateRef.DriverStateStack.Pop()
+                : null;
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]
@@ -647,7 +659,7 @@ public static partial class TypedAstEvaluator
 
                     // Clear driver state to prevent outer loop's CreateIterationEnv from
                     // incorrectly updating this driver's CurrentIterationEnvironment.
-                    IteratorStateRef.CurrentDriverState = null;
+                    RestorePreviousIteratorDriverState(driverState);
                     _programCounter = instruction.BreakIndex;
                     returnValue = default;
                     return InstructionResult.Continue;
@@ -676,7 +688,7 @@ public static partial class TypedAstEvaluator
                     // Restore environment to enclosing scope when iterator exhausted
                     RestoreIteratorLoopScopeEnvironment(driverState, ref environment);
 
-                    IteratorStateRef.CurrentDriverState = null;
+                    RestorePreviousIteratorDriverState(driverState);
                     _programCounter = instruction.BreakIndex;
                     returnValue = default;
                     return InstructionResult.Continue;
@@ -692,7 +704,7 @@ public static partial class TypedAstEvaluator
                 // Restore environment to enclosing scope when no iterator
                 RestoreIteratorLoopScopeEnvironment(driverState, ref environment);
 
-                IteratorStateRef.CurrentDriverState = null;
+                RestorePreviousIteratorDriverState(driverState);
                 _programCounter = instruction.BreakIndex;
                 returnValue = default;
                 return InstructionResult.Continue;
@@ -860,7 +872,7 @@ public static partial class TypedAstEvaluator
                             // Restore environment to enclosing scope when breaking
                             RestoreIteratorLoopScopeEnvironment(driverState, ref environment);
 
-                            IteratorStateRef.CurrentDriverState = null;
+                            RestorePreviousIteratorDriverState(driverState);
                             _programCounter = instruction.BreakIndex;
                             returnValue = default;
                             return InstructionResult.Continue;
@@ -898,7 +910,7 @@ public static partial class TypedAstEvaluator
                         // Restore environment to enclosing scope when async iterator exhausted
                         RestoreIteratorLoopScopeEnvironment(driverState, ref environment);
 
-                        IteratorStateRef.CurrentDriverState = null;
+                        RestorePreviousIteratorDriverState(driverState);
                         _programCounter = instruction.BreakIndex;
                         _realmState.Logger?.LogInformation(
                             "[ASYNC-ITER-DEBUG] AsyncIterator done=true, jumping to BreakIndex={BreakIndex}, instructionsLength={Length}",
@@ -943,7 +955,7 @@ public static partial class TypedAstEvaluator
                         // Clear the driver state since this iterator loop is done.
                         // This prevents outer loop's CreateIterationEnv from incorrectly
                         // updating this driver's CurrentIterationEnvironment.
-                        IteratorStateRef.CurrentDriverState = null;
+                        RestorePreviousIteratorDriverState(driverState);
                         _programCounter = instruction.BreakIndex;
                         returnValue = default;
                         return InstructionResult.Continue;
@@ -972,7 +984,7 @@ public static partial class TypedAstEvaluator
                     // Restore environment to enclosing scope
                     RestoreIteratorLoopScopeEnvironment(driverState, ref environment);
 
-                    IteratorStateRef.CurrentDriverState = null;
+                    RestorePreviousIteratorDriverState(driverState);
                     _programCounter = instruction.BreakIndex;
                     returnValue = default;
                     return InstructionResult.Continue;

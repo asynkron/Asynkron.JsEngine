@@ -75,6 +75,50 @@ public sealed class JsOpsTests(ITestOutputHelper output) : InternalTestBase(outp
         Assert.Equal(8, (int)bigInt.Value);
     }
 
+    [Theory(Timeout = 2000)]
+    [InlineData("Object(Symbol()) + ''")]
+    [InlineData("'' + Object(Symbol())")]
+    [InlineData("Object(Symbol()) + 1")]
+    public async Task Add_SymbolWrapperCoercionThrowsCatchableTypeError(string expression)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate($$"""
+                                             try {
+                                                 {{expression}};
+                                                 'no throw';
+                                             } catch (e) {
+                                                 e instanceof TypeError ? e.name : 'wrong error';
+                                             }
+                                             """);
+
+        Assert.Equal("TypeError", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Add_SymbolWrapperInvokesToPrimitiveBeforeConversion()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const boxed = Object(Symbol('wrapped'));
+                                           let seenHint = 'none';
+                                           Object.defineProperty(boxed, Symbol.toPrimitive, {
+                                               value(hint) {
+                                                   seenHint = hint;
+                                                   return Symbol('primitive');
+                                               }
+                                           });
+
+                                           try {
+                                               boxed + '';
+                                               'no throw';
+                                           } catch (e) {
+                                               seenHint + ':' + e.name;
+                                           }
+                                           """);
+
+        Assert.Equal("default:TypeError", result);
+    }
+
     #endregion
 
     #region Comparison Operations Tests

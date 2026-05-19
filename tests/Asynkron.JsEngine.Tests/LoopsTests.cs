@@ -298,4 +298,95 @@ public sealed class LoopsTests(JsEngineTestFixture fixture) : JsEngineTestBase(f
                                            """);
         Assert.Equal(10d, result);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task ForOfLoopNestedBreakPreservesOuterBodyLexicalBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let values = [];
+            for (let outer of [1]) {
+                let supported = false;
+                for (let inner of [1]) {
+                    supported = true;
+                    break;
+                }
+
+                values.push(supported);
+            }
+            values[0];
+            """);
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ForOfLoopNestedBreakPreservesOuterIterationBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let values = [];
+            for (let collation of ["phonebk"]) {
+                for (let locale of ["de"]) {
+                    values.push(collation + ":" + locale);
+                    break;
+                }
+            }
+            values[0];
+            """);
+        Assert.Equal("phonebk:de", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ForOfLoopNestedBreakPreservesOuterIterationBindingInObjectShorthand()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let values = [];
+            for (let collation of ["phonebk"]) {
+                for (let locale of ["de"]) {
+                    let options = { collation };
+                    values.push(options.collation + ":" + locale);
+                    break;
+                }
+            }
+            values[0];
+            """);
+        Assert.Equal("phonebk:de", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ForOfLoopNestedContinuePreservesOuterIterationBindingInObjectShorthand()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let values = [];
+            for (let collation of ["phonebk"]) {
+                for (let locale of ["en", "ar", "de"]) {
+                    let options = { collation };
+                    values.push(options.collation + ":" + locale);
+                }
+            }
+            values.join(",");
+            """);
+        Assert.Equal("phonebk:en,phonebk:ar,phonebk:de", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ForOfLoopNextOuterIterationAfterInnerBreakUsesOuterIteratorValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let values = [];
+            for (let collation of ["compat", "dict"]) {
+                for (let locale of ["en", "ar", "de"]) {
+                    values.push(collation + ":" + locale);
+                    if (locale === "ar") {
+                        break;
+                    }
+                }
+            }
+            values.join(",");
+            """);
+        Assert.Equal("compat:en,compat:ar,dict:en,dict:ar", result);
+    }
 }

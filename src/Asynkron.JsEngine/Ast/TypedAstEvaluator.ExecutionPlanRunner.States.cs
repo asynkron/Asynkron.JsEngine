@@ -45,6 +45,7 @@ public static partial class TypedAstEvaluator
         /// </summary>
         private sealed class IteratorState
         {
+            public readonly Stack<IteratorDriverState?> DriverStateStack = new();
             public IteratorDriverState? CurrentDriverState;
             public JsEnvironment? ResumedWithEnvironment;
         }

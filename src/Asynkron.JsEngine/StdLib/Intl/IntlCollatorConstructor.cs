@@ -421,6 +421,6 @@ public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, Rea
             return "default";
         }
 
-        return SupportedCollations.Contains(normalized) ? normalized : string.Empty;
+        return IntlUtilities.IsValidUnicodeTypeNonterminal(normalized) ? normalized : string.Empty;
     }
 }

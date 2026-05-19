@@ -74,7 +74,13 @@ internal static class TryEmitter
         }
 
         // Emit EnterTry instruction as the entry point.
-        entryIndex = ctx.Append(new EnterTryInstruction(tryEntry, catchEntry, null, finallyEntry, endFinallyIndex));
+        entryIndex = ctx.Append(new EnterTryInstruction(
+            tryEntry,
+            catchEntry,
+            null,
+            finallyEntry,
+            endFinallyIndex,
+            leaveTryIndex));
         return true;
     }
 

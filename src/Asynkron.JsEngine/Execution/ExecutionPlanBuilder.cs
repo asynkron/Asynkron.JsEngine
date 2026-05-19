@@ -389,7 +389,7 @@ internal sealed partial class ExecutionPlanBuilder
                 continue;
             }
 
-            var stampedBody = rewriter.StampNodeInScope(plan.Body, mappedScopeId);
+            var stampedBody = rewriter.StampIteratorBodyInScope(plan.Body, mappedScopeId);
             var mappedSlotCount = rewriter.GetSlotCountForScope(mappedScopeId);
             var updatedPlan = plan with
             {

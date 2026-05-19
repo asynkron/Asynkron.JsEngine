@@ -182,8 +182,10 @@ public static partial class TypedAstEvaluator
                 instruction.CatchSlotSymbol,
                 instruction.FinallyIndex,
                 instruction.EndFinallyIndex,
+                instruction.LeaveTryIndex,
                 environment,
-                instruction.LoopContinueTarget);
+                instruction.LoopContinueTarget,
+                instruction.LoopBreakTarget);
             if (instruction.CatchSlotSymbol is { } slot && !environment.HasBinding(slot))
             {
                 environment.DefineJsValue(slot, JsValue.Undefined);
@@ -319,6 +321,14 @@ public static partial class TypedAstEvaluator
                         return false;
                     }
 
+                    if (kind == AbruptKind.Break &&
+                        frame.LoopBreakTarget >= 0 &&
+                        value is int breakTargetIndex &&
+                        !IsSameLoopControlTarget(breakTargetIndex, frame.LoopBreakTarget))
+                    {
+                        return false;
+                    }
+
                     if (!frame.FinallyScheduled)
                     {
                         frame.FinallyScheduled = true;
@@ -354,6 +364,11 @@ public static partial class TypedAstEvaluator
 
         private bool IsSameLoopContinueTarget(int targetIndex, int loopContinueTarget)
         {
+            return IsSameLoopControlTarget(targetIndex, loopContinueTarget);
+        }
+
+        private bool IsSameLoopControlTarget(int targetIndex, int loopControlTarget)
+        {
             if (_plan is null)
             {
                 return false;
@@ -363,7 +378,7 @@ public static partial class TypedAstEvaluator
             var remainingCleanupDepth = instructions.Length;
             while (targetIndex >= 0 && targetIndex < instructions.Length && remainingCleanupDepth-- > 0)
             {
-                if (targetIndex == loopContinueTarget)
+                if (targetIndex == loopControlTarget)
                 {
                     return true;
                 }

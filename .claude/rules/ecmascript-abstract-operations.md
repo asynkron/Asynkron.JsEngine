@@ -34,6 +34,21 @@ sequence directly before adding local type guards or host-runtime shortcuts.
    component fields from ECMAScript date math and keep `format`, `formatToParts`,
    `formatRange`, and `formatRangeToParts` on the same representation unless a
    helper proves it cannot observe out-of-range dates.
+8. For `Intl.Locale`, keep BCP47 subtag parsing grammar-owned. Preserve empty
+   subtags while validating user-provided option strings so leading, trailing,
+   and doubled separators remain RangeError cases instead of disappearing
+   during splitting.
+9. For Locale variant handling, detect duplicates on the normalized variant
+   subtag before sorting canonical output. Do not canonicalize a malformed
+   variant sequence by routing it through a synthetic language tag first.
+10. For Locale base-name and getter parsing, classify script, region, variant,
+    and extension singleton boundaries from BCP47 subtag grammar. Digit-leading
+    four-character subtags are variants, not scripts, and likely-subtags
+    operations must preserve arbitrary extension singletons, not only `u`, `t`,
+    or `x`.
+11. For Unicode extension keyword parsing, keep the first duplicate keyword
+    value and ignore later duplicates unless the spec text being implemented
+    explicitly says otherwise.
 
 ## Why
 
@@ -59,3 +74,13 @@ That clamped BC dates to the host boundary year and also risked drifting across
 parts/range helpers. Future Intl date work needs an explicit proleptic-safe
 component path, with the exact `DateTimeFormat_prototype_format` Test262 group
 and local parts/range regressions proving the behavior.
+
+Issue #795 / PR #988 fixed the `Intl402Tests.Locale` Test262 cluster after
+Locale variant option parsing, base-name extraction, Unicode extension keyword
+deduplication, and digit-leading variant classification drifted from BCP47
+grammar. The durable lesson is that Locale tags are structured language tags,
+not generic dash-joined strings: preserve separator errors during validation,
+dedupe normalized variants before sorting, stop base-name extraction at any
+extension singleton, and keep the first duplicate Unicode keyword value. Future
+Locale work should pair local grammar regressions with the focused
+`Name=Locale` Test262 method group.

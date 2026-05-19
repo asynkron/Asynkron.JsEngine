@@ -168,4 +168,57 @@ public sealed class DeleteOperatorTests(ITestOutputHelper output) : InternalTest
                                            """);
         Assert.True((bool)result!);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task Delete_SuperReference_ChecksThisBeforeComputedProperty()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var beforeSuperComputed = "unset";
+            var afterSuperComputed = "unset";
+
+            class Base {}
+
+            class Derived extends Base {
+              constructor() {
+                super();
+              }
+
+              deleteComputedAfterSuper() {
+                try {
+                  delete super[(afterSuperComputed = "ran", "x")];
+                  return "ok";
+                } catch (e) {
+                  return e.name;
+                }
+              }
+            }
+
+            function probe(fn) {
+              try {
+                fn();
+                return "ok";
+              } catch (e) {
+                return e.name;
+              }
+            }
+
+            [
+              probe(() => new class extends Base { constructor() { delete super.x; } }()),
+              probe(() => new class extends Base { constructor() { delete super[(beforeSuperComputed = "ran", "x")]; } }()),
+              beforeSuperComputed,
+              new Derived().deleteComputedAfterSuper(),
+              afterSuperComputed
+            ];
+            """);
+
+        var array = Assert.IsType<JsTypes.JsArray>(result);
+        var actual = array.Items
+            .Select(item => item.TryGetString(out var text) ? text : item.ToString())
+            .ToArray();
+
+        Assert.Equal(
+            ["ReferenceError", "ReferenceError", "unset", "ReferenceError", "ran"],
+            actual);
+    }
 }

@@ -729,6 +729,31 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task DerivedConstructor_ComputedSuperDelete_ChecksThisBeforePropertyExpression()
+    {
+        var plan = await GetClassConstructorPlan("""
+            class Base {}
+
+            class Derived extends Base {
+                constructor() {
+                    delete super[super()];
+                }
+            }
+            """, "Derived");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
+        Assert.Null(instruction.Expression);
+        var operations = instruction.ExpressionProgram.GetOps().ToArray();
+        var ensureIndex = Array.FindIndex(operations, op => op.Kind == ExpressionOpKind.EnsureSuperReference);
+        var innerSuperConstructIndex = Array.FindIndex(operations, op => op.Kind == ExpressionOpKind.SuperConstruct);
+        var throwReferenceErrorIndex = Array.FindIndex(operations, op => op.Kind == ExpressionOpKind.ThrowReferenceError);
+
+        Assert.True(ensureIndex >= 0);
+        Assert.True(innerSuperConstructIndex > ensureIndex);
+        Assert.True(throwReferenceErrorIndex > innerSuperConstructIndex);
+    }
+
+    [Fact]
     public async Task ForInInitInstruction_SimpleObjectIdentifier_IsLoweredToExpressionProgram()
     {
         var plan = await GetFunctionPlan("""

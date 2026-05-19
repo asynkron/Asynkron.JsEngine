@@ -28,6 +28,8 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
     private readonly Lock _drainLock = new(); // Protects _drainCompletionSource
     private readonly Channel<ExceptionInfo>? _exceptionChannel;
 
+    private readonly Queue<Action> _deferredEventTasks = new();
+
     // Synchronous microtask queue for top-level await support.
     // JsEngine is single-threaded by design, so microtask bookkeeping does not use locks.
     // Microtasks implement IMicrotask and carry their own epoch for proper timing semantics.
@@ -46,6 +48,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
     private Task? _eventLoopTask;
     private int? _eventLoopThreadId;
     private Channel<Action>? _eventQueue;
+    private bool _isExecutingSynchronousEvaluation;
     private bool _isDrainingMicrotasks;
     private int _moduleBodyExecutionDepth; // Depth counter to suppress microtask draining during module body execution
 
@@ -924,15 +927,33 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 }
                 else
                 {
-                    EnsureModuleEvaluated(entry);
+                    _isExecutingSynchronousEvaluation = true;
+                    try
+                    {
+                        EnsureModuleEvaluated(entry);
+                    }
+                    finally
+                    {
+                        _isExecutingSynchronousEvaluation = false;
+                    }
                 }
 
                 result = entry.LastValue;
             }
             else
             {
-                result = ExecuteProgram(program, GlobalEnvironment, combinedToken);
+                _isExecutingSynchronousEvaluation = true;
+                try
+                {
+                    result = ExecuteProgram(program, GlobalEnvironment, combinedToken);
+                }
+                finally
+                {
+                    _isExecutingSynchronousEvaluation = false;
+                }
             }
+
+            FlushDeferredEventTasks();
 
             // Flush microtasks queued during synchronous execution before checking the event loop
             DrainMicrotasks(cancellationToken: combinedToken);
@@ -973,6 +994,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         finally
         {
             CancelAllTimers();
+            ClearDeferredEventTasks();
             await StopEventLoopAsync().ConfigureAwait(false);
             timeoutCts?.Dispose();
         }
@@ -2023,6 +2045,17 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
     /// <param name="task">The asynchronous task to execute.</param>
     public void ScheduleTask(Action task)
     {
+        if (_isExecutingSynchronousEvaluation && _eventLoopThreadId != Environment.CurrentManagedThreadId)
+        {
+            Interlocked.Increment(ref _pendingTaskCount);
+            lock (_deferredEventTasks)
+            {
+                _deferredEventTasks.Enqueue(task);
+            }
+
+            return;
+        }
+
         StartEventLoop();
         var queue = _eventQueue ?? throw new InvalidOperationException("Event loop is not running.");
 
@@ -2035,6 +2068,53 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         // If we failed to enqueue (e.g., shutting down), decrement immediately.
         Interlocked.Decrement(ref _pendingTaskCount);
         TrySignalDrainComplete();
+    }
+
+    private void FlushDeferredEventTasks()
+    {
+        while (true)
+        {
+            Action task;
+            lock (_deferredEventTasks)
+            {
+                if (_deferredEventTasks.Count == 0)
+                {
+                    return;
+                }
+
+                task = _deferredEventTasks.Dequeue();
+            }
+
+            StartEventLoop();
+            var queue = _eventQueue ?? throw new InvalidOperationException("Event loop is not running.");
+            if (queue.Writer.TryWrite(task))
+            {
+                continue;
+            }
+
+            Interlocked.Decrement(ref _pendingTaskCount);
+            TrySignalDrainComplete();
+        }
+    }
+
+    private void ClearDeferredEventTasks()
+    {
+        var clearedCount = 0;
+        lock (_deferredEventTasks)
+        {
+            clearedCount = _deferredEventTasks.Count;
+            _deferredEventTasks.Clear();
+        }
+
+        for (var i = 0; i < clearedCount; i++)
+        {
+            Interlocked.Decrement(ref _pendingTaskCount);
+        }
+
+        if (clearedCount > 0)
+        {
+            TrySignalDrainComplete();
+        }
     }
 
     /// <summary>

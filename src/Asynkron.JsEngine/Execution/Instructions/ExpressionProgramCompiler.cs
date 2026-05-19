@@ -625,10 +625,13 @@ internal static class ExpressionProgramCompiler
                 break;
 
             case IdentifierExpression identifier:
-                if (!TryCompileExpression(identifier, builder, out failureReason))
-                {
-                    return false;
-                }
+                builder.Add(PackedExpressionOp.LoadIdentifierCallTarget(
+                    builder.InternIdentifier(new IdentifierOperand(
+                        identifier.Name,
+                        identifier.ScopeId,
+                        identifier.SlotIndex,
+                        identifier.FlatSlotId)),
+                    ReferenceEquals(identifier.Name, Symbol.Arguments)));
 
                 if (expression.IsOptional)
                 {
@@ -639,6 +642,8 @@ internal static class ExpressionProgramCompiler
                 {
                     isDirectEval = identifier.Name.Name == "eval";
                 }
+
+                hasExplicitThis = true;
                 break;
 
             case MemberExpression { IsComputed: false } member:

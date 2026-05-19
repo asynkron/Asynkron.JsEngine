@@ -83,6 +83,28 @@ public static partial class TypedAstEvaluator
         environment.DefineFunctionScoped(name, JsValue.Undefined, false, context: context, canDelete: allowDelete);
     }
 
+    private static void AssignFunctionScopedVarBinding(this JsEnvironment environment, Symbol name, JsValue value,
+        EvaluationContext context)
+    {
+        environment.EnsureFunctionScopedVarBinding(name, context);
+
+        if (environment.TryGetSlotIndex(name, out var slotIndex))
+        {
+            ref var slot = ref environment.GetSlotByIndex(slotIndex);
+            if (!slot.IsLexical && !environment.IsGlobalFunctionScope)
+            {
+                environment.SetSlotDirect(slotIndex, value);
+                return;
+            }
+        }
+
+        environment.GetVarEnvironment().DefineFunctionScoped(
+            name,
+            value,
+            hasInitializer: true,
+            context: context);
+    }
+
     internal static SuperBinding ExpectSuperBinding(this JsEnvironment environment, EvaluationContext context)
     {
         var logger = environment.RealmState?.Logger;

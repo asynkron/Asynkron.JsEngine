@@ -139,8 +139,7 @@ public static partial class TypedAstEvaluator
 
                     if (skipBlockedBindingLookup)
                     {
-                        environment.EnsureFunctionScopedVarBinding(name, context);
-                        environment.GetVarEnvironment().AssignJsValue(name, value);
+                        environment.AssignFunctionScopedVarBinding(name, value, context);
                         return;
                     }
 
@@ -212,9 +211,31 @@ public static partial class TypedAstEvaluator
                     }
                 }
 
+                AssignmentReference? preResolvedVarBindingReference = null;
+                var skipBlockedBindingLookup = false;
                 if (property.Target is IdentifierBindingTargetProgram identifierForSideEffects)
                 {
-                    _ = environment.HasBinding(identifierForSideEffects.Name);
+                    if (mode == BindingMode.DefineVar)
+                    {
+                        if (environment.TryResolveWithBinding(
+                                identifierForSideEffects.Name,
+                                context,
+                                out var withBinding))
+                        {
+                            preResolvedVarBindingReference = AssignmentReference.ForWithBinding(
+                                withBinding,
+                                environment,
+                                identifierForSideEffects.Name,
+                                context,
+                                context.CurrentScope.IsStrict || context.IsStrictSource);
+                        }
+
+                        skipBlockedBindingLookup = true;
+                    }
+                    else
+                    {
+                        _ = environment.HasBinding(identifierForSideEffects.Name);
+                    }
                 }
 
                 usedKeys.Add(propertyName);
@@ -252,9 +273,17 @@ public static partial class TypedAstEvaluator
                     nameTarget.EnsureHasName(identifierTarget.Name.Name);
                 }
 
+                var hasBindingInitializer = property.DefaultProgram is not null || !propertyValue.IsUndefined;
                 if (preResolvedReference is { } resolvedReference)
                 {
                     resolvedReference.SetValue(propertyValue);
+                }
+                else if (preResolvedVarBindingReference is { } resolvedVarBindingReference)
+                {
+                    if (hasBindingInitializer)
+                    {
+                        resolvedVarBindingReference.SetValue(propertyValue);
+                    }
                 }
                 else
                 {
@@ -264,8 +293,9 @@ public static partial class TypedAstEvaluator
                         environment,
                         context,
                         mode,
-                        hasInitializer: property.DefaultProgram is not null || !propertyValue.IsUndefined,
-                        allowNameInference: false);
+                        hasInitializer: hasBindingInitializer,
+                        allowNameInference: false,
+                        skipBlockedBindingLookup: skipBlockedBindingLookup);
                 }
                 if (context.ShouldStopEvaluation)
                 {

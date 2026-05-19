@@ -80,8 +80,9 @@ internal static class AssignmentReferenceResolver
         JsEnvironment environment,
         EvaluationContext context)
     {
+        var isStrictContext = context.CurrentScope.IsStrict || context.IsStrictSource;
         // Use reference equality since Symbols are interned - much faster than string comparison
-        var isStrictTarget = context.CurrentScope.IsStrict &&
+        var isStrictTarget = isStrictContext &&
                              (ReferenceEquals(name, Symbol.Eval) || ReferenceEquals(name, Symbol.Arguments));
 
         // Fast path: skip with-binding check when AllowIdentifierCache is true (no with/eval in scope)
@@ -92,7 +93,7 @@ internal static class AssignmentReferenceResolver
                 environment,
                 name,
                 context,
-                isStrictTarget);
+                isStrictContext);
         }
 
         var reference = environment.ResolveIdentifierAssignmentReference(name, context);

@@ -45,6 +45,27 @@ public sealed class FunctionNameInferenceTests(ITestOutputHelper output) : Inter
     }
 
     [Fact]
+    public async Task ParenthesizedAssignmentExpression_DoesNotApplyNameInference()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function run() {
+                let plain;
+                plain = function() {};
+
+                let parenthesized;
+                (parenthesized) = function() {};
+
+                return plain.name + "," + parenthesized.name;
+            }
+
+            run();
+            """);
+
+        Assert.Equal("plain,", result?.ToString());
+    }
+
+    [Fact]
     public async Task ClassExpression_NameInference()
     {
         await using var engine = CreateEngine();

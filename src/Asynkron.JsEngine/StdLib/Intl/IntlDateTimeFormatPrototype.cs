@@ -155,6 +155,11 @@ public sealed partial class IntlDateTimeFormatPrototype
             throw ThrowTypeError("endDate is undefined", realm: Realm);
         }
 
+        if (TryFormatTemporalRangeToParts(startDate, endDate, slotData, out var temporalParts))
+        {
+            return JsValue.FromJsArray(temporalParts);
+        }
+
         var startMs = ToEpochMilliseconds(startDate);
         var endMs = ToEpochMilliseconds(endDate);
 
@@ -241,6 +246,179 @@ public sealed partial class IntlDateTimeFormatPrototype
         }
 
         return JsValue.FromJsArray(parts);
+    }
+
+    private bool TryFormatTemporalRangeToParts(JsValue startDate, JsValue endDate,
+        DateTimeFormatInternalSlots slotData, out JsArray parts)
+    {
+        parts = default!;
+        var startIsTemporal = TryGetTemporalFormatterTarget(startDate, out var startTarget);
+        var endIsTemporal = TryGetTemporalFormatterTarget(endDate, out var endTarget);
+
+        if (startIsTemporal != endIsTemporal)
+        {
+            if (!startIsTemporal)
+            {
+                _ = ToEpochMilliseconds(startDate);
+            }
+
+            if (!endIsTemporal)
+            {
+                _ = ToEpochMilliseconds(endDate);
+            }
+
+            throw ThrowTypeError("Temporal objects passed to formatRange must be the same type", realm: Realm);
+        }
+
+        if (!startIsTemporal)
+        {
+            return false;
+        }
+
+        if (startTarget.Kind != endTarget.Kind)
+        {
+            throw ThrowTypeError("Temporal objects passed to formatRange must be the same type", realm: Realm);
+        }
+
+        if (startTarget.Kind is TemporalFormatterKind.Instant or TemporalFormatterKind.ZonedDateTime)
+        {
+            return false;
+        }
+
+        var effectiveSlots = GetEffectiveTemporalSlots(slotData, startTarget, Realm);
+        var culture = IntlUtilities.ResolveCulture(effectiveSlots.Locale);
+        var startParts = FormatToPartsInternal(startTarget.DateTime, effectiveSlots, culture);
+        var endParts = FormatToPartsInternal(endTarget.DateTime, effectiveSlots, culture);
+        TranslatePartsDigits(startParts, effectiveSlots.NumberingSystem);
+        TranslatePartsDigits(endParts, effectiveSlots.NumberingSystem);
+
+        var startFormatted = BuildPartsString(startParts);
+        var endFormatted = BuildPartsString(endParts);
+        if (string.Equals(startFormatted, endFormatted, StringComparison.Ordinal))
+        {
+            parts = TagRangeParts(startParts, "shared");
+            return true;
+        }
+
+        if (startTarget.Kind is TemporalFormatterKind.PlainDateTime)
+        {
+            var collapsed = BuildPrefixCollapsedRangeParts(Realm, startParts, endParts);
+            if (collapsed is not null)
+            {
+                parts = collapsed;
+                return true;
+            }
+        }
+
+        if (ShouldCollapseRange(effectiveSlots))
+        {
+            var collapsed = BuildCollapsedRangeParts(Realm, startParts, endParts);
+            if (collapsed is not null)
+            {
+                parts = collapsed;
+                return true;
+            }
+        }
+
+        parts = BuildFullRangeParts(startParts, endParts);
+        return true;
+    }
+
+    private JsArray BuildFullRangeParts(JsArray startParts, JsArray endParts)
+    {
+        var parts = new JsArray(Realm);
+
+        AppendTaggedParts(parts, startParts, "startRange");
+        parts.Push(CreateRangePart("literal", " \u2013 ", "shared"));
+        AppendTaggedParts(parts, endParts, "endRange");
+
+        return parts;
+    }
+
+    private JsArray TagRangeParts(JsArray sourceParts, string source)
+    {
+        var parts = new JsArray(Realm);
+        AppendTaggedParts(parts, sourceParts, source);
+        return parts;
+    }
+
+    private static void AppendTaggedParts(JsArray destination, JsArray sourceParts, string source)
+    {
+        for (var i = 0; i < sourceParts.Length; i++)
+        {
+            var part = sourceParts.Get(i);
+            if (part.TryGetObject<JsObject>(out var partObj))
+            {
+                partObj.SetProperty("source", new JsValue(source));
+            }
+
+            destination.Push(part);
+        }
+    }
+
+    private static string BuildPartsString(JsArray parts)
+    {
+        var sb = new StringBuilder();
+        for (var i = 0; i < parts.Length; i++)
+        {
+            var (_, value) = ExtractPartInfo(parts.Get(i));
+            sb.Append(value);
+        }
+
+        return sb.ToString();
+    }
+
+    private static JsArray? BuildPrefixCollapsedRangeParts(RealmState realm, JsArray startParts, JsArray endParts)
+    {
+        var startCount = (int)startParts.Length;
+        var endCount = (int)endParts.Length;
+
+        if (startCount != endCount)
+        {
+            return null;
+        }
+
+        var prefixLen = 0;
+        while (prefixLen < startCount)
+        {
+            var (st, sv) = ExtractPartInfo(startParts.Get(prefixLen));
+            var (et, ev) = ExtractPartInfo(endParts.Get(prefixLen));
+            if (st != et || sv != ev)
+            {
+                break;
+            }
+
+            prefixLen++;
+        }
+
+        if (prefixLen == 0 || prefixLen == startCount)
+        {
+            return null;
+        }
+
+        var result = new JsArray(realm);
+
+        for (var i = 0; i < prefixLen; i++)
+        {
+            var (type, value) = ExtractPartInfo(startParts.Get(i));
+            result.Push(CreateRangePart(type, value, "shared"));
+        }
+
+        for (var i = prefixLen; i < startCount; i++)
+        {
+            var (type, value) = ExtractPartInfo(startParts.Get(i));
+            result.Push(CreateRangePart(type, value, "startRange"));
+        }
+
+        result.Push(CreateRangePart("literal", " \u2013 ", "shared"));
+
+        for (var i = prefixLen; i < endCount; i++)
+        {
+            var (type, value) = ExtractPartInfo(endParts.Get(i));
+            result.Push(CreateRangePart(type, value, "endRange"));
+        }
+
+        return result;
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]

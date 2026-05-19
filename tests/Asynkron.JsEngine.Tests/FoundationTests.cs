@@ -1106,6 +1106,36 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
         Assert.Equal(10d, result);
     }
 
+    [Theory]
+    [InlineData("-0")]
+    [InlineData("-0.0")]
+    [InlineData("-0e0")]
+    public async Task JSON_Parse_PreservesNegativeZero(string json)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate($"1 / JSON.parse('{json}')");
+        Assert.Equal(double.NegativeInfinity, result);
+    }
+
+    [Fact]
+    public async Task JSON_Parse_ReviverPreservesNegativeZeroAndSource()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           let source;
+                                           let value = JSON.parse("-0", function (key, parsed, context) {
+                                               if (key === "") {
+                                                   source = context.source;
+                                               }
+
+                                               return parsed;
+                                           });
+
+                                           source === "-0" && 1 / value === -Infinity;
+                                           """);
+        Assert.Equal(true, result);
+    }
+
     #endregion
 
     #region Async/Await
@@ -2469,4 +2499,3 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
 
     #endregion
 }
-

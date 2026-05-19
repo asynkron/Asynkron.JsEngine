@@ -136,10 +136,14 @@ public static class JsonHelper
 
             case JsonValueKind.Number:
             {
-                var result = new JsValue(element.GetDouble());
+                var rawText = element.GetRawText();
+                var number = element.GetDouble();
+                var result = new JsValue(number == 0.0d && rawText.Length > 0 && rawText[0] == '-'
+                    ? -0.0d
+                    : number);
                 if (tracker is not null && parentHolder is not null && parentKey is not null)
                 {
-                    tracker.Track(parentHolder, parentKey, element.GetRawText(), result);
+                    tracker.Track(parentHolder, parentKey, rawText, result);
                 }
 
                 return result;

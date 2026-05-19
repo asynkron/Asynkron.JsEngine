@@ -501,17 +501,12 @@ public sealed partial class IntlDurationFormatPrototype
             var done = false;
             int maxFrac = opts.FractionalDigits ?? 9;
             int minFrac = opts.FractionalDigits ?? 0;
+            string? exactFractionalValue = null;
 
             if (unit == "seconds" && opts.Style == "digital" &&
                 (duration.Milliseconds != 0 || duration.Microseconds != 0 || duration.Nanoseconds != 0))
             {
-                // Use double arithmetic to match JavaScript's Number precision.
-                // String intermediary via DurationToFractional can produce values that don't
-                // round-trip through double the same way as JS's value + ms/1e3 + us/1e6 + ns/1e9.
-                value = duration.Seconds
-                    + duration.Milliseconds / 1e3
-                    + duration.Microseconds / 1e6
-                    + duration.Nanoseconds / 1e9;
+                exactFractionalValue = DurationToFractionalDecimalString(duration, 9);
                 done = true;
             }
             else if (unit is "seconds" or "milliseconds" or "microseconds")
@@ -520,13 +515,11 @@ public sealed partial class IntlDurationFormatPrototype
                 var nextIdx = i + 1;
                 if (nextIdx < UnitNames.Length && opts.UnitStyles[nextIdx] == "numeric")
                 {
-                    // Combine sub-second values into fractional using double arithmetic
-                    // to match JavaScript's Number precision.
-                    value = unit switch
+                    exactFractionalValue = unit switch
                     {
-                        "seconds" => duration.Seconds + duration.Milliseconds / 1e3 + duration.Microseconds / 1e6 + duration.Nanoseconds / 1e9,
-                        "milliseconds" => duration.Milliseconds + duration.Microseconds / 1e3 + duration.Nanoseconds / 1e6,
-                        _ => duration.Microseconds + duration.Nanoseconds / 1e3 // microseconds
+                        "seconds" => DurationToFractionalDecimalString(duration, 9),
+                        "milliseconds" => DurationToFractionalDecimalString(duration, 6),
+                        _ => DurationToFractionalDecimalString(duration, 3) // microseconds
                     };
                     done = true;
                 }
@@ -568,7 +561,9 @@ public sealed partial class IntlDurationFormatPrototype
             }
 
             // Treat -0 as 0 for display/auto comparison but preserve sign for formatting
-            var valueIsZero = value == 0; // -0 == 0 is true in C#
+            var valueIsZero = exactFractionalValue is null
+                ? value == 0 // -0 == 0 is true in C#
+                : IsDecimalStringZero(exactFractionalValue);
 
             if (!valueIsZero || display != "auto" || displayRequired)
             {
@@ -610,7 +605,9 @@ public sealed partial class IntlDurationFormatPrototype
                     {
                         // Non-numeric fractional (e.g., "short" milliseconds with numeric microseconds):
                         // use FormatUnitParts to include the unit label (e.g. "ms").
-                        var unitParts = FormatUnitParts(value, singularUnit, style, locale, signDisplayNever, true, maxFrac, minFrac);
+                        var unitParts = exactFractionalValue is null
+                            ? FormatUnitParts(value, singularUnit, style, locale, signDisplayNever, true, maxFrac, minFrac)
+                            : FormatUnitParts(exactFractionalValue, singularUnit, style, locale, signDisplayNever, maxFrac, minFrac);
                         list.AddRange(unitParts);
                     }
                     else
@@ -636,7 +633,10 @@ public sealed partial class IntlDurationFormatPrototype
                             RoundingType = "fractionDigits",
                             Culture = IntlUtilities.ResolveCulture(locale)
                         };
-                        var fmtResult = IntlNumberFormatter.FormatDouble(value, numSlots);
+                        var fmtResult = exactFractionalValue is null
+                            ? IntlNumberFormatter.FormatDouble(value, numSlots)
+                            : IntlNumberFormatter.TryFormatDecimalString(exactFractionalValue, numSlots)
+                              ?? IntlNumberFormatter.FormatDouble(value, numSlots);
                         var formatted = fmtResult.Formatted;
                         var numParts = ParseNumericParts(formatted, singularUnit);
                         list.AddRange(numParts);
@@ -684,6 +684,52 @@ public sealed partial class IntlDurationFormatPrototype
         return -0.0;
     }
 
+    private static string DurationToFractionalDecimalString(DurationRecord duration, int exponent)
+    {
+        var nanoseconds = ToBigInteger(duration.Nanoseconds);
+        switch (exponent)
+        {
+            case 9:
+                nanoseconds += ToBigInteger(duration.Seconds) * 1_000_000_000;
+                goto case 6;
+            case 6:
+                nanoseconds += ToBigInteger(duration.Milliseconds) * 1_000_000;
+                goto case 3;
+            case 3:
+                nanoseconds += ToBigInteger(duration.Microseconds) * 1_000;
+                break;
+        }
+
+        var divisor = BigInteger.Pow(10, exponent);
+        var quotient = BigInteger.DivRem(nanoseconds, divisor, out var remainder);
+        if (remainder.Sign < 0)
+        {
+            remainder = BigInteger.Abs(remainder);
+        }
+
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{quotient}.{remainder.ToString(CultureInfo.InvariantCulture).PadLeft(exponent, '0')}");
+    }
+
+    private static BigInteger ToBigInteger(double value)
+    {
+        return new BigInteger(value);
+    }
+
+    private static bool IsDecimalStringZero(string value)
+    {
+        foreach (var ch in value)
+        {
+            if (ch is >= '1' and <= '9')
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     #endregion
 
     #region Number Formatting
@@ -713,6 +759,41 @@ public sealed partial class IntlDurationFormatPrototype
         };
 
         var result = IntlNumberFormatter.FormatDouble(value, slots);
+        return ConvertUnitFormatParts(result, unit);
+    }
+
+    private static List<DurationPart> FormatUnitParts(string decimalValue, string unit, string unitDisplay,
+        string locale, bool signDisplayNever, int maxFrac, int minFrac)
+    {
+        var slots = new IntlNumberFormatInternalSlots
+        {
+            Locale = locale,
+            NumberingSystem = "latn",
+            Style = "unit",
+            Unit = unit,
+            UnitDisplay = unitDisplay,
+            MinimumIntegerDigits = 1,
+            MinimumFractionDigits = minFrac,
+            MaximumFractionDigits = maxFrac,
+            UseGrouping = "auto",
+            Notation = "standard",
+            SignDisplay = signDisplayNever ? "never" : "auto",
+            RoundingIncrement = 1,
+            RoundingMode = "trunc",
+            RoundingPriority = "auto",
+            TrailingZeroDisplay = "auto",
+            RoundingType = "fractionDigits",
+            Culture = IntlUtilities.ResolveCulture(locale)
+        };
+
+        var result = IntlNumberFormatter.TryFormatDecimalString(decimalValue, slots);
+        return result is null
+            ? [new DurationPart("literal", decimalValue)]
+            : ConvertUnitFormatParts(result, unit);
+    }
+
+    private static List<DurationPart> ConvertUnitFormatParts(IntlNumberFormatResult result, string unit)
+    {
         var formatterParts = result.Parts;
         if (formatterParts is null || formatterParts.Count == 0)
         {

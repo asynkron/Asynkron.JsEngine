@@ -46,6 +46,11 @@ open-coding casts at individual call sites.
     inputs explicitly when the spec requires canonical positive zero. Preserve
     the surrounding special-value order, especially Infinity before NaN, and pin
     all `+0`/`-0` argument combinations with reciprocal-infinity assertions.
+11. For `JSON.parse` number materialization, do not rely on the parsed `double`
+    alone when zero sign is observable. Inspect the raw JSON number text only
+    for zero-valued tokens, or when reviver `context.source` tracking needs the
+    original lexeme, so signed-zero semantics are preserved without adding
+    per-number raw-text allocations to the common parse path.
 
 ## Why
 
@@ -100,3 +105,9 @@ all-zero argument list, including mixed `+0` and `-0`, must return canonical
 `+0`. The fix kept the existing Infinity-before-NaN behavior and added focused
 reciprocal-infinity assertions so a future refactor cannot hide the zero sign
 behind ordinary numeric equality.
+
+Issue #792 / PR #982 fixed `JSON.parse("-0")` after `JsonElement.GetDouble()`
+erased the negative-zero spelling before constructing the JavaScript value. The
+durable rule is to treat the original JSON number lexeme as semantic data for
+zero sign and reviver source tracking, while keeping `GetRawText()` targeted so
+large nonzero numeric arrays do not pay avoidable string-allocation cost.

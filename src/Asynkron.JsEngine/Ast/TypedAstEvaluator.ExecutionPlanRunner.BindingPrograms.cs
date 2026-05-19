@@ -139,12 +139,7 @@ public static partial class TypedAstEvaluator
 
                     if (skipBlockedBindingLookup)
                     {
-                        environment.EnsureFunctionScopedVarBinding(name, context);
-                        environment.GetVarEnvironment().DefineFunctionScoped(
-                            name,
-                            value,
-                            hasInitializer: true,
-                            context: context);
+                        environment.AssignFunctionScopedVarBinding(name, value, context);
                         return;
                     }
 

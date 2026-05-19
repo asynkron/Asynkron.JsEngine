@@ -1143,7 +1143,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 
             if (hostFunction.DeletePrototype)
             {
-                membersSource.Append("        ").Append(functionVar).AppendLine(".Properties.Delete(\"prototype\");");
+                membersSource.Append("        ").Append(functionVar).AppendLine(".Properties.ForceDeleteOwnProperty(\"prototype\");");
             }
 
             membersSource.Append("        ").Append(functionVar)
@@ -1321,7 +1321,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 
                 if (hostFunction.DeletePrototype)
                 {
-                    source.Append("        ").Append(functionVar).AppendLine(".Properties.Delete(\"prototype\");");
+                    source.Append("        ").Append(functionVar).AppendLine(".Properties.ForceDeleteOwnProperty(\"prototype\");");
                 }
 
                 source.Append("        ").Append(functionVar)

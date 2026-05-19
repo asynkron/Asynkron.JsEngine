@@ -1000,6 +1000,39 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 5000)]
+    public async Task RegExp_Lookbehind_Backreference_HasIndicesReportsCaptureSpans()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var m = /(?<=\1(\w))d/d.exec("xxdd");
+            JSON.stringify([
+                m && m.index,
+                m && m[0],
+                m && m[1],
+                m && Array.from(m.indices[1]),
+                RegExp.$1,
+                RegExp.lastMatch,
+                RegExp.leftContext,
+                RegExp.rightContext
+            ]);
+        """);
+
+        Assert.Equal("""[2,"d","x",[1,2],"x","d","xx","d"]""", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task RegExp_Lookbehind_Backreference_UpdatesRegExpStatics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            /(?<=\1(\w))d/.test("xxdd");
+            JSON.stringify([RegExp.$1, RegExp.lastMatch, RegExp.leftContext, RegExp.rightContext]);
+        """);
+
+        Assert.Equal("""["x","d","xx","d"]""", result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task RegExp_Lookbehind_MutualRecursiveBackreferences()
     {
         await using var engine = CreateEngine();

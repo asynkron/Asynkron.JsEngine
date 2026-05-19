@@ -308,6 +308,7 @@ public sealed class JsRegExp
                 SetLastIndexStrict(lookbehindMatch.Index + lookbehindMatch.Value.Length);
             }
 
+            UpdateLookbehindBackrefRegExpStatics(input, lookbehindMatch);
             return true;
         }
 
@@ -377,7 +378,9 @@ public sealed class JsRegExp
                 SetLastIndexStrict(lookbehindMatch.Index + lookbehindMatch.Value.Length);
             }
 
-            return CreateLookbehindBackrefMatchArray(lookbehindMatch, input);
+            var lookbehindResult = CreateLookbehindBackrefMatchArray(lookbehindMatch, input);
+            UpdateLookbehindBackrefRegExpStatics(input, lookbehindMatch);
+            return lookbehindResult;
         }
 
         if (lookbehindHandled)
@@ -493,15 +496,7 @@ public sealed class JsRegExp
 
             foreach (var lookbehindMatch in parsedLookbehind.Match(input, index))
             {
-                var captures = new JsValue[parsedLookbehind.CaptureCount];
-                for (var captureIndex = 0; captureIndex < captures.Length; captureIndex++)
-                {
-                    captures[captureIndex] = lookbehindMatch.Captures[captureIndex] is { } capture
-                        ? new JsValue(capture)
-                        : JsValue.Undefined;
-                }
-
-                result = new LookbehindBackrefMatch(index, tailMatch.Value, captures);
+                result = new LookbehindBackrefMatch(index, tailMatch.Value, lookbehindMatch.Captures);
                 return true;
             }
         }
@@ -516,7 +511,7 @@ public sealed class JsRegExp
 
         foreach (var capture in match.Captures)
         {
-            result.Push(capture);
+            result.Push(capture is null ? JsValue.Undefined : new JsValue(capture.Value.Text));
         }
 
         result.DefineProperty("index",
@@ -543,7 +538,9 @@ public sealed class JsRegExp
             indices.Push(CreateIndexPair(match.Index, match.Index + match.Value.Length));
             foreach (var capture in match.Captures)
             {
-                indices.Push(capture == JsValue.Undefined ? JsValue.Undefined : CreateIndexPair(-1, -1));
+                indices.Push(capture is null
+                    ? JsValue.Undefined
+                    : CreateIndexPair(capture.Value.Start, capture.Value.End));
             }
 
             result.DefineProperty("indices", new PropertyDescriptor
@@ -556,6 +553,41 @@ public sealed class JsRegExp
         }
 
         return result;
+    }
+
+    private void UpdateLookbehindBackrefRegExpStatics(string input, LookbehindBackrefMatch match)
+    {
+        if (RealmState is null)
+        {
+            return;
+        }
+
+        var statics = RealmState.RegExpStatics;
+        statics.Input = input;
+        statics.LastMatch = match.Value;
+        statics.LeftContext = input[..match.Index];
+        statics.RightContext = input[(match.Index + match.Value.Length)..];
+
+        statics.LastParen = string.Empty;
+        for (var i = 0; i < statics.Captures.Length; i++)
+        {
+            statics.Captures[i] = string.Empty;
+        }
+
+        for (var i = 0; i < match.Captures.Length && i < statics.Captures.Length; i++)
+        {
+            var capture = match.Captures[i];
+            if (capture is null)
+            {
+                continue;
+            }
+
+            statics.Captures[i] = capture.Value.Text;
+            if (capture.Value.End == match.Index)
+            {
+                statics.LastParen = capture.Value.Text;
+            }
+        }
     }
 
     private JsArray CreateIndexPair(int start, int end)
@@ -676,9 +708,11 @@ public sealed class JsRegExp
         return false;
     }
 
-    private readonly record struct LookbehindBackrefMatch(int Index, string Value, JsValue[] Captures);
+    private readonly record struct LookbehindCapture(string Text, int Start, int End);
 
-    private readonly record struct LookbehindMatchState(int Position, string?[] Captures);
+    private readonly record struct LookbehindBackrefMatch(int Index, string Value, LookbehindCapture?[] Captures);
+
+    private readonly record struct LookbehindMatchState(int Position, LookbehindCapture?[] Captures);
 
     private sealed class LookbehindPattern
     {
@@ -694,7 +728,7 @@ public sealed class JsRegExp
 
         public IEnumerable<LookbehindMatchState> Match(string input, int endIndex)
         {
-            var captures = new string?[CaptureCount];
+            var captures = new LookbehindCapture?[CaptureCount];
             foreach (var state in Root.Match(input, endIndex, captures))
             {
                 yield return state;
@@ -711,7 +745,7 @@ public sealed class JsRegExp
 
         private List<LookbehindSequence> Alternatives { get; }
 
-        public IEnumerable<LookbehindMatchState> Match(string input, int position, string?[] captures)
+        public IEnumerable<LookbehindMatchState> Match(string input, int position, LookbehindCapture?[] captures)
         {
             foreach (var alternative in Alternatives)
             {
@@ -732,7 +766,7 @@ public sealed class JsRegExp
 
         private List<LookbehindAtom> Atoms { get; }
 
-        public IEnumerable<LookbehindMatchState> Match(string input, int position, string?[] captures)
+        public IEnumerable<LookbehindMatchState> Match(string input, int position, LookbehindCapture?[] captures)
         {
             foreach (var state in MatchFrom(Atoms.Count - 1, input, position, captures))
             {
@@ -740,7 +774,7 @@ public sealed class JsRegExp
             }
         }
 
-        private IEnumerable<LookbehindMatchState> MatchFrom(int atomIndex, string input, int position, string?[] captures)
+        private IEnumerable<LookbehindMatchState> MatchFrom(int atomIndex, string input, int position, LookbehindCapture?[] captures)
         {
             if (atomIndex < 0)
             {
@@ -762,7 +796,7 @@ public sealed class JsRegExp
     {
         public string Quantifier { get; set; } = string.Empty;
 
-        public IEnumerable<LookbehindMatchState> Match(string input, int position, string?[] captures)
+        public IEnumerable<LookbehindMatchState> Match(string input, int position, LookbehindCapture?[] captures)
         {
             var (min, max) = ParseQuantifierBounds(Quantifier, input.Length);
             var levels = new List<List<LookbehindMatchState>>
@@ -804,7 +838,7 @@ public sealed class JsRegExp
             }
         }
 
-        protected abstract IEnumerable<LookbehindMatchState> MatchOne(string input, int position, string?[] captures);
+        protected abstract IEnumerable<LookbehindMatchState> MatchOne(string input, int position, LookbehindCapture?[] captures);
 
         private static (int Min, int Max) ParseQuantifierBounds(string quantifier, int inputLength)
         {
@@ -861,12 +895,12 @@ public sealed class JsRegExp
 
         private LookbehindDisjunction Body { get; }
 
-        protected override IEnumerable<LookbehindMatchState> MatchOne(string input, int position, string?[] captures)
+        protected override IEnumerable<LookbehindMatchState> MatchOne(string input, int position, LookbehindCapture?[] captures)
         {
             foreach (var state in Body.Match(input, position, captures))
             {
-                var nextCaptures = (string?[])state.Captures.Clone();
-                nextCaptures[Number - 1] = input[state.Position..position];
+                var nextCaptures = (LookbehindCapture?[])state.Captures.Clone();
+                nextCaptures[Number - 1] = new LookbehindCapture(input[state.Position..position], state.Position, position);
                 yield return new LookbehindMatchState(state.Position, nextCaptures);
             }
         }
@@ -881,7 +915,7 @@ public sealed class JsRegExp
 
         private LookbehindDisjunction Body { get; }
 
-        protected override IEnumerable<LookbehindMatchState> MatchOne(string input, int position, string?[] captures)
+        protected override IEnumerable<LookbehindMatchState> MatchOne(string input, int position, LookbehindCapture?[] captures)
         {
             foreach (var state in Body.Match(input, position, captures))
             {
@@ -902,7 +936,7 @@ public sealed class JsRegExp
 
         private bool IgnoreCase { get; }
 
-        protected override IEnumerable<LookbehindMatchState> MatchOne(string input, int position, string?[] captures)
+        protected override IEnumerable<LookbehindMatchState> MatchOne(string input, int position, LookbehindCapture?[] captures)
         {
             if (position == 0)
             {
@@ -934,7 +968,7 @@ public sealed class JsRegExp
 
         private bool IgnoreCase { get; }
 
-        protected override IEnumerable<LookbehindMatchState> MatchOne(string input, int position, string?[] captures)
+        protected override IEnumerable<LookbehindMatchState> MatchOne(string input, int position, LookbehindCapture?[] captures)
         {
             if (position == 0)
             {
@@ -962,7 +996,7 @@ public sealed class JsRegExp
 
         private bool IgnoreCase { get; }
 
-        protected override IEnumerable<LookbehindMatchState> MatchOne(string input, int position, string?[] captures)
+        protected override IEnumerable<LookbehindMatchState> MatchOne(string input, int position, LookbehindCapture?[] captures)
         {
             var capture = Number <= captures.Length ? captures[Number - 1] : null;
             if (capture is null)
@@ -971,14 +1005,15 @@ public sealed class JsRegExp
                 yield break;
             }
 
-            if (position < capture.Length)
+            var capturedText = capture.Value.Text;
+            if (position < capturedText.Length)
             {
                 yield break;
             }
 
-            var start = position - capture.Length;
+            var start = position - capturedText.Length;
             var comparison = IgnoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-            if (string.Compare(input, start, capture, 0, capture.Length, comparison) == 0)
+            if (string.Compare(input, start, capturedText, 0, capturedText.Length, comparison) == 0)
             {
                 yield return new LookbehindMatchState(start, captures);
             }

@@ -166,4 +166,19 @@ public class IntlLocaleDebugTests
 
         Assert.Equal("da-u-ca-gregory", result?.ToString());
     }
+
+    [Fact]
+    public async Task CanonicalizesLanguageTagsWithTransformAndIncompleteUnicodeExtension()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const tag = 'cmn-hans-cn-u-ca-t-ca-x-t-u';
+            const canonical = Intl.getCanonicalLocales(tag)[0];
+            const supported = Intl.PluralRules.supportedLocalesOf([tag])[0];
+            const resolved = new Intl.PluralRules([tag], { localeMatcher: 'lookup' }).resolvedOptions().locale;
+            [canonical, supported, resolved].join('|');
+        ");
+
+        Assert.Equal("zh-Hans-CN-t-ca-u-ca-x-t-u|zh-Hans-CN-t-ca-u-ca-x-t-u|zh-Hans-CN", result?.ToString());
+    }
 }

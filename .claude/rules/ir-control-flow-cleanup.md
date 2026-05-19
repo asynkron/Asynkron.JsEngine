@@ -24,6 +24,12 @@ scope cleanup chains.
    not run iterator close/finally as if they exited the loop. For nested
    `for-of`, also test that a labeled break to an outer loop calls the inner
    iterator's `return()` exactly once.
+6. For active `for-of` iterator iterations, do not copy same-name
+   per-iteration bindings from the enclosing loop scope when the iterator
+   driver's `LoopScopeEnvironment` is the loop scope being used for the new
+   iteration. The loop binding statement owns first-iteration initialization;
+   copying from the enclosing scope can preserve TDZ state before the binding is
+   initialized.
 
 ## Why
 
@@ -38,3 +44,9 @@ Issue #790 / PR #968 added the break-side guardrail: a labeled break out of an
 outer loop from inside an inner `for-of` must close the inner iterator. That
 failure showed that "labeled break" is not enough information; future changes
 must classify whether the target stays inside the current loop frame or exits it.
+
+Issue #791 / PR #984 fixed Test262 `Iterator_prototype_filter` failures whose
+symptom looked helper-specific but whose cause was active iterator scope setup.
+The first `for-of` iteration copied a same-name TDZ binding from the enclosing
+scope before the loop binding statement initialized the iteration binding. Keep
+iterator-frame ownership explicit before adding helper-specific workarounds.

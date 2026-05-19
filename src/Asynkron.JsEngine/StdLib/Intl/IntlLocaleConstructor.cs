@@ -280,7 +280,7 @@ public sealed partial class IntlLocaleConstructor(IJsObjectLike prototype, Realm
         }
 
         var raw = StandardLibrary.JsValueToString(rawValue, Realm);
-        var parts = raw.Split('-', StringSplitOptions.RemoveEmptyEntries);
+        var parts = raw.Split('-');
         if (parts.Length == 0)
         {
             throw StandardLibrary.ThrowRangeError("Invalid Intl.Locale variants option", realm: Realm);
@@ -292,16 +292,18 @@ public sealed partial class IntlLocaleConstructor(IJsObjectLike prototype, Realm
             throw StandardLibrary.ThrowRangeError("Invalid Intl.Locale variants option", realm: Realm);
         }
 
-        foreach (var part in normalized.Split('-', StringSplitOptions.RemoveEmptyEntries))
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var part in parts)
         {
-            if (!IsValidVariantSubtag(part))
+            var normalizedPart = part.ToLowerInvariant();
+            if (!IsValidVariantSubtag(normalizedPart) || !seen.Add(normalizedPart))
             {
                 throw StandardLibrary.ThrowRangeError("Invalid Intl.Locale variants option", realm: Realm);
             }
         }
 
-        var canonical = IntlUtilities.CanonicalizeLocale($"und-{normalized}", Realm);
-        (_, _, _, variants) = ParseBaseName(ExtractBaseName(canonical));
+        variants = [.. seen];
+        variants.Sort(StringComparer.Ordinal);
         if (variants.Count == 0)
         {
             throw StandardLibrary.ThrowRangeError("Invalid Intl.Locale variants option", realm: Realm);
@@ -534,7 +536,7 @@ public sealed partial class IntlLocaleConstructor(IJsObjectLike prototype, Realm
         string? script = null;
         string? region = null;
 
-        if (index < subtags.Length && subtags[index].Length == 4)
+        if (index < subtags.Length && subtags[index].Length == 4 && !char.IsDigit(subtags[index][0]))
         {
             var tag = subtags[index];
             script = char.ToUpperInvariant(tag[0]) + tag[1..].ToLowerInvariant();
@@ -589,26 +591,34 @@ public sealed partial class IntlLocaleConstructor(IJsObjectLike prototype, Realm
 
     internal static string ExtractBaseName(string canonical)
     {
-        var end = canonical.Length;
-        var unicodeIndex = canonical.IndexOf("-u-", StringComparison.Ordinal);
-        if (unicodeIndex >= 0)
+        var subtags = canonical.Split('-', StringSplitOptions.RemoveEmptyEntries);
+        if (subtags.Length == 0)
         {
-            end = Math.Min(end, unicodeIndex);
+            return canonical;
         }
 
-        var transformIndex = canonical.IndexOf("-t-", StringComparison.Ordinal);
-        if (transformIndex >= 0)
+        var index = 1;
+        if (index < subtags.Length && subtags[index].Length == 4 && !char.IsDigit(subtags[index][0]))
         {
-            end = Math.Min(end, transformIndex);
+            index++;
         }
 
-        var privateIndex = canonical.IndexOf("-x-", StringComparison.Ordinal);
-        if (privateIndex >= 0)
+        if (index < subtags.Length)
         {
-            end = Math.Min(end, privateIndex);
+            var candidate = subtags[index];
+            if ((candidate.Length == 2 && char.IsLetter(candidate[0]) && char.IsLetter(candidate[1])) ||
+                (candidate.Length == 3 && candidate.All(static ch => char.IsDigit(ch))))
+            {
+                index++;
+            }
         }
 
-        return end == canonical.Length ? canonical : canonical[..end];
+        while (index < subtags.Length && IsVariantSubtag(subtags[index]))
+        {
+            index++;
+        }
+
+        return index == subtags.Length ? canonical : string.Join('-', subtags, 0, index);
     }
 
     internal static Dictionary<string, string> ParseUnicodeKeywords(string canonicalTag)

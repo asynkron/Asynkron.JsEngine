@@ -21,10 +21,14 @@ sequence directly before adding local type guards or host-runtime shortcuts.
    distinct Temporal operand kinds should fail at the spec point that follows
    conversion to formattable operands, not through incidental host conversion
    failures.
-5. Add focused coverage for both the error-order case and the successful
+5. For `Intl.DateTimeFormat.prototype.formatRangeToParts`, preserve source
+   tagging (`shared`, `startRange`, `endRange`) after Temporal slot filtering.
+   Do not prove only the formatted range string when the observable parts array
+   has separate boundaries and labels.
+6. Add focused coverage for both the error-order case and the successful
    normalized path. Include the exact Test262 method group or file cluster when
    the issue came from Test262.
-6. For `Intl.DateTimeFormat` epoch-based formatting, do not let host
+7. For `Intl.DateTimeFormat` epoch-based formatting, do not let host
    `DateTimeOffset` range limits define ECMAScript proleptic Gregorian calendar
    fields. When the epoch is outside the host-supported range, derive Gregorian
    component fields from ECMAScript date math and keep `format`, `formatToParts`,
@@ -41,6 +45,12 @@ supported Temporal `Plain*` objects must format through effective Temporal
 slots rather than falling through to Date/valueOf behavior. The fix added local
 Temporal range coverage and passed the focused `DateTimeFormat_prototype_formatRange`
 Test262 method group.
+
+Issue #768 / PR #938 fixed the same Temporal effective-slot lesson for
+`formatRangeToParts`. That helper has an additional observable contract:
+collapsed and non-collapsed ranges must assign the correct `source` labels to
+each part after Temporal option filtering. The repair passed the focused
+`DateTimeFormat_prototype_formatRangeToParts` Test262 method group.
 
 Issue #766 / PR #942 fixed `Intl.DateTimeFormat.prototype.format` after
 out-of-range proleptic Gregorian dates were converted through

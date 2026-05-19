@@ -122,8 +122,8 @@ internal static class Program
     private static void RunPresentationMaskSmoke()
     {
         var baseDirectory = AppContext.BaseDirectory;
-        var deck = PresentationDeck.Load(baseDirectory, "25");
-        var path = deck.Load("ecma-262-94000-unit-tests.svg", 24);
+        var deck = PresentationDeck.Load(baseDirectory, "23");
+        var path = deck.Load("ecma-262-94000-unit-tests.svg", 22);
         var document = new SvgSlideDocument(
             path,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
@@ -141,7 +141,7 @@ internal static class Program
     {
         var baseDirectory = AppContext.BaseDirectory;
         var astDeck = PresentationDeck.Load(baseDirectory, "12");
-        astDeck.Load("ast-walking-evaluation.svg", 11);
+        astDeck.Load("ast-walking-evaluation.svg", 9);
         var astDocument = new SvgSlideDocument(
             astDeck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
@@ -169,7 +169,7 @@ internal static class Program
         }
 
         var redesignDeck = PresentationDeck.Load(baseDirectory, "14");
-        redesignDeck.Load("parser-ast-runtime-redesign-map.svg", 13);
+        redesignDeck.Load("parser-ast-runtime-redesign-map.svg", 11);
         var redesignDocument = new SvgSlideDocument(
             redesignDeck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
@@ -187,7 +187,7 @@ internal static class Program
         }
 
         var deck = PresentationDeck.Load(baseDirectory, "25");
-        deck.Load("ecma-262-94000-unit-tests.svg", 24);
+        deck.Load("ecma-262-94000-unit-tests.svg", 22);
         var document = new SvgSlideDocument(
             deck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
@@ -201,7 +201,7 @@ internal static class Program
             throw new InvalidOperationException("Expected ECMA slide sidecar to create its overlay elements.");
         }
 
-        deck.Load("jsengine-presentation-reveal.svg", 57);
+        deck.Load("jsengine-presentation-reveal.svg", 53);
         document = new SvgSlideDocument(
             deck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
@@ -231,7 +231,7 @@ internal static class Program
             throw new InvalidOperationException("Expected reveal mesh to clear when navigating away from the slide.");
         }
 
-        deck.Load("how-far-did-we-push-it.svg", 58);
+        deck.Load("how-far-did-we-push-it.svg", 54);
         document = new SvgSlideDocument(
             deck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
@@ -247,9 +247,33 @@ internal static class Program
 
         finalHost.DispatchKey("ArrowLeft");
         DispatchSmokeFrames(finalHost, 720);
-        if (deck.CurrentIndex != 57 || document.ContainsElement("push-star-0"))
+        if (deck.CurrentIndex != 53 || document.ContainsElement("push-star-0"))
         {
             throw new InvalidOperationException("Expected final slide starfield to stop cleanly when navigating away.");
+        }
+
+        deck.Load("faktorial-launch-button.svg", 55);
+        document = new SvgSlideDocument(
+            deck.CurrentPath,
+            Path.Combine(baseDirectory, "rendered-slide.svg"),
+            static () => { });
+        using var faktorialHost = new SlideScriptHost(document, deck);
+        faktorialHost.Run(Path.Combine(baseDirectory, "scripts", "presentation.js"));
+
+        if (!document.ContainsElement("faktorial-glow") ||
+            !document.ContainsElement("faktorial-glow-gradient"))
+        {
+            throw new InvalidOperationException("Expected Faktorial launch slide to include the radial glow gradient.");
+        }
+
+        var initialGlowOpacity = document.GetElementAttribute("faktorial-glow", "opacity");
+        DispatchSmokeFrames(faktorialHost, 1_200);
+        if (string.Equals(
+                document.GetElementAttribute("faktorial-glow", "opacity"),
+                initialGlowOpacity,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Expected Faktorial launch slide glow to pulse on frame dispatch.");
         }
     }
 
@@ -281,7 +305,7 @@ internal static class Program
     {
         var baseDirectory = AppContext.BaseDirectory;
         var deck = PresentationDeck.Load(baseDirectory, "56");
-        deck.Load("express-live-demo.svg", 55);
+        deck.Load("express-live-demo.svg", 51);
         var document = new SvgSlideDocument(
             deck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
@@ -353,6 +377,7 @@ internal sealed partial class DemoWindow : Window
     private readonly DispatcherTimer _timer;
     private readonly DateTimeOffset _startedAt = DateTimeOffset.UtcNow;
     private readonly PresentationDeck? _presentationDeck;
+    private NativeWebView? _testrunnerVideoView;
     private TextBlock? _statusText;
     private TextBlock? _presentationTimerText;
     private TextBlock? _slideTimerText;
@@ -367,6 +392,7 @@ internal sealed partial class DemoWindow : Window
     private bool _isPointerDownOnSlide;
     private bool _didPanPointer;
     private double _lastPinchScale = 1;
+    private bool _testrunnerVideoLoaded;
     private string _lastNativeHostOutput = string.Empty;
 
     public DemoWindow(IReadOnlyList<string> args)
@@ -486,6 +512,7 @@ internal sealed partial class DemoWindow : Window
         };
 
         var slideLayer = new Grid();
+        AddTestrunnerVideoOverlay(slideLayer);
         slideLayer.Children.Add(_svgView);
         AddLiveDemoHostOutputOverlay(slideLayer);
         if (launch.Deck is not null)
@@ -508,6 +535,16 @@ internal sealed partial class DemoWindow : Window
         root.Children.Add(_statusText);
 
         return root;
+    }
+
+    private void AddTestrunnerVideoOverlay(Panel slideLayer)
+    {
+        _testrunnerVideoView = new NativeWebView
+        {
+            IsVisible = false,
+            ZIndex = 0
+        };
+        slideLayer.Children.Add(_testrunnerVideoView);
     }
 
     private void AddLiveDemoHostOutputOverlay(Panel slideLayer)
@@ -613,6 +650,7 @@ internal sealed partial class DemoWindow : Window
             _svgView.ResetView();
             ResetSlideTimer();
             RefreshPresentationTimerUi();
+            UpdateTestrunnerVideoOverlay();
             UpdateLiveDemoHostOutputOverlay();
         });
     }
@@ -769,6 +807,7 @@ internal sealed partial class DemoWindow
         var elapsed = DateTimeOffset.UtcNow - _startedAt;
         _scriptHost.DispatchFrame(elapsed.TotalMilliseconds);
         RefreshPresentationTimerUi();
+        UpdateTestrunnerVideoOverlay();
         UpdateLiveDemoHostOutputOverlay();
     }
 
@@ -778,6 +817,57 @@ internal sealed partial class DemoWindow
         {
             _svgView.InvalidateVisual();
         });
+    }
+
+    private void UpdateTestrunnerVideoOverlay()
+    {
+        if (_testrunnerVideoView is null || _presentationDeck is null)
+        {
+            return;
+        }
+
+        var isTestrunnerSlide = string.Equals(
+            Path.GetFileName(_presentationDeck.CurrentPath),
+            "asynkron-testrunner-tool.svg",
+            StringComparison.Ordinal);
+        _testrunnerVideoView.IsVisible = isTestrunnerSlide;
+        if (!isTestrunnerSlide)
+        {
+            return;
+        }
+
+        var videoBounds = _svgView.MapSvgRectToControlRect(new Rect(0, 0, 959.76, 540));
+        _testrunnerVideoView.Width = videoBounds.Width;
+        _testrunnerVideoView.Height = videoBounds.Height;
+        _testrunnerVideoView.Margin = new Thickness(videoBounds.X, videoBounds.Y, 0, 0);
+        _testrunnerVideoView.HorizontalAlignment = HorizontalAlignment.Left;
+        _testrunnerVideoView.VerticalAlignment = VerticalAlignment.Top;
+
+        if (_testrunnerVideoLoaded)
+        {
+            return;
+        }
+
+        var videoPath = Path.Combine(AppContext.BaseDirectory, "assets", "video", "testrunner.mov");
+        if (!File.Exists(videoPath))
+        {
+            Console.Error.WriteLine(string.Create(
+                CultureInfo.InvariantCulture,
+                $"Testrunner video asset not found: {videoPath}"));
+            return;
+        }
+
+        var playerPath = Path.Combine(AppContext.BaseDirectory, "assets", "video", "testrunner.html");
+        if (!File.Exists(playerPath))
+        {
+            Console.Error.WriteLine(string.Create(
+                CultureInfo.InvariantCulture,
+                $"Testrunner video player asset not found: {playerPath}"));
+            return;
+        }
+
+        _testrunnerVideoView.Navigate(new Uri(playerPath));
+        _testrunnerVideoLoaded = true;
     }
 
     private void UpdateLiveDemoHostOutputOverlay()
@@ -1698,6 +1788,8 @@ internal sealed class SlideScriptHost : IDisposable
             new JsValue(_demoProcessHost.IsExpressReady())));
         SetProperty(demo, "isExpressRunning", CreateHostFunction(_ =>
             new JsValue(_demoProcessHost.IsExpressRunning())));
+        SetProperty(demo, "startFaktorialQueue", CreateHostFunction(_ =>
+            new JsValue(FaktorialQueueLauncher.StartAndOpen())));
         return demo;
     }
 
@@ -1994,6 +2086,63 @@ internal sealed class SlideScriptHost : IDisposable
                 Enumerable = true,
                 Configurable = true
             });
+    }
+}
+
+internal static class FaktorialQueueLauncher
+{
+    private const int WebPort = 8787;
+
+    public static string StartAndOpen()
+    {
+        return IsListeningOnWebPort()
+            ? "already-running"
+            : StartFaktorialWeb();
+    }
+
+    private static string StartFaktorialWeb()
+    {
+        var startInfo = new ProcessStartInfo("faktorial")
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        startInfo.ArgumentList.Add("-web");
+        startInfo.ArgumentList.Add("127.0.0.1:8787");
+
+        try
+        {
+            var process = Process.Start(startInfo);
+            if (process is null)
+            {
+                return "faktorial-start-null";
+            }
+
+            process.Dispose();
+            Console.WriteLine("Started: faktorial -web 127.0.0.1:8787");
+            return "faktorial-started";
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(string.Create(
+                CultureInfo.InvariantCulture,
+                $"Failed to start faktorial: {ex.Message}"));
+            return "faktorial-start-failed";
+        }
+    }
+
+    private static bool IsListeningOnWebPort()
+    {
+        try
+        {
+            using var client = new TcpClient();
+            client.Connect("127.0.0.1", WebPort);
+            return true;
+        }
+        catch (SocketException)
+        {
+            return false;
+        }
     }
 }
 
@@ -2510,6 +2659,11 @@ internal sealed class SvgSlideDocument
         return GetElementById(id).Value;
     }
 
+    public string GetElementAttribute(string id, string name)
+    {
+        return (string?)GetElementById(id).Attribute(name) ?? string.Empty;
+    }
+
     public int CountElementsWithAttributePrefix(string idPrefix, string name, string value)
     {
         var count = 0;
@@ -2927,6 +3081,9 @@ internal sealed class SvgSlideDocument
             case "circle":
                 RenderCircle(context, element, state);
                 break;
+            case "ellipse":
+                RenderEllipse(context, element, state);
+                break;
             case "line":
                 RenderLine(context, element, state);
                 break;
@@ -2994,26 +3151,38 @@ internal sealed class SvgSlideDocument
             : context.PushGeometryClip(geometries);
     }
 
-    private static void RenderRect(DrawingContext context, XElement element, SvgRenderState state)
+    private void RenderRect(DrawingContext context, XElement element, SvgRenderState state)
     {
         var x = ReadDouble(element, "x", 0, state);
         var y = ReadDouble(element, "y", 0, state);
         var width = ReadDouble(element, "width", 0, state);
         var height = ReadDouble(element, "height", 0, state);
         var rx = ReadDouble(element, "rx", 0, state);
-        var fill = state.CreateFillBrush();
+        var bounds = new Rect(x, y, width, height);
+        var fill = CreateFillBrush(state, bounds);
         var pen = state.CreatePen();
-        context.DrawRectangle(fill, pen, new Rect(x, y, width, height), rx, rx);
+        context.DrawRectangle(fill, pen, bounds, rx, rx);
     }
 
-    private static void RenderCircle(DrawingContext context, XElement element, SvgRenderState state)
+    private void RenderCircle(DrawingContext context, XElement element, SvgRenderState state)
     {
         var cx = ReadDouble(element, "cx", 0, state);
         var cy = ReadDouble(element, "cy", 0, state);
         var r = ReadDouble(element, "r", 0, state);
-        var fill = state.CreateFillBrush();
+        var fill = CreateFillBrush(state, new Rect(cx - r, cy - r, r * 2, r * 2));
         var pen = state.CreatePen();
         context.DrawEllipse(fill, pen, new Point(cx, cy), r, r);
+    }
+
+    private void RenderEllipse(DrawingContext context, XElement element, SvgRenderState state)
+    {
+        var cx = ReadDouble(element, "cx", 0, state);
+        var cy = ReadDouble(element, "cy", 0, state);
+        var rx = ReadDouble(element, "rx", 0, state);
+        var ry = ReadDouble(element, "ry", 0, state);
+        var fill = CreateFillBrush(state, new Rect(cx - rx, cy - ry, rx * 2, ry * 2));
+        var pen = state.CreatePen();
+        context.DrawEllipse(fill, pen, new Point(cx, cy), rx, ry);
     }
 
     private static void RenderLine(DrawingContext context, XElement element, SvgRenderState state)
@@ -3031,7 +3200,7 @@ internal sealed class SvgSlideDocument
         context.DrawLine(pen, new Point(x1, y1), new Point(x2, y2));
     }
 
-    private static void RenderPath(DrawingContext context, XElement element, SvgRenderState state)
+    private void RenderPath(DrawingContext context, XElement element, SvgRenderState state)
     {
         var d = ReadAttribute(element, "d", state);
         if (string.IsNullOrWhiteSpace(d))
@@ -3040,12 +3209,12 @@ internal sealed class SvgSlideDocument
         }
 
         var geometry = Geometry.Parse(d);
-        var fill = state.CreateFillBrush();
+        var fill = CreateFillBrush(state, geometry.Bounds);
         var pen = state.CreatePen();
         context.DrawGeometry(fill, pen, geometry);
     }
 
-    private static void RenderPolygon(DrawingContext context, XElement element, SvgRenderState state)
+    private void RenderPolygon(DrawingContext context, XElement element, SvgRenderState state)
     {
         var points = ReadAttribute(element, "points", state);
         if (string.IsNullOrWhiteSpace(points))
@@ -3076,7 +3245,7 @@ internal sealed class SvgSlideDocument
 
         data.Append(" Z");
         var geometry = Geometry.Parse(data.ToString());
-        var fill = state.CreateFillBrush();
+        var fill = CreateFillBrush(state, geometry.Bounds);
         var pen = state.CreatePen();
         context.DrawGeometry(fill, pen, geometry);
     }
@@ -3106,6 +3275,181 @@ internal sealed class SvgSlideDocument
         }
 
         context.DrawText(formatted, new Point(x, y - fontSize));
+    }
+
+    private IBrush? CreateFillBrush(SvgRenderState state, Rect bounds)
+    {
+        if (!string.IsNullOrEmpty(state.FillReference) &&
+            TryCreateRadialGradientBrush(state.FillReference, bounds, state.Opacity * state.FillOpacity, out var gradient))
+        {
+            return gradient;
+        }
+
+        return state.CreateFillBrush();
+    }
+
+    private bool TryCreateRadialGradientBrush(string id, Rect bounds, double opacity, out IBrush brush)
+    {
+        brush = null!;
+        if (!_elementsById.TryGetValue(id, out var gradientElement) ||
+            gradientElement.Name.LocalName != "radialGradient")
+        {
+            return false;
+        }
+
+        var stops = new GradientStops();
+        foreach (var stopElement in gradientElement.Elements().Where(static element => element.Name.LocalName == "stop"))
+        {
+            var offset = ParseGradientOffset((string?)stopElement.Attribute("offset") ?? string.Empty);
+            var stopColorValue = (string?)stopElement.Attribute("stop-color") ??
+                ReadStyleValue(stopElement, "stop-color") ??
+                "#000000";
+            var stopOpacity = ParseGradientOpacity(
+                (string?)stopElement.Attribute("stop-opacity") ??
+                ReadStyleValue(stopElement, "stop-opacity"));
+            var color = ParseSvgColor(stopColorValue);
+            color = Color.FromArgb(
+                (byte)Math.Clamp((int)Math.Round(color.A * stopOpacity), 0, 255),
+                color.R,
+                color.G,
+                color.B);
+            stops.Add(new GradientStop(color, offset));
+        }
+
+        if (stops.Count == 0)
+        {
+            return false;
+        }
+
+        var units = (string?)gradientElement.Attribute("gradientUnits");
+        if (string.Equals(units, "userSpaceOnUse", StringComparison.OrdinalIgnoreCase))
+        {
+            brush = new RadialGradientBrush
+            {
+                Center = new RelativePoint(
+                    ReadGradientLength(gradientElement, "cx", bounds.Center.X, bounds.Width, bounds.X),
+                    ReadGradientLength(gradientElement, "cy", bounds.Center.Y, bounds.Height, bounds.Y),
+                    RelativeUnit.Absolute),
+                GradientOrigin = new RelativePoint(
+                    ReadGradientLength(gradientElement, "fx", bounds.Center.X, bounds.Width, bounds.X),
+                    ReadGradientLength(gradientElement, "fy", bounds.Center.Y, bounds.Height, bounds.Y),
+                    RelativeUnit.Absolute),
+                RadiusX = new RelativeScalar(
+                    ReadGradientLength(
+                        gradientElement,
+                        "r",
+                        Math.Max(bounds.Width, bounds.Height) / 2,
+                        bounds.Width,
+                        0),
+                    RelativeUnit.Absolute),
+                RadiusY = new RelativeScalar(
+                    ReadGradientLength(
+                        gradientElement,
+                        "r",
+                        Math.Max(bounds.Width, bounds.Height) / 2,
+                        bounds.Height,
+                        0),
+                    RelativeUnit.Absolute),
+                Opacity = opacity,
+                GradientStops = stops
+            };
+            return true;
+        }
+
+        var cx = ReadGradientRatio(gradientElement, "cx", 0.5);
+        var cy = ReadGradientRatio(gradientElement, "cy", 0.5);
+        brush = new RadialGradientBrush
+        {
+            Center = new RelativePoint(cx, cy, RelativeUnit.Relative),
+            GradientOrigin = new RelativePoint(
+                ReadGradientRatio(gradientElement, "fx", cx),
+                ReadGradientRatio(gradientElement, "fy", cy),
+                RelativeUnit.Relative),
+            RadiusX = new RelativeScalar(ReadGradientRatio(gradientElement, "r", 0.5), RelativeUnit.Relative),
+            RadiusY = new RelativeScalar(ReadGradientRatio(gradientElement, "r", 0.5), RelativeUnit.Relative),
+            Opacity = opacity,
+            GradientStops = stops
+        };
+        return true;
+    }
+
+    private static double ParseGradientOffset(string value)
+    {
+        value = value.Trim();
+        if (value.EndsWith('%'))
+        {
+            value = value[..^1];
+            return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var percent)
+                ? Math.Clamp(percent / 100.0, 0, 1)
+                : 0;
+        }
+
+        return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
+            ? Math.Clamp(parsed, 0, 1)
+            : 0;
+    }
+
+    private static double ParseGradientOpacity(string? value)
+    {
+        return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
+            ? Math.Clamp(parsed, 0, 1)
+            : 1;
+    }
+
+    private static double ReadGradientRatio(XElement element, string name, double defaultValue)
+    {
+        var value = (string?)element.Attribute(name);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return defaultValue;
+        }
+
+        value = value.Trim();
+        if (value.EndsWith('%'))
+        {
+            value = value[..^1];
+            return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var percent)
+                ? percent / 100.0
+                : defaultValue;
+        }
+
+        return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : defaultValue;
+    }
+
+    private static double ReadGradientLength(XElement element, string name, double defaultValue, double size, double origin)
+    {
+        var value = (string?)element.Attribute(name);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return defaultValue;
+        }
+
+        value = value.Trim();
+        if (value.EndsWith('%'))
+        {
+            value = value[..^1];
+            return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var percent)
+                ? origin + size * percent / 100.0
+                : defaultValue;
+        }
+
+        return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : defaultValue;
+    }
+
+    private static Color ParseSvgColor(string value)
+    {
+        if (string.Equals(value.Trim(), "transparent", StringComparison.OrdinalIgnoreCase))
+        {
+            return Colors.Transparent;
+        }
+
+        return Color.TryParse(value, out var color)
+            ? color
+            : Colors.Black;
     }
 
     private void RenderUse(DrawingContext context, XElement element, SvgRenderState state)
@@ -3504,6 +3848,7 @@ internal sealed class SvgSlideDocument
     private sealed record SvgRenderState(
         double Opacity,
         Color? Fill,
+        string? FillReference,
         double FillOpacity,
         Color? Stroke,
         double StrokeOpacity,
@@ -3513,6 +3858,7 @@ internal sealed class SvgSlideDocument
         public static SvgRenderState Default { get; } = new(
             Opacity: 1,
             Fill: Colors.Black,
+            FillReference: null,
             FillOpacity: 1,
             Stroke: null,
             StrokeOpacity: 1,
@@ -3522,12 +3868,35 @@ internal sealed class SvgSlideDocument
         public SvgRenderState Inherit(XElement element)
         {
             var opacity = Opacity * ReadOpacity(element, "opacity", 1);
-            var fill = ReadColor(element, "fill", Fill);
+            var fill = Fill;
+            var fillReference = FillReference;
+            var fillValue = ReadLocalAttribute(element, "fill");
+            if (!string.IsNullOrWhiteSpace(fillValue))
+            {
+                fillValue = fillValue.Trim();
+                if (string.Equals(fillValue, "none", StringComparison.OrdinalIgnoreCase))
+                {
+                    fill = null;
+                    fillReference = null;
+                }
+                else if (TryParseUrlReference(fillValue, out var id))
+                {
+                    fill = null;
+                    fillReference = id;
+                }
+                else if (TryParseColor(fillValue, out var fillColor))
+                {
+                    fill = fillColor;
+                    fillReference = null;
+                }
+            }
+
             var stroke = ReadColor(element, "stroke", Stroke);
             return this with
             {
                 Opacity = opacity,
                 Fill = fill,
+                FillReference = fillReference,
                 FillOpacity = FillOpacity * ReadOpacity(element, "fill-opacity", 1),
                 Stroke = stroke,
                 StrokeOpacity = StrokeOpacity * ReadOpacity(element, "stroke-opacity", 1),
@@ -3540,7 +3909,9 @@ internal sealed class SvgSlideDocument
         {
             return name switch
             {
-                "fill" => Fill?.ToString(),
+                "fill" => FillReference is not null
+                    ? string.Create(CultureInfo.InvariantCulture, $"url(#{FillReference})")
+                    : Fill?.ToString(),
                 "stroke" => Stroke?.ToString(),
                 "stroke-width" => StrokeWidth.ToString(CultureInfo.InvariantCulture),
                 "fill-opacity" => FillOpacity.ToString(CultureInfo.InvariantCulture),

@@ -18,9 +18,13 @@
         <Content Include="scripts\**\*">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
+        <Content Include="..\..\assets\video\testrunner.mov" Link="assets\video\testrunner.mov">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
     </ItemGroup>
 
     <ItemGroup>
+      <PackageReference Include="Avalonia.Controls.WebView" Version="12.0.1" />
       <PackageReference Include="Avalonia.Desktop" Version="12.0.3" />
       <PackageReference Include="SkiaSharp" Version="3.119.4-preview.1.1" />
       <PackageReference Include="Svg.Controls.Skia.Avalonia" Version="12.0.0.9" />

@@ -3357,6 +3357,11 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
 
                     break;
                 case ExportNamedStatement exportNamed:
+                    if (exportNamed.FromModule is not null)
+                    {
+                        break;
+                    }
+
                     foreach (var specifier in exportNamed.Specifiers)
                     {
                         if (moduleEnv.IsAsyncModule)
@@ -3401,7 +3406,15 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                     exportStarSet.Remove(sourceEntry.Path);
                     break;
                 case ExportNamespaceAsStatement exportNamespace:
-                    exports[exportNamespace.Exported.Name] = JsValue.Uninitialized;
+                    var namespaceEntry = LoadModuleForInstantiation(exportNamespace.ModulePath, modulePath, phase,
+                        exportStarSet);
+                    EnsureModuleInstantiated(namespaceEntry, phase, exportStarSet);
+                    var namespaceObject = GetModuleNamespace(namespaceEntry, phase);
+                    var namespaceValue = JsValue.FromObjectUnsafe(namespaceObject);
+                    exports[exportNamespace.Exported.Name] = namespaceObject;
+                    moduleEnv.DefineJsValue(exportNamespace.Exported, namespaceValue, true,
+                        isLexicalBinding: true, blocksFunctionScopeOverride: false);
+
                     break;
             }
         }

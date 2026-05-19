@@ -745,7 +745,9 @@ public static partial class TypedAstEvaluator
     [MethodImpl(JsEngineConstants.Inlining)]
     private static bool ShouldApplyAssignmentNameHint(AssignmentExpression? assignment, ExpressionNode rhs)
     {
-        return assignment is not null && rhs.IsAnonymousFunctionDefinitionNode();
+        return assignment is not null &&
+               rhs.IsAnonymousFunctionDefinitionNode() &&
+               !IsParenthesizedIdentifierAssignment(assignment);
     }
 
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]

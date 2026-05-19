@@ -559,6 +559,48 @@ public sealed class StringMethodsTests(ITestOutputHelper output) : InternalTestB
     }
 
     [Fact(Timeout = 2000)]
+    public async Task String_Sup_AnnexB_Metadata_And_Coercion()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let lengthDescriptor = Object.getOwnPropertyDescriptor(String.prototype.sup, "length");
+                                                       let nameDescriptor = Object.getOwnPropertyDescriptor(String.prototype.sup, "name");
+                                                       let nullThrows = false;
+                                                       let undefinedThrows = false;
+
+                                                       try {
+                                                           String.prototype.sup.call(null);
+                                                       } catch (e) {
+                                                           nullThrows = e instanceof TypeError;
+                                                       }
+
+                                                       try {
+                                                           String.prototype.sup.call(undefined);
+                                                       } catch (e) {
+                                                           undefinedThrows = e instanceof TypeError;
+                                                       }
+
+                                                       [
+                                                           "text".sup(),
+                                                           String.prototype.sup.call(42),
+                                                           lengthDescriptor.value,
+                                                           lengthDescriptor.writable,
+                                                           lengthDescriptor.enumerable,
+                                                           lengthDescriptor.configurable,
+                                                           nameDescriptor.value,
+                                                           nameDescriptor.writable,
+                                                           nameDescriptor.enumerable,
+                                                           nameDescriptor.configurable,
+                                                           nullThrows,
+                                                           undefinedThrows
+                                                       ].join("|");
+
+                                           """);
+        Assert.Equal("<sup>text</sup>|<sup>42</sup>|0|false|false|true|sup|false|false|true|true|true", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task String_FromCodePoint()
     {
         await using var engine = CreateEngine();
@@ -618,4 +660,3 @@ public sealed class StringMethodsTests(ITestOutputHelper output) : InternalTestB
         Assert.Equal("true", result);
     }
 }
-

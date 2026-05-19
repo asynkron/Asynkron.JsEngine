@@ -184,6 +184,52 @@ public sealed class EvalFunctionTests(ITestOutputHelper output) : InternalTestBa
     }
 
     [Fact(Timeout = 5000)]
+    public async Task DirectEvalSuperProperty_InMethodArrowInheritsLexicalSuper()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+              get value() { return 41; }
+            }
+
+            class Derived extends Base {
+              method() {
+                var arrow = () => eval('super.value + 1;');
+                return arrow();
+              }
+            }
+
+            new Derived().method();
+        """);
+
+        Assert.Equal(42d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DirectEvalSuperCall_InDerivedConstructorArrowInheritsNewTarget()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+              constructor(value) {
+                this.value = value;
+              }
+            }
+
+            class Derived extends Base {
+              constructor() {
+                var arrow = () => eval('super(42);');
+                arrow();
+              }
+            }
+
+            new Derived().value;
+        """);
+
+        Assert.Equal(42d, result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task DirectEvalSuperProperty_InOrdinaryFunctionWithoutHomeObjectThrowsSyntaxError()
     {
         await using var engine = CreateEngine();

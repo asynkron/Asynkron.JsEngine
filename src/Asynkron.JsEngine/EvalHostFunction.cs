@@ -266,12 +266,11 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         var containsNewTargetTopLevel = (validationFlags & EvalValidationFlags.ContainsNewTarget) != 0;
         if (isDirectEval && containsNewTargetTopLevel)
         {
-            var callerIsArrowFunction = IsDirectEvalCallerArrowFunction(CallingJsEnvironment);
             var callerHasNewTarget =
                 CallingJsEnvironment?.TryFindBindingJsValue(Symbol.NewTarget, true, out _, out _) == true;
             // Direct eval inside class field initializers inherits the "inside function"
             // allowance for new.target, even though the eval source itself is a ScriptBody.
-            if (callerIsArrowFunction || (!callerHasNewTarget && !insideClassFieldInitializer))
+            if (!callerHasNewTarget && !insideClassFieldInitializer)
             {
                 throw StandardLibrary.ThrowSyntaxError(
                     "new.target is not allowed in this direct eval context.",
@@ -282,13 +281,15 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
         if (isDirectEval)
         {
-            var callerIsArrowFunction = IsDirectEvalCallerArrowFunction(CallingJsEnvironment);
             var hasSuperBinding = HasDirectEvalSuperBinding(CallingJsEnvironment, insideClassFieldInitializer);
-            // TryGetJsValue returns JsValue, and Symbol.NewTarget is stored as JsValue.Undefined when absent
-            var hasNewTarget = CallingJsEnvironment?.TryGetJsValue(Symbol.NewTarget, out var newTarget) == true &&
+            // Arrow functions inherit new.target lexically through the caller environment chain.
+            var hasNewTarget = CallingJsEnvironment?.TryFindBindingJsValue(Symbol.NewTarget, true, out _, out var newTarget) == true &&
                                !newTarget.IsUndefined;
 
-            if ((callerIsArrowFunction || !hasSuperBinding) && containsSuperReferenceTopLevel)
+            // Check super call without includeFunctionBodies (top-level only)
+            var containsSuperCallTopLevel = (validationFlags & EvalValidationFlags.ContainsSuperCall) != 0;
+            var hasAllowedSuperCallContext = containsSuperCallTopLevel && hasNewTarget;
+            if (!hasSuperBinding && !hasAllowedSuperCallContext && containsSuperReferenceTopLevel)
             {
                 throw StandardLibrary.ThrowSyntaxError(
                     "super references are not allowed in direct eval outside methods.",
@@ -296,9 +297,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     environment.RealmState);
             }
 
-            // Check super call without includeFunctionBodies (top-level only)
-            var containsSuperCallTopLevel = (validationFlags & EvalValidationFlags.ContainsSuperCall) != 0;
-            if ((callerIsArrowFunction || !hasNewTarget) && containsSuperCallTopLevel)
+            if (!hasNewTarget && containsSuperCallTopLevel)
             {
                 throw StandardLibrary.ThrowSyntaxError(
                     "super calls are only allowed in direct eval when evaluating constructors.",
@@ -670,23 +669,6 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             RollbackEvalBindings(varEnv, varDeclaredNames, preexistingVarBindings);
             throw;
-        }
-    }
-
-    private static bool IsDirectEvalCallerArrowFunction(JsEnvironment? callingEnvironment)
-    {
-        if (callingEnvironment is null)
-        {
-            return false;
-        }
-
-        try
-        {
-            return callingEnvironment.GetFunctionScope().IsArrowFunctionEnvironment;
-        }
-        catch (InvalidOperationException)
-        {
-            return false;
         }
     }
 

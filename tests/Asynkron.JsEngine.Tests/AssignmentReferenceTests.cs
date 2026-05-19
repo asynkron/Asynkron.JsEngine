@@ -165,6 +165,42 @@ with (scope) {
     }
 
     [Fact]
+    public async Task PrefixDecrement_WithAccessorDeletedDuringGet_StrictWriteThrowsReferenceError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+var count = 0;
+var scope = {
+  get x() {
+    delete this.x;
+    return 2;
+  }
+};
+
+with (scope) {
+  (function() {
+    'use strict';
+    try {
+      count++;
+      --x;
+      count++;
+    } catch (error) {
+      return { name: error.name, count, exists: 'x' in scope };
+    }
+  })();
+}
+");
+
+        var obj = Assert.IsType<JsTypes.JsObject>(result);
+        Assert.True(obj.TryGetProperty("name", out var name));
+        Assert.Equal("ReferenceError", name.AsString());
+        Assert.True(obj.TryGetProperty("count", out var count));
+        Assert.Equal(1d, count.AsDouble());
+        Assert.True(obj.TryGetProperty("exists", out var exists));
+        Assert.False(exists.AsBoolean());
+    }
+
+    [Fact]
     public void WithBindingReference_PreservesObjectTargetAcrossDelete()
     {
         using var engine = CreateEngine();

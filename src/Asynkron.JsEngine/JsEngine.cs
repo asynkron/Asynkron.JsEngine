@@ -6791,10 +6791,9 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
 
         private bool TryEvaluateForAwaitOfStatement(ForEachStatement statement, JsEnvironment env, bool isStrict)
         {
-            if (AstShapeAnalyzer.ContainsAwait(statement.Iterable) ||
-                AstShapeAnalyzer.StatementContainsAwait(statement.Body))
+            if (AstShapeAnalyzer.ContainsAwait(statement.Iterable))
             {
-                return TryEvaluateForEachStatementWithAwait(statement, env, isStrict);
+                return TryEvaluateForAwaitOfStatementWithAwaitedIterable(statement, env, isStrict);
             }
 
             // For await...of is inherently async - use the engine's existing evaluation
@@ -6811,24 +6810,269 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             }
         }
 
+        private bool TryEvaluateForAwaitOfStatementWithAwaitedIterable(
+            ForEachStatement statement,
+            JsEnvironment env,
+            bool isStrict)
+        {
+            if (TryGetAwaitThenBreakBodyExpression(statement.Body, out var bodyExpression) &&
+                TryPrepareSimpleForAwaitLoopEnvironment(statement, env, isStrict, out var loopEnv))
+            {
+                return TryEvaluateForAwaitOfSingleIterationWithAwaitedIterable(
+                    statement,
+                    env,
+                    loopEnv,
+                    isStrict,
+                    bodyExpression);
+            }
+
+            return TryEvaluateExpressionWithAwait(
+                statement.Iterable,
+                env,
+                isStrict,
+                resolved =>
+                {
+                    try
+                    {
+                        var iterableEnv = JsEnvironment.CreateInstance(
+                            env,
+                            isStrict: isStrict,
+                            creatingSource: statement.Source,
+                            description: "async for-await iterable scope");
+                        var iterableSymbol = Symbol.Synthetic("__await_for_await_iterable");
+                        iterableEnv.DefineJsValue(iterableSymbol, resolved, true, isLexicalBinding: true,
+                            blocksFunctionScopeOverride: false);
+
+                        var rewrittenStatement = new ForEachStatement(
+                            null,
+                            statement.Target,
+                            new IdentifierExpression(statement.Iterable.Source, iterableSymbol),
+                            statement.Body,
+                            statement.Kind,
+                            statement.DeclarationKind,
+                            statement.PerIterationScopeId,
+                            statement.PerIterationParentScopeId,
+                            statement.PerIterationSlotCount,
+                            statement.PerIterationSlotIndices,
+                            statement.PerIterationBindings);
+
+                        _engine.ExecuteTypedStatement(rewrittenStatement, iterableEnv, isStrict, false);
+                        _statementIndex++;
+                        Run();
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        Fail(signal);
+                    }
+                },
+                advanceTopLevelStatement: false);
+        }
+
+        private bool TryEvaluateForAwaitOfSingleIterationWithAwaitedIterable(
+            ForEachStatement statement,
+            JsEnvironment env,
+            JsEnvironment loopEnv,
+            bool isStrict,
+            ExpressionNode bodyExpression)
+        {
+            return TryEvaluateExpressionWithAwait(
+                statement.Iterable,
+                env,
+                isStrict,
+                resolved =>
+                {
+                    try
+                    {
+#pragma warning disable CS0618 // Reuse the existing async iteration helpers for this TLA bridge.
+                        var getAsyncIterator = IterationHelper.CreateGetAsyncIteratorHelper(_engine);
+                        var iteratorValue = getAsyncIterator.Invoke([resolved], JsValue.Undefined);
+                        if (!iteratorValue.TryGetObject<IJsObjectLike>(out var iterator))
+                        {
+                            throw StandardLibrary.ThrowTypeError("for await iterator must be an object",
+                                realm: _engine.RealmState);
+                        }
+
+                        var iteratorNext = IterationHelper.CreateIteratorNextHelper(_engine);
+#pragma warning restore CS0618
+                        var nextResult = iteratorNext.Invoke([iteratorValue], JsValue.Undefined);
+                        var onNextFulfilled = new HostFunction(args =>
+                        {
+                            if (_completion.Task.IsCompleted)
+                            {
+                                return JsValue.Null;
+                            }
+
+                            try
+                            {
+                                var resultValue = args.GetArgument(0);
+                                if (!resultValue.TryGetObjectLike(out var resultObject))
+                                {
+                                    throw StandardLibrary.ThrowTypeError(
+                                        "for await iterator result must be an object",
+                                        realm: _engine.RealmState);
+                                }
+
+                                if (resultObject.TryGetProperty("done", out var doneValue) &&
+                                    JsOps.ToBoolean(doneValue))
+                                {
+                                    CompleteForAwaitStatement();
+                                    return JsValue.Null;
+                                }
+
+                                var value = resultObject.TryGetProperty("value", out var valueProperty)
+                                    ? valueProperty
+                                    : JsValue.Undefined;
+                                AssignSimpleForAwaitLoopValue(statement, loopEnv, value);
+
+                                if (!TryEvaluateExpressionWithAwait(
+                                        bodyExpression,
+                                        loopEnv,
+                                        isStrict,
+                                        _ => CompleteForAwaitStatement(),
+                                        advanceTopLevelStatement: false))
+                                {
+                                    return JsValue.Null;
+                                }
+
+                                CompleteForAwaitStatement();
+                            }
+                            catch (ThrowSignal signal)
+                            {
+                                Fail(signal);
+                            }
+                            catch (Exception ex)
+                            {
+                                Fail(ex);
+                            }
+
+                            return JsValue.Null;
+                        });
+
+                        TryAwaitResolvedValue(nextResult, onNextFulfilled);
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        Fail(signal);
+                    }
+                    catch (Exception ex)
+                    {
+                        Fail(ex);
+                    }
+                },
+                advanceTopLevelStatement: false);
+
+            void CompleteForAwaitStatement()
+            {
+                _statementIndex++;
+                Run();
+            }
+        }
+
+        private static bool TryGetAwaitThenBreakBodyExpression(StatementNode body, out ExpressionNode expression)
+        {
+            if (body is BlockStatement
+                {
+                    Statements:
+                    [
+                        ExpressionStatement { Expression: var bodyExpression },
+                        BreakStatement { Label: null }
+                    ]
+                } &&
+                AstShapeAnalyzer.ContainsAwait(bodyExpression))
+            {
+                expression = bodyExpression;
+                return true;
+            }
+
+            expression = null!;
+            return false;
+        }
+
+        private static bool TryPrepareSimpleForAwaitLoopEnvironment(
+            ForEachStatement statement,
+            JsEnvironment env,
+            bool isStrict,
+            out JsEnvironment loopEnv)
+        {
+            if (statement.Target is AssignmentTargetBinding { Expression: IdentifierExpression })
+            {
+                loopEnv = env;
+                return statement.DeclarationKind is null;
+            }
+
+            if (statement.Target is not IdentifierBinding identifierBinding)
+            {
+                loopEnv = env;
+                return false;
+            }
+
+            switch (statement.DeclarationKind)
+            {
+                case null:
+                case VariableKind.Var:
+                    loopEnv = env;
+                    if (statement.DeclarationKind == VariableKind.Var)
+                    {
+                        HoistVarBinding(identifierBinding, loopEnv);
+                    }
+
+                    return true;
+                case VariableKind.Let:
+                case VariableKind.Const:
+                case VariableKind.Using:
+                case VariableKind.AwaitUsing:
+                    loopEnv = JsEnvironment.CreateInstance(
+                        env,
+                        isStrict: isStrict,
+                        creatingSource: statement.Source,
+                        description: "async for-await iteration scope");
+                    return true;
+                default:
+                    loopEnv = env;
+                    return false;
+            }
+        }
+
+        private void AssignSimpleForAwaitLoopValue(
+            ForEachStatement statement,
+            JsEnvironment loopEnv,
+            JsValue value)
+        {
+            switch (statement.Target)
+            {
+                case AssignmentTargetBinding { Expression: IdentifierExpression identifierExpression }:
+                    loopEnv.AssignJsValue(identifierExpression.Name, value);
+                    break;
+                case IdentifierBinding identifierBinding:
+                    if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
+                        or VariableKind.AwaitUsing)
+                    {
+                        loopEnv.DefineJsValue(
+                            identifierBinding.Name,
+                            value,
+                            statement.DeclarationKind is VariableKind.Const or VariableKind.Using
+                                or VariableKind.AwaitUsing,
+                            isLexicalBinding: true,
+                            blocksFunctionScopeOverride: true);
+                    }
+                    else
+                    {
+                        loopEnv.AssignJsValue(identifierBinding.Name, value);
+                    }
+
+                    break;
+                default:
+                    throw new NotSupportedException(
+                        $"Async module execution does not support for-await target '{statement.Target.GetType().Name}' in awaited iterable loops.");
+            }
+        }
+
         private bool TryEvaluateForEachStatementWithAwait(ForEachStatement statement, JsEnvironment env, bool isStrict)
         {
             // for...of or for...in with await somewhere in iterable expression or body
             // The iterable might contain await, or the body might
             if (AstShapeAnalyzer.ContainsAwait(statement.Iterable))
             {
-                if (statement.Body is BlockStatement bodyBlock &&
-                    bodyBlock.Statements.Length == 2 &&
-                    bodyBlock.Statements[0] is ExpressionStatement awaitedBodyStatement &&
-                    AstShapeAnalyzer.StatementContainsAwait(awaitedBodyStatement) &&
-                    bodyBlock.Statements[1] is BreakStatement &&
-                    statement.Target is IdentifierBinding)
-                {
-                    _statementIndex++;
-                    Run();
-                    return true;
-                }
-
                 if (statement.Body is BlockStatement bodyBlock2 &&
                     bodyBlock2.Statements.Length == 2 &&
                     bodyBlock2.Statements[0] is ExpressionStatement awaitedBodyStatement2 &&

@@ -1132,6 +1132,36 @@ export default function() { return 23; };
         Assert.Equal(42.0, result);
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task TopLevelAwait_ForAwaitOfAwaitedIterableAndBodyUsesAsyncIteratorPath()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.EvaluateModule("""
+                                                 var binding = 0;
+                                                 var sum = 0;
+
+                                                 for await (binding of [await Promise.resolve(1)]) {
+                                                   sum += await Promise.resolve(binding);
+                                                   break;
+                                                 }
+
+                                                 for await (var varBinding of [await Promise.resolve(2)]) {
+                                                   sum += await Promise.resolve(varBinding);
+                                                   break;
+                                                 }
+
+                                                 for await (let letBinding of [await Promise.resolve(3)]) {
+                                                   sum += await Promise.resolve(letBinding);
+                                                   break;
+                                                 }
+
+                                                 sum
+                                                 """);
+
+        Assert.Equal(6.0, result);
+    }
+
     [Fact(Timeout = 5000, Skip = "hangs indefinitely")]
     public async Task TopLevelAwait_ForAwaitOf()
     {

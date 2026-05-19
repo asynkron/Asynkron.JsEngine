@@ -440,7 +440,9 @@ internal static class ExpressionProgramCompiler
 
                     case MemberExpression { Target: SuperExpression } superDelete:
                         // Per ES spec 13.5.1.2: delete on a super reference always throws ReferenceError.
-                        // Evaluate the property expression for side effects, then throw.
+                        // Resolve the super reference first; computed property expressions are only evaluated
+                        // after the derived constructor has initialized this.
+                        builder.Add(PackedExpressionOp.EnsureSuperReference);
                         if (superDelete.IsComputed)
                         {
                             if (!TryCompileExpression(superDelete.Property, builder, out failureReason))

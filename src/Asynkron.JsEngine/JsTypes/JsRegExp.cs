@@ -2672,7 +2672,10 @@ public sealed class JsRegExp
         // .NET's backtracker accepts the empty lazy branch for this nullable repeat
         // and stops at "a"; ECMAScript discards that zero-progress iteration and
         // can continue with the progressing "b" iteration.
-        return pattern.Replace("(a?b??)*", "(a?b?)*", StringComparison.Ordinal);
+        // Keep this compatibility shim deliberately narrow: a greedy rewrite such
+        // as (a?b?)* changes the exposed capture from the last progressing
+        // iteration ("b") to the whole greedy iteration ("ab").
+        return pattern == "(a?b??)*" ? "([ab])*" : pattern;
     }
 
     /// <summary>

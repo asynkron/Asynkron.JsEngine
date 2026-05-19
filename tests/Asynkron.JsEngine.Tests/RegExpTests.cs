@@ -1027,9 +1027,15 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
-            /(a?b??)*/.exec("ab")[0];
+            var inputs = ["", "a", "b", "ab", "abb", "aba", "ba", "aaab", "abc", "c"];
+            inputs.map(function(input) {
+              var match = /(a?b??)*/.exec(input);
+              return match[0] + ":" + (match[1] === undefined ? "undefined" : match[1]) + ":" + match.index;
+            }).join("|");
         """);
 
-        Assert.Equal("ab", result);
+        Assert.Equal(
+            ":undefined:0|a:a:0|b:b:0|ab:b:0|abb:b:0|aba:a:0|ba:a:0|aaab:b:0|ab:b:0|:undefined:0",
+            result);
     }
 }

@@ -57,7 +57,10 @@ internal static class IntlNumberFormatter
 
     public static IntlNumberFormatResult? TryFormatDecimalString(string value, IntlNumberFormatInternalSlots slots)
     {
-        if (!DecimalQuantity.TryFromString(value, out var quantity))
+        var preserveLargeScale =
+            string.Equals(slots.Notation, "scientific", StringComparison.Ordinal) ||
+            string.Equals(slots.Notation, "engineering", StringComparison.Ordinal);
+        if (!DecimalQuantity.TryFromString(value, preserveLargeScale, out var quantity))
         {
             return null;
         }
@@ -1757,6 +1760,7 @@ internal static class IntlNumberFormatter
 
         public static bool TryFromString(
             string value,
+            bool preserveLargeScale,
             [NotNullWhen(true)] out DecimalQuantity? quantity)
         {
             quantity = null;
@@ -1847,7 +1851,7 @@ internal static class IntlNumberFormatter
                 coefficient *= Pow10((int)zerosToAppend);
                 scale = 0;
             }
-            else if (scale > MaxExactDecimalStringDigits)
+            else if (scale > int.MaxValue || (!preserveLargeScale && scale > MaxExactDecimalStringDigits))
             {
                 return false;
             }

@@ -41,4 +41,22 @@ public sealed class IntlNumberFormatTests(ITestOutputHelper output) : InternalTe
 
         Assert.True(Assert.IsType<bool>(result));
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task FormatTinyDecimalStringScientificNotationPreservesExponent()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            (function () {
+                var nf = new Intl.NumberFormat("en-US", {
+                    notation: "scientific",
+                    maximumFractionDigits: 20
+                });
+                return nf.format("1e-1001");
+            })()
+            """);
+
+        Assert.Equal("1E-1001", Assert.IsType<string>(result));
+    }
 }

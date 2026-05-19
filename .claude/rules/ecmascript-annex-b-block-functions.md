@@ -1,8 +1,9 @@
 # ECMAScript Annex B Block Functions
 
-When changing function declaration instantiation, block emission, direct slot
-reads, or sloppy/strict scope handling, keep Annex B block-level function
-declarations runtime-bound.
+When changing parser block-declaration validation, function declaration
+instantiation, block emission, direct slot reads, or sloppy/strict scope
+handling, keep Annex B block-level function declarations runtime-bound and keep
+parse-phase redeclaration checks scoped to the correct syntactic container.
 
 ## Rules
 
@@ -21,10 +22,24 @@ declarations runtime-bound.
 5. Preserve strict-mode and blocked-name behavior. Strict functions and Annex B
    cases blocked by intervening lexical declarations must not receive the sloppy
    outer-binding update.
-6. Prove this class with focused coverage: the Test262
+6. Parser-time block redeclaration checks must distinguish ordinary blocks,
+   function bodies, and class static blocks. Ordinary non-function blocks treat
+   direct block function declarations as lexical names for the
+   LexicallyDeclaredNames-vs-VarDeclaredNames early error. Function bodies skip
+   that block-level check, and class static blocks keep `let`/`const`/`class`
+   conflicts with `var` while allowing direct `function f() {}` plus `var f`.
+7. Var-declared-name collection for parser early errors may recurse through
+   same-function statement bodies such as nested blocks, branches, loops, switch
+   cases, and try/catch/finally, but must not enter nested function bodies or
+   class bodies.
+8. Do not move static parse-phase redeclaration failures into runtime hoisting,
+   IR lowering, Test262 harness policy, or generated Test262 files.
+9. Prove this class with focused coverage: the Test262
    `Name=Language_functionCode` method group or exact failing files, plus local
-   strict/sloppy block function tests. Do not use broad harness policy or a full
-   Test262 run as a substitute for the semantic proof.
+   strict/sloppy block function tests. For parse-phase block redeclaration
+   issues, include local block-scope parser regressions plus the exact
+   `Name=BlockScope_syntax_redeclaration` method group. Do not use broad
+   harness policy or a full Test262 run as a substitute for the semantic proof.
 
 ## Why
 
@@ -36,3 +51,12 @@ optimized direct-slot/flat-slot paths could keep reading stale outer values.
 Future work in this area must treat Annex B block functions as runtime updates
 with multiple backing storage representations, while keeping strict mode block
 scoping intact.
+
+Issue #1022 / PR #1095 fixed the
+`BlockScope_syntax_redeclaration` negative parse-phase crash by adding a
+parser-owned LexicallyDeclaredNames-vs-VarDeclaredNames check for block
+statement lists. The review bounce showed why future work must keep the
+syntactic boundary precise: class static blocks still reject lexical
+declarations that conflict with `var`, but direct function declarations inside a
+static block are not part of that lexical-name side for `function f() {}` plus
+`var f`.

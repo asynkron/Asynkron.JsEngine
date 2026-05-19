@@ -32,6 +32,17 @@ public sealed partial class IntlDateTimeFormatPrototype
         DateTimeOffset DateTime,
         string Calendar);
 
+    private readonly record struct ProlepticDateTime(
+        int Year,
+        int Month,
+        int Day,
+        int Weekday,
+        int Hour,
+        int Minute,
+        int Second,
+        int Millisecond,
+        TimeSpan Offset);
+
     internal static void InitializeInternalSlots(JsObject instance, DateTimeFormatInternalSlots slots)
     {
         instance.SetProperty(BrandKey, true);
@@ -703,8 +714,42 @@ public sealed partial class IntlDateTimeFormatPrototype
     private static JsValue FormatEpoch(double epochMilliseconds, DateTimeFormatInternalSlots slots,
         string? displayTimeZoneId = null)
     {
+        if (ShouldUseProlepticGregorianFormatting(epochMilliseconds, slots) &&
+            TryCreateProlepticDateTime(epochMilliseconds, slots.TimeZone, out var prolepticDateTime))
+        {
+            return FormatResolvedProlepticDateTime(prolepticDateTime, slots, displayTimeZoneId);
+        }
+
         var dto = ToDateTimeOffset(epochMilliseconds, slots.TimeZone);
         return FormatResolvedDateTime(dto, slots, displayTimeZoneId);
+    }
+
+    private static bool ShouldUseProlepticGregorianFormatting(double epochMilliseconds, DateTimeFormatInternalSlots slots)
+    {
+        if (double.IsNaN(epochMilliseconds) || double.IsInfinity(epochMilliseconds) ||
+            !string.Equals(slots.Calendar, "gregory", StringComparison.OrdinalIgnoreCase) ||
+            slots.DateStyle is not null || slots.TimeStyle is not null)
+        {
+            return false;
+        }
+
+        // .NET DateTimeOffset range is narrower than ECMAScript's TimeClip range.
+        // Keep the existing DTO path for ordinary dates and only switch where it would clamp.
+        const double dotNetMinMs = -62135596800000d;
+        const double dotNetMaxMs = 253402300799999d;
+        return epochMilliseconds < dotNetMinMs || epochMilliseconds > dotNetMaxMs;
+    }
+
+    private static JsValue FormatResolvedProlepticDateTime(ProlepticDateTime dateTime,
+        DateTimeFormatInternalSlots slots, string? displayTimeZoneId = null)
+    {
+        var culture = IntlUtilities.ResolveCulture(slots.Locale);
+        var result = slots.Components.Count > 0
+            ? FormatWithComponents(dateTime, slots, culture, displayTimeZoneId)
+            : FormatDefault(dateTime, culture);
+
+        result = IntlUtilities.TranslateDigits(result, slots.NumberingSystem);
+        return new JsValue(result);
     }
 
     private static JsValue FormatResolvedDateTime(DateTimeOffset dto, DateTimeFormatInternalSlots slots,
@@ -1366,11 +1411,126 @@ public sealed partial class IntlDateTimeFormatPrototype
         return sb.ToString();
     }
 
+    private static string FormatWithComponents(ProlepticDateTime dateTime, DateTimeFormatInternalSlots slots,
+        CultureInfo culture, string? displayTimeZoneId)
+    {
+        var sb = new StringBuilder();
+        var components = slots.Components;
+        var addedSomething = false;
+
+        if (components.TryGetValue("weekday", out var weekday))
+        {
+            AppendSeparator(sb, ref addedSomething);
+            sb.Append(FormatWeekday(dateTime, weekday, culture));
+        }
+
+        if (components.TryGetValue("era", out var era))
+        {
+            AppendSeparator(sb, ref addedSomething);
+            sb.Append(FormatEra(dateTime, era));
+        }
+
+        var hasYear = components.TryGetValue("year", out var year);
+        var hasMonth = components.TryGetValue("month", out var month);
+        var hasDay = components.TryGetValue("day", out var day);
+
+        if (hasYear || hasMonth || hasDay)
+        {
+            AppendSeparator(sb, ref addedSomething);
+            var (order, numericSep) = ParseLocaleDateOrder(culture);
+            var dateStr = FormatLocaleDateString(dateTime, culture, order, numericSep,
+                hasYear, year, hasMonth, month, hasDay, day);
+            sb.Append(dateStr);
+        }
+
+        if (components.TryGetValue("dayPeriod", out var dayPeriod) && !components.ContainsKey("hour"))
+        {
+            AppendSeparator(sb, ref addedSomething);
+            sb.Append(GetDayPeriod(dateTime, dayPeriod));
+        }
+
+        string? pendingDayPeriod = null;
+        if (components.TryGetValue("hour", out var hour))
+        {
+            AppendSeparator(sb, ref addedSomething);
+            sb.Append(FormatHour(dateTime, hour, slots));
+
+            if (components.TryGetValue("dayPeriod", out var dp))
+            {
+                pendingDayPeriod = GetDayPeriod(dateTime, dp);
+            }
+            else if (slots.HourCycle is "h11" or "h12")
+            {
+                pendingDayPeriod = dateTime.Hour < 12 ? "AM" : "PM";
+            }
+        }
+
+        var forceMinSecPad = components.ContainsKey("minute") && components.ContainsKey("second");
+
+        if (components.TryGetValue("minute", out var minute))
+        {
+            if (components.ContainsKey("hour"))
+            {
+                sb.Append(':');
+            }
+            else
+            {
+                AppendSeparator(sb, ref addedSomething);
+            }
+
+            sb.Append(forceMinSecPad ? FormatMinute(dateTime, "2-digit") : FormatMinute(dateTime, minute));
+        }
+
+        if (components.TryGetValue("second", out var second))
+        {
+            if (components.ContainsKey("minute"))
+            {
+                sb.Append(':');
+            }
+            else
+            {
+                AppendSeparator(sb, ref addedSomething);
+            }
+
+            sb.Append(forceMinSecPad ? FormatSecond(dateTime, "2-digit") : FormatSecond(dateTime, second));
+        }
+
+        if (components.TryGetValue("fractionalSecondDigits", out var fsdStr) &&
+            int.TryParse(fsdStr, CultureInfo.InvariantCulture, out var fsd))
+        {
+            sb.Append(IntlUtilities.GetDecimalSeparator(slots.NumberingSystem));
+            var formatted = dateTime.Millisecond.ToString("D3", CultureInfo.InvariantCulture);
+            sb.Append(formatted[..fsd]);
+        }
+
+        if (pendingDayPeriod is not null)
+        {
+            sb.Append(' ');
+            sb.Append(pendingDayPeriod);
+        }
+
+        if (components.TryGetValue("timeZoneName", out var tzName))
+        {
+            AppendSeparator(sb, ref addedSomething);
+            sb.Append(GetTimeZoneDisplay(slots.DisplayTimeZone ?? displayTimeZoneId ?? slots.TimeZone, dateTime,
+                tzName is "long"));
+        }
+
+        return sb.ToString();
+    }
+
     private static string FormatDefault(DateTimeOffset dto, CultureInfo culture)
     {
         // When no components and no styles, use default: year, month, day with locale pattern
         var (order, separator) = ParseLocaleDateOrder(culture);
         return FormatLocaleDateString(dto, culture, order, separator,
+            true, "numeric", true, "numeric", true, "numeric");
+    }
+
+    private static string FormatDefault(ProlepticDateTime dateTime, CultureInfo culture)
+    {
+        var (order, separator) = ParseLocaleDateOrder(culture);
+        return FormatLocaleDateString(dateTime, culture, order, separator,
             true, "numeric", true, "numeric", true, "numeric");
     }
 
@@ -1522,6 +1682,64 @@ public sealed partial class IntlDateTimeFormatPrototype
         return sb.ToString();
     }
 
+    private static string FormatLocaleDateString(
+        ProlepticDateTime dateTime, CultureInfo culture, DateOrder order, string numericSep,
+        bool hasYear, string? yearWidth,
+        bool hasMonth, string? monthWidth,
+        bool hasDay, string? dayWidth)
+    {
+        var namedMonth = monthWidth is "long" or "short" or "narrow";
+
+        var yearStr = hasYear ? FormatYear(dateTime, yearWidth) : null;
+        var monthStr = hasMonth ? FormatMonth(dateTime, monthWidth, culture) : null;
+        var dayStr = hasDay ? FormatDay(dateTime, dayWidth) : null;
+
+        var parts = new List<(char ch, string value)>();
+        foreach (var c in GetDateComponentChars(order))
+        {
+            switch (c)
+            {
+                case 'M' when monthStr is not null:
+                    parts.Add(('M', monthStr));
+                    break;
+                case 'd' when dayStr is not null:
+                    parts.Add(('d', dayStr));
+                    break;
+                case 'y' when yearStr is not null:
+                    parts.Add(('y', yearStr));
+                    break;
+            }
+        }
+
+        if (parts.Count == 0)
+        {
+            return "";
+        }
+
+        if (parts.Count == 1)
+        {
+            return parts[0].value;
+        }
+
+        if (!namedMonth)
+        {
+            return string.Join(numericSep, parts.Select(p => p.value));
+        }
+
+        var sb = new StringBuilder();
+        for (var i = 0; i < parts.Count; i++)
+        {
+            if (i > 0)
+            {
+                sb.Append(GetNamedMonthSeparator(order, parts, i));
+            }
+
+            sb.Append(parts[i].value);
+        }
+
+        return sb.ToString();
+    }
+
     private static string GetNamedMonthSeparator(DateOrder order, List<(char ch, string value)> parts, int index)
     {
         // MDY: "Jan 3, 2019" → " " between M-d, ", " between d-y
@@ -1551,12 +1769,37 @@ public sealed partial class IntlDateTimeFormatPrototype
         };
     }
 
+    private static string FormatWeekday(ProlepticDateTime dateTime, string width, CultureInfo culture)
+    {
+        var dateTimeFormat = culture.DateTimeFormat;
+        var day = (DayOfWeek)dateTime.Weekday;
+        return width switch
+        {
+            "long" => dateTimeFormat.GetDayName(day),
+            "short" => dateTimeFormat.GetAbbreviatedDayName(day),
+            "narrow" => dateTimeFormat.GetShortestDayName(day),
+            _ => dateTimeFormat.GetDayName(day)
+        };
+    }
+
     private static string FormatEra(DateTimeOffset dto, string width)
     {
         var era = dto.Year > 0 ? "AD" : "BC";
         return width switch
         {
             "long" => dto.Year > 0 ? "Anno Domini" : "Before Christ",
+            "short" => era,
+            "narrow" => era[..1],
+            _ => era
+        };
+    }
+
+    private static string FormatEra(ProlepticDateTime dateTime, string width)
+    {
+        var era = dateTime.Year > 0 ? "AD" : "BC";
+        return width switch
+        {
+            "long" => dateTime.Year > 0 ? "Anno Domini" : "Before Christ",
             "short" => era,
             "narrow" => era[..1],
             _ => era
@@ -1572,6 +1815,16 @@ public sealed partial class IntlDateTimeFormatPrototype
         };
     }
 
+    private static string FormatYear(ProlepticDateTime dateTime, string? width)
+    {
+        var year = dateTime.Year <= 0 ? 1 - dateTime.Year : dateTime.Year;
+        return width switch
+        {
+            "2-digit" => (year % 100).ToString("D2", CultureInfo.InvariantCulture),
+            _ => year.ToString(CultureInfo.InvariantCulture)
+        };
+    }
+
     private static string FormatMonth(DateTimeOffset dto, string? width, CultureInfo culture)
     {
         return width switch
@@ -1584,12 +1837,33 @@ public sealed partial class IntlDateTimeFormatPrototype
         };
     }
 
+    private static string FormatMonth(ProlepticDateTime dateTime, string? width, CultureInfo culture)
+    {
+        return width switch
+        {
+            "long" => culture.DateTimeFormat.GetMonthName(dateTime.Month),
+            "short" => culture.DateTimeFormat.GetAbbreviatedMonthName(dateTime.Month),
+            "narrow" => culture.DateTimeFormat.GetMonthName(dateTime.Month)[..1],
+            "2-digit" => dateTime.Month.ToString("D2", CultureInfo.InvariantCulture),
+            _ => dateTime.Month.ToString(CultureInfo.InvariantCulture)
+        };
+    }
+
     private static string FormatDay(DateTimeOffset dto, string? width)
     {
         return width switch
         {
             "2-digit" => dto.Day.ToString("D2", CultureInfo.InvariantCulture),
             _ => dto.Day.ToString(CultureInfo.InvariantCulture)
+        };
+    }
+
+    private static string FormatDay(ProlepticDateTime dateTime, string? width)
+    {
+        return width switch
+        {
+            "2-digit" => dateTime.Day.ToString("D2", CultureInfo.InvariantCulture),
+            _ => dateTime.Day.ToString(CultureInfo.InvariantCulture)
         };
     }
 
@@ -1624,12 +1898,52 @@ public sealed partial class IntlDateTimeFormatPrototype
         };
     }
 
+    private static string FormatHour(ProlepticDateTime dateTime, string width, DateTimeFormatInternalSlots slots)
+    {
+        int hour;
+        if (slots.HourCycle is "h11")
+        {
+            hour = dateTime.Hour % 12;
+        }
+        else if (slots.HourCycle is "h12")
+        {
+            hour = dateTime.Hour % 12;
+            if (hour == 0)
+            {
+                hour = 12;
+            }
+        }
+        else if (slots.HourCycle is "h24")
+        {
+            hour = dateTime.Hour == 0 ? 24 : dateTime.Hour;
+        }
+        else
+        {
+            hour = dateTime.Hour;
+        }
+
+        return width switch
+        {
+            "2-digit" => hour.ToString("D2", CultureInfo.InvariantCulture),
+            _ => hour.ToString(CultureInfo.InvariantCulture)
+        };
+    }
+
     private static string FormatMinute(DateTimeOffset dto, string width)
     {
         return width switch
         {
             "2-digit" => dto.Minute.ToString("D2", CultureInfo.InvariantCulture),
             _ => dto.Minute.ToString(CultureInfo.InvariantCulture)
+        };
+    }
+
+    private static string FormatMinute(ProlepticDateTime dateTime, string width)
+    {
+        return width switch
+        {
+            "2-digit" => dateTime.Minute.ToString("D2", CultureInfo.InvariantCulture),
+            _ => dateTime.Minute.ToString(CultureInfo.InvariantCulture)
         };
     }
 
@@ -1642,12 +1956,33 @@ public sealed partial class IntlDateTimeFormatPrototype
         };
     }
 
+    private static string FormatSecond(ProlepticDateTime dateTime, string width)
+    {
+        return width switch
+        {
+            "2-digit" => dateTime.Second.ToString("D2", CultureInfo.InvariantCulture),
+            _ => dateTime.Second.ToString(CultureInfo.InvariantCulture)
+        };
+    }
+
     private static string GetDayPeriod(DateTimeOffset dto, string width)
     {
         var hour = dto.Hour;
 
         // Per CLDR day period rules for English
         // midnight = 0, morning = 6-12, noon = 12, afternoon = 12-18, evening = 18-21, night = 21-6
+        return width switch
+        {
+            "narrow" => GetDayPeriodNarrow(hour),
+            "short" => GetDayPeriodShort(hour),
+            "long" => GetDayPeriodLong(hour),
+            _ => hour < 12 ? "AM" : "PM"
+        };
+    }
+
+    private static string GetDayPeriod(ProlepticDateTime dateTime, string width)
+    {
+        var hour = dateTime.Hour;
         return width switch
         {
             "narrow" => GetDayPeriodNarrow(hour),
@@ -1775,6 +2110,38 @@ public sealed partial class IntlDateTimeFormatPrototype
         {
             return timeZoneId;
         }
+    }
+
+    private static string GetTimeZoneDisplay(string timeZoneId, ProlepticDateTime dateTime, bool longForm)
+    {
+        if (string.Equals(timeZoneId, "UTC", StringComparison.OrdinalIgnoreCase))
+        {
+            return longForm ? "Coordinated Universal Time" : "UTC";
+        }
+
+        if (timeZoneId.Length > 0 && (timeZoneId[0] == '+' || timeZoneId[0] == '-'))
+        {
+            if (TryParseTimeZoneOffset(timeZoneId, out var offset))
+            {
+                return FormatGmtOffset(offset);
+            }
+
+            return $"GMT{timeZoneId}";
+        }
+
+        if (dateTime.Offset != TimeSpan.Zero)
+        {
+            return FormatGmtOffset(dateTime.Offset);
+        }
+
+        return timeZoneId;
+    }
+
+    private static string FormatGmtOffset(TimeSpan offset)
+    {
+        var sign = offset >= TimeSpan.Zero ? "+" : "-";
+        var absolute = offset.Duration();
+        return $"GMT{sign}{absolute.Hours:D2}:{absolute.Minutes:D2}";
     }
 
     private static string? GetIanaTimeZoneLongName(string timeZoneId, DateTimeOffset dto, TimeZoneInfo tz)
@@ -2171,6 +2538,68 @@ public sealed partial class IntlDateTimeFormatPrototype
 
             parts.Push(CreateTypedPart(componentList[i].type, componentList[i].value));
             addedSomething = true;
+        }
+    }
+
+    private static bool TryCreateProlepticDateTime(double epochMs, string timeZoneId, out ProlepticDateTime dateTime)
+    {
+        dateTime = default;
+        if (double.IsNaN(epochMs) || double.IsInfinity(epochMs))
+        {
+            return false;
+        }
+
+        var offset = ResolveProlepticTimeZoneOffset(timeZoneId);
+        var localTime = Math.Truncate(epochMs) + offset.TotalMilliseconds;
+        if (double.IsNaN(localTime) || double.IsInfinity(localTime))
+        {
+            return false;
+        }
+
+        var year = DateHelper.YearFromTime(localTime);
+        if (double.IsNaN(year) || double.IsInfinity(year))
+        {
+            return false;
+        }
+
+        dateTime = new ProlepticDateTime(
+            (int)year,
+            DateHelper.MonthFromTime(localTime) + 1,
+            DateHelper.DateFromTime(localTime),
+            (int)DateHelper.WeekDayFromTime(localTime),
+            (int)DateHelper.HourFromTime(localTime),
+            (int)DateHelper.MinFromTime(localTime),
+            (int)DateHelper.SecFromTime(localTime),
+            (int)DateHelper.MsFromTime(localTime),
+            offset);
+        return true;
+    }
+
+    private static TimeSpan ResolveProlepticTimeZoneOffset(string timeZoneId)
+    {
+        if (string.Equals(timeZoneId, "UTC", StringComparison.OrdinalIgnoreCase))
+        {
+            return TimeSpan.Zero;
+        }
+
+        if (timeZoneId.Length > 0 && (timeZoneId[0] == '+' || timeZoneId[0] == '-') &&
+            TryParseTimeZoneOffset(timeZoneId, out var offset))
+        {
+            return offset;
+        }
+
+        try
+        {
+            if (!IntlUtilities.TryResolveTimeZoneId(timeZoneId, out var resolvedTimeZoneId))
+            {
+                return TimeSpan.Zero;
+            }
+
+            return TimeZoneInfo.FindSystemTimeZoneById(resolvedTimeZoneId).BaseUtcOffset;
+        }
+        catch
+        {
+            return TimeSpan.Zero;
         }
     }
 

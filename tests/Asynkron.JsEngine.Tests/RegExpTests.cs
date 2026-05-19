@@ -1033,6 +1033,26 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 5000)]
+    public async Task RegExp_Lookbehind_Backreference_WordBoundaryEscapesUseRegexFallback()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var boundary = /(?<=\1(\w)\b)-/.exec("xx-");
+            var nonBoundary = /(?<=\1(\w)\B)d/.exec("xxdd");
+            JSON.stringify([
+                boundary && boundary.index,
+                boundary && boundary[0],
+                boundary && boundary[1],
+                nonBoundary && nonBoundary.index,
+                nonBoundary && nonBoundary[0],
+                nonBoundary && nonBoundary[1]
+            ]);
+        """);
+
+        Assert.Equal("""[2,"-","x",2,"d","x"]""", result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task RegExp_Lookbehind_MutualRecursiveBackreferences()
     {
         await using var engine = CreateEngine();

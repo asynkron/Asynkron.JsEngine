@@ -1141,7 +1141,9 @@ public sealed class JsRegExp
                 'D' => new LookbehindRawAtom(EcmaNonDigitClass, _ignoreCase),
                 's' => new LookbehindRawAtom(EcmaWhitespaceClass, _ignoreCase),
                 'S' => new LookbehindRawAtom(EcmaNonWhitespaceClass, _ignoreCase),
-                _ => new LookbehindLiteralAtom(c, _ignoreCase)
+                '\\' or '/' or '^' or '$' or '.' or '*' or '+' or '?' or '(' or ')' or '[' or ']' or '{' or '}' or '|' =>
+                    new LookbehindLiteralAtom(c, _ignoreCase),
+                _ => throw new ParseException("Invalid regular expression: unsupported lookbehind escape.")
             };
         }
 

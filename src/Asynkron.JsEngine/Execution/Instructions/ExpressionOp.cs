@@ -25,6 +25,7 @@ internal enum ExpressionOpKind : byte
     RotateTopThreeRight,
     LoadThis,
     LoadNewTarget,
+    LoadImportMeta,
     LoadNamedCallTarget,
     LoadComputedCallTarget,
     LoadNamedSuperCallTarget,
@@ -164,6 +165,7 @@ internal readonly record struct ExpressionProgram
             ExpressionOpKind.RotateTopThreeRight => 0,
             ExpressionOpKind.LoadThis => 1,
             ExpressionOpKind.LoadNewTarget => 1,
+            ExpressionOpKind.LoadImportMeta => 1,
             ExpressionOpKind.LoadNamedCallTarget => 1,
             ExpressionOpKind.LoadComputedCallTarget => 0,
             ExpressionOpKind.LoadNamedSuperCallTarget => 2,
@@ -263,6 +265,7 @@ internal readonly struct PackedExpressionOp
     public static readonly PackedExpressionOp EnsureSuperReference = new(ExpressionOpKind.EnsureSuperReference);
     public static readonly PackedExpressionOp LoadThis = new(ExpressionOpKind.LoadThis);
     public static readonly PackedExpressionOp LoadNewTarget = new(ExpressionOpKind.LoadNewTarget);
+    public static readonly PackedExpressionOp LoadImportMeta = new(ExpressionOpKind.LoadImportMeta);
     public static readonly PackedExpressionOp DuplicateTop = new(ExpressionOpKind.DuplicateTop);
     public static readonly PackedExpressionOp DuplicateTopTwo = new(ExpressionOpKind.DuplicateTopTwo);
     public static readonly PackedExpressionOp SwapTopTwo = new(ExpressionOpKind.SwapTopTwo);

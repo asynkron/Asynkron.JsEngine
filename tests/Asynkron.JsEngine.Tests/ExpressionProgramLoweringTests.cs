@@ -373,6 +373,18 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public void ImportMetaExpression_IsLoweredToExpressionProgram()
+    {
+        var expression = new ImportMetaExpression(Source: null);
+
+        var compiled = ExpressionProgramCompiler.TryCompile(expression, out var program, out var failureReason);
+
+        Assert.True(compiled, failureReason);
+        Assert.Equal(1, program.MaxStackDepth);
+        AssertProgramContains<LoadImportMetaExpressionOp>(program);
+    }
+
+    [Fact]
     public async Task ExpressionStatement_AwaitedExpression_UsesSyntheticAwaitedTemp()
     {
         var plan = await GetFunctionPlan("""

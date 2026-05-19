@@ -145,6 +145,11 @@ internal static class ExpressionProgramCompiler
                 failureReason = null;
                 return true;
 
+            case ImportMetaExpression:
+                builder.Add(PackedExpressionOp.LoadImportMeta);
+                failureReason = null;
+                return true;
+
             case RegexLiteralExpression regex:
                 builder.Add(PackedExpressionOp.LoadRegexLiteral(builder.InternString(regex.Pattern), regex.Flags));
                 failureReason = null;

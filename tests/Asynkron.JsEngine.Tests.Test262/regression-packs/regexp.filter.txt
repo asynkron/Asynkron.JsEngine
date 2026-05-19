@@ -15,8 +15,6 @@ FullyQualifiedName~RegExp&FullyQualifiedName~character-class-escape-non-whitespa
 FullyQualifiedName~RegExp&FullyQualifiedName~lookahead-quantifier-match-groups.js
 FullyQualifiedName~RegExp&FullyQualifiedName~nullable-quantifier.js
 FullyQualifiedName~RegExp&FullyQualifiedName~unicode_full_case_folding.js
-FullyQualifiedName~RegExp_lookBehind&FullyQualifiedName~back-references-to-captures.js
-FullyQualifiedName~RegExp_lookBehind&FullyQualifiedName~mutual-recursive.js
 FullyQualifiedName~RegExp_propertyEscapes&FullyQualifiedName~special-property-value-Script_Extensions-Unknown.js
 FullyQualifiedName~RegExp_propertyEscapes_generated&FullyQualifiedName~Assigned.js
 FullyQualifiedName~RegExp_propertyEscapes_generated&FullyQualifiedName~General_Category_-_Other.js

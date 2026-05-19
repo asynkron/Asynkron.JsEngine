@@ -301,6 +301,26 @@ public sealed class JsRegExp
             return false;
         }
 
+        if (TryExecPositiveLookbehindBackref(input, startIndex, out var lookbehindMatch, out var lookbehindHandled))
+        {
+            if (Global || Sticky)
+            {
+                SetLastIndexStrict(lookbehindMatch.Index + lookbehindMatch.Value.Length);
+            }
+
+            return true;
+        }
+
+        if (lookbehindHandled)
+        {
+            if (Global || Sticky)
+            {
+                SetLastIndexStrict(0);
+            }
+
+            return false;
+        }
+
         var match = EnsureRegex().Match(input, startIndex);
 
         // Sticky: match must start exactly at startIndex.
@@ -341,6 +361,26 @@ public sealed class JsRegExp
         var startIndex = Global || Sticky ? lastIndex : 0;
 
         if (startIndex > input.Length)
+        {
+            if (Global || Sticky)
+            {
+                SetLastIndexStrict(0);
+            }
+
+            return null;
+        }
+
+        if (TryExecPositiveLookbehindBackref(input, startIndex, out var lookbehindMatch, out var lookbehindHandled))
+        {
+            if (Global || Sticky)
+            {
+                SetLastIndexStrict(lookbehindMatch.Index + lookbehindMatch.Value.Length);
+            }
+
+            return CreateLookbehindBackrefMatchArray(lookbehindMatch, input);
+        }
+
+        if (lookbehindHandled)
         {
             if (Global || Sticky)
             {
@@ -395,6 +435,788 @@ public sealed class JsRegExp
         }
 
         return result;
+    }
+
+    private bool TryExecPositiveLookbehindBackref(
+        string input,
+        int startIndex,
+        out LookbehindBackrefMatch result,
+        out bool handled)
+    {
+        result = default;
+        handled = false;
+
+        if (Unicode || UnicodeSets ||
+            !TrySplitLeadingPositiveLookbehind(Pattern, out var lookbehind, out var tail) ||
+            !ContainsNumericBackreference(lookbehind) ||
+            CountLegacyCaptures(tail) != 0 ||
+            !LookbehindPatternParser.TryParse(lookbehind, DotAll, IgnoreCase, out var parsedLookbehind))
+        {
+            return false;
+        }
+
+        handled = true;
+        var normalizedTail = NormalizeLegacyPattern(tail, IgnoreCase, DotAll, Multiline);
+        var options = RegexOptions.CultureInvariant;
+        if (IgnoreCase)
+        {
+            options |= RegexOptions.IgnoreCase;
+        }
+
+        if (Multiline)
+        {
+            options |= RegexOptions.Multiline;
+        }
+
+        var tailRegex = new Regex(CapLargeQuantifiers(normalizedTail), options);
+        var firstIndex = startIndex;
+        var lastIndex = Sticky ? startIndex : input.Length;
+
+        for (var index = firstIndex; index <= lastIndex; index++)
+        {
+            var tailMatch = tailRegex.Match(input, index);
+            if (!tailMatch.Success)
+            {
+                return false;
+            }
+
+            if (tailMatch.Index != index)
+            {
+                if (Sticky)
+                {
+                    return false;
+                }
+
+                index = tailMatch.Index - 1;
+                continue;
+            }
+
+            foreach (var lookbehindMatch in parsedLookbehind.Match(input, index))
+            {
+                var captures = new JsValue[parsedLookbehind.CaptureCount];
+                for (var captureIndex = 0; captureIndex < captures.Length; captureIndex++)
+                {
+                    captures[captureIndex] = lookbehindMatch.Captures[captureIndex] is { } capture
+                        ? new JsValue(capture)
+                        : JsValue.Undefined;
+                }
+
+                result = new LookbehindBackrefMatch(index, tailMatch.Value, captures);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private JsArray CreateLookbehindBackrefMatchArray(LookbehindBackrefMatch match, string input)
+    {
+        var result = new JsArray(RealmState);
+        result.Push(new JsValue(match.Value));
+
+        foreach (var capture in match.Captures)
+        {
+            result.Push(capture);
+        }
+
+        result.DefineProperty("index",
+            new PropertyDescriptor
+            {
+                Value = (double)match.Index, Writable = true, Enumerable = true, Configurable = true
+            });
+        result.DefineProperty("input",
+            new PropertyDescriptor
+            {
+                Value = new JsValue(input), Writable = true, Enumerable = true, Configurable = true
+            });
+        result.DefineProperty("groups", new PropertyDescriptor
+        {
+            Value = JsValue.Undefined,
+            Writable = true,
+            Enumerable = true,
+            Configurable = true
+        });
+
+        if (HasIndices)
+        {
+            var indices = new JsArray(RealmState);
+            indices.Push(CreateIndexPair(match.Index, match.Index + match.Value.Length));
+            foreach (var capture in match.Captures)
+            {
+                indices.Push(capture == JsValue.Undefined ? JsValue.Undefined : CreateIndexPair(-1, -1));
+            }
+
+            result.DefineProperty("indices", new PropertyDescriptor
+            {
+                Value = JsValue.FromJsArray(indices),
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
+            });
+        }
+
+        return result;
+    }
+
+    private JsArray CreateIndexPair(int start, int end)
+    {
+        var pair = new JsArray(RealmState);
+        pair.Push((double)start);
+        pair.Push((double)end);
+        return pair;
+    }
+
+    private static bool TrySplitLeadingPositiveLookbehind(string pattern, out string lookbehind, out string tail)
+    {
+        lookbehind = string.Empty;
+        tail = string.Empty;
+
+        if (!pattern.StartsWith("(?<=", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var depth = 1;
+        var inCharClass = false;
+        var escaped = false;
+        for (var i = 4; i < pattern.Length; i++)
+        {
+            var c = pattern[i];
+            if (escaped)
+            {
+                escaped = false;
+                continue;
+            }
+
+            if (c == '\\')
+            {
+                escaped = true;
+                continue;
+            }
+
+            if (inCharClass)
+            {
+                if (c == ']')
+                {
+                    inCharClass = false;
+                }
+
+                continue;
+            }
+
+            if (c == '[')
+            {
+                inCharClass = true;
+                continue;
+            }
+
+            if (c == '(')
+            {
+                depth++;
+                continue;
+            }
+
+            if (c != ')')
+            {
+                continue;
+            }
+
+            depth--;
+            if (depth == 0)
+            {
+                lookbehind = pattern[4..i];
+                tail = pattern[(i + 1)..];
+                return tail.Length > 0;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ContainsNumericBackreference(string pattern)
+    {
+        var inCharClass = false;
+        var escaped = false;
+        for (var i = 0; i < pattern.Length; i++)
+        {
+            var c = pattern[i];
+            if (escaped)
+            {
+                escaped = false;
+                if (!inCharClass && char.IsDigit(c) && c != '0')
+                {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if (c == '\\')
+            {
+                escaped = true;
+                continue;
+            }
+
+            if (inCharClass)
+            {
+                if (c == ']')
+                {
+                    inCharClass = false;
+                }
+
+                continue;
+            }
+
+            if (c == '[')
+            {
+                inCharClass = true;
+            }
+        }
+
+        return false;
+    }
+
+    private readonly record struct LookbehindBackrefMatch(int Index, string Value, JsValue[] Captures);
+
+    private readonly record struct LookbehindMatchState(int Position, string?[] Captures);
+
+    private sealed class LookbehindPattern
+    {
+        public LookbehindPattern(LookbehindDisjunction root, int captureCount)
+        {
+            Root = root;
+            CaptureCount = captureCount;
+        }
+
+        public LookbehindDisjunction Root { get; }
+
+        public int CaptureCount { get; }
+
+        public IEnumerable<LookbehindMatchState> Match(string input, int endIndex)
+        {
+            var captures = new string?[CaptureCount];
+            foreach (var state in Root.Match(input, endIndex, captures))
+            {
+                yield return state;
+            }
+        }
+    }
+
+    private sealed class LookbehindDisjunction
+    {
+        public LookbehindDisjunction(List<LookbehindSequence> alternatives)
+        {
+            Alternatives = alternatives;
+        }
+
+        private List<LookbehindSequence> Alternatives { get; }
+
+        public IEnumerable<LookbehindMatchState> Match(string input, int position, string?[] captures)
+        {
+            foreach (var alternative in Alternatives)
+            {
+                foreach (var state in alternative.Match(input, position, captures))
+                {
+                    yield return state;
+                }
+            }
+        }
+    }
+
+    private sealed class LookbehindSequence
+    {
+        public LookbehindSequence(List<LookbehindAtom> atoms)
+        {
+            Atoms = atoms;
+        }
+
+        private List<LookbehindAtom> Atoms { get; }
+
+        public IEnumerable<LookbehindMatchState> Match(string input, int position, string?[] captures)
+        {
+            foreach (var state in MatchFrom(Atoms.Count - 1, input, position, captures))
+            {
+                yield return state;
+            }
+        }
+
+        private IEnumerable<LookbehindMatchState> MatchFrom(int atomIndex, string input, int position, string?[] captures)
+        {
+            if (atomIndex < 0)
+            {
+                yield return new LookbehindMatchState(position, captures);
+                yield break;
+            }
+
+            foreach (var atomState in Atoms[atomIndex].Match(input, position, captures))
+            {
+                foreach (var state in MatchFrom(atomIndex - 1, input, atomState.Position, atomState.Captures))
+                {
+                    yield return state;
+                }
+            }
+        }
+    }
+
+    private abstract class LookbehindAtom
+    {
+        public string Quantifier { get; set; } = string.Empty;
+
+        public IEnumerable<LookbehindMatchState> Match(string input, int position, string?[] captures)
+        {
+            var (min, max) = ParseQuantifierBounds(Quantifier, input.Length);
+            var levels = new List<List<LookbehindMatchState>>
+            {
+                new() { new LookbehindMatchState(position, captures) }
+            };
+
+            for (var count = 0; count < max; count++)
+            {
+                var nextLevel = new List<LookbehindMatchState>();
+                var consumed = false;
+                foreach (var state in levels[count])
+                {
+                    foreach (var next in MatchOne(input, state.Position, state.Captures))
+                    {
+                        consumed |= next.Position != state.Position;
+                        nextLevel.Add(next);
+                    }
+                }
+
+                if (nextLevel.Count == 0)
+                {
+                    break;
+                }
+
+                levels.Add(nextLevel);
+                if (!consumed)
+                {
+                    break;
+                }
+            }
+
+            for (var count = levels.Count - 1; count >= min; count--)
+            {
+                foreach (var state in levels[count])
+                {
+                    yield return state;
+                }
+            }
+        }
+
+        protected abstract IEnumerable<LookbehindMatchState> MatchOne(string input, int position, string?[] captures);
+
+        private static (int Min, int Max) ParseQuantifierBounds(string quantifier, int inputLength)
+        {
+            if (quantifier.Length == 0)
+            {
+                return (1, 1);
+            }
+
+            var lazyMarkerLength = quantifier.EndsWith("?", StringComparison.Ordinal) && quantifier.Length > 1 ? 1 : 0;
+            var greedyPart = lazyMarkerLength == 0 ? quantifier : quantifier[..^1];
+            return greedyPart switch
+            {
+                "?" => (0, 1),
+                "*" => (0, inputLength),
+                "+" => (1, inputLength),
+                _ => ParseBoundedQuantifier(greedyPart, inputLength)
+            };
+        }
+
+        private static (int Min, int Max) ParseBoundedQuantifier(string quantifier, int inputLength)
+        {
+            if (!quantifier.StartsWith("{", StringComparison.Ordinal) || !quantifier.EndsWith("}", StringComparison.Ordinal))
+            {
+                return (1, 1);
+            }
+
+            var inner = quantifier[1..^1];
+            var commaIndex = inner.IndexOf(',');
+            if (commaIndex < 0)
+            {
+                var exact = int.Parse(inner, NumberStyles.None, CultureInfo.InvariantCulture);
+                return (exact, exact);
+            }
+
+            var min = commaIndex == 0
+                ? 0
+                : int.Parse(inner[..commaIndex], NumberStyles.None, CultureInfo.InvariantCulture);
+            var max = commaIndex == inner.Length - 1
+                ? inputLength
+                : int.Parse(inner[(commaIndex + 1)..], NumberStyles.None, CultureInfo.InvariantCulture);
+            return (min, Math.Min(max, inputLength));
+        }
+    }
+
+    private sealed class LookbehindCaptureAtom : LookbehindAtom
+    {
+        public LookbehindCaptureAtom(int number, LookbehindDisjunction body)
+        {
+            Number = number;
+            Body = body;
+        }
+
+        private int Number { get; }
+
+        private LookbehindDisjunction Body { get; }
+
+        protected override IEnumerable<LookbehindMatchState> MatchOne(string input, int position, string?[] captures)
+        {
+            foreach (var state in Body.Match(input, position, captures))
+            {
+                var nextCaptures = (string?[])state.Captures.Clone();
+                nextCaptures[Number - 1] = input[state.Position..position];
+                yield return new LookbehindMatchState(state.Position, nextCaptures);
+            }
+        }
+    }
+
+    private sealed class LookbehindNonCaptureAtom : LookbehindAtom
+    {
+        public LookbehindNonCaptureAtom(LookbehindDisjunction body)
+        {
+            Body = body;
+        }
+
+        private LookbehindDisjunction Body { get; }
+
+        protected override IEnumerable<LookbehindMatchState> MatchOne(string input, int position, string?[] captures)
+        {
+            foreach (var state in Body.Match(input, position, captures))
+            {
+                yield return state;
+            }
+        }
+    }
+
+    private sealed class LookbehindRawAtom : LookbehindAtom
+    {
+        public LookbehindRawAtom(string pattern, bool ignoreCase)
+        {
+            Pattern = pattern;
+            IgnoreCase = ignoreCase;
+        }
+
+        private string Pattern { get; }
+
+        private bool IgnoreCase { get; }
+
+        protected override IEnumerable<LookbehindMatchState> MatchOne(string input, int position, string?[] captures)
+        {
+            if (position == 0)
+            {
+                yield break;
+            }
+
+            var options = RegexOptions.CultureInvariant;
+            if (IgnoreCase)
+            {
+                options |= RegexOptions.IgnoreCase;
+            }
+
+            if (Regex.IsMatch(input[position - 1].ToString(), "\\A(?:" + Pattern + ")\\z", options))
+            {
+                yield return new LookbehindMatchState(position - 1, captures);
+            }
+        }
+    }
+
+    private sealed class LookbehindLiteralAtom : LookbehindAtom
+    {
+        public LookbehindLiteralAtom(char value, bool ignoreCase)
+        {
+            Value = value;
+            IgnoreCase = ignoreCase;
+        }
+
+        private char Value { get; }
+
+        private bool IgnoreCase { get; }
+
+        protected override IEnumerable<LookbehindMatchState> MatchOne(string input, int position, string?[] captures)
+        {
+            if (position == 0)
+            {
+                yield break;
+            }
+
+            var actual = input[position - 1];
+            if (actual == Value ||
+                (IgnoreCase && char.ToUpperInvariant(actual) == char.ToUpperInvariant(Value)))
+            {
+                yield return new LookbehindMatchState(position - 1, captures);
+            }
+        }
+    }
+
+    private sealed class LookbehindBackrefAtom : LookbehindAtom
+    {
+        public LookbehindBackrefAtom(int number, bool ignoreCase)
+        {
+            Number = number;
+            IgnoreCase = ignoreCase;
+        }
+
+        private int Number { get; }
+
+        private bool IgnoreCase { get; }
+
+        protected override IEnumerable<LookbehindMatchState> MatchOne(string input, int position, string?[] captures)
+        {
+            var capture = Number <= captures.Length ? captures[Number - 1] : null;
+            if (capture is null)
+            {
+                yield return new LookbehindMatchState(position, captures);
+                yield break;
+            }
+
+            if (position < capture.Length)
+            {
+                yield break;
+            }
+
+            var start = position - capture.Length;
+            var comparison = IgnoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            if (string.Compare(input, start, capture, 0, capture.Length, comparison) == 0)
+            {
+                yield return new LookbehindMatchState(start, captures);
+            }
+        }
+    }
+
+    private sealed class LookbehindPatternParser
+    {
+        private readonly string _pattern;
+        private readonly bool _dotAll;
+        private readonly bool _ignoreCase;
+        private int _index;
+        private int _captureCount;
+
+        private LookbehindPatternParser(string pattern, bool dotAll, bool ignoreCase)
+        {
+            _pattern = pattern;
+            _dotAll = dotAll;
+            _ignoreCase = ignoreCase;
+        }
+
+        public static bool TryParse(string pattern, bool dotAll, bool ignoreCase, out LookbehindPattern result)
+        {
+            try
+            {
+                var parser = new LookbehindPatternParser(pattern, dotAll, ignoreCase);
+                var root = parser.ParseDisjunction();
+                if (parser._index != pattern.Length)
+                {
+                    result = null!;
+                    return false;
+                }
+
+                result = new LookbehindPattern(root, parser._captureCount);
+                return true;
+            }
+            catch (ParseException)
+            {
+                result = null!;
+                return false;
+            }
+        }
+
+        private LookbehindDisjunction ParseDisjunction()
+        {
+            var alternatives = new List<LookbehindSequence>();
+            while (true)
+            {
+                alternatives.Add(ParseSequence());
+                if (_index >= _pattern.Length || _pattern[_index] != '|')
+                {
+                    break;
+                }
+
+                _index++;
+            }
+
+            return new LookbehindDisjunction(alternatives);
+        }
+
+        private LookbehindSequence ParseSequence()
+        {
+            var atoms = new List<LookbehindAtom>();
+            while (_index < _pattern.Length && _pattern[_index] != ')' && _pattern[_index] != '|')
+            {
+                var atom = ParseAtom();
+                atom.Quantifier = ParseQuantifier();
+                atoms.Add(atom);
+            }
+
+            return new LookbehindSequence(atoms);
+        }
+
+        private LookbehindAtom ParseAtom()
+        {
+            var c = _pattern[_index++];
+            if (c == '.')
+            {
+                return new LookbehindRawAtom(_dotAll ? LegacyDotAllPattern : LegacyDotPattern, _ignoreCase);
+            }
+
+            if (c == '[')
+            {
+                return new LookbehindRawAtom(ParseCharacterClass(), _ignoreCase);
+            }
+
+            if (c == '\\')
+            {
+                return ParseEscapeAtom();
+            }
+
+            if (c == '(')
+            {
+                return ParseGroupAtom();
+            }
+
+            return new LookbehindLiteralAtom(c, _ignoreCase);
+        }
+
+        private LookbehindAtom ParseEscapeAtom()
+        {
+            if (_index >= _pattern.Length)
+            {
+                throw new ParseException("Invalid regular expression: incomplete escape.");
+            }
+
+            var c = _pattern[_index++];
+            if (char.IsDigit(c) && c != '0')
+            {
+                var value = c - '0';
+                while (_index < _pattern.Length && char.IsDigit(_pattern[_index]))
+                {
+                    value = (value * 10) + (_pattern[_index] - '0');
+                    _index++;
+                }
+
+                return new LookbehindBackrefAtom(value, _ignoreCase);
+            }
+
+            return c switch
+            {
+                'w' => new LookbehindRawAtom(EcmaWordClass, _ignoreCase),
+                'W' => new LookbehindRawAtom(EcmaNonWordClass, _ignoreCase),
+                'd' => new LookbehindRawAtom(EcmaDigitClass, _ignoreCase),
+                'D' => new LookbehindRawAtom(EcmaNonDigitClass, _ignoreCase),
+                's' => new LookbehindRawAtom(EcmaWhitespaceClass, _ignoreCase),
+                'S' => new LookbehindRawAtom(EcmaNonWhitespaceClass, _ignoreCase),
+                _ => new LookbehindLiteralAtom(c, _ignoreCase)
+            };
+        }
+
+        private LookbehindAtom ParseGroupAtom()
+        {
+            if (_index < _pattern.Length && _pattern[_index] == '?')
+            {
+                _index++;
+                if (_index < _pattern.Length && _pattern[_index] == ':')
+                {
+                    _index++;
+                    var body = ParseDisjunction();
+                    Expect(')');
+                    return new LookbehindNonCaptureAtom(body);
+                }
+
+                throw new ParseException("Invalid regular expression: unsupported lookbehind group.");
+            }
+
+            var captureNumber = ++_captureCount;
+            var captureBody = ParseDisjunction();
+            Expect(')');
+            return new LookbehindCaptureAtom(captureNumber, captureBody);
+        }
+
+        private string ParseCharacterClass()
+        {
+            var start = _index - 1;
+            var escaped = false;
+            while (_index < _pattern.Length)
+            {
+                var c = _pattern[_index++];
+                if (escaped)
+                {
+                    escaped = false;
+                    continue;
+                }
+
+                if (c == '\\')
+                {
+                    escaped = true;
+                    continue;
+                }
+
+                if (c == ']')
+                {
+                    return _pattern[start.._index];
+                }
+            }
+
+            throw new ParseException("Invalid regular expression: unterminated character class.");
+        }
+
+        private string ParseQuantifier()
+        {
+            if (_index >= _pattern.Length)
+            {
+                return string.Empty;
+            }
+
+            var start = _index;
+            var c = _pattern[_index];
+            if (c is '+' or '*' or '?')
+            {
+                _index++;
+                if (_index < _pattern.Length && _pattern[_index] == '?')
+                {
+                    _index++;
+                }
+
+                return _pattern[start.._index];
+            }
+
+            if (c != '{')
+            {
+                return string.Empty;
+            }
+
+            var end = _pattern.IndexOf('}', _index + 1);
+            if (end == -1)
+            {
+                return string.Empty;
+            }
+
+            for (var i = _index + 1; i < end; i++)
+            {
+                if (!char.IsDigit(_pattern[i]) && _pattern[i] != ',')
+                {
+                    return string.Empty;
+                }
+            }
+
+            _index = end + 1;
+            if (_index < _pattern.Length && _pattern[_index] == '?')
+            {
+                _index++;
+            }
+
+            return _pattern[start.._index];
+        }
+
+        private void Expect(char expected)
+        {
+            if (_index >= _pattern.Length || _pattern[_index] != expected)
+            {
+                throw new ParseException("Invalid regular expression: unterminated group.");
+            }
+
+            _index++;
+        }
     }
 
     private Regex EnsureRegex()

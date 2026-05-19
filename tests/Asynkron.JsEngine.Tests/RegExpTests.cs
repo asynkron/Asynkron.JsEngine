@@ -957,4 +957,58 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
         """);
         Assert.Equal("OK", result);
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task RegExp_Lookbehind_BackreferencesToCaptures()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var errors = [];
+            function check(label, expected, actual) {
+                if (actual === null && expected !== null) { errors.push(label + ": got null"); return; }
+                if (actual !== null && expected === null) { errors.push(label + ": expected null, got " + actual); return; }
+                if (expected === null) return;
+                if (actual.length !== expected.length) { errors.push(label + ": length " + actual.length + " != " + expected.length); return; }
+                for (var i = 0; i < expected.length; i++) {
+                    if (actual[i] !== expected[i]) { errors.push(label + ": [" + i + "] " + actual[i] + " != " + expected[i]); }
+                }
+            }
+
+            check("#1", ["d", "C"], "abcCd".match(/(?<=\1(\w))d/i));
+            check("#2", ["d", "x"], "abxxd".match(/(?<=\1([abx]))d/));
+            check("#3", ["c", "ab"], "ababc".match(/(?<=\1(\w+))c/));
+            check("#4", ["c", "b"], "ababbc".match(/(?<=\1(\w+))c/));
+            check("#5", null, "ababdc".match(/(?<=\1(\w+))c/));
+            check("#6", ["c", "abab"], "ababc".match(/(?<=(\w+)\1)c/));
+
+            errors.length > 0 ? errors.join("; ") : "OK";
+        """);
+        Assert.Equal("OK", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task RegExp_Lookbehind_MutualRecursiveBackreferences()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var errors = [];
+            function check(label, expected, actual) {
+                if (actual === null && expected !== null) { errors.push(label + ": got null"); return; }
+                if (actual !== null && expected === null) { errors.push(label + ": expected null, got " + actual); return; }
+                if (expected === null) return;
+                if (actual.length !== expected.length) { errors.push(label + ": length " + actual.length + " != " + expected.length); return; }
+                for (var i = 0; i < expected.length; i++) {
+                    if (actual[i] !== expected[i]) { errors.push(label + ": [" + i + "] " + actual[i] + " != " + expected[i]); }
+                }
+            }
+
+            check("#1", ["cacb", "a", ""], /(?<=a(.\2)b(\1)).{4}/.exec("aabcacbc"));
+            check("#2", ["b", "ac", "ac"], /(?<=a(\2)b(..\1))b/.exec("aacbacb"));
+            check("#3", ["x", "aa"], /(?<=(?:\1b)(aa))./.exec("aabaax"));
+            check("#4", ["x", "aa"], /(?<=(?:\1|b)(aa))./.exec("aaaax"));
+
+            errors.length > 0 ? errors.join("; ") : "OK";
+        """);
+        Assert.Equal("OK", result);
+    }
 }

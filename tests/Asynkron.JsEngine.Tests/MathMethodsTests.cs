@@ -276,6 +276,18 @@ public sealed class MathMethodsTests(ITestOutputHelper output) : InternalTestBas
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Math_SumPrecise_Returns_NegativeZero_For_Empty_Iterable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                           Object.is(Math.sumPrecise([]), -0);
+
+                                       """);
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Math_SumPrecise_Preserves_NegativeZero_When_All_Inputs_Are_NegativeZero()
     {
         await using var engine = CreateEngine();

@@ -11,6 +11,18 @@ namespace Asynkron.JsEngine.StdLib;
 
 public sealed partial class ArrayPrototype
 {
+    private readonly HashSet<IJsPropertyAccessor> _pushInProgress =
+        new(ReferenceEqualityComparer<IJsPropertyAccessor>.Instance);
+
+    private readonly HashSet<IJsPropertyAccessor> _popInProgress =
+        new(ReferenceEqualityComparer<IJsPropertyAccessor>.Instance);
+
+    private readonly HashSet<IJsPropertyAccessor> _shiftInProgress =
+        new(ReferenceEqualityComparer<IJsPropertyAccessor>.Instance);
+
+    private readonly HashSet<IJsPropertyAccessor> _unshiftInProgress =
+        new(ReferenceEqualityComparer<IJsPropertyAccessor>.Instance);
+
     private readonly HashSet<IJsPropertyAccessor> _reverseInProgress =
         new(ReferenceEqualityComparer<IJsPropertyAccessor>.Instance);
 
@@ -24,8 +36,7 @@ public sealed partial class ArrayPrototype
         var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
 
         // Re-entrancy guard: prevent infinite recursion when length getter calls push
-        const string ReentrancyKey = "__inPush__";
-        if (accessor.TryGetProperty(ReentrancyKey, out var inPushFlag) && !inPushFlag.IsUndefined)
+        if (!_pushInProgress.Add(accessor))
         {
             // Already in push, return current length to break recursion
             return new JsValue(0d);
@@ -33,7 +44,6 @@ public sealed partial class ArrayPrototype
 
         try
         {
-            accessor.SetProperty(ReentrancyKey, true);
             var evalContext = Realm?.CreateContext();
             var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
             var length = (long)ToLengthOrZero(lengthValue, evalContext);
@@ -56,7 +66,7 @@ public sealed partial class ArrayPrototype
         }
         finally
         {
-            accessor.SetProperty(ReentrancyKey, JsValue.Undefined);
+            _pushInProgress.Remove(accessor);
         }
     }
 
@@ -72,8 +82,7 @@ public sealed partial class ArrayPrototype
         }
 
         // Re-entrancy guard: prevent infinite recursion when length getter calls pop
-        const string ReentrancyKey = "__inPop__";
-        if (accessor.TryGetProperty(ReentrancyKey, out var inPopFlag) && !inPopFlag.IsUndefined)
+        if (!_popInProgress.Add(accessor))
         {
             // Already in pop, return undefined to break recursion
             return JsValue.Undefined;
@@ -81,7 +90,6 @@ public sealed partial class ArrayPrototype
 
         try
         {
-            accessor.SetProperty(ReentrancyKey, true);
             var objectLike = accessor as IJsObjectLike;
             var evalContext = Realm?.CreateContext();
             var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
@@ -101,7 +109,7 @@ public sealed partial class ArrayPrototype
         }
         finally
         {
-            accessor.SetProperty(ReentrancyKey, JsValue.Undefined);
+            _popInProgress.Remove(accessor);
         }
     }
 
@@ -117,8 +125,7 @@ public sealed partial class ArrayPrototype
         }
 
         // Re-entrancy guard: prevent infinite recursion when length getter calls shift
-        const string ReentrancyKey = "__inShift__";
-        if (accessor.TryGetProperty(ReentrancyKey, out var inShiftFlag) && !inShiftFlag.IsUndefined)
+        if (!_shiftInProgress.Add(accessor))
         {
             // Already in shift, return undefined to break recursion
             return JsValue.Undefined;
@@ -126,7 +133,6 @@ public sealed partial class ArrayPrototype
 
         try
         {
-            accessor.SetProperty(ReentrancyKey, true);
             var objectLike = accessor as IJsObjectLike;
             var evalContext = Realm?.CreateContext();
             var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
@@ -170,7 +176,7 @@ public sealed partial class ArrayPrototype
         }
         finally
         {
-            accessor.SetProperty(ReentrancyKey, JsValue.Undefined);
+            _shiftInProgress.Remove(accessor);
         }
     }
 
@@ -181,8 +187,7 @@ public sealed partial class ArrayPrototype
         var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
 
         // Re-entrancy guard: prevent infinite recursion when length getter calls unshift
-        const string ReentrancyKey = "__inUnshift__";
-        if (accessor.TryGetProperty(ReentrancyKey, out var inUnshiftFlag) && !inUnshiftFlag.IsUndefined)
+        if (!_unshiftInProgress.Add(accessor))
         {
             // Already in unshift, return 0 to break recursion
             return new JsValue(0d);
@@ -190,7 +195,6 @@ public sealed partial class ArrayPrototype
 
         try
         {
-            accessor.SetProperty(ReentrancyKey, true);
             var objectLike = accessor as IJsObjectLike;
             var evalContext = Realm?.CreateContext();
             var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
@@ -237,7 +241,7 @@ public sealed partial class ArrayPrototype
         }
         finally
         {
-            accessor.SetProperty(ReentrancyKey, JsValue.Undefined);
+            _unshiftInProgress.Remove(accessor);
         }
     }
 

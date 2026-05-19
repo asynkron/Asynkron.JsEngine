@@ -200,6 +200,40 @@ public sealed class ModuleTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 2000)]
+    public async Task ExportNamespaceAsDoesNotCreateLocalBinding()
+    {
+        await using var engine = CreateEngine();
+
+        engine.SetModuleLoader(modulePath =>
+        {
+            return modulePath switch
+            {
+                "values.js" => """
+
+                               export const value = 7;
+
+                               """,
+                "barrel.js" => """
+
+                               export * as ns from "values.js";
+                               export const localType = typeof ns;
+
+                               """,
+                _ => throw new FileNotFoundException($"Module not found: {modulePath}")
+            };
+        });
+
+        var result = await engine.EvaluateModule("""
+
+                                                 import { ns, localType } from "barrel.js";
+                                                 `${ns.value}:${localType}`;
+
+                                                 """);
+
+        Assert.Equal("7:undefined", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task ExportList()
     {
         await using var engine = CreateEngine();

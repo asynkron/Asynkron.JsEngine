@@ -27,6 +27,16 @@ The final delivery kept coefficient size and positive-exponent materialization
 bounded, reused the ECMAScript whitespace set, and made large positive scale
 preservation context-aware for scientific and engineering notation only.
 
+Issue #808 / PR #1004 exposed the same boundary on the range helpers after
+`formatRangeToParts` still converted endpoints through the older numeric path
+and then composed range parts independently from `formatRange`. That split could
+drop decimal-string precision on range endpoints and let locale/range-affix
+rules drift between the string result and the observable parts result. The
+repair routed both helpers through the same `FormatNumericForRange` endpoint
+formatting, kept currency affix sharing sign-compatible, and scoped the
+Portuguese hyphen separator override to `pt-PT` instead of every Portuguese
+locale.
+
 ## Decision
 
 Keep `Intl.NumberFormat` string input handling in an Intl-owned decimal-string
@@ -47,7 +57,10 @@ For future `Intl.NumberFormat` work:
    scientific and engineering notation;
 5. keep ordinary decimal/compact formatting on the bounded exact-decimal path
    so huge fixed output does not create unbounded allocation or CPU work; and
-6. prove cap boundaries with focused regressions, including values just beyond
+6. keep `formatRange` and `formatRangeToParts` on the same endpoint numeric
+   formatting and range-composition path so decimal-string precision, affix
+   sharing, separator choice, and parts boundaries cannot drift; and
+7. prove cap boundaries with focused regressions, including values just beyond
    the exact-decimal cap such as `1e-1001`.
 
 ## Consequences
@@ -63,6 +76,11 @@ For future `Intl.NumberFormat` work:
 - Tests should include local Intl regressions plus the focused
   `Name=NumberFormat_prototype_format` Test262 method group when the issue came
   from that cluster.
+- Range-helper changes should also include local equality/parts-shape
+  regressions plus the focused `Name=NumberFormat_prototype_formatRange` and
+  `Name=NumberFormat_prototype_formatRangeToParts` Test262 method groups when
+  the issue crosses both range surfaces.
 - This ADR is caused by issue #807 / PR #1001 and complements the root
   `.claude/rules/ecmascript-numeric-coercions.md` rule for numeric lexeme
-  preservation boundaries.
+  preservation boundaries. It was extended by issue #808 / PR #1004 for the
+  range-helper recurrence.

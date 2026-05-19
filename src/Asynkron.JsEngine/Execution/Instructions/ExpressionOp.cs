@@ -11,6 +11,7 @@ internal enum ExpressionOpKind : byte
     LoadFunctionLiteral,
     LoadClassLiteral,
     LoadIdentifier,
+    LoadIdentifierCallTarget,
     ResolveIdentifierReference,
     LoadResolvedIdentifierValue,
     PopResolvedIdentifierReference,
@@ -149,6 +150,7 @@ internal readonly record struct ExpressionProgram
             ExpressionOpKind.LoadFunctionLiteral => 1,
             ExpressionOpKind.LoadClassLiteral => 1,
             ExpressionOpKind.LoadIdentifier => 1,
+            ExpressionOpKind.LoadIdentifierCallTarget => 2,
             ExpressionOpKind.ResolveIdentifierReference => 0,
             ExpressionOpKind.LoadResolvedIdentifierValue => 1,
             ExpressionOpKind.PopResolvedIdentifierReference => 0,
@@ -422,6 +424,16 @@ internal readonly struct PackedExpressionOp
     {
         return new PackedExpressionOp(
             ExpressionOpKind.LoadIdentifier,
+            int0: identifierConstantIndex,
+            flags: IsArguments ? Flag0 : (byte)0);
+    }
+
+    public static PackedExpressionOp LoadIdentifierCallTarget(
+        int identifierConstantIndex,
+        bool IsArguments = false)
+    {
+        return new PackedExpressionOp(
+            ExpressionOpKind.LoadIdentifierCallTarget,
             int0: identifierConstantIndex,
             flags: IsArguments ? Flag0 : (byte)0);
     }

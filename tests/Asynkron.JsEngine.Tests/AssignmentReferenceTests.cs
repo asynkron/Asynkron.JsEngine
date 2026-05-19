@@ -46,6 +46,45 @@ o.bar = 2;
     }
 
     [Fact]
+    public async Task StrictIdentifierAssignment_ResolvesReferenceBeforeRhsCreatesGlobalProperty()
+    {
+        await using var engine = CreateEngine();
+
+        var ex = await Assert.ThrowsAsync<ThrowSignal>(async () =>
+        {
+            await engine.Evaluate("""
+                "use strict";
+                undeclared = (this.undeclared = 5);
+                """);
+        });
+
+        Assert.Contains("ReferenceError", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GlobalUndefinedAssignment_SloppyDoesNotMutateAndStrictThrows()
+    {
+        await using var engine = CreateEngine();
+
+        var sloppyResult = await engine.Evaluate("""
+            undefined = 1;
+            undefined;
+            """);
+
+        Assert.Equal(Symbol.Undefined, sloppyResult);
+
+        var ex = await Assert.ThrowsAsync<ThrowSignal>(async () =>
+        {
+            await engine.Evaluate("""
+                "use strict";
+                undefined = 1;
+                """);
+        });
+
+        Assert.Contains("TypeError", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task PostfixDecrement_GlobalAccessor_CallsSetterWithNewValueAndReturnsOldValue()
     {
         await using var engine = CreateEngine();

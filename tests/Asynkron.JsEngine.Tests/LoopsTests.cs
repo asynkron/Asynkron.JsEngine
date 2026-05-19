@@ -281,6 +281,23 @@ public sealed class LoopsTests(JsEngineTestFixture fixture) : JsEngineTestBase(f
     }
 
     [Fact(Timeout = 2000)]
+    public async Task ForOfLoopBindingCanBeRedeclaredAfterLoop()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let values = [];
+            for (let value of [1, 2, 3]) {
+                values.push(value);
+            }
+
+            let { value, done } = { value: 4, done: true };
+            values.join(',') + ':' + value + ':' + done;
+            """);
+
+        Assert.Equal("1,2,3:4:true", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task ForOfLoopNested()
     {
         await using var engine = CreateEngine();

@@ -91,10 +91,16 @@ public sealed partial class IntlNumberFormatPrototype
 
         var partsArray = new JsArray(Realm);
 
-        // Start value parts
-        AddRangePart(partsArray, "integer", xResult.Formatted, "startRange");
+        if (string.Equals(xResult.Formatted, yResult.Formatted, StringComparison.Ordinal))
+        {
+            AddRangePart(partsArray, "approximatelySign", "~", "shared");
+            AddRangeParts(partsArray, xResult, "shared");
+            return JsValue.FromJsArray(partsArray);
+        }
+
+        AddRangeParts(partsArray, xResult, "startRange");
         AddRangePart(partsArray, "literal", " \u2013 ", "shared");
-        AddRangePart(partsArray, "integer", yResult.Formatted, "endRange");
+        AddRangeParts(partsArray, yResult, "endRange");
 
         return JsValue.FromJsArray(partsArray);
     }
@@ -314,12 +320,22 @@ public sealed partial class IntlNumberFormatPrototype
         return length;
     }
 
+    private void AddRangeParts(JsArray array, IntlNumberFormatResult result, string source)
+    {
+        var parts = result.Parts ?? [new NumberFormatPart("literal", result.Formatted)];
+        foreach (var part in parts)
+        {
+            AddRangePart(array, part.Type, part.Value, source);
+        }
+    }
+
     private void AddRangePart(JsArray array, string type, string value, string source)
     {
+        const string operation = "Intl.NumberFormat.prototype.formatRangeToParts";
         var entry = new JsObject(Realm.ObjectPrototype);
-        entry.SetProperty("type", (JsValue)type);
-        entry.SetProperty("value", (JsValue)value);
-        entry.SetProperty("source", (JsValue)source);
+        CreateDataPropertyOrThrowJsValue(entry, "type", (JsValue)type, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(entry, "value", (JsValue)value, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(entry, "source", (JsValue)source, Realm, operation);
         array.Push(entry);
     }
 

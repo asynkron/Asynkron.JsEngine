@@ -124,6 +124,46 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
     }
 
     [Fact(Timeout = 2000)]
+    public async Task AsyncGenerator_ClassStaticMethod_YieldStarAbruptAsyncIteratorLookupRejectsNext()
+    {
+        await using var engine = CreateEngine();
+
+        await engine.Evaluate("""
+            let log = [];
+
+            class C {
+                static async * relay(iterable) {
+                    yield* iterable;
+                }
+            }
+
+            const abrupt = {
+                get [Symbol.asyncIterator]() {
+                    throw "boom";
+                }
+            };
+
+            async function run() {
+                const iterator = C.relay(abrupt);
+                try {
+                    await iterator.next();
+                    log.push("not-thrown");
+                } catch (error) {
+                    log.push("caught:" + error);
+                }
+
+                const afterThrow = await iterator.next();
+                log.push("after:" + afterThrow.value + ":" + afterThrow.done);
+            }
+
+            run();
+        """);
+
+        var result = await engine.Evaluate("log.join('|');");
+        Assert.Equal("caught:boom|after:undefined:true", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task AsyncGenerator_ClassComputedMethodNameCanAwait()
     {
         await using var engine = CreateEngine();

@@ -3357,6 +3357,11 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
 
                     break;
                 case ExportNamedStatement exportNamed:
+                    if (exportNamed.FromModule is not null)
+                    {
+                        break;
+                    }
+
                     foreach (var specifier in exportNamed.Specifiers)
                     {
                         if (moduleEnv.IsAsyncModule)
@@ -3401,7 +3406,12 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                     exportStarSet.Remove(sourceEntry.Path);
                     break;
                 case ExportNamespaceAsStatement exportNamespace:
-                    exports[exportNamespace.Exported.Name] = JsValue.Uninitialized;
+                    var namespaceEntry = LoadModuleForInstantiation(exportNamespace.ModulePath, modulePath, phase,
+                        exportStarSet);
+                    EnsureModuleInstantiated(namespaceEntry, phase, exportStarSet);
+                    var namespaceObject = GetModuleNamespace(namespaceEntry, phase);
+                    exports[exportNamespace.Exported.Name] = namespaceObject;
+
                     break;
             }
         }
@@ -3469,6 +3479,13 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         {
             throw new InvalidOperationException(
                 $"SyntaxError: The requested module '{importedModule.Path}' does not provide an export named '{importedName.Name}'");
+        }
+
+        if (resolved.DirectValue is { } directValue)
+        {
+            moduleEnv.DefineJsValue(localName, directValue, true, isLexicalBinding: true,
+                blocksFunctionScopeOverride: false, isImmutableBinding: true);
+            return;
         }
 
         moduleEnv.DefineImportBinding(localName, resolved.Module!.Environment, resolved.BindingName!);
@@ -3596,7 +3613,9 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                     break;
                 case ExportNamespaceAsStatement exportNamespace
                     when string.Equals(exportNamespace.Exported.Name, exportName, StringComparison.Ordinal):
-                    return new ExportResolution(module, exportNamespace.Exported);
+                    var namespaceEntry = LoadModuleForInstantiation(exportNamespace.ModulePath, module.Path, phase);
+                    EnsureModuleInstantiated(namespaceEntry, phase);
+                    return new ExportResolution(JsValue.FromObjectUnsafe(GetModuleNamespace(namespaceEntry, phase)));
                 case ExportNamedStatement { FromModule: { } fromModule } reExport:
                     foreach (var specifier in reExport.Specifiers)
                     {
@@ -3644,8 +3663,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             {
                 starResolution = resolved;
             }
-            else if (!ReferenceEquals(starResolution.Value.Module, resolved.Module) ||
-                     !Equals(starResolution.Value.BindingName, resolved.BindingName))
+            else if (!ExportResolutionsMatch(starResolution.Value, resolved))
             {
                 return ExportResolution.Ambiguous;
             }
@@ -3654,8 +3672,28 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         return starResolution ?? ExportResolution.NotFound;
     }
 
+    private static bool ExportResolutionsMatch(ExportResolution left, ExportResolution right)
+    {
+        var leftHasDirect = left.DirectValue.HasValue;
+        var rightHasDirect = right.DirectValue.HasValue;
+        if (leftHasDirect || rightHasDirect)
+        {
+            return leftHasDirect &&
+                   rightHasDirect &&
+                   left.DirectValue.GetValueOrDefault().Equals(right.DirectValue.GetValueOrDefault());
+        }
+
+        return ReferenceEquals(left.Module, right.Module) &&
+               Equals(left.BindingName, right.BindingName);
+    }
+
     private static object CreateLiveBinding(ExportResolution resolution)
     {
+        if (resolution.DirectValue is { } directValue)
+        {
+            return directValue;
+        }
+
         return new LiveExportBinding(() => resolution.Module!.Environment.GetJsValue(resolution.BindingName!));
     }
 
@@ -3942,10 +3980,6 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                         var namespaceEntry = LoadModule(exportNamespace.ModulePath, modulePath);
                         var namespaceObj = GetModuleNamespace(namespaceEntry);
                         exports[exportNamespace.Exported.Name] = namespaceObj;
-                        // Also define in the environment so import bindings can read it
-                        moduleEnv.DefineJsValue(exportNamespace.Exported, JsValue.FromObjectUnsafe(namespaceObj), true,
-                            isLexicalBinding: true,
-                            blocksFunctionScopeOverride: false);
                         break;
                     case FunctionDeclaration:
                         // Function declarations are already hoisted during module instantiation,
@@ -4537,17 +4571,25 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         Ambiguous
     }
 
-    private readonly record struct ExportResolution(ExportResolutionKind Kind, ModuleEntry? Module, Symbol? BindingName)
+    private readonly record struct ExportResolution(
+        ExportResolutionKind Kind,
+        ModuleEntry? Module,
+        Symbol? BindingName,
+        JsValue? DirectValue)
     {
-        public static readonly ExportResolution NotFound = new(ExportResolutionKind.NotFound, null, null);
-        public static readonly ExportResolution Ambiguous = new(ExportResolutionKind.Ambiguous, null, null);
+        public static readonly ExportResolution NotFound = new(ExportResolutionKind.NotFound, null, null, null);
+        public static readonly ExportResolution Ambiguous = new(ExportResolutionKind.Ambiguous, null, null, null);
 
         public ExportResolution(ModuleEntry module, Symbol bindingName) : this(ExportResolutionKind.Resolved, module,
-            bindingName)
+            bindingName, null)
         {
         }
 
-        public bool IsResolved => Kind == ExportResolutionKind.Resolved && Module is not null;
+        public ExportResolution(JsValue directValue) : this(ExportResolutionKind.Resolved, null, null, directValue)
+        {
+        }
+
+        public bool IsResolved => Kind == ExportResolutionKind.Resolved && (Module is not null || DirectValue is not null);
     }
 
     private sealed class AsyncModuleBodyRunner

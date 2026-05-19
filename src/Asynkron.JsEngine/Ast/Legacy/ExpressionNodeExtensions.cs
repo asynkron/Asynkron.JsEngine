@@ -71,20 +71,13 @@ public static partial class TypedAstEvaluator
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static JsValue EvaluateImportMeta(JsEnvironment environment, EvaluationContext context)
     {
-        // Try to get the import.meta object from the environment
-        // If running in module context, this should be set by the module loader
-        if (environment.TryGetJsValue(Symbol.ImportMeta, out var importMeta))
+        // If running in module context, this is set by the module loader and must be stable per module.
+        if (environment.TryFindBindingJsValue(Symbol.ImportMeta, true, out _, out var importMeta))
         {
             return importMeta;
         }
 
-        // Return a basic import.meta object with a url property
-        var metaObject = new JsObject();
-        metaObject.RealmState = context.RealmState;
-        metaObject.SetPrototype(null);
-        // Set a default URL if we can determine it from the environment
-        metaObject.SetProperty("url", string.Empty);
-        return (JsValue)metaObject;
+        throw StandardLibrary.ThrowReferenceError("import.meta is not defined", context, context.RealmState);
     }
 
     private static (IJsEnvironmentAwareCallable? Constructor, IJsPropertyAccessor? Prototype) ResolveSuperclass(this ExpressionNode? extendsExpression, JsEnvironment environment, EvaluationContext context)

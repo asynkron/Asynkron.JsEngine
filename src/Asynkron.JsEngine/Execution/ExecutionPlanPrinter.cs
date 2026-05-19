@@ -353,6 +353,7 @@ internal static class ExecutionPlanPrinter
             ExpressionOpKind.RotateTopThreeRight => "rot3r",
             ExpressionOpKind.LoadThis => "this",
             ExpressionOpKind.LoadNewTarget => "new.target",
+            ExpressionOpKind.LoadImportMeta => "import.meta",
             ExpressionOpKind.LoadNamedCallTarget => $"call.{op.GetString(stringConstantSpan)}",
             ExpressionOpKind.LoadComputedCallTarget => "call[]",
             ExpressionOpKind.LoadNamedSuperCallTarget => $"super.call.{op.GetString(stringConstantSpan)}",

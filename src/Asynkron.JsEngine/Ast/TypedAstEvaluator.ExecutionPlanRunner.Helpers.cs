@@ -514,6 +514,12 @@ public static partial class TypedAstEvaluator
                             programCounter++;
                             break;
 
+                        case ExpressionOpKind.LoadImportMeta:
+                            stack[stackIndex++] = EvaluateImportMeta(environment, context);
+                            stackFlags.Set(stackIndex - 1, false);
+                            programCounter++;
+                            break;
+
                         case ExpressionOpKind.LoadNamedCallTarget:
                             {
                                 var target = stack[stackIndex - 1];

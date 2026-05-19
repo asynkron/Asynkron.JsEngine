@@ -39,6 +39,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     /// Maps (scopeId, slotIndex) pairs to flat slot IDs for O(1) variable access.
     /// </summary>
     private readonly Dictionary<(int scopeId, int slotIndex), int> _flatSlotMap = new();
+    private bool _preserveNestedForEachStatements;
 
     /// <summary>
     /// Total number of flat slots allocated during rewriting.
@@ -156,6 +157,20 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         };
         RestoreStack(scopeSnapshot, tryFrameSnapshot);
         return rewritten;
+    }
+
+    public T StampIteratorBodyInScope<T>(T node, int scopeId) where T : AstNode
+    {
+        var previous = _preserveNestedForEachStatements;
+        _preserveNestedForEachStatements = true;
+        try
+        {
+            return StampNodeInScope(node, scopeId);
+        }
+        finally
+        {
+            _preserveNestedForEachStatements = previous;
+        }
     }
 
     public bool TryResolveSlot(Symbol symbol, int mappedScopeId, out int slotIndex)
@@ -752,6 +767,11 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
 
     protected override StatementNode RewriteStatement(StatementNode statement)
     {
+        if (_preserveNestedForEachStatements && statement is ForEachStatement)
+        {
+            return statement;
+        }
+
         if (statement is BlockStatement block)
         {
             var hoistPlan = ((IAstCacheable<HoistPlan>)block).GetOrCreateCache();

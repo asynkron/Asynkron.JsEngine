@@ -86,5 +86,41 @@ public sealed class TypedAstDestructuringTests(ITestOutputHelper output) : Inter
 
         Assert.Equal(7.0, result);
     }
-}
 
+    [Fact]
+    public async Task ObjectDestructuringVarBinding_ResolvesTargetBeforeSourceGetAndDefault()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            var log = [];
+            var sourceKey = {
+                toString: () => {
+                    log.push('sourceKey');
+                    return 'p';
+                }
+            };
+            var source = {
+                get p() {
+                    log.push('get source');
+                    return undefined;
+                }
+            };
+            var env = new Proxy({}, {
+                has(t, pk) {
+                    log.push('binding::' + String(pk));
+                    return false;
+                }
+            });
+            var defaultValue = 0;
+            var varTarget;
+            with (env) {
+                var { [sourceKey]: varTarget = defaultValue } = source;
+            }
+            log.join(',');
+        ");
+
+        Assert.Equal(
+            "binding::source,binding::sourceKey,sourceKey,binding::varTarget,get source,binding::defaultValue",
+            result);
+    }
+}

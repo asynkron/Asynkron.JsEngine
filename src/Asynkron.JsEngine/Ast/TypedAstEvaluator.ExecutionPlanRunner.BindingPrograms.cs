@@ -140,7 +140,11 @@ public static partial class TypedAstEvaluator
                     if (skipBlockedBindingLookup)
                     {
                         environment.EnsureFunctionScopedVarBinding(name, context);
-                        environment.GetVarEnvironment().AssignJsValue(name, value);
+                        environment.GetVarEnvironment().DefineFunctionScoped(
+                            name,
+                            value,
+                            hasInitializer: true,
+                            context: context);
                         return;
                     }
 
@@ -258,6 +262,10 @@ public static partial class TypedAstEvaluator
                 }
                 else
                 {
+                    var skipBlockedBindingLookup =
+                        mode == BindingMode.DefineVar &&
+                        property.Target is IdentifierBindingTargetProgram;
+
                     ApplyBindingTargetProgram(
                         property.Target,
                         propertyValue,
@@ -265,7 +273,8 @@ public static partial class TypedAstEvaluator
                         context,
                         mode,
                         hasInitializer: property.DefaultProgram is not null || !propertyValue.IsUndefined,
-                        allowNameInference: false);
+                        allowNameInference: false,
+                        skipBlockedBindingLookup: skipBlockedBindingLookup);
                 }
                 if (context.ShouldStopEvaluation)
                 {

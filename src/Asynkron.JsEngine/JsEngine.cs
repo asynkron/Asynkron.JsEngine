@@ -4918,6 +4918,30 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                     env);
             }
 
+            if (statement.Value is ExportDefaultExpression { Expression: { } expression } &&
+                (AstShapeAnalyzer.ContainsAwait(expression) ||
+                 expression is ClassExpression classExpression &&
+                 TryRewriteClassExpressionAwaitTemps(classExpression, out _, out _)))
+            {
+                exports["default"] = new LiveExportBinding(() => env.GetJsValue(defaultBindingName));
+                return TryEvaluateExpressionWithAwait(expression, env, isStrict, resolved =>
+                {
+                    env.AssignJsValue(defaultBindingName, resolved);
+                    _statementIndex++;
+                    Run();
+                }, advanceTopLevelStatement: false);
+            }
+
+            if (statement.Value is ExportDefaultDeclaration { Declaration: ClassDeclaration classDeclaration } &&
+                TryRewriteClassDeclarationAwaitTemps(classDeclaration, out _, out _))
+            {
+                var bindingName = GetDefaultExportBindingName(statement);
+                exports["default"] = new LiveExportBinding(() => env.GetJsValue(bindingName));
+                return TryEvaluateClassDeclarationWithAwait(classDeclaration, env, isStrict,
+                    advanceTopLevelStatement: true,
+                    onCompleted: null);
+            }
+
             if (AstShapeAnalyzer.StatementContainsAwait(statement))
             {
                 throw new NotSupportedException(
@@ -4951,6 +4975,14 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 DeclarationNeedsAwaitTemps(variableDeclaration))
             {
                 return TryEvaluateDeclarationWithAwait(variableDeclaration, env, isStrict);
+            }
+
+            if (statement.Declaration is ClassDeclaration classDeclaration &&
+                TryRewriteClassDeclarationAwaitTemps(classDeclaration, out _, out _))
+            {
+                return TryEvaluateClassDeclarationWithAwait(classDeclaration, env, isStrict,
+                    advanceTopLevelStatement: true,
+                    onCompleted: null);
             }
 
             if (AstShapeAnalyzer.StatementContainsAwait(statement))
@@ -5139,6 +5171,75 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                     try
                     {
                         _engine.ExecuteTypedStatement(rewrittenDeclaration, tempEnv, isStrict, false);
+
+                        if (advanceTopLevelStatement)
+                        {
+                            _statementIndex++;
+                            Run();
+                        }
+                        else
+                        {
+                            _ = onCompleted?.Invoke();
+                        }
+
+                        return true;
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        Fail(signal);
+                        return false;
+                    }
+                }
+
+                var binding = tempBindings[index];
+                return TryEvaluateExpressionWithAwait(binding.Expression, tempEnv, isStrict, resolved =>
+                {
+                    tempEnv.DefineJsValue(binding.Symbol, resolved, true, isLexicalBinding: true,
+                        blocksFunctionScopeOverride: false);
+                    EvaluateTempBinding(index + 1);
+                }, advanceTopLevelStatement: false);
+            }
+        }
+
+        private bool TryEvaluateClassDeclarationWithAwait(
+            ClassDeclaration declaration,
+            JsEnvironment env,
+            bool isStrict,
+            bool advanceTopLevelStatement,
+            Func<bool>? onCompleted)
+        {
+            if (!TryRewriteClassDeclarationAwaitTemps(declaration, out var rewrittenDeclaration, out var tempBindings))
+            {
+                Fail(new NotSupportedException(
+                    "Async module execution does not support await in this class declaration shape."));
+                return false;
+            }
+
+            if (AstShapeAnalyzer.StatementContainsAwait(rewrittenDeclaration))
+            {
+                Fail(new NotSupportedException(
+                    "Async module execution does not support await in class field initializers or unsupported class elements."));
+                return false;
+            }
+
+            var tempEnv = JsEnvironment.CreateInstance(
+                env,
+                isStrict: isStrict,
+                creatingSource: declaration.Source,
+                description: "async class declaration await scope");
+
+            return EvaluateTempBinding(0);
+
+            bool EvaluateTempBinding(int index)
+            {
+                if (index >= tempBindings.Length)
+                {
+                    try
+                    {
+                        _engine.ExecuteTypedStatement(rewrittenDeclaration, tempEnv, isStrict, false);
+                        var classValue = tempEnv.GetJsValue(rewrittenDeclaration.Name);
+                        env.DefineJsValue(rewrittenDeclaration.Name, classValue, isLexicalBinding: true,
+                            blocksFunctionScopeOverride: true);
 
                         if (advanceTopLevelStatement)
                         {
@@ -6144,6 +6245,23 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             return changed;
         }
 
+        private static bool TryRewriteClassDeclarationAwaitTemps(
+            ClassDeclaration classDeclaration,
+            out ClassDeclaration rewrittenClass,
+            out ImmutableArray<AwaitTempBinding> tempBindings)
+        {
+            var tempBuilder = ImmutableArray.CreateBuilder<AwaitTempBinding>();
+            var rewrittenDefinition = RewriteAwaitExpressionsInClassDefinition(classDeclaration.Definition, tempBuilder);
+            var changed = tempBuilder.Count > 0;
+
+            rewrittenClass = classDeclaration with
+            {
+                Definition = rewrittenDefinition
+            };
+            tempBindings = tempBuilder.ToImmutable();
+            return changed;
+        }
+
         private static ClassDefinition RewriteAwaitExpressionsInClassDefinition(
             ClassDefinition definition,
             ImmutableArray<AwaitTempBinding>.Builder tempBindings)
@@ -6673,6 +6791,11 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
 
         private bool TryEvaluateForAwaitOfStatement(ForEachStatement statement, JsEnvironment env, bool isStrict)
         {
+            if (AstShapeAnalyzer.ContainsAwait(statement.Iterable))
+            {
+                return TryEvaluateForAwaitOfStatementWithAwaitedIterable(statement, env, isStrict);
+            }
+
             // For await...of is inherently async - use the engine's existing evaluation
             // which handles the async iteration protocol
             try
@@ -6687,24 +6810,331 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             }
         }
 
+        private bool TryEvaluateForAwaitOfStatementWithAwaitedIterable(
+            ForEachStatement statement,
+            JsEnvironment env,
+            bool isStrict)
+        {
+            if (TryGetAwaitThenBreakBodyExpression(statement.Body, out var bodyExpression) &&
+                TryPrepareSimpleForAwaitLoopEnvironment(statement, env, isStrict, out var loopEnv))
+            {
+                return TryEvaluateForAwaitOfSingleIterationWithAwaitedIterable(
+                    statement,
+                    env,
+                    loopEnv,
+                    isStrict,
+                    bodyExpression);
+            }
+
+            return TryEvaluateExpressionWithAwait(
+                statement.Iterable,
+                env,
+                isStrict,
+                resolved =>
+                {
+                    try
+                    {
+                        var iterableEnv = JsEnvironment.CreateInstance(
+                            env,
+                            isStrict: isStrict,
+                            creatingSource: statement.Source,
+                            description: "async for-await iterable scope");
+                        var iterableSymbol = Symbol.Synthetic("__await_for_await_iterable");
+                        iterableEnv.DefineJsValue(iterableSymbol, resolved, true, isLexicalBinding: true,
+                            blocksFunctionScopeOverride: false);
+
+                        var rewrittenStatement = new ForEachStatement(
+                            null,
+                            statement.Target,
+                            new IdentifierExpression(statement.Iterable.Source, iterableSymbol),
+                            statement.Body,
+                            statement.Kind,
+                            statement.DeclarationKind,
+                            statement.PerIterationScopeId,
+                            statement.PerIterationParentScopeId,
+                            statement.PerIterationSlotCount,
+                            statement.PerIterationSlotIndices,
+                            statement.PerIterationBindings);
+
+                        _engine.ExecuteTypedStatement(rewrittenStatement, iterableEnv, isStrict, false);
+                        _statementIndex++;
+                        Run();
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        Fail(signal);
+                    }
+                },
+                advanceTopLevelStatement: false);
+        }
+
+        private bool TryEvaluateForAwaitOfSingleIterationWithAwaitedIterable(
+            ForEachStatement statement,
+            JsEnvironment env,
+            JsEnvironment loopEnv,
+            bool isStrict,
+            ExpressionNode bodyExpression)
+        {
+            return TryEvaluateExpressionWithAwait(
+                statement.Iterable,
+                env,
+                isStrict,
+                resolved =>
+                {
+                    try
+                    {
+#pragma warning disable CS0618 // Reuse the existing async iteration helpers for this TLA bridge.
+                        var getAsyncIterator = IterationHelper.CreateGetAsyncIteratorHelper(_engine);
+                        var iteratorValue = getAsyncIterator.Invoke([resolved], JsValue.Undefined);
+                        if (!iteratorValue.TryGetObject<IJsObjectLike>(out var iterator))
+                        {
+                            throw StandardLibrary.ThrowTypeError("for await iterator must be an object",
+                                realm: _engine.RealmState);
+                        }
+
+                        var iteratorNext = IterationHelper.CreateIteratorNextHelper(_engine);
+#pragma warning restore CS0618
+                        var nextResult = iteratorNext.Invoke([iteratorValue], JsValue.Undefined);
+                        var onNextFulfilled = new HostFunction(args =>
+                        {
+                            if (_completion.Task.IsCompleted)
+                            {
+                                return JsValue.Null;
+                            }
+
+                            try
+                            {
+                                var resultValue = args.GetArgument(0);
+                                if (!resultValue.TryGetObjectLike(out var resultObject))
+                                {
+                                    throw StandardLibrary.ThrowTypeError(
+                                        "for await iterator result must be an object",
+                                        realm: _engine.RealmState);
+                                }
+
+                                if (resultObject.TryGetProperty("done", out var doneValue) &&
+                                    JsOps.ToBoolean(doneValue))
+                                {
+                                    CompleteForAwaitStatement();
+                                    return JsValue.Null;
+                                }
+
+                                var value = resultObject.TryGetProperty("value", out var valueProperty)
+                                    ? valueProperty
+                                    : JsValue.Undefined;
+                                AssignSimpleForAwaitLoopValue(statement, loopEnv, value);
+
+                                if (!TryEvaluateExpressionWithAwait(
+                                        bodyExpression,
+                                        loopEnv,
+                                        isStrict,
+                                        _ => TryCloseForAwaitIterator(iterator, CompleteForAwaitStatement),
+                                        advanceTopLevelStatement: false))
+                                {
+                                    return JsValue.Null;
+                                }
+
+                                TryCloseForAwaitIterator(iterator, CompleteForAwaitStatement);
+                            }
+                            catch (ThrowSignal signal)
+                            {
+                                Fail(signal);
+                            }
+                            catch (Exception ex)
+                            {
+                                Fail(ex);
+                            }
+
+                            return JsValue.Null;
+                        });
+
+                        TryAwaitResolvedValue(nextResult, onNextFulfilled);
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        Fail(signal);
+                    }
+                    catch (Exception ex)
+                    {
+                        Fail(ex);
+                    }
+                },
+                advanceTopLevelStatement: false);
+
+            void CompleteForAwaitStatement()
+            {
+                _statementIndex++;
+                Run();
+            }
+        }
+
+        private void TryCloseForAwaitIterator(IJsObjectLike iterator, Action continuation)
+        {
+            try
+            {
+                if (!iterator.TryGetProperty("return", out var returnMethod) ||
+                    returnMethod.IsNullOrUndefined)
+                {
+                    continuation();
+                    return;
+                }
+
+                if (!returnMethod.TryGetObject<IJsCallable>(out var returnCallable))
+                {
+                    throw StandardLibrary.ThrowTypeError(
+                        "for await iterator return must be callable",
+                        realm: _engine.RealmState);
+                }
+
+                var returnResult = returnCallable.Invoke([], JsValue.FromObjectUnsafe(iterator));
+                var onCloseFulfilled = new HostFunction(args =>
+                {
+                    if (_completion.Task.IsCompleted)
+                    {
+                        return JsValue.Null;
+                    }
+
+                    try
+                    {
+                        var closeResult = args.GetArgument(0);
+                        if (!closeResult.TryGetObjectLike(out _))
+                        {
+                            throw StandardLibrary.ThrowTypeError(
+                                "for await iterator return result must be an object",
+                                realm: _engine.RealmState);
+                        }
+
+                        continuation();
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        Fail(signal);
+                    }
+                    catch (Exception ex)
+                    {
+                        Fail(ex);
+                    }
+
+                    return JsValue.Null;
+                });
+
+                TryAwaitResolvedValue(returnResult, onCloseFulfilled);
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+            }
+            catch (Exception ex)
+            {
+                Fail(ex);
+            }
+        }
+
+        private static bool TryGetAwaitThenBreakBodyExpression(StatementNode body, out ExpressionNode expression)
+        {
+            if (body is BlockStatement
+                {
+                    Statements:
+                    [
+                        ExpressionStatement { Expression: var bodyExpression },
+                        BreakStatement { Label: null }
+                    ]
+                } &&
+                AstShapeAnalyzer.ContainsAwait(bodyExpression))
+            {
+                expression = bodyExpression;
+                return true;
+            }
+
+            expression = null!;
+            return false;
+        }
+
+        private static bool TryPrepareSimpleForAwaitLoopEnvironment(
+            ForEachStatement statement,
+            JsEnvironment env,
+            bool isStrict,
+            out JsEnvironment loopEnv)
+        {
+            if (statement.Target is AssignmentTargetBinding { Expression: IdentifierExpression })
+            {
+                loopEnv = env;
+                return statement.DeclarationKind is null;
+            }
+
+            if (statement.Target is not IdentifierBinding identifierBinding)
+            {
+                loopEnv = env;
+                return false;
+            }
+
+            switch (statement.DeclarationKind)
+            {
+                case null:
+                case VariableKind.Var:
+                    loopEnv = env;
+                    if (statement.DeclarationKind == VariableKind.Var)
+                    {
+                        HoistVarBinding(identifierBinding, loopEnv);
+                    }
+
+                    return true;
+                case VariableKind.Let:
+                case VariableKind.Const:
+                case VariableKind.Using:
+                case VariableKind.AwaitUsing:
+                    loopEnv = JsEnvironment.CreateInstance(
+                        env,
+                        isStrict: isStrict,
+                        creatingSource: statement.Source,
+                        description: "async for-await iteration scope");
+                    return true;
+                default:
+                    loopEnv = env;
+                    return false;
+            }
+        }
+
+        private void AssignSimpleForAwaitLoopValue(
+            ForEachStatement statement,
+            JsEnvironment loopEnv,
+            JsValue value)
+        {
+            switch (statement.Target)
+            {
+                case AssignmentTargetBinding { Expression: IdentifierExpression identifierExpression }:
+                    loopEnv.AssignJsValue(identifierExpression.Name, value);
+                    break;
+                case IdentifierBinding identifierBinding:
+                    if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
+                        or VariableKind.AwaitUsing)
+                    {
+                        loopEnv.DefineJsValue(
+                            identifierBinding.Name,
+                            value,
+                            statement.DeclarationKind is VariableKind.Const or VariableKind.Using
+                                or VariableKind.AwaitUsing,
+                            isLexicalBinding: true,
+                            blocksFunctionScopeOverride: true);
+                    }
+                    else
+                    {
+                        loopEnv.AssignJsValue(identifierBinding.Name, value);
+                    }
+
+                    break;
+                default:
+                    throw new NotSupportedException(
+                        $"Async module execution does not support for-await target '{statement.Target.GetType().Name}' in awaited iterable loops.");
+            }
+        }
+
         private bool TryEvaluateForEachStatementWithAwait(ForEachStatement statement, JsEnvironment env, bool isStrict)
         {
             // for...of or for...in with await somewhere in iterable expression or body
             // The iterable might contain await, or the body might
             if (AstShapeAnalyzer.ContainsAwait(statement.Iterable))
             {
-                if (statement.Body is BlockStatement bodyBlock &&
-                    bodyBlock.Statements.Length == 2 &&
-                    bodyBlock.Statements[0] is ExpressionStatement awaitedBodyStatement &&
-                    AstShapeAnalyzer.StatementContainsAwait(awaitedBodyStatement) &&
-                    bodyBlock.Statements[1] is BreakStatement &&
-                    statement.Target is IdentifierBinding)
-                {
-                    _statementIndex++;
-                    Run();
-                    return true;
-                }
-
                 if (statement.Body is BlockStatement bodyBlock2 &&
                     bodyBlock2.Statements.Length == 2 &&
                     bodyBlock2.Statements[0] is ExpressionStatement awaitedBodyStatement2 &&

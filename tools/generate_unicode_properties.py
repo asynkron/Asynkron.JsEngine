@@ -197,6 +197,14 @@ def complement_ranges(ranges, max_cp=0x10FFFF):
     return result
 
 
+def add_implicit_unknown_script_ranges(script_data):
+    """Add Script=Unknown ranges for code points omitted by Scripts.txt."""
+    explicit_ranges = merge_ranges(sorted(rng for ranges in script_data.values() for rng in ranges))
+    unknown_ranges = complement_ranges(explicit_ranges)
+    if unknown_ranges:
+        script_data["Unknown"] = union_ranges(script_data.get("Unknown", []), unknown_ranges)
+
+
 # ECMAScript spec: mapping of property aliases to canonical names
 # From Table 69: Non-binary Unicode property aliases and values
 # https://tc39.es/ecma262/#table-nonbinary-unicode-properties
@@ -534,6 +542,7 @@ def main():
     derived_binary = parse_ranges(derived_binary_text)
     derived_normalization = parse_ranges(derived_normalization_text)
     script_data = parse_ranges(scripts_text)
+    add_implicit_unknown_script_ranges(script_data)
     script_ext_raw = parse_script_extensions(script_ext_text)
     emoji_data = parse_ranges(emoji_text)
     script_aliases = load_script_aliases(pva_text)

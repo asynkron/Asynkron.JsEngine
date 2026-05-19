@@ -1096,6 +1096,100 @@ export default function() { return 23; };
         Assert.Equal(3.0, result);
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task TopLevelAwait_ExportedClassDeclarationWithAwaitedComputedNameInitializesModuleBinding()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.EvaluateModule("""
+                                                 export class C {
+                                                   static [await Promise.resolve("x")]() { return 42; }
+                                                 }
+                                                 C.x()
+                                                 """);
+
+        Assert.Equal(42.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TopLevelAwait_ExportedClassDeclarationWithAwaitedComputedNameInitializesLiveExport()
+    {
+        await using var engine = CreateEngine();
+
+        engine.SetModuleLoader(modulePath => string.Equals(modulePath, "fixture.js", StringComparison.Ordinal)
+            ? """
+              export class C {
+                static [await Promise.resolve("x")]() { return 42; }
+              }
+              """
+            : throw new FileNotFoundException($"Module not found: {modulePath}"));
+
+        var result = await engine.EvaluateModule("""
+                                                 import { C } from "fixture.js";
+                                                 C.x()
+                                                 """);
+
+        Assert.Equal(42.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TopLevelAwait_ForAwaitOfAwaitedIterableAndBodyUsesAsyncIteratorPath()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.EvaluateModule("""
+                                                 var binding = 0;
+                                                 var sum = 0;
+
+                                                 for await (binding of [await Promise.resolve(1)]) {
+                                                   sum += await Promise.resolve(binding);
+                                                   break;
+                                                 }
+
+                                                 for await (var varBinding of [await Promise.resolve(2)]) {
+                                                   sum += await Promise.resolve(varBinding);
+                                                   break;
+                                                 }
+
+                                                 for await (let letBinding of [await Promise.resolve(3)]) {
+                                                   sum += await Promise.resolve(letBinding);
+                                                   break;
+                                                 }
+
+                                                 sum
+                                                 """);
+
+        Assert.Equal(6.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TopLevelAwait_ForAwaitOfAwaitedIterableBreakClosesAsyncIterator()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.EvaluateModule("""
+                                                 var closed = 0;
+                                                 var seen = 0;
+
+                                                 async function* gen() {
+                                                   try {
+                                                     yield 1;
+                                                   } finally {
+                                                     closed++;
+                                                   }
+                                                 }
+
+                                                 for await (const value of await Promise.resolve(gen())) {
+                                                   seen += await Promise.resolve(value);
+                                                   break;
+                                                 }
+
+                                                 seen + ":" + closed
+                                                 """);
+
+        Assert.Equal("1:1", result);
+    }
+
     [Fact(Timeout = 5000, Skip = "hangs indefinitely")]
     public async Task TopLevelAwait_ForAwaitOf()
     {

@@ -1028,11 +1028,20 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
               "abc".match(/(?:(?=(abc)))a/)[1],
               "abc".match(/(?:(?=(abc)))?a/)[1] === undefined ? "undefined" : "set",
               "abc".match(/(?:(?=(abc))){1,1}a/)[1],
-              "abc".match(/(?:(?=(abc))){0,1}a/)[1] === undefined ? "undefined" : "set"
+              "abc".match(/(?:(?=(abc))){0,1}a/)[1] === undefined ? "undefined" : "set",
+              (function() {
+                var match = /(?:(?=(a)\1))?(b)/.exec("ab");
+                return [
+                  match[0],
+                  match[1] === undefined ? "undefined" : match[1],
+                  match[2] === undefined ? "undefined" : match[2],
+                  match.index
+                ].join("|");
+              })()
             ].join("|");
         """);
 
-        Assert.Equal("abc|undefined|abc|undefined", result);
+        Assert.Equal("abc|undefined|abc|undefined|b|undefined|b|1", result);
     }
 
     [Fact(Timeout = 5000)]

@@ -1474,10 +1474,16 @@ public sealed class JsRegExp
                 var netGroupNumber = 0;
                 var contentStart = i + 1;
                 var isAssertion = false;
+                var nextIndex = i + 1;
 
                 if (i + 1 < normalizedPattern.Length && normalizedPattern[i + 1] == '?')
                 {
-                    if (i + 2 < normalizedPattern.Length && normalizedPattern[i + 2] == '<' &&
+                    if (TryGetConditionalGroupContentStart(normalizedPattern, i, out var conditionalContentStart))
+                    {
+                        contentStart = conditionalContentStart;
+                        nextIndex = conditionalContentStart;
+                    }
+                    else if (i + 2 < normalizedPattern.Length && normalizedPattern[i + 2] == '<' &&
                         i + 3 < normalizedPattern.Length && normalizedPattern[i + 3] != '=' && normalizedPattern[i + 3] != '!')
                     {
                         var nameEnd = normalizedPattern.IndexOf('>', i + 3);
@@ -1511,7 +1517,7 @@ public sealed class JsRegExp
                 groupClosePositions.Add(-1);
                 groupIsAssertion.Add(isAssertion);
                 groupStack.Push(groupId);
-                i++;
+                i = nextIndex;
                 continue;
             }
 
@@ -1578,6 +1584,27 @@ public sealed class JsRegExp
         }
 
         return hasReset ? map : null;
+    }
+
+    private static bool TryGetConditionalGroupContentStart(string pattern, int openPosition, out int contentStart)
+    {
+        contentStart = 0;
+        if (openPosition + 3 >= pattern.Length ||
+            pattern[openPosition] != '(' ||
+            pattern[openPosition + 1] != '?' ||
+            pattern[openPosition + 2] != '(')
+        {
+            return false;
+        }
+
+        var conditionClose = pattern.IndexOf(')', openPosition + 3);
+        if (conditionClose < 0)
+        {
+            return false;
+        }
+
+        contentStart = conditionClose + 1;
+        return true;
     }
 
     private static bool HasZeroMinimumQuantifier(string pattern, int index)

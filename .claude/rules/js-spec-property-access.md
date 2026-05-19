@@ -46,8 +46,9 @@ implemented as observable JavaScript property access, and the C# nullable
 throw-state check must propagate the JavaScript exception immediately.
 
 Issue #784 / PR #932 fixed strict postfix decrement through a `with` object
-environment after the getter deleted the binding before writeback. The generic
-property setter path could recreate the property, but ECMAScript strict
+environment after the getter deleted the binding before writeback. Issue #785 /
+PR #933 confirmed the same binding contract for strict postfix increment. The
+generic property setter path could recreate the property, but ECMAScript strict
 object-environment `SetMutableBinding` must throw when the binding has
 disappeared. The durable lesson is to model object-environment writeback as a
 binding operation first and only use property setting after the strict

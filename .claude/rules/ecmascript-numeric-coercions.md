@@ -57,6 +57,12 @@ open-coding casts at individual call sites.
     is spec-visible as positive zero through `keys()`, `entries()`, or
     `Map.groupBy`; pin grouped and direct collection cases with `Object.is(...)`
     or reciprocal-infinity assertions.
+13. For aggregate Math built-ins, keep each operation's empty-input and
+    all-zero rules separate. `Math.hypot` all-zero inputs canonicalize to `+0`,
+    while `Math.sumPrecise` has an empty-iterable identity of `-0` after the
+    required NaN/Infinity handling. Pin these cases with SameValue-style
+    assertions and the owning Test262 method group instead of reusing ordinary
+    numeric equality or another aggregate's zero policy.
 
 ## Why
 
@@ -124,3 +130,11 @@ expose `-0` during iteration. The durable rule is that collection-key
 extraction owns `-0` to `+0` canonicalization for Map/Set storage; individual
 grouping or prototype methods should not grow separate signed-zero patches that
 let stored-key representation drift from lookup semantics.
+
+Issue #802 / PR #995 fixed `Math.sumPrecise([])` after the empty finite-value
+path reused the default positive-zero return even though the operation's empty
+iterable identity is negative zero. The recurrence is why aggregate Math
+built-ins should not share a single "all zeros" intuition: the special-value
+order and exact aggregate identity are operation-specific, and the proof needs
+both an internal `Object.is(..., -0)` regression and the focused
+`Name=Math_sumPrecise` Test262 group.

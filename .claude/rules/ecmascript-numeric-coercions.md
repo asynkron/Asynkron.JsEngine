@@ -70,6 +70,11 @@ open-coding casts at individual call sites.
     formatter can preserve the exponent without building the full fixed decimal.
     Pin parser cap boundaries such as `1e-1001` with focused Intl regressions
     and the owning Test262 method group.
+15. For `Intl.NumberFormat` range helpers, route both endpoints through the
+    same Intl-owned numeric formatting path used by `formatRange` before
+    composing either the final string or `formatRangeToParts` output. Do not let
+    `formatRangeToParts` reintroduce generic `double` conversion or a separate
+    endpoint formatter that loses decimal-string precision.
 
 ## Why
 
@@ -154,3 +159,12 @@ the exact parser cap boundary, turned tiny nonzero scientific values such as
 preservation before fallback: keep exact coefficient and positive-exponent
 growth bounded, but let scientific and engineering notation carry large
 negative exponents without materializing enormous fixed decimal strings.
+
+Issue #808 / PR #1004 fixed the same decimal-string boundary for
+`Intl.NumberFormat.prototype.formatRange` and `formatRangeToParts`. The range
+parts helper had to use the same `FormatNumericForRange` endpoint path as the
+string helper so a range such as `"987654321987654321"` to
+`"987654321987654322"` stays precise across both surfaces. Future range work
+should prove both focused Test262 method groups and a local regression that
+compares the joined parts with the formatted range when the same endpoint
+formatting should be observable.

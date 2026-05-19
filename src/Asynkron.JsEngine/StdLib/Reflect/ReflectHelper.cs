@@ -163,8 +163,7 @@ public static class ReflectHelper
 
         var proto = ResolveConstructPrototype(newTarget, target, realm);
 
-        if ((realm.ArrayConstructor is not null && ReferenceEquals(target, realm.ArrayConstructor)) ||
-            (realm.ArrayConstructor is not null && ReferenceEquals(newTarget, realm.ArrayConstructor)))
+        if (IsArrayConstructor(target, realm))
         {
             TryGetRealmInfo(newTarget, out var newTargetRealmState, out _);
             var instanceRealm = proto is JsObject { RealmState: { } protoRealm }
@@ -890,8 +889,7 @@ public static class ReflectHelper
         TryGetRealmInfo(newTarget, out var newTargetRealmState, out var newTargetRealmObject);
 
         // Step 2: try realm default for Array (handles cross-realm Array subclassing)
-        if ((realmState.ArrayConstructor is not null && ReferenceEquals(target, realmState.ArrayConstructor)) ||
-            (realmState.ArrayConstructor is not null && ReferenceEquals(newTarget, realmState.ArrayConstructor)))
+        if (IsArrayConstructor(target, realmState))
         {
             if (newTargetRealmState?.ArrayPrototype is { } realmArrayProtoFromState)
             {
@@ -937,46 +935,44 @@ public static class ReflectHelper
             return false;
         }
 
-        if (target is not IJsPropertyAccessor accessor ||
-            !accessor.TryGetProperty("name", out var nameValue) ||
-            !nameValue.IsString)
+        if (target is IJsPropertyAccessor accessor &&
+            accessor.TryGetProperty("name", out var nameValue) &&
+            nameValue.IsString)
         {
-            return false;
-        }
+            var ctorName = nameValue.AsString();
 
-        var ctorName = nameValue.AsString();
+            if (realmState is not null &&
+                TryGetPrototypeFromRealmState(ctorName, realmState, out prototype))
+            {
+                return true;
+            }
 
-        if (realmState is not null &&
-            TryGetPrototypeFromRealmState(ctorName, realmState, out prototype))
-        {
-            return true;
-        }
+            if (TryGetIntlPrototype(ctorName, realmState, realmObject, out prototype))
+            {
+                return true;
+            }
 
-        if (TryGetIntlPrototype(ctorName, realmState, realmObject, out prototype))
-        {
-            return true;
-        }
+            var realmGlobal = realmObject ?? realmState?.Engine?.GlobalObject;
+            if (realmGlobal is not null &&
+                realmGlobal.TryGetProperty(ctorName, out var ctorValue) &&
+                TryGetPrototype(ctorValue, out prototype))
+            {
+                return true;
+            }
 
-        var realmGlobal = realmObject ?? realmState?.Engine?.GlobalObject;
-        if (realmGlobal is not null &&
-            realmGlobal.TryGetProperty(ctorName, out var ctorValue) &&
-            TryGetPrototype(ctorValue, out prototype))
-        {
-            return true;
+            if (realmObject is not null &&
+                realmObject.TryGetProperty(ctorName, out var realmCtor) &&
+                !realmCtor.IsUndefined &&
+                TryGetPrototype(realmCtor, out var realmProto))
+            {
+                prototype = realmProto;
+                return true;
+            }
         }
 
         if (realmState is { ObjectPrototype: not null })
         {
             prototype = realmState.ObjectPrototype;
-            return true;
-        }
-
-        if (realmObject is not null &&
-            realmObject.TryGetProperty(ctorName, out var realmCtor) &&
-            !realmCtor.IsUndefined &&
-            TryGetPrototype(realmCtor, out var realmProto))
-        {
-            prototype = realmProto;
             return true;
         }
 
@@ -1123,6 +1119,40 @@ public static class ReflectHelper
         }
 
         return ReferenceEquals(hostCtor.PropertiesObject.Prototype, realm.TypedArrayConstructor.PropertiesObject);
+    }
+
+    private static bool IsArrayConstructor(IJsCallable candidate, RealmState realm)
+    {
+        if (realm.ArrayConstructor is not null && ReferenceEquals(candidate, realm.ArrayConstructor))
+        {
+            return true;
+        }
+
+        if (candidate is JsProxy { Target: IJsCallable proxyTarget })
+        {
+            return IsArrayConstructor(proxyTarget, realm);
+        }
+
+        if (!TryGetRealmInfo(candidate, out var candidateRealmState, out var candidateRealmObject))
+        {
+            return false;
+        }
+
+        if (candidateRealmState?.ArrayConstructor is not null &&
+            ReferenceEquals(candidate, candidateRealmState.ArrayConstructor))
+        {
+            return true;
+        }
+
+        if (candidateRealmObject is not null &&
+            candidateRealmObject.TryGetProperty("Array", out var realmArrayCtor) &&
+            realmArrayCtor.TryGetObject<IJsCallable>(out var callableArrayCtor) &&
+            ReferenceEquals(candidate, callableArrayCtor))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>

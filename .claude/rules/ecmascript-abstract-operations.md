@@ -28,6 +28,9 @@ sequence directly before adding local type guards or host-runtime shortcuts.
    semantic parts. Range composition should add only the range-level `source`
    label (`shared`, `startRange`, or `endRange`) and range separator or
    approximate-sign parts.
+   Keep range string and range-parts composition on the same endpoint formatter,
+   locale separator, and affix-sharing rules unless a spec proof requires an
+   observable split.
 6. For `Intl.DateTimeFormat.prototype.formatRangeToParts`, preserve source
    tagging after Temporal slot filtering. Do not prove only the formatted range
    string when the observable parts array has separate boundaries and labels.
@@ -86,6 +89,14 @@ preserve collapsed or rounding-equal ranges as `approximatelySign` plus shared
 formatter parts, and create `type`, `value`, and `source` as ordinary data
 properties. Future Intl range-parts work should prove the parts array shape,
 not only the final range string.
+
+Issue #808 / PR #1004 fixed follow-up range composition drift after
+`formatRangeToParts` and `formatRange` no longer shared all endpoint formatting
+and affix logic. Mixed-sign currency ranges must not share a suffix that makes
+one endpoint lose its sign, the `pt-PT` hyphen separator override must not leak
+to `pt-BR`, and joined parts should match `formatRange` when both helpers
+observe the same range string. Future Intl range work should pin those cases
+locally and rerun both focused NumberFormat range Test262 method groups.
 
 Issue #766 / PR #942 fixed `Intl.DateTimeFormat.prototype.format` after
 out-of-range proleptic Gregorian dates were converted through

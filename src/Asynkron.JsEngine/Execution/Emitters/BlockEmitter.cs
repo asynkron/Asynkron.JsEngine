@@ -53,11 +53,24 @@ internal static class BlockEmitter
         int nextIndex,
         out int entryIndex)
     {
-        // Build slot map from hoistPlan.TopLevelLexicalNames at IR build time.
-        // This is necessary because scope analysis runs AFTER IR is built - we can't rely on
-        // block.SlotMap being populated yet. TopLevelLexicalNames contains all lexical bindings
-        // (let/const/class/function declarations) directly in this block.
-        var slotMap = BuildSlotMap(hoistPlan.TopLevelLexicalNames);
+        var functionDeclarations = ImmutableArray.CreateBuilder<StatementNode>(block.Statements.Length);
+        var nonFunctionStatements = ImmutableArray.CreateBuilder<StatementNode>(block.Statements.Length);
+        foreach (var statement in block.Statements)
+        {
+            if (statement is FunctionDeclaration)
+            {
+                functionDeclarations.Add(statement);
+            }
+            else
+            {
+                nonFunctionStatements.Add(statement);
+            }
+        }
+
+        // Build slot map at IR build time because scope analysis runs AFTER IR is built.
+        // TopLevelLexicalNames covers let/const/class; direct function declarations also
+        // need a block slot so Annex B evaluation can copy that value to the var binding.
+        var slotMap = BuildSlotMap(hoistPlan.TopLevelLexicalNames, functionDeclarations);
         var slotCount = slotMap.Count;
 
         // IMPORTANT FIX for #432: If TopLevelLexicalNames is empty, we don't need a block environment.
@@ -86,21 +99,6 @@ internal static class BlockEmitter
 
         // 1. Pop environment (exit the block scope)
         var popEnvIndex = ctx.Append(new PopEnvironmentInstruction(scopeId, allowPooling, nextIndex));
-
-        // 2. Build non-function statements so function declarations can be hoisted
-        var functionDeclarations = ImmutableArray.CreateBuilder<StatementNode>(block.Statements.Length);
-        var nonFunctionStatements = ImmutableArray.CreateBuilder<StatementNode>(block.Statements.Length);
-        foreach (var statement in block.Statements)
-        {
-            if (statement is FunctionDeclaration)
-            {
-                functionDeclarations.Add(statement);
-            }
-            else
-            {
-                nonFunctionStatements.Add(statement);
-            }
-        }
 
         ctx.PushScope(scopeId, allowPooling);
 
@@ -193,9 +191,11 @@ internal static class BlockEmitter
     /// Builds an immutable slot map from a set of lexical names.
     /// Each symbol gets a sequential slot index starting from 0.
     /// </summary>
-    private static ImmutableDictionary<Symbol, int> BuildSlotMap(HashSet<Symbol> lexicalNames)
+    private static ImmutableDictionary<Symbol, int> BuildSlotMap(
+        HashSet<Symbol> lexicalNames,
+        ImmutableArray<StatementNode>.Builder functionDeclarations)
     {
-        if (lexicalNames.Count == 0)
+        if (lexicalNames.Count == 0 && functionDeclarations.Count == 0)
         {
             return ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance);
         }
@@ -205,6 +205,14 @@ internal static class BlockEmitter
         foreach (var name in lexicalNames)
         {
             builder[name] = slotIndex++;
+        }
+
+        foreach (var statement in functionDeclarations)
+        {
+            if (statement is FunctionDeclaration { Name: { } name } && !builder.ContainsKey(name))
+            {
+                builder[name] = slotIndex++;
+            }
         }
 
         return builder.ToImmutable();

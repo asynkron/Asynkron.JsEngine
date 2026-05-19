@@ -1,8 +1,10 @@
 #region
 
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Numerics;
 using System.Text;
+using Asynkron.JsEngine.Runtime;
 
 #endregion
 
@@ -10,6 +12,7 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 
 internal static class IntlNumberFormatter
 {
+    private const int MaxExactDecimalStringDigits = 1000;
     private const double DecimalMaxMagnitude = 7.9228162514264338E28;
 
     public static IntlNumberFormatResult FormatBigInteger(BigInteger value, IntlNumberFormatInternalSlots slots)
@@ -52,52 +55,19 @@ internal static class IntlNumberFormatter
         return FormatQuantity(quantity, slots, wasNegative, value);
     }
 
-    public static bool TryFormatDecimalString(
-        string value,
-        IntlNumberFormatInternalSlots slots,
-        out IntlNumberFormatResult result,
-        out bool isNaN)
+    public static IntlNumberFormatResult? TryFormatDecimalString(string value, IntlNumberFormatInternalSlots slots)
     {
-        var trimmed = value.Trim();
-        if (trimmed.Length == 0)
+        var preserveLargeScale =
+            string.Equals(slots.Notation, "scientific", StringComparison.Ordinal) ||
+            string.Equals(slots.Notation, "engineering", StringComparison.Ordinal);
+        if (!DecimalQuantity.TryFromString(value, preserveLargeScale, out var quantity))
         {
-            result = FormatQuantity(DecimalQuantity.FromBigInteger(BigInteger.Zero), slots, false);
-            isNaN = false;
-            return true;
+            return null;
         }
 
-        if (string.Equals(trimmed, "NaN", StringComparison.Ordinal))
-        {
-            result = null!;
-            isNaN = true;
-            return false;
-        }
+        var numericValue = NumericStringParser.ParseJsNumber(value);
 
-        if (string.Equals(trimmed, "Infinity", StringComparison.Ordinal) ||
-            string.Equals(trimmed, "+Infinity", StringComparison.Ordinal))
-        {
-            result = FormatDouble(double.PositiveInfinity, slots);
-            isNaN = false;
-            return true;
-        }
-
-        if (string.Equals(trimmed, "-Infinity", StringComparison.Ordinal))
-        {
-            result = FormatDouble(double.NegativeInfinity, slots);
-            isNaN = false;
-            return true;
-        }
-
-        if (!TryCreateDecimalQuantity(trimmed.AsSpan(), out var quantity))
-        {
-            result = null!;
-            isNaN = false;
-            return false;
-        }
-
-        result = FormatQuantity(quantity, slots, quantity.IsNegative);
-        isNaN = false;
-        return true;
+        return FormatQuantity(quantity, slots, quantity.IsNegative, numericValue);
     }
 
     private static IntlNumberFormatResult FormatQuantity(
@@ -1002,106 +972,6 @@ internal static class IntlNumberFormatter
         return null;
     }
 
-    private static bool TryCreateDecimalQuantity(ReadOnlySpan<char> value, out DecimalQuantity quantity)
-    {
-        quantity = null!;
-        if (value.Length == 0)
-        {
-            quantity = DecimalQuantity.FromBigInteger(BigInteger.Zero);
-            return true;
-        }
-
-        var isNegative = false;
-        if (value[0] is '+' or '-')
-        {
-            isNegative = value[0] == '-';
-            value = value[1..];
-            if (value.Length == 0)
-            {
-                return false;
-            }
-        }
-
-        var exponent = 0;
-        var exponentIndex = value.IndexOfAny('e', 'E');
-        if (exponentIndex >= 0)
-        {
-            var exponentSpan = value[(exponentIndex + 1)..];
-            if (exponentSpan.Length == 0 ||
-                !int.TryParse(exponentSpan, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture,
-                    out exponent))
-            {
-                return false;
-            }
-
-            value = value[..exponentIndex];
-            if (value.Length == 0)
-            {
-                return false;
-            }
-        }
-
-        var decimalIndex = value.IndexOf('.');
-        ReadOnlySpan<char> integerPart;
-        ReadOnlySpan<char> fractionPart;
-        if (decimalIndex >= 0)
-        {
-            integerPart = value[..decimalIndex];
-            fractionPart = value[(decimalIndex + 1)..];
-        }
-        else
-        {
-            integerPart = value;
-            fractionPart = ReadOnlySpan<char>.Empty;
-        }
-
-        if (integerPart.Length == 0 && fractionPart.Length == 0)
-        {
-            return false;
-        }
-
-        if (!AllAsciiDigits(integerPart) || !AllAsciiDigits(fractionPart))
-        {
-            return false;
-        }
-
-        var digits = string.Concat(integerPart.ToString(), fractionPart.ToString()).TrimStart('0');
-        if (digits.Length == 0)
-        {
-            quantity = new DecimalQuantity { Coefficient = BigInteger.Zero, Scale = 0, IsNegative = isNegative };
-            return true;
-        }
-
-        var coefficient = BigInteger.Parse(digits, CultureInfo.InvariantCulture);
-        var scale = fractionPart.Length - exponent;
-        if (scale < 0)
-        {
-            coefficient *= Pow10(-scale);
-            scale = 0;
-        }
-
-        quantity = new DecimalQuantity
-        {
-            Coefficient = coefficient,
-            Scale = scale,
-            IsNegative = isNegative
-        };
-        return true;
-    }
-
-    private static bool AllAsciiDigits(ReadOnlySpan<char> value)
-    {
-        foreach (var ch in value)
-        {
-            if (ch is < '0' or > '9')
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     private static int FloorDiv(int dividend, int divisor)
     {
         if (divisor == 0)
@@ -1886,6 +1756,153 @@ internal static class IntlNumberFormatter
             var coefficient = ((BigInteger)high << 64) | ((BigInteger)mid << 32) | low;
 
             return new DecimalQuantity { Coefficient = coefficient, Scale = scale, IsNegative = isNegative };
+        }
+
+        public static bool TryFromString(
+            string value,
+            bool preserveLargeScale,
+            [NotNullWhen(true)] out DecimalQuantity? quantity)
+        {
+            quantity = null;
+            var source = NumericStringParser.TrimJsWhiteSpace(value);
+            if (source.Length == 0)
+            {
+                return false;
+            }
+
+            var index = 0;
+            var isNegative = false;
+            if (source[index] is '+' or '-')
+            {
+                isNegative = source[index] == '-';
+                index++;
+                if (index == source.Length)
+                {
+                    return false;
+                }
+            }
+
+            var coefficient = BigInteger.Zero;
+            var fractionDigits = 0;
+            var totalDigits = 0;
+            var sawDigit = false;
+            var sawDecimal = false;
+            for (; index < source.Length; index++)
+            {
+                var ch = source[index];
+                if (ch is '.')
+                {
+                    if (sawDecimal)
+                    {
+                        return false;
+                    }
+
+                    sawDecimal = true;
+                    continue;
+                }
+
+                if (ch is 'e' or 'E')
+                {
+                    break;
+                }
+
+                if (ch < '0' || ch > '9')
+                {
+                    return false;
+                }
+
+                sawDigit = true;
+                totalDigits++;
+                if (totalDigits > MaxExactDecimalStringDigits)
+                {
+                    return false;
+                }
+
+                coefficient = (coefficient * 10) + (ch - '0');
+                if (sawDecimal)
+                {
+                    fractionDigits++;
+                }
+            }
+
+            if (!sawDigit)
+            {
+                return false;
+            }
+
+            var exponent = 0;
+            if (index < source.Length)
+            {
+                if (!TryParseExponent(source, index + 1, out exponent))
+                {
+                    return false;
+                }
+            }
+
+            var scale = (long)fractionDigits - exponent;
+            if (scale < 0)
+            {
+                var zerosToAppend = -scale;
+                if (zerosToAppend > MaxExactDecimalStringDigits - totalDigits)
+                {
+                    return false;
+                }
+
+                coefficient *= Pow10((int)zerosToAppend);
+                scale = 0;
+            }
+            else if (scale > int.MaxValue || (!preserveLargeScale && scale > MaxExactDecimalStringDigits))
+            {
+                return false;
+            }
+
+            quantity = new DecimalQuantity
+            {
+                Coefficient = coefficient,
+                Scale = (int)scale,
+                IsNegative = isNegative
+            };
+            return true;
+        }
+
+        private static bool TryParseExponent(string source, int index, out int exponent)
+        {
+            exponent = 0;
+            if (index >= source.Length)
+            {
+                return false;
+            }
+
+            var sign = 1;
+            if (source[index] is '+' or '-')
+            {
+                sign = source[index] == '-' ? -1 : 1;
+                index++;
+                if (index >= source.Length)
+                {
+                    return false;
+                }
+            }
+
+            for (; index < source.Length; index++)
+            {
+                var ch = source[index];
+                if (ch < '0' || ch > '9')
+                {
+                    return false;
+                }
+
+                var digit = ch - '0';
+                if (exponent > (int.MaxValue - digit) / 10)
+                {
+                    return false;
+                }
+
+                exponent = (exponent * 10) + digit;
+            }
+
+            exponent *= sign;
+            return true;
         }
     }
 

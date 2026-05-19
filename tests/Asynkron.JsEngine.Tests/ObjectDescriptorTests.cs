@@ -204,6 +204,73 @@ public sealed class ObjectDescriptorTests(ITestOutputHelper output) : InternalTe
         Assert.Equal(10d, result);
     }
 
+    [Theory(Timeout = 2000)]
+    [InlineData("Object.preventExtensions")]
+    [InlineData("Object.seal")]
+    [InlineData("Object.freeze")]
+    public async Task ObjectAssign_Invokes_Existing_Accessor_Setter_On_Integrity_Target(string integrityOperation)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate($$"""
+
+                                                       let stringValue = 1;
+                                                       let target = {
+                                                           set foo(value) { stringValue = value; }
+                                                       };
+                                                       {{integrityOperation}}(target);
+                                                       Object.assign(target, { foo: 2 });
+
+                                                       let symbolValue = 1;
+                                                       let sym = Symbol();
+                                                       let symbolTarget = {
+                                                           set [sym](value) { symbolValue = value; }
+                                                       };
+                                                       {{integrityOperation}}(symbolTarget);
+                                                       Object.assign(symbolTarget, { [sym]: 2 });
+
+                                                       stringValue === 2 && symbolValue === 2;
+
+                                           """);
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ObjectAssign_Still_Throws_For_Failed_Target_Writes()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let readOnlyTarget = {};
+                                                       Object.defineProperty(readOnlyTarget, 'foo', {
+                                                           value: 1,
+                                                           writable: false
+                                                       });
+
+                                                       let nonExtensibleTarget = {};
+                                                       Object.preventExtensions(nonExtensibleTarget);
+
+                                                       let readOnlyThrew = false;
+                                                       let nonExtensibleThrew = false;
+                                                       try {
+                                                           Object.assign(readOnlyTarget, { foo: 2 });
+                                                       } catch (e) {
+                                                           readOnlyThrew = e instanceof TypeError;
+                                                       }
+
+                                                       try {
+                                                           Object.assign(nonExtensibleTarget, { foo: 2 });
+                                                       } catch (e) {
+                                                           nonExtensibleThrew = e instanceof TypeError;
+                                                       }
+
+                                                       readOnlyThrew && nonExtensibleThrew &&
+                                                           readOnlyTarget.foo === 1 &&
+                                                           nonExtensibleTarget.foo === undefined;
+
+                                           """);
+        Assert.Equal(true, result);
+    }
+
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Getter_And_Setter_Work_Together()
     {

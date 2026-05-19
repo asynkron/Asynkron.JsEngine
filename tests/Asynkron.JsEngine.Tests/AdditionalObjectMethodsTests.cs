@@ -7,6 +7,24 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class AdditionalObjectMethodsTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
+    public async Task Object_Is_UsesSameValueForNumberPairs()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            Object.is(0, -0) === false &&
+            Object.is(-0, 0) === false &&
+            Object.is(1, 2) === false &&
+            Object.is(Infinity, -Infinity) === false &&
+            Object.is(NaN, 0) === false &&
+            Object.is(NaN, NaN) === true &&
+            Object.is(-0, -0) === true &&
+            Object.is(0, 0) === true;
+        """);
+
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Object_GetOwnPropertyNames_ReturnsAllPropertyNames()
     {
         await using var engine = CreateEngine();
@@ -130,6 +148,47 @@ public sealed class AdditionalObjectMethodsTests(ITestOutputHelper output) : Int
 
                                            """);
         Assert.True(ReferenceEquals(result, Symbol.Undefined));
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Object_GetOwnPropertyDescriptors_NumberPrimitive_ReturnsEmptyDescriptorObject()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       const descriptors = Object.getOwnPropertyDescriptors(42);
+                                                       Object.getOwnPropertyNames(descriptors).length === 0 &&
+                                                           !Object.prototype.hasOwnProperty.call(descriptors, '__value__');
+
+                                           """);
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Object_GetOwnPropertyDescriptors_NullAndUndefined_ThrowTypeError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let threwForNull = false;
+                                                       let threwForUndefined = false;
+
+                                                       try {
+                                                           Object.getOwnPropertyDescriptors(null);
+                                                       } catch (e) {
+                                                           threwForNull = e instanceof TypeError;
+                                                       }
+
+                                                       try {
+                                                           Object.getOwnPropertyDescriptors(undefined);
+                                                       } catch (e) {
+                                                           threwForUndefined = e instanceof TypeError;
+                                                       }
+
+                                                       threwForNull && threwForUndefined;
+
+                                           """);
+        Assert.Equal(true, result);
     }
 
     [Fact(Timeout = 2000)]

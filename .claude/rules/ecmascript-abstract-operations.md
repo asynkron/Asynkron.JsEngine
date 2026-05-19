@@ -55,6 +55,11 @@ sequence directly before adding local type guards or host-runtime shortcuts.
 12. For Unicode extension keyword parsing, keep the first duplicate keyword
     value and ignore later duplicates unless the spec text being implemented
     explicitly says otherwise.
+13. For Object built-ins that begin with `ToObject`, keep primitive boxing and
+    nullish rejection as separate proof cases. Primitive numbers, strings,
+    booleans, symbols, and bigints are valid receivers after coercion, while
+    `null` and `undefined` still throw `TypeError`; internal primitive-wrapper
+    slots must not become ordinary enumerable or own descriptor properties.
 
 ## Why
 
@@ -99,3 +104,12 @@ dedupe normalized variants before sorting, stop base-name extraction at any
 extension singleton, and keep the first duplicate Unicode keyword value. Future
 Locale work should pair local grammar regressions with the focused
 `Name=Locale` Test262 method group.
+
+Issue #813 / PR #1008 added local regressions for
+`Object.getOwnPropertyDescriptors` after the focused Test262 method group was
+already green. The behavior to keep pinned is the abstract-operation split:
+`ToObject(42)` yields a primitive wrapper with no public own descriptors, but
+`ToObject(null)` and `ToObject(undefined)` still throw `TypeError`. Future
+Object built-in work should prove both the primitive-success path and the
+nullish-error path locally so wrapper implementation details such as
+`__value__` do not leak into descriptor enumeration.

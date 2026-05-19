@@ -302,6 +302,9 @@ public static partial class TypedAstEvaluator
         public bool DisallowConstruct => !_isConstructorEnabled || IsAsyncLike;
 
         public bool IsArrowFunction { get; }
+
+        internal bool HasHomeObject => _homeObject is not null;
+
         public RealmState RealmState { get; }
         public Parser.SourceReference? SourceReference => _sourceReferenceOverride ?? _function.Source;
 
@@ -928,6 +931,7 @@ public static partial class TypedAstEvaluator
             {
                 functionEnvironment = JsEnvironment.CreateInstance(_closure, true, _isStrict, _function.Source,
                     _functionDescription);
+                functionEnvironment.IsArrowFunctionEnvironment = IsArrowFunction;
                 // Don't initialize slots for complex parameter expressions (destructuring, defaults)
                 // Values are bound via dictionary, not slots - only set scope metadata
                 functionEnvironment.ScopeId = _function.ScopeId;
@@ -939,11 +943,13 @@ public static partial class TypedAstEvaluator
 
                 varEnvironment = JsEnvironment.CreateInstance(parameterEnvironment, true, _isStrict, _function.Source,
                     _functionDescription);
+                varEnvironment.IsArrowFunctionEnvironment = IsArrowFunction;
             }
             else
             {
                 functionEnvironment = JsEnvironment.CreateInstance(_closure, true, _isStrict, _function.Source,
                     _functionDescription);
+                functionEnvironment.IsArrowFunctionEnvironment = IsArrowFunction;
                 // InvokeWithContext uses dictionary-based lookups (slow path).
                 // Set ScopeId for scope chain navigation but DON'T initialize slots.
                 // Function declarations are hoisted into the dictionary via DefineFunctionScoped,

@@ -219,10 +219,24 @@ public static class ReflectHelper
         instance.BeginConstruction();
         try
         {
-            var invokeWithContext = target.GetType().GetMethod(
-                "InvokeWithContext",
-                [typeof(IReadOnlyList<JsValue>), typeof(JsValue), typeof(EvaluationContext), typeof(JsValue)]);
-            if (invokeWithContext is not null)
+            if (target is TypedAstEvaluator.SyncFunctionInvoker typedTarget)
+            {
+                var constructContext = realm.CreateContext(pushScope: false);
+                constructed = typedTarget.InvokeWithContext(
+                    argList,
+                    new JsValue(instance),
+                    constructContext,
+                    JsValue.FromObjectUnsafe(newTarget));
+
+                if (constructContext.IsThrow)
+                {
+                    throw new ThrowSignal(constructContext.FlowValue);
+                }
+            }
+            else if (target.GetType().GetMethod(
+                         "InvokeWithContext",
+                         [typeof(IReadOnlyList<JsValue>), typeof(JsValue), typeof(EvaluationContext), typeof(JsValue)])
+                     is { } invokeWithContext)
             {
                 var constructContext = realm.CreateContext(pushScope: false);
                 try

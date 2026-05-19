@@ -75,6 +75,13 @@ open-coding casts at individual call sites.
     composing either the final string or `formatRangeToParts` output. Do not let
     `formatRangeToParts` reintroduce generic `double` conversion or a separate
     endpoint formatter that loses decimal-string precision.
+16. For `Intl.DurationFormat` fractional unit output, combine seconds,
+    milliseconds, microseconds, and nanoseconds as exact decimal quantities
+    before formatting. Do not aggregate sub-second units through `double`
+    arithmetic and then hand the rounded binary value to the number formatter.
+    Preserve the sign separately from the absolute exact magnitude so
+    sign-display behavior stays observable while fractional precision remains
+    exact.
 
 ## Why
 
@@ -168,3 +175,12 @@ string helper so a range such as `"987654321987654321"` to
 should prove both focused Test262 method groups and a local regression that
 compares the joined parts with the formatted range when the same endpoint
 formatting should be observable.
+
+Issue #1025 / PR #1097 fixed `Intl.DurationFormat.prototype.format` after
+fractional unit combination used binary `double` arithmetic for seconds,
+milliseconds, microseconds, and nanoseconds. Test262 required exact
+mathematical values before the formatter applied truncation and padding, so the
+durable rule is that DurationFormat owns exact decimal aggregation before
+calling the Intl number formatter. Future work should pin this with local
+DurationFormat regressions and the focused
+`Name=DurationFormat_prototype_format` Test262 method group.

@@ -1063,7 +1063,7 @@ internal static partial class IntlUtilities
                         value = mappedValue;
                     }
 
-                    keywords[attributeKey] = value;
+                    keywords.TryAdd(attributeKey, value);
                 }
 
                 extension = "u";

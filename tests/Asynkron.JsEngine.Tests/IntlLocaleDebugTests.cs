@@ -98,4 +98,72 @@ public class IntlLocaleDebugTests
 
         Assert.Equal("xtg|xtg|undefined|undefined|undefined|xtg|xtg|undefined", result?.ToString());
     }
+
+    [Fact]
+    public async Task Constructor_VariantsOptionRejectsDashAndDuplicateForms()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const values = ['', '-spanglis', 'spanglis-', 'spanglis--oxendict', 'fonipa-Fonipa'];
+            values.map(value => {
+              try {
+                new Intl.Locale('en', { variants: value });
+                return 'accepted';
+              } catch (error) {
+                return error instanceof RangeError ? 'range' : error.name;
+              }
+            }).join('|');
+        ");
+
+        Assert.Equal("range|range|range|range|range", result?.ToString());
+    }
+
+    [Fact]
+    public async Task Constructor_VariantsOptionSortsCanonicalVariants()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            [
+              new Intl.Locale('xx', { variants: '1xyz-1234-abcde-12345678' }).toString(),
+              new Intl.Locale('en-fonipa-u-ca-gregory', { variants: 'spanglis-oxendict' }).toString()
+            ].join('|');
+        ");
+
+        Assert.Equal("xx-1234-12345678-1xyz-abcde|en-oxendict-spanglis-u-ca-gregory", result?.ToString());
+    }
+
+    [Fact]
+    public async Task LocaleGetters_TreatDigitFourSubtagAsVariant()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const loc = new Intl.Locale('de-1901');
+            [loc.baseName, String(loc.script), String(loc.region), loc.variants].join('|');
+        ");
+
+        Assert.Equal("de-1901|undefined|undefined|1901", result?.ToString());
+    }
+
+    [Fact]
+    public async Task LocaleLikelySubtags_PreserveGenericExtensions()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            [
+              new Intl.Locale('en-a-not-assigned').maximize().toString(),
+              new Intl.Locale('en-Latn-US-a-not-assigned').minimize().toString()
+            ].join('|');
+        ");
+
+        Assert.Equal("en-Latn-US-a-not-assigned|en-a-not-assigned", result?.ToString());
+    }
+
+    [Fact]
+    public async Task Constructor_UnicodeExtensionKeepsFirstDuplicateKeyword()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate("new Intl.Locale('da-u-ca-gregory-ca-buddhist').toString();");
+
+        Assert.Equal("da-u-ca-gregory", result?.ToString());
+    }
 }

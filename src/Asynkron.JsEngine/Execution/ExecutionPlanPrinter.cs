@@ -340,6 +340,7 @@ internal static class ExecutionPlanPrinter
             ExpressionOpKind.LoadClassLiteral => op.GetObject<ClassExpression>(objectConstantSpan).Name is { } className ? $"class:{className.Name}" : "class",
             ExpressionOpKind.LoadTemplateObject => "template",
             ExpressionOpKind.LoadIdentifier => op.GetIdentifier(identifierConstantSpan).Name.Name,
+            ExpressionOpKind.LoadIdentifierCallTarget => $"call.{op.GetIdentifier(identifierConstantSpan).Name.Name}",
             ExpressionOpKind.ResolveIdentifierReference => $"ref.{op.GetIdentifier(identifierConstantSpan).Name.Name}",
             ExpressionOpKind.LoadResolvedIdentifierValue => "ref.load",
             ExpressionOpKind.PopResolvedIdentifierReference => "ref.pop",

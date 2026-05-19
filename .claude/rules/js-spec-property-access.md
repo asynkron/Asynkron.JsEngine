@@ -10,17 +10,19 @@ because the receiver is array-like.
 For `with` object-environment bindings, keep the captured binding target and
 the current strict/sloppy writeback rules separate:
 
+- direct assignment must capture the object-environment reference before
+  evaluating the RHS, then write through that captured reference afterward;
 - strict writeback for a captured object binding must re-check `HasProperty`
   before `Set` when missing assignment is not explicitly allowed;
-- if the getter deleted the binding before an update operator writes back, throw
-  `ReferenceError` instead of recreating the property through the generic
-  property setter path;
+- if a getter, RHS side effect, or update operator deletes the binding before
+  writeback, throw `ReferenceError` instead of recreating the property through
+  the generic property setter path;
 - preserve sloppy-mode recreate-after-delete behavior only through an explicit
   sloppy/allow-missing path.
 
 Add focused tests for both sides when touching this area: strict missing-binding
-writeback must throw, while sloppy captured-binding writeback may recreate the
-property.
+writeback must throw after the side effect that deletes the binding has already
+run, while sloppy captured-binding writeback may recreate the property.
 
 ## Nullable Throw State
 
@@ -53,3 +55,8 @@ object-environment `SetMutableBinding` must throw when the binding has
 disappeared. The durable lesson is to model object-environment writeback as a
 binding operation first and only use property setting after the strict
 missing-binding check has passed.
+
+Issue #774 / PR #950 extended that lesson to plain assignment. The RHS can
+delete the resolved `with` binding before `PutValue`; strict mode still has to
+throw through the captured object-environment reference after RHS side effects,
+not fall back to a generic identifier/property assignment path.

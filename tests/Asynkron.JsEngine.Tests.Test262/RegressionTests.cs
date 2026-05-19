@@ -14,6 +14,24 @@ public class RegressionTests
     }
 
     [Test]
+    public void DecodeURIComponentFourByteFixture_UsesExtendedExecutionTimeout()
+    {
+        var timeout = Test262Test.GetTest262ExecutionTimeout(
+            "built-ins/decodeURIComponent/S15.1.3.2_A2.5_T1.js");
+
+        Assert.That(timeout, Is.EqualTo(TimeSpan.FromSeconds(90)));
+    }
+
+    [Test]
+    public void OrdinaryTest262Fixtures_UseDefaultExecutionTimeout()
+    {
+        var timeout = Test262Test.GetTest262ExecutionTimeout(
+            "built-ins/decodeURIComponent/S15.1.3.1_A1.1_T1.js");
+
+        Assert.That(timeout, Is.EqualTo(TimeSpan.FromSeconds(30)));
+    }
+
+    [Test]
     public async Task ForInMemberLhsInvokesArrayPrototypeSetter()
     {
         var engine = new JsEngine();

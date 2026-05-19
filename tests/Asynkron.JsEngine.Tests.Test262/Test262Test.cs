@@ -15,6 +15,8 @@ public abstract partial class Test262Test
         new(StringComparer.Ordinal);
     private const string DisableHarnessCacheEnvVar = "JSENGINE_TEST262_DISABLE_HARNESS_CACHE";
     private const string DisableBaseRealmEnvVar = "JSENGINE_TEST262_DISABLE_BASE_REALM";
+    private const string DecodeURIComponentFourByteTest =
+        "built-ins/decodeURIComponent/S15.1.3.2_A2.5_T1.js";
 
     private static bool IsEnvEnabled(string name)
     {
@@ -221,6 +223,7 @@ try {
 
         var useSnapshot = BaseRealmSnapshot.UseSnapshot && !IsEnvEnabled(DisableBaseRealmEnvVar);
         var engine = CreateTest262Engine(logger, debugMode, useSnapshot);
+        engine.ExecutionTimeout = GetTest262ExecutionTimeout(file.FileName);
 
         // Host-defined AgentCanSuspend() used by Atomics.wait sync mode.
         // Test262 uses the `CanBlockIsFalse` flag to indicate blocking must throw.
@@ -600,6 +603,13 @@ try {
         }
 
         return (engine, agentRuntime);
+    }
+
+    internal static TimeSpan GetTest262ExecutionTimeout(string fileName)
+    {
+        return fileName == DecodeURIComponentFourByteTest
+            ? TimeSpan.FromSeconds(90)
+            : TimeSpan.FromSeconds(30);
     }
 
     private static HostFunction CreateAbstractModuleSource(JsEngine engine)

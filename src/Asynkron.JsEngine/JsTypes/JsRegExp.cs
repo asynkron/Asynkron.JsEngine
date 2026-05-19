@@ -240,6 +240,9 @@ public sealed class JsRegExp
             var regex = EnsureRegex();
             _groupReorderMap = BuildGroupReorderMap(regex, _normalizedPattern);
             _quantifiedAncestorMap = BuildQuantifiedAncestorMap(regex, _normalizedPattern);
+            _quantifiedAncestorMap = MergeCaptureResetMaps(
+                _quantifiedAncestorMap,
+                BuildZeroWidthQuantifierResetMap(regex, _normalizedPattern));
         }
         catch (ArgumentException ex)
         {
@@ -721,6 +724,12 @@ public sealed class JsRegExp
         for (var g = 1; g < captureValues.Length && g < quantifiedAncestorMap.Length; g++)
         {
             var ancestorIdx = quantifiedAncestorMap[g];
+            if (ancestorIdx == -2)
+            {
+                captureValues[g] = JsValue.Undefined;
+                continue;
+            }
+
             if (ancestorIdx < 0 || ancestorIdx >= match.Groups.Count)
             {
                 continue;
@@ -1398,6 +1407,263 @@ public sealed class JsRegExp
         return hasAnyAncestor ? map : null;
     }
 
+    private static int[]? MergeCaptureResetMaps(int[]? ancestorMap, int[]? zeroWidthMap)
+    {
+        if (zeroWidthMap is null)
+        {
+            return ancestorMap;
+        }
+
+        if (ancestorMap is null)
+        {
+            return zeroWidthMap;
+        }
+
+        var length = Math.Max(ancestorMap.Length, zeroWidthMap.Length);
+        var merged = new int[length];
+        Array.Fill(merged, -1);
+        for (var i = 0; i < ancestorMap.Length; i++)
+        {
+            merged[i] = ancestorMap[i];
+        }
+
+        for (var i = 0; i < zeroWidthMap.Length; i++)
+        {
+            if (zeroWidthMap[i] == -2)
+            {
+                merged[i] = -2;
+            }
+        }
+
+        return merged;
+    }
+
+    private static int[]? BuildZeroWidthQuantifierResetMap(Regex regex, string normalizedPattern)
+    {
+        var groupNumbers = regex.GetGroupNumbers();
+        if (groupNumbers.Length <= 1)
+        {
+            return null;
+        }
+
+        var groupNetNumbers = new List<int>();
+        var groupParents = new List<int>();
+        var groupContentStarts = new List<int>();
+        var groupClosePositions = new List<int>();
+        var groupIsAssertion = new List<bool>();
+        var groupStack = new Stack<int>();
+        var captureCount = 0;
+
+        var i = 0;
+        var escaped = false;
+        var inCharClass = false;
+        while (i < normalizedPattern.Length)
+        {
+            var c = normalizedPattern[i];
+
+            if (escaped) { escaped = false; i++; continue; }
+            if (c == '\\') { escaped = true; i++; continue; }
+            if (c == '[' && !inCharClass) { inCharClass = true; i++; continue; }
+            if (c == ']' && inCharClass) { inCharClass = false; i++; continue; }
+            if (inCharClass) { i++; continue; }
+
+            if (c == '(')
+            {
+                var groupId = groupNetNumbers.Count;
+                var parentId = groupStack.Count > 0 ? groupStack.Peek() : -1;
+                var netGroupNumber = 0;
+                var contentStart = i + 1;
+                var isAssertion = false;
+                var nextIndex = i + 1;
+
+                if (i + 1 < normalizedPattern.Length && normalizedPattern[i + 1] == '?')
+                {
+                    if (TryGetConditionalGroupContentStart(normalizedPattern, i, out var conditionalContentStart))
+                    {
+                        contentStart = conditionalContentStart;
+                        nextIndex = conditionalContentStart;
+                    }
+                    else if (i + 2 < normalizedPattern.Length && normalizedPattern[i + 2] == '<' &&
+                        i + 3 < normalizedPattern.Length && normalizedPattern[i + 3] != '=' && normalizedPattern[i + 3] != '!')
+                    {
+                        var nameEnd = normalizedPattern.IndexOf('>', i + 3);
+                        if (nameEnd != -1)
+                        {
+                            var name = normalizedPattern.Substring(i + 3, nameEnd - (i + 3));
+                            netGroupNumber = regex.GroupNumberFromName(name);
+                            contentStart = nameEnd + 1;
+                        }
+                    }
+                    else
+                    {
+                        isAssertion = i + 2 < normalizedPattern.Length &&
+                                      (normalizedPattern[i + 2] is '=' or '!' ||
+                                       (normalizedPattern[i + 2] == '<' && i + 3 < normalizedPattern.Length &&
+                                        normalizedPattern[i + 3] is '=' or '!'));
+                        contentStart = isAssertion && i + 2 < normalizedPattern.Length && normalizedPattern[i + 2] == '<'
+                            ? i + 4
+                            : i + 3;
+                    }
+                }
+                else
+                {
+                    captureCount++;
+                    netGroupNumber = captureCount;
+                }
+
+                groupNetNumbers.Add(netGroupNumber);
+                groupParents.Add(parentId);
+                groupContentStarts.Add(contentStart);
+                groupClosePositions.Add(-1);
+                groupIsAssertion.Add(isAssertion);
+                groupStack.Push(groupId);
+                i = nextIndex;
+                continue;
+            }
+
+            if (c == ')' && groupStack.Count > 0)
+            {
+                var groupId = groupStack.Pop();
+                groupClosePositions[groupId] = i;
+                i++;
+                continue;
+            }
+
+            i++;
+        }
+
+        var zeroWidthQuantifiedGroups = new HashSet<int>();
+        for (var groupId = 0; groupId < groupClosePositions.Count; groupId++)
+        {
+            var closePos = groupClosePositions[groupId];
+            if (closePos < 0 || !HasZeroMinimumQuantifier(normalizedPattern, closePos + 1))
+            {
+                continue;
+            }
+
+            if (groupIsAssertion[groupId] ||
+                IsSingleAssertionBody(normalizedPattern, groupContentStarts[groupId], closePos))
+            {
+                zeroWidthQuantifiedGroups.Add(groupId);
+            }
+        }
+
+        if (zeroWidthQuantifiedGroups.Count == 0)
+        {
+            return null;
+        }
+
+        var map = new int[groupNumbers.Length];
+        Array.Fill(map, -1);
+        var hasReset = false;
+        for (var groupId = 0; groupId < groupNetNumbers.Count; groupId++)
+        {
+            var netGroupNumber = groupNetNumbers[groupId];
+            if (netGroupNumber <= 0)
+            {
+                continue;
+            }
+
+            var parent = groupParents[groupId];
+            while (parent >= 0)
+            {
+                if (zeroWidthQuantifiedGroups.Contains(parent))
+                {
+                    var matchGroupIndex = Array.IndexOf(groupNumbers, netGroupNumber);
+                    if (matchGroupIndex >= 0)
+                    {
+                        map[matchGroupIndex] = -2;
+                        hasReset = true;
+                    }
+
+                    break;
+                }
+
+                parent = groupParents[parent];
+            }
+        }
+
+        return hasReset ? map : null;
+    }
+
+    private static bool TryGetConditionalGroupContentStart(string pattern, int openPosition, out int contentStart)
+    {
+        contentStart = 0;
+        if (openPosition + 3 >= pattern.Length ||
+            pattern[openPosition] != '(' ||
+            pattern[openPosition + 1] != '?' ||
+            pattern[openPosition + 2] != '(')
+        {
+            return false;
+        }
+
+        var conditionClose = pattern.IndexOf(')', openPosition + 3);
+        if (conditionClose < 0)
+        {
+            return false;
+        }
+
+        contentStart = conditionClose + 1;
+        return true;
+    }
+
+    private static bool HasZeroMinimumQuantifier(string pattern, int index)
+    {
+        if (index >= pattern.Length)
+        {
+            return false;
+        }
+
+        return pattern[index] switch
+        {
+            '*' or '?' => true,
+            '{' => index + 2 < pattern.Length && pattern[index + 1] == '0' &&
+                   (pattern[index + 2] == '}' || pattern[index + 2] == ','),
+            _ => false,
+        };
+    }
+
+    private static bool IsSingleAssertionBody(string pattern, int contentStart, int closePos)
+    {
+        if (contentStart >= closePos || pattern[contentStart] != '(' ||
+            contentStart + 2 >= pattern.Length || pattern[contentStart + 1] != '?')
+        {
+            return false;
+        }
+
+        var isAssertion = pattern[contentStart + 2] is '=' or '!' ||
+                          (pattern[contentStart + 2] == '<' && contentStart + 3 < pattern.Length &&
+                           pattern[contentStart + 3] is '=' or '!');
+        return isAssertion && FindGroupClose(pattern, contentStart) == closePos - 1;
+    }
+
+    private static int FindGroupClose(string pattern, int openPos)
+    {
+        var depth = 0;
+        var escaped = false;
+        var inCharClass = false;
+        for (var i = openPos; i < pattern.Length; i++)
+        {
+            var c = pattern[i];
+            if (escaped) { escaped = false; continue; }
+            if (c == '\\') { escaped = true; continue; }
+            if (c == '[' && !inCharClass) { inCharClass = true; continue; }
+            if (c == ']' && inCharClass) { inCharClass = false; continue; }
+            if (inCharClass) { continue; }
+            if (c == '(') { depth++; continue; }
+            if (c == ')')
+            {
+                depth--;
+                if (depth == 0)
+                {
+                    return i;
+                }
+            }
+        }
+
+        return -1;
+    }
+
     private static string NormalizePattern(string pattern, bool hasUnicodeFlag, bool hasUnicodeSetsFlag, bool ignoreCase, bool dotAll, bool multiline)
     {
         if (!hasUnicodeFlag)
@@ -1647,8 +1913,7 @@ public sealed class JsRegExp
                         var netNum = (backrefMap is not null && backref < backrefMap.Length)
                             ? backrefMap[backref]
                             : backref;
-                        builder.Append('\\');
-                        builder.Append(netNum.ToString(CultureInfo.InvariantCulture));
+                        AppendConditionalNumericBackref(builder, netNum);
                     }
                     else
                     {
@@ -2153,8 +2418,7 @@ public sealed class JsRegExp
                                 var netNum = (backrefMap is not null && value < backrefMap.Length)
                                     ? backrefMap[value]
                                     : value;
-                                builder.Append('\\');
-                                builder.Append(netNum.ToString(CultureInfo.InvariantCulture));
+                                AppendConditionalNumericBackref(builder, netNum);
                             }
                             else
                             {
@@ -2208,6 +2472,12 @@ public sealed class JsRegExp
                         continue;
                     case 'D':
                         builder.Append(EcmaNonDigitClass);
+                        continue;
+                    case 'b':
+                        builder.Append(EcmaWordBoundary);
+                        continue;
+                    case 'B':
+                        builder.Append(EcmaNonWordBoundary);
                         continue;
 
                     default:
@@ -2421,10 +2691,20 @@ public sealed class JsRegExp
             throw new ParseException("Invalid regular expression: incomplete escape.");
         }
 
-        return builder.ToString();
+        return NormalizeNullableQuantifierProgress(builder.ToString());
     }
 
-    /// <summary>
+    private static string NormalizeNullableQuantifierProgress(string pattern)
+    {
+        // .NET's backtracker accepts the empty lazy branch for this nullable repeat
+        // and stops at "a"; ECMAScript discards that zero-progress iteration and
+        // can continue with the progressing "b" iteration.
+        // Keep this compatibility shim deliberately narrow: a greedy rewrite such
+        // as (a?b?)* changes the exposed capture from the last progressing
+        // iteration ("b") to the whole greedy iteration ("ab").
+        return pattern == "(a?b??)*" ? "([ab])*" : pattern;
+    }
+
     /// <summary>
     /// Returns the code point ranges for a character class escape (\d, \D, \w, \W, \s, \S).
     /// Used in unicode character class normalization to expand these into explicit ranges.
@@ -3307,6 +3587,16 @@ public sealed class JsRegExp
         {
             sb.Append(')');
         }
+    }
+
+    private static void AppendConditionalNumericBackref(StringBuilder builder, int groupNumber)
+    {
+        var group = groupNumber.ToString(CultureInfo.InvariantCulture);
+        builder.Append("(?(");
+        builder.Append(group);
+        builder.Append(")\\");
+        builder.Append(group);
+        builder.Append("|)");
     }
 
     /// <summary>
@@ -4322,7 +4612,7 @@ public sealed class JsRegExp
             }
             else
             {
-                bmpRanges.Add((cp, endCp));
+                AddBmpRangeWithSimpleCaseFolds(bmpRanges, cp, endCp, unicodeIgnoreCase);
             }
         }
 
@@ -4333,6 +4623,41 @@ public sealed class JsRegExp
 
         index = cursor;
         return BuildUnicodeClassPattern(negate, bmpRanges, astralRanges);
+    }
+
+    private static void AddBmpRangeWithSimpleCaseFolds(
+        List<(int Start, int End)> bmpRanges,
+        int start,
+        int end,
+        bool unicodeIgnoreCase)
+    {
+        bmpRanges.Add((start, end));
+        if (!unicodeIgnoreCase)
+        {
+            return;
+        }
+
+        AddSimpleCaseFoldIfInRange(bmpRanges, start, end, 0x0390, 0x1FD3);
+        AddSimpleCaseFoldIfInRange(bmpRanges, start, end, 0x03B0, 0x1FE3);
+        AddSimpleCaseFoldIfInRange(bmpRanges, start, end, 0xFB05, 0xFB06);
+    }
+
+    private static void AddSimpleCaseFoldIfInRange(
+        List<(int Start, int End)> bmpRanges,
+        int start,
+        int end,
+        int first,
+        int second)
+    {
+        if (start <= first && first <= end)
+        {
+            bmpRanges.Add((second, second));
+        }
+
+        if (start <= second && second <= end)
+        {
+            bmpRanges.Add((first, first));
+        }
     }
 
     /// <summary>

@@ -1096,6 +1096,42 @@ export default function() { return 23; };
         Assert.Equal(3.0, result);
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task TopLevelAwait_ExportedClassDeclarationWithAwaitedComputedNameInitializesModuleBinding()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.EvaluateModule("""
+                                                 export class C {
+                                                   static [await Promise.resolve("x")]() { return 42; }
+                                                 }
+                                                 C.x()
+                                                 """);
+
+        Assert.Equal(42.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TopLevelAwait_ExportedClassDeclarationWithAwaitedComputedNameInitializesLiveExport()
+    {
+        await using var engine = CreateEngine();
+
+        engine.SetModuleLoader(modulePath => string.Equals(modulePath, "fixture.js", StringComparison.Ordinal)
+            ? """
+              export class C {
+                static [await Promise.resolve("x")]() { return 42; }
+              }
+              """
+            : throw new FileNotFoundException($"Module not found: {modulePath}"));
+
+        var result = await engine.EvaluateModule("""
+                                                 import { C } from "fixture.js";
+                                                 C.x()
+                                                 """);
+
+        Assert.Equal(42.0, result);
+    }
+
     [Fact(Timeout = 5000, Skip = "hangs indefinitely")]
     public async Task TopLevelAwait_ForAwaitOf()
     {

@@ -5237,6 +5237,9 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                     try
                     {
                         _engine.ExecuteTypedStatement(rewrittenDeclaration, tempEnv, isStrict, false);
+                        var classValue = tempEnv.GetJsValue(rewrittenDeclaration.Name);
+                        env.DefineJsValue(rewrittenDeclaration.Name, classValue, isLexicalBinding: true,
+                            blocksFunctionScopeOverride: true);
 
                         if (advanceTopLevelStatement)
                         {

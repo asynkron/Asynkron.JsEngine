@@ -9,6 +9,87 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class DestructuringIteratorTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
+    public async Task ArrowParameterDefaultArrayPatternBindsUndefinedWhenIteratorCompletes()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            var callCount = 0;
+            var iterable = {};
+            iterable[Symbol.iterator] = function() {
+              return {
+                next: function() {
+                  return { done: true };
+                }
+              };
+            };
+
+            var f = ([x] = iterable) => {
+              callCount += 1;
+              return x === undefined && callCount === 1;
+            };
+
+            f();
+            """);
+
+        Assert.True(JsOps.ToBoolean(JsValue.FromObjectUnsafe(result)));
+    }
+
+    [Fact]
+    public async Task ArrowParameterDefaultArrayPatternReusesCompletedIteratorForLaterElements()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            var iterable = {};
+            iterable[Symbol.iterator] = function() {
+              return {
+                next: function() {
+                  return { done: true };
+                }
+              };
+            };
+
+            var f = ([_, x] = iterable) => x === undefined;
+
+            f();
+            """);
+
+        Assert.True(JsOps.ToBoolean(JsValue.FromObjectUnsafe(result)));
+    }
+
+    [Fact]
+    public async Task ArrowParameterDefaultArrayPatternForwardsIteratorStepThrow()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            var original = {};
+            var caught;
+            var iterable = {};
+            iterable[Symbol.iterator] = function() {
+              return {
+                next: function() {
+                  throw original;
+                }
+              };
+            };
+
+            var f = ([x] = iterable) => x;
+
+            try {
+              f();
+            } catch (e) {
+              caught = e;
+            }
+
+            caught === original;
+            """);
+
+        Assert.True(JsOps.ToBoolean(JsValue.FromObjectUnsafe(result)));
+    }
+
+    [Fact]
     public async Task ArrayPatternIteratorThrowsOriginalError()
     {
         await using var engine = CreateEngine();

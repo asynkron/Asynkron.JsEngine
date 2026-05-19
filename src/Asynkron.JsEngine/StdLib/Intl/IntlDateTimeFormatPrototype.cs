@@ -43,6 +43,16 @@ public sealed partial class IntlDateTimeFormatPrototype
         int Millisecond,
         TimeSpan Offset);
 
+    private readonly record struct FormatRangeOperand(
+        DateTimeOffset DateTime,
+        DateTimeFormatInternalSlots Slots,
+        string? DisplayTimeZone);
+
+    private readonly record struct FormatRangeFormattable(
+        bool IsTemporal,
+        TemporalFormatterTarget TemporalTarget,
+        double EpochMilliseconds);
+
     internal static void InitializeInternalSlots(JsObject instance, DateTimeFormatInternalSlots slots)
     {
         instance.SetProperty(BrandKey, true);
@@ -103,24 +113,18 @@ public sealed partial class IntlDateTimeFormatPrototype
             throw ThrowTypeError("endDate is undefined", realm: Realm);
         }
 
-        var startMs = ToEpochMilliseconds(startDate);
-        var endMs = ToEpochMilliseconds(endDate);
+        var startFormattable = ToDateTimeFormattable(startDate);
+        var endFormattable = ToDateTimeFormattable(endDate);
 
-        // Per spec: if either is NaN, throw RangeError
-        if (double.IsNaN(startMs))
-        {
-            throw ThrowRangeError("Invalid start date value", realm: Realm);
-        }
+        ValidateTemporalRangeKinds(startFormattable, endFormattable, Realm);
 
-        if (double.IsNaN(endMs))
-        {
-            throw ThrowRangeError("Invalid end date value", realm: Realm);
-        }
+        var startOperand = GetFormatRangeOperand(startFormattable, slotData, Realm, "start");
+        var endOperand = GetFormatRangeOperand(endFormattable, slotData, Realm, "end");
 
-        ValidateTemporalRangeKinds(startDate, endDate, Realm);
-
-        var startFormatted = FormatDateTimeOffset(startMs, slotData, slotData.DisplayTimeZone);
-        var endFormatted = FormatDateTimeOffset(endMs, slotData, slotData.DisplayTimeZone);
+        var startFormatted = FormatResolvedDateTimeString(startOperand.DateTime, startOperand.Slots,
+            startOperand.DisplayTimeZone);
+        var endFormatted = FormatResolvedDateTimeString(endOperand.DateTime, endOperand.Slots,
+            endOperand.DisplayTimeZone);
 
         // If both format to the same string, return single formatted value (no range)
         if (string.Equals(startFormatted, endFormatted, StringComparison.Ordinal))
@@ -129,13 +133,12 @@ public sealed partial class IntlDateTimeFormatPrototype
         }
 
         // Try range collapsing for named month formats
-        if (ShouldCollapseRange(slotData))
+        if (ShouldCollapseRange(startOperand.Slots) && ShouldCollapseRange(endOperand.Slots))
         {
-            var culture = IntlUtilities.ResolveCulture(slotData.Locale);
-            var startDto = ToDateTimeOffset(startMs, slotData.TimeZone);
-            var endDto = ToDateTimeOffset(endMs, slotData.TimeZone);
-            var startParts = FormatToPartsInternal(startDto, slotData, culture);
-            var endParts = FormatToPartsInternal(endDto, slotData, culture);
+            var startCulture = IntlUtilities.ResolveCulture(startOperand.Slots.Locale);
+            var endCulture = IntlUtilities.ResolveCulture(endOperand.Slots.Locale);
+            var startParts = FormatToPartsInternal(startOperand.DateTime, startOperand.Slots, startCulture);
+            var endParts = FormatToPartsInternal(endOperand.DateTime, endOperand.Slots, endCulture);
 
             var collapsed = BuildCollapsedRangeString(startParts, endParts);
             if (collapsed is not null)
@@ -443,9 +446,23 @@ public sealed partial class IntlDateTimeFormatPrototype
             return false;
         }
 
-        // Only collapse when month is named (short/long/narrow), not numeric
-        return slots.Components.TryGetValue("month", out var monthWidth)
-               && monthWidth is "long" or "short" or "narrow";
+        if (slots.Components.TryGetValue("month", out var monthWidth)
+            && monthWidth is "long" or "short" or "narrow")
+        {
+            return true;
+        }
+
+        return HasDateAndTimeComponents(slots.Components);
+    }
+
+    private static bool HasDateAndTimeComponents(Dictionary<string, string> components)
+    {
+        var hasDate = components.ContainsKey("year") || components.ContainsKey("month") ||
+                      components.ContainsKey("day");
+        var hasTime = components.ContainsKey("hour") || components.ContainsKey("minute") ||
+                      components.ContainsKey("second") || components.ContainsKey("fractionalSecondDigits") ||
+                      components.ContainsKey("dayPeriod");
+        return hasDate && hasTime;
     }
 
     /// <summary>
@@ -513,9 +530,7 @@ public sealed partial class IntlDateTimeFormatPrototype
             suffixLen++;
         }
 
-        // Per CLDR: only collapse when there's a shared suffix (year is shared).
-        // When the year (last significant component) differs, show full dates.
-        if (suffixLen == 0)
+        if (suffixLen == 0 && !PrefixContainsCompleteDate(startParts, prefixLen))
         {
             return null;
         }
@@ -554,6 +569,23 @@ public sealed partial class IntlDateTimeFormatPrototype
         }
 
         return sb.ToString();
+    }
+
+    private static bool PrefixContainsCompleteDate(JsArray parts, int prefixLen)
+    {
+        var hasYear = false;
+        var hasMonth = false;
+        var hasDay = false;
+
+        for (var i = 0; i < prefixLen; i++)
+        {
+            var (type, _) = ExtractPartInfo(parts.Get(i));
+            hasYear |= type == "year";
+            hasMonth |= type == "month";
+            hasDay |= type == "day";
+        }
+
+        return hasYear && hasMonth && hasDay;
     }
 
     /// <summary>
@@ -693,6 +725,12 @@ public sealed partial class IntlDateTimeFormatPrototype
         return (string)FormatEpoch(epochMs, slots, displayTimeZoneId).ObjectValue!;
     }
 
+    private static string FormatResolvedDateTimeString(DateTimeOffset dto, DateTimeFormatInternalSlots slots,
+        string? displayTimeZoneId = null)
+    {
+        return (string)FormatResolvedDateTime(dto, slots, displayTimeZoneId).ObjectValue!;
+    }
+
     private static JsValue FormatChecked(JsValue value, DateTimeFormatInternalSlots slots, RealmState realm,
         string? displayTimeZoneId = null)
     {
@@ -709,6 +747,45 @@ public sealed partial class IntlDateTimeFormatPrototype
         }
 
         return FormatEpoch(epochMilliseconds, slots, displayTimeZoneId);
+    }
+
+    private static FormatRangeFormattable ToDateTimeFormattable(JsValue value)
+    {
+        if (TryGetTemporalFormatterTarget(value, out var temporalTarget))
+        {
+            var epochMilliseconds = temporalTarget.Kind is TemporalFormatterKind.Instant
+                ? ToEpochMilliseconds(value)
+                : double.NaN;
+            return new FormatRangeFormattable(true, temporalTarget, epochMilliseconds);
+        }
+
+        return new FormatRangeFormattable(false, default, ToEpochMilliseconds(value));
+    }
+
+    private static FormatRangeOperand GetFormatRangeOperand(FormatRangeFormattable formattable,
+        DateTimeFormatInternalSlots slots,
+        RealmState realm, string operandName)
+    {
+        if (formattable.IsTemporal &&
+            formattable.TemporalTarget.Kind is not TemporalFormatterKind.Instant and not TemporalFormatterKind.ZonedDateTime)
+        {
+            var effectiveSlots = GetEffectiveTemporalSlots(slots, formattable.TemporalTarget, realm);
+            return new FormatRangeOperand(formattable.TemporalTarget.DateTime, effectiveSlots, null);
+        }
+
+        if (formattable.IsTemporal && formattable.TemporalTarget.Kind is TemporalFormatterKind.ZonedDateTime)
+        {
+            throw ThrowTypeError("Temporal.ZonedDateTime cannot be formatted with Intl.DateTimeFormat.formatRange",
+                realm: realm);
+        }
+
+        var epochMilliseconds = formattable.EpochMilliseconds;
+        if (double.IsNaN(epochMilliseconds))
+        {
+            throw ThrowRangeError($"Invalid {operandName} date value", realm: realm);
+        }
+
+        return new FormatRangeOperand(ToDateTimeOffset(epochMilliseconds, slots.TimeZone), slots, slots.DisplayTimeZone);
     }
 
     private static JsValue FormatEpoch(double epochMilliseconds, DateTimeFormatInternalSlots slots,
@@ -871,18 +948,32 @@ public sealed partial class IntlDateTimeFormatPrototype
         return target.Kind is not TemporalFormatterKind.Instant and not TemporalFormatterKind.ZonedDateTime;
     }
 
-    private static void ValidateTemporalRangeKinds(JsValue startValue, JsValue endValue, RealmState realm)
+    private static void ValidateTemporalRangeKinds(FormatRangeFormattable startValue, FormatRangeFormattable endValue,
+        RealmState realm)
     {
-        var startIsTemporal = TryGetTemporalFormatterTarget(startValue, out var startTarget);
-        var endIsTemporal = TryGetTemporalFormatterTarget(endValue, out var endTarget);
-
         // Per spec: if one is Temporal and the other is not (Date), throw TypeError
-        if (startIsTemporal != endIsTemporal)
+        if (startValue.IsTemporal != endValue.IsTemporal)
         {
             throw ThrowTypeError("Temporal objects passed to formatRange must be the same type", realm: realm);
         }
 
         // If both are Temporal, they must be the same kind
+        if (startValue.IsTemporal && startValue.TemporalTarget.Kind != endValue.TemporalTarget.Kind)
+        {
+            throw ThrowTypeError("Temporal objects passed to formatRange must be the same type", realm: realm);
+        }
+    }
+
+    private static void ValidateTemporalRangeKinds(JsValue startValue, JsValue endValue, RealmState realm)
+    {
+        var startIsTemporal = TryGetTemporalFormatterTarget(startValue, out var startTarget);
+        var endIsTemporal = TryGetTemporalFormatterTarget(endValue, out var endTarget);
+
+        if (startIsTemporal != endIsTemporal)
+        {
+            throw ThrowTypeError("Temporal objects passed to formatRange must be the same type", realm: realm);
+        }
+
         if (startIsTemporal && startTarget.Kind != endTarget.Kind)
         {
             throw ThrowTypeError("Temporal objects passed to formatRange must be the same type", realm: realm);

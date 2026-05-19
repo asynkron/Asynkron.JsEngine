@@ -595,8 +595,7 @@ public sealed partial class MathPrototype
 
         if (values.Count == 0)
         {
-            if (!sawFiniteNonZero && sawNegativeZero && !sawPositiveZero) return JsValue.FromDouble(-0d);
-            return JsValue.Zero;
+            return JsValue.FromDouble(-0d);
         }
 
         var result = SumPreciseFinite(values);

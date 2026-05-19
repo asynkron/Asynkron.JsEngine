@@ -1,6 +1,6 @@
 # Test262 regression pack: regexp
 # Source umbrella list: tests/Asynkron.JsEngine.Tests.Test262/current-regressions.filter.txt
-# Filters: 110
+# Filters: 115
 FullyQualifiedName~BuiltIns_RegExp_legacyAccessors_index&FullyQualifiedName~this-cross-realm-constructor.js
 FullyQualifiedName~BuiltIns_RegExp_legacyAccessors_input&FullyQualifiedName~this-cross-realm-constructor.js
 FullyQualifiedName~BuiltIns_RegExp_legacyAccessors_lastMatch&FullyQualifiedName~this-cross-realm-constructor.js
@@ -8,8 +8,13 @@ FullyQualifiedName~BuiltIns_RegExp_legacyAccessors_lastParen&FullyQualifiedName~
 FullyQualifiedName~BuiltIns_RegExp_legacyAccessors_leftContext&FullyQualifiedName~this-cross-realm-constructor.js
 FullyQualifiedName~BuiltIns_RegExp_legacyAccessors_rightContext&FullyQualifiedName~this-cross-realm-constructor.js
 FullyQualifiedName~BuiltIns_RegExp_prototype_Symbol_split&FullyQualifiedName~Symbol.match-getter-recompiles-source.js
-FullyQualifiedName~RegExp_lookBehind&FullyQualifiedName~back-references-to-captures.js
-FullyQualifiedName~RegExp_lookBehind&FullyQualifiedName~mutual-recursive.js
+FullyQualifiedName~RegExp&FullyQualifiedName~S15.10.2.5_A1_T4.js
+FullyQualifiedName~RegExp&FullyQualifiedName~S15.10.2.6_A4_T7.js
+FullyQualifiedName~RegExp&FullyQualifiedName~S15.10.2.8_A2_T1.js
+FullyQualifiedName~RegExp&FullyQualifiedName~character-class-escape-non-whitespace.js
+FullyQualifiedName~RegExp&FullyQualifiedName~lookahead-quantifier-match-groups.js
+FullyQualifiedName~RegExp&FullyQualifiedName~nullable-quantifier.js
+FullyQualifiedName~RegExp&FullyQualifiedName~unicode_full_case_folding.js
 FullyQualifiedName~RegExp_propertyEscapes&FullyQualifiedName~special-property-value-Script_Extensions-Unknown.js
 FullyQualifiedName~RegExp_propertyEscapes_generated&FullyQualifiedName~Assigned.js
 FullyQualifiedName~RegExp_propertyEscapes_generated&FullyQualifiedName~General_Category_-_Other.js

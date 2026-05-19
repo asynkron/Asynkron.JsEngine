@@ -972,6 +972,139 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 5000)]
+    public async Task RegExp_Lookbehind_BackreferencesToCaptures()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var errors = [];
+            function check(label, expected, actual) {
+                if (actual === null && expected !== null) { errors.push(label + ": got null"); return; }
+                if (actual !== null && expected === null) { errors.push(label + ": expected null, got " + actual); return; }
+                if (expected === null) return;
+                if (actual.length !== expected.length) { errors.push(label + ": length " + actual.length + " != " + expected.length); return; }
+                for (var i = 0; i < expected.length; i++) {
+                    if (actual[i] !== expected[i]) { errors.push(label + ": [" + i + "] " + actual[i] + " != " + expected[i]); }
+                }
+            }
+
+            check("#1", ["d", "C"], "abcCd".match(/(?<=\1(\w))d/i));
+            check("#2", ["d", "x"], "abxxd".match(/(?<=\1([abx]))d/));
+            check("#3", ["c", "ab"], "ababc".match(/(?<=\1(\w+))c/));
+            check("#4", ["c", "b"], "ababbc".match(/(?<=\1(\w+))c/));
+            check("#5", null, "ababdc".match(/(?<=\1(\w+))c/));
+            check("#6", ["c", "abab"], "ababc".match(/(?<=(\w+)\1)c/));
+
+            errors.length > 0 ? errors.join("; ") : "OK";
+        """);
+        Assert.Equal("OK", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task RegExp_Lookbehind_Backreference_HasIndicesReportsCaptureSpans()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var m = /(?<=\1(\w))d/d.exec("xxdd");
+            JSON.stringify([
+                m && m.index,
+                m && m[0],
+                m && m[1],
+                m && Array.from(m.indices[1]),
+                RegExp.$1,
+                RegExp.lastMatch,
+                RegExp.leftContext,
+                RegExp.rightContext
+            ]);
+        """);
+
+        Assert.Equal("""[2,"d","x",[1,2],"x","d","xx","d"]""", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task RegExp_Lookbehind_Backreference_UpdatesRegExpStatics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            /(?<=\1(\w))d/.test("xxdd");
+            JSON.stringify([RegExp.$1, RegExp.lastMatch, RegExp.leftContext, RegExp.rightContext]);
+        """);
+
+        Assert.Equal("""["x","d","xx","d"]""", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task RegExp_Lookbehind_Backreference_WordBoundaryEscapesUseRegexFallback()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var boundary = /(?<=\1(\w)\b)-/.exec("xx-");
+            var nonBoundary = /(?<=\1(\w)\B)d/.exec("xxdd");
+            JSON.stringify([
+                boundary && boundary.index,
+                boundary && boundary[0],
+                boundary && boundary[1],
+                nonBoundary && nonBoundary.index,
+                nonBoundary && nonBoundary[0],
+                nonBoundary && nonBoundary[1]
+            ]);
+        """);
+
+        Assert.Equal("""[2,"-","x",2,"d","x"]""", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task RegExp_Lookbehind_Backreference_AssertionsUseZeroWidthSemantics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var start = /(?<=^\1(\w))d/m.exec("xxd");
+            var multilineStart = /(?<=^\1(\w))d/m.exec("\nxxd");
+            var literalCaret = /(?<=^\1(\w))d/m.exec("^xxd");
+            var lineEnd = /(?<=\1(\w)$)/m.exec("xx\n");
+            JSON.stringify([
+                start && start.index,
+                start && start[0],
+                start && start[1],
+                multilineStart && multilineStart.index,
+                multilineStart && multilineStart[0],
+                multilineStart && multilineStart[1],
+                literalCaret,
+                lineEnd && lineEnd.index,
+                lineEnd && lineEnd[0],
+                lineEnd && lineEnd[1]
+            ]);
+        """);
+
+        Assert.Equal("""[2,"d","x",3,"d","x",null,2,"","x"]""", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task RegExp_Lookbehind_MutualRecursiveBackreferences()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var errors = [];
+            function check(label, expected, actual) {
+                if (actual === null && expected !== null) { errors.push(label + ": got null"); return; }
+                if (actual !== null && expected === null) { errors.push(label + ": expected null, got " + actual); return; }
+                if (expected === null) return;
+                if (actual.length !== expected.length) { errors.push(label + ": length " + actual.length + " != " + expected.length); return; }
+                for (var i = 0; i < expected.length; i++) {
+                    if (actual[i] !== expected[i]) { errors.push(label + ": [" + i + "] " + actual[i] + " != " + expected[i]); }
+                }
+            }
+
+            check("#1", ["cacb", "a", ""], /(?<=a(.\2)b(\1)).{4}/.exec("aabcacbc"));
+            check("#2", ["b", "ac", "ac"], /(?<=a(\2)b(..\1))b/.exec("aacbacb"));
+            check("#3", ["x", "aa"], /(?<=(?:\1b)(aa))./.exec("aabaax"));
+            check("#4", ["x", "aa"], /(?<=(?:\1|b)(aa))./.exec("aaaax"));
+
+            errors.length > 0 ? errors.join("; ") : "OK";
+        """);
+        Assert.Equal("OK", result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task RegExp_NumericBackreferenceToUnmatchedGroup_MatchesEmpty()
     {
         await using var engine = CreateEngine();

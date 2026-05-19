@@ -724,6 +724,19 @@ public sealed class ModuleTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 2000)]
+    public async Task ImportMeta_UsesStableModuleBinding()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.EvaluateModule("""
+                                                 const first = import.meta;
+                                                 first === import.meta && import.meta.url === "module-with-meta.js";
+                                                 """, "module-with-meta.js");
+
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Test262StyleSelfImport()
     {
         // This exactly mimics the Test262 instn-named-bndng-dflt-fun-anon.js test

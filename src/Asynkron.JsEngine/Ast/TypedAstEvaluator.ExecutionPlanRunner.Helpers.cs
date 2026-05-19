@@ -514,6 +514,20 @@ public static partial class TypedAstEvaluator
                             programCounter++;
                             break;
 
+                        case ExpressionOpKind.LoadImportMeta:
+                            if (!environment.TryGetJsValue(Symbol.ImportMeta, out var importMeta))
+                            {
+                                throw StandardLibrary.ThrowReferenceError(
+                                    "import.meta is not available outside module evaluation.",
+                                    context,
+                                    context.RealmState);
+                            }
+
+                            stack[stackIndex++] = importMeta;
+                            stackFlags.Set(stackIndex - 1, false);
+                            programCounter++;
+                            break;
+
                         case ExpressionOpKind.LoadNamedCallTarget:
                             {
                                 var target = stack[stackIndex - 1];

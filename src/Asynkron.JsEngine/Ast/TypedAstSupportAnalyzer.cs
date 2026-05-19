@@ -227,6 +227,7 @@ internal static class TypedAstSupportAnalyzer
                     case LiteralExpression:
                     case IdentifierExpression:
                     case ThisExpression:
+                    case ImportMetaExpression:
                         return true;
                     case BinaryExpression binary:
                         return VisitExpression(binary.Left) && VisitExpression(binary.Right);

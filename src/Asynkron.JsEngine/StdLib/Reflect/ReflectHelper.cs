@@ -163,8 +163,7 @@ public static class ReflectHelper
 
         var proto = ResolveConstructPrototype(newTarget, target, realm);
 
-        if ((realm.ArrayConstructor is not null && ReferenceEquals(target, realm.ArrayConstructor)) ||
-            (realm.ArrayConstructor is not null && ReferenceEquals(newTarget, realm.ArrayConstructor)))
+        if (IsArrayConstructor(target, realm) || IsArrayConstructor(newTarget, realm))
         {
             TryGetRealmInfo(newTarget, out var newTargetRealmState, out _);
             var instanceRealm = proto is JsObject { RealmState: { } protoRealm }
@@ -890,8 +889,7 @@ public static class ReflectHelper
         TryGetRealmInfo(newTarget, out var newTargetRealmState, out var newTargetRealmObject);
 
         // Step 2: try realm default for Array (handles cross-realm Array subclassing)
-        if ((realmState.ArrayConstructor is not null && ReferenceEquals(target, realmState.ArrayConstructor)) ||
-            (realmState.ArrayConstructor is not null && ReferenceEquals(newTarget, realmState.ArrayConstructor)))
+        if (IsArrayConstructor(target, realmState) || IsArrayConstructor(newTarget, realmState))
         {
             if (newTargetRealmState?.ArrayPrototype is { } realmArrayProtoFromState)
             {
@@ -1123,6 +1121,40 @@ public static class ReflectHelper
         }
 
         return ReferenceEquals(hostCtor.PropertiesObject.Prototype, realm.TypedArrayConstructor.PropertiesObject);
+    }
+
+    private static bool IsArrayConstructor(IJsCallable candidate, RealmState realm)
+    {
+        if (realm.ArrayConstructor is not null && ReferenceEquals(candidate, realm.ArrayConstructor))
+        {
+            return true;
+        }
+
+        if (candidate is JsProxy { Target: IJsCallable proxyTarget })
+        {
+            return IsArrayConstructor(proxyTarget, realm);
+        }
+
+        if (!TryGetRealmInfo(candidate, out var candidateRealmState, out var candidateRealmObject))
+        {
+            return false;
+        }
+
+        if (candidateRealmState?.ArrayConstructor is not null &&
+            ReferenceEquals(candidate, candidateRealmState.ArrayConstructor))
+        {
+            return true;
+        }
+
+        if (candidateRealmObject is not null &&
+            candidateRealmObject.TryGetProperty("Array", out var realmArrayCtor) &&
+            realmArrayCtor.TryGetObject<IJsCallable>(out var callableArrayCtor) &&
+            ReferenceEquals(candidate, callableArrayCtor))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>

@@ -406,6 +406,20 @@ public class RegressionTests
     public async Task ReflectConstruct_ProxiedNewTargetUsesTargetRealm()
     {
         await using var engine = Test262Test.CreateTest262Engine(logger: null, debugMode: false, useSnapshot: false);
+        var realmEngines = new List<JsEngine>();
+        var obj262 = new JsObject
+        {
+            ["createRealm"] = new HostFunction(_ =>
+            {
+                var realmEngine = Test262Test.CreateTest262Engine(logger: null, debugMode: false, useSnapshot: false);
+                realmEngines.Add(realmEngine);
+                var realmGlobal = realmEngine.GlobalObject;
+                realmGlobal["global"] = realmGlobal;
+                return (JsValue)realmGlobal;
+            })
+        };
+        engine.SetGlobalValue("$262", obj262);
+
         var result = await engine.Evaluate(
             """
             var realm1 = $262.createRealm().global;
@@ -427,5 +441,10 @@ public class RegressionTests
         var values = result as JsArray ?? throw new AssertionException("Expected array result");
         Assert.That(values.Items[0].AsBoolean(), Is.True);
         Assert.That(values.Items[1].AsBoolean(), Is.True);
+
+        foreach (var realmEngine in realmEngines)
+        {
+            await realmEngine.DisposeAsync();
+        }
     }
 }

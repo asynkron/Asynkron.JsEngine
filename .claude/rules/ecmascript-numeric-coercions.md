@@ -63,6 +63,13 @@ open-coding casts at individual call sites.
     required NaN/Infinity handling. Pin these cases with SameValue-style
     assertions and the owning Test262 method group instead of reusing ordinary
     numeric equality or another aggregate's zero policy.
+14. For `Intl.NumberFormat` string inputs, preserve decimal-string lexeme
+    precision before generic `ToNumeric`/`double` fallback. Keep coefficient
+    size and positive-exponent materialization bounded, but allow very large
+    positive decimal scale for scientific or engineering notation when the
+    formatter can preserve the exponent without building the full fixed decimal.
+    Pin parser cap boundaries such as `1e-1001` with focused Intl regressions
+    and the owning Test262 method group.
 
 ## Why
 
@@ -138,3 +145,12 @@ built-ins should not share a single "all zeros" intuition: the special-value
 order and exact aggregate identity are operation-specific, and the proof needs
 both an internal `Object.is(..., -0)` regression and the focused
 `Name=Math_sumPrecise` Test262 group.
+
+Issue #807 / PR #1001 fixed `Intl.NumberFormat.prototype.format` after
+decimal-string inputs were routed through generic string-to-`double`
+conversion. That lost mathematical precision for decimal-string values and, at
+the exact parser cap boundary, turned tiny nonzero scientific values such as
+`1e-1001` into `0`. The durable rule is that Intl owns decimal-string lexeme
+preservation before fallback: keep exact coefficient and positive-exponent
+growth bounded, but let scientific and engineering notation carry large
+negative exponents without materializing enormous fixed decimal strings.

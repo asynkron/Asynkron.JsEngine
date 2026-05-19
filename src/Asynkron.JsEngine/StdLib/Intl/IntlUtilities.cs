@@ -1250,36 +1250,61 @@ internal static partial class IntlUtilities
 
     internal static string RemoveUnicodeExtensions(string locale)
     {
-        var unicodeIndex = locale.IndexOf("-u-", StringComparison.Ordinal);
-        if (unicodeIndex >= 0)
+        var subtags = locale.Split('-');
+        var output = new List<string>(subtags.Length);
+        var index = 0;
+
+        while (index < subtags.Length)
         {
-            locale = locale[..unicodeIndex];
+            if (IsPrivateUseSingleton(subtags[index]))
+            {
+                output.AddRange(subtags[index..]);
+                break;
+            }
+
+            if (IsUnicodeExtensionSingleton(subtags[index]))
+            {
+                index++;
+                while (index < subtags.Length && subtags[index].Length > 1)
+                {
+                    index++;
+                }
+
+                continue;
+            }
+
+            output.Add(subtags[index]);
+            index++;
         }
 
-        var privateIndex = locale.IndexOf("-x-", StringComparison.Ordinal);
-        if (privateIndex >= 0)
-        {
-            locale = locale[..privateIndex];
-        }
-
-        return locale;
+        return string.Join('-', output);
     }
 
     private static string ExtractUnicodeExtension(string locale)
     {
-        var unicodeIndex = locale.IndexOf("-u-", StringComparison.Ordinal);
-        if (unicodeIndex < 0)
+        var subtags = locale.Split('-');
+        for (var index = 0; index < subtags.Length; index++)
         {
-            return string.Empty;
+            if (IsPrivateUseSingleton(subtags[index]))
+            {
+                return string.Empty;
+            }
+
+            if (!IsUnicodeExtensionSingleton(subtags[index]))
+            {
+                continue;
+            }
+
+            var end = index + 1;
+            while (end < subtags.Length && subtags[end].Length > 1)
+            {
+                end++;
+            }
+
+            return BuildResolvedUnicodeExtension(subtags, index + 1, end);
         }
 
-        var privateIndex = locale.IndexOf("-x-", StringComparison.Ordinal);
-        if (privateIndex >= 0 && unicodeIndex > privateIndex)
-        {
-            return string.Empty;
-        }
-
-        return locale[unicodeIndex..];
+        return string.Empty;
     }
 
     public static IReadOnlyDictionary<string, List<string>> ParseUnicodeExtensionKeywords(string locale)
@@ -1332,6 +1357,52 @@ internal static partial class IntlUtilities
 
         return keywords;
     }
+
+    private static bool IsUnicodeExtensionSingleton(string subtag)
+        => string.Equals(subtag, "u", StringComparison.Ordinal);
+
+    private static bool IsPrivateUseSingleton(string subtag)
+        => string.Equals(subtag, "x", StringComparison.Ordinal);
+
+    private static string BuildResolvedUnicodeExtension(string[] subtags, int start, int endExclusive)
+    {
+        var output = new List<string> { "u" };
+        var index = start;
+        while (index < endExclusive && subtags[index].Length > 2)
+        {
+            output.Add(subtags[index]);
+            index++;
+        }
+
+        while (index < endExclusive)
+        {
+            var key = subtags[index];
+            index++;
+
+            var valueStart = index;
+            while (index < endExclusive && subtags[index].Length > 2)
+            {
+                index++;
+            }
+
+            var hasValue = index > valueStart;
+            if (!hasValue && !IsUnicodeKeywordAllowedWithoutValue(key))
+            {
+                continue;
+            }
+
+            output.Add(key);
+            for (var valueIndex = valueStart; valueIndex < index; valueIndex++)
+            {
+                output.Add(subtags[valueIndex]);
+            }
+        }
+
+        return output.Count == 1 ? string.Empty : "-" + string.Join('-', output);
+    }
+
+    private static bool IsUnicodeKeywordAllowedWithoutValue(string key)
+        => string.Equals(key, "kn", StringComparison.Ordinal);
 
     public static CultureInfo ResolveCulture(string locale)
     {

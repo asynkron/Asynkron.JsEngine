@@ -42,7 +42,7 @@ public sealed partial class IntlRelativeTimeFormatConstructor(IJsObjectLike prot
         var optionsArg = args.GetArgument(1);
 
         var (_, resolvedLocale) = ResolveIntlLocales(localesArg, Realm);
-        var options = IntlOptionHelpers.GetOptionsObject(optionsArg, Realm, "RelativeTimeFormat");
+        var options = IntlOptionHelpers.GetOptionsObject(optionsArg, Realm, "RelativeTimeFormat", useToObject: true);
 
         // Per spec option read order: localeMatcher, numberingSystem, style, numeric
         _ = IntlOptionHelpers.GetStringOption(options, "localeMatcher", Realm, "RelativeTimeFormat",

@@ -475,7 +475,6 @@ public static partial class TypedAstEvaluator
             _programCounter = -1;
             _state = GeneratorState.Completed;
             _done = true;
-            TryCatchStateRef.TryStack.Clear();
 
             // If an iterator close threw, propagate that error instead of the return value.
             if (closeError is not null)
@@ -483,6 +482,7 @@ public static partial class TypedAstEvaluator
                 throw closeError;
             }
 
+            TryCatchStateRef.TryStack.Clear();
             return CreateIteratorResult(value, true);
         }
 
@@ -553,6 +553,13 @@ public static partial class TypedAstEvaluator
             var isFirstEnv = true;
             while (true)
             {
+                // Stop at the caller's function scope boundary before scanning it.
+                // The first environment might be the completing function scope and must be scanned.
+                if (!isFirstEnv && env.IsFunctionScope)
+                {
+                    break;
+                }
+
                 // Scan symbol bindings in this environment (using safe method to skip uninitialized TDZ bindings)
                 foreach (var symbol in env.GetBindingSymbols())
                 {
@@ -578,14 +585,6 @@ public static partial class TypedAstEvaluator
                             results.Add((state, iterator));
                         }
                     }
-                }
-
-                // Stop at the function scope boundary - don't scan caller's scopes.
-                // If this is a function scope (and not the first one we entered), stop.
-                // The first environment might be a function scope that we need to scan.
-                if (!isFirstEnv && env.IsFunctionScope)
-                {
-                    break;
                 }
 
                 isFirstEnv = false;

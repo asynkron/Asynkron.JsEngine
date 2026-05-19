@@ -2940,7 +2940,8 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             cachedEntry.HasAsyncDependency = cachedHasAsyncDependency;
             cachedEntry.Environment.IsAsyncModule = cachedEntry.IsAsync;
             EnsureModuleInstantiated(cachedEntry, phase, exportStarSet);
-            if (phase == ImportPhase.Module)
+            if (phase == ImportPhase.Module &&
+                !string.Equals(cachedEntry.Path, referrerPath, StringComparison.Ordinal))
             {
                 if (cachedEntry.IsAsync || cachedEntry.HasAsyncDependency)
                 {
@@ -2963,7 +2964,8 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         entry.Environment.IsAsyncModule = entry.IsAsync;
 
         EnsureModuleInstantiated(entry, phase, exportStarSet);
-        if (phase != ImportPhase.Module)
+        if (phase != ImportPhase.Module ||
+            string.Equals(entry.Path, referrerPath, StringComparison.Ordinal))
         {
             return entry;
         }
@@ -4222,7 +4224,6 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                     {
                         // Block until the async dependency finishes so exported bindings are initialized.
                         evaluation.GetAwaiter().GetResult();
-                        engine?.DrainMicrotasks(force: true);
                     }
                 }
                 else
@@ -4865,7 +4866,13 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             {
                 exports["default"] = new LiveExportBinding(() => env.GetJsValue(defaultBindingName));
                 return TryAwaitExpression(awaitExpression.Expression,
-                    resolved => env.AssignJsValue(defaultBindingName, resolved),
+                    resolved =>
+                    {
+                        env.DefineJsValue(defaultBindingName, resolved, isLexicalBinding: false,
+                            blocksFunctionScopeOverride: false);
+                        env.DefineJsValue(Symbol.Intern("default"), resolved, isLexicalBinding: false,
+                            blocksFunctionScopeOverride: false);
+                    },
                     env);
             }
 
@@ -5348,15 +5355,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                     return false;
                 }
 
-                try
-                {
-                    onFulfilledFn.Invoke(new SingleValueArgs(settledValue), JsValue.Undefined);
-                }
-                catch (ThrowSignal signal)
-                {
-                    Fail(signal);
-                }
-
+                ScheduleAwaitFulfillment(settledValue, onFulfilledFn);
                 return false;
             }
 
@@ -5384,15 +5383,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 !objectAccessor.TryGetProperty("then", out var objectThenValue) ||
                 !objectThenValue.TryGetCallable(out _)))
             {
-                try
-                {
-                    onFulfilledFn.Invoke(new SingleValueArgs(awaitedValue), JsValue.Undefined);
-                }
-                catch (ThrowSignal signal)
-                {
-                    Fail(signal);
-                }
-
+                ScheduleAwaitFulfillment(awaitedValue, onFulfilledFn);
                 return false;
             }
 
@@ -5423,6 +5414,32 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             }
 
             return false;
+        }
+
+        private void ScheduleAwaitFulfillment(JsValue value, HostFunction onFulfilledFn)
+        {
+            _engine.QueueMicrotask(JsCallableMicrotask.Rent(new HostFunction(_ =>
+            {
+                if (_completion.Task.IsCompleted)
+                {
+                    return JsValue.Null;
+                }
+
+                try
+                {
+                    onFulfilledFn.Invoke(new SingleValueArgs(value), JsValue.Undefined);
+                }
+                catch (ThrowSignal signal)
+                {
+                    Fail(signal);
+                }
+                catch (Exception ex)
+                {
+                    Fail(ex);
+                }
+
+                return JsValue.Null;
+            })));
         }
 
         private IJsPropertyAccessor? WrapAwaitedValue(JsValue value)

@@ -27,5 +27,13 @@ By the build stage on 2026-05-19, the exact focused proof
 fast-forwarding to the locally available `origin/main`, so no implementation
 change was warranted.
 
+Issue #1030 repeated the same failure mode from a 2026-05-19 testrunner batch:
+the broad summary listed eight `Expressions_asyncGenerator_dstr` crashes, but
+the build-stage focused proof
+`Name=Expressions_asyncGenerator_dstr` passed all 744 tests on current
+`origin/main` with no source diff. That issue should remain a reminder that a
+plausible owner surface is investigation input, not permission to patch without
+a current failing repro.
+
 Future agents should treat old Test262 batch summaries as suspects to reprove,
 not as confirmed current failures.

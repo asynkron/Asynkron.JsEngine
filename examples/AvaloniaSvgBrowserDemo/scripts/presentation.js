@@ -60,6 +60,7 @@ slides[55] = "express-live-demo.svg";
 slides[56] = "express-demo-stack.svg";
 slides[57] = "jsengine-presentation-reveal.svg";
 slides[58] = "how-far-did-we-push-it.svg";
+slides[59] = "faktorial-launch-button.svg";
 
 let current = presentation.current();
 let phase = "idle";

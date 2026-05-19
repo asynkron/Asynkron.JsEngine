@@ -52,6 +52,54 @@ internal static class IntlNumberFormatter
         return FormatQuantity(quantity, slots, wasNegative, value);
     }
 
+    public static bool TryFormatDecimalString(
+        string value,
+        IntlNumberFormatInternalSlots slots,
+        out IntlNumberFormatResult result,
+        out bool isNaN)
+    {
+        var trimmed = value.Trim();
+        if (trimmed.Length == 0)
+        {
+            result = FormatQuantity(DecimalQuantity.FromBigInteger(BigInteger.Zero), slots, false);
+            isNaN = false;
+            return true;
+        }
+
+        if (string.Equals(trimmed, "NaN", StringComparison.Ordinal))
+        {
+            result = null!;
+            isNaN = true;
+            return false;
+        }
+
+        if (string.Equals(trimmed, "Infinity", StringComparison.Ordinal) ||
+            string.Equals(trimmed, "+Infinity", StringComparison.Ordinal))
+        {
+            result = FormatDouble(double.PositiveInfinity, slots);
+            isNaN = false;
+            return true;
+        }
+
+        if (string.Equals(trimmed, "-Infinity", StringComparison.Ordinal))
+        {
+            result = FormatDouble(double.NegativeInfinity, slots);
+            isNaN = false;
+            return true;
+        }
+
+        if (!TryCreateDecimalQuantity(trimmed.AsSpan(), out var quantity))
+        {
+            result = null!;
+            isNaN = false;
+            return false;
+        }
+
+        result = FormatQuantity(quantity, slots, quantity.IsNegative);
+        isNaN = false;
+        return true;
+    }
+
     private static IntlNumberFormatResult FormatQuantity(
         DecimalQuantity quantity,
         IntlNumberFormatInternalSlots slots,
@@ -952,6 +1000,106 @@ internal static class IntlNumberFormatter
         }
 
         return null;
+    }
+
+    private static bool TryCreateDecimalQuantity(ReadOnlySpan<char> value, out DecimalQuantity quantity)
+    {
+        quantity = null!;
+        if (value.Length == 0)
+        {
+            quantity = DecimalQuantity.FromBigInteger(BigInteger.Zero);
+            return true;
+        }
+
+        var isNegative = false;
+        if (value[0] is '+' or '-')
+        {
+            isNegative = value[0] == '-';
+            value = value[1..];
+            if (value.Length == 0)
+            {
+                return false;
+            }
+        }
+
+        var exponent = 0;
+        var exponentIndex = value.IndexOfAny('e', 'E');
+        if (exponentIndex >= 0)
+        {
+            var exponentSpan = value[(exponentIndex + 1)..];
+            if (exponentSpan.Length == 0 ||
+                !int.TryParse(exponentSpan, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture,
+                    out exponent))
+            {
+                return false;
+            }
+
+            value = value[..exponentIndex];
+            if (value.Length == 0)
+            {
+                return false;
+            }
+        }
+
+        var decimalIndex = value.IndexOf('.');
+        ReadOnlySpan<char> integerPart;
+        ReadOnlySpan<char> fractionPart;
+        if (decimalIndex >= 0)
+        {
+            integerPart = value[..decimalIndex];
+            fractionPart = value[(decimalIndex + 1)..];
+        }
+        else
+        {
+            integerPart = value;
+            fractionPart = ReadOnlySpan<char>.Empty;
+        }
+
+        if (integerPart.Length == 0 && fractionPart.Length == 0)
+        {
+            return false;
+        }
+
+        if (!AllAsciiDigits(integerPart) || !AllAsciiDigits(fractionPart))
+        {
+            return false;
+        }
+
+        var digits = string.Concat(integerPart.ToString(), fractionPart.ToString()).TrimStart('0');
+        if (digits.Length == 0)
+        {
+            quantity = new DecimalQuantity { Coefficient = BigInteger.Zero, Scale = 0, IsNegative = isNegative };
+            return true;
+        }
+
+        var coefficient = BigInteger.Parse(digits, CultureInfo.InvariantCulture);
+        var scale = fractionPart.Length - exponent;
+        if (scale < 0)
+        {
+            coefficient *= Pow10(-scale);
+            scale = 0;
+        }
+
+        quantity = new DecimalQuantity
+        {
+            Coefficient = coefficient,
+            Scale = scale,
+            IsNegative = isNegative
+        };
+        return true;
+    }
+
+    private static bool AllAsciiDigits(ReadOnlySpan<char> value)
+    {
+        foreach (var ch in value)
+        {
+            if (ch is < '0' or > '9')
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static int FloorDiv(int dividend, int divisor)

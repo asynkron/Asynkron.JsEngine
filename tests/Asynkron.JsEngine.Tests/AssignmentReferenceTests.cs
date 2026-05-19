@@ -149,4 +149,38 @@ with (scope) {
         Assert.Equal(2d, objectValue.AsDouble());
         Assert.Equal(0d, outer.GetBindingValueDirect(x).AsDouble());
     }
+
+    [Fact]
+    public async Task StrictWithAssignment_PreservesReferenceAndThrowsAfterRhsDeletesProperty()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var count = 0;
+            var scope = { x: 0 };
+            var thrownName = "none";
+
+            with (scope) {
+                (function() {
+                    "use strict";
+                    try {
+                        count++;
+                        x = (delete scope.x, count++, 1);
+                        count++;
+                    } catch (error) {
+                        thrownName = error.name;
+                    }
+                })();
+            }
+
+            ({ thrownName, count, exists: "x" in scope });
+            """);
+
+        var obj = Assert.IsType<JsTypes.JsObject>(result);
+        Assert.True(obj.TryGetProperty("thrownName", out var thrownName));
+        Assert.Equal("ReferenceError", thrownName.AsString());
+        Assert.True(obj.TryGetProperty("count", out var count));
+        Assert.Equal(2d, count.AsDouble());
+        Assert.True(obj.TryGetProperty("exists", out var exists));
+        Assert.False(exists.AsBoolean());
+    }
 }

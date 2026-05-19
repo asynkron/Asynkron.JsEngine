@@ -43,7 +43,7 @@ public sealed partial class IntlRelativeTimeFormatPrototype
     private (double Value, string Unit, string Locale, string Style, string Numeric, string NumberingSystem)
         ExtractFormatArgs(JsObject instance, IReadOnlyList<JsValue> args)
     {
-        var value = args.Count > 0 ? JsOps.ToNumber(args[0]) : double.NaN;
+        var value = args.Count > 0 ? ConvertValueToNumber(args[0]) : double.NaN;
 
         if (!double.IsFinite(value))
         {
@@ -61,6 +61,18 @@ public sealed partial class IntlRelativeTimeFormatPrototype
         var numberingSystem = GetStringSlot(instance, "__numberingSystem__", "latn");
 
         return (value, unit, locale, style, numeric, numberingSystem);
+    }
+
+    private double ConvertValueToNumber(JsValue value)
+    {
+        var context = Realm.CreateContext();
+        var number = JsOps.ToNumber(in value, context);
+        if (context.IsThrow)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        return number;
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]

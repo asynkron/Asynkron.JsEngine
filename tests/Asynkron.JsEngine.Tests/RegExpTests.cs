@@ -1053,6 +1053,32 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 5000)]
+    public async Task RegExp_Lookbehind_Backreference_AssertionsUseZeroWidthSemantics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var start = /(?<=^\1(\w))d/m.exec("xxd");
+            var multilineStart = /(?<=^\1(\w))d/m.exec("\nxxd");
+            var literalCaret = /(?<=^\1(\w))d/m.exec("^xxd");
+            var lineEnd = /(?<=\1(\w)$)/m.exec("xx\n");
+            JSON.stringify([
+                start && start.index,
+                start && start[0],
+                start && start[1],
+                multilineStart && multilineStart.index,
+                multilineStart && multilineStart[0],
+                multilineStart && multilineStart[1],
+                literalCaret,
+                lineEnd && lineEnd.index,
+                lineEnd && lineEnd[0],
+                lineEnd && lineEnd[1]
+            ]);
+        """);
+
+        Assert.Equal("""[2,"d","x",3,"d","x",null,2,"","x"]""", result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task RegExp_Lookbehind_MutualRecursiveBackreferences()
     {
         await using var engine = CreateEngine();

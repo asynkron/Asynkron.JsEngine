@@ -456,7 +456,7 @@ public sealed class JsRegExp
             !TrySplitLeadingPositiveLookbehind(Pattern, out var lookbehind, out var tail) ||
             !ContainsNumericBackreference(lookbehind) ||
             CountLegacyCaptures(tail) != 0 ||
-            !LookbehindPatternParser.TryParse(lookbehind, DotAll, IgnoreCase, out var parsedLookbehind))
+            !LookbehindPatternParser.TryParse(lookbehind, DotAll, IgnoreCase, Multiline, out var parsedLookbehind))
         {
             return false;
         }
@@ -1023,26 +1023,61 @@ public sealed class JsRegExp
         }
     }
 
+    private sealed class LookbehindAssertionAtom : LookbehindAtom
+    {
+        public LookbehindAssertionAtom(char assertion, bool multiline)
+        {
+            Assertion = assertion;
+            Multiline = multiline;
+        }
+
+        private char Assertion { get; }
+
+        private bool Multiline { get; }
+
+        protected override IEnumerable<LookbehindMatchState> MatchOne(string input, int position, LookbehindCapture?[] captures)
+        {
+            if (Assertion == '^')
+            {
+                if (position == 0 ||
+                    (Multiline && position > 0 && IsLineTerminator(input[position - 1])))
+                {
+                    yield return new LookbehindMatchState(position, captures);
+                }
+
+                yield break;
+            }
+
+            if (position == input.Length ||
+                (Multiline && position < input.Length && IsLineTerminator(input[position])))
+            {
+                yield return new LookbehindMatchState(position, captures);
+            }
+        }
+    }
+
     private sealed class LookbehindPatternParser
     {
         private readonly string _pattern;
         private readonly bool _dotAll;
         private readonly bool _ignoreCase;
+        private readonly bool _multiline;
         private int _index;
         private int _captureCount;
 
-        private LookbehindPatternParser(string pattern, bool dotAll, bool ignoreCase)
+        private LookbehindPatternParser(string pattern, bool dotAll, bool ignoreCase, bool multiline)
         {
             _pattern = pattern;
             _dotAll = dotAll;
             _ignoreCase = ignoreCase;
+            _multiline = multiline;
         }
 
-        public static bool TryParse(string pattern, bool dotAll, bool ignoreCase, out LookbehindPattern result)
+        public static bool TryParse(string pattern, bool dotAll, bool ignoreCase, bool multiline, out LookbehindPattern result)
         {
             try
             {
-                var parser = new LookbehindPatternParser(pattern, dotAll, ignoreCase);
+                var parser = new LookbehindPatternParser(pattern, dotAll, ignoreCase, multiline);
                 var root = parser.ParseDisjunction();
                 if (parser._index != pattern.Length)
                 {
@@ -1111,6 +1146,11 @@ public sealed class JsRegExp
             if (c == '(')
             {
                 return ParseGroupAtom();
+            }
+
+            if (c is '^' or '$')
+            {
+                return new LookbehindAssertionAtom(c, _multiline);
             }
 
             return new LookbehindLiteralAtom(c, _ignoreCase);

@@ -14,9 +14,9 @@ the current strict/sloppy writeback rules separate:
   evaluating the RHS, then write through that captured reference afterward;
 - strict writeback for a captured object binding must re-check `HasProperty`
   before `Set` when missing assignment is not explicitly allowed;
-- if a getter, RHS side effect, or update operator deletes the binding before
-  writeback, throw `ReferenceError` instead of recreating the property through
-  the generic property setter path;
+- if a getter, RHS side effect, compound assignment, or update operator deletes
+  the binding before writeback, throw `ReferenceError` instead of recreating the
+  property through the generic property setter path;
 - preserve sloppy-mode recreate-after-delete behavior only through an explicit
   sloppy/allow-missing path.
 
@@ -60,3 +60,9 @@ Issue #774 / PR #950 extended that lesson to plain assignment. The RHS can
 delete the resolved `with` binding before `PutValue`; strict mode still has to
 throw through the captured object-environment reference after RHS side effects,
 not fall back to a generic identifier/property assignment path.
+
+Issue #777 confirmed the same object-environment writeback contract for
+compound assignment. The compound operator may read through a captured `with`
+binding whose getter deletes the property before the final `PutValue`; strict
+mode must still re-check the captured object binding and throw `ReferenceError`
+instead of letting the generic setter recreate the property per operator.

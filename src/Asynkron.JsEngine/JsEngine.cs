@@ -4918,6 +4918,30 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                     env);
             }
 
+            if (statement.Value is ExportDefaultExpression { Expression: { } expression } &&
+                (AstShapeAnalyzer.ContainsAwait(expression) ||
+                 expression is ClassExpression classExpression &&
+                 TryRewriteClassExpressionAwaitTemps(classExpression, out _, out _)))
+            {
+                exports["default"] = new LiveExportBinding(() => env.GetJsValue(defaultBindingName));
+                return TryEvaluateExpressionWithAwait(expression, env, isStrict, resolved =>
+                {
+                    env.AssignJsValue(defaultBindingName, resolved);
+                    _statementIndex++;
+                    Run();
+                }, advanceTopLevelStatement: false);
+            }
+
+            if (statement.Value is ExportDefaultDeclaration { Declaration: ClassDeclaration classDeclaration } &&
+                TryRewriteClassDeclarationAwaitTemps(classDeclaration, out _, out _))
+            {
+                var bindingName = GetDefaultExportBindingName(statement);
+                exports["default"] = new LiveExportBinding(() => env.GetJsValue(bindingName));
+                return TryEvaluateClassDeclarationWithAwait(classDeclaration, env, isStrict,
+                    advanceTopLevelStatement: true,
+                    onCompleted: null);
+            }
+
             if (AstShapeAnalyzer.StatementContainsAwait(statement))
             {
                 throw new NotSupportedException(
@@ -4951,6 +4975,14 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 DeclarationNeedsAwaitTemps(variableDeclaration))
             {
                 return TryEvaluateDeclarationWithAwait(variableDeclaration, env, isStrict);
+            }
+
+            if (statement.Declaration is ClassDeclaration classDeclaration &&
+                TryRewriteClassDeclarationAwaitTemps(classDeclaration, out _, out _))
+            {
+                return TryEvaluateClassDeclarationWithAwait(classDeclaration, env, isStrict,
+                    advanceTopLevelStatement: true,
+                    onCompleted: null);
             }
 
             if (AstShapeAnalyzer.StatementContainsAwait(statement))
@@ -5130,6 +5162,72 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 description: "async declaration await scope");
 
             var tempBindings = tempBuilder.ToImmutable();
+            return EvaluateTempBinding(0);
+
+            bool EvaluateTempBinding(int index)
+            {
+                if (index >= tempBindings.Length)
+                {
+                    try
+                    {
+                        _engine.ExecuteTypedStatement(rewrittenDeclaration, tempEnv, isStrict, false);
+
+                        if (advanceTopLevelStatement)
+                        {
+                            _statementIndex++;
+                            Run();
+                        }
+                        else
+                        {
+                            _ = onCompleted?.Invoke();
+                        }
+
+                        return true;
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        Fail(signal);
+                        return false;
+                    }
+                }
+
+                var binding = tempBindings[index];
+                return TryEvaluateExpressionWithAwait(binding.Expression, tempEnv, isStrict, resolved =>
+                {
+                    tempEnv.DefineJsValue(binding.Symbol, resolved, true, isLexicalBinding: true,
+                        blocksFunctionScopeOverride: false);
+                    EvaluateTempBinding(index + 1);
+                }, advanceTopLevelStatement: false);
+            }
+        }
+
+        private bool TryEvaluateClassDeclarationWithAwait(
+            ClassDeclaration declaration,
+            JsEnvironment env,
+            bool isStrict,
+            bool advanceTopLevelStatement,
+            Func<bool>? onCompleted)
+        {
+            if (!TryRewriteClassDeclarationAwaitTemps(declaration, out var rewrittenDeclaration, out var tempBindings))
+            {
+                Fail(new NotSupportedException(
+                    "Async module execution does not support await in this class declaration shape."));
+                return false;
+            }
+
+            if (AstShapeAnalyzer.StatementContainsAwait(rewrittenDeclaration))
+            {
+                Fail(new NotSupportedException(
+                    "Async module execution does not support await in class field initializers or unsupported class elements."));
+                return false;
+            }
+
+            var tempEnv = JsEnvironment.CreateInstance(
+                env,
+                isStrict: isStrict,
+                creatingSource: declaration.Source,
+                description: "async class declaration await scope");
+
             return EvaluateTempBinding(0);
 
             bool EvaluateTempBinding(int index)
@@ -6144,6 +6242,23 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             return changed;
         }
 
+        private static bool TryRewriteClassDeclarationAwaitTemps(
+            ClassDeclaration classDeclaration,
+            out ClassDeclaration rewrittenClass,
+            out ImmutableArray<AwaitTempBinding> tempBindings)
+        {
+            var tempBuilder = ImmutableArray.CreateBuilder<AwaitTempBinding>();
+            var rewrittenDefinition = RewriteAwaitExpressionsInClassDefinition(classDeclaration.Definition, tempBuilder);
+            var changed = tempBuilder.Count > 0;
+
+            rewrittenClass = classDeclaration with
+            {
+                Definition = rewrittenDefinition
+            };
+            tempBindings = tempBuilder.ToImmutable();
+            return changed;
+        }
+
         private static ClassDefinition RewriteAwaitExpressionsInClassDefinition(
             ClassDefinition definition,
             ImmutableArray<AwaitTempBinding>.Builder tempBindings)
@@ -6673,6 +6788,12 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
 
         private bool TryEvaluateForAwaitOfStatement(ForEachStatement statement, JsEnvironment env, bool isStrict)
         {
+            if (AstShapeAnalyzer.ContainsAwait(statement.Iterable) ||
+                AstShapeAnalyzer.StatementContainsAwait(statement.Body))
+            {
+                return TryEvaluateForEachStatementWithAwait(statement, env, isStrict);
+            }
+
             // For await...of is inherently async - use the engine's existing evaluation
             // which handles the async iteration protocol
             try

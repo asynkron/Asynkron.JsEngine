@@ -22,6 +22,13 @@ model explicitly.
 5. For Test262 RegExp burn-down work, start with the exact affected fixture
    filters and only remove regression-pack entries after both snapshot
    parameterizations are green.
+6. For custom RegExp parser/execution shims, parse only syntax whose ECMAScript
+   semantics are implemented exactly. Unsupported atoms, escapes, or groups
+   should make the shim decline and fall back to the normal runtime path instead
+   of being guessed as literals.
+7. For positive-lookbehind numeric-backreference shims, preserve all observable
+   match metadata: match index, capture text, `/d` capture spans, legacy
+   `RegExp` statics, and assertion zero-width behavior under relevant flags.
 
 ## Why
 
@@ -36,3 +43,11 @@ lost even though the match succeeded.
 Future agents should repair both the generated .NET pattern and the metadata
 readers that interpret it, because ECMAScript RegExp observability includes the
 capture slots returned by `exec`.
+
+Issue #819 / PR #1091 added a narrow custom positive-lookbehind numeric
+backreference path for Test262 `RegExp_lookBehind` fixtures that .NET `Regex`
+could not model directly. Review found that the shim also had to preserve `/d`
+capture spans and legacy `RegExp` statics, treat unescaped `^` and `$` as
+zero-width assertions, and decline unsupported escapes such as `\b` / `\B`
+instead of literalizing them. Future custom shims should stay narrow and
+fall back whenever they cannot prove exact ECMAScript semantics.

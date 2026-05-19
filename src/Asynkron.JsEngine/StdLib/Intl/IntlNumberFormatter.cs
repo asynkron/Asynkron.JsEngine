@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Numerics;
 using System.Text;
+using Asynkron.JsEngine.Runtime;
 
 #endregion
 
@@ -11,6 +12,7 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 
 internal static class IntlNumberFormatter
 {
+    private const int MaxExactDecimalStringDigits = 1000;
     private const double DecimalMaxMagnitude = 7.9228162514264338E28;
 
     public static IntlNumberFormatResult FormatBigInteger(BigInteger value, IntlNumberFormatInternalSlots slots)
@@ -60,13 +62,7 @@ internal static class IntlNumberFormatter
             return null;
         }
 
-        var numericValue = double.TryParse(
-            value,
-            NumberStyles.Float,
-            CultureInfo.InvariantCulture,
-            out var parsed)
-            ? parsed
-            : 0d;
+        var numericValue = NumericStringParser.ParseJsNumber(value);
 
         return FormatQuantity(quantity, slots, quantity.IsNegative, numericValue);
     }
@@ -1764,7 +1760,7 @@ internal static class IntlNumberFormatter
             [NotNullWhen(true)] out DecimalQuantity? quantity)
         {
             quantity = null;
-            var source = value.Trim();
+            var source = NumericStringParser.TrimJsWhiteSpace(value);
             if (source.Length == 0)
             {
                 return false;
@@ -1784,6 +1780,7 @@ internal static class IntlNumberFormatter
 
             var coefficient = BigInteger.Zero;
             var fractionDigits = 0;
+            var totalDigits = 0;
             var sawDigit = false;
             var sawDecimal = false;
             for (; index < source.Length; index++)
@@ -1811,6 +1808,12 @@ internal static class IntlNumberFormatter
                 }
 
                 sawDigit = true;
+                totalDigits++;
+                if (totalDigits > MaxExactDecimalStringDigits)
+                {
+                    return false;
+                }
+
                 coefficient = (coefficient * 10) + (ch - '0');
                 if (sawDecimal)
                 {
@@ -1832,17 +1835,27 @@ internal static class IntlNumberFormatter
                 }
             }
 
-            var scale = fractionDigits - exponent;
+            var scale = (long)fractionDigits - exponent;
             if (scale < 0)
             {
-                coefficient *= Pow10(-scale);
+                var zerosToAppend = -scale;
+                if (zerosToAppend > MaxExactDecimalStringDigits - totalDigits)
+                {
+                    return false;
+                }
+
+                coefficient *= Pow10((int)zerosToAppend);
                 scale = 0;
+            }
+            else if (scale > MaxExactDecimalStringDigits)
+            {
+                return false;
             }
 
             quantity = new DecimalQuantity
             {
                 Coefficient = coefficient,
-                Scale = scale,
+                Scale = (int)scale,
                 IsNegative = isNegative
             };
             return true;

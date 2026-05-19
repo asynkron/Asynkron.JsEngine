@@ -1,23 +1,30 @@
 # Expression Bytecode Assignment Semantics
 
-When changing expression bytecode for assignment operators, keep ECMAScript
-identifier assignment semantics separate from member property write semantics.
+When changing assignment operators, keep ECMAScript identifier assignment
+semantics separate from member property write semantics across every execution
+path that can evaluate the assignment.
 
 ## Rules
 
 1. Enable assignment name inference only for identifier assignments whose RHS is
    an anonymous function, arrow, or class expression and whose source form is not
-   excluded by the spec, such as parenthesized assignment.
-2. Pass `AllowNameInference: false` for all member, computed member, and super
+   excluded by the spec. Parenthesized identifier assignments such as
+   `(target) = function() {}` must not infer `target`.
+2. Apply the same parenthesized-assignment exclusion in every assignment path:
+   expression bytecode, expression-statement slot assignment fast paths, and the
+   quarantined legacy AST fallback. Do not fix only the bytecode compiler and
+   leave another execution path applying the hint.
+3. Pass `AllowNameInference: false` for all member, computed member, and super
    property writes. A `MemberExpression` assignment is a property write, not an
    identifier binding assignment.
-3. For expression-position logical member assignments (`&&=`, `||=`, `??=`),
+4. For expression-position logical member assignments (`&&=`, `||=`, `??=`),
    prove both branches have the same stack contract: exactly one expression
    result remains, and duplicated receiver/property-key operands are cleaned up.
-4. Add focused tests for the semantic split before widening Test262 proof:
-   identifier name inference, member no-inference, strict getter-only or
-   non-writable write failures when the branch runs, and strict write skips when
-   the logical assignment short-circuits.
+5. Add focused tests for the semantic split before widening Test262 proof:
+   identifier name inference, parenthesized identifier no-inference, member
+   no-inference, strict getter-only or non-writable write failures when the
+   branch runs, and strict write skips when the logical assignment
+   short-circuits.
 
 ## Why
 
@@ -27,3 +34,8 @@ Identifier assignments needed RHS-based NamedEvaluation, but member writes had
 to disable that same inference and preserve property write failures. The fix
 also had to make expression-position member short-circuit cleanup leave the same
 single-result stack shape as the write branch.
+
+Issue #774 / PR #950 then exposed the same parenthesized-assignment exclusion on
+plain assignment. The expression bytecode compiler, expression-statement slot
+assignment path, and legacy AST fallback all needed the exclusion; otherwise one
+path could still name an anonymous function assigned through `(identifier) =`.

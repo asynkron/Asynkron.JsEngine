@@ -63,6 +63,13 @@ sequence directly before adding local type guards or host-runtime shortcuts.
     booleans, symbols, and bigints are valid receivers after coercion, while
     `null` and `undefined` still throw `TypeError`; internal primitive-wrapper
     slots must not become ordinary enumerable or own descriptor properties.
+14. For `Reflect.construct`, keep `target` and `newTarget` roles separate.
+    `target` selects constructor behavior and allocation kind, including Array
+    exotic allocation. `newTarget` selects the prototype path and realm
+    fallback when `newTarget.prototype` is not an object. Do not let an Array
+    `newTarget` turn an ordinary non-Array `target` into an Array, and do not
+    miss cross-realm or proxied Array `target` cases just because they are not
+    the current realm's Array constructor.
 
 ## Why
 
@@ -124,3 +131,14 @@ already green. The behavior to keep pinned is the abstract-operation split:
 Object built-in work should prove both the primitive-success path and the
 nullish-error path locally so wrapper implementation details such as
 `__value__` do not leak into descriptor enumeration.
+
+Issue #817 / PR #1018 fixed `Reflect.construct` after the Array allocation
+special case mixed the roles of `target` and `newTarget`. A cross-realm or
+proxied Array `target` must still allocate a `JsArray`, while an Array
+`newTarget` with an ordinary target only contributes prototype/realm fallback
+and must not change the object's allocation kind. Future construction work
+should prove the focused
+`Name=ReflectConstruct_ProxiedNewTargetUsesTargetRealm` Test262 method group
+and a local non-Array-target regression before widening.
+
+Related ADR: `docs/adrs/0032-keep-reflect-construct-target-allocation-newtarget-prototype-split.md`.

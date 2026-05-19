@@ -1,6 +1,6 @@
 # Test262 regression pack: regexp
 # Source umbrella list: tests/Asynkron.JsEngine.Tests.Test262/current-regressions.filter.txt
-# Filters: 117
+# Filters: 115
 FullyQualifiedName~BuiltIns_RegExp_legacyAccessors_index&FullyQualifiedName~this-cross-realm-constructor.js
 FullyQualifiedName~BuiltIns_RegExp_legacyAccessors_input&FullyQualifiedName~this-cross-realm-constructor.js
 FullyQualifiedName~BuiltIns_RegExp_legacyAccessors_lastMatch&FullyQualifiedName~this-cross-realm-constructor.js

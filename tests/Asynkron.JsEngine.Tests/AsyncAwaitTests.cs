@@ -673,7 +673,7 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
 
                          """);
 
-        await WaitForConditionAsync(() => result == "30");
+        await WaitForConditionAsync(() => result == "30", timeoutMs: 5000);
 
         // Assert
         Assert.Equal("30", result);

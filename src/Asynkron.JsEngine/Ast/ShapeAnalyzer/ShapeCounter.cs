@@ -32,6 +32,7 @@ public sealed class ShapeCounter(bool includeNestedFunctions)
                 case VariableDeclaration declaration:
                     foreach (var declarator in declaration.Declarators)
                     {
+                        VisitBinding(declarator.Target);
                         VisitExpression(declarator.Initializer);
                     }
 
@@ -102,6 +103,11 @@ public sealed class ShapeCounter(bool includeNestedFunctions)
                     VisitStatement(tryStatement.TryBlock);
                     if (tryStatement.Catch is not null)
                     {
+                        if (tryStatement.Catch.Binding is { } catchBinding)
+                        {
+                            VisitBinding(catchBinding);
+                        }
+
                         VisitStatement(tryStatement.Catch.Body);
                     }
 
@@ -125,23 +131,7 @@ public sealed class ShapeCounter(bool includeNestedFunctions)
 
                     return;
                 case ClassDeclaration classDeclaration:
-                    if (!includeNestedFunctions)
-                    {
-                        return;
-                    }
-
-                    VisitExpression(classDeclaration.Definition.Extends);
-                    VisitFunction(classDeclaration.Definition.Constructor);
-                    foreach (var member in classDeclaration.Definition.Members)
-                    {
-                        VisitFunction(member.Function);
-                    }
-
-                    foreach (var field in classDeclaration.Definition.Fields)
-                    {
-                        VisitExpression(field.Initializer);
-                    }
-
+                    VisitClassDefinition(classDeclaration.Definition);
                     return;
                 case ModuleStatement:
                 case BreakStatement:
@@ -342,21 +332,7 @@ public sealed class ShapeCounter(bool includeNestedFunctions)
 
                     return;
                 case ClassExpression classExpression:
-                    if (includeNestedFunctions)
-                    {
-                        VisitExpression(classExpression.Definition.Extends);
-                        VisitFunction(classExpression.Definition.Constructor);
-                        foreach (var member in classExpression.Definition.Members)
-                        {
-                            VisitFunction(member.Function);
-                        }
-
-                        foreach (var field in classExpression.Definition.Fields)
-                        {
-                            VisitExpression(field.Initializer);
-                        }
-                    }
-
+                    VisitClassDefinition(classExpression.Definition);
                     return;
                 case TemplateLiteralExpression template:
                     foreach (var part in template.Parts)
@@ -384,6 +360,37 @@ public sealed class ShapeCounter(bool includeNestedFunctions)
                     continue;
                 default:
                     return;
+            }
+        }
+    }
+
+    private void VisitClassDefinition(ClassDefinition definition)
+    {
+        VisitExpression(definition.Extends);
+
+        foreach (var member in definition.Members)
+        {
+            if (member is { IsComputed: true, ComputedName: not null })
+            {
+                VisitExpression(member.ComputedName);
+            }
+
+            if (includeNestedFunctions)
+            {
+                VisitFunction(member.Function);
+            }
+        }
+
+        foreach (var field in definition.Fields)
+        {
+            if (field is { IsComputed: true, ComputedName: not null })
+            {
+                VisitExpression(field.ComputedName);
+            }
+
+            if (includeNestedFunctions)
+            {
+                VisitExpression(field.Initializer);
             }
         }
     }

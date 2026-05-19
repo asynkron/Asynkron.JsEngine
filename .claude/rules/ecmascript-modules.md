@@ -31,8 +31,13 @@ values, and async module evaluation order separate.
 8. Preserve self-import cycles as the current module. Do not eagerly re-evaluate
    the current module through a self-import edge, and keep unresolved default
    imports observable as JavaScript TDZ behavior until the export initializes.
-9. Keep TLA proof packs focused on scheduling, not just final values: sibling
-   async modules, import tick ordering, self-import tick ordering, and
+9. When a top-level-await bridge handles `for await` outside the normal loop
+   runner, preserve `AsyncIteratorClose`: abrupt loop completion must invoke
+   and await the active async iterator's `return()` before the module body
+   continuation advances.
+10. Keep TLA proof packs focused on scheduling and cleanup, not just final
+   values: sibling async modules, import tick ordering, self-import tick
+   ordering, real async-generator `finally`/`return()` cleanup, and
    `Name=ModuleCode_topLevelAwait`.
 
 ## Why
@@ -51,3 +56,9 @@ settled awaits, sibling async modules, and self-import cycles share the same
 module runtime surface but have different microtask-ordering requirements.
 Future repairs must preserve the observable ticks instead of using broad
 microtask drains or synchronous continuation calls to make binding reads pass.
+
+Issue #805 / PR #997 fixed Test262 `ModuleCode_topLevelAwait_syntax` `for
+await (... of await iterable)` bridge behavior. The trap was that a
+single-iteration top-level-await shortcut still owns the loop cleanup contract:
+breaking out of the loop must call and await the async iterator's `return()` so
+async generator `finally` blocks run before the module body resumes.

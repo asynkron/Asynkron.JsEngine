@@ -21,7 +21,7 @@ internal static class JsValueExtractor
         return jsValue.Kind switch
         {
             JsValueKind.Boolean => jsValue.NumberValue != 0, // Box boolean
-            JsValueKind.Number => jsValue.NumberValue, // Box number
+            JsValueKind.Number => jsValue.NumberValue == 0d ? 0d : jsValue.NumberValue, // Box number, canonicalizing -0
             JsValueKind.String => jsValue.ObjectValue ?? string.Empty,
             JsValueKind.Symbol => jsValue.ObjectValue ?? throw new InvalidOperationException("Symbol value cannot be null"),
             JsValueKind.BigInt => jsValue.ObjectValue ?? throw new InvalidOperationException("BigInt value cannot be null"),

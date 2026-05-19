@@ -56,6 +56,26 @@ public sealed class GroupByTests(ITestOutputHelper output) : InternalTestBase(ou
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Map_GroupBy_Canonicalizes_NegativeZero_Key()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                           (() => {
+                                               const grouped = Map.groupBy([-0], value => value);
+                                               const storedKey = Array.from(grouped.keys())[0];
+
+                                               return grouped.size === 1
+                                                   && grouped.get(0).length === 1
+                                                   && grouped.get(-0).length === 1
+                                                   && Object.is(1 / storedKey, Infinity);
+                                           })();
+
+                                       """);
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Object_GroupBy_WithIndex()
     {
         await using var engine = CreateEngine();

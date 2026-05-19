@@ -46,6 +46,17 @@ open-coding casts at individual call sites.
     inputs explicitly when the spec requires canonical positive zero. Preserve
     the surrounding special-value order, especially Infinity before NaN, and pin
     all `+0`/`-0` argument combinations with reciprocal-infinity assertions.
+11. For `JSON.parse` number materialization, do not rely on the parsed `double`
+    alone when zero sign is observable. Inspect the raw JSON number text only
+    for zero-valued tokens, or when reviver `context.source` tracking needs the
+    original lexeme, so signed-zero semantics are preserved without adding
+    per-number raw-text allocations to the common parse path.
+12. For `Map` and `Set` collection-key storage, canonicalize numeric `-0` to
+    `+0` at the shared key-extraction boundary, not only in lookup equality.
+    `SameValueZero` lookup compatibility does not prove the stored insertion key
+    is spec-visible as positive zero through `keys()`, `entries()`, or
+    `Map.groupBy`; pin grouped and direct collection cases with `Object.is(...)`
+    or reciprocal-infinity assertions.
 
 ## Why
 
@@ -100,3 +111,16 @@ all-zero argument list, including mixed `+0` and `-0`, must return canonical
 `+0`. The fix kept the existing Infinity-before-NaN behavior and added focused
 reciprocal-infinity assertions so a future refactor cannot hide the zero sign
 behind ordinary numeric equality.
+
+Issue #792 / PR #982 fixed `JSON.parse("-0")` after `JsonElement.GetDouble()`
+erased the negative-zero spelling before constructing the JavaScript value. The
+durable rule is to treat the original JSON number lexeme as semantic data for
+zero sign and reviver source tracking, while keeping `GetRawText()` targeted so
+large nonzero numeric arrays do not pay avoidable string-allocation cost.
+
+Issue #796 / PR #987 fixed `Map.groupBy` negative-zero keys after map lookup
+equality accepted both `0` and `-0` but the stored insertion key could still
+expose `-0` during iteration. The durable rule is that collection-key
+extraction owns `-0` to `+0` canonicalization for Map/Set storage; individual
+grouping or prototype methods should not grow separate signed-zero patches that
+let stored-key representation drift from lookup semantics.

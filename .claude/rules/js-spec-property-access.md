@@ -5,6 +5,23 @@ property access path that observes inherited properties, accessors, proxies, and
 JavaScript throws. Do not replace `Get` with own-element storage reads just
 because the receiver is array-like.
 
+## Object Environment Writeback
+
+For `with` object-environment bindings, keep the captured binding target and
+the current strict/sloppy writeback rules separate:
+
+- strict writeback for a captured object binding must re-check `HasProperty`
+  before `Set` when missing assignment is not explicitly allowed;
+- if the getter deleted the binding before an update operator writes back, throw
+  `ReferenceError` instead of recreating the property through the generic
+  property setter path;
+- preserve sloppy-mode recreate-after-delete behavior only through an explicit
+  sloppy/allow-missing path.
+
+Add focused tests for both sides when touching this area: strict missing-binding
+writeback must throw, while sloppy captured-binding writeback may recreate the
+property.
+
 ## Nullable Throw State
 
 If the access helper accepts an optional `EvaluationContext`, check nullable
@@ -27,3 +44,11 @@ Test262 semantics for sparse holes, inherited indexed properties, and throwing
 getters. The durable lesson is not specific to `at`: spec-level `Get` must be
 implemented as observable JavaScript property access, and the C# nullable
 throw-state check must propagate the JavaScript exception immediately.
+
+Issue #784 / PR #932 fixed strict postfix decrement through a `with` object
+environment after the getter deleted the binding before writeback. The generic
+property setter path could recreate the property, but ECMAScript strict
+object-environment `SetMutableBinding` must throw when the binding has
+disappeared. The durable lesson is to model object-environment writeback as a
+binding operation first and only use property setting after the strict
+missing-binding check has passed.

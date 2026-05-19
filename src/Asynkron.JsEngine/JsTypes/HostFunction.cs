@@ -17,6 +17,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
     IJsEnvironmentAwareCallable, IAsJsValue
 {
     private bool _isConstructor = true;
+    private string? _nativeSourceDisplayName;
 
     // Cached JsValue to avoid repeated struct creation
     private readonly JsValue _cachedJsValue;
@@ -153,10 +154,15 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
 
     internal string GetNativeFunctionSource()
     {
-        var displayName = TryGetNativeSourceDisplayName();
+        var displayName = _nativeSourceDisplayName;
         return string.IsNullOrEmpty(displayName)
             ? "function () { [native code] }"
             : $"function {displayName}() {{ [native code] }}";
+    }
+
+    internal void SetNativeSourceDisplayName(string displayName)
+    {
+        _nativeSourceDisplayName = TryBuildNativeSourceDisplayName(displayName);
     }
 
     public void PreventExtensions()
@@ -389,12 +395,9 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
         _isConstructor = isConstructor;
     }
 
-    private string TryGetNativeSourceDisplayName()
+    private static string TryBuildNativeSourceDisplayName(string name)
     {
-        var descriptor = Properties.GetOwnPropertyDescriptor("name");
-        if (descriptor is null ||
-            !descriptor.JsValue.TryGetString(out var name) ||
-            string.IsNullOrWhiteSpace(name))
+        if (string.IsNullOrWhiteSpace(name))
         {
             return string.Empty;
         }
@@ -428,7 +431,9 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
 
         if (value[0] == '[' && value[^1] == ']')
         {
-            return true;
+            return value.Length > 2 &&
+                   value.IndexOf('[', 1) < 0 &&
+                   value.IndexOf(']', 1, value.Length - 2) < 0;
         }
 
         if (!IsIdentifierStart(value[0]))

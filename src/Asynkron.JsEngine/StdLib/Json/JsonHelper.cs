@@ -124,26 +124,36 @@ public static class JsonHelper
                 return JsValue.FromJsArray(arr);
 
             case JsonValueKind.String:
-            {
-                var result = new JsValue(element.GetString() ?? string.Empty);
-                if (tracker is not null && parentHolder is not null && parentKey is not null)
                 {
-                    tracker.Track(parentHolder, parentKey, element.GetRawText(), result);
-                }
+                    var result = new JsValue(element.GetString() ?? string.Empty);
+                    if (tracker is not null && parentHolder is not null && parentKey is not null)
+                    {
+                        tracker.Track(parentHolder, parentKey, element.GetRawText(), result);
+                    }
 
-                return result;
-            }
+                    return result;
+                }
 
             case JsonValueKind.Number:
-            {
-                var result = new JsValue(element.GetDouble());
-                if (tracker is not null && parentHolder is not null && parentKey is not null)
                 {
-                    tracker.Track(parentHolder, parentKey, element.GetRawText(), result);
-                }
+                    var number = element.GetDouble();
+                    string? rawText = null;
+                    if (number == 0.0d)
+                    {
+                        rawText = element.GetRawText();
+                    }
 
-                return result;
-            }
+                    var result = new JsValue(rawText is not null && rawText.Length > 0 && rawText[0] == '-'
+                        ? -0.0d
+                        : number);
+                    if (tracker is not null && parentHolder is not null && parentKey is not null)
+                    {
+                        rawText ??= element.GetRawText();
+                        tracker.Track(parentHolder, parentKey, rawText, result);
+                    }
+
+                    return result;
+                }
 
             case JsonValueKind.True:
                 if (tracker is not null && parentHolder is not null && parentKey is not null)

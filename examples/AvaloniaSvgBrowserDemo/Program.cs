@@ -377,6 +377,7 @@ internal sealed partial class DemoWindow : Window
     private readonly DispatcherTimer _timer;
     private readonly DateTimeOffset _startedAt = DateTimeOffset.UtcNow;
     private readonly PresentationDeck? _presentationDeck;
+    private NativeWebView? _testrunnerVideoView;
     private TextBlock? _statusText;
     private TextBlock? _presentationTimerText;
     private TextBlock? _slideTimerText;
@@ -391,6 +392,7 @@ internal sealed partial class DemoWindow : Window
     private bool _isPointerDownOnSlide;
     private bool _didPanPointer;
     private double _lastPinchScale = 1;
+    private bool _testrunnerVideoLoaded;
     private string _lastNativeHostOutput = string.Empty;
 
     public DemoWindow(IReadOnlyList<string> args)
@@ -510,6 +512,7 @@ internal sealed partial class DemoWindow : Window
         };
 
         var slideLayer = new Grid();
+        AddTestrunnerVideoOverlay(slideLayer);
         slideLayer.Children.Add(_svgView);
         AddLiveDemoHostOutputOverlay(slideLayer);
         if (launch.Deck is not null)
@@ -532,6 +535,16 @@ internal sealed partial class DemoWindow : Window
         root.Children.Add(_statusText);
 
         return root;
+    }
+
+    private void AddTestrunnerVideoOverlay(Panel slideLayer)
+    {
+        _testrunnerVideoView = new NativeWebView
+        {
+            IsVisible = false,
+            ZIndex = 0
+        };
+        slideLayer.Children.Add(_testrunnerVideoView);
     }
 
     private void AddLiveDemoHostOutputOverlay(Panel slideLayer)
@@ -637,6 +650,7 @@ internal sealed partial class DemoWindow : Window
             _svgView.ResetView();
             ResetSlideTimer();
             RefreshPresentationTimerUi();
+            UpdateTestrunnerVideoOverlay();
             UpdateLiveDemoHostOutputOverlay();
         });
     }
@@ -793,6 +807,7 @@ internal sealed partial class DemoWindow
         var elapsed = DateTimeOffset.UtcNow - _startedAt;
         _scriptHost.DispatchFrame(elapsed.TotalMilliseconds);
         RefreshPresentationTimerUi();
+        UpdateTestrunnerVideoOverlay();
         UpdateLiveDemoHostOutputOverlay();
     }
 
@@ -802,6 +817,57 @@ internal sealed partial class DemoWindow
         {
             _svgView.InvalidateVisual();
         });
+    }
+
+    private void UpdateTestrunnerVideoOverlay()
+    {
+        if (_testrunnerVideoView is null || _presentationDeck is null)
+        {
+            return;
+        }
+
+        var isTestrunnerSlide = string.Equals(
+            Path.GetFileName(_presentationDeck.CurrentPath),
+            "asynkron-testrunner-tool.svg",
+            StringComparison.Ordinal);
+        _testrunnerVideoView.IsVisible = isTestrunnerSlide;
+        if (!isTestrunnerSlide)
+        {
+            return;
+        }
+
+        var videoBounds = _svgView.MapSvgRectToControlRect(new Rect(0, 0, 959.76, 540));
+        _testrunnerVideoView.Width = videoBounds.Width;
+        _testrunnerVideoView.Height = videoBounds.Height;
+        _testrunnerVideoView.Margin = new Thickness(videoBounds.X, videoBounds.Y, 0, 0);
+        _testrunnerVideoView.HorizontalAlignment = HorizontalAlignment.Left;
+        _testrunnerVideoView.VerticalAlignment = VerticalAlignment.Top;
+
+        if (_testrunnerVideoLoaded)
+        {
+            return;
+        }
+
+        var videoPath = Path.Combine(AppContext.BaseDirectory, "assets", "video", "testrunner.mov");
+        if (!File.Exists(videoPath))
+        {
+            Console.Error.WriteLine(string.Create(
+                CultureInfo.InvariantCulture,
+                $"Testrunner video asset not found: {videoPath}"));
+            return;
+        }
+
+        var playerPath = Path.Combine(AppContext.BaseDirectory, "assets", "video", "testrunner.html");
+        if (!File.Exists(playerPath))
+        {
+            Console.Error.WriteLine(string.Create(
+                CultureInfo.InvariantCulture,
+                $"Testrunner video player asset not found: {playerPath}"));
+            return;
+        }
+
+        _testrunnerVideoView.Navigate(new Uri(playerPath));
+        _testrunnerVideoLoaded = true;
     }
 
     private void UpdateLiveDemoHostOutputOverlay()

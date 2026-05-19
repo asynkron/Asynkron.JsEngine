@@ -166,6 +166,10 @@ public static partial class TypedAstEvaluator
                 loopScope = environment;
             }
 
+            var isActiveIteratorIterationEnvironment =
+                iteratorDriverState is not null &&
+                ReferenceEquals(iteratorDriverState.LoopScopeEnvironment, loopScope);
+
             var description = instruction.PerIterationBindings.IsDefaultOrEmpty ? "loop-scope" : "scope";
             var newIterationEnv = allowPooling
                 ? JsEnvironmentPool.Rent(loopScope, false, false, null, description, logger: runner._realmState.Logger)
@@ -237,7 +241,7 @@ public static partial class TypedAstEvaluator
                     JsEnvironmentPool.Return(previousIterEnv, runner._realmState.Logger);
                 }
             }
-            else if (!instruction.PerIterationBindings.IsDefaultOrEmpty)
+            else if (!instruction.PerIterationBindings.IsDefaultOrEmpty && !isActiveIteratorIterationEnvironment)
             {
                 foreach (var binding in instruction.PerIterationBindings)
                 {

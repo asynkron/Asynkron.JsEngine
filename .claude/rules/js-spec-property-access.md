@@ -24,6 +24,21 @@ Add focused tests for both sides when touching this area: strict missing-binding
 writeback must throw after the side effect that deletes the binding has already
 run, while sloppy captured-binding writeback may recreate the property.
 
+## Destructuring Binding Target Order
+
+For compiled object destructuring binding, keep the observable ordering explicit:
+
+- evaluate any computed source property name first;
+- resolve or capture the binding target at the binding-target step;
+- only then read the source property and evaluate a default initializer;
+- write through the captured binding target when one was resolved.
+
+This is not just an optimization detail. `with` environments can observe target
+lookup through `has`, source properties can observe getter side effects, and
+defaults can observe later name lookups. Do not move var target lookup after
+source property access/default evaluation, and do not repair this class of bug
+by adding an AST-evaluation fallback to the compiled binding runner.
+
 ## Nullable Throw State
 
 If the access helper accepts an optional `EvaluationContext`, check nullable
@@ -66,3 +81,10 @@ compound assignment. The compound operator may read through a captured `with`
 binding whose getter deletes the property before the final `PutValue`; strict
 mode must still re-check the captured object binding and throw `ReferenceError`
 instead of letting the generic setter recreate the property per operator.
+
+Issue #772 / PR #947 fixed object destructuring `var` binding order for a
+computed source property under `with`. The durable lesson is that destructuring
+binding target resolution is observable and must occur after computed source-key
+evaluation but before source getter/default side effects. The runner must keep
+that in the compiled binding path and write through captured object-environment
+references.

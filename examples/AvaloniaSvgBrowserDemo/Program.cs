@@ -122,8 +122,8 @@ internal static class Program
     private static void RunPresentationMaskSmoke()
     {
         var baseDirectory = AppContext.BaseDirectory;
-        var deck = PresentationDeck.Load(baseDirectory, "23");
-        var path = deck.Load("ecma-262-94000-unit-tests.svg", 22);
+        var deck = PresentationDeck.Load(baseDirectory, "21");
+        var path = deck.Load("ecma-262-94000-unit-tests.svg", 20);
         var document = new SvgSlideDocument(
             path,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
@@ -187,7 +187,7 @@ internal static class Program
         }
 
         var deck = PresentationDeck.Load(baseDirectory, "25");
-        deck.Load("ecma-262-94000-unit-tests.svg", 22);
+        deck.Load("ecma-262-94000-unit-tests.svg", 20);
         var document = new SvgSlideDocument(
             deck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
@@ -201,7 +201,7 @@ internal static class Program
             throw new InvalidOperationException("Expected ECMA slide sidecar to create its overlay elements.");
         }
 
-        deck.Load("jsengine-presentation-reveal.svg", 53);
+        deck.Load("jsengine-presentation-reveal.svg", 45);
         document = new SvgSlideDocument(
             deck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
@@ -231,7 +231,7 @@ internal static class Program
             throw new InvalidOperationException("Expected reveal mesh to clear when navigating away from the slide.");
         }
 
-        deck.Load("how-far-did-we-push-it.svg", 54);
+        deck.Load("how-far-did-we-push-it.svg", 46);
         document = new SvgSlideDocument(
             deck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
@@ -247,12 +247,12 @@ internal static class Program
 
         finalHost.DispatchKey("ArrowLeft");
         DispatchSmokeFrames(finalHost, 720);
-        if (deck.CurrentIndex != 53 || document.ContainsElement("push-star-0"))
+        if (deck.CurrentIndex != 45 || document.ContainsElement("push-star-0"))
         {
             throw new InvalidOperationException("Expected final slide starfield to stop cleanly when navigating away.");
         }
 
-        deck.Load("faktorial-launch-button.svg", 55);
+        deck.Load("faktorial-launch-button.svg", 47);
         document = new SvgSlideDocument(
             deck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),
@@ -305,7 +305,7 @@ internal static class Program
     {
         var baseDirectory = AppContext.BaseDirectory;
         var deck = PresentationDeck.Load(baseDirectory, "56");
-        deck.Load("express-live-demo.svg", 51);
+        deck.Load("express-live-demo.svg", 43);
         var document = new SvgSlideDocument(
             deck.CurrentPath,
             Path.Combine(baseDirectory, "rendered-slide.svg"),

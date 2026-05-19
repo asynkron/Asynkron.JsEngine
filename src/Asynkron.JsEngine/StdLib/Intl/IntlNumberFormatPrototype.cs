@@ -171,6 +171,13 @@ public sealed partial class IntlNumberFormatPrototype
 
     private IntlNumberFormatResult FormatNumberResult(JsObject nf, JsValue value)
     {
+        var slots = GetSlots(nf);
+        if (value.TryGetString(out var stringValue) &&
+            IntlNumberFormatter.TryFormatDecimalString(stringValue, slots) is { } decimalStringResult)
+        {
+            return ApplyNumberingSystem(decimalStringResult, slots);
+        }
+
         var context = Realm.CreateContext();
         JsValue numericValue;
         try
@@ -191,7 +198,6 @@ public sealed partial class IntlNumberFormatPrototype
             throw new ThrowSignal(context.FlowValue);
         }
 
-        var slots = GetSlots(nf);
         IntlNumberFormatResult result;
         if (numericValue.IsBigInt)
         {
@@ -202,6 +208,13 @@ public sealed partial class IntlNumberFormatPrototype
             result = IntlNumberFormatter.FormatDouble(numericValue.NumberValue, slots);
         }
 
+        return ApplyNumberingSystem(result, slots);
+    }
+
+    private static IntlNumberFormatResult ApplyNumberingSystem(
+        IntlNumberFormatResult result,
+        IntlNumberFormatInternalSlots slots)
+    {
         // Apply numbering system digit transliteration
         if (!string.Equals(slots.NumberingSystem, "latn", StringComparison.Ordinal))
         {

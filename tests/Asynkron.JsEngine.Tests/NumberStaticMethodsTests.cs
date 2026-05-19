@@ -128,6 +128,22 @@ public sealed class NumberStaticMethodsTests(ITestOutputHelper output) : Interna
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Global_ParseInt_DoesNotExposePrototype()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("parseInt.hasOwnProperty('prototype');");
+        Assert.False((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Number_ParseInt_UsesGlobalParseIntFunction()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("Number.parseInt === parseInt && !Number.parseInt.hasOwnProperty('prototype');");
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Number_Constants_AreAvailable()
     {
         await using var engine = CreateEngine();

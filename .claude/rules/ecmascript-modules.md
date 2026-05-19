@@ -1,7 +1,8 @@
 # ECMAScript Modules
 
-When changing module import/export resolution, keep local bindings, indirect
-re-export bindings, and direct namespace export values separate.
+When changing module import/export resolution or top-level-await scheduling,
+keep local bindings, indirect re-export bindings, direct namespace export
+values, and async module evaluation order separate.
 
 ## Rules
 
@@ -21,6 +22,18 @@ re-export bindings, and direct namespace export values separate.
 5. Prove namespace re-export fixes with both consumer and exporter visibility:
    importing `{ ns }` from the barrel must work, while `typeof ns` inside the
    barrel remains `undefined`.
+6. For top-level-await modules, do not force-drain the whole microtask queue
+   during import binding resolution. If an async import must complete before its
+   binding can be read, preserve unrelated pending microtasks around that wait.
+7. Treat already-settled top-level-await operands as async module continuations:
+   schedule fulfillment through the engine microtask queue instead of invoking
+   the continuation synchronously from the module body runner.
+8. Preserve self-import cycles as the current module. Do not eagerly re-evaluate
+   the current module through a self-import edge, and keep unresolved default
+   imports observable as JavaScript TDZ behavior until the export initializes.
+9. Keep TLA proof packs focused on scheduling, not just final values: sibling
+   async modules, import tick ordering, self-import tick ordering, and
+   `Name=ModuleCode_topLevelAwait`.
 
 ## Why
 
@@ -31,3 +44,10 @@ module, which let code inside the barrel observe a name that ECMAScript treats
 as export-only. The repair stores the namespace object as a direct export value
 and teaches import/export resolution to consume that value without inventing a
 source lexical binding.
+
+Issue #804 / PR #1006 fixed Test262 `ModuleCode_topLevelAwait` scheduling
+failures. The durable trap was that import-time dependency completion, already
+settled awaits, sibling async modules, and self-import cycles share the same
+module runtime surface but have different microtask-ordering requirements.
+Future repairs must preserve the observable ticks instead of using broad
+microtask drains or synchronous continuation calls to make binding reads pass.

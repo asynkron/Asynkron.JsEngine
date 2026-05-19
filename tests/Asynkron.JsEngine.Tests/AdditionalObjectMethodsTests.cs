@@ -7,6 +7,24 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class AdditionalObjectMethodsTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
+    public async Task Object_Is_UsesSameValueForNumberPairs()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            Object.is(0, -0) === false &&
+            Object.is(-0, 0) === false &&
+            Object.is(1, 2) === false &&
+            Object.is(Infinity, -Infinity) === false &&
+            Object.is(NaN, 0) === false &&
+            Object.is(NaN, NaN) === true &&
+            Object.is(-0, -0) === true &&
+            Object.is(0, 0) === true;
+        """);
+
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Object_GetOwnPropertyNames_ReturnsAllPropertyNames()
     {
         await using var engine = CreateEngine();

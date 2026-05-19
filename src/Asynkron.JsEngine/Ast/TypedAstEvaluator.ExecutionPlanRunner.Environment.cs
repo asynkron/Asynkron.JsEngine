@@ -73,13 +73,16 @@ public static partial class TypedAstEvaluator
             JsEnvironment varEnvironment;
             var functionEnvironment = JsEnvironment.CreateInstance(_closure, true, _isStrict, _function.Source,
                 description);
+            functionEnvironment.IsArrowFunctionEnvironment = _function.IsArrow;
             if (hasParameterExpressions)
             {
                 parameterEnvironment = JsEnvironment.CreateInstance(functionEnvironment, false, _isStrict, _function.Source,
                     description, isParameterEnvironment: true);
+                parameterEnvironment.IsArrowFunctionEnvironment = _function.IsArrow;
 
                 varEnvironment = JsEnvironment.CreateInstance(parameterEnvironment, true, _isStrict, _function.Source,
                     description);
+                varEnvironment.IsArrowFunctionEnvironment = _function.IsArrow;
             }
             else
             {

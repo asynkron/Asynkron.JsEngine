@@ -266,11 +266,12 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         var containsNewTargetTopLevel = (validationFlags & EvalValidationFlags.ContainsNewTarget) != 0;
         if (isDirectEval && containsNewTargetTopLevel)
         {
-            var callerFunctionScope = CallingJsEnvironment?.GetFunctionScope();
-            var callerHasNewTarget = callerFunctionScope?.HasOwnBinding(Symbol.NewTarget) == true;
+            var callerIsArrowFunction = IsDirectEvalCallerArrowFunction(CallingJsEnvironment);
+            var callerHasNewTarget =
+                CallingJsEnvironment?.TryFindBindingJsValue(Symbol.NewTarget, true, out _, out _) == true;
             // Direct eval inside class field initializers inherits the "inside function"
             // allowance for new.target, even though the eval source itself is a ScriptBody.
-            if (!callerHasNewTarget && !insideClassFieldInitializer)
+            if (callerIsArrowFunction || (!callerHasNewTarget && !insideClassFieldInitializer))
             {
                 throw StandardLibrary.ThrowSyntaxError(
                     "new.target is not allowed in this direct eval context.",
@@ -281,12 +282,13 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
         if (isDirectEval)
         {
-            var hasSuperBinding = CallingJsEnvironment?.HasBinding(Symbol.Super) == true;
+            var callerIsArrowFunction = IsDirectEvalCallerArrowFunction(CallingJsEnvironment);
+            var hasSuperBinding = IsDirectEvalCallerMethod(CallingJsEnvironment);
             // TryGetJsValue returns JsValue, and Symbol.NewTarget is stored as JsValue.Undefined when absent
             var hasNewTarget = CallingJsEnvironment?.TryGetJsValue(Symbol.NewTarget, out var newTarget) == true &&
                                !newTarget.IsUndefined;
 
-            if (!hasSuperBinding && containsSuperReferenceTopLevel)
+            if ((callerIsArrowFunction || !hasSuperBinding) && containsSuperReferenceTopLevel)
             {
                 throw StandardLibrary.ThrowSyntaxError(
                     "super references are not allowed in direct eval outside methods.",
@@ -296,7 +298,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
             // Check super call without includeFunctionBodies (top-level only)
             var containsSuperCallTopLevel = (validationFlags & EvalValidationFlags.ContainsSuperCall) != 0;
-            if (!hasNewTarget && containsSuperCallTopLevel)
+            if ((callerIsArrowFunction || !hasNewTarget) && containsSuperCallTopLevel)
             {
                 throw StandardLibrary.ThrowSyntaxError(
                     "super calls are only allowed in direct eval when evaluating constructors.",
@@ -660,13 +662,40 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             var result = program.EvaluateProgram(evalEnvironment, Engine.RealmState, CancellationToken.None,
                 ExecutionKind.Eval, false, inheritedPrivateNameScopes: evalPrivateNameScopes);
 
-            return JsValue.FromObjectUnsafe(result);
+            return result?.GetType() == typeof(JsValue)
+                ? (JsValue)result
+                : JsValue.FromObjectUnsafe(result);
         }
         catch (ThrowSignal)
         {
             RollbackEvalBindings(varEnv, varDeclaredNames, preexistingVarBindings);
             throw;
         }
+    }
+
+    private static bool IsDirectEvalCallerArrowFunction(JsEnvironment? callingEnvironment)
+    {
+        if (callingEnvironment is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            return callingEnvironment.GetFunctionScope().IsArrowFunctionEnvironment;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    private static bool IsDirectEvalCallerMethod(JsEnvironment? callingEnvironment)
+    {
+        return callingEnvironment?.TryFindBindingJsValue(Symbol.ActiveFunction, true, out _, out var activeFunction) ==
+               true &&
+               activeFunction.TryGetObject<TypedAstEvaluator.SyncFunctionInvoker>(out var function) &&
+               function.HasHomeObject;
     }
 
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)

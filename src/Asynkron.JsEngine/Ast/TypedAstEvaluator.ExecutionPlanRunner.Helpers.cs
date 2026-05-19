@@ -484,7 +484,14 @@ public static partial class TypedAstEvaluator
                             break;
 
                         case ExpressionOpKind.LoadNewTarget:
-                            stack[stackIndex++] = _newTarget.IsUndefined ? JsValue.Undefined : _newTarget;
+                            var effectiveNewTarget = _newTarget;
+                            if (effectiveNewTarget.IsUndefined &&
+                                environment.TryGetJsValue(Symbol.NewTarget, out var inheritedNewTarget))
+                            {
+                                effectiveNewTarget = inheritedNewTarget;
+                            }
+
+                            stack[stackIndex++] = effectiveNewTarget;
                             stackFlags.Set(stackIndex - 1, false);
                             programCounter++;
                             break;

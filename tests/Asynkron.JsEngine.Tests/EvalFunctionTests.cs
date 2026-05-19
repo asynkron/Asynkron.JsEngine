@@ -125,6 +125,85 @@ public sealed class EvalFunctionTests(ITestOutputHelper output) : InternalTestBa
                 StringComparison.Ordinal));
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task DirectEvalParameterDefaultInArrow_CanDeclareArgumentsWithoutLeakingGlobal()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const oldArguments = globalThis.arguments;
+            let count = 0;
+            const f = (p = eval("var arguments = 'param'")) => {
+              count++;
+              return [arguments, count, globalThis.arguments === oldArguments].join(",");
+            };
+
+            f();
+        """);
+
+        Assert.Equal("param,1,true", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DirectEvalNewTarget_InheritsOrdinaryFunctionContext()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var newTarget = null;
+            var getNewTarget = function() {
+              newTarget = eval('new.target;');
+            };
+
+            getNewTarget();
+            var callResult = newTarget === undefined;
+
+            new getNewTarget();
+            [callResult, newTarget === getNewTarget].join(",");
+        """);
+
+        Assert.Equal("true,true", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DirectEvalSuperProperty_InArrowFunctionCodeThrowsSyntaxError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var caught;
+            var f = () => eval('super.property;');
+
+            try {
+              f();
+            } catch (err) {
+              caught = err;
+            }
+
+            caught instanceof SyntaxError;
+        """);
+
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DirectEvalSuperProperty_InOrdinaryFunctionWithoutHomeObjectThrowsSyntaxError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var caught;
+            function f() {
+              try {
+                eval('super.x;');
+              } catch (err) {
+                caught = err;
+              }
+            }
+
+            f();
+            caught instanceof SyntaxError;
+        """);
+
+        Assert.Equal(true, result);
+    }
+
     // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.
     // The feature is implemented correctly and the test passes when run individually.
     [Fact(Timeout = 2000)]

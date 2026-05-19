@@ -12,12 +12,19 @@ problem until proven otherwise.
 2. Keep waiter cleanup idempotent. Do not dispose waiters, cancellation sources,
    semaphores, shared buffers, or report queues while timeout, notify,
    promise-resolution, or worker-shutdown paths may still observe them.
-3. Do not introduce blocking waits such as `Task.Wait()`, `.Result`, or
+3. When draining a `$262.agent` broadcast callback, wait for settlement only if
+   the callback returned an internal `JsPromise` whose state is observable from
+   the harness. For non-internal thenables, drain microtasks once and let the
+   script report/teardown path complete the case.
+4. Do not leave agent workers blocked indefinitely on broadcast queues after
+   the useful broadcast window has passed. Use bounded idle exits or explicit
+   completion signals so a passing method group can release the testhost.
+5. Do not introduce blocking waits such as `Task.Wait()`, `.Result`, or
    `Thread.Sleep()` to make agent tests pass. Use the engine event queue and
    async promise path.
-4. Synchronize host-side test captures when a host callback and a scheduled
+6. Synchronize host-side test captures when a host callback and a scheduled
    event-loop task can write to the same collection.
-5. Prove the exact crashing Test262 file or method group first, then widen only
+7. Prove the exact crashing Test262 file or method group first, then widen only
    as needed.
 
 ## Why
@@ -27,3 +34,8 @@ root lesson was that waitAsync waiter lifetime, Test262 agent broadcast/report
 plumbing, and event-loop scheduled work interact through shared async state.
 Treating the change as a local value-shape fix risks preserving the race or
 adding a new one.
+
+Issue #755 / PR #905 fixed the BigInt `Atomics_waitAsync` agent group where the
+individual cases passed but the testhost could still hang. That incident showed
+that the harness must not wait on arbitrary thenables it cannot observe, and
+agent worker queues need bounded teardown behavior.

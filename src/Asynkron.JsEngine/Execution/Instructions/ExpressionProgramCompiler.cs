@@ -1339,7 +1339,7 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(PackedExpressionOp.SetComputedSuperProperty());
+                builder.Add(PackedExpressionOp.SetComputedSuperProperty(AllowNameInference: false));
                 failureReason = null;
                 return true;
             }
@@ -1356,7 +1356,8 @@ internal static class ExpressionProgramCompiler
             }
 
             builder.Add(PackedExpressionOp.SetNamedSuperProperty(
-                builder.InternString(superPropertyLiteral.Value.AsString())));
+                builder.InternString(superPropertyLiteral.Value.AsString()),
+                AllowNameInference: false));
             failureReason = null;
             return true;
         }
@@ -1434,7 +1435,7 @@ internal static class ExpressionProgramCompiler
                 return false;
             }
 
-            builder.Add(PackedExpressionOp.SetComputedSuperProperty());
+            builder.Add(PackedExpressionOp.SetComputedSuperProperty(AllowNameInference: false));
             failureReason = null;
             return true;
         }
@@ -1454,7 +1455,7 @@ internal static class ExpressionProgramCompiler
             return false;
         }
 
-        builder.Add(PackedExpressionOp.SetComputedProperty());
+        builder.Add(PackedExpressionOp.SetComputedProperty(AllowNameInference: false));
         failureReason = null;
         return true;
     }
@@ -1501,7 +1502,9 @@ internal static class ExpressionProgramCompiler
                         return false;
                     }
 
-                    builder.Add(PackedExpressionOp.SetNamedSuperProperty(propertyNameIndex));
+                    builder.Add(PackedExpressionOp.SetNamedSuperProperty(
+                        propertyNameIndex,
+                        AllowNameInference: false));
                     builder[shortCircuitIndex] = PackedExpressionOp.JumpIfFalse(builder.Count);
                     failureReason = null;
                     return true;
@@ -1518,7 +1521,9 @@ internal static class ExpressionProgramCompiler
                         return false;
                     }
 
-                    builder.Add(PackedExpressionOp.SetNamedSuperProperty(propertyNameIndex));
+                    builder.Add(PackedExpressionOp.SetNamedSuperProperty(
+                        propertyNameIndex,
+                        AllowNameInference: false));
                     builder[shortCircuitIndex] = PackedExpressionOp.JumpIfTrue(builder.Count);
                     failureReason = null;
                     return true;
@@ -1535,7 +1540,9 @@ internal static class ExpressionProgramCompiler
                         return false;
                     }
 
-                    builder.Add(PackedExpressionOp.SetNamedSuperProperty(propertyNameIndex));
+                    builder.Add(PackedExpressionOp.SetNamedSuperProperty(
+                        propertyNameIndex,
+                        AllowNameInference: false));
                     builder[shortCircuitIndex] = PackedExpressionOp.JumpIfNotNullish(builder.Count);
                     failureReason = null;
                     return true;
@@ -1576,15 +1583,15 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(PackedExpressionOp.SetNamedProperty(propertyNameIndex));
-                var endJumpIndex = builder.Count;
-                builder.Add(PackedExpressionOp.Jump(-1));
+                builder.Add(PackedExpressionOp.SetNamedProperty(
+                    propertyNameIndex,
+                    AllowNameInference: false));
+                builder.Add(PackedExpressionOp.DuplicateTop);
 
                 var shortCircuitStart = builder.Count;
                 builder[shortCircuitIndex] = PackedExpressionOp.JumpIfFalse(shortCircuitStart);
                 builder.Add(PackedExpressionOp.SwapTopTwo);
                 builder.Add(PackedExpressionOp.Pop);
-                builder[endJumpIndex] = PackedExpressionOp.Jump(builder.Count);
                 failureReason = null;
                 return true;
             }
@@ -1600,15 +1607,15 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(PackedExpressionOp.SetNamedProperty(propertyNameIndex));
-                var endJumpIndex = builder.Count;
-                builder.Add(PackedExpressionOp.Jump(-1));
+                builder.Add(PackedExpressionOp.SetNamedProperty(
+                    propertyNameIndex,
+                    AllowNameInference: false));
+                builder.Add(PackedExpressionOp.DuplicateTop);
 
                 var shortCircuitStart = builder.Count;
                 builder[shortCircuitIndex] = PackedExpressionOp.JumpIfTrue(shortCircuitStart);
                 builder.Add(PackedExpressionOp.SwapTopTwo);
                 builder.Add(PackedExpressionOp.Pop);
-                builder[endJumpIndex] = PackedExpressionOp.Jump(builder.Count);
                 failureReason = null;
                 return true;
             }
@@ -1624,15 +1631,15 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(PackedExpressionOp.SetNamedProperty(propertyNameIndex));
-                var endJumpIndex = builder.Count;
-                builder.Add(PackedExpressionOp.Jump(-1));
+                builder.Add(PackedExpressionOp.SetNamedProperty(
+                    propertyNameIndex,
+                    AllowNameInference: false));
+                builder.Add(PackedExpressionOp.DuplicateTop);
 
                 var shortCircuitStart = builder.Count;
                 builder[shortCircuitIndex] = PackedExpressionOp.JumpIfNotNullish(shortCircuitStart);
                 builder.Add(PackedExpressionOp.SwapTopTwo);
                 builder.Add(PackedExpressionOp.Pop);
-                builder[endJumpIndex] = PackedExpressionOp.Jump(builder.Count);
                 failureReason = null;
                 return true;
             }
@@ -1692,7 +1699,7 @@ internal static class ExpressionProgramCompiler
                         return false;
                     }
 
-                    builder.Add(PackedExpressionOp.SetComputedSuperProperty());
+                    builder.Add(PackedExpressionOp.SetComputedSuperProperty(AllowNameInference: false));
                     var endJumpIndex = builder.Count;
                     builder.Add(PackedExpressionOp.Jump(-1));
 
@@ -1716,7 +1723,7 @@ internal static class ExpressionProgramCompiler
                         return false;
                     }
 
-                    builder.Add(PackedExpressionOp.SetComputedSuperProperty());
+                    builder.Add(PackedExpressionOp.SetComputedSuperProperty(AllowNameInference: false));
                     var endJumpIndex = builder.Count;
                     builder.Add(PackedExpressionOp.Jump(-1));
 
@@ -1740,7 +1747,7 @@ internal static class ExpressionProgramCompiler
                         return false;
                     }
 
-                    builder.Add(PackedExpressionOp.SetComputedSuperProperty());
+                    builder.Add(PackedExpressionOp.SetComputedSuperProperty(AllowNameInference: false));
                     var endJumpIndex = builder.Count;
                     builder.Add(PackedExpressionOp.Jump(-1));
 
@@ -1799,16 +1806,15 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(PackedExpressionOp.SetComputedProperty());
-                var endJumpIndex = builder.Count;
-                builder.Add(PackedExpressionOp.Jump(-1));
+                builder.Add(PackedExpressionOp.SetComputedProperty(AllowNameInference: false));
+                builder.Add(PackedExpressionOp.DuplicateTop);
+                builder.Add(PackedExpressionOp.DuplicateTop);
 
                 var shortCircuitStart = builder.Count;
                 builder[shortCircuitIndex] = PackedExpressionOp.JumpIfFalse(shortCircuitStart);
                 builder.Add(PackedExpressionOp.RotateTopThreeRight);
                 builder.Add(PackedExpressionOp.Pop);
                 builder.Add(PackedExpressionOp.Pop);
-                builder[endJumpIndex] = PackedExpressionOp.Jump(builder.Count);
                 failureReason = null;
                 return true;
             }
@@ -1824,16 +1830,15 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(PackedExpressionOp.SetComputedProperty());
-                var endJumpIndex = builder.Count;
-                builder.Add(PackedExpressionOp.Jump(-1));
+                builder.Add(PackedExpressionOp.SetComputedProperty(AllowNameInference: false));
+                builder.Add(PackedExpressionOp.DuplicateTop);
+                builder.Add(PackedExpressionOp.DuplicateTop);
 
                 var shortCircuitStart = builder.Count;
                 builder[shortCircuitIndex] = PackedExpressionOp.JumpIfTrue(shortCircuitStart);
                 builder.Add(PackedExpressionOp.RotateTopThreeRight);
                 builder.Add(PackedExpressionOp.Pop);
                 builder.Add(PackedExpressionOp.Pop);
-                builder[endJumpIndex] = PackedExpressionOp.Jump(builder.Count);
                 failureReason = null;
                 return true;
             }
@@ -1849,16 +1854,15 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                builder.Add(PackedExpressionOp.SetComputedProperty());
-                var endJumpIndex = builder.Count;
-                builder.Add(PackedExpressionOp.Jump(-1));
+                builder.Add(PackedExpressionOp.SetComputedProperty(AllowNameInference: false));
+                builder.Add(PackedExpressionOp.DuplicateTop);
+                builder.Add(PackedExpressionOp.DuplicateTop);
 
                 var shortCircuitStart = builder.Count;
                 builder[shortCircuitIndex] = PackedExpressionOp.JumpIfNotNullish(shortCircuitStart);
                 builder.Add(PackedExpressionOp.RotateTopThreeRight);
                 builder.Add(PackedExpressionOp.Pop);
                 builder.Add(PackedExpressionOp.Pop);
-                builder[endJumpIndex] = PackedExpressionOp.Jump(builder.Count);
                 failureReason = null;
                 return true;
             }

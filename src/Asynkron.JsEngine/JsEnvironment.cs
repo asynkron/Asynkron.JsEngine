@@ -3182,8 +3182,8 @@ public sealed class JsEnvironment : IRentable
     {
         var propertyName = binding.PropertyName;
         var bindingObject = binding.BindingObject;
-        if (binding.IsStrictReference &&
-            !binding.AllowMissingAssignment &&
+        if (!binding.AllowMissingAssignment &&
+            binding.IsStrictReference &&
             !HasProperty(bindingObject, propertyName))
         {
             realm ??= (bindingObject as JsObject)?.RealmState;

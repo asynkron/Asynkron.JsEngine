@@ -17,6 +17,13 @@ the already-built internal test assembly through `rtk proxy dotnet test
 --no-build`. The standalone `test-internal` target still performs a normal
 build-and-test run.
 
+Issue #755 / PR #905 later exposed the same Makefile surface in review: the
+quality target still needed this build-before-no-build shape, but repository
+Make targets should not hardcode the local agent wrapper. The wrapper belongs
+around the interactive shell command that invokes make; the Makefile itself
+should use normal tool variables so non-agent environments can run the same
+targets.
+
 ## Decision
 
 Keep `make quality` as an explicit two-step contract:
@@ -36,6 +43,9 @@ exception because the build step is explicit and immediately precedes it.
 
 - Future Makefile edits must preserve the build-before-no-build relationship in
   the `quality` target.
+- Makefile commands should route through configurable tool variables such as
+  `DOTNET ?= dotnet` and `GIT ?= git` rather than embedding `rtk` or another
+  local agent wrapper in the repository contract.
 - `test-internal` remains safe as a standalone local target because it still
   builds before testing.
 - Build-guide and pre-PR guidance must describe the exception so future agents

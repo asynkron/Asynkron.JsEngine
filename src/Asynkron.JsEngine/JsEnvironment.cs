@@ -2461,6 +2461,13 @@ public sealed class JsEnvironment : IRentable
                     value = default;
                     return false;
                 }
+                catch (ThrowSignal)
+                {
+                    // Source binding is still in TDZ. Environment cleanup scans only
+                    // for iterator state, so unresolved imports are safe to skip here.
+                    value = default;
+                    return false;
+                }
             }
 
             value = default;

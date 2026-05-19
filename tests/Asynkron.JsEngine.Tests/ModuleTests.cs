@@ -931,6 +931,98 @@ export default function() { return 23; };
     }
 
     [Fact(Timeout = 5000)]
+    public async Task TopLevelAwait_AsyncModuleDoesNotBlockSiblingModule()
+    {
+        await using var engine = CreateEngine();
+
+        engine.SetModuleLoader(modulePath => modulePath switch
+        {
+            "async-module-tla_FIXTURE.js" => """
+                                             globalThis.check = false;
+                                             await 0;
+                                             globalThis.check = true;
+                                             """,
+            "async-module-sync_FIXTURE.js" => """
+                                              export const check = globalThis.check;
+                                              """,
+            _ => throw new FileNotFoundException($"Module not found: {modulePath}")
+        });
+
+        var result = await engine.EvaluateModule("""
+                                                 import "async-module-tla_FIXTURE.js";
+                                                 import { check } from "async-module-sync_FIXTURE.js";
+                                                 check
+                                                 """);
+
+        Assert.False((bool)result!);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TopLevelAwait_ImportResolutionDoesNotDrainAsyncModuleTicks()
+    {
+        await using var engine = CreateEngine();
+
+        engine.SetModuleLoader(modulePath => modulePath switch
+        {
+            "module-import-resolution_FIXTURE.js" => """
+                                                     await 1;
+                                                     await 2;
+                                                     export default await Promise.resolve(42);
+                                                     """,
+            _ => throw new FileNotFoundException($"Module not found: {modulePath}")
+        });
+
+        var result = await engine.EvaluateModule("""
+                                                 var x = "synchronous evaluation";
+                                                 Promise.resolve().then(() => x = "tick in the async evaluation");
+                                                 import foo from "module-import-resolution_FIXTURE.js";
+                                                 var before = x + ":" + foo;
+                                                 await 1;
+                                                 before + "|" + x
+                                                 """);
+
+        Assert.Equal("synchronous evaluation:42|tick in the async evaluation", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TopLevelAwait_SelfImportResolutionTicksAfterAwait()
+    {
+        const string source = """
+                              var x = "synchronous evaluation";
+                              Promise.resolve().then(() => x = "tick in the async evaluation");
+                              import self from "./module-self-import-async-resolution-ticks.js";
+                              var before = x;
+                              var threw = false;
+                              try {
+                                self;
+                              } catch (e) {
+                                threw = true;
+                              }
+                              export default await Promise.resolve(42);
+                              before + "|" + threw + "|" + x + "|" + self
+                              """;
+
+        await using var engine = CreateEngine();
+        engine.SetModuleLoader(modulePath =>
+        {
+            if (string.Equals(modulePath,
+                    "language/module-code/top-level-await/module-self-import-async-resolution-ticks.js",
+                    StringComparison.Ordinal))
+            {
+                return source;
+            }
+
+            throw new FileNotFoundException($"Module not found: {modulePath}");
+        });
+
+        var result = await engine.EvaluateModule(
+            source,
+            "language/module-code/top-level-await/module-self-import-async-resolution-ticks.js");
+
+        Assert.Equal("synchronous evaluation|true|tick in the async evaluation|42", result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task TopLevelAwait_IfStatement()
     {
         // Test that top-level await works inside if statements

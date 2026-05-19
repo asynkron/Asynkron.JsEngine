@@ -765,6 +765,75 @@ export default function() { return 23; };
     }
 
     [Fact(Timeout = 2000)]
+    public async Task ImportMetaReturnsSameObjectWithinModuleAndFunction()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.EvaluateModule("""
+                                                 var a = import.meta;
+                                                 var b = function() { return import.meta; }();
+                                                 import.meta === a && import.meta === b;
+                                                 """);
+
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ImportMetaIsDistinctPerModule()
+    {
+        await using var engine = CreateEngine();
+
+        engine.SetModuleLoader(modulePath =>
+        {
+            if (string.Equals(modulePath, "fixture.js", StringComparison.Ordinal))
+            {
+                return """
+                       export var meta = import.meta;
+                       export function getMeta() { return import.meta; }
+                       """;
+            }
+
+            throw new FileNotFoundException($"Module not found: {modulePath}");
+        });
+
+        var result = await engine.EvaluateModule("""
+                                                 import { meta as fixtureMeta, getMeta } from "fixture.js";
+                                                 import.meta !== fixtureMeta &&
+                                                   import.meta !== getMeta() &&
+                                                   fixtureMeta === getMeta();
+                                                 """);
+
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ImportMetaIsOrdinaryExtensibleObject()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.EvaluateModule("""
+                                                 var ok = typeof import.meta === "object" && import.meta !== null;
+                                                 ok = ok && !Object.prototype.hasOwnProperty.call(import.meta, "test262prop");
+                                                 import.meta.test262prop = "blubb";
+                                                 ok = ok && import.meta.test262prop === "blubb";
+                                                 ok = ok && delete import.meta.test262prop;
+                                                 ok = ok && !Object.prototype.hasOwnProperty.call(import.meta, "test262prop");
+                                                 var proto = {};
+                                                 Object.setPrototypeOf(import.meta, proto);
+                                                 ok = ok && Object.getPrototypeOf(import.meta) === proto;
+                                                 Object.preventExtensions(import.meta);
+                                                 ok = ok && Object.isExtensible(import.meta) === false;
+                                                 Object.seal(import.meta);
+                                                 ok = ok && Object.isSealed(import.meta) === true;
+                                                 Object.freeze(import.meta);
+                                                 ok = ok && Object.isFrozen(import.meta) === true;
+                                                 ok;
+                                                 """);
+
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task SelfImportAnonymousDefaultGeneratorExport()
     {
         await using var engine = CreateEngine();

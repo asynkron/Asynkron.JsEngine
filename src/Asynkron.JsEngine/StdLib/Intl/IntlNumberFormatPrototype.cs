@@ -77,17 +77,9 @@ public sealed partial class IntlNumberFormatPrototype
             throw ThrowTypeError("start and end values are required", realm: Realm);
         }
 
-        var xNum = ConvertToNumericForRange(x);
-        var yNum = ConvertToNumericForRange(y);
-
-        if (double.IsNaN(xNum) || double.IsNaN(yNum))
-        {
-            throw ThrowRangeError("start and end values must not be NaN", realm: Realm);
-        }
-
         var slots = GetSlots(nf);
-        var xResult = IntlNumberFormatter.FormatDouble(xNum, slots);
-        var yResult = IntlNumberFormatter.FormatDouble(yNum, slots);
+        var xResult = FormatNumericForRange(x, slots);
+        var yResult = FormatNumericForRange(y, slots);
 
         var partsArray = new JsArray(Realm);
 
@@ -98,8 +90,22 @@ public sealed partial class IntlNumberFormatPrototype
             return JsValue.FromJsArray(partsArray);
         }
 
+        if (string.Equals(slots.Style, "currency", StringComparison.Ordinal))
+        {
+            if (TryAddCurrencyRangePartsWithSharedSuffix(partsArray, xResult, yResult, slots))
+            {
+                return JsValue.FromJsArray(partsArray);
+            }
+
+            if (string.Equals(slots.SignDisplay, "always", StringComparison.Ordinal) &&
+                TryAddCurrencyRangePartsWithSharedPrefix(partsArray, xResult, yResult, slots))
+            {
+                return JsValue.FromJsArray(partsArray);
+            }
+        }
+
         AddRangeParts(partsArray, xResult, "startRange");
-        AddRangePart(partsArray, "literal", " \u2013 ", "shared");
+        AddRangePart(partsArray, "literal", GetRangeSeparator(slots, shareAffix: false), "shared");
         AddRangeParts(partsArray, yResult, "endRange");
 
         return JsValue.FromJsArray(partsArray);
@@ -211,6 +217,11 @@ public sealed partial class IntlNumberFormatPrototype
         out string range)
     {
         range = string.Empty;
+        if (!HaveCompatibleRangeSigns(x, y, slots))
+        {
+            return false;
+        }
+
         var suffixLength = CommonSuffixLength(x, y);
         suffixLength = TrimNumericRangeSuffix(x, suffixLength, slots);
         if (suffixLength == 0)
@@ -282,7 +293,7 @@ public sealed partial class IntlNumberFormatPrototype
 
     private static string GetRangeSeparator(IntlNumberFormatInternalSlots slots, bool shareAffix)
     {
-        if (string.Equals(slots.Culture.TwoLetterISOLanguageName, "pt", StringComparison.Ordinal))
+        if (string.Equals(slots.Locale, "pt-PT", StringComparison.OrdinalIgnoreCase))
         {
             return " - ";
         }
@@ -294,6 +305,29 @@ public sealed partial class IntlNumberFormatPrototype
         }
 
         return " \u2013 ";
+    }
+
+    private static bool HaveCompatibleRangeSigns(
+        string x,
+        string y,
+        IntlNumberFormatInternalSlots slots)
+    {
+        return GetRangeSignKind(x, slots) == GetRangeSignKind(y, slots);
+    }
+
+    private static int GetRangeSignKind(string value, IntlNumberFormatInternalSlots slots)
+    {
+        if (value.StartsWith(slots.Culture.NumberFormat.NegativeSign, StringComparison.Ordinal))
+        {
+            return -1;
+        }
+
+        if (value.StartsWith(slots.Culture.NumberFormat.PositiveSign, StringComparison.Ordinal))
+        {
+            return 1;
+        }
+
+        return 0;
     }
 
     private static int CommonPrefixLength(string x, string y)
@@ -326,6 +360,114 @@ public sealed partial class IntlNumberFormatPrototype
         foreach (var part in parts)
         {
             AddRangePart(array, part.Type, part.Value, source);
+        }
+    }
+
+    private bool TryAddCurrencyRangePartsWithSharedPrefix(
+        JsArray array,
+        IntlNumberFormatResult xResult,
+        IntlNumberFormatResult yResult,
+        IntlNumberFormatInternalSlots slots)
+    {
+        var x = xResult.Formatted;
+        var y = yResult.Formatted;
+        var plus = slots.Culture.NumberFormat.PositiveSign;
+        var xPrefixSign = string.Empty;
+        if (string.Equals(slots.SignDisplay, "always", StringComparison.Ordinal) &&
+            x.StartsWith(plus, StringComparison.Ordinal) &&
+            y.StartsWith(plus, StringComparison.Ordinal))
+        {
+            xPrefixSign = plus;
+            x = x[plus.Length..];
+            y = y[plus.Length..];
+        }
+
+        var prefixLength = CommonPrefixLength(x, y);
+        if (prefixLength == 0)
+        {
+            return false;
+        }
+
+        if (xPrefixSign.Length > 0)
+        {
+            AddRangePart(array, "plusSign", xPrefixSign, "shared");
+        }
+
+        AddRangePartsSlice(array, xResult, xPrefixSign.Length, prefixLength, "shared");
+        AddRangePartsSlice(array, xResult, xPrefixSign.Length + prefixLength,
+            xResult.Formatted.Length - xPrefixSign.Length - prefixLength, "startRange");
+        AddRangePart(array, "literal", GetRangeSeparator(slots, shareAffix: true), "shared");
+        AddRangePartsSlice(array, yResult, xPrefixSign.Length + prefixLength,
+            yResult.Formatted.Length - xPrefixSign.Length - prefixLength, "endRange");
+        return true;
+    }
+
+    private bool TryAddCurrencyRangePartsWithSharedSuffix(
+        JsArray array,
+        IntlNumberFormatResult xResult,
+        IntlNumberFormatResult yResult,
+        IntlNumberFormatInternalSlots slots)
+    {
+        if (!HaveCompatibleRangeSigns(xResult.Formatted, yResult.Formatted, slots))
+        {
+            return false;
+        }
+
+        var suffixLength = CommonSuffixLength(xResult.Formatted, yResult.Formatted);
+        suffixLength = TrimNumericRangeSuffix(xResult.Formatted, suffixLength, slots);
+        if (suffixLength == 0)
+        {
+            return false;
+        }
+
+        var xBodyLength = xResult.Formatted.Length - suffixLength;
+        var yBodyStart = 0;
+        var yBodyLength = yResult.Formatted.Length - suffixLength;
+        if (string.Equals(slots.SignDisplay, "always", StringComparison.Ordinal) &&
+            yResult.Formatted.StartsWith(slots.Culture.NumberFormat.PositiveSign, StringComparison.Ordinal))
+        {
+            yBodyStart = slots.Culture.NumberFormat.PositiveSign.Length;
+            yBodyLength -= yBodyStart;
+        }
+
+        AddRangePartsSlice(array, xResult, 0, xBodyLength, "startRange");
+        AddRangePart(array, "literal", GetRangeSeparator(slots, shareAffix: true), "shared");
+        AddRangePartsSlice(array, yResult, yBodyStart, yBodyLength, "endRange");
+        AddRangePartsSlice(array, yResult, yResult.Formatted.Length - suffixLength, suffixLength, "shared");
+        return true;
+    }
+
+    private void AddRangePartsSlice(
+        JsArray array,
+        IntlNumberFormatResult result,
+        int start,
+        int length,
+        string source)
+    {
+        if (length <= 0)
+        {
+            return;
+        }
+
+        var end = start + length;
+        var offset = 0;
+        var parts = result.Parts ?? [new NumberFormatPart("literal", result.Formatted)];
+        foreach (var part in parts)
+        {
+            var partStart = offset;
+            var partEnd = offset + part.Value.Length;
+            var sliceStart = Math.Max(start, partStart);
+            var sliceEnd = Math.Min(end, partEnd);
+            if (sliceStart < sliceEnd)
+            {
+                AddRangePart(array, part.Type, part.Value[(sliceStart - partStart)..(sliceEnd - partStart)], source);
+            }
+
+            offset = partEnd;
+            if (offset >= end)
+            {
+                break;
+            }
         }
     }
 

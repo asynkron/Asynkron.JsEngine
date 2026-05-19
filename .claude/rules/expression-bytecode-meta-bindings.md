@@ -17,6 +17,11 @@ as separate responsibilities.
 4. Prove both structure and behavior before widening Test262: lowering should
    show the dedicated op, and runtime tests should prove stable object identity
    or lexical inheritance for the relevant binding.
+5. After adding a meta-property bytecode load, recheck nearby downstream
+   expression consumers that can accept the meta-property as a subexpression
+   before leaving their Test262 filters in place. For `import.meta`, this
+   includes dynamic import AssignmentExpression fixtures such as
+   `import(import.meta)`.
 
 ## Why
 
@@ -27,3 +32,9 @@ Issue #781 / PR #973 fixed `import.meta` module syntax by adding
 from module identity and URL behavior. Future meta-property bytecode work should
 follow the same split: parser guards validity, environment setup owns the
 binding, and bytecode only loads the established binding.
+
+Issue #779 / PR #977 confirmed the same fix also retired a downstream Test262
+dynamic import AssignmentExpression filter for `import(import.meta)`. That case
+did not need a separate runtime workaround; it needed the existing meta-property
+bytecode binding to be proven through a consumer expression and then removed
+from the regression packs.

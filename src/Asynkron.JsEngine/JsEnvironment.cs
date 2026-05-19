@@ -1433,7 +1433,7 @@ public sealed class JsEnvironment : IRentable
 
     internal AssignmentReference ResolveIdentifierAssignmentReference(Symbol name, EvaluationContext context)
     {
-        var strictContext = context.CurrentScope.IsStrict;
+        var strictContext = IsStrict || context.CurrentScope.IsStrict || context.IsStrictSource;
 
         if (TryGetCachedDeclarativeBinding(name, context, out var cached))
         {

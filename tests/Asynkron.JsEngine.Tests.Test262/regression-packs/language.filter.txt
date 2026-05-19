@@ -1,9 +1,8 @@
 # Test262 regression pack: language
 # Source umbrella list: tests/Asynkron.JsEngine.Tests.Test262/current-regressions.filter.txt
-# Filters: 80
+# Filters: 79
 FullyQualifiedName~Expressions_assignment&FullyQualifiedName~fn-name-lhs-cover.js
 FullyQualifiedName~Expressions_delete&FullyQualifiedName~super-property-uninitialized-this.js
-FullyQualifiedName~Expressions_dynamicImport_assignmentExpression&FullyQualifiedName~import-meta.js
 FullyQualifiedName~Expressions_dynamicImport_catch&FullyQualifiedName~nested-async-gen-return-await-eval-rqstd-abrupt-typeerror.js
 FullyQualifiedName~Expressions_dynamicImport_catch&FullyQualifiedName~nested-async-gen-return-await-eval-rqstd-abrupt-urierror.js
 FullyQualifiedName~Expressions_dynamicImport_catch&FullyQualifiedName~nested-async-gen-return-await-eval-script-code-target.js

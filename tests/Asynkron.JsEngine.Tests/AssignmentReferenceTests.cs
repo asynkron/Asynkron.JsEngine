@@ -107,6 +107,28 @@ var oldValue = x--;
     }
 
     [Fact]
+    public async Task PrefixIncrement_GlobalAccessor_CallsSetterWithNewValueAndReturnsNewValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+var observed = 'unset';
+Object.defineProperty(globalThis, 'x', {
+  get() { return 1; },
+  set(value) { observed = value; },
+  configurable: true
+});
+var newValue = ++x;
+({ newValue, observed });
+");
+
+        var obj = Assert.IsType<JsTypes.JsObject>(result);
+        Assert.True(obj.TryGetProperty("newValue", out var newValue));
+        Assert.Equal(2d, newValue.AsDouble());
+        Assert.True(obj.TryGetProperty("observed", out var observed));
+        Assert.Equal(2d, observed.AsDouble());
+    }
+
+    [Fact]
     public async Task PostfixDecrement_GlobalAccessor_PreservesOldNegativeZero()
     {
         await using var engine = CreateEngine();
@@ -147,6 +169,42 @@ with (scope) {
     try {
       count++;
       x--;
+      count++;
+    } catch (error) {
+      return { name: error.name, count, exists: 'x' in scope };
+    }
+  })();
+}
+");
+
+        var obj = Assert.IsType<JsTypes.JsObject>(result);
+        Assert.True(obj.TryGetProperty("name", out var name));
+        Assert.Equal("ReferenceError", name.AsString());
+        Assert.True(obj.TryGetProperty("count", out var count));
+        Assert.Equal(1d, count.AsDouble());
+        Assert.True(obj.TryGetProperty("exists", out var exists));
+        Assert.False(exists.AsBoolean());
+    }
+
+    [Fact]
+    public async Task PrefixDecrement_WithAccessorDeletedDuringGet_StrictWriteThrowsReferenceError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+var count = 0;
+var scope = {
+  get x() {
+    delete this.x;
+    return 2;
+  }
+};
+
+with (scope) {
+  (function() {
+    'use strict';
+    try {
+      count++;
+      --x;
       count++;
     } catch (error) {
       return { name: error.name, count, exists: 'x' in scope };

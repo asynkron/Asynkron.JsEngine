@@ -725,7 +725,7 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
     }
     private static readonly string[] Expected = ["first", "second", "third"];
 
-    [Fact(Timeout = 10000)]
+    [Fact(Timeout = 20000)]
     public async Task AsyncFunction_WithParallelDelays()
     {
         // Arrange

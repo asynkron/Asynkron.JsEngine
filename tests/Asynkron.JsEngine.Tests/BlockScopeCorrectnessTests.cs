@@ -129,4 +129,36 @@ public sealed class BlockScopeCorrectnessTests : InternalTestBase
 
         Assert.NotNull(program);
     }
+
+    [Fact]
+    public void ClassStaticBlockFunctionDeclarationMayShareVarName()
+    {
+        using var engine = CreateEngine();
+
+        var program = engine.ParseProgram("""
+            class C {
+                static {
+                    function f() {}
+                    var f;
+                }
+            }
+            """);
+
+        Assert.NotNull(program);
+    }
+
+    [Fact]
+    public void ClassStaticBlockLexicalDeclarationConflictingWithVarDeclarationThrowsParseException()
+    {
+        using var engine = CreateEngine();
+
+        Assert.Throws<ParseException>(() => engine.ParseProgram("""
+            class C {
+                static {
+                    let f;
+                    var f;
+                }
+            }
+            """));
+    }
 }

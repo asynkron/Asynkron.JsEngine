@@ -839,7 +839,7 @@ public sealed class JsAstParser(
 
                 if (isStatic && Check(TokenType.LeftBrace))
                 {
-                    var block = ParseBlock();
+                    var block = ParseBlock(functionDeclarationsAreLexical: false);
                     var staticBlock = new ClassStaticBlock(block.Source, block);
                     staticBlocks.Add(staticBlock);
                     staticElements.Add(new ClassStaticElement(ClassStaticElementKind.Block,
@@ -1588,7 +1588,10 @@ public sealed class JsAstParser(
                 new ExportDefaultExpression(exportSource, hoistableFunction));
         }
 
-        private BlockStatement ParseBlock(bool leftBraceConsumed = false, bool isFunctionBody = false)
+        private BlockStatement ParseBlock(
+            bool leftBraceConsumed = false,
+            bool isFunctionBody = false,
+            bool functionDeclarationsAreLexical = true)
         {
             Token startToken;
             if (leftBraceConsumed)
@@ -1619,13 +1622,16 @@ public sealed class JsAstParser(
             var blockStatements = statements.ToImmutable();
             if (!isFunctionBody)
             {
-                ValidateBlockDeclarationConflicts(blockStatements, startToken);
+                ValidateBlockDeclarationConflicts(blockStatements, startToken, functionDeclarationsAreLexical);
             }
 
             return new BlockStatement(CreateSourceReference(startToken), blockStatements, isStrict);
         }
 
-        private void ValidateBlockDeclarationConflicts(ImmutableArray<StatementNode> statements, Token token)
+        private void ValidateBlockDeclarationConflicts(
+            ImmutableArray<StatementNode> statements,
+            Token token,
+            bool functionDeclarationsAreLexical)
         {
             HashSet<Symbol>? lexicalNames = null;
             foreach (var statement in statements)
@@ -1640,7 +1646,7 @@ public sealed class JsAstParser(
                         CollectBindingIdentifiers(declaration, lexicalNames);
                         break;
 
-                    case FunctionDeclaration functionDeclaration:
+                    case FunctionDeclaration functionDeclaration when functionDeclarationsAreLexical:
                         lexicalNames ??= new HashSet<Symbol>();
                         lexicalNames.Add(functionDeclaration.Name);
                         break;

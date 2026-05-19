@@ -9,6 +9,19 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
+    public Task UnicodePropertyData_Resolves_UnknownScriptExtensions()
+    {
+        var unknown = global::Asynkron.JsEngine.StdLib.RegExp.UnicodePropertyData.Resolve("Script_Extensions=Unknown");
+        var zzzz = global::Asynkron.JsEngine.StdLib.RegExp.UnicodePropertyData.Resolve("scx=Zzzz");
+
+        Assert.NotNull(unknown);
+        Assert.NotEmpty(unknown);
+        Assert.NotNull(zzzz);
+        Assert.Equal(unknown, zzzz);
+        return Task.CompletedTask;
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task RegExp_Constructor_Basic()
     {
         await using var engine = CreateEngine();

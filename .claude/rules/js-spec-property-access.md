@@ -80,12 +80,13 @@ throw-state check must propagate the JavaScript exception immediately.
 
 Issue #784 / PR #932 fixed strict postfix decrement through a `with` object
 environment after the getter deleted the binding before writeback. Issue #785 /
-PR #933 confirmed the same binding contract for strict postfix increment. The
-generic property setter path could recreate the property, but ECMAScript strict
-object-environment `SetMutableBinding` must throw when the binding has
-disappeared. The durable lesson is to model object-environment writeback as a
-binding operation first and only use property setting after the strict
-missing-binding check has passed.
+PR #933 confirmed the same binding contract for strict postfix increment. Issue
+#786 / PR #975 confirmed prefix decrement must use the same captured binding
+writeback path. The generic property setter path could recreate the property,
+but ECMAScript strict object-environment `SetMutableBinding` must throw when the
+binding has disappeared. The durable lesson is to model object-environment
+writeback as a binding operation first and only use property setting after the
+strict missing-binding check has passed.
 
 Issue #774 / PR #950 extended that lesson to plain assignment. The RHS can
 delete the resolved `with` binding before `PutValue`; strict mode still has to

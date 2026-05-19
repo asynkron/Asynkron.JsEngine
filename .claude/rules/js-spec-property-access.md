@@ -39,6 +39,22 @@ defaults can observe later name lookups. Do not move var target lookup after
 source property access/default evaluation, and do not repair this class of bug
 by adding an AST-evaluation fallback to the compiled binding runner.
 
+## Super Property Reference Order
+
+For expression bytecode that touches `super.property` or `super[expr]`, keep the
+super-reference validation before any observable property-key work:
+
+- emit or execute `EnsureSuperReference` before evaluating computed property
+  keys;
+- only evaluate `super[expr]` keys after the derived constructor has initialized
+  `this`;
+- keep the final operation-specific error, such as delete-super
+  `ReferenceError`, after the key side effects that are valid for an initialized
+  `super` reference.
+
+This applies even when the operation always throws. The throw does not erase the
+observable ordering before it.
+
 ## Nullable Throw State
 
 If the access helper accepts an optional `EvaluationContext`, check nullable
@@ -88,3 +104,11 @@ binding target resolution is observable and must occur after computed source-key
 evaluation but before source getter/default side effects. The runner must keep
 that in the compiled binding path and write through captured object-environment
 references.
+
+Issue #778 / PR #970 fixed `delete super[expr]` ordering in expression
+bytecode. Before `super()` initializes a derived constructor's `this`, the
+`super` reference check must throw before the computed property key can run.
+After initialization, the key may run, but `delete super[...]` still throws
+`ReferenceError`. The durable lesson is to keep super-reference validation,
+computed-key evaluation, and the operation-specific throw as separate ordered
+steps.

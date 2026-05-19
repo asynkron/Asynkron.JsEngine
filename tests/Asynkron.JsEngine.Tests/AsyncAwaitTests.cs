@@ -730,6 +730,7 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
     {
         // Arrange
         await using var engine = CreateEngine();
+        AsyncTestHelpers.RegisterDelayHelper(engine);
         var results = new List<string>();
 
         engine.SetGlobalFunction("addResult", args =>
@@ -745,18 +746,10 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
         // Act
         await engine.Evaluate("""
 
-                                     function delayedValue(value, delay) {
-                                         return new Promise(function(resolve) {
-                                             setTimeout(function() {
-                                                 resolve(value);
-                                             }, delay);
-                                         });
-                                     }
-
                                      async function test() {
-                                         let p1 = delayedValue("first", 30);
-                                         let p2 = delayedValue("second", 30);
-                                         let p3 = delayedValue("third", 30);
+                                         let p1 = __delay(1, "first");
+                                         let p2 = __delay(1, "second");
+                                         let p3 = __delay(1, "third");
 
                                          let values = await Promise.all([p1, p2, p3]);
                                          addResult(values[0]);

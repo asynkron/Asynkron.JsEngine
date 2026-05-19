@@ -1542,8 +1542,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                         IsAsyncFunction,
                         _wasAsyncFunction,
                         completionValue.Kind);
-                    System.Console.WriteLine(
-                        $"[SyncFunctionInvoker] Async completion func={_function.Name?.Name ?? "<anonymous>"} isAsync={IsAsyncFunction} wasAsync={_wasAsyncFunction} completionKind={completionValue.Kind} shouldStop={context.ShouldStopEvaluation} isReturn={context.IsReturn} isThrow={context.IsThrow}");
                     var resolvedResult = CreateResolvedPromise(completionValue, executionEnvironment);
                     return resolvedResult;
                 }

@@ -133,6 +133,47 @@ public sealed class AdditionalObjectMethodsTests(ITestOutputHelper output) : Int
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Object_GetOwnPropertyDescriptors_NumberPrimitive_ReturnsEmptyDescriptorObject()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       const descriptors = Object.getOwnPropertyDescriptors(42);
+                                                       Object.getOwnPropertyNames(descriptors).length === 0 &&
+                                                           !Object.prototype.hasOwnProperty.call(descriptors, '__value__');
+
+                                           """);
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Object_GetOwnPropertyDescriptors_NullAndUndefined_ThrowTypeError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let threwForNull = false;
+                                                       let threwForUndefined = false;
+
+                                                       try {
+                                                           Object.getOwnPropertyDescriptors(null);
+                                                       } catch (e) {
+                                                           threwForNull = e instanceof TypeError;
+                                                       }
+
+                                                       try {
+                                                           Object.getOwnPropertyDescriptors(undefined);
+                                                       } catch (e) {
+                                                           threwForUndefined = e instanceof TypeError;
+                                                       }
+
+                                                       threwForNull && threwForUndefined;
+
+                                           """);
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Object_DefineProperty_DefinesNewProperty()
     {
         await using var engine = CreateEngine();

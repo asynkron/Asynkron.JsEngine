@@ -335,6 +335,24 @@ public static partial class TypedAstEvaluator
                                 break;
                             }
 
+                        case ExpressionOpKind.LoadIdentifierCallTarget:
+                            {
+                                var identifier = operation.GetIdentifier(identifierConstants);
+                                LoadProgramIdentifierCallTarget(
+                                    identifier,
+                                    operation.IsArguments,
+                                    environment,
+                                    context,
+                                    out var receiver,
+                                    out var callee);
+                                stack[stackIndex++] = receiver;
+                                stackFlags.Set(stackIndex - 1, false);
+                                stack[stackIndex++] = callee;
+                                stackFlags.Set(stackIndex - 1, false);
+                                programCounter++;
+                                break;
+                            }
+
                         case ExpressionOpKind.ResolveIdentifierReference:
                             {
                                 assignmentReferenceBuffer ??= ArrayPool<AssignmentReference>.Shared.Rent(stackSize);
@@ -1371,6 +1389,48 @@ public static partial class TypedAstEvaluator
                 : HandleIdentifierNotFound(name, context);
         }
 
+        private void LoadProgramIdentifierCallTarget(
+            IdentifierOperand identifier,
+            bool isArguments,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue receiver,
+            out JsValue callee)
+        {
+            if (!isArguments &&
+                !context.AllowIdentifierCache &&
+                environment.TryResolveWithBinding(identifier.Name, context, out var withBinding))
+            {
+                receiver = JsValue.FromObjectUnsafe(withBinding.BindingObject);
+                try
+                {
+                    callee = JsEnvironment.GetWithBindingValueJsValue(withBinding);
+                }
+                catch (InvalidOperationException ex) when (ex.Message.StartsWith(
+                                                               "ReferenceError:",
+                                                               StringComparison.Ordinal))
+                {
+                    var errorObject = StandardLibrary.CreateReferenceError(
+                        ex.Message,
+                        context,
+                        context.RealmState);
+                    context.SetThrow(errorObject);
+                    callee = JsValue.Undefined;
+                }
+
+                return;
+            }
+
+            receiver = JsValue.Undefined;
+            callee = EvaluateProgramIdentifier(
+                identifier.Name,
+                identifier.ScopeId,
+                identifier.SlotIndex,
+                isArguments,
+                environment,
+                context);
+        }
+
         private void ApplyProgramIdentifierAssignment(
             Symbol name,
             int scopeId,
@@ -2395,7 +2455,9 @@ public static partial class TypedAstEvaluator
                 if (callable is global::Asynkron.JsEngine.EvalHostFunction evalHostFunction)
                 {
                     evalHost = evalHostFunction;
-                    evalHost.IsDirectCall = call.IsDirectEval;
+                    evalHost.IsDirectCall = call.IsDirectEval &&
+                                            thisValue.IsUndefined &&
+                                            ReferenceEquals(evalHostFunction.Engine, environment.RealmState?.Engine);
                     evalHost.InClassFieldInitializer = context.InClassFieldInitializer;
                 }
 

@@ -2456,7 +2456,6 @@ public static partial class TypedAstEvaluator
                 {
                     evalHost = evalHostFunction;
                     evalHost.IsDirectCall = call.IsDirectEval &&
-                                            thisValue.IsUndefined &&
                                             ReferenceEquals(evalHostFunction.Engine, environment.RealmState?.Engine);
                     evalHost.InClassFieldInitializer = context.InClassFieldInitializer;
                 }

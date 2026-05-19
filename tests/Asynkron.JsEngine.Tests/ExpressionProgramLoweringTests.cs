@@ -1109,6 +1109,25 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task WithResolvedEvalIdentifierCall_RemainsDirectEval()
+    {
+        var result = await _engine.Evaluate("""
+            function invoke() {
+                var local = 1;
+                with ({ eval }) {
+                    eval("local = 2");
+                }
+
+                return local;
+            }
+
+            invoke();
+            """);
+
+        Assert.Equal(2.0, result);
+    }
+
+    [Fact]
     public async Task ReturnInstruction_MemberCallExpression_IsLoweredToExpressionProgram()
     {
         var plan = await GetFunctionPlan("""

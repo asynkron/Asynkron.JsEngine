@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.JsTypes;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -122,5 +123,22 @@ public sealed class TypedAstDestructuringTests(ITestOutputHelper output) : Inter
         Assert.Equal(
             "binding::source,binding::sourceKey,sourceKey,binding::varTarget,get source,binding::defaultValue",
             result);
+    }
+
+    [Fact]
+    public async Task ObjectDestructuringVarBinding_AssignsResolvedWithBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            var env = { x: 0 };
+            with (env) {
+                var { p: x } = { p: 1 };
+            }
+            [env.x, typeof x];
+        ");
+
+        var array = Assert.IsType<JsArray>(result);
+        Assert.Equal(1.0, array.GetElement(0).ToObject());
+        Assert.Equal("undefined", array.GetElement(1).ToObject());
     }
 }

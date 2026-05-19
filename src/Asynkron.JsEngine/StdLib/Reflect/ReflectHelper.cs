@@ -889,7 +889,7 @@ public static class ReflectHelper
         TryGetRealmInfo(newTarget, out var newTargetRealmState, out var newTargetRealmObject);
 
         // Step 2: try realm default for Array (handles cross-realm Array subclassing)
-        if (IsArrayConstructor(target, realmState) || IsArrayConstructor(newTarget, realmState))
+        if (IsArrayConstructor(target, realmState))
         {
             if (newTargetRealmState?.ArrayPrototype is { } realmArrayProtoFromState)
             {
@@ -935,46 +935,44 @@ public static class ReflectHelper
             return false;
         }
 
-        if (target is not IJsPropertyAccessor accessor ||
-            !accessor.TryGetProperty("name", out var nameValue) ||
-            !nameValue.IsString)
+        if (target is IJsPropertyAccessor accessor &&
+            accessor.TryGetProperty("name", out var nameValue) &&
+            nameValue.IsString)
         {
-            return false;
-        }
+            var ctorName = nameValue.AsString();
 
-        var ctorName = nameValue.AsString();
+            if (realmState is not null &&
+                TryGetPrototypeFromRealmState(ctorName, realmState, out prototype))
+            {
+                return true;
+            }
 
-        if (realmState is not null &&
-            TryGetPrototypeFromRealmState(ctorName, realmState, out prototype))
-        {
-            return true;
-        }
+            if (TryGetIntlPrototype(ctorName, realmState, realmObject, out prototype))
+            {
+                return true;
+            }
 
-        if (TryGetIntlPrototype(ctorName, realmState, realmObject, out prototype))
-        {
-            return true;
-        }
+            var realmGlobal = realmObject ?? realmState?.Engine?.GlobalObject;
+            if (realmGlobal is not null &&
+                realmGlobal.TryGetProperty(ctorName, out var ctorValue) &&
+                TryGetPrototype(ctorValue, out prototype))
+            {
+                return true;
+            }
 
-        var realmGlobal = realmObject ?? realmState?.Engine?.GlobalObject;
-        if (realmGlobal is not null &&
-            realmGlobal.TryGetProperty(ctorName, out var ctorValue) &&
-            TryGetPrototype(ctorValue, out prototype))
-        {
-            return true;
+            if (realmObject is not null &&
+                realmObject.TryGetProperty(ctorName, out var realmCtor) &&
+                !realmCtor.IsUndefined &&
+                TryGetPrototype(realmCtor, out var realmProto))
+            {
+                prototype = realmProto;
+                return true;
+            }
         }
 
         if (realmState is { ObjectPrototype: not null })
         {
             prototype = realmState.ObjectPrototype;
-            return true;
-        }
-
-        if (realmObject is not null &&
-            realmObject.TryGetProperty(ctorName, out var realmCtor) &&
-            !realmCtor.IsUndefined &&
-            TryGetPrototype(realmCtor, out var realmProto))
-        {
-            prototype = realmProto;
             return true;
         }
 

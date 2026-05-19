@@ -1,4 +1,6 @@
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Tests.Test262;
 
@@ -489,5 +491,33 @@ public class RegressionTests
         {
             await realmEngine.DisposeAsync();
         }
+    }
+
+    [Test]
+    public void ReflectConstruct_ArrayNewTargetWithNonObjectPrototypeUsesObjectFallbackForNonArrayTarget()
+    {
+        var realm = new RealmState
+        {
+            ObjectPrototype = new JsObject(),
+            ArrayPrototype = new JsObject()
+        };
+        var arrayNewTarget = new HostFunction(_ => JsValue.Undefined, realm);
+        arrayNewTarget.PropertiesObject.ForceDeleteOwnProperty("prototype");
+        arrayNewTarget.DefineProperty("prototype",
+            new PropertyDescriptor
+            {
+                Value = JsValue.False,
+                Writable = true,
+                Enumerable = false,
+                Configurable = false
+            });
+        realm.ArrayConstructor = arrayNewTarget;
+
+        var target = new HostFunction(_ => JsValue.Undefined, realm);
+
+        var prototype = ReflectHelper.ResolveConstructPrototype(arrayNewTarget, target, realm);
+
+        Assert.That(prototype, Is.SameAs(realm.ObjectPrototype));
+        Assert.That(prototype, Is.Not.SameAs(realm.ArrayPrototype));
     }
 }

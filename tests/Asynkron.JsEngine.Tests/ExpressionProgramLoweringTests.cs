@@ -1086,7 +1086,10 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
 
         var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
         Assert.Null(instruction.ReturnExpression);
-        AssertProgramContains<CallExpressionOp>(instruction.ReturnProgram, op => op.ArgumentCount == 1 && !op.HasExplicitThis);
+        AssertProgramContains<LoadIdentifierCallTargetExpressionOp>(
+            instruction.ReturnProgram,
+            op => op.Name.Name == "helper");
+        AssertProgramContains<CallExpressionOp>(instruction.ReturnProgram, op => op.ArgumentCount == 1 && op.HasExplicitThis);
     }
 
     [Fact]
@@ -1100,8 +1103,53 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
 
         var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
         Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<LoadIdentifierCallTargetExpressionOp>(
+            instruction.ReturnProgram,
+            op => op.Name.Name == "helper");
         AssertProgramContains<JumpIfNullishExpressionOp>(instruction.ReturnProgram, op => op.ReplaceWithUndefined);
-        AssertProgramContains<CallExpressionOp>(instruction.ReturnProgram, op => op.ArgumentCount == 1 && !op.HasExplicitThis);
+        AssertProgramContains<CallExpressionOp>(instruction.ReturnProgram, op => op.ArgumentCount == 1 && op.HasExplicitThis);
+    }
+
+    [Fact]
+    public async Task WithResolvedIdentifierCall_UsesWithObjectAsReceiver()
+    {
+        var result = await _engine.Evaluate("""
+            const scope = {
+                marker: 42,
+                read() {
+                    return this.marker;
+                }
+            };
+
+            function invoke() {
+                with (scope) {
+                    return read();
+                }
+            }
+
+            invoke();
+            """);
+
+        Assert.Equal(42.0, result);
+    }
+
+    [Fact]
+    public async Task WithResolvedEvalIdentifierCall_RemainsDirectEval()
+    {
+        var result = await _engine.Evaluate("""
+            function invoke() {
+                var local = 1;
+                with ({ eval }) {
+                    eval("local = 2");
+                }
+
+                return local;
+            }
+
+            invoke();
+            """);
+
+        Assert.Equal(2.0, result);
     }
 
     [Fact]
@@ -2353,10 +2401,10 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         Assert.All(cache.FieldInitializerPrograms, program => Assert.NotNull(program));
 
         AssertProgramContains<JumpIfNullishExpressionOp>(cache.FieldInitializerPrograms[0], op => op.ReplaceWithUndefined);
-        AssertProgramContains<CallExpressionOp>(cache.FieldInitializerPrograms[0], op => op.ArgumentCount == 1 && !op.HasExplicitThis);
+        AssertProgramContains<CallExpressionOp>(cache.FieldInitializerPrograms[0], op => op.ArgumentCount == 1 && op.HasExplicitThis);
 
         AssertProgramContains<JumpIfShortCircuitedExpressionOp>(cache.FieldInitializerPrograms[1]);
-        AssertProgramContains<CallExpressionOp>(cache.FieldInitializerPrograms[1], op => op.ArgumentCount == 0 && !op.HasExplicitThis);
+        AssertProgramContains<CallExpressionOp>(cache.FieldInitializerPrograms[1], op => op.ArgumentCount == 0 && op.HasExplicitThis);
         AssertProgramContains<CallExpressionOp>(cache.FieldInitializerPrograms[1], op => op.ArgumentCount == 1 && !op.HasExplicitThis);
 
         AssertProgramContains<GetNamedSuperPropertyExpressionOp>(cache.FieldInitializerPrograms[2], op => op.PropertyName == "value");

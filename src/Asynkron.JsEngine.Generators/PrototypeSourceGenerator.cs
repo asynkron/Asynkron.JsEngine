@@ -708,6 +708,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                     .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
                     .Append(getter.DisplayName.Replace("\"", "\\\""))
                     .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
+                AppendNativeSourceDisplayName(membersSource, getterVar, getter.DisplayName);
             }
 
             // Emit setter function if exists
@@ -725,6 +726,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                     .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
                     .Append(setter.DisplayName.Replace("\"", "\\\""))
                     .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
+                AppendNativeSourceDisplayName(membersSource, setterVar, setter.DisplayName);
             }
 
             // Determine enumerable/configurable from getter if present, else from setter
@@ -787,6 +789,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
                 .Append(method.DisplayName.Replace("\"", "\\\""))
                 .Append("\", Writable = false, Enumerable = false, Configurable = true });").AppendLine();
+            AppendNativeSourceDisplayName(membersSource, methodVar, method.DisplayName);
             membersSource.Append("        prototype.DefineProperty(\"").Append(method.PropertyName)
                 .Append("\", new PropertyDescriptor { Value = ").Append(methodVar)
                 .Append(", Writable = ").Append(method.Writable ? "true" : "false")
@@ -830,6 +833,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
                 .Append(symMethod.DisplayName.Replace("\"", "\\\""))
                 .Append("\", Writable = false, Enumerable = false, Configurable = true });").AppendLine();
+            AppendNativeSourceDisplayName(membersSource, methodVar, symMethod.DisplayName);
             var symbolKeyExpr = GetSymbolKeyExpression(symMethod.SymbolName);
             membersSource.Append("        prototype.DefineProperty(").Append(symbolKeyExpr)
                 .Append(", new PropertyDescriptor { Value = ").Append(methodVar)
@@ -852,6 +856,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
                 .Append(symGetter.DisplayName.Replace("\"", "\\\""))
                 .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
+            AppendNativeSourceDisplayName(membersSource, getterVar, symGetter.DisplayName);
             var symbolKeyExpr = GetSymbolKeyExpression(symGetter.SymbolName);
             membersSource.Append("        prototype.DefineProperty(").Append(symbolKeyExpr)
                 .Append(", new PropertyDescriptor { Get = ").Append(getterVar)
@@ -978,6 +983,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         baseSource.Append("        constructor.DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
             .Append(info.DisplayName.Replace("\"", "\\\""))
             .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
+        AppendNativeSourceDisplayName(baseSource, "constructor", info.DisplayName);
         baseSource.AppendLine("        constructor.DefineProperty(\"prototype\",");
         baseSource.AppendLine("            new PropertyDescriptor");
         baseSource.AppendLine("            {");
@@ -1048,6 +1054,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
                 .Append(method.DisplayName.Replace("\"", "\\\""))
                 .Append("\", Writable = false, Enumerable = false, Configurable = true });").AppendLine();
+            AppendNativeSourceDisplayName(membersSource, methodVar, method.DisplayName);
             membersSource.Append("        constructor.DefineProperty(\"").Append(method.PropertyName)
                 .Append("\", new PropertyDescriptor { Value = ").Append(methodVar)
                 .Append(", Writable = ").Append(method.Writable ? "true" : "false")
@@ -1148,6 +1155,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .Append(hostFunction.DisplayName.Replace("\"", "\\\""))
                 .Append("\", Writable = false, Enumerable = false, Configurable = true });")
                 .AppendLine();
+            AppendNativeSourceDisplayName(membersSource, functionVar, hostFunction.DisplayName);
             membersSource.Append("        constructor.DefineProperty(\"").Append(hostFunction.Name)
                 .Append("\", new PropertyDescriptor { Value = ").Append(functionVar)
                 .Append(", Writable = ").Append(hostFunction.Writable ? "true" : "false")
@@ -1181,6 +1189,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
                 .Append(getter.DisplayName.Replace("\"", "\\\""))
                 .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
+            AppendNativeSourceDisplayName(membersSource, getterVar, getter.DisplayName);
             var symbolKeyExpr = GetSymbolKeyExpression(getter.SymbolName);
             membersSource.Append("        constructor.DefineProperty(").Append(symbolKeyExpr)
                 .Append(", new PropertyDescriptor { Get = ").Append(getterVar)
@@ -1324,6 +1333,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                     .Append(hostFunction.DisplayName.Replace("\"", "\\\""))
                     .Append("\", Writable = false, Enumerable = false, Configurable = true });")
                     .AppendLine();
+                AppendNativeSourceDisplayName(source, functionVar, hostFunction.DisplayName);
                 source.Append("        ").Append(targetExpression).Append(".DefineProperty(\"").Append(hostFunction.Name)
                     .Append("\", new PropertyDescriptor { Value = ").Append(functionVar)
                     .Append(", Writable = ").Append(hostFunction.Writable ? "true" : "false")
@@ -1571,6 +1581,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
                 .Append(EscapeString(displayName))
                 .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
+            AppendNativeSourceDisplayName(membersSource, varName, displayName);
             membersSource.Append("        ").Append(targetVariable).Append(".DefineProperty(\"")
                 .Append(methodName).Append("\", new PropertyDescriptor { Value = ").Append(varName)
                 .Append(", Writable = true, Enumerable = false, Configurable = true });")
@@ -1593,6 +1604,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
                 .Append(EscapeString(displayName))
                 .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
+            AppendNativeSourceDisplayName(membersSource, varName, displayName);
             var symbolKeyExpr = GetSymbolKeyExpression(symbolName);
             membersSource.Append("        ").Append(targetVariable)
                 .Append(".DefineProperty(").Append(symbolKeyExpr).Append(", new PropertyDescriptor { Value = ")
@@ -1627,6 +1639,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
                 .Append(EscapeString(displayName))
                 .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
+            AppendNativeSourceDisplayName(membersSource, varName, displayName);
             membersSource.Append("        ").Append(targetVariable).Append(".DefineProperty(\"")
                 .Append(getterName)
                 .Append("\", new PropertyDescriptor { Get = ").Append(varName)
@@ -1650,6 +1663,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
                 .Append(EscapeString(displayName))
                 .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
+            AppendNativeSourceDisplayName(membersSource, varName, displayName);
             membersSource.Append("        ").Append(targetVariable).Append(".DefineProperty(\"")
                 .Append(setterName)
                 .Append("\", new PropertyDescriptor { Set = ").Append(varName)
@@ -1673,6 +1687,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
                 .Append(EscapeString(displayName))
                 .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
+            AppendNativeSourceDisplayName(membersSource, varName, displayName);
             var symbolKeyExpr = GetSymbolKeyExpression(symbolName);
             membersSource.Append("        ").Append(targetVariable)
                 .Append(".DefineProperty(").Append(symbolKeyExpr).Append(", new PropertyDescriptor { Get = ")
@@ -1697,6 +1712,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
                 .Append(EscapeString(displayName))
                 .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
+            AppendNativeSourceDisplayName(membersSource, varName, displayName);
             var symbolKeyExpr = GetSymbolKeyExpression(symbolName);
             membersSource.Append("        ").Append(targetVariable)
                 .Append(".DefineProperty(").Append(symbolKeyExpr).Append(", new PropertyDescriptor { Set = ")
@@ -1765,6 +1781,13 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 
     private static string EscapeString(string value)
         => value.Replace("\"", "\\\"");
+
+    private static void AppendNativeSourceDisplayName(StringBuilder source, string functionVariable, string displayName)
+    {
+        source.Append("        ").Append(functionVariable).Append(".SetNativeSourceDisplayName(\"")
+            .Append(EscapeString(displayName))
+            .AppendLine("\");");
+    }
 
     private static ImmutableArray<GetterInfo> OrderGetters(ImmutableArray<GetterInfo> source)
         => source.Length <= 1

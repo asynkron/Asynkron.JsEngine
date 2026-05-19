@@ -14,15 +14,30 @@ the current strict/sloppy writeback rules separate:
   evaluating the RHS, then write through that captured reference afterward;
 - strict writeback for a captured object binding must re-check `HasProperty`
   before `Set` when missing assignment is not explicitly allowed;
-- if a getter, RHS side effect, or update operator deletes the binding before
-  writeback, throw `ReferenceError` instead of recreating the property through
-  the generic property setter path;
+- if a getter, RHS side effect, compound assignment, or update operator deletes
+  the binding before writeback, throw `ReferenceError` instead of recreating the
+  property through the generic property setter path;
 - preserve sloppy-mode recreate-after-delete behavior only through an explicit
   sloppy/allow-missing path.
 
 Add focused tests for both sides when touching this area: strict missing-binding
 writeback must throw after the side effect that deletes the binding has already
 run, while sloppy captured-binding writeback may recreate the property.
+
+## Destructuring Binding Target Order
+
+For compiled object destructuring binding, keep the observable ordering explicit:
+
+- evaluate any computed source property name first;
+- resolve or capture the binding target at the binding-target step;
+- only then read the source property and evaluate a default initializer;
+- write through the captured binding target when one was resolved.
+
+This is not just an optimization detail. `with` environments can observe target
+lookup through `has`, source properties can observe getter side effects, and
+defaults can observe later name lookups. Do not move var target lookup after
+source property access/default evaluation, and do not repair this class of bug
+by adding an AST-evaluation fallback to the compiled binding runner.
 
 ## Nullable Throw State
 
@@ -60,3 +75,16 @@ Issue #774 / PR #950 extended that lesson to plain assignment. The RHS can
 delete the resolved `with` binding before `PutValue`; strict mode still has to
 throw through the captured object-environment reference after RHS side effects,
 not fall back to a generic identifier/property assignment path.
+
+Issue #777 confirmed the same object-environment writeback contract for
+compound assignment. The compound operator may read through a captured `with`
+binding whose getter deletes the property before the final `PutValue`; strict
+mode must still re-check the captured object binding and throw `ReferenceError`
+instead of letting the generic setter recreate the property per operator.
+
+Issue #772 / PR #947 fixed object destructuring `var` binding order for a
+computed source property under `with`. The durable lesson is that destructuring
+binding target resolution is observable and must occur after computed source-key
+evaluation but before source getter/default side effects. The runner must keep
+that in the compiled binding path and write through captured object-environment
+references.

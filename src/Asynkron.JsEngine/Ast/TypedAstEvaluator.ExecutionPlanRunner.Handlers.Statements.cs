@@ -87,11 +87,11 @@ public static partial class TypedAstEvaluator
             var instruction = Unsafe.As<AssignmentSlotInstruction>(instr);
             var isAnonymousFunctionDefinition = instruction.AllowNameInference;
 
-            // §13.15.2: When with/eval scope is active and no static slot resolution,
+            // §13.15.2: When no static slot resolution is available,
             // resolve the LHS assignment reference BEFORE evaluating the RHS.
-            // This ensures delete operations in the RHS don't affect LHS resolution.
-            var usePreResolvedRef = !context.AllowIdentifierCache
-                && instruction.FlatSlotId < 0
+            // This ensures RHS side effects cannot create/delete a global object
+            // property and change whether the LHS was originally resolvable.
+            var usePreResolvedRef = instruction.FlatSlotId < 0
                 && instruction.ScopeId < 0;
 
             var lhsRef = usePreResolvedRef

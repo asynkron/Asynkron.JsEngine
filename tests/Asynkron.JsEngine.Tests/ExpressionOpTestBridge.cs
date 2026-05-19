@@ -222,6 +222,7 @@ internal sealed class JumpIfTrueExpressionOp : IExpressionOpMarker { public stat
 internal sealed class LoadClassLiteralExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.LoadClassLiteral; }
 internal sealed class LoadFunctionLiteralExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.LoadFunctionLiteral; }
 internal sealed class LoadIdentifierExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.LoadIdentifier; }
+internal sealed class LoadIdentifierCallTargetExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.LoadIdentifierCallTarget; }
 internal sealed class LoadLiteralExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.LoadLiteral; }
 internal sealed class LoadNamedCallTargetExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.LoadNamedCallTarget; }
 internal sealed class LoadNamedSuperCallTargetExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.LoadNamedSuperCallTarget; }

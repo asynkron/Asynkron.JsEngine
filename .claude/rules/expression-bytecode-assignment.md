@@ -25,6 +25,14 @@ path that can evaluate the assignment.
    no-inference, strict getter-only or non-writable write failures when the
    branch runs, and strict write skips when the logical assignment
    short-circuits.
+6. For expression-statement identifier assignments with no flat slot and no
+   scoped slot, capture the `AssignmentReference` before evaluating the RHS and
+   write back through that captured reference afterward. RHS side effects that
+   create or delete global properties must not change whether the LHS was
+   originally resolvable.
+7. Compute assignment-reference strictness from the full active context:
+   environment strictness, current scope strictness, and strict source context.
+   Do not derive it only from the current scope frame.
 
 ## Why
 
@@ -39,3 +47,10 @@ Issue #774 / PR #950 then exposed the same parenthesized-assignment exclusion on
 plain assignment. The expression bytecode compiler, expression-statement slot
 assignment path, and legacy AST fallback all needed the exclusion; otherwise one
 path could still name an anonymous function assigned through `(identifier) =`.
+
+Issue #789 / PR #964 fixed the `IdentifierResolution` Test262 fixture for
+assigning to global `undefined`. The slotless expression-statement assignment
+path resolved the LHS too late, so RHS side effects could create a global
+property before the final write decided whether the original LHS was
+unresolvable. The same repair confirmed that captured references must carry
+strictness from environment/source context, not only the current scope frame.

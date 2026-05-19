@@ -33,6 +33,36 @@ public sealed class FunctionConstructorTests(ITestOutputHelper output) : Interna
     }
 
     [Fact]
+    public async Task BuiltInNativeSourceUsesCreationTimeDisplayName()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            const push = Array.prototype.push;
+            const globalGetter = Object.getOwnPropertyDescriptor(RegExp.prototype, 'global').get;
+
+            Object.defineProperty(push, 'name', { value: 'forged', configurable: true });
+            Object.defineProperty(globalGetter, 'name', { value: '[a]]', configurable: true });
+
+            [String(push), String(globalGetter)];
+        """);
+
+        var array = Assert.IsType<JsArray>(result);
+        Assert.Equal("function push() { [native code] }", array.Items[0].AsString());
+        Assert.Equal("function get global() { [native code] }", array.Items[1].AsString());
+    }
+
+    [Fact]
+    public void NativeSourceRejectsMalformedBracketedDisplayName()
+    {
+        var function = new HostFunction(_ => JsValue.Undefined, isConstructor: false);
+
+        function.SetNativeSourceDisplayName("[a]]");
+
+        Assert.Equal("function () { [native code] }", function.GetNativeFunctionSource());
+    }
+
+    [Fact]
     public async Task NewFunctionCreatesCallableBody()
     {
         await using var engine = CreateEngine();

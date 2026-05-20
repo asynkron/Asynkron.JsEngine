@@ -145,6 +145,14 @@ host-runtime shortcuts.
     must not observe `era` or `eraYear` getters. Non-ISO paths may read
     `era`/`eraYear` for validation, but should read them once and reuse the
     observed presence instead of re-reading later.
+26. For `Temporal.PlainMonthDay.prototype.toLocaleString` and adjacent
+    `Intl.DateTimeFormat` Temporal formatting, keep calendar-visible fields
+    separate from reference ISO slots. Use `ReferenceYear`, `ReferenceMonth`,
+    and `ReferenceDay` when constructing host date or epoch values for
+    PlainMonthDay; use the receiver calendar to format that reference date, not
+    to supply ISO constructor fields. PlainMonthDay `dateStyle` expansion must
+    also filter to month/day fields for that Temporal kind instead of leaking a
+    year field through shared date-style defaults.
 
 ## Why
 
@@ -375,3 +383,18 @@ paths separately from property bags.
 
 Related ADR:
 `docs/adrs/0059-keep-temporal-plainmonthday-field-order-calendar-dependent.md`.
+
+Issue #846 / PR #1171 fixed
+`Temporal.PlainMonthDay.prototype.toLocaleString` after Islamic calendar
+date-style formatting mixed calendar-visible month/day fields with the
+reference year to build host `DateTimeOffset` values. PlainMonthDay has
+calendar-visible fields and reference ISO slots; those are different domains.
+Future PlainMonthDay locale-format work should build host date/epoch values
+from the reference slots, apply the receiver calendar during formatting, and
+prove the focused `Name=Temporal_PlainMonthDay_prototype_toLocaleString`
+Test262 method group. The same delivery's quality repair reaffirmed that
+non-ISO PlainDate storage remains ISO-backed while calendar fields are exposed
+through calendar-part helpers.
+
+Related ADR:
+`docs/adrs/0060-keep-temporal-plainmonthday-locale-formatting-on-reference-slots.md`.

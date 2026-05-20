@@ -43,6 +43,24 @@ defaults can observe later name lookups. Do not move var target lookup after
 source property access/default evaluation, and do not repair this class of bug
 by adding an AST-evaluation fallback to the compiled binding runner.
 
+## Binding Target Abrupt Completion
+
+When a compiled binding-target program is applied from a declaration
+instruction, keep JavaScript throws inside the active `EvaluationContext` and
+the declaration instruction's abrupt-completion path.
+
+- catch internal `ThrowSignal` at the declaration boundary when applying
+  binding target programs;
+- convert it to `context.SetThrow(...)` if the context is not already throwing;
+- let the declaration handler's existing throw slow path perform `try`/`catch`,
+  iterator-close, and final rethrow behavior;
+- do not let `ThrowSignal` bubble out as a host/runtime crash for negative
+  destructuring fixtures.
+
+This applies to generic binding target programs for nested array/object binding,
+defaults, exhausted iterators, and name inference. Prove this class with the
+owning focused Test262 method group rather than a broad suite run.
+
 ## Super Property Reference Order
 
 For expression bytecode that touches `super.property` or `super[expr]`, keep the
@@ -149,6 +167,13 @@ binding target resolution is observable and must occur after computed source-key
 evaluation but before source getter/default side effects. The runner must keep
 that in the compiled binding path and write through captured object-environment
 references.
+
+Issue #1070 / PR #1235 fixed Test262 `Statements_variable_dstr` crashes after
+nested/default variable declaration binding raised `ThrowSignal` from
+`ApplyBindingTargetProgram`. That signal represents a JavaScript throw
+completion, not a host crash. The durable lesson is that declaration handlers
+must convert binding-program throws back into `EvaluationContext` before using
+the existing declaration throw slow path.
 
 Issue #778 / PR #970 fixed `delete super[expr]` ordering in expression
 bytecode. Before `super()` initializes a derived constructor's `this`, the

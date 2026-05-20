@@ -25,6 +25,14 @@ event loop from a task scheduled during the synchronous top-level evaluation
 phase can let host tasks run before the current JavaScript evaluation has
 finished its synchronous prefix.
 
+Issue #1070 / PR #1235 extended the same compiled binding surface to
+`Statements_variable_dstr` crashes. Generic array binding targets could raise a
+`ThrowSignal` while applying nested/default binding programs, but
+`HandleBindingVariableDeclaration` let that host signal escape instead of
+normalizing it into the active `EvaluationContext`. Negative Test262 fixtures
+then saw an unhandled runtime crash where ECMAScript expected a JavaScript
+throw completion.
+
 ## Decision
 
 Compiled object destructuring binding must keep the spec ordering explicit:
@@ -43,6 +51,14 @@ generic identifier assignment after source getter/default side effects have run.
 Keep this behavior in the compiled binding/IR runner surface. Do not add an AST
 evaluation fallback to repair this ordering.
 
+When a compiled binding-target program can produce a JavaScript throw during a
+declaration, the declaration instruction owns conversion back to
+`EvaluationContext` before ordinary IR abrupt-completion handling runs. Do not
+let internal `ThrowSignal` values escape directly from
+`ApplyBindingTargetProgram`; route them through the same declaration throw path
+that preserves `try`/`catch`, iterator close, and expected Test262 negative-case
+semantics.
+
 Tasks scheduled while `JsEngine.Evaluate` is still executing its synchronous
 script/module prefix should be deferred until the prefix completes. Flushing the
 deferred queue after synchronous evaluation preserves top-level JavaScript
@@ -57,8 +73,14 @@ ordering while still allowing the event loop to drain pending work afterward.
   timing rules; do not unify them unless focused proof covers both sides.
 - `with` object-environment writeback must use captured binding references for
   this path, including strict/sloppy missing-binding behavior.
+- Generic binding target runners must normalize JavaScript throws into the
+  active evaluation context at declaration boundaries. A passing narrow
+  negative Test262 fixture is not enough if the host `ThrowSignal` can bypass
+  `HandleBindingVariableDeclarationThrowSlow`.
 - Event-loop work scheduled during synchronous top-level evaluation must not run
   until the synchronous prefix has completed.
 - Regression proof should include an internal ordering test with computed source
   key, `with` binding lookup, source getter, and default initializer, plus the
-  focused `Name=Destructuring_binding` Test262 group.
+  focused `Name=Destructuring_binding` Test262 group. For declaration binding
+  throw propagation, prove the focused `Name=Statements_variable_dstr` Test262
+  group.

@@ -350,7 +350,7 @@ public static partial class TypedAstEvaluator
                     // inside a finally block, the new completion replaces the pending one.
                     // Jump to EndFinally to exit the finally block — continuing to execute
                     // remaining finally instructions would re-enter call loops and hang.
-                    frame.PendingCompletion = PendingCompletion.FromAbrupt(kind, value);
+                    frame.PendingCompletion = PendingCompletion.FromAbrupt(kind, value, originatedInFinally: true);
                     if (frame.EndFinallyIndex >= 0)
                     {
                         _programCounter = frame.EndFinallyIndex;

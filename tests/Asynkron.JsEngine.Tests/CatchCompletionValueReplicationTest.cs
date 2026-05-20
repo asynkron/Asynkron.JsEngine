@@ -188,6 +188,25 @@ public sealed class CatchCompletionValueReplicationTest(ITestOutputHelper output
     }
 
     /// <summary>
+    /// Regression for review bounce on issue #828: a normal finally block must not
+    /// replace a pending break/continue completion value from the try body.
+    /// </summary>
+    [Theory(Timeout = 10000)]
+    [InlineData("break")]
+    [InlineData("continue")]
+    public async Task Replicate_TryBodyAbruptCompletionSurvivesNormalFinally(string keyword)
+    {
+        var logger = new TestLogger(output, "TryBodyAbruptCompletionSurvivesNormalFinally", minLogLevel: LogLevel.Debug);
+        await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
+
+        var result = await engine.Evaluate(
+            $"eval('99; do {{ -99; try {{ 39; {keyword}; }} finally {{ 42; }} }} while (false);')");
+
+        output.WriteLine($"{keyword} from try body through normal finally result: {result} (expected: 39)");
+        Assert.Equal(39.0, result);
+    }
+
+    /// <summary>
     /// Replicates: language/statements/for/cptn-decl-expr-iter.js
     /// Tests completion value from for loop iterations.
     /// </summary>

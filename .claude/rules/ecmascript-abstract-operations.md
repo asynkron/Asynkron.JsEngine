@@ -431,3 +431,18 @@ needed a local pin. Future PlainTime property-bag and shared time-overflow work
 should keep default/constrain normalization distinct from reject validation and
 prove both the focused `Name=Temporal_PlainTime_from` Test262 method group and
 local coverage for `second: 60`, `second: 61`, and `overflow: "reject"`.
+
+Issue #851 / PR #1178 fixed `Temporal.PlainYearMonth.prototype.equals` after
+full-date string conversion canonicalized the `islamicc` calendar alias and
+then recomputed the PlainYearMonth reference day through the canonical calendar.
+The durable lesson is that PlainYearMonth full-date strings already supply the
+ISO reference day used for equality; calendar annotation validation and alias
+canonicalization must not change that parsed reference-day domain. Property
+bags remain separate because their calendar-visible fields may require
+calendar-to-ISO conversion. Future PlainYearMonth equality or conversion work
+should prove the focused `Name=Temporal_PlainYearMonth_prototype_equals`
+Test262 method group, starting with the `canonicalize-calendar.js` fixture,
+and include local coverage for both string and property-bag calendar aliases.
+
+Related ADR:
+`docs/adrs/0062-keep-temporal-plainyearmonth-string-reference-day.md`.

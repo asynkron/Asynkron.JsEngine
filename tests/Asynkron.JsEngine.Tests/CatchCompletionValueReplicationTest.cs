@@ -155,6 +155,58 @@ public sealed class CatchCompletionValueReplicationTest(ITestOutputHelper output
     }
 
     /// <summary>
+    /// Replicates: language/statements/try/completion-values.js
+    /// Abrupt break/continue from finally carries finally's own completion value,
+    /// and an empty abrupt completion updates to undefined.
+    /// </summary>
+    [Fact(Timeout = 10000)]
+    public async Task Replicate_TryFinallyAbruptCompletionValues()
+    {
+        var logger = new TestLogger(output, "TryFinallyAbruptCompletionValues", minLogLevel: LogLevel.Debug);
+        await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
+
+        var breakWithValue = await engine.Evaluate(
+            "eval('99; do { -99; try { 39 } catch (e) { -1 } finally { 42; break; -2 }; } while (false);')");
+        output.WriteLine($"Break with value result: {breakWithValue} (expected: 42)");
+        Assert.Equal(42.0, breakWithValue);
+
+        var catchBreakWithValue = await engine.Evaluate(
+            "eval('99; do { -99; try { [].x.x } catch (e) { -1; } finally { 42; break; -3 }; } while (false);')");
+        output.WriteLine($"Catch break with value result: {catchBreakWithValue} (expected: 42)");
+        Assert.Equal(42.0, catchBreakWithValue);
+
+        var bareBreak = await engine.Evaluate(
+            "eval('99; do { -99; try { 39 } catch (e) { -1 } finally { break; -2 }; } while (false);')");
+        output.WriteLine($"Bare break result: {bareBreak} (expected: undefined)");
+        Assert.True(bareBreak is null || ReferenceEquals(bareBreak, Asynkron.JsEngine.Ast.Symbol.Undefined),
+            $"Bare break should return undefined, got: {bareBreak}");
+
+        var continueWithValue = await engine.Evaluate(
+            "eval('99; do { -99; try { 39 } catch (e) { -1 } finally { 42; continue; -3 }; } while (false);')");
+        output.WriteLine($"Continue with value result: {continueWithValue} (expected: 42)");
+        Assert.Equal(42.0, continueWithValue);
+    }
+
+    /// <summary>
+    /// Regression for review bounce on issue #828: a normal finally block must not
+    /// replace a pending break/continue completion value from the try body.
+    /// </summary>
+    [Theory(Timeout = 10000)]
+    [InlineData("break")]
+    [InlineData("continue")]
+    public async Task Replicate_TryBodyAbruptCompletionSurvivesNormalFinally(string keyword)
+    {
+        var logger = new TestLogger(output, "TryBodyAbruptCompletionSurvivesNormalFinally", minLogLevel: LogLevel.Debug);
+        await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
+
+        var result = await engine.Evaluate(
+            $"eval('99; do {{ -99; try {{ 39; {keyword}; }} finally {{ 42; }} }} while (false);')");
+
+        output.WriteLine($"{keyword} from try body through normal finally result: {result} (expected: 39)");
+        Assert.Equal(39.0, result);
+    }
+
+    /// <summary>
     /// Replicates: language/statements/for/cptn-decl-expr-iter.js
     /// Tests completion value from for loop iterations.
     /// </summary>

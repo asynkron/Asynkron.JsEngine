@@ -105,3 +105,12 @@ rows, while current main passed the exact fixture filter (2/2) and the full
 method group (28/28). Future TypedArray Test262 issues should still inspect the
 owner surface enough to understand the claimed failure, but once the focused
 proof is green, stop without inventing a nearby runtime or harness patch.
+
+Issue #879 repeated the same current-proof boundary for
+`TypedArray_prototype_indexOf_BigInt`: investigation still identified
+`TypedArrayBase.IndexOfInternal` and BigInt strict equality as the plausible
+owner surface, but the build-stage focused proof
+`Name=TypedArray_prototype_indexOf_BigInt` passed on current main with no
+source or test diff. A stale BigInt TypedArray row is therefore not enough to
+change `fromIndex`, signed-zero, or equality code after the current method
+group is green.

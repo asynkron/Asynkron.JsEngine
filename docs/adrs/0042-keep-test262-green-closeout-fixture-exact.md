@@ -89,3 +89,12 @@ pinning.
   typed-array construction and `.at()` reads was already fixed by later mainline
   work, so the stale batch report should not trigger another nearby
   TypedArray patch.
+- Issue #879 repeated the green-closeout path for
+  `TypedArray_prototype_indexOf_BigInt`. Investigation identified
+  `TypedArrayBase.IndexOfInternal` as the plausible owner for BigInt
+  TypedArray `indexOf`, including `fromIndex` negative-zero handling and BigInt
+  strict equality. The build-stage focused proof
+  `Name=TypedArray_prototype_indexOf_BigInt` was already green on current main,
+  and the delivery branch carried no source or test diff. The correct closeout
+  was to stop after proof instead of changing nearby typed-array search
+  semantics.

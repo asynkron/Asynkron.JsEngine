@@ -1254,7 +1254,17 @@ public sealed partial class IntlDateTimeFormatPrototype
                 ["year"] = "numeric",
                 ["month"] = "numeric"
             },
-            TemporalFormatterKind.Instant or TemporalFormatterKind.ZonedDateTime =>
+            TemporalFormatterKind.Instant =>
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["year"] = "numeric",
+                    ["month"] = "numeric",
+                    ["day"] = "numeric",
+                    ["hour"] = "numeric",
+                    ["minute"] = "numeric",
+                    ["second"] = "numeric"
+                },
+            TemporalFormatterKind.ZonedDateTime =>
                 new Dictionary<string, string>(StringComparer.Ordinal)
                 {
                     ["year"] = "numeric",
@@ -1400,6 +1410,11 @@ public sealed partial class IntlDateTimeFormatPrototype
             TemporalFormatterKind.PlainYearMonth => new HashSet<string>(StringComparer.Ordinal)
             {
                 "era", "year", "month"
+            },
+            TemporalFormatterKind.Instant or TemporalFormatterKind.ZonedDateTime => new HashSet<string>(StringComparer.Ordinal)
+            {
+                "weekday", "era", "year", "month", "day", "dayPeriod", "hour", "minute", "second",
+                "fractionalSecondDigits", "timeZoneName"
             },
             _ => new HashSet<string>(StringComparer.Ordinal)
             {

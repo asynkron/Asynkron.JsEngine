@@ -82,6 +82,13 @@ open-coding casts at individual call sites.
     Preserve the sign separately from the absolute exact magnitude so
     sign-display behavior stays observable while fractional precision remains
     exact.
+17. For `Temporal.Duration` ISO string formatting, keep millisecond,
+    microsecond, and nanosecond magnitudes as exact integer quantities until
+    subsecond balancing is complete. Do not cast large subsecond components to
+    `long` or aggregate them through `double` before balancing into seconds.
+    Preserve sign separately from absolute magnitude and prove large exact
+    object-bag cases with the focused `Name=Temporal_Duration_from` Test262
+    method group.
 
 ## Why
 
@@ -184,3 +191,13 @@ durable rule is that DurationFormat owns exact decimal aggregation before
 calling the Intl number formatter. Future work should pin this with local
 DurationFormat regressions and the focused
 `Name=DurationFormat_prototype_format` Test262 method group.
+
+Issue #833 / PR #1129 fixed `Temporal.Duration.from` exact numerical object-bag
+cases near the `2**53` seconds boundary after `Temporal.Duration` string
+formatting cast large millisecond, microsecond, and nanosecond magnitudes to
+`long` before balancing. The durable rule is that Temporal duration ISO
+formatting owns exact subsecond integer aggregation until the value has been
+balanced into bounded seconds and fractional nanoseconds. This complements the
+Intl DurationFormat rule but applies to `Temporal.Duration.prototype.toString`
+and `Temporal.Duration.from(...).toString()` rather than Intl number
+formatting.

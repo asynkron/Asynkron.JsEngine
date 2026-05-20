@@ -125,18 +125,22 @@ public static partial class TypedAstEvaluator
             public JsValue SavedCompletionValue { get; set; } = JsValue.Unit;
         }
 
-        private readonly record struct PendingCompletion(AbruptKind Kind, object? Value, int ResumeTarget)
+        private readonly record struct PendingCompletion(
+            AbruptKind Kind,
+            object? Value,
+            int ResumeTarget,
+            bool OriginatedInFinally)
         {
-            public static PendingCompletion None { get; } = new(AbruptKind.None, null, -1);
+            public static PendingCompletion None { get; } = new(AbruptKind.None, null, -1, false);
 
             public static PendingCompletion FromNormal(int resumeTarget)
             {
-                return new PendingCompletion(AbruptKind.None, null, resumeTarget);
+                return new PendingCompletion(AbruptKind.None, null, resumeTarget, false);
             }
 
-            public static PendingCompletion FromAbrupt(AbruptKind kind, object? value)
+            public static PendingCompletion FromAbrupt(AbruptKind kind, object? value, bool originatedInFinally = false)
             {
-                return new PendingCompletion(kind, value, -1);
+                return new PendingCompletion(kind, value, -1, originatedInFinally);
             }
         }
 

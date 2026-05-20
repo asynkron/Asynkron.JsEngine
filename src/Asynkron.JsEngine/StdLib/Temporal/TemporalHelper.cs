@@ -5178,6 +5178,8 @@ public static class TemporalHelper
         var hasDateStyle = false;
         var hasTimeStyle = false;
         var hasFormattingOption = false;
+        var hasFormattingOptionOtherThanTimeZoneName = false;
+        var hasDefinedOption = false;
 
         if (!optionsArg.IsUndefined && !optionsArg.IsNull && optionsArg.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
@@ -5187,21 +5189,32 @@ public static class TemporalHelper
                     continue;
 
                 formatOptions.SetProperty(property, value);
+                hasDefinedOption = true;
                 hasDateStyle |= string.Equals(property, "dateStyle", StringComparison.Ordinal);
                 hasTimeStyle |= string.Equals(property, "timeStyle", StringComparison.Ordinal);
-                hasFormattingOption |= Array.IndexOf(TemporalToLocaleStringFormattingOptionNames, property) >= 0;
+                var isFormattingOption = Array.IndexOf(TemporalToLocaleStringFormattingOptionNames, property) >= 0;
+                hasFormattingOption |= isFormattingOption;
+                hasFormattingOptionOtherThanTimeZoneName |= isFormattingOption &&
+                                                            !string.Equals(property, "timeZoneName",
+                                                                StringComparison.Ordinal);
             }
         }
 
-        if (!hasDateStyle && !hasTimeStyle && !hasFormattingOption)
+        var isInstant = HasTemporalSlot<JsTemporalInstant>(thisValue, TemporalInstantSlot);
+        var shouldApplyDefaults = !hasDateStyle && !hasTimeStyle &&
+                                  (!hasFormattingOption ||
+                                   (isInstant && !hasFormattingOptionOtherThanTimeZoneName));
+
+        if (shouldApplyDefaults)
         {
-            ApplyTemporalDefaultFormatComponents(thisValue, formatOptions);
+            ApplyTemporalDefaultFormatComponents(thisValue, formatOptions, hasDefinedOption, isInstant);
         }
 
         return JsValue.FromObjectUnsafe(formatOptions);
     }
 
-    private static void ApplyTemporalDefaultFormatComponents(JsValue thisValue, JsObject formatOptions)
+    private static void ApplyTemporalDefaultFormatComponents(JsValue thisValue, JsObject formatOptions,
+        bool hasDefinedOption, bool isInstant)
     {
         if (HasTemporalSlot<JsTemporalPlainDate>(thisValue, TemporalPlainDateSlot))
         {
@@ -5233,9 +5246,11 @@ public static class TemporalHelper
             return;
         }
 
-        if (HasTemporalSlot<JsTemporalInstant>(thisValue, TemporalInstantSlot) ||
-            HasTemporalSlot<JsTemporalPlainDateTime>(thisValue, TemporalPlainDateTimeSlot))
+        if (isInstant || HasTemporalSlot<JsTemporalPlainDateTime>(thisValue, TemporalPlainDateTimeSlot))
         {
+            if (!hasDefinedOption && isInstant)
+                return;
+
             formatOptions.SetProperty("year", "numeric");
             formatOptions.SetProperty("month", "numeric");
             formatOptions.SetProperty("day", "numeric");

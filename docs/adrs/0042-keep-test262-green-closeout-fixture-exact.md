@@ -71,3 +71,11 @@ pinning.
   confirms that nearby typed-array closeout branches should be merged by
   preserving independent test blocks rather than replacing sibling regression
   clusters.
+- Issue #874 / PR #1233 reused the same green-closeout decision for
+  `TypedArrayConstructors_internals_Set`. The focused Test262 method group
+  passed 52/52 on current main, so the delivery added only regression coverage
+  in `tests/Asynkron.JsEngine.Tests.Test262/RegressionTests.cs` proving
+  integer-indexed `[[Set]]` value coercion still throws before out-of-range or
+  detached-buffer no-op behavior can hide it, across both Number and BigInt
+  typed-array paths. This complements the typed-array coercion rule in
+  `.claude/rules/ecmascript-numeric-coercions.md`.

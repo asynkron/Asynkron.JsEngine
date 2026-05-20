@@ -25,6 +25,11 @@ open-coding casts at individual call sites.
    keep a small internal regression that captures the conversion table,
    observable storage result, and return value so the behavior stays pinned in
    the faster local suite.
+   For typed-array integer-indexed `[[Set]]`, preserve value coercion as
+   observable work before range or detached-buffer validity can turn the write
+   into a no-op. Pin both Number and BigInt typed-array paths when a regression
+   involves throwing `valueOf`, `Symbol.toPrimitive`, or buffer detachment
+   during coercion.
 6. For Math, Number, and other numeric built-ins with signed-zero semantics,
    decide explicitly whether the operation must preserve `-0` or normalize it
    to `+0`. Plain equality cannot prove the sign; pin the behavior with
@@ -128,6 +133,16 @@ zero, unsigned modulo wrapping, large integer wrapping, NaN, infinity, and
 return-value checks to drift between entry points. Passing Test262 today is also
 not enough when the issue exposes a previously unpinned edge: keep the local
 guard so future refactors see the failure quickly.
+
+Issue #874 / PR #1233 repeated the green-on-main closeout pattern for
+`TypedArrayConstructors_internals_Set`, but exposed a narrower typed-array
+`[[Set]]` ordering invariant. The focused Test262 method group already passed
+52/52, so the delivery stayed test-only and added regressions proving that a
+throwing `valueOf` propagates before out-of-range writes or detached-buffer
+writes can be treated as no-ops, for both `Int8Array` and `BigInt64Array`.
+Future typed-array setter refactors must keep coercion order observable across
+Number and BigInt element paths instead of moving validity checks ahead of
+`ToNumber` or `ToBigInt`.
 
 Issue #797 / PR #922 fixed `Math.abs(-0)`: the built-in must return positive
 zero under SameValue semantics, while nearby operations such as `Math.round`

@@ -13470,8 +13470,7 @@ public static class TemporalHelper
             // Use ParseDatePartNoRangeCheck: day is discarded, only year+month range matters
             var (year, month, day) = ParseDatePartNoRangeCheck(baseStr, str, realm);
             RejectISOYearMonthRange(year, month, realm);
-            return new JsTemporalPlainYearMonth(year, month, calendar,
-                GetTemporalReferenceISODay(calendar, year, month, day, null, realm));
+            return new JsTemporalPlainYearMonth(year, month, calendar, day);
         }
 
         // 2. Non-string primitives → TypeError

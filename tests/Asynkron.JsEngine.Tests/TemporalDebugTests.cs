@@ -5,6 +5,34 @@ namespace Asynkron.JsEngine.Tests;
 public class TemporalDebugTests
 {
     [Fact]
+    public async Task PlainYearMonthEquals_CanonicalizesCalendarAliases()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const instance = new Temporal.PlainYearMonth(2024, 6, 'islamic-civil', 8);
+            const args = [
+              '2024-06-08[u-ca=islamicc]',
+              { year: 1445, month: 12, calendar: 'islamicc' },
+            ];
+
+            for (let i = 0; i < args.length; i++) {
+              const arg = args[i];
+              if (!instance.equals(arg)) {
+                const converted = Temporal.PlainYearMonth.from(arg);
+                throw new Error(
+                  'calendar ID was not canonicalized for arg ' + i + ': ' +
+                  converted.toString({ calendarName: 'always' }) + '/' +
+                  converted.year + '/' + converted.month + '/' + converted.monthCode);
+              }
+            }
+
+            'ok';
+        ");
+
+        Assert.Equal("ok", result?.ToString());
+    }
+
+    [Fact]
     public async Task PlainYearMonthFrom_AllowsIsoCalendarStringsInPropertyBag()
     {
         var engine = new JsEngine();

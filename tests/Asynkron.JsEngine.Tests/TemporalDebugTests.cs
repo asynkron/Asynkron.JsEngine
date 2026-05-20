@@ -129,4 +129,32 @@ public class TemporalDebugTests
 
         Assert.Equal("ok", result?.ToString());
     }
+
+    [Fact]
+    public async Task PlainDateFrom_IgnoresEraFieldsForCalendarsWithoutEraSupport()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const date = Temporal.PlainDate.from({
+              calendar: 'hebrew',
+              day: 2,
+              get era() {
+                throw new Error('era should not be read');
+              },
+              get eraYear() {
+                throw new Error('eraYear should not be read');
+              },
+              monthCode: 'M01',
+              year: 5780,
+            });
+
+            if (date.calendarId !== 'hebrew' || date.year !== 5780 || date.monthCode !== 'M01' || date.day !== 2) {
+              throw new Error('unexpected PlainDate: ' + date.calendarId + '/' + date.year + '/' + date.monthCode + '/' + date.day);
+            }
+
+            'ok';
+        ");
+
+        Assert.Equal("ok", result?.ToString());
+    }
 }

@@ -95,3 +95,11 @@ pinning.
   focused proof on 2026-05-20 passed the whole issue-supplied method group
   66/66 on current `origin/main`. No runtime, harness, or regression-test
   patch was warranted because the exact current proof was green.
+- Issue #884 reused the same no-source-change closeout for
+  `TypedArray_prototype_sort`. The stale batch listed strict and sloppy
+  `built-ins/TypedArray/prototype/sort/sorted-values.js` rows, and the
+  investigation correctly identified `%TypedArray%.prototype.sort` numeric
+  ordering, stability, and signed-zero handling as the plausible owner surface.
+  The build-stage proof on 2026-05-20 passed the issue-supplied method group
+  50/50 on current main, so no runtime, harness, or regression-test patch was
+  warranted without a current failing fixture row.

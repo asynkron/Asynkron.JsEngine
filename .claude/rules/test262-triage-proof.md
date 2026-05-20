@@ -122,3 +122,14 @@ issue-supplied method group 86/86 on current `origin/main`. Future agents should
 treat that owner lookup as context only: once the exact focused proof is green,
 do not patch strict equality, signed-zero, or fromIndex handling without a
 current failing fixture row.
+
+Issue #884 repeated the no-source-change closeout for
+`TypedArray_prototype_sort`. The issue body listed the strict and sloppy
+`built-ins/TypedArray/prototype/sort/sorted-values.js` rows, and investigation
+mapped the plausible owner surface to default numeric ordering, stable sorting,
+and float `-0` handling in `%TypedArray%.prototype.sort`. The build-stage proof
+on 2026-05-20 passed `Name=TypedArray_prototype_sort` 50/50 on current main.
+Future agents should treat that owner mapping as context only: a green focused
+sort proof is not permission to adjust signed-zero ordering, comparator
+handling, or typed-array storage semantics without a current failing fixture
+row.

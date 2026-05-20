@@ -11,6 +11,9 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   after editing.
 - Use a compact issue-update evidence shape: `Baseline signal`, `Final signal`,
   `Slice check`, and `Scope note`.
+- Prefer the copy/paste `## Build Update` template in
+  `agents/how-to-build-and-test.md` so child-run updates stay comparable across
+  recurring issues.
 - Do not add or modify recurrence infrastructure in the child run; Faktorial
   owns the recurrence schedule.
 - For docs-only maintenance, avoid full builds, Test262, package installs, or
@@ -58,3 +61,9 @@ evidence shape. Without explicit `Baseline signal`, `Final signal`, `Slice
 check`, and `Scope note` fields, review has to infer whether the maintenance
 child actually proved before/after behavior, passed diff hygiene, and stayed
 away from recurrence infrastructure or unrelated files.
+
+Issue #1302 / PR #1309 turned that stable evidence shape into a concrete
+copy/paste `## Build Update` template in `agents/how-to-build-and-test.md`.
+Without a template, recurring maintenance children can still mention the right
+fields while varying the structure enough that review has to reconstruct the
+slice, before/after signals, diff hygiene, and scope boundaries by hand.

@@ -1,4 +1,4 @@
-# 0071. Keep Temporal ZonedDateTime equals on canonical instant + zone + calendar
+# 0073. Keep Temporal ZonedDateTime equals on canonical instant + zone + calendar
 
 ## Status
 

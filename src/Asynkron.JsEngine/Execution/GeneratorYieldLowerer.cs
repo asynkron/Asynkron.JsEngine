@@ -258,38 +258,38 @@ internal static class GeneratorYieldLowerer
             switch (statement)
             {
                 case ForStatement { Body: BlockStatement forBody } forStatement:
-                {
-                    var rewrittenBody = RewriteBlock(forBody);
-                    if (ReferenceEquals(rewrittenBody, forBody))
                     {
-                        return false;
-                    }
+                        var rewrittenBody = RewriteBlock(forBody);
+                        if (ReferenceEquals(rewrittenBody, forBody))
+                        {
+                            return false;
+                        }
 
-                    rewrittenStatement = forStatement with { Body = rewrittenBody };
-                    return true;
-                }
+                        rewrittenStatement = forStatement with { Body = rewrittenBody };
+                        return true;
+                    }
                 case WhileStatement { Body: BlockStatement whileBody } whileStatement:
-                {
-                    var rewrittenBody = RewriteBlock(whileBody);
-                    if (ReferenceEquals(rewrittenBody, whileBody))
                     {
-                        return false;
-                    }
+                        var rewrittenBody = RewriteBlock(whileBody);
+                        if (ReferenceEquals(rewrittenBody, whileBody))
+                        {
+                            return false;
+                        }
 
-                    rewrittenStatement = whileStatement with { Body = rewrittenBody };
-                    return true;
-                }
+                        rewrittenStatement = whileStatement with { Body = rewrittenBody };
+                        return true;
+                    }
                 case DoWhileStatement { Body: BlockStatement doWhileBody } doWhileStatement:
-                {
-                    var rewrittenBody = RewriteBlock(doWhileBody);
-                    if (ReferenceEquals(rewrittenBody, doWhileBody))
                     {
-                        return false;
-                    }
+                        var rewrittenBody = RewriteBlock(doWhileBody);
+                        if (ReferenceEquals(rewrittenBody, doWhileBody))
+                        {
+                            return false;
+                        }
 
-                    rewrittenStatement = doWhileStatement with { Body = rewrittenBody };
-                    return true;
-                }
+                        rewrittenStatement = doWhileStatement with { Body = rewrittenBody };
+                        return true;
+                    }
                 default:
                     return false;
             }

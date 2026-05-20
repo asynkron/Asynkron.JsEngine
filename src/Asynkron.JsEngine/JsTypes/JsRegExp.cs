@@ -154,7 +154,7 @@ public sealed class JsRegExp
     /// Maps JS (left-to-right) group index → .NET group index.
     /// Null if no reordering is needed.
     /// </summary>
-    private int[]? _groupReorderMap;
+    private readonly int[]? _groupReorderMap;
 
     /// <summary>
     /// For each .NET group index, the .NET group index of its nearest ancestor that
@@ -163,7 +163,7 @@ public sealed class JsRegExp
     /// iterates, groups inside it that didn't participate in the last iteration must be
     /// reported as undefined rather than retaining their stale value from a prior iteration.
     /// </summary>
-    private int[]? _quantifiedAncestorMap;
+    private readonly int[]? _quantifiedAncestorMap;
 
     private Regex? _compiledRegex;
     private readonly byte _encodedFlags;
@@ -520,12 +520,18 @@ public sealed class JsRegExp
         result.DefineProperty("index",
             new PropertyDescriptor
             {
-                Value = (double)match.Index, Writable = true, Enumerable = true, Configurable = true
+                Value = (double)match.Index,
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
             });
         result.DefineProperty("input",
             new PropertyDescriptor
             {
-                Value = new JsValue(input), Writable = true, Enumerable = true, Configurable = true
+                Value = new JsValue(input),
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
             });
         result.DefineProperty("groups", new PropertyDescriptor
         {
@@ -1327,7 +1333,9 @@ public sealed class JsRegExp
     {
         // Quick check: only process if pattern contains '{' followed by a digit
         if (!pattern.Contains('{'))
+        {
             return pattern;
+        }
 
         var builder = new StringBuilder(pattern.Length);
         var inCharClass = false;
@@ -1350,8 +1358,15 @@ public sealed class JsRegExp
                 continue;
             }
 
-            if (c == '[') inCharClass = true;
-            if (c == ']') inCharClass = false;
+            if (c == '[')
+            {
+                inCharClass = true;
+            }
+
+            if (c == ']')
+            {
+                inCharClass = false;
+            }
 
             if (!inCharClass && c == '{' && i + 1 < pattern.Length && char.IsDigit(pattern[i + 1]))
             {
@@ -1414,14 +1429,45 @@ public sealed class JsRegExp
     {
         ValidateEncodedFlags(encodedFlags);
         var length = 0;
-        if ((encodedFlags & FlagHasIndices) != 0) length++;
-        if ((encodedFlags & FlagGlobal) != 0) length++;
-        if ((encodedFlags & FlagIgnoreCase) != 0) length++;
-        if ((encodedFlags & FlagMultiline) != 0) length++;
-        if ((encodedFlags & FlagDotAll) != 0) length++;
-        if ((encodedFlags & FlagUnicode) != 0) length++;
-        if ((encodedFlags & FlagUnicodeSets) != 0) length++;
-        if ((encodedFlags & FlagSticky) != 0) length++;
+        if ((encodedFlags & FlagHasIndices) != 0)
+        {
+            length++;
+        }
+
+        if ((encodedFlags & FlagGlobal) != 0)
+        {
+            length++;
+        }
+
+        if ((encodedFlags & FlagIgnoreCase) != 0)
+        {
+            length++;
+        }
+
+        if ((encodedFlags & FlagMultiline) != 0)
+        {
+            length++;
+        }
+
+        if ((encodedFlags & FlagDotAll) != 0)
+        {
+            length++;
+        }
+
+        if ((encodedFlags & FlagUnicode) != 0)
+        {
+            length++;
+        }
+
+        if ((encodedFlags & FlagUnicodeSets) != 0)
+        {
+            length++;
+        }
+
+        if ((encodedFlags & FlagSticky) != 0)
+        {
+            length++;
+        }
 
         return string.Create(length, encodedFlags, static (span, flags) =>
         {
@@ -1573,12 +1619,18 @@ public sealed class JsRegExp
         result.DefineProperty("index",
             new PropertyDescriptor
             {
-                Value = (double)match.Index, Writable = true, Enumerable = true, Configurable = true
+                Value = (double)match.Index,
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
             });
         result.DefineProperty("input",
             new PropertyDescriptor
             {
-                Value = new JsValue(input), Writable = true, Enumerable = true, Configurable = true
+                Value = new JsValue(input),
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
             });
 
         var groups = BuildGroupsObject(match, captureValues);
@@ -1708,7 +1760,10 @@ public sealed class JsRegExp
                 var value = ResolveDuplicateGroupValue(match, renamedNames);
                 groups.DefineProperty(originalName, new PropertyDescriptor
                 {
-                    Value = value, Writable = true, Enumerable = true, Configurable = true
+                    Value = value,
+                    Writable = true,
+                    Enumerable = true,
+                    Configurable = true
                 });
                 continue;
             }
@@ -1876,7 +1931,10 @@ public sealed class JsRegExp
                 var value = ResolveDuplicateGroupIndicesValue(match, renamedNames);
                 groups.DefineProperty(originalName, new PropertyDescriptor
                 {
-                    Value = value, Writable = true, Enumerable = true, Configurable = true
+                    Value = value,
+                    Writable = true,
+                    Enumerable = true,
+                    Configurable = true
                 });
                 continue;
             }
@@ -2279,7 +2337,10 @@ public sealed class JsRegExp
         {
             map[g] = -1;
             var gn = groupNumbers[g];
-            if (gn == 0) continue;
+            if (gn == 0)
+            {
+                continue;
+            }
 
             // Walk up the parent chain
             if (!parentGroup.TryGetValue(gn, out var parent))
@@ -2987,14 +3048,32 @@ public sealed class JsRegExp
                 modifierMultilineStack.Push(effectiveMultiline);
                 modifierIgnoreCaseStack.Push(effectiveIgnoreCase);
 
-                if (enableS) effectiveDotAll = true;
-                else if (disableS) effectiveDotAll = false;
+                if (enableS)
+                {
+                    effectiveDotAll = true;
+                }
+                else if (disableS)
+                {
+                    effectiveDotAll = false;
+                }
 
-                if (enableM) effectiveMultiline = true;
-                else if (disableM) effectiveMultiline = false;
+                if (enableM)
+                {
+                    effectiveMultiline = true;
+                }
+                else if (disableM)
+                {
+                    effectiveMultiline = false;
+                }
 
-                if (enableI) effectiveIgnoreCase = true;
-                else if (disableI) effectiveIgnoreCase = false;
+                if (enableI)
+                {
+                    effectiveIgnoreCase = true;
+                }
+                else if (disableI)
+                {
+                    effectiveIgnoreCase = false;
+                }
 
                 builder.Append(pattern, i, modEnd - i + 1);
                 i = modEnd;
@@ -3035,11 +3114,19 @@ public sealed class JsRegExp
 
                 // Restore modifier state from parent group
                 if (modifierDotAllStack.Count > 0)
+                {
                     effectiveDotAll = modifierDotAllStack.Pop();
+                }
+
                 if (modifierMultilineStack.Count > 0)
+                {
                     effectiveMultiline = modifierMultilineStack.Pop();
+                }
+
                 if (modifierIgnoreCaseStack.Count > 0)
+                {
                     effectiveIgnoreCase = modifierIgnoreCaseStack.Pop();
+                }
 
                 // In unicode mode, quantifiers on lookahead/negative lookahead are forbidden
                 // Annex B allows (?=.)*  in non-unicode mode, but not here.
@@ -3412,15 +3499,23 @@ public sealed class JsRegExp
 
                 // Compute new effective dotAll for this group
                 if (enableS)
+                {
                     effectiveDotAll = true;
+                }
                 else if (disableS)
+                {
                     effectiveDotAll = false;
+                }
 
                 // Compute new effective multiline for this group
                 if (enableM)
+                {
                     effectiveMultiline = true;
+                }
                 else if (disableM)
+                {
                     effectiveMultiline = false;
+                }
 
                 // Emit as .NET non-capturing group with modifier flags
                 builder.Append(pattern, i, modEnd - i + 1);
@@ -3702,32 +3797,48 @@ public sealed class JsRegExp
 
         // Must start with at least one digit
         if (pos >= pattern.Length || !char.IsDigit(pattern[pos]))
+        {
             throw new ParseException("Invalid regular expression: incomplete quantifier.");
+        }
 
         // Skip digits (the 'n' part)
         while (pos < pattern.Length && char.IsDigit(pattern[pos]))
+        {
             pos++;
+        }
 
         if (pos >= pattern.Length)
+        {
             throw new ParseException("Invalid regular expression: incomplete quantifier.");
+        }
 
         if (pattern[pos] == '}')
+        {
             return pos; // {n} — valid
+        }
 
         if (pattern[pos] != ',')
+        {
             throw new ParseException("Invalid regular expression: incomplete quantifier.");
+        }
 
         pos++; // skip ','
 
         if (pos >= pattern.Length)
+        {
             throw new ParseException("Invalid regular expression: incomplete quantifier.");
+        }
 
         // Skip optional digits (the 'm' part)
         while (pos < pattern.Length && char.IsDigit(pattern[pos]))
+        {
             pos++;
+        }
 
         if (pos >= pattern.Length || pattern[pos] != '}')
+        {
             throw new ParseException("Invalid regular expression: incomplete quantifier.");
+        }
 
         return pos; // {n,} or {n,m} — valid
     }
@@ -3754,7 +3865,9 @@ public sealed class JsRegExp
 
         // Must start with (?
         if (i + 2 >= pattern.Length || pattern[i] != '(' || pattern[i + 1] != '?')
+        {
             return false;
+        }
 
         var pos = i + 2;
         var ch = pattern[pos];
@@ -3763,11 +3876,15 @@ public sealed class JsRegExp
         // Modifier groups start with [ims-] after (?
         // If the character is a known non-modifier construct prefix, bail out fast
         if (ch is ':' or '=' or '!' or '<' or 'P')
+        {
             return false;
+        }
 
         // If the character is not a letter or '-', it's not a modifier group
         if (ch is not ('s' or 'm' or 'i' or '-') && !char.IsLetter(ch))
+        {
             return false;
+        }
 
         // If it IS a letter but NOT [ims-], scan ahead to see if this looks like a modifier
         // group with invalid flags (e.g., (?I:...), (?S:...)). If it ends with ':', throw.
@@ -3813,7 +3930,9 @@ public sealed class JsRegExp
                 foreach (var f in addFlags)
                 {
                     if (removeFlags.Contains(f))
+                    {
                         throw new ParseException("Invalid regular expression: invalid modifier group flags.");
+                    }
                 }
 
                 // Extract results
@@ -3830,7 +3949,10 @@ public sealed class JsRegExp
             if (ch == '-')
             {
                 if (inDisable)
+                {
                     throw new ParseException("Invalid regular expression: invalid modifier group flags.");
+                }
+
                 inDisable = true;
                 pos++;
                 continue;
@@ -5390,9 +5512,13 @@ public sealed class JsRegExp
                     foreach (var (s, e) in complementRanges)
                     {
                         if (e <= 0xFFFF)
+                        {
                             bmpRanges.Add((s, e));
+                        }
                         else if (s > 0xFFFF)
+                        {
                             astralRanges.Add((s, e));
+                        }
                         else
                         {
                             bmpRanges.Add((s, 0xFFFF));
@@ -5405,9 +5531,13 @@ public sealed class JsRegExp
                     foreach (var (s, e) in propRanges)
                     {
                         if (e <= 0xFFFF)
+                        {
                             bmpRanges.Add((s, e));
+                        }
                         else if (s > 0xFFFF)
+                        {
                             astralRanges.Add((s, e));
+                        }
                         else
                         {
                             bmpRanges.Add((s, 0xFFFF));
@@ -5439,9 +5569,13 @@ public sealed class JsRegExp
                 foreach (var (s, e) in classRanges)
                 {
                     if (e <= 0xFFFF)
+                    {
                         bmpRanges.Add((s, e));
+                    }
                     else if (s > 0xFFFF)
+                    {
                         astralRanges.Add((s, e));
+                    }
                     else
                     {
                         bmpRanges.Add((s, 0xFFFF));
@@ -5622,9 +5756,14 @@ public sealed class JsRegExp
                 {
                     // Range spans into surrogates
                     if (start <= 0xD7FF)
+                    {
                         bmpRanges.Add((start, Math.Min(end, 0xD7FF)));
+                    }
+
                     if (end >= 0xE000)
+                    {
                         bmpRanges.Add((Math.Max(start, 0xE000), end));
+                    }
                 }
                 else if (start >= 0xD800 && end <= 0xDFFF)
                 {
@@ -5650,9 +5789,14 @@ public sealed class JsRegExp
                 else
                 {
                     if (start <= 0xD7FF)
+                    {
                         bmpRanges.Add((start, 0xD7FF));
+                    }
+
                     if (0xE000 <= 0xFFFF)
+                    {
                         bmpRanges.Add((Math.Max(start, 0xE000), 0xFFFF));
+                    }
                 }
                 astralRanges.Add((0x10000, end));
             }
@@ -5687,7 +5831,10 @@ public sealed class JsRegExp
         if (astralContent.Length > 0)
         {
             if (needsPipe)
+            {
                 sb.Append('|');
+            }
+
             sb.Append(astralContent);
             needsPipe = true;
         }
@@ -5698,7 +5845,10 @@ public sealed class JsRegExp
         if (needsLoneSurrogates)
         {
             if (needsPipe)
+            {
                 sb.Append('|');
+            }
+
             sb.Append(@"[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]");
         }
 
@@ -5813,7 +5963,7 @@ public sealed class JsRegExp
 
     private static bool TryParseUnicodeSetExpression(string content, bool unicodeIgnoreCase, out UnicodeSetElements elements)
     {
-        elements = new UnicodeSetElements();
+        _ = new UnicodeSetElements();
         var cursor = 0;
         if (!TryParseUnicodeSetTerm(content, ref cursor, unicodeIgnoreCase, out elements))
         {
@@ -5982,45 +6132,45 @@ public sealed class JsRegExp
             switch (next)
             {
                 case 'u' when i + 1 < content.Length && content[i + 1] == '{':
-                {
-                    var endBrace = content.IndexOf('}', i + 2);
-                    if (endBrace == -1)
                     {
-                        throw new ParseException("Invalid regular expression: invalid string set escape.");
-                    }
+                        var endBrace = content.IndexOf('}', i + 2);
+                        if (endBrace == -1)
+                        {
+                            throw new ParseException("Invalid regular expression: invalid string set escape.");
+                        }
 
-                    var hex = content.Substring(i + 2, endBrace - (i + 2));
-                    var cp = int.Parse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-                    builder.Append(char.ConvertFromUtf32(cp));
-                    i = endBrace;
-                    break;
-                }
+                        var hex = content.Substring(i + 2, endBrace - (i + 2));
+                        var cp = int.Parse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                        builder.Append(char.ConvertFromUtf32(cp));
+                        i = endBrace;
+                        break;
+                    }
                 case 'u':
-                {
-                    if (i + 4 > content.Length)
                     {
-                        throw new ParseException("Invalid regular expression: invalid string set escape.");
-                    }
+                        if (i + 4 > content.Length)
+                        {
+                            throw new ParseException("Invalid regular expression: invalid string set escape.");
+                        }
 
-                    var hex = content.Substring(i + 1, 4);
-                    var cp = int.Parse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-                    builder.Append((char)cp);
-                    i += 4;
-                    break;
-                }
+                        var hex = content.Substring(i + 1, 4);
+                        var cp = int.Parse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                        builder.Append((char)cp);
+                        i += 4;
+                        break;
+                    }
                 case 'x':
-                {
-                    if (i + 2 > content.Length)
                     {
-                        throw new ParseException("Invalid regular expression: invalid string set escape.");
-                    }
+                        if (i + 2 > content.Length)
+                        {
+                            throw new ParseException("Invalid regular expression: invalid string set escape.");
+                        }
 
-                    var hex = content.Substring(i + 1, 2);
-                    var cp = int.Parse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-                    builder.Append((char)cp);
-                    i += 2;
-                    break;
-                }
+                        var hex = content.Substring(i + 1, 2);
+                        var cp = int.Parse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                        builder.Append((char)cp);
+                        i += 2;
+                        break;
+                    }
                 case 'n':
                     builder.Append('\n');
                     break;
@@ -6089,47 +6239,47 @@ public sealed class JsRegExp
         switch (propertyExpression)
         {
             case "Basic_Emoji":
-            {
-                var emojiPresentation = UnicodePropertyData.Resolve("Emoji_Presentation") ?? [];
-                var textDefaultEmoji = GetBasicEmojiTextDefaultRanges();
-
-                AddRanges(elements, emojiPresentation);
-
-                if (textDefaultEmoji.Length > 0)
                 {
-                    var textDefaultPattern = BuildResolvedPropertyEscapePattern(textDefaultEmoji, negate: false);
-                    elements.PatternStrings.Add($"(?:{textDefaultPattern}\\uFE0F)");
-                }
+                    var emojiPresentation = UnicodePropertyData.Resolve("Emoji_Presentation") ?? [];
+                    var textDefaultEmoji = GetBasicEmojiTextDefaultRanges();
 
-                return true;
-            }
+                    AddRanges(elements, emojiPresentation);
+
+                    if (textDefaultEmoji.Length > 0)
+                    {
+                        var textDefaultPattern = BuildResolvedPropertyEscapePattern(textDefaultEmoji, negate: false);
+                        elements.PatternStrings.Add($"(?:{textDefaultPattern}\\uFE0F)");
+                    }
+
+                    return true;
+                }
             case "RGI_Emoji":
-            {
-                foreach (var propertyName in new[]
-                         {
+                {
+                    foreach (var propertyName in new[]
+                             {
                              "Emoji_Keycap_Sequence",
                              "RGI_Emoji_Flag_Sequence",
                              "RGI_Emoji_Modifier_Sequence",
                              "RGI_Emoji_Tag_Sequence",
                              "RGI_Emoji_ZWJ_Sequence"
                          })
-                {
-                    if (TryBuildStringPropertyEscapePattern(propertyName, false, out var pattern))
                     {
-                        elements.PatternStrings.Add(pattern);
+                        if (TryBuildStringPropertyEscapePattern(propertyName, false, out var pattern))
+                        {
+                            elements.PatternStrings.Add(pattern);
+                        }
                     }
-                }
 
-                if (TryBuildStringPropertyEscapeElements("Basic_Emoji", out var basicEmojiElements))
-                {
-                    elements.BmpRanges.AddRange(basicEmojiElements.BmpRanges);
-                    elements.AstralRanges.AddRange(basicEmojiElements.AstralRanges);
-                    elements.LiteralStrings.UnionWith(basicEmojiElements.LiteralStrings);
-                    elements.PatternStrings.UnionWith(basicEmojiElements.PatternStrings);
-                }
+                    if (TryBuildStringPropertyEscapeElements("Basic_Emoji", out var basicEmojiElements))
+                    {
+                        elements.BmpRanges.AddRange(basicEmojiElements.BmpRanges);
+                        elements.AstralRanges.AddRange(basicEmojiElements.AstralRanges);
+                        elements.LiteralStrings.UnionWith(basicEmojiElements.LiteralStrings);
+                        elements.PatternStrings.UnionWith(basicEmojiElements.PatternStrings);
+                    }
 
-                return true;
-            }
+                    return true;
+                }
         }
 
         if (!TryBuildStringPropertyEscapePattern(propertyExpression, false, out var stringPattern))
@@ -6746,7 +6896,9 @@ public sealed class JsRegExp
         foreach (var (start, end) in ranges)
         {
             if (start <= 0xDFFF && end >= 0xD800)
+            {
                 return true;
+            }
         }
 
         return false;
@@ -6759,7 +6911,9 @@ public sealed class JsRegExp
     private static string BuildSurrogatePairRanges(List<(int Start, int End)> ranges)
     {
         if (ranges.Count == 0)
+        {
             return string.Empty;
+        }
 
         var lowRangesByHighSurrogate = new SortedDictionary<int, List<(int Start, int End)>>();
 
@@ -6802,7 +6956,10 @@ public sealed class JsRegExp
         foreach (var (lowClass, highRanges) in highSurrogatesByLowClass)
         {
             if (!first)
+            {
                 sb.Append('|');
+            }
+
             first = false;
 
             var normalizedHighRanges = NormalizeRanges(highRanges).ToList();
@@ -6890,7 +7047,10 @@ public sealed class JsRegExp
         if (compAstralContent.Length > 0)
         {
             if (hasPrevAlt)
+            {
                 result.Append('|');
+            }
+
             result.Append(compAstralContent);
             hasPrevAlt = true;
         }
@@ -6898,7 +7058,10 @@ public sealed class JsRegExp
         // Negated character classes should match lone surrogates
         // (the original class doesn't include surrogates, so the complement does).
         if (hasPrevAlt)
+        {
             result.Append('|');
+        }
+
         result.Append(@"[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]");
 
         result.Append(')');
@@ -7113,8 +7276,15 @@ public sealed class JsRegExp
             }
             else
             {
-                if (s < 0xD800) list.Add((s, 0xD7FF));
-                if (e > 0xDFFF) list.Add((0xE000, e));
+                if (s < 0xD800)
+                {
+                    list.Add((s, 0xD7FF));
+                }
+
+                if (e > 0xDFFF)
+                {
+                    list.Add((0xE000, e));
+                }
             }
         }
     }
@@ -7157,8 +7327,15 @@ public sealed class JsRegExp
             }
             else
             {
-                if (s < 0xD800) list.Add((s, 0xD7FF));
-                if (e > 0xDFFF) list.Add((0xE000, e));
+                if (s < 0xD800)
+                {
+                    list.Add((s, 0xD7FF));
+                }
+
+                if (e > 0xDFFF)
+                {
+                    list.Add((0xE000, e));
+                }
             }
         }
     }

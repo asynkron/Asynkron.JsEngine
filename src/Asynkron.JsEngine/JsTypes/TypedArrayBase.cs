@@ -1259,7 +1259,6 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         return intIndex >= 0 && intIndex < Length;
     }
 
-
     /// <summary>
     /// Walks the prototype chain starting from <paramref name="prototype"/> looking for a TypedArray.
     /// If found and <paramref name="name"/> is a canonical numeric index string:

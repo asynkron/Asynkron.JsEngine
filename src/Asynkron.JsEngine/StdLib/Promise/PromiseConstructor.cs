@@ -149,14 +149,14 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
     private void AttachStatics(HostFunction constructor)
     {
-        SetBuiltInStatic("resolve", 1, (thisValue, args) => PromiseResolve(thisValue, args));
-        SetBuiltInStatic("reject", 1, (thisValue, args) => PromiseReject(thisValue, args));
-        SetBuiltInStatic("all", 1, (thisValue, args) => PromiseAll(thisValue, args));
-        SetBuiltInStatic("race", 1, (thisValue, args) => PromiseRace(thisValue, args));
-        SetBuiltInStatic("allSettled", 1, (thisValue, args) => PromiseAllSettled(thisValue, args));
-        SetBuiltInStatic("any", 1, (thisValue, args) => PromiseAny(thisValue, args));
+        SetBuiltInStatic("resolve", 1, PromiseResolve);
+        SetBuiltInStatic("reject", 1, PromiseReject);
+        SetBuiltInStatic("all", 1, PromiseAll);
+        SetBuiltInStatic("race", 1, PromiseRace);
+        SetBuiltInStatic("allSettled", 1, PromiseAllSettled);
+        SetBuiltInStatic("any", 1, PromiseAny);
         SetBuiltInStatic("withResolvers", 0, (thisValue, _) => PromiseWithResolvers(thisValue));
-        SetBuiltInStatic("try", 1, (thisValue, args) => PromiseTry(thisValue, args));
+        SetBuiltInStatic("try", 1, PromiseTry);
 
         void SetBuiltInStatic(string name, int length, JsHostHandler handler)
         {
@@ -998,18 +998,5 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         }
 
         return capability.promise;
-    }
-
-    /// <summary>
-    /// Checks if a value is a thenable (has a callable "then" method).
-    /// </summary>
-    private static bool TryGetThenMethod(
-        JsValue item,
-        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out IJsCallable? thenCallable)
-    {
-        thenCallable = null;
-        return item.TryGetObject<JsObject>(out var itemObj) &&
-               itemObj.TryGetProperty("then", out var thenMethod) &&
-               thenMethod.TryGetCallable(out thenCallable);
     }
 }

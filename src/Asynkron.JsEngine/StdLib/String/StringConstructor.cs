@@ -125,9 +125,19 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
         {
             // ToLength: min(max(ToIntegerOrInfinity(x), 0), 2^53 - 1)
             var len = JsOps.ToNumber(lengthVal);
-            if (double.IsNaN(len) || len <= 0) len = 0;
-            else if (double.IsPositiveInfinity(len)) len = 9007199254740991; // 2^53 - 1
-            else len = Math.Floor(Math.Min(len, 9007199254740991));
+            if (double.IsNaN(len) || len <= 0)
+            {
+                len = 0;
+            }
+            else if (double.IsPositiveInfinity(len))
+            {
+                len = 9007199254740991; // 2^53 - 1
+            }
+            else
+            {
+                len = Math.Floor(Math.Min(len, 9007199254740991));
+            }
+
             rawLength = len;
         }
 

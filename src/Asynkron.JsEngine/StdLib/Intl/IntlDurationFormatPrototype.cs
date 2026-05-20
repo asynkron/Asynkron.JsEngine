@@ -231,8 +231,15 @@ public sealed partial class IntlDurationFormatPrototype
         foreach (var v in (ReadOnlySpan<double>)[years, months, weeks, days, hours, minutes, seconds,
                      milliseconds, microseconds, nanoseconds])
         {
-            if (v > 0) hasPositive = true;
-            if (v < 0) hasNegative = true;
+            if (v > 0)
+            {
+                hasPositive = true;
+            }
+
+            if (v < 0)
+            {
+                hasNegative = true;
+            }
         }
 
         if (hasPositive && hasNegative)
@@ -243,11 +250,19 @@ public sealed partial class IntlDurationFormatPrototype
         // abs(years/months/weeks) must be < 2^32
         const double limit = 4294967296d; // 2^32
         if (Math.Abs(years) >= limit)
+        {
             throw ThrowRangeError("Duration years value out of range", realm: Realm);
+        }
+
         if (Math.Abs(months) >= limit)
+        {
             throw ThrowRangeError("Duration months value out of range", realm: Realm);
+        }
+
         if (Math.Abs(weeks) >= limit)
+        {
             throw ThrowRangeError("Duration weeks value out of range", realm: Realm);
+        }
 
         if (double.IsNaN(days) || double.IsInfinity(days) ||
             double.IsNaN(hours) || double.IsInfinity(hours) ||
@@ -331,37 +346,37 @@ public sealed partial class IntlDurationFormatPrototype
             i++;
             hasAnyUnit = true;
 
-                if (!inTimePart)
+            if (!inTimePart)
+            {
+                switch (unit)
                 {
-                    switch (unit)
-                    {
-                        case 'Y': years = num; break;
-                        case 'M': months = num; break;
-                        case 'W': weeks = num; break;
+                    case 'Y': years = num; break;
+                    case 'M': months = num; break;
+                    case 'W': weeks = num; break;
                     case 'D': days = num; break;
                     default:
                         throw ThrowRangeError($"Invalid duration string: '{input}'", realm: Realm);
                 }
-                }
-                else
+            }
+            else
+            {
+                switch (unit)
                 {
-                    switch (unit)
-                    {
-                        case 'H': hours = num; break;
-                        case 'M': minutes = num; break;
-                        case 'S':
-                            ParseSecondsComponent(numStr, negative, out var wholeSeconds, out var msPart, out var usPart,
-                                out var nsPart);
-                            seconds = wholeSeconds;
-                            milliseconds = msPart;
-                            microseconds = usPart;
-                            nanoseconds = nsPart;
-                            break;
-                        default:
-                            throw ThrowRangeError($"Invalid duration string: '{input}'", realm: Realm);
-                    }
+                    case 'H': hours = num; break;
+                    case 'M': minutes = num; break;
+                    case 'S':
+                        ParseSecondsComponent(numStr, negative, out var wholeSeconds, out var msPart, out var usPart,
+                            out var nsPart);
+                        seconds = wholeSeconds;
+                        milliseconds = msPart;
+                        microseconds = usPart;
+                        nanoseconds = nsPart;
+                        break;
+                    default:
+                        throw ThrowRangeError($"Invalid duration string: '{input}'", realm: Realm);
                 }
             }
+        }
 
         if (!hasAnyUnit)
         {
@@ -499,8 +514,8 @@ public sealed partial class IntlDurationFormatPrototype
 
             // Numeric seconds/milliseconds/microseconds combined with sub-second units (fractional)
             var done = false;
-            int maxFrac = opts.FractionalDigits ?? 9;
-            int minFrac = opts.FractionalDigits ?? 0;
+            var maxFrac = opts.FractionalDigits ?? 9;
+            var minFrac = opts.FractionalDigits ?? 0;
             string? exactFractionalValue = null;
 
             if (unit == "seconds" && opts.Style == "digital" &&

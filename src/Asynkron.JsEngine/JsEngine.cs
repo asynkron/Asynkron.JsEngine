@@ -6339,23 +6339,23 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             switch (expression)
             {
                 case AwaitExpression awaitExpression:
-                {
-                    var tempSymbol = Symbol.Synthetic("__await_class");
-                    tempBindings.Add(new AwaitTempBinding(tempSymbol, awaitExpression));
-                    return new IdentifierExpression(awaitExpression.Source, tempSymbol);
-                }
+                    {
+                        var tempSymbol = Symbol.Synthetic("__await_class");
+                        tempBindings.Add(new AwaitTempBinding(tempSymbol, awaitExpression));
+                        return new IdentifierExpression(awaitExpression.Source, tempSymbol);
+                    }
                 case CallExpression callExpression:
-                {
-                    var rewrittenCallee =
-                        RewriteAwaitExpressionToSyntheticIdentifier(callExpression.Callee, tempBindings);
-                    var rewrittenArgs = callExpression.Arguments
-                        .Select(arg => arg with
-                        {
-                            Expression = RewriteAwaitExpressionToSyntheticIdentifier(arg.Expression, tempBindings)
-                        })
-                        .ToImmutableArray();
-                    return callExpression with { Callee = rewrittenCallee, Arguments = rewrittenArgs };
-                }
+                    {
+                        var rewrittenCallee =
+                            RewriteAwaitExpressionToSyntheticIdentifier(callExpression.Callee, tempBindings);
+                        var rewrittenArgs = callExpression.Arguments
+                            .Select(arg => arg with
+                            {
+                                Expression = RewriteAwaitExpressionToSyntheticIdentifier(arg.Expression, tempBindings)
+                            })
+                            .ToImmutableArray();
+                        return callExpression with { Callee = rewrittenCallee, Arguments = rewrittenArgs };
+                    }
                 case MemberExpression memberExpression:
                     return memberExpression with
                     {
@@ -6363,17 +6363,17 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                         Property = RewriteAwaitExpressionToSyntheticIdentifier(memberExpression.Property, tempBindings)
                     };
                 case NewExpression newExpression:
-                {
-                    var rewrittenCtor =
-                        RewriteAwaitExpressionToSyntheticIdentifier(newExpression.Constructor, tempBindings);
-                    var rewrittenArgs = newExpression.Arguments
-                        .Select(arg => arg with
-                        {
-                            Expression = RewriteAwaitExpressionToSyntheticIdentifier(arg.Expression, tempBindings)
-                        })
-                        .ToImmutableArray();
-                    return newExpression with { Constructor = rewrittenCtor, Arguments = rewrittenArgs };
-                }
+                    {
+                        var rewrittenCtor =
+                            RewriteAwaitExpressionToSyntheticIdentifier(newExpression.Constructor, tempBindings);
+                        var rewrittenArgs = newExpression.Arguments
+                            .Select(arg => arg with
+                            {
+                                Expression = RewriteAwaitExpressionToSyntheticIdentifier(arg.Expression, tempBindings)
+                            })
+                            .ToImmutableArray();
+                        return newExpression with { Constructor = rewrittenCtor, Arguments = rewrittenArgs };
+                    }
                 case UnaryExpression unaryExpression:
                     return unaryExpression with
                     {
@@ -6449,18 +6449,18 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                             .ToImmutableArray()
                     };
                 case TemplateLiteralExpression templateExpression:
-                {
-                    var rewrittenParts = templateExpression.Parts
-                        .Select(part => part.Expression is null
-                            ? part
-                            : part with
-                            {
-                                Expression =
-                                    RewriteAwaitExpressionToSyntheticIdentifier(part.Expression, tempBindings)
-                            })
-                        .ToImmutableArray();
-                    return templateExpression with { Parts = rewrittenParts };
-                }
+                    {
+                        var rewrittenParts = templateExpression.Parts
+                            .Select(part => part.Expression is null
+                                ? part
+                                : part with
+                                {
+                                    Expression =
+                                        RewriteAwaitExpressionToSyntheticIdentifier(part.Expression, tempBindings)
+                                })
+                            .ToImmutableArray();
+                        return templateExpression with { Parts = rewrittenParts };
+                    }
                 case TaggedTemplateExpression taggedTemplateExpression:
                     return taggedTemplateExpression with
                     {
@@ -7318,36 +7318,36 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             });
         }
 
-    private bool TryEvaluateTryStatementWithAwait(
-        TryStatement statement,
-        JsEnvironment env,
-        bool isStrict,
-        Func<bool> onCompleted)
-    {
-        bool ContinueAfterTry() => onCompleted();
-
-        bool ScheduleContinueAfterTry()
+        private bool TryEvaluateTryStatementWithAwait(
+            TryStatement statement,
+            JsEnvironment env,
+            bool isStrict,
+            Func<bool> onCompleted)
         {
-            _engine.QueueMicrotask(JsCallableMicrotask.Rent(new HostFunction(_args =>
-            {
-                _ = _args;
+            bool ContinueAfterTry() => onCompleted();
 
-                if (_completion.Task.IsCompleted)
+            bool ScheduleContinueAfterTry()
+            {
+                _engine.QueueMicrotask(JsCallableMicrotask.Rent(new HostFunction(_args =>
                 {
+                    _ = _args;
+
+                    if (_completion.Task.IsCompleted)
+                    {
+                        return JsValue.Null;
+                    }
+
+                    onCompleted();
                     return JsValue.Null;
-                }
+                })));
+                return false;
+            }
 
-                onCompleted();
-                return JsValue.Null;
-            })));
-            return false;
-        }
-
-        bool RunFinally(Func<bool> next)
-        {
-            if (statement.Finally is null)
+            bool RunFinally(Func<bool> next)
             {
-                return next();
+                if (statement.Finally is null)
+                {
+                    return next();
                 }
 
                 return ExecuteBlockWithAwaitInTry(statement.Finally, env, isStrict, next);
@@ -7365,34 +7365,34 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                     return;
                 }
 
-        var catchEnv = JsEnvironment.CreateInstance(env, creatingSource: statement.Catch.Body.Source,
-            description: "catch");
-        BindCatchValue(statement.Catch, signal.ThrownValue, catchEnv);
+                var catchEnv = JsEnvironment.CreateInstance(env, creatingSource: statement.Catch.Body.Source,
+                    description: "catch");
+                BindCatchValue(statement.Catch, signal.ThrownValue, catchEnv);
 
-        if (statement.Finally is null)
-        {
-            _ = ExecuteBlockWithAwaitInTry(statement.Catch.Body, catchEnv, isStrict, ScheduleContinueAfterTry);
-            return;
-        }
-
-        _asyncTryHandlers.Push(catchSignal =>
-        {
-                    _ = RunFinally(() =>
-                    {
-                        Fail(catchSignal);
-                        return false;
-                    });
-        });
-        if (ExecuteBlockWithAwaitInTry(statement.Catch.Body, catchEnv, isStrict,
-                () =>
+                if (statement.Finally is null)
                 {
-                    _ = _asyncTryHandlers.Pop();
-                    return RunFinally(ContinueAfterTry);
-                }))
-        {
-            return;
-        }
-    }
+                    _ = ExecuteBlockWithAwaitInTry(statement.Catch.Body, catchEnv, isStrict, ScheduleContinueAfterTry);
+                    return;
+                }
+
+                _asyncTryHandlers.Push(catchSignal =>
+                {
+                    _ = RunFinally(() =>
+            {
+                                Fail(catchSignal);
+                                return false;
+                            });
+                });
+                if (ExecuteBlockWithAwaitInTry(statement.Catch.Body, catchEnv, isStrict,
+                        () =>
+                        {
+                            _ = _asyncTryHandlers.Pop();
+                            return RunFinally(ContinueAfterTry);
+                        }))
+                {
+                    return;
+                }
+            }
 
             _asyncTryHandlers.Push(PropagateOrCatch);
             return ExecuteBlockWithAwaitInTry(statement.TryBlock, env, isStrict,

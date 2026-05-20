@@ -119,15 +119,9 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         }
         finally
         {
-            if (envAware is not null)
-            {
-                envAware.CallingJsEnvironment = previousEnvironment;
-            }
+            envAware?.CallingJsEnvironment = previousEnvironment;
 
-            if (contextAware is not null)
-            {
-                contextAware.CallingContext = null;
-            }
+            contextAware?.CallingContext = null;
         }
     }
 

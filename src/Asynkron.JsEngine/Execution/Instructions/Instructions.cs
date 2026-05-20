@@ -29,8 +29,6 @@ internal sealed record ThrowInstruction(
 ///     Evaluates the expression and discards the result.
 /// </summary>
 /// <param name="Next">Next instruction index.</param>
-/// <param name="Expression">AST representation of the expression (nullable during migration).</param>
-/// <param name="ExpressionProgram">Bytecode representation of the expression (nullable during migration).</param>
 /// <param name="SuppressCompletionValue">
 ///     When true, the completion value is NOT updated (used for loop update expressions).
 ///     Per ES spec, for-loop update expressions don't contribute to the loop's completion value.

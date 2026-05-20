@@ -1165,7 +1165,9 @@ public sealed partial class IntlDateTimeFormatPrototype
     private static bool TryGetTemporalFormatterTargetForFormat(JsValue value, out TemporalFormatterTarget target)
     {
         if (!TryGetTemporalFormatterTarget(value, out target))
+        {
             return false;
+        }
         // Instant and ZonedDateTime use the regular (non-temporal) formatting path
         return target.Kind is not TemporalFormatterKind.Instant and not TemporalFormatterKind.ZonedDateTime;
     }

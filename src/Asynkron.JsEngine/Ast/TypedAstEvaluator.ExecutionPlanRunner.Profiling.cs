@@ -13,42 +13,6 @@ public static partial class TypedAstEvaluator
 {
     private sealed partial class ExecutionPlanRunner
     {
-        // ═══════════════════════════════════════════════════════════════════════════
-        // PROFILING DIAGNOSTICS: NoInlining methods to isolate hot path costs
-        // These show up separately in profiler output for analysis
-        // Change to AggressiveInlining after profiling is complete
-        // ═══════════════════════════════════════════════════════════════════════════
-
-        [MethodImpl(JsEngineConstants.Inlining)]
-        private bool ProfileReadOperand(
-                    JsEnvironment environment,
-                    EvaluationContext context,
-                    ExpressionNode expr,
-                    out JsValue value)
-        {
-            if (expr is LiteralExpression lit)
-            {
-                value = lit.Value;
-                return true;
-            }
-
-            // Fast path: use flat slot for O(1) identifier read
-            if (expr is IdentifierExpression { FlatSlotId: >= 0 } id && _flatSlots is not null)
-            {
-                value = _flatSlots[id.FlatSlotId].Read();
-                return true;
-            }
-
-            // Fallback: slot-based read
-            if (expr is IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0 } slotId)
-            {
-                return environment.TryReadIdentifierWithSlot(slotId, context, out value);
-            }
-
-            value = default;
-            return false;
-        }
-
         [MethodImpl(JsEngineConstants.Inlining)]
         private static JsValue ProfileBranchCompare(
                     BinaryOperator op,
@@ -69,15 +33,6 @@ public static partial class TypedAstEvaluator
         private static int ProfileHandleJump(JumpInstruction jumpInstruction)
         {
             return jumpInstruction.TargetIndex;
-        }
-
-        [MethodImpl(JsEngineConstants.Inlining)]
-        private static JsValue ProfileEvaluateStatement(
-                    StatementNode statement,
-                    JsEnvironment environment,
-                    EvaluationContext context)
-        {
-            return statement.EvaluateStatementJsValue(environment, context);
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]

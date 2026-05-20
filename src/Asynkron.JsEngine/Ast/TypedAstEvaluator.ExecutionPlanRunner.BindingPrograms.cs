@@ -130,28 +130,28 @@ public static partial class TypedAstEvaluator
                     return;
 
                 case BindingMode.DefineVar:
-                {
-                    environment.AssertVarBindingScope(name, nameof(ApplyIdentifierBindingProgram));
-                    if (!hasInitializer)
                     {
+                        environment.AssertVarBindingScope(name, nameof(ApplyIdentifierBindingProgram));
+                        if (!hasInitializer)
+                        {
+                            return;
+                        }
+
+                        if (skipBlockedBindingLookup)
+                        {
+                            environment.AssignFunctionScopedVarBinding(name, value, context);
+                            return;
+                        }
+
+                        var assignedBlockedBinding = environment.TryAssignBlockedBinding(name, value);
+                        environment.EnsureFunctionScopedVarBinding(name, context);
+                        if (!assignedBlockedBinding)
+                        {
+                            environment.AssignJsValue(name, value);
+                        }
+
                         return;
                     }
-
-                    if (skipBlockedBindingLookup)
-                    {
-                        environment.AssignFunctionScopedVarBinding(name, value, context);
-                        return;
-                    }
-
-                    var assignedBlockedBinding = environment.TryAssignBlockedBinding(name, value);
-                    environment.EnsureFunctionScopedVarBinding(name, context);
-                    if (!assignedBlockedBinding)
-                    {
-                        environment.AssignJsValue(name, value);
-                    }
-
-                    return;
-                }
 
                 case BindingMode.DefineParameter:
                     if (environment.HasBinding(name))

@@ -262,7 +262,11 @@ public sealed partial class IntlPluralRulesPrototype
         }
 
         var absN = Math.Abs(n);
-        if (absN == 0) return 0;
+        if (absN == 0)
+        {
+            return 0;
+        }
+
         var magnitude = (int)Math.Floor(Math.Log10(absN));
 
         return notation switch
@@ -277,51 +281,126 @@ public sealed partial class IntlPluralRulesPrototype
     private static string ResolveFrenchCardinal(double n, long i, int v, int e)
     {
         // CLDR French: one → i = 0,1 and e = 0
-        if (i is 0 or 1 && e == 0) return "one";
+        if (i is 0 or 1 && e == 0)
+        {
+            return "one";
+        }
         // CLDR French: many → e not in 0..5, OR (e == 0 and n != 0 and n % 1000000 == 0 and v == 0)
-        if (e is < 0 or > 5) return "many";
-        if (e == 0 && v == 0 && n != 0 && n % 1000000 == 0) return "many";
+        if (e is < 0 or > 5)
+        {
+            return "many";
+        }
+
+        if (e == 0 && v == 0 && n != 0 && n % 1000000 == 0)
+        {
+            return "many";
+        }
+
         return "other";
     }
 
     private static string ResolveArabicCardinal(double n, long i)
     {
-        if (n == 0) return "zero";
-        if (n == 1) return "one";
-        if (n == 2) return "two";
+        if (n == 0)
+        {
+            return "zero";
+        }
+
+        if (n == 1)
+        {
+            return "one";
+        }
+
+        if (n == 2)
+        {
+            return "two";
+        }
+
         var mod100 = i % 100;
-        if (mod100 >= 3 && mod100 <= 10) return "few";
-        if (mod100 >= 11 && mod100 <= 99) return "many";
+        if (mod100 >= 3 && mod100 <= 10)
+        {
+            return "few";
+        }
+
+        if (mod100 >= 11 && mod100 <= 99)
+        {
+            return "many";
+        }
+
         return "other";
     }
 
     private static string ResolveRussianCardinal(long i, int v)
     {
-        if (v != 0) return "other";
+        if (v != 0)
+        {
+            return "other";
+        }
+
         var mod10 = i % 10;
         var mod100 = i % 100;
-        if (mod10 == 1 && mod100 != 11) return "one";
-        if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "few";
-        if (mod10 == 0 || (mod10 >= 5 && mod10 <= 9) || (mod100 >= 11 && mod100 <= 14)) return "many";
+        if (mod10 == 1 && mod100 != 11)
+        {
+            return "one";
+        }
+
+        if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14))
+        {
+            return "few";
+        }
+
+        if (mod10 == 0 || (mod10 >= 5 && mod10 <= 9) || (mod100 >= 11 && mod100 <= 14))
+        {
+            return "many";
+        }
+
         return "other";
     }
 
     private static string ResolvePolishCardinal(long i, int v)
     {
-        if (i == 1 && v == 0) return "one";
-        if (v != 0) return "other";
+        if (i == 1 && v == 0)
+        {
+            return "one";
+        }
+
+        if (v != 0)
+        {
+            return "other";
+        }
+
         var mod10 = i % 10;
         var mod100 = i % 100;
-        if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "few";
-        if ((mod10 is 0 or 1) || (mod10 >= 5 && mod10 <= 9) || (mod100 >= 12 && mod100 <= 14)) return "many";
+        if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14))
+        {
+            return "few";
+        }
+
+        if ((mod10 is 0 or 1) || (mod10 >= 5 && mod10 <= 9) || (mod100 >= 12 && mod100 <= 14))
+        {
+            return "many";
+        }
+
         return "other";
     }
 
     private static string ResolveCzechCardinal(long i, int v)
     {
-        if (i == 1 && v == 0) return "one";
-        if (i >= 2 && i <= 4 && v == 0) return "few";
-        if (v != 0) return "many";
+        if (i == 1 && v == 0)
+        {
+            return "one";
+        }
+
+        if (i >= 2 && i <= 4 && v == 0)
+        {
+            return "few";
+        }
+
+        if (v != 0)
+        {
+            return "many";
+        }
+
         return "other";
     }
 

@@ -372,41 +372,41 @@ public static partial class TypedAstEvaluator
                     return returnValue;
                 }
 
-            if (returnValue.IsObject)
-            {
-                return returnValue;
-            }
-
-            if (syncInvoker.IsDerivedClassConstructor)
-            {
-                if (!returnValue.IsUndefined)
+                if (returnValue.IsObject)
                 {
-                    throw new ThrowSignal(StandardLibrary.CreateTypeError(
-                        "Derived constructors may only return object or undefined",
-                        _context,
-                        _derivedClassErrorRealm));
+                    return returnValue;
                 }
 
-                if (_executionEnvironment is null ||
-                    !_executionEnvironment.TryGetJsValue(Symbol.This, out var derivedThis) ||
-                    derivedThis.IsUninitialized ||
-                    ReferenceEquals(derivedThis.ObjectValue, JsEnvironment.Uninitialized))
+                if (syncInvoker.IsDerivedClassConstructor)
                 {
-                    throw new ThrowSignal(StandardLibrary.CreateReferenceError(
-                        "ReferenceError: this is not defined - must call super() in derived class constructor",
-                        _context,
-                        _derivedClassErrorRealm));
+                    if (!returnValue.IsUndefined)
+                    {
+                        throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                            "Derived constructors may only return object or undefined",
+                            _context,
+                            _derivedClassErrorRealm));
+                    }
+
+                    if (_executionEnvironment is null ||
+                        !_executionEnvironment.TryGetJsValue(Symbol.This, out var derivedThis) ||
+                        derivedThis.IsUninitialized ||
+                        ReferenceEquals(derivedThis.ObjectValue, JsEnvironment.Uninitialized))
+                    {
+                        throw new ThrowSignal(StandardLibrary.CreateReferenceError(
+                            "ReferenceError: this is not defined - must call super() in derived class constructor",
+                            _context,
+                            _derivedClassErrorRealm));
+                    }
+
+                    return derivedThis;
                 }
 
-                return derivedThis;
-            }
-
-            // Base class constructors ignore non-object returns and yield `this`.
-            if (_executionEnvironment is not null &&
-                _executionEnvironment.TryGetJsValue(Symbol.This, out var thisValue))
-            {
-                return thisValue;
-            }
+                // Base class constructors ignore non-object returns and yield `this`.
+                if (_executionEnvironment is not null &&
+                    _executionEnvironment.TryGetJsValue(Symbol.This, out var thisValue))
+                {
+                    return thisValue;
+                }
 
                 return returnValue;
             }

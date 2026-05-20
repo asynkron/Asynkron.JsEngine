@@ -95,11 +95,17 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
             }, Realm, false);
         escapeFn.DefineProperty("name", new PropertyDescriptor
         {
-            Value = (JsValue)"escape", Writable = false, Enumerable = false, Configurable = true
+            Value = (JsValue)"escape",
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
         });
         escapeFn.DefineProperty("length", new PropertyDescriptor
         {
-            Value = JsValue.FromDouble(1), Writable = false, Enumerable = false, Configurable = true
+            Value = JsValue.FromDouble(1),
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
         });
         constructor.SetHostedProperty("escape", escapeFn, Realm);
     }
@@ -110,7 +116,10 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
     /// </summary>
     private static string EncodeForRegExpEscape(string s)
     {
-        if (s.Length == 0) return "";
+        if (s.Length == 0)
+        {
+            return "";
+        }
 
         var sb = new System.Text.StringBuilder(s.Length + 8);
         for (var i = 0; i < s.Length; i++)
@@ -186,19 +195,19 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
             return c is ',' or '-' or '=' or '<' or '>' or '#' or '&' or '!' or '%' or ':' or ';' or '@' or '~' or '\'' or '"' or '`';
         }
 
-                static bool RequiresUnicodeEscape(char c)
-                {
-                    return c <= 0x1F ||
-                           c == 0x7F ||
-                           char.IsSurrogate(c) ||
-                           c == 0xFEFF ||
-                           c == 0x1680 ||
-                           c is >= '\u2000' and <= '\u200A' ||
-                           c == '\u2028' ||
-                   c == '\u2029' ||
-                   c == '\u202F' ||
-                   c == '\u205F' ||
-                   c == '\u3000';
+        static bool RequiresUnicodeEscape(char c)
+        {
+            return c <= 0x1F ||
+                   c == 0x7F ||
+                   char.IsSurrogate(c) ||
+                   c == 0xFEFF ||
+                   c == 0x1680 ||
+                   c is >= '\u2000' and <= '\u200A' ||
+                   c == '\u2028' ||
+           c == '\u2029' ||
+           c == '\u202F' ||
+           c == '\u205F' ||
+           c == '\u3000';
         }
 
         static void AppendHexEscape(System.Text.StringBuilder sb, char c)
@@ -282,17 +291,25 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
         {
             string p;
             if (JsOps.TryGetPropertyValue(patternArg, "source", out var sourceVal))
+            {
                 p = JsOps.ToJsString(sourceVal) ?? string.Empty;
+            }
             else
+            {
                 p = string.Empty;
+            }
 
             string f;
             if (flagsArg.IsUndefined)
             {
                 if (JsOps.TryGetPropertyValue(patternArg, "flags", out var flagsVal))
+                {
                     f = JsOps.ToJsString(flagsVal) ?? string.Empty;
+                }
                 else
+                {
                     f = string.Empty;
+                }
             }
             else
             {
@@ -317,7 +334,9 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
     private static bool IsRegExpAbrupt(JsValue argument)
     {
         if (!argument.IsObject)
+        {
             return false;
+        }
 
         // Step 2: Let matcher be ? Get(argument, @@match).
         // TryGetPropertyValue may throw ThrowSignal if the getter throws — that propagates naturally.
@@ -325,7 +344,9 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
         {
             // Step 3: If matcher is not undefined, return ! ToBoolean(matcher).
             if (!matchValue.IsUndefined)
+            {
                 return matchValue.IsTruthy;
+            }
         }
 
         // Step 4: If argument has a [[RegExpMatcher]] internal slot, return true.

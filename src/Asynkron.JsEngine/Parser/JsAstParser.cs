@@ -109,7 +109,7 @@ public sealed class JsAstParser(
             if (Check(TokenType.Async) && CheckAheadOnSameLine(TokenType.Function))
             {
                 var asyncToken = Advance();
-                var functionToken = Advance();
+                _ = Advance();
                 return ParseFunctionDeclaration(true, asyncToken);
             }
 
@@ -1476,7 +1476,7 @@ public sealed class JsAstParser(
             if (Check(TokenType.Async) && CheckAheadOnSameLine(TokenType.Function))
             {
                 var asyncToken = Advance();
-                var functionToken = Advance();
+                _ = Advance();
                 var declaration = ParseFunctionDeclaration(true, asyncToken);
                 return new ExportDeclarationStatement(CreateSourceReference(keyword), declaration);
             }

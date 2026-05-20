@@ -793,7 +793,7 @@ public static partial class NumberHelper
 
         // n = decimalPos is the exponent in the spec sense: s × 10^(n-k) = x
         var n = mantDotPos + exponent;
-        var k = digits.Length;
+        _ = digits.Length;
 
         // Trim trailing zeros from digits to get the minimal k
         var trimmedDigits = digits.TrimEnd('0');
@@ -802,7 +802,7 @@ public static partial class NumberHelper
             trimmedDigits = "0";
         }
 
-        k = trimmedDigits.Length;
+        var k = trimmedDigits.Length;
 
         // ES2024 7.1.12.1 Number::toString steps 5-9:
         string result;

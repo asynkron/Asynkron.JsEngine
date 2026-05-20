@@ -588,10 +588,25 @@ public sealed partial class MathPrototype
         });
 
         // Per spec: NaN wins, then conflicting infinities = NaN
-        if (hasNaN) return JsValue.NaN;
-        if (posInf && negInf) return JsValue.NaN;
-        if (posInf) return JsValue.PositiveInfinity;
-        if (negInf) return JsValue.NegativeInfinity;
+        if (hasNaN)
+        {
+            return JsValue.NaN;
+        }
+
+        if (posInf && negInf)
+        {
+            return JsValue.NaN;
+        }
+
+        if (posInf)
+        {
+            return JsValue.PositiveInfinity;
+        }
+
+        if (negInf)
+        {
+            return JsValue.NegativeInfinity;
+        }
 
         if (values.Count == 0)
         {
@@ -601,7 +616,10 @@ public sealed partial class MathPrototype
         var result = SumPreciseFinite(values);
 
         // ReSharper disable once CompareOfFloatsByEqualityOperator
-        if (result == 0d && !sawFiniteNonZero && sawNegativeZero && !sawPositiveZero) return JsValue.FromDouble(-0d);
+        if (result == 0d && !sawFiniteNonZero && sawNegativeZero && !sawPositiveZero)
+        {
+            return JsValue.FromDouble(-0d);
+        }
 
         return JsValue.FromDouble(result);
     }
@@ -621,20 +639,31 @@ public sealed partial class MathPrototype
         foreach (var v in values)
         {
             // ReSharper disable once CompareOfFloatsByEqualityOperator
-            if (v == 0.0) continue;
+            if (v == 0.0)
+            {
+                continue;
+            }
+
             var bits = BitConverter.DoubleToInt64Bits(v);
             var biasedExp = (int)((bits >> 52) & 0x7FF);
             var exp = biasedExp == 0
                 ? -1074 // subnormal: exponent is fixed at -1074
                 : biasedExp - 1023 - 52;
-            if (exp < minExp) minExp = exp;
+            if (exp < minExp)
+            {
+                minExp = exp;
+            }
         }
 
         // Second pass: accumulate exact integer sum (all values scaled to minExp)
         foreach (var v in values)
         {
             // ReSharper disable once CompareOfFloatsByEqualityOperator
-            if (v == 0.0) continue;
+            if (v == 0.0)
+            {
+                continue;
+            }
+
             var bits = BitConverter.DoubleToInt64Bits(v);
             var sign = (bits >> 63) != 0;
             var biasedExp = (int)((bits >> 52) & 0x7FF);
@@ -654,16 +683,25 @@ public sealed partial class MathPrototype
             }
 
             var bigMantissa = new System.Numerics.BigInteger(mantissa);
-            if (sign) bigMantissa = -bigMantissa;
+            if (sign)
+            {
+                bigMantissa = -bigMantissa;
+            }
 
             // Shift to align with minExp
             var shift = exp - minExp;
-            if (shift > 0) bigMantissa <<= shift;
+            if (shift > 0)
+            {
+                bigMantissa <<= shift;
+            }
 
             exactSum += bigMantissa;
         }
 
-        if (exactSum.IsZero) return 0.0;
+        if (exactSum.IsZero)
+        {
+            return 0.0;
+        }
 
         // Convert BigInteger back to double with correct rounding
         return BigIntegerToDouble(exactSum, minExp);
@@ -674,10 +712,16 @@ public sealed partial class MathPrototype
     /// </summary>
     private static double BigIntegerToDouble(System.Numerics.BigInteger value, int baseExp)
     {
-        if (value.IsZero) return 0.0;
+        if (value.IsZero)
+        {
+            return 0.0;
+        }
 
         var negative = value < 0;
-        if (negative) value = -value;
+        if (negative)
+        {
+            value = -value;
+        }
 
         // Find the position of the highest set bit
         var bitLength = (int)value.GetBitLength();
@@ -736,7 +780,11 @@ public sealed partial class MathPrototype
             mantissaBits = (long)(value & 0x000FFFFFFFFFFFFFL); // remove implicit 1
             var biasedExp = resultExp + 1023;
             var doubleBits = ((long)biasedExp << 52) | mantissaBits;
-            if (negative) doubleBits |= unchecked((long)0x8000000000000000L);
+            if (negative)
+            {
+                doubleBits |= unchecked((long)0x8000000000000000L);
+            }
+
             return BitConverter.Int64BitsToDouble(doubleBits);
         }
         else
@@ -744,7 +792,7 @@ public sealed partial class MathPrototype
             // Subnormal: resultExp < -1022
             // Mantissa bits = value shifted so that the lowest bit represents 2^(-1074)
             var targetBitPos = -1074 - baseExp; // bit position 0 corresponds to 2^baseExp
-            var shiftRight = targetBitPos > 0 ? 0 : -targetBitPos;
+            _ = targetBitPos > 0 ? 0 : -targetBitPos;
             // Actually: we need the mantissa bits such that value * 2^baseExp = mantissa * 2^(-1074)
             // mantissa = value * 2^(baseExp + 1074) = value >> -(baseExp + 1074) if baseExp + 1074 < 0
             var totalShift = -(baseExp + 1074); // should be >= 0 for subnormals
@@ -771,7 +819,11 @@ public sealed partial class MathPrototype
 
             // Subnormal: biased exponent = 0
             var doubleBits = mantissaBits;
-            if (negative) doubleBits |= unchecked((long)0x8000000000000000L);
+            if (negative)
+            {
+                doubleBits |= unchecked((long)0x8000000000000000L);
+            }
+
             return BitConverter.Int64BitsToDouble(doubleBits);
         }
     }

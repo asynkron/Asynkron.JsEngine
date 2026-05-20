@@ -425,7 +425,10 @@ internal static class IntlNumberFormatter
         // Recalculate mantissa integer digit count after division
         var mantissaDigits = quantity.Coefficient.ToString(CultureInfo.InvariantCulture);
         var mantissaIntDigits = mantissaDigits.Length - quantity.Scale;
-        if (mantissaIntDigits < 0) mantissaIntDigits = 0;
+        if (mantissaIntDigits < 0)
+        {
+            mantissaIntDigits = 0;
+        }
 
         // Apply rounding based on type
         if (slots.RoundingType is "compactRounding")

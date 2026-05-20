@@ -271,7 +271,11 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
         }
 
         var yearCompare = Year.CompareTo(other.Year);
-        if (yearCompare != 0) return yearCompare;
+        if (yearCompare != 0)
+        {
+            return yearCompare;
+        }
+
         var monthCompare = Month.CompareTo(other.Month);
         return monthCompare != 0 ? monthCompare : ReferenceDay.CompareTo(other.ReferenceDay);
     }

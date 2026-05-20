@@ -41,7 +41,7 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
         var options = IntlOptionHelpers.GetOptionsObject(optionsArg, Realm, "DateTimeFormat", useToObject: true);
 
         // Step 4: localeMatcher
-        var localeMatcher = IntlOptionHelpers.GetStringOption(options, "localeMatcher", Realm,
+        _ = IntlOptionHelpers.GetStringOption(options, "localeMatcher", Realm,
             "DateTimeFormat", ["lookup", "best fit"], "best fit");
 
         // Parse unicode extension keywords from locale for calendar, numberingSystem, hourCycle
@@ -179,7 +179,7 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
         }
 
         // Step 37: formatMatcher
-        var formatMatcher = IntlOptionHelpers.GetStringOption(options, "formatMatcher", Realm,
+        _ = IntlOptionHelpers.GetStringOption(options, "formatMatcher", Realm,
             "DateTimeFormat", ["basic", "best fit"], "best fit");
 
         // Step 38-39: dateStyle

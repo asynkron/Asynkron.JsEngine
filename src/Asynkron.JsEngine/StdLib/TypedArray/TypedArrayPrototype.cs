@@ -1782,11 +1782,31 @@ public sealed partial class TypedArrayPrototype
 
     private static IJsPropertyAccessor? GetPrimitivePrototype(JsValue value, RealmState? realm)
     {
-        if (value.IsBoolean) return realm?.BooleanPrototype;
-        if (value.IsNumber) return realm?.NumberPrototype;
-        if (value.IsString) return realm?.StringPrototype;
-        if (value.IsSymbol) return realm?.SymbolPrototype;
-        if (value.IsBigInt) return realm?.BigIntPrototype;
+        if (value.IsBoolean)
+        {
+            return realm?.BooleanPrototype;
+        }
+
+        if (value.IsNumber)
+        {
+            return realm?.NumberPrototype;
+        }
+
+        if (value.IsString)
+        {
+            return realm?.StringPrototype;
+        }
+
+        if (value.IsSymbol)
+        {
+            return realm?.SymbolPrototype;
+        }
+
+        if (value.IsBigInt)
+        {
+            return realm?.BigIntPrototype;
+        }
+
         return realm?.ObjectPrototype;
     }
 

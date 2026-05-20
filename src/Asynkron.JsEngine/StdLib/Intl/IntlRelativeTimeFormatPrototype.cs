@@ -248,7 +248,10 @@ public sealed partial class IntlRelativeTimeFormatPrototype
         obj.DefineProperty(key,
             new PropertyDescriptor
             {
-                Value = value, Writable = true, Enumerable = true, Configurable = true
+                Value = value,
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
             });
     }
 

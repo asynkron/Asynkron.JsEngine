@@ -78,8 +78,6 @@ internal sealed partial class ExecutionPlanBuilder
     /// Builds an execution plan for a function expression.
     /// </summary>
     /// <param name="function">The function to build a plan for.</param>
-    /// <param name="plan">The resulting execution plan.</param>
-    /// <param name="failureReason">If building fails, the reason why.</param>
     /// <param name="reportDiagnostics">Whether to report diagnostics for test tracking.</param>
     /// <param name="isScriptLevel">
     ///     When true, indicates this is a top-level script (not a function body).
@@ -250,7 +248,7 @@ internal sealed partial class ExecutionPlanBuilder
     {
         return ValidateLoweredPayloads();
 
-        bool ValidateLoweredPayloads()
+        static bool ValidateLoweredPayloads()
         {
             return true;
         }
@@ -315,7 +313,7 @@ internal sealed partial class ExecutionPlanBuilder
 
             if (blocked.Count > 0)
             {
-                hoistedFunctions.RemoveAll(name => blocked.Contains(name));
+                hoistedFunctions.RemoveAll(blocked.Contains);
             }
         }
 

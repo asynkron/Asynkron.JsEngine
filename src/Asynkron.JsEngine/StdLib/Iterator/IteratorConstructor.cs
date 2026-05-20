@@ -517,10 +517,22 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
 
     private static JsObject? EnsureWrapForValidIteratorPrototype(RealmState? realm)
     {
-        if (realm is null) return null;
-        if (realm.WrapForValidIteratorPrototype is { } existing) return existing;
+        if (realm is null)
+        {
+            return null;
+        }
+
+        if (realm.WrapForValidIteratorPrototype is { } existing)
+        {
+            return existing;
+        }
+
         var proto = new JsObject { RealmState = realm };
-        if (realm.IteratorPrototype is { } iteratorProto) proto.SetPrototype(iteratorProto);
+        if (realm.IteratorPrototype is { } iteratorProto)
+        {
+            proto.SetPrototype(iteratorProto);
+        }
+
         realm.WrapForValidIteratorPrototype = proto;
         return proto;
     }

@@ -529,7 +529,7 @@ public sealed partial class RegExpPrototype
         // Step 7: If flags contains "g", let global be true, else let global be false.
         var isGlobal = flags.Contains('g', StringComparison.Ordinal);
 
-        bool fullUnicode = false;
+        var fullUnicode = false;
         if (isGlobal)
         {
             // Step 8: If global is true, let fullUnicode be ToBoolean(Get(rx, "unicode")).
@@ -901,80 +901,80 @@ public sealed partial class RegExpPrototype
                     i++;
                     break;
                 case '<':
-                {
-                    // Named group reference: $<name>
-                    if (namedCaptures == JsValue.Undefined || namedCaptures.IsNullOrUndefined)
                     {
-                        result.Append("$<");
-                        i++;
-                        break;
-                    }
-
-                    var closeBracket = replacement.IndexOf('>', i + 2);
-                    if (closeBracket == -1)
-                    {
-                        result.Append("$<");
-                        i++;
-                        break;
-                    }
-
-                    var groupName = replacement.Substring(i + 2, closeBracket - (i + 2));
-                    JsOps.TryGetPropertyValue(namedCaptures, groupName, out var capture);
-                    if (capture != JsValue.Undefined)
-                    {
-                        result.Append(JsOps.ToJsString(capture));
-                    }
-
-                    i = closeBracket;
-                    break;
-                }
-                default:
-                {
-                    if (next is >= '0' and <= '9')
-                    {
-                        var digit1 = next - '0';
-                        // Try two-digit reference first
-                        if (i + 2 < replacement.Length && replacement[i + 2] is >= '0' and <= '9')
+                        // Named group reference: $<name>
+                        if (namedCaptures == JsValue.Undefined || namedCaptures.IsNullOrUndefined)
                         {
-                            var digit2 = replacement[i + 2] - '0';
-                            var twoDigit = (digit1 * 10) + digit2;
-                            if (twoDigit >= 1 && twoDigit <= m)
+                            result.Append("$<");
+                            i++;
+                            break;
+                        }
+
+                        var closeBracket = replacement.IndexOf('>', i + 2);
+                        if (closeBracket == -1)
+                        {
+                            result.Append("$<");
+                            i++;
+                            break;
+                        }
+
+                        var groupName = replacement.Substring(i + 2, closeBracket - (i + 2));
+                        JsOps.TryGetPropertyValue(namedCaptures, groupName, out var capture);
+                        if (capture != JsValue.Undefined)
+                        {
+                            result.Append(JsOps.ToJsString(capture));
+                        }
+
+                        i = closeBracket;
+                        break;
+                    }
+                default:
+                    {
+                        if (next is >= '0' and <= '9')
+                        {
+                            var digit1 = next - '0';
+                            // Try two-digit reference first
+                            if (i + 2 < replacement.Length && replacement[i + 2] is >= '0' and <= '9')
                             {
-                                var capVal = captures[twoDigit - 1];
+                                var digit2 = replacement[i + 2] - '0';
+                                var twoDigit = (digit1 * 10) + digit2;
+                                if (twoDigit >= 1 && twoDigit <= m)
+                                {
+                                    var capVal = captures[twoDigit - 1];
+                                    if (capVal != JsValue.Undefined)
+                                    {
+                                        result.Append(JsOps.ToJsString(capVal));
+                                    }
+
+                                    i += 2;
+                                    break;
+                                }
+                            }
+
+                            // Single-digit reference (only valid for 1-9)
+                            if (digit1 >= 1 && digit1 <= m)
+                            {
+                                var capVal = captures[digit1 - 1];
                                 if (capVal != JsValue.Undefined)
                                 {
                                     result.Append(JsOps.ToJsString(capVal));
                                 }
 
-                                i += 2;
-                                break;
+                                i++;
                             }
-                        }
-
-                        // Single-digit reference (only valid for 1-9)
-                        if (digit1 >= 1 && digit1 <= m)
-                        {
-                            var capVal = captures[digit1 - 1];
-                            if (capVal != JsValue.Undefined)
+                            else
                             {
-                                result.Append(JsOps.ToJsString(capVal));
+                                // No valid reference, output literal $
+                                result.Append('$');
                             }
-
-                            i++;
                         }
                         else
                         {
-                            // No valid reference, output literal $
                             result.Append('$');
                         }
-                    }
-                    else
-                    {
-                        result.Append('$');
-                    }
 
-                    break;
-                }
+                        break;
+                    }
             }
         }
 

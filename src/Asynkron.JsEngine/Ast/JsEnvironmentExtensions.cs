@@ -1,7 +1,7 @@
 #region
 
-using Asynkron.JsEngine.StdLib;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 
 #endregion

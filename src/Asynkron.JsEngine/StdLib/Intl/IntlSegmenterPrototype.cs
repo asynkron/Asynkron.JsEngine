@@ -106,7 +106,10 @@ public sealed partial class IntlSegmenterPrototype
         containingFn.DefineProperty("name",
             new PropertyDescriptor
             {
-                Value = "containing", Writable = false, Enumerable = false, Configurable = true
+                Value = "containing",
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
             });
         containingFn.Delete("prototype");
         segments.DefineProperty("containing",
@@ -123,13 +126,19 @@ public sealed partial class IntlSegmenterPrototype
         iteratorFn.DefineProperty("name",
             new PropertyDescriptor
             {
-                Value = "[Symbol.iterator]", Writable = false, Enumerable = false, Configurable = true
+                Value = "[Symbol.iterator]",
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
             });
         iteratorFn.Delete("prototype");
         segments.DefineProperty(SymbolKeys.Iterator,
             new PropertyDescriptor
             {
-                Value = iteratorFn, Writable = true, Enumerable = false, Configurable = true
+                Value = iteratorFn,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
             });
 
         return segments;
@@ -451,7 +460,7 @@ public sealed partial class IntlSegmenterPrototype
         {
             var gStart = graphemes[g];
             var gEnd = graphemes[g + 1];
-            var graphemeText = input[gStart..gEnd];
+            _ = input[gStart..gEnd];
             var firstCp = GetCodePointAt(input, gStart);
             var cat = GetCodePointCategory(firstCp);
 

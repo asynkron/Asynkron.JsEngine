@@ -66,7 +66,7 @@ internal static class NumericStringParser
         if (span.Length > 0 && (span[0] == '+' || span[0] == '-'))
         {
             hasSign = true;
-            isNegative = span[0] == '-';
+            _ = span[0] == '-';
             span = span[1..];
         }
 

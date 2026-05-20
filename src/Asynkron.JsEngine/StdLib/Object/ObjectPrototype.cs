@@ -214,9 +214,20 @@ public sealed partial class ObjectPrototype
                     if (ctor.TryGetProperty("name", out var nameValue) && nameValue.IsString)
                     {
                         var ctorName = nameValue.AsString();
-                        if (ctorName == "Boolean") return "Boolean";
-                        if (ctorName == "Number") return "Number";
-                        if (ctorName == "String") return "String";
+                        if (ctorName == "Boolean")
+                        {
+                            return "Boolean";
+                        }
+
+                        if (ctorName == "Number")
+                        {
+                            return "Number";
+                        }
+
+                        if (ctorName == "String")
+                        {
+                            return "String";
+                        }
                     }
                 }
 
@@ -345,11 +356,31 @@ public sealed partial class ObjectPrototype
 
     private static IJsPropertyAccessor? GetPrimitivePrototype(JsValue value, RealmState? realm)
     {
-        if (value.IsBoolean) return realm?.BooleanPrototype;
-        if (value.IsNumber) return realm?.NumberPrototype;
-        if (value.IsString) return realm?.StringPrototype;
-        if (value.IsSymbol) return realm?.SymbolPrototype;
-        if (value.IsBigInt) return realm?.BigIntPrototype;
+        if (value.IsBoolean)
+        {
+            return realm?.BooleanPrototype;
+        }
+
+        if (value.IsNumber)
+        {
+            return realm?.NumberPrototype;
+        }
+
+        if (value.IsString)
+        {
+            return realm?.StringPrototype;
+        }
+
+        if (value.IsSymbol)
+        {
+            return realm?.SymbolPrototype;
+        }
+
+        if (value.IsBigInt)
+        {
+            return realm?.BigIntPrototype;
+        }
+
         return realm?.ObjectPrototype;
     }
 

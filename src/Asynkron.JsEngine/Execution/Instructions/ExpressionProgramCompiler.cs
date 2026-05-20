@@ -1,5 +1,5 @@
-using System.Globalization;
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
@@ -239,52 +239,52 @@ internal static class ExpressionProgramCompiler
         switch (expression.Operator)
         {
             case BinaryOperator.LogicalAnd:
-            {
-                var shortCircuitIndex = builder.Count;
-                builder.Add(PackedExpressionOp.JumpIfFalse(-1));
-                builder.Add(PackedExpressionOp.Pop);
-
-                if (!TryCompileExpression(expression.Right, builder, out failureReason))
                 {
-                    return false;
-                }
+                    var shortCircuitIndex = builder.Count;
+                    builder.Add(PackedExpressionOp.JumpIfFalse(-1));
+                    builder.Add(PackedExpressionOp.Pop);
 
-                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfFalse(builder.Count);
-                failureReason = null;
-                return true;
-            }
+                    if (!TryCompileExpression(expression.Right, builder, out failureReason))
+                    {
+                        return false;
+                    }
+
+                    builder[shortCircuitIndex] = PackedExpressionOp.JumpIfFalse(builder.Count);
+                    failureReason = null;
+                    return true;
+                }
 
             case BinaryOperator.LogicalOr:
-            {
-                var shortCircuitIndex = builder.Count;
-                builder.Add(PackedExpressionOp.JumpIfTrue(-1));
-                builder.Add(PackedExpressionOp.Pop);
-
-                if (!TryCompileExpression(expression.Right, builder, out failureReason))
                 {
-                    return false;
-                }
+                    var shortCircuitIndex = builder.Count;
+                    builder.Add(PackedExpressionOp.JumpIfTrue(-1));
+                    builder.Add(PackedExpressionOp.Pop);
 
-                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfTrue(builder.Count);
-                failureReason = null;
-                return true;
-            }
+                    if (!TryCompileExpression(expression.Right, builder, out failureReason))
+                    {
+                        return false;
+                    }
+
+                    builder[shortCircuitIndex] = PackedExpressionOp.JumpIfTrue(builder.Count);
+                    failureReason = null;
+                    return true;
+                }
 
             case BinaryOperator.NullishCoalescing:
-            {
-                var shortCircuitIndex = builder.Count;
-                builder.Add(PackedExpressionOp.JumpIfNotNullish(-1));
-                builder.Add(PackedExpressionOp.Pop);
-
-                if (!TryCompileExpression(expression.Right, builder, out failureReason))
                 {
-                    return false;
-                }
+                    var shortCircuitIndex = builder.Count;
+                    builder.Add(PackedExpressionOp.JumpIfNotNullish(-1));
+                    builder.Add(PackedExpressionOp.Pop);
 
-                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfNotNullish(builder.Count);
-                failureReason = null;
-                return true;
-            }
+                    if (!TryCompileExpression(expression.Right, builder, out failureReason))
+                    {
+                        return false;
+                    }
+
+                    builder[shortCircuitIndex] = PackedExpressionOp.JumpIfNotNullish(builder.Count);
+                    failureReason = null;
+                    return true;
+                }
         }
 
         if (!TryCompileExpression(expression.Right, builder, out failureReason))
@@ -347,12 +347,12 @@ internal static class ExpressionProgramCompiler
                         return true;
 
                     case MemberExpression
-                        {
-                            Target: not SuperExpression,
-                            IsOptional: true,
-                            IsComputed: false,
-                            Property: LiteralExpression { Value.IsString: true } propertyLiteral
-                        } optionalNamedDelete:
+                    {
+                        Target: not SuperExpression,
+                        IsOptional: true,
+                        IsComputed: false,
+                        Property: LiteralExpression { Value.IsString: true } propertyLiteral
+                    } optionalNamedDelete:
                         if (!TryCompileExpression(optionalNamedDelete.Target, builder, out failureReason))
                         {
                             return false;
@@ -375,11 +375,11 @@ internal static class ExpressionProgramCompiler
                         return true;
 
                     case MemberExpression
-                        {
-                            Target: not SuperExpression,
-                            IsOptional: true,
-                            IsComputed: true
-                        } optionalComputedDelete:
+                    {
+                        Target: not SuperExpression,
+                        IsOptional: true,
+                        IsComputed: true
+                    } optionalComputedDelete:
                         if (!TryCompileExpression(optionalComputedDelete.Target, builder, out failureReason))
                         {
                             return false;
@@ -407,12 +407,12 @@ internal static class ExpressionProgramCompiler
                         return true;
 
                     case MemberExpression
-                        {
-                            Target: not SuperExpression,
-                            IsOptional: false,
-                            IsComputed: false,
-                            Property: LiteralExpression { Value.IsString: true } propertyLiteral
-                        } namedDelete:
+                    {
+                        Target: not SuperExpression,
+                        IsOptional: false,
+                        IsComputed: false,
+                        Property: LiteralExpression { Value.IsString: true } propertyLiteral
+                    } namedDelete:
                         if (!TryCompileExpression(namedDelete.Target, builder, out failureReason))
                         {
                             return false;
@@ -424,11 +424,11 @@ internal static class ExpressionProgramCompiler
                         return true;
 
                     case MemberExpression
-                        {
-                            Target: not SuperExpression,
-                            IsOptional: false,
-                            IsComputed: true
-                        } computedDelete:
+                    {
+                        Target: not SuperExpression,
+                        IsOptional: false,
+                        IsComputed: true
+                    } computedDelete:
                         if (!TryCompileExpression(computedDelete.Target, builder, out failureReason))
                         {
                             return false;
@@ -801,7 +801,6 @@ internal static class ExpressionProgramCompiler
         return true;
     }
 
-
     private static bool TryCompileAssignmentExpression(
         AssignmentExpression expression,
         ExpressionProgramBuilder builder,
@@ -862,79 +861,79 @@ internal static class ExpressionProgramCompiler
         switch (binary.Operator)
         {
             case BinaryOperator.LogicalAnd:
-            {
-                builder.Add(resolveOp);
-                builder.Add(loadOp);
-                var shortCircuitIndex = builder.Count;
-                builder.Add(PackedExpressionOp.JumpIfFalse(-1));
-                builder.Add(PackedExpressionOp.Pop);
-
-                if (!TryCompileExpression(binary.Right, builder, out failureReason))
                 {
-                    return false;
-                }
+                    builder.Add(resolveOp);
+                    builder.Add(loadOp);
+                    var shortCircuitIndex = builder.Count;
+                    builder.Add(PackedExpressionOp.JumpIfFalse(-1));
+                    builder.Add(PackedExpressionOp.Pop);
 
-                builder.Add(logicalStoreOp);
-                var endJumpIndex = builder.Count;
-                builder.Add(PackedExpressionOp.Jump(-1));
-                var shortCircuitTarget = builder.Count;
-                builder.Add(popReferenceOp);
-                var endTarget = builder.Count;
-                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfFalse(shortCircuitTarget);
-                builder[endJumpIndex] = PackedExpressionOp.Jump(endTarget);
-                failureReason = null;
-                return true;
-            }
+                    if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                    {
+                        return false;
+                    }
+
+                    builder.Add(logicalStoreOp);
+                    var endJumpIndex = builder.Count;
+                    builder.Add(PackedExpressionOp.Jump(-1));
+                    var shortCircuitTarget = builder.Count;
+                    builder.Add(popReferenceOp);
+                    var endTarget = builder.Count;
+                    builder[shortCircuitIndex] = PackedExpressionOp.JumpIfFalse(shortCircuitTarget);
+                    builder[endJumpIndex] = PackedExpressionOp.Jump(endTarget);
+                    failureReason = null;
+                    return true;
+                }
 
             case BinaryOperator.LogicalOr:
-            {
-                builder.Add(resolveOp);
-                builder.Add(loadOp);
-                var shortCircuitIndex = builder.Count;
-                builder.Add(PackedExpressionOp.JumpIfTrue(-1));
-                builder.Add(PackedExpressionOp.Pop);
-
-                if (!TryCompileExpression(binary.Right, builder, out failureReason))
                 {
-                    return false;
-                }
+                    builder.Add(resolveOp);
+                    builder.Add(loadOp);
+                    var shortCircuitIndex = builder.Count;
+                    builder.Add(PackedExpressionOp.JumpIfTrue(-1));
+                    builder.Add(PackedExpressionOp.Pop);
 
-                builder.Add(logicalStoreOp);
-                var endJumpIndex = builder.Count;
-                builder.Add(PackedExpressionOp.Jump(-1));
-                var shortCircuitTarget = builder.Count;
-                builder.Add(popReferenceOp);
-                var endTarget = builder.Count;
-                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfTrue(shortCircuitTarget);
-                builder[endJumpIndex] = PackedExpressionOp.Jump(endTarget);
-                failureReason = null;
-                return true;
-            }
+                    if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                    {
+                        return false;
+                    }
+
+                    builder.Add(logicalStoreOp);
+                    var endJumpIndex = builder.Count;
+                    builder.Add(PackedExpressionOp.Jump(-1));
+                    var shortCircuitTarget = builder.Count;
+                    builder.Add(popReferenceOp);
+                    var endTarget = builder.Count;
+                    builder[shortCircuitIndex] = PackedExpressionOp.JumpIfTrue(shortCircuitTarget);
+                    builder[endJumpIndex] = PackedExpressionOp.Jump(endTarget);
+                    failureReason = null;
+                    return true;
+                }
 
             case BinaryOperator.NullishCoalescing:
-            {
-                builder.Add(resolveOp);
-                builder.Add(loadOp);
-                var shortCircuitIndex = builder.Count;
-                builder.Add(PackedExpressionOp.JumpIfNotNullish(-1));
-                builder.Add(PackedExpressionOp.Pop);
-
-                if (!TryCompileExpression(binary.Right, builder, out failureReason))
                 {
-                    return false;
-                }
+                    builder.Add(resolveOp);
+                    builder.Add(loadOp);
+                    var shortCircuitIndex = builder.Count;
+                    builder.Add(PackedExpressionOp.JumpIfNotNullish(-1));
+                    builder.Add(PackedExpressionOp.Pop);
 
-                builder.Add(logicalStoreOp);
-                var endJumpIndex = builder.Count;
-                builder.Add(PackedExpressionOp.Jump(-1));
-                var shortCircuitTarget = builder.Count;
-                builder.Add(popReferenceOp);
-                var endTarget = builder.Count;
-                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfNotNullish(shortCircuitTarget);
-                builder[endJumpIndex] = PackedExpressionOp.Jump(endTarget);
-                failureReason = null;
-                return true;
-            }
+                    if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                    {
+                        return false;
+                    }
+
+                    builder.Add(logicalStoreOp);
+                    var endJumpIndex = builder.Count;
+                    builder.Add(PackedExpressionOp.Jump(-1));
+                    var shortCircuitTarget = builder.Count;
+                    builder.Add(popReferenceOp);
+                    var endTarget = builder.Count;
+                    builder[shortCircuitIndex] = PackedExpressionOp.JumpIfNotNullish(shortCircuitTarget);
+                    builder[endJumpIndex] = PackedExpressionOp.Jump(endTarget);
+                    failureReason = null;
+                    return true;
+                }
 
             default:
                 builder.Add(resolveOp);
@@ -1504,61 +1503,61 @@ internal static class ExpressionProgramCompiler
             switch (binary.Operator)
             {
                 case BinaryOperator.LogicalAnd:
-                {
-                    var shortCircuitIndex = builder.Count;
-                    builder.Add(PackedExpressionOp.JumpIfFalse(-1));
-                    builder.Add(PackedExpressionOp.Pop);
-
-                    if (!TryCompileExpression(binary.Right, builder, out failureReason))
                     {
-                        return false;
-                    }
+                        var shortCircuitIndex = builder.Count;
+                        builder.Add(PackedExpressionOp.JumpIfFalse(-1));
+                        builder.Add(PackedExpressionOp.Pop);
 
-                    builder.Add(PackedExpressionOp.SetNamedSuperProperty(
-                        propertyNameIndex,
-                        AllowNameInference: false));
-                    builder[shortCircuitIndex] = PackedExpressionOp.JumpIfFalse(builder.Count);
-                    failureReason = null;
-                    return true;
-                }
+                        if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                        {
+                            return false;
+                        }
+
+                        builder.Add(PackedExpressionOp.SetNamedSuperProperty(
+                            propertyNameIndex,
+                            AllowNameInference: false));
+                        builder[shortCircuitIndex] = PackedExpressionOp.JumpIfFalse(builder.Count);
+                        failureReason = null;
+                        return true;
+                    }
 
                 case BinaryOperator.LogicalOr:
-                {
-                    var shortCircuitIndex = builder.Count;
-                    builder.Add(PackedExpressionOp.JumpIfTrue(-1));
-                    builder.Add(PackedExpressionOp.Pop);
-
-                    if (!TryCompileExpression(binary.Right, builder, out failureReason))
                     {
-                        return false;
-                    }
+                        var shortCircuitIndex = builder.Count;
+                        builder.Add(PackedExpressionOp.JumpIfTrue(-1));
+                        builder.Add(PackedExpressionOp.Pop);
 
-                    builder.Add(PackedExpressionOp.SetNamedSuperProperty(
-                        propertyNameIndex,
-                        AllowNameInference: false));
-                    builder[shortCircuitIndex] = PackedExpressionOp.JumpIfTrue(builder.Count);
-                    failureReason = null;
-                    return true;
-                }
+                        if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                        {
+                            return false;
+                        }
+
+                        builder.Add(PackedExpressionOp.SetNamedSuperProperty(
+                            propertyNameIndex,
+                            AllowNameInference: false));
+                        builder[shortCircuitIndex] = PackedExpressionOp.JumpIfTrue(builder.Count);
+                        failureReason = null;
+                        return true;
+                    }
 
                 case BinaryOperator.NullishCoalescing:
-                {
-                    var shortCircuitIndex = builder.Count;
-                    builder.Add(PackedExpressionOp.JumpIfNotNullish(-1));
-                    builder.Add(PackedExpressionOp.Pop);
-
-                    if (!TryCompileExpression(binary.Right, builder, out failureReason))
                     {
-                        return false;
-                    }
+                        var shortCircuitIndex = builder.Count;
+                        builder.Add(PackedExpressionOp.JumpIfNotNullish(-1));
+                        builder.Add(PackedExpressionOp.Pop);
 
-                    builder.Add(PackedExpressionOp.SetNamedSuperProperty(
-                        propertyNameIndex,
-                        AllowNameInference: false));
-                    builder[shortCircuitIndex] = PackedExpressionOp.JumpIfNotNullish(builder.Count);
-                    failureReason = null;
-                    return true;
-                }
+                        if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                        {
+                            return false;
+                        }
+
+                        builder.Add(PackedExpressionOp.SetNamedSuperProperty(
+                            propertyNameIndex,
+                            AllowNameInference: false));
+                        builder[shortCircuitIndex] = PackedExpressionOp.JumpIfNotNullish(builder.Count);
+                        failureReason = null;
+                        return true;
+                    }
             }
 
             if (!TryCompileExpression(binary.Right, builder, out failureReason))
@@ -1585,76 +1584,76 @@ internal static class ExpressionProgramCompiler
         switch (binary.Operator)
         {
             case BinaryOperator.LogicalAnd:
-            {
-                var shortCircuitIndex = builder.Count;
-                builder.Add(PackedExpressionOp.JumpIfFalse(-1));
-                builder.Add(PackedExpressionOp.Pop);
-
-                if (!TryCompileExpression(binary.Right, builder, out failureReason))
                 {
-                    return false;
+                    var shortCircuitIndex = builder.Count;
+                    builder.Add(PackedExpressionOp.JumpIfFalse(-1));
+                    builder.Add(PackedExpressionOp.Pop);
+
+                    if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                    {
+                        return false;
+                    }
+
+                    builder.Add(PackedExpressionOp.SetNamedProperty(
+                        propertyNameIndex,
+                        AllowNameInference: false));
+                    builder.Add(PackedExpressionOp.DuplicateTop);
+
+                    var shortCircuitStart = builder.Count;
+                    builder[shortCircuitIndex] = PackedExpressionOp.JumpIfFalse(shortCircuitStart);
+                    builder.Add(PackedExpressionOp.SwapTopTwo);
+                    builder.Add(PackedExpressionOp.Pop);
+                    failureReason = null;
+                    return true;
                 }
-
-                builder.Add(PackedExpressionOp.SetNamedProperty(
-                    propertyNameIndex,
-                    AllowNameInference: false));
-                builder.Add(PackedExpressionOp.DuplicateTop);
-
-                var shortCircuitStart = builder.Count;
-                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfFalse(shortCircuitStart);
-                builder.Add(PackedExpressionOp.SwapTopTwo);
-                builder.Add(PackedExpressionOp.Pop);
-                failureReason = null;
-                return true;
-            }
 
             case BinaryOperator.LogicalOr:
-            {
-                var shortCircuitIndex = builder.Count;
-                builder.Add(PackedExpressionOp.JumpIfTrue(-1));
-                builder.Add(PackedExpressionOp.Pop);
-
-                if (!TryCompileExpression(binary.Right, builder, out failureReason))
                 {
-                    return false;
+                    var shortCircuitIndex = builder.Count;
+                    builder.Add(PackedExpressionOp.JumpIfTrue(-1));
+                    builder.Add(PackedExpressionOp.Pop);
+
+                    if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                    {
+                        return false;
+                    }
+
+                    builder.Add(PackedExpressionOp.SetNamedProperty(
+                        propertyNameIndex,
+                        AllowNameInference: false));
+                    builder.Add(PackedExpressionOp.DuplicateTop);
+
+                    var shortCircuitStart = builder.Count;
+                    builder[shortCircuitIndex] = PackedExpressionOp.JumpIfTrue(shortCircuitStart);
+                    builder.Add(PackedExpressionOp.SwapTopTwo);
+                    builder.Add(PackedExpressionOp.Pop);
+                    failureReason = null;
+                    return true;
                 }
-
-                builder.Add(PackedExpressionOp.SetNamedProperty(
-                    propertyNameIndex,
-                    AllowNameInference: false));
-                builder.Add(PackedExpressionOp.DuplicateTop);
-
-                var shortCircuitStart = builder.Count;
-                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfTrue(shortCircuitStart);
-                builder.Add(PackedExpressionOp.SwapTopTwo);
-                builder.Add(PackedExpressionOp.Pop);
-                failureReason = null;
-                return true;
-            }
 
             case BinaryOperator.NullishCoalescing:
-            {
-                var shortCircuitIndex = builder.Count;
-                builder.Add(PackedExpressionOp.JumpIfNotNullish(-1));
-                builder.Add(PackedExpressionOp.Pop);
-
-                if (!TryCompileExpression(binary.Right, builder, out failureReason))
                 {
-                    return false;
+                    var shortCircuitIndex = builder.Count;
+                    builder.Add(PackedExpressionOp.JumpIfNotNullish(-1));
+                    builder.Add(PackedExpressionOp.Pop);
+
+                    if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                    {
+                        return false;
+                    }
+
+                    builder.Add(PackedExpressionOp.SetNamedProperty(
+                        propertyNameIndex,
+                        AllowNameInference: false));
+                    builder.Add(PackedExpressionOp.DuplicateTop);
+
+                    var shortCircuitStart = builder.Count;
+                    builder[shortCircuitIndex] = PackedExpressionOp.JumpIfNotNullish(shortCircuitStart);
+                    builder.Add(PackedExpressionOp.SwapTopTwo);
+                    builder.Add(PackedExpressionOp.Pop);
+                    failureReason = null;
+                    return true;
                 }
-
-                builder.Add(PackedExpressionOp.SetNamedProperty(
-                    propertyNameIndex,
-                    AllowNameInference: false));
-                builder.Add(PackedExpressionOp.DuplicateTop);
-
-                var shortCircuitStart = builder.Count;
-                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfNotNullish(shortCircuitStart);
-                builder.Add(PackedExpressionOp.SwapTopTwo);
-                builder.Add(PackedExpressionOp.Pop);
-                failureReason = null;
-                return true;
-            }
         }
 
         if (!TryCompileExpression(binary.Right, builder, out failureReason))
@@ -1701,76 +1700,76 @@ internal static class ExpressionProgramCompiler
             switch (binary.Operator)
             {
                 case BinaryOperator.LogicalAnd:
-                {
-                    var shortCircuitIndex = builder.Count;
-                    builder.Add(PackedExpressionOp.JumpIfFalse(-1));
-                    builder.Add(PackedExpressionOp.Pop);
-
-                    if (!TryCompileExpression(binary.Right, builder, out failureReason))
                     {
-                        return false;
+                        var shortCircuitIndex = builder.Count;
+                        builder.Add(PackedExpressionOp.JumpIfFalse(-1));
+                        builder.Add(PackedExpressionOp.Pop);
+
+                        if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                        {
+                            return false;
+                        }
+
+                        builder.Add(PackedExpressionOp.SetComputedSuperProperty(AllowNameInference: false));
+                        var endJumpIndex = builder.Count;
+                        builder.Add(PackedExpressionOp.Jump(-1));
+
+                        var shortCircuitStart = builder.Count;
+                        builder[shortCircuitIndex] = PackedExpressionOp.JumpIfFalse(shortCircuitStart);
+                        builder.Add(PackedExpressionOp.SwapTopTwo);
+                        builder.Add(PackedExpressionOp.Pop);
+                        builder[endJumpIndex] = PackedExpressionOp.Jump(builder.Count);
+                        failureReason = null;
+                        return true;
                     }
-
-                    builder.Add(PackedExpressionOp.SetComputedSuperProperty(AllowNameInference: false));
-                    var endJumpIndex = builder.Count;
-                    builder.Add(PackedExpressionOp.Jump(-1));
-
-                    var shortCircuitStart = builder.Count;
-                    builder[shortCircuitIndex] = PackedExpressionOp.JumpIfFalse(shortCircuitStart);
-                    builder.Add(PackedExpressionOp.SwapTopTwo);
-                    builder.Add(PackedExpressionOp.Pop);
-                    builder[endJumpIndex] = PackedExpressionOp.Jump(builder.Count);
-                    failureReason = null;
-                    return true;
-                }
 
                 case BinaryOperator.LogicalOr:
-                {
-                    var shortCircuitIndex = builder.Count;
-                    builder.Add(PackedExpressionOp.JumpIfTrue(-1));
-                    builder.Add(PackedExpressionOp.Pop);
-
-                    if (!TryCompileExpression(binary.Right, builder, out failureReason))
                     {
-                        return false;
+                        var shortCircuitIndex = builder.Count;
+                        builder.Add(PackedExpressionOp.JumpIfTrue(-1));
+                        builder.Add(PackedExpressionOp.Pop);
+
+                        if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                        {
+                            return false;
+                        }
+
+                        builder.Add(PackedExpressionOp.SetComputedSuperProperty(AllowNameInference: false));
+                        var endJumpIndex = builder.Count;
+                        builder.Add(PackedExpressionOp.Jump(-1));
+
+                        var shortCircuitStart = builder.Count;
+                        builder[shortCircuitIndex] = PackedExpressionOp.JumpIfTrue(shortCircuitStart);
+                        builder.Add(PackedExpressionOp.SwapTopTwo);
+                        builder.Add(PackedExpressionOp.Pop);
+                        builder[endJumpIndex] = PackedExpressionOp.Jump(builder.Count);
+                        failureReason = null;
+                        return true;
                     }
-
-                    builder.Add(PackedExpressionOp.SetComputedSuperProperty(AllowNameInference: false));
-                    var endJumpIndex = builder.Count;
-                    builder.Add(PackedExpressionOp.Jump(-1));
-
-                    var shortCircuitStart = builder.Count;
-                    builder[shortCircuitIndex] = PackedExpressionOp.JumpIfTrue(shortCircuitStart);
-                    builder.Add(PackedExpressionOp.SwapTopTwo);
-                    builder.Add(PackedExpressionOp.Pop);
-                    builder[endJumpIndex] = PackedExpressionOp.Jump(builder.Count);
-                    failureReason = null;
-                    return true;
-                }
 
                 case BinaryOperator.NullishCoalescing:
-                {
-                    var shortCircuitIndex = builder.Count;
-                    builder.Add(PackedExpressionOp.JumpIfNotNullish(-1));
-                    builder.Add(PackedExpressionOp.Pop);
-
-                    if (!TryCompileExpression(binary.Right, builder, out failureReason))
                     {
-                        return false;
+                        var shortCircuitIndex = builder.Count;
+                        builder.Add(PackedExpressionOp.JumpIfNotNullish(-1));
+                        builder.Add(PackedExpressionOp.Pop);
+
+                        if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                        {
+                            return false;
+                        }
+
+                        builder.Add(PackedExpressionOp.SetComputedSuperProperty(AllowNameInference: false));
+                        var endJumpIndex = builder.Count;
+                        builder.Add(PackedExpressionOp.Jump(-1));
+
+                        var shortCircuitStart = builder.Count;
+                        builder[shortCircuitIndex] = PackedExpressionOp.JumpIfNotNullish(shortCircuitStart);
+                        builder.Add(PackedExpressionOp.SwapTopTwo);
+                        builder.Add(PackedExpressionOp.Pop);
+                        builder[endJumpIndex] = PackedExpressionOp.Jump(builder.Count);
+                        failureReason = null;
+                        return true;
                     }
-
-                    builder.Add(PackedExpressionOp.SetComputedSuperProperty(AllowNameInference: false));
-                    var endJumpIndex = builder.Count;
-                    builder.Add(PackedExpressionOp.Jump(-1));
-
-                    var shortCircuitStart = builder.Count;
-                    builder[shortCircuitIndex] = PackedExpressionOp.JumpIfNotNullish(shortCircuitStart);
-                    builder.Add(PackedExpressionOp.SwapTopTwo);
-                    builder.Add(PackedExpressionOp.Pop);
-                    builder[endJumpIndex] = PackedExpressionOp.Jump(builder.Count);
-                    failureReason = null;
-                    return true;
-                }
             }
 
             if (!TryCompileExpression(binary.Right, builder, out failureReason))
@@ -1808,76 +1807,76 @@ internal static class ExpressionProgramCompiler
         switch (binary.Operator)
         {
             case BinaryOperator.LogicalAnd:
-            {
-                var shortCircuitIndex = builder.Count;
-                builder.Add(PackedExpressionOp.JumpIfFalse(-1));
-                builder.Add(PackedExpressionOp.Pop);
-
-                if (!TryCompileExpression(binary.Right, builder, out failureReason))
                 {
-                    return false;
+                    var shortCircuitIndex = builder.Count;
+                    builder.Add(PackedExpressionOp.JumpIfFalse(-1));
+                    builder.Add(PackedExpressionOp.Pop);
+
+                    if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                    {
+                        return false;
+                    }
+
+                    builder.Add(PackedExpressionOp.SetComputedProperty(AllowNameInference: false));
+                    builder.Add(PackedExpressionOp.DuplicateTop);
+                    builder.Add(PackedExpressionOp.DuplicateTop);
+
+                    var shortCircuitStart = builder.Count;
+                    builder[shortCircuitIndex] = PackedExpressionOp.JumpIfFalse(shortCircuitStart);
+                    builder.Add(PackedExpressionOp.RotateTopThreeRight);
+                    builder.Add(PackedExpressionOp.Pop);
+                    builder.Add(PackedExpressionOp.Pop);
+                    failureReason = null;
+                    return true;
                 }
-
-                builder.Add(PackedExpressionOp.SetComputedProperty(AllowNameInference: false));
-                builder.Add(PackedExpressionOp.DuplicateTop);
-                builder.Add(PackedExpressionOp.DuplicateTop);
-
-                var shortCircuitStart = builder.Count;
-                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfFalse(shortCircuitStart);
-                builder.Add(PackedExpressionOp.RotateTopThreeRight);
-                builder.Add(PackedExpressionOp.Pop);
-                builder.Add(PackedExpressionOp.Pop);
-                failureReason = null;
-                return true;
-            }
 
             case BinaryOperator.LogicalOr:
-            {
-                var shortCircuitIndex = builder.Count;
-                builder.Add(PackedExpressionOp.JumpIfTrue(-1));
-                builder.Add(PackedExpressionOp.Pop);
-
-                if (!TryCompileExpression(binary.Right, builder, out failureReason))
                 {
-                    return false;
+                    var shortCircuitIndex = builder.Count;
+                    builder.Add(PackedExpressionOp.JumpIfTrue(-1));
+                    builder.Add(PackedExpressionOp.Pop);
+
+                    if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                    {
+                        return false;
+                    }
+
+                    builder.Add(PackedExpressionOp.SetComputedProperty(AllowNameInference: false));
+                    builder.Add(PackedExpressionOp.DuplicateTop);
+                    builder.Add(PackedExpressionOp.DuplicateTop);
+
+                    var shortCircuitStart = builder.Count;
+                    builder[shortCircuitIndex] = PackedExpressionOp.JumpIfTrue(shortCircuitStart);
+                    builder.Add(PackedExpressionOp.RotateTopThreeRight);
+                    builder.Add(PackedExpressionOp.Pop);
+                    builder.Add(PackedExpressionOp.Pop);
+                    failureReason = null;
+                    return true;
                 }
-
-                builder.Add(PackedExpressionOp.SetComputedProperty(AllowNameInference: false));
-                builder.Add(PackedExpressionOp.DuplicateTop);
-                builder.Add(PackedExpressionOp.DuplicateTop);
-
-                var shortCircuitStart = builder.Count;
-                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfTrue(shortCircuitStart);
-                builder.Add(PackedExpressionOp.RotateTopThreeRight);
-                builder.Add(PackedExpressionOp.Pop);
-                builder.Add(PackedExpressionOp.Pop);
-                failureReason = null;
-                return true;
-            }
 
             case BinaryOperator.NullishCoalescing:
-            {
-                var shortCircuitIndex = builder.Count;
-                builder.Add(PackedExpressionOp.JumpIfNotNullish(-1));
-                builder.Add(PackedExpressionOp.Pop);
-
-                if (!TryCompileExpression(binary.Right, builder, out failureReason))
                 {
-                    return false;
+                    var shortCircuitIndex = builder.Count;
+                    builder.Add(PackedExpressionOp.JumpIfNotNullish(-1));
+                    builder.Add(PackedExpressionOp.Pop);
+
+                    if (!TryCompileExpression(binary.Right, builder, out failureReason))
+                    {
+                        return false;
+                    }
+
+                    builder.Add(PackedExpressionOp.SetComputedProperty(AllowNameInference: false));
+                    builder.Add(PackedExpressionOp.DuplicateTop);
+                    builder.Add(PackedExpressionOp.DuplicateTop);
+
+                    var shortCircuitStart = builder.Count;
+                    builder[shortCircuitIndex] = PackedExpressionOp.JumpIfNotNullish(shortCircuitStart);
+                    builder.Add(PackedExpressionOp.RotateTopThreeRight);
+                    builder.Add(PackedExpressionOp.Pop);
+                    builder.Add(PackedExpressionOp.Pop);
+                    failureReason = null;
+                    return true;
                 }
-
-                builder.Add(PackedExpressionOp.SetComputedProperty(AllowNameInference: false));
-                builder.Add(PackedExpressionOp.DuplicateTop);
-                builder.Add(PackedExpressionOp.DuplicateTop);
-
-                var shortCircuitStart = builder.Count;
-                builder[shortCircuitIndex] = PackedExpressionOp.JumpIfNotNullish(shortCircuitStart);
-                builder.Add(PackedExpressionOp.RotateTopThreeRight);
-                builder.Add(PackedExpressionOp.Pop);
-                builder.Add(PackedExpressionOp.Pop);
-                failureReason = null;
-                return true;
-            }
         }
 
         if (!TryCompileExpression(binary.Right, builder, out failureReason))

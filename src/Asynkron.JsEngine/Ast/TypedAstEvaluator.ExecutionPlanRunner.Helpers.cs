@@ -2729,7 +2729,7 @@ public static partial class TypedAstEvaluator
                 var result = ReflectHelper.Construct(callable, arguments, newTargetCallable, context.RealmState);
 
                 var callResultObject = result.Kind == JsValueKind.Object ? result.ObjectValue : null;
-                object? thisAfterSuper = callResultObject;
+                var thisAfterSuper = callResultObject;
                 if (callResultObject is not JsObject && callResultObject is not IJsObjectLike)
                 {
                     thisAfterSuper = superBindingForCall.ThisValue.Kind == JsValueKind.Object

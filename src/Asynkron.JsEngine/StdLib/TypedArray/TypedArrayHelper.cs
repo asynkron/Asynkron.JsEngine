@@ -280,7 +280,7 @@ public static class TypedArrayHelper
                     // Step 5: If length is not undefined, let newLength be ? ToIndex(length).
                     var lengthArg = args.Count > 2 ? args[2] : JsValue.Undefined;
                     var lengthProvided = !lengthArg.IsUndefined;
-                    int newLength = 0;
+                    var newLength = 0;
                     if (lengthProvided)
                     {
                         newLength = ToIndex(lengthArg, realm);

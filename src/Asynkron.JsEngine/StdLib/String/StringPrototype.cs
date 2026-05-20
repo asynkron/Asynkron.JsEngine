@@ -1036,7 +1036,7 @@ public sealed partial class StringPrototype
         // Per spec step 5: Let functionalReplace = IsCallable(replaceValue)
         var functionalReplace = replaceValue.TryGetObject<IJsCallable>(out var replacer);
         // Per spec step 6: If functionalReplace is false, let replaceValue be ? ToString(replaceValue)
-        string? replaceStr = functionalReplace ? null : CoerceToString(replaceValue);
+        var replaceStr = functionalReplace ? null : CoerceToString(replaceValue);
         // Per spec step 8: Let searchLength = the length of searchString
         var searchLength = searchString.Length;
 

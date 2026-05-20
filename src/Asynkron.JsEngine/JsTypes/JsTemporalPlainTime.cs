@@ -191,7 +191,11 @@ public sealed class JsTemporalPlainTime : IEquatable<JsTemporalPlainTime>, IComp
 
         // Wrap around to stay within 24 hours
         var mod = bigNanos % NanosecondsPerDay;
-        if (mod < 0) mod += NanosecondsPerDay;
+        if (mod < 0)
+        {
+            mod += NanosecondsPerDay;
+        }
+
         var totalNanos = (long)mod;
 
         return FromNanoseconds(totalNanos);

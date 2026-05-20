@@ -684,4 +684,72 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
         Assert.Equal("M01", r3);
     }
 
+    [Fact]
+    public async Task ZonedDateTime_With_NonIsoCalendar_Year()
+    {
+        await using var engine = CreateEngine();
+        var r = await engine.Evaluate(@"
+const zdt = new Temporal.ZonedDateTime(1_000_000_000_000_000_000n, 'UTC', 'hebrew');
+const result = zdt.with({ year: 5762 });
+result.year === 5762 && result.month === 12 && result.day === 21");
+        Assert.Equal(true, r);
+    }
+
+    [Fact]
+    public async Task ZonedDateTime_With_NonIsoCalendar_Month()
+    {
+        await using var engine = CreateEngine();
+        var r = await engine.Evaluate(@"
+const zdt = new Temporal.ZonedDateTime(1_000_000_000_000_000_000n, 'UTC', 'hebrew');
+const result = zdt.with({ month: 11 });
+result.year === 5761 && result.month === 11 && result.day === 21");
+        Assert.Equal(true, r);
+    }
+
+    [Fact]
+    public async Task ZonedDateTime_With_SubMinuteOffset_Reject()
+    {
+        await using var engine = CreateEngine();
+        var r = await engine.Evaluate(@"
+const instance = Temporal.ZonedDateTime.from({ year: 1970, month: 1, day: 1, hour: 12, timeZone: 'Africa/Monrovia' });
+let threw = false;
+try { instance.with({ day: 2, offset: '-00:45' }, { offset: 'reject' }); }
+catch (e) { threw = e instanceof RangeError; }
+threw");
+        Assert.Equal(true, r);
+    }
+
+    [Fact]
+    public async Task ZonedDateTime_With_SubMinuteOffset_Ignore()
+    {
+        await using var engine = CreateEngine();
+        var r = await engine.Evaluate(@"
+const instance = Temporal.ZonedDateTime.from({ year: 1970, month: 1, day: 1, hour: 12, timeZone: 'Africa/Monrovia' });
+const result = instance.with({ day: 2, offset: '-00:45' }, { offset: 'ignore' });
+result.epochNanoseconds === 132270_000_000_000n");
+        Assert.Equal(true, r);
+    }
+
+    [Fact]
+    public async Task ZonedDateTime_With_Disambiguation_Compatible_FallBack()
+    {
+        await using var engine = CreateEngine();
+        var r = await engine.Evaluate(@"
+const zdt = new Temporal.ZonedDateTime(972849601_000_000_000n, 'America/Vancouver');
+const result = zdt.with({ hour: 1, minute: 30 }, { offset: 'ignore' });
+result.epochNanoseconds === 972808201_000_000_000n");
+        Assert.Equal(true, r);
+    }
+
+    [Fact]
+    public async Task ZonedDateTime_With_Disambiguation_Compatible_SpringForward()
+    {
+        await using var engine = CreateEngine();
+        var r = await engine.Evaluate(@"
+const zdt = new Temporal.ZonedDateTime(954702001_000_000_000n, 'America/Vancouver');
+const result = zdt.with({ hour: 2, minute: 30 }, { offset: 'ignore' });
+result.epochNanoseconds === 954671401_000_000_000n");
+        Assert.Equal(true, r);
+    }
+
 }

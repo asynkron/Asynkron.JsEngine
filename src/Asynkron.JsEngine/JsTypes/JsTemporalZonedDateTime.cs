@@ -374,9 +374,17 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
             while (pos < annotations.Length)
             {
                 var open = annotations.IndexOf('[', pos);
-                if (open < 0) break;
+                if (open < 0)
+                {
+                    break;
+                }
+
                 var close = annotations.IndexOf(']', open);
-                if (close < 0) break;
+                if (close < 0)
+                {
+                    break;
+                }
+
                 var content = annotations[(open + 1)..close];
                 if (content.StartsWith("u-ca=", StringComparison.Ordinal))
                 {
@@ -451,17 +459,29 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
                 // Date-only: treat as midnight
                 var datePart2 = rest;
                 var lastDash2 = datePart2.LastIndexOf('-');
-                if (lastDash2 <= 0) return null;
+                if (lastDash2 <= 0)
+                {
+                    return null;
+                }
+
                 var secondLastDash2 = datePart2.LastIndexOf('-', lastDash2 - 1);
-                if (secondLastDash2 <= 0) return null;
+                if (secondLastDash2 <= 0)
+                {
+                    return null;
+                }
 
                 if (!int.TryParse(datePart2[..secondLastDash2], CultureInfo.InvariantCulture, out var yearAbs2) ||
                     !int.TryParse(datePart2[(secondLastDash2 + 1)..lastDash2], CultureInfo.InvariantCulture, out var month2) ||
                     !int.TryParse(datePart2[(lastDash2 + 1)..], CultureInfo.InvariantCulture, out var day2))
+                {
                     return null;
+                }
 
                 // Reject negative zero year (-000000)
-                if (sign == -1 && yearAbs2 == 0) return null;
+                if (sign == -1 && yearAbs2 == 0)
+                {
+                    return null;
+                }
 
                 year = sign * yearAbs2;
                 return ComputeInstant(year, month2, day2, "00:00:00".AsSpan());
@@ -478,23 +498,37 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
                 if (!int.TryParse(datePart[..yearLen], CultureInfo.InvariantCulture, out yearAbs) ||
                     !int.TryParse(datePart[yearLen..(yearLen + 2)], CultureInfo.InvariantCulture, out month) ||
                     !int.TryParse(datePart[(yearLen + 2)..], CultureInfo.InvariantCulture, out day))
+                {
                     return null;
+                }
             }
             else
             {
                 var lastDash = datePart.LastIndexOf('-');
-                if (lastDash <= 0) return null;
+                if (lastDash <= 0)
+                {
+                    return null;
+                }
+
                 var secondLastDash = datePart.LastIndexOf('-', lastDash - 1);
-                if (secondLastDash <= 0) return null;
+                if (secondLastDash <= 0)
+                {
+                    return null;
+                }
 
                 if (!int.TryParse(datePart[..secondLastDash], CultureInfo.InvariantCulture, out yearAbs) ||
                     !int.TryParse(datePart[(secondLastDash + 1)..lastDash], CultureInfo.InvariantCulture, out month) ||
                     !int.TryParse(datePart[(lastDash + 1)..], CultureInfo.InvariantCulture, out day))
+                {
                     return null;
+                }
             }
 
             // Reject negative zero year (-000000)
-            if (sign == -1 && yearAbs == 0) return null;
+            if (sign == -1 && yearAbs == 0)
+            {
+                return null;
+            }
 
             year = sign * yearAbs;
             return ComputeInstant(year, month, day, afterDate);
@@ -507,12 +541,17 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
             {
                 // Date-only: treat as midnight (must be exactly YYYY-MM-DD, no trailing offset)
                 var dashParts2 = str.Split('-');
-                if (dashParts2.Length != 3) return null;
+                if (dashParts2.Length != 3)
+                {
+                    return null;
+                }
 
                 if (!int.TryParse(dashParts2[0], CultureInfo.InvariantCulture, out year) ||
                     !int.TryParse(dashParts2[1], CultureInfo.InvariantCulture, out var month2) ||
                     !int.TryParse(dashParts2[2], CultureInfo.InvariantCulture, out var day2))
+                {
                     return null;
+                }
 
                 return ComputeInstant(year, month2, day2, "00:00:00".AsSpan());
             }
@@ -527,17 +566,24 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
                 if (!int.TryParse(datePart[..4], CultureInfo.InvariantCulture, out year) ||
                     !int.TryParse(datePart[4..6], CultureInfo.InvariantCulture, out month) ||
                     !int.TryParse(datePart[6..8], CultureInfo.InvariantCulture, out day))
+                {
                     return null;
+                }
             }
             else
             {
                 var dashParts = datePart.Split('-');
-                if (dashParts.Length < 3) return null;
+                if (dashParts.Length < 3)
+                {
+                    return null;
+                }
 
                 if (!int.TryParse(dashParts[0], CultureInfo.InvariantCulture, out year) ||
                     !int.TryParse(dashParts[1], CultureInfo.InvariantCulture, out month) ||
                     !int.TryParse(dashParts[2], CultureInfo.InvariantCulture, out day))
+                {
                     return null;
+                }
             }
 
             return ComputeInstant(year, month, day, afterDate);
@@ -552,7 +598,9 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
         for (var i = 0; i < str.Length; i++)
         {
             if (str[i] is 'T' or 't' or ' ')
+            {
                 return i;
+            }
         }
 
         return -1;
@@ -608,7 +656,11 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
                     second = int.Parse(secStr[..dotIdx], CultureInfo.InvariantCulture);
                     var frac = secStr[(dotIdx + 1)..];
                     frac = frac.PadRight(9, '0');
-                    if (frac.Length > 9) frac = frac[..9];
+                    if (frac.Length > 9)
+                    {
+                        frac = frac[..9];
+                    }
+
                     subSecondNanos = long.Parse(frac, CultureInfo.InvariantCulture);
                 }
                 else
@@ -627,7 +679,11 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
                 digits = timePart[..dotIdx];
                 var frac = timePart[(dotIdx + 1)..];
                 frac = frac.PadRight(9, '0');
-                if (frac.Length > 9) frac = frac[..9];
+                if (frac.Length > 9)
+                {
+                    frac = frac[..9];
+                }
+
                 subSecondNanos = long.Parse(frac, CultureInfo.InvariantCulture);
             }
             else
@@ -642,7 +698,9 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
 
         // Clamp leap second (60) to 59 per Temporal spec
         if (second == 60)
+        {
             second = 59;
+        }
 
         // Compute epoch nanoseconds
         var epochDays = IsoCalendarHelpers.DateToEpochDays(year, month, day);
@@ -655,7 +713,10 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
 
         // Validate epoch nanos range: -8.64e21 to 8.64e21
         var maxNanos = new BigInteger(8_640_000_000_000_000_000L) * 1000L;
-        if (epochNanos < -maxNanos || epochNanos > maxNanos) return null;
+        if (epochNanos < -maxNanos || epochNanos > maxNanos)
+        {
+            return null;
+        }
 
         return new JsTemporalInstant(epochNanos);
     }
@@ -690,14 +751,23 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
         if (datePart.Contains('-'))
         {
             var lastDash = datePart.LastIndexOf('-');
-            if (lastDash <= 0) return null;
+            if (lastDash <= 0)
+            {
+                return null;
+            }
+
             var secondLastDash = datePart.LastIndexOf('-', lastDash - 1);
-            if (secondLastDash <= 0) return null;
+            if (secondLastDash <= 0)
+            {
+                return null;
+            }
 
             if (!int.TryParse(datePart[..secondLastDash], CultureInfo.InvariantCulture, out var yearAbs) ||
                 !int.TryParse(datePart[(secondLastDash + 1)..lastDash], CultureInfo.InvariantCulture, out var month) ||
                 !int.TryParse(datePart[(lastDash + 1)..], CultureInfo.InvariantCulture, out var day))
+            {
                 return null;
+            }
 
             year = sign * yearAbs;
             return IsoCalendarHelpers.DateToEpochDays(year, month, day);
@@ -710,7 +780,9 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
             if (!int.TryParse(datePart[..yearLen], CultureInfo.InvariantCulture, out var yearAbs) ||
                 !int.TryParse(datePart[yearLen..(yearLen + 2)], CultureInfo.InvariantCulture, out var month) ||
                 !int.TryParse(datePart[(yearLen + 2)..], CultureInfo.InvariantCulture, out var day))
+            {
                 return null;
+            }
 
             year = sign * yearAbs;
             return IsoCalendarHelpers.DateToEpochDays(year, month, day);
@@ -784,12 +856,16 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
     {
         // Check for trailing Z/z
         if (str.Length > 0 && (str[^1] == 'Z' || str[^1] == 'z'))
+        {
             return true;
+        }
 
         // Find the T/t separator
         var tIdx = FindDateTimeSeparator(str);
         if (tIdx < 0)
+        {
             return false;
+        }
 
         var timePart = str[(tIdx + 1)..];
 
@@ -798,7 +874,9 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
         {
             if ((timePart[i] == '+' || timePart[i] == '-') &&
                 i + 1 < timePart.Length && char.IsDigit(timePart[i + 1]))
+            {
                 return true;
+            }
         }
 
         return false;

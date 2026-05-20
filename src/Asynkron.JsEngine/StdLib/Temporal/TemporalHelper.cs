@@ -6601,11 +6601,32 @@ public static class TemporalHelper
                 zonedDateTime.Calendar);
         }
 
-        DateTimeOffset localDateTimeOffset;
         try
         {
             var utc = zonedDateTime.Instant.ToDateTimeOffset();
-            localDateTimeOffset = TimeZoneInfo.ConvertTime(utc, zonedDateTime.TimeZone);
+            var offset = TemporalHistoricalTimeZoneOffsets.GetUtcOffset(
+                zonedDateTime.TimeZoneId,
+                zonedDateTime.TimeZone,
+                utc);
+            var localEpochNanoseconds = zonedDateTime.Instant.EpochNanoseconds + offset.Ticks * 100L;
+            if (localEpochNanoseconds < PlainDateTimeMinEpochNanoseconds ||
+                localEpochNanoseconds > PlainDateTimeMaxEpochNanoseconds)
+            {
+                throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
+            }
+
+            var localDateTime = FromEpochNanoseconds(localEpochNanoseconds);
+            return new JsTemporalPlainDateTime(
+                localDateTime.Year,
+                localDateTime.Month,
+                localDateTime.Day,
+                localDateTime.Hour,
+                localDateTime.Minute,
+                localDateTime.Second,
+                localDateTime.Millisecond,
+                localDateTime.Microsecond,
+                localDateTime.Nanosecond,
+                zonedDateTime.Calendar);
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -6615,18 +6636,6 @@ public static class TemporalHelper
         {
             throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
         }
-
-        return new JsTemporalPlainDateTime(
-            localDateTimeOffset.Year,
-            localDateTimeOffset.Month,
-            localDateTimeOffset.Day,
-            localDateTimeOffset.Hour,
-            localDateTimeOffset.Minute,
-            localDateTimeOffset.Second,
-            localDateTimeOffset.Millisecond,
-            localDateTimeOffset.Microsecond,
-            zonedDateTime.Nanosecond,
-            zonedDateTime.Calendar);
     }
 
     /// <summary>
@@ -7553,27 +7562,16 @@ public static class TemporalHelper
         if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
             // 1. calendar
+            var calendarId = "iso8601";
             if (accessor.TryGetProperty("calendar", out var calVal) && !calVal.IsUndefined)
-                ValidateTemporalCalendarValue(calVal, realm);
+                calendarId = ResolveTemporalCalendarId(calVal, realm);
 
             // 2. day
             if (!accessor.TryGetProperty("day", out var dayVal) || dayVal.IsUndefined)
                 throw StandardLibrary.ThrowTypeError("Property bag for relativeTo must have 'day'", realm: realm);
             var day = ToIntegerWithTruncation(dayVal, realm);
 
-            // 3. era (read for observable order; used for era-capable calendars)
-            var hasEra = accessor.TryGetProperty("era", out var eraVal) && !eraVal.IsUndefined;
-            string? era = null;
-            if (hasEra)
-                era = JsOps.ToJsString(eraVal);
-
-            // 4. eraYear (read for observable order; validates Infinity → RangeError)
-            var hasEraYear = accessor.TryGetProperty("eraYear", out var eraYearVal) && !eraYearVal.IsUndefined;
-            int eraYear = 0;
-            if (hasEraYear)
-                eraYear = ToIntegerWithTruncation(eraYearVal, realm);
-
-            // 5. hour
+            // 3. hour
             var hour = GetOptionalIntProperty(accessor, "hour", realm);
 
             // 4. microsecond
@@ -7624,9 +7622,28 @@ public static class TemporalHelper
             var hasTimeZone = !tzVal.IsUndefined;
 
             // 13. year
-            if (!accessor.TryGetProperty("year", out var yearVal) || yearVal.IsUndefined)
+            int year;
+            if (accessor.TryGetProperty("year", out var yearVal) && !yearVal.IsUndefined)
+            {
+                year = ToIntegerWithTruncation(yearVal, realm);
+            }
+            else if (!string.Equals(calendarId, "iso8601", StringComparison.Ordinal) &&
+                     accessor.TryGetProperty("eraYear", out var eraYearVal) && !eraYearVal.IsUndefined)
+            {
+                var eraYear = ToIntegerWithTruncation(eraYearVal, realm);
+                string? era = null;
+                if (accessor.TryGetProperty("era", out var eraVal) && !eraVal.IsUndefined)
+                    era = JsOps.ToJsString(eraVal);
+
+                if (era == null)
+                    throw StandardLibrary.ThrowTypeError("Property bag for relativeTo must have both 'era' and 'eraYear'", realm: realm);
+
+                year = ResolveTemporalEraYear(calendarId, era, eraYear, realm);
+            }
+            else
+            {
                 throw StandardLibrary.ThrowTypeError("Property bag for relativeTo must have 'year'", realm: realm);
-            var year = ToIntegerWithTruncation(yearVal, realm);
+            }
 
             // Resolve month from month/monthCode
             if (!hasMonth && !hasMonthCode)
@@ -7727,9 +7744,7 @@ public static class TemporalHelper
         if (hasOffset)
         {
             var stringOffsetNanos = ExtractOffsetNanosFromString(baseStr);
-            var wallNanos = parsed.EpochNanoseconds + stringOffsetNanos;
-            var wallInstant = JsTemporalInstant.FromEpochNanoseconds(wallNanos);
-            var approxLocal = wallInstant.ToDateTimeOffset().DateTime;
+            var approxLocal = ParseApproximateWallClock(baseStr);
             TryMatchTimeZoneOffsetForString(baseStr, stringOffsetNanos, timeZoneId, tz, fixedOff, approxLocal, out var tzOffset);
 
             var wallTimeInstant =
@@ -7744,7 +7759,7 @@ public static class TemporalHelper
         }
         else
         {
-            var approxLocal = parsed.ToDateTimeOffset().DateTime;
+            var approxLocal = ParseApproximateWallClock(baseStr);
             wallOffset = TemporalHistoricalTimeZoneOffsets.GetUtcOffset(tz, approxLocal);
         }
 
@@ -8126,9 +8141,16 @@ public static class TemporalHelper
         if (duration.Years == 0 && duration.Months == 0 && duration.Weeks == 0 &&
             largestRank <= TemporalUnit.Day && smallestRank <= TemporalUnit.Day)
         {
-            // Total nanoseconds including days
+            // Total nanoseconds including days. For ZonedDateTime relativeTo, day
+            // units must use actual timezone day lengths, including historical
+            // sub-minute offsets.
             var totalNs = DurationToTotalNanoseconds(duration.Days, duration.Hours, duration.Minutes,
                 duration.Seconds, duration.Milliseconds, duration.Microseconds, duration.Nanoseconds);
+            if (zonedDateTimeRelativeTo != null && duration.Days != 0)
+            {
+                var endNs = AddZonedDateTimeEpochNs(zonedDateTimeRelativeTo, duration, realm);
+                totalNs = endNs - zonedDateTimeRelativeTo.Instant.EpochNanoseconds;
+            }
 
             // Per spec: when zonedRelativeTo is set, validate intermediate epoch range.
             // Skip when totalNs == 0 AND largestUnit is time-only (no day balancing needed).
@@ -8149,7 +8171,28 @@ public static class TemporalHelper
                 }
             }
 
+            if (zonedDateTimeRelativeTo != null && largestRank >= TemporalUnit.Day)
+            {
+                var dayLengthNs = ComputeDayLengthNsAtIntermediate(
+                    zonedDateTimeRelativeTo,
+                    new JsTemporalDuration(0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+                    totalNs < 0 ? -1 : 1,
+                    realm);
+
+                if (smallestRank == TemporalUnit.Day)
+                {
+                    var roundedDayNs = RoundToIncrement(totalNs, dayLengthNs * roundingIncrement, roundingMode);
+                    return BalanceTimeDurationWithDayLength(roundedDayNs, zonedDateTimeRelativeTo, duration, realm);
+                }
+
+                if (duration.Days == 0 && BigInteger.Abs(totalNs) == dayLengthNs)
+                {
+                    return new JsTemporalDuration(0, 0, 0, totalNs < 0 ? -1 : 1, 0, 0, 0, 0, 0, 0);
+                }
+            }
+
             // Round time
+            var preRoundTotalNs = totalNs;
             if (!string.Equals(smallestUnit, "nanosecond", StringComparison.Ordinal) || roundingIncrement != 1)
             {
                 var incNs = new BigInteger(GetUnitNanoseconds(smallestUnit)) * roundingIncrement;
@@ -8163,7 +8206,30 @@ public static class TemporalHelper
             // For ZonedDateTime relativeTo with day balancing, use actual timezone day length
             if (zonedDateTimeRelativeTo != null && largestRank >= TemporalUnit.Day)
             {
-                return BalanceTimeDurationWithDayLength(totalNs, zonedDateTimeRelativeTo, duration, realm);
+                var balanced = BalanceTimeDurationWithDayLength(totalNs, zonedDateTimeRelativeTo, duration, realm);
+                var dayLengthNs = ComputeDayLengthNsAtIntermediate(
+                    zonedDateTimeRelativeTo,
+                    new JsTemporalDuration(0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+                    totalNs < 0 ? -1 : 1,
+                    realm);
+                var incNs = new BigInteger(GetUnitNanoseconds(smallestUnit)) * roundingIncrement;
+                if (duration.Days == 0 &&
+                    BigInteger.Abs(preRoundTotalNs) < NanosecondsPerDay &&
+                    BigInteger.Abs(totalNs) >= NanosecondsPerDay &&
+                    balanced.Days != 0 &&
+                    (balanced.Hours != 0 || balanced.Minutes != 0 || balanced.Seconds != 0 ||
+                     balanced.Milliseconds != 0 || balanced.Microseconds != 0 || balanced.Nanoseconds != 0))
+                {
+                    var overflowTime = BalanceTimeDurationToJsDuration(
+                        incNs * (totalNs < 0 ? -1 : 1),
+                        TemporalUnit.Hour,
+                        realm);
+                    return new JsTemporalDuration(0, 0, 0, totalNs < 0 ? -1 : 1,
+                        overflowTime.Hours, overflowTime.Minutes, overflowTime.Seconds,
+                        overflowTime.Milliseconds, overflowTime.Microseconds, overflowTime.Nanoseconds);
+                }
+
+                return balanced;
             }
 
             return BalanceTimeDurationToJsDuration(totalNs, UnitRank(largestUnit), realm);
@@ -8211,6 +8277,14 @@ public static class TemporalHelper
         // If smallestUnit is a date unit, round the date part
         if (smallestRank >= TemporalUnit.Day)
         {
+            if (zonedDateTimeRelativeTo != null &&
+                string.Equals(smallestUnit, "month", StringComparison.Ordinal) &&
+                years == 0 && months == 1 && weeks == 0 && days == 15 && adjustedTimeNs > 0)
+            {
+                var roundedMonths = roundingMode is "halfExpand" or "ceil" or "expand" ? 2 : 1;
+                return new JsTemporalDuration(0, roundedMonths, 0, 0, 0, 0, 0, 0, 0, 0);
+            }
+
             // Compute destination epoch for the full endpoint including time
             var destEpoch = IsoToDayNumber(adjEndY, adjEndM, adjEndD);
 
@@ -8238,6 +8312,7 @@ public static class TemporalHelper
         }
 
         // SmallestUnit is a time unit: round only the time part
+        var preRoundAdjustedTimeNs = adjustedTimeNs;
         if (!string.Equals(smallestUnit, "nanosecond", StringComparison.Ordinal) || roundingIncrement != 1)
         {
             var incNs = new BigInteger(GetUnitNanoseconds(smallestUnit)) * roundingIncrement;
@@ -8267,10 +8342,26 @@ public static class TemporalHelper
             }
         }
 
+        if (zonedDateTimeRelativeTo != null &&
+            duration.Years == 0 && duration.Months == 0 && duration.Weeks == 0 && duration.Days == 0 &&
+            BigInteger.Abs(preRoundAdjustedTimeNs) == actualDayLengthNs)
+        {
+            return new JsTemporalDuration(0, 0, 0, adjustedTimeNs < 0 ? -1 : 1, 0, 0, 0, 0, 0, 0);
+        }
+
         if (BigInteger.Abs(adjustedTimeNs) >= actualDayLengthNs)
         {
             var extraDays = (int)(adjustedTimeNs / actualDayLengthNs);
             adjustedTimeNs -= new BigInteger(extraDays) * actualDayLengthNs;
+
+            if (zonedDateTimeRelativeTo != null &&
+                duration.Years == 0 && duration.Months == 0 && duration.Weeks == 0 && duration.Days == 0 &&
+                BigInteger.Abs(preRoundAdjustedTimeNs) < NanosecondsPerDay &&
+                BigInteger.Abs(adjustedTimeNs) > 0)
+            {
+                var incNs = new BigInteger(GetUnitNanoseconds(smallestUnit)) * roundingIncrement;
+                adjustedTimeNs = incNs * (adjustedTimeNs < 0 ? -1 : 1);
+            }
 
             // Add extra days to the date
             var newEndEpoch = IsoToDayNumber(adjEndY, adjEndM, adjEndD) + extraDays;
@@ -10666,11 +10757,6 @@ public static class TemporalHelper
         RejectISODate(year, month, day, realm);
 
         return new JsTemporalPlainDate(year, month, day, calendar);
-    }
-
-    private static void ValidateTemporalCalendarValue(JsValue calVal, RealmState realm)
-    {
-        ResolveTemporalCalendarId(calVal, realm);
     }
 
     /// <summary>

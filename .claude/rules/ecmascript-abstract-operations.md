@@ -113,6 +113,11 @@ host-runtime shortcuts.
     hour-cycle formatting helpers. `h23` and `h24` numeric hours still need the
     same zero-padding behavior as the epoch/proleptic DateTimeFormat paths; do
     not fix Temporal output with a Temporal-only string special case.
+22. For Temporal duration rounding, do not hard-code midpoint tie behavior in
+    special calendar or ZonedDateTime branches. Route midpoint decisions through
+    the shared rounding abstract operation helper so every rounding mode,
+    including `halfCeil`, `halfFloor`, `halfTrunc`, and odd-quotient
+    `halfEven`, keeps the same semantics as the generic path.
 
 ## Why
 
@@ -272,3 +277,14 @@ and prove hour-cycle output with the focused
 
 Related ADR:
 `docs/adrs/0049-keep-temporal-plaindatetime-locale-hours-on-shared-hourcycle-formatting.md`.
+
+Issue #834 / PR #1135 fixed `Temporal.Duration.prototype.round` after the
+ZonedDateTime month midpoint fast path initially collapsed rounding modes into
+a small hand-written list. Review caught that `halfCeil` and odd-quotient
+`halfEven` did not match the shared `RoundToIncrement` tie semantics. Future
+Temporal rounding work should use the shared rounding helper for midpoint
+branches and prove the focused `Name=Temporal_Duration_prototype_round`
+Test262 method group before widening.
+
+Related ADR:
+`docs/adrs/0054-keep-temporal-duration-rounding-ties-shared.md`.

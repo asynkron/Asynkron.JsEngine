@@ -315,6 +315,44 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
     }
 
     [Fact]
+    public async Task Temporal_PlainMonthDay_Constructor_AcceptsSupportedNonIsoCalendars()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            [
+                'coptic',
+                'ethioaa',
+                'ethiopic',
+                'indian',
+                'islamic',
+                'islamic-rgsa',
+            ].map(calendar => {
+                try {
+                    new Temporal.PlainMonthDay(10, 15, calendar);
+                    return 'ok';
+                } catch (e) {
+                    return e.constructor.name;
+                }
+            }).join(',');
+        ");
+
+        Assert.Equal("ok,ok,ok,ok,ok,ok", result);
+    }
+
+    [Fact]
+    public async Task Temporal_PlainMonthDay_Equals_NormalizesNonIsoReferenceDates()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            const one = Temporal.PlainMonthDay.from('1972-10-11[u-ca=coptic]');
+            const two = Temporal.PlainMonthDay.from('1973-10-12[u-ca=coptic]');
+            one.equals(two);
+        ");
+
+        Assert.Equal(true, result);
+    }
+
+    [Fact]
     public async Task Temporal_PlainMonthDay_ToString()
     {
         await using var engine = CreateEngine();

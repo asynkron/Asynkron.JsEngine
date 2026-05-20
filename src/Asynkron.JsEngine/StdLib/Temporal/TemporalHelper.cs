@@ -3768,6 +3768,10 @@ public static class TemporalHelper
             }
             if (string.Equals(showCalendar, "never", StringComparison.Ordinal))
             {
+                if (!string.Equals(md.Calendar, "iso8601", StringComparison.Ordinal))
+                {
+                    return new JsValue(md.ToStringReferenceDate());
+                }
                 return new JsValue(md.ToStringBasic());
             }
             // "auto" mode per spec TemporalMonthDayToString:

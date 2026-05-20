@@ -294,6 +294,17 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
     }
 
     [Fact]
+    public async Task Temporal_PlainMonthDay_ToString_CalendarNameNever_PreservesNonIsoReferenceDate()
+    {
+        await using var engine = CreateEngine();
+        var iso = await engine.Evaluate("new Temporal.PlainMonthDay(5, 2).toString({ calendarName: 'never' })");
+        var gregory = await engine.Evaluate("new Temporal.PlainMonthDay(5, 2, 'gregory').toString({ calendarName: 'never' })");
+
+        Assert.Equal("05-02", iso);
+        Assert.Equal("1972-05-02", gregory);
+    }
+
+    [Fact]
     public async Task Temporal_PlainMonthDay_MonthCode()
     {
         await using var engine = CreateEngine();

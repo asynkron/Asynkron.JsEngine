@@ -125,7 +125,15 @@ host-runtime shortcuts.
     supplied, resolve supplied `monthCode` in the receiver calendar and target
     calendar year, and convert to internal ISO storage only after
     calendar-field merge and overflow handling.
-24. For `Temporal.PlainMonthDay.from` property bags, keep ISO field reads in
+24. For `Temporal.PlainDate.prototype.until` and adjacent PlainDate difference
+    work, matching BCL-backed non-ISO calendars must compute month and year
+    largest-unit differences in calendar space, not through ISO month/year
+    arithmetic over the stored ISO projection. Convert endpoints to
+    calendar-visible fields before balancing months or years, keep day/week
+    largest-unit behavior on elapsed ISO dates unless the spec path says
+    otherwise, and resolve PlainDate property-bag `monthCode` values through the
+    resolved calendar/year for leap-month-aware calendars.
+25. For `Temporal.PlainMonthDay.from` property bags, keep ISO field reads in
     observable spec order and keep era reads calendar-dependent. ISO bags must
     read `calendar`, `day`, `month`, `monthCode`, `year`, then options; they
     must not observe `era` or `eraYear` getters. Non-ISO paths may read
@@ -324,6 +332,19 @@ with the `non-iso-calendar-fields.js` fixture.
 
 Related ADR:
 `docs/adrs/0055-keep-temporal-plaindatetime-with-calendar-date-fields.md`.
+
+Issue #842 / PR #1163 fixed `Temporal.PlainDate.prototype.until` after matching
+Chinese lunisolar PlainDate endpoints were accepted as non-ISO calendars but
+balanced month/year largest units through ISO date arithmetic. The durable
+lesson is that PlainDate difference has two unit domains: day/week counts can
+stay elapsed ISO-date differences, while month/year largest units must use the
+resolved calendar's visible year/month/day fields for BCL-backed non-ISO
+calendars. Future PlainDate difference work should prove the focused
+`Name=Temporal_PlainDate_prototype_until` Test262 method group, starting with
+the lunisolar leap-month fixture.
+
+Related ADR:
+`docs/adrs/0058-keep-temporal-plaindate-difference-calendar-unit-arithmetic-owned.md`.
 
 Issue #844 / PR #1162 fixed `Temporal.PlainMonthDay.from` after ISO property
 bags observed `era` and `eraYear` reads before `month`, `monthCode`, `year`,

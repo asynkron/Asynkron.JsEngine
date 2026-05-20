@@ -63,7 +63,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext context,
             out JsValue returnValue)
         {
-            if (!context.AllowIdentifierCache)
+            if (!context.AllowIdentifierCache || environment.HasWithObjectInChain())
             {
                 var reference = environment.ResolveIdentifierAssignmentReference(instruction.TargetSymbol, context);
                 var currentValue = reference.GetJsValue();
@@ -250,7 +250,7 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                if (!context.AllowIdentifierCache)
+                if (!context.AllowIdentifierCache || environment.HasWithObjectInChain())
                 {
                     dynamicReference = environment.ResolveIdentifierAssignmentReference(instruction.TargetSymbol, context);
                     currentValue = dynamicReference.Value.GetJsValue();
@@ -415,7 +415,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext context,
             out JsValue returnValue)
         {
-            if (!context.AllowIdentifierCache)
+            if (!context.AllowIdentifierCache || environment.HasWithObjectInChain())
             {
                 var reference = environment.ResolveIdentifierAssignmentReference(instruction.TargetSymbol, context);
                 var currentValue = reference.GetJsValue();

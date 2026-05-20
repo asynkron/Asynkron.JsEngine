@@ -309,6 +309,85 @@ public sealed class WithStatementTests(ITestOutputHelper output) : InternalTestB
         AssertLogContainsInOrder(logArray, "has:p", "get:p", "set:p");
     }
 
+    [Fact(Timeout = 2000)]
+    public async Task With_BreakLeavesObjectEnvironmentBeforeOuterIdentifierRead()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            this.p1 = 1;
+            var scope = { p1: "scope" };
+
+            do {
+                with (scope) {
+                    p1 = "updated";
+                    break;
+                }
+            } while (false);
+
+            [p1, scope.p1];
+            """);
+
+        var array = Assert.IsType<JsArray>(result);
+        Assert.Equal(1d, array.GetElement(0).ToObject());
+        Assert.Equal("updated", array.GetElement(1).ToObject());
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task With_ProxySimpleAndCompoundAssignmentsRecheckBindingBeforeSet()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const log = [];
+            const target = { p: 0 };
+            const proxy = new Proxy(target, {
+                has(obj, key) {
+                    log.push(`has:${String(key)}`);
+                    return Reflect.has(obj, key);
+                },
+                get(obj, key, receiver) {
+                    log.push(`get:${String(key)}`);
+                    return Reflect.get(obj, key, receiver);
+                },
+                set(obj, key, value, receiver) {
+                    log.push(`set:${String(key)}`);
+                    return Reflect.set(obj, key, value, receiver);
+                },
+                getOwnPropertyDescriptor(obj, key) {
+                    log.push(`getOwnPropertyDescriptor:${String(key)}`);
+                    return Reflect.getOwnPropertyDescriptor(obj, key);
+                },
+                defineProperty(obj, key, desc) {
+                    log.push(`defineProperty:${String(key)}`);
+                    return Reflect.defineProperty(obj, key, desc);
+                }
+            });
+
+            with (proxy) {
+                p = 1;
+                p += 2;
+            }
+
+            [target.p, log];
+            """);
+
+        var array = Assert.IsType<JsArray>(result);
+        Assert.Equal(3d, array.GetElement(0).ToObject());
+
+        var logArray = Assert.IsType<JsArray>(array.GetElement(1).ToObject());
+        AssertLogContainsInOrder(
+            logArray,
+            "has:p",
+            "get:Symbol(Symbol.unscopables)",
+            "has:p",
+            "set:p",
+            "has:p",
+            "get:Symbol(Symbol.unscopables)",
+            "has:p",
+            "get:p",
+            "has:p",
+            "set:p");
+    }
+
     private static void AssertLogContainsInOrder(JsArray logArray, params string[] expected)
     {
         var matches = 0;

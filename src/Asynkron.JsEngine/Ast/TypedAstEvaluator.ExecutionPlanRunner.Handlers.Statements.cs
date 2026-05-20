@@ -91,8 +91,9 @@ public static partial class TypedAstEvaluator
             // resolve the LHS assignment reference BEFORE evaluating the RHS.
             // This ensures RHS side effects cannot create/delete a global object
             // property and change whether the LHS was originally resolvable.
-            var usePreResolvedRef = instruction.FlatSlotId < 0
-                && instruction.ScopeId < 0;
+            var usePreResolvedRef = !context.AllowIdentifierCache ||
+                                    environment.HasWithObjectInChain() ||
+                                    (instruction.FlatSlotId < 0 && instruction.ScopeId < 0);
 
             var lhsRef = usePreResolvedRef
                 ? environment.ResolveIdentifierAssignmentReference(instruction.TargetSymbol, context)

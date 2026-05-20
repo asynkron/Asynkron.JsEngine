@@ -106,7 +106,21 @@ internal sealed class EmitContext(
     {
         if (scopeId >= 0)
         {
-            _scopeStack.Push(new ScopeFrame(scopeId, allowPooling));
+            _scopeStack.Push(new ScopeFrame(scopeId, allowPooling, null));
+        }
+    }
+
+    public void PushWithScope(Symbol withScopeSlot)
+    {
+        _scopeStack.Push(new ScopeFrame(-1, false, withScopeSlot));
+    }
+
+    public void PopWithScope(Symbol withScopeSlot)
+    {
+        if (_scopeStack.Count > 0 &&
+            ReferenceEquals(_scopeStack.Peek().WithScopeSlot, withScopeSlot))
+        {
+            _scopeStack.Pop();
         }
     }
 
@@ -125,7 +139,7 @@ internal sealed class EmitContext(
 
     public int BuildScopeExitTarget(int targetIndex, int targetScopeId)
     {
-        if (targetScopeId < 0 || _scopeStack.Count == 0)
+        if (_scopeStack.Count == 0)
         {
             return targetIndex;
         }
@@ -134,7 +148,7 @@ internal sealed class EmitContext(
         List<ScopeFrame>? scopesToPop = null;
         foreach (var scope in _scopeStack)
         {
-            if (scope.ScopeId == targetScopeId)
+            if (targetScopeId >= 0 && scope.ScopeId == targetScopeId)
             {
                 break;
             }
@@ -151,7 +165,9 @@ internal sealed class EmitContext(
         for (var i = scopesToPop.Count - 1; i >= 0; i--)
         {
             var scope = scopesToPop[i];
-            exitTarget = Append(new PopEnvironmentInstruction(scope.ScopeId, scope.AllowPooling, exitTarget));
+            exitTarget = scope.WithScopeSlot is not null
+                ? Append(new LeaveWithInstruction(scope.WithScopeSlot, exitTarget))
+                : Append(new PopEnvironmentInstruction(scope.ScopeId, scope.AllowPooling, exitTarget));
         }
 
         return exitTarget;
@@ -485,5 +501,5 @@ internal sealed class EmitContext(
         }
     }
 
-    private readonly record struct ScopeFrame(int ScopeId, bool AllowPooling);
+    private readonly record struct ScopeFrame(int ScopeId, bool AllowPooling, Symbol? WithScopeSlot);
 }

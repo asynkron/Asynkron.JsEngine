@@ -1434,13 +1434,25 @@ public sealed class JsEnvironment : IRentable
     internal AssignmentReference ResolveIdentifierAssignmentReference(Symbol name, EvaluationContext context)
     {
         var strictContext = IsStrict || context.CurrentScope.IsStrict || context.IsStrictSource;
+        var hasWithObject = HasWithObjectInChain();
+
+        if (hasWithObject && TryResolveWithBinding(name, context, out var dynamicWithBinding))
+        {
+            return AssignmentReference.ForWithBinding(
+                dynamicWithBinding,
+                this,
+                name,
+                context,
+                strictContext);
+        }
 
         if (TryGetCachedDeclarativeBinding(name, context, out var cached))
         {
             return AssignmentReference.ForDeclarativeBinding(cached, name, context, strictContext);
         }
 
-        if (!context.AllowIdentifierCache && TryResolveWithBinding(name, context, out var withBinding))
+        if (!context.AllowIdentifierCache && !hasWithObject &&
+            TryResolveWithBinding(name, context, out var withBinding))
         {
             return AssignmentReference.ForWithBinding(
                 withBinding,
@@ -1578,6 +1590,13 @@ public sealed class JsEnvironment : IRentable
             return true;
         }
 
+        var hasWithObject = HasWithObjectInChain();
+        if (hasWithObject && TryResolveWithBinding(name, context, out var dynamicWithBinding))
+        {
+            value = GetWithBindingValueJsValue(dynamicWithBinding);
+            return true;
+        }
+
         if (TryGetCachedDeclarativeBinding(name, context, out var cached))
         {
             value = cached.ReadJsValue(context);
@@ -1585,9 +1604,36 @@ public sealed class JsEnvironment : IRentable
         }
 
         // Fast path: skip TryResolveWithBinding when AllowIdentifierCache is true (no with/eval in scope)
-        if (!context.AllowIdentifierCache && TryResolveWithBinding(name, context, out var withBinding))
+        if (!context.AllowIdentifierCache && !hasWithObject &&
+            TryResolveWithBinding(name, context, out var withBinding))
         {
             value = GetWithBindingValueJsValue(withBinding);
+            return true;
+        }
+
+        if (TryLocateBinding(name, out var bindingEnvironment, out _))
+        {
+            var cachedBinding = new ResolvedIdentifierBinding(bindingEnvironment, name);
+            CacheDeclarativeBinding(name, cachedBinding, context);
+            value = cachedBinding.ReadJsValue(context);
+            return true;
+        }
+
+        if (TryResolveGlobalObjectBinding(name, context, out var globalBinding))
+        {
+            value = GetWithBindingValueJsValue(globalBinding);
+            return true;
+        }
+
+        value = default;
+        return false;
+    }
+
+    internal bool TryGetIdentifierJsValueAfterWithMiss(Symbol name, EvaluationContext context, out JsValue value)
+    {
+        if (TryGetCachedDeclarativeBinding(name, context, out var cached))
+        {
+            value = cached.ReadJsValue(context);
             return true;
         }
 
@@ -1908,6 +1954,23 @@ public sealed class JsEnvironment : IRentable
         // The IR execution path doesn't push scope frames, so CurrentScope.IsStrict
         // returns false even for strict functions. Fall back to environment strictness.
         var isStrictContext = context.CurrentScope.IsStrict || IsStrict;
+        var hasWithObject = HasWithObjectInChain();
+
+        // A with-object environment is always ahead of outer lexical/global slots.
+        // Check it before cached declarative bindings, which may have been learned
+        // before entering the dynamic scope.
+        if (hasWithObject && TryResolveWithBinding(name, context, out var dynamicWithBinding))
+        {
+            if (isStrictContext && IsStrictRestrictedName(name))
+            {
+                throw new ThrowSignal(StandardLibrary.CreateSyntaxError(
+                    "Assignment to eval or arguments is not allowed in strict mode.", context,
+                    context.RealmState));
+            }
+
+            _ = TrySetWithBindingValueJsValue(dynamicWithBinding, value, context.RealmState);
+            return;
+        }
 
         if (TryGetCachedDeclarativeBinding(name, context, out var cached))
         {
@@ -1918,7 +1981,8 @@ public sealed class JsEnvironment : IRentable
         // Identifier resolution still goes through HasBinding semantics, including
         // Symbol.unscopables. Once the reference is resolved to a with binding,
         // the later write uses ordinary Set without another unscopables lookup.
-        if (!context.AllowIdentifierCache && TryResolveWithBinding(name, context, out var withBinding))
+        if (!context.AllowIdentifierCache && !hasWithObject &&
+            TryResolveWithBinding(name, context, out var withBinding))
         {
             if (isStrictContext && IsStrictRestrictedName(name))
             {
@@ -1973,7 +2037,7 @@ public sealed class JsEnvironment : IRentable
         ResolvedIdentifierBinding binding,
         EvaluationContext context)
     {
-        if (!context.AllowIdentifierCache)
+        if (!context.AllowIdentifierCache || HasWithObjectInChain())
         {
             return;
         }
@@ -3189,9 +3253,8 @@ public sealed class JsEnvironment : IRentable
     {
         var propertyName = binding.PropertyName;
         var bindingObject = binding.BindingObject;
-        if (!binding.AllowMissingAssignment &&
-            binding.IsStrictReference &&
-            !HasProperty(bindingObject, propertyName))
+        var propertyExists = binding.AllowMissingAssignment || HasProperty(bindingObject, propertyName);
+        if (!propertyExists && binding.IsStrictReference)
         {
             realm ??= (bindingObject as JsObject)?.RealmState;
             throw StandardLibrary.ThrowReferenceError(

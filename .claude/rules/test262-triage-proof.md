@@ -146,3 +146,12 @@ passed, including the previously crashing Annex B indirect-eval fixture. Future
 agents should repair the command shape before treating a focused Test262 proof
 as source failure, then stop without eval or harness changes when the exact
 project-file proof is green.
+
+Issue #1079 repeated the no-source-change boundary for
+`Temporal_ZonedDateTime_prototype_eraYear`. Investigation correctly identified
+`TemporalHelper` as the owner for the ZonedDateTime `eraYear` prototype getter,
+receiver branding, and shared era helpers, but the build-stage proof on
+2026-05-20 passed the issue-supplied method group on current `origin/main`.
+Future Temporal Test262 issues should treat owner-surface discovery as context:
+once the exact focused proof is green, do not add nearby accessor, branding, or
+harness changes without a current failing fixture row.

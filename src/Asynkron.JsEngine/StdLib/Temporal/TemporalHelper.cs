@@ -7553,33 +7553,49 @@ public static class TemporalHelper
         if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
             // 1. calendar
+            var calendar = "iso8601";
             if (accessor.TryGetProperty("calendar", out var calVal) && !calVal.IsUndefined)
-                ValidateTemporalCalendarValue(calVal, realm);
+                calendar = CanonicalizeCalendarId(ResolveTemporalCalendarId(calVal, realm));
 
             // 2. day
             if (!accessor.TryGetProperty("day", out var dayVal) || dayVal.IsUndefined)
                 throw StandardLibrary.ThrowTypeError("Property bag for relativeTo must have 'day'", realm: realm);
             var day = ToIntegerWithTruncation(dayVal, realm);
 
-            // 3. hour
+            // 3-4. era / eraYear are only relevant for era-capable calendars.
+            if (CalendarUsesEras(calendar))
+            {
+                var hasEra = accessor.TryGetProperty("era", out var eraVal) && !eraVal.IsUndefined;
+                if (hasEra)
+                    JsOps.ToJsString(eraVal);
+
+                var hasEraYear = accessor.TryGetProperty("eraYear", out var eraYearVal) && !eraYearVal.IsUndefined;
+                if (hasEraYear)
+                    ToIntegerWithTruncation(eraYearVal, realm);
+
+                if (hasEra != hasEraYear)
+                    throw StandardLibrary.ThrowTypeError("Property bag for relativeTo must have both 'era' and 'eraYear'", realm: realm);
+            }
+
+            // 5. hour
             var hour = GetOptionalIntProperty(accessor, "hour", realm);
 
-            // 4. microsecond
+            // 6. microsecond
             var microsecond = GetOptionalIntProperty(accessor, "microsecond", realm);
 
-            // 5. millisecond
+            // 7. millisecond
             var millisecond = GetOptionalIntProperty(accessor, "millisecond", realm);
 
-            // 6. minute
+            // 8. minute
             var minute = GetOptionalIntProperty(accessor, "minute", realm);
 
-            // 7. month
+            // 9. month
             accessor.TryGetProperty("month", out var monthVal);
             var hasMonth = !monthVal.IsUndefined;
             int monthInt = 0;
             if (hasMonth) monthInt = ToIntegerWithTruncation(monthVal, realm);
 
-            // 8. monthCode — call ToString immediately for observable order
+            // 10. monthCode — call ToString immediately for observable order
             accessor.TryGetProperty("monthCode", out var monthCodeVal);
             var hasMonthCode = !monthCodeVal.IsUndefined;
             string? monthCodeStr = null;
@@ -7589,10 +7605,10 @@ public static class TemporalHelper
                 ValidateMonthCodeSyntax(monthCodeStr, realm);
             }
 
-            // 9. nanosecond
+            // 11. nanosecond
             var nanosecond = GetOptionalIntProperty(accessor, "nanosecond", realm);
 
-            // 10. offset — call ToString immediately if not undefined
+            // 12. offset — call ToString immediately if not undefined
             accessor.TryGetProperty("offset", out var offsetVal);
             string? offsetStr = null;
             if (!offsetVal.IsUndefined)
@@ -7604,14 +7620,14 @@ public static class TemporalHelper
                 offsetStr = offsetVal.IsString ? offsetVal.AsString() : JsOps.ToJsString(offsetVal);
             }
 
-            // 11. second
+            // 13. second
             var second = GetOptionalIntProperty(accessor, "second", realm);
 
-            // 12. timeZone
+            // 14. timeZone
             accessor.TryGetProperty("timeZone", out var tzVal);
             var hasTimeZone = !tzVal.IsUndefined;
 
-            // 13. year
+            // 15. year
             if (!accessor.TryGetProperty("year", out var yearVal) || yearVal.IsUndefined)
                 throw StandardLibrary.ThrowTypeError("Property bag for relativeTo must have 'year'", realm: realm);
             var year = ToIntegerWithTruncation(yearVal, realm);
@@ -10663,11 +10679,6 @@ public static class TemporalHelper
         RejectISODate(year, month, day, realm);
 
         return new JsTemporalPlainDate(year, month, day, calendar);
-    }
-
-    private static void ValidateTemporalCalendarValue(JsValue calVal, RealmState realm)
-    {
-        ResolveTemporalCalendarId(calVal, realm);
     }
 
     /// <summary>

@@ -3939,10 +3939,36 @@ public static class TemporalHelper
             var refYearArg = args.Count > 3 ? args[3] : JsValue.Undefined;
             int? refYear = refYearArg.IsUndefined ? null : ToIntegerWithTruncation(refYearArg, realm);
 
-            // Validate ISO date fields and range (RejectISODate checks both)
-            RejectISODate(refYear ?? 1972, month, day, realm);
+            var referenceYear = refYear ?? 1972;
+            RejectISODate(referenceYear, month, day, realm);
 
-            var md = new JsTemporalPlainMonthDay(month, day, calendar, refYear);
+            JsTemporalPlainMonthDay md;
+            if (string.Equals(calendar, "iso8601", StringComparison.Ordinal))
+            {
+                md = new JsTemporalPlainMonthDay(month, day, calendar, refYear);
+            }
+            else
+            {
+                if (referenceYear < 1 || referenceYear > 9999)
+                {
+                    throw StandardLibrary.ThrowRangeError("Invalid PlainMonthDay reference year", realm: realm);
+                }
+
+                if (!TryGetCalendarMonthDayForIsoDate(calendar, new DateTime(referenceYear, month, day),
+                        out var calendarMonth, out var calendarDay, out var calendarMonthCode))
+                {
+                    throw StandardLibrary.ThrowRangeError("Invalid PlainMonthDay reference date", realm: realm);
+                }
+
+                md = new JsTemporalPlainMonthDay(
+                    calendarMonth,
+                    calendarDay,
+                    calendar,
+                    referenceYear,
+                    calendarMonthCode,
+                    month,
+                    day);
+            }
             return ApplyNewTargetPrototype(WrapPlainMonthDay(md, realm, prototype), newTarget, ctor, prototype);
         });
         ctor.DefineProperty("length",
@@ -13448,8 +13474,10 @@ public static class TemporalHelper
                     calendarMonth,
                     calendarDay,
                     calendar,
-                    GetTemporalPlainMonthDayReferenceYear(calendar, calendarMonthCode, calendarMonth, calendarDay, false),
-                    calendarMonthCode);
+                    referenceYear,
+                    calendarMonthCode,
+                    month,
+                    day);
             }
 
             return new JsTemporalPlainMonthDay(month, day, calendar, null);

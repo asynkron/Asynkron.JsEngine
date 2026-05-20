@@ -233,6 +233,12 @@ host-runtime shortcuts.
     and validate against the shared Temporal instant bounds instead of routing
     through the local PlainDateTime wall-clock path, which fails for skipped or
     ambiguous wall-clock times at DST transitions.
+38. When a regression test claims to prove an abstract-operation coercion path,
+    make the coercion observable. Use object wrappers with `valueOf`,
+    `toString`, or `Symbol.toPrimitive` call tracking, and assert the call
+    count/order/hint where relevant. Raw primitives prove only the already
+    normalized storage path; they do not prove that `ToNumber`, `ToBigInt`,
+    `ToPrimitive`, or similar coercion hooks actually ran.
 
 ## Why
 
@@ -326,6 +332,17 @@ and the resulting Symbol primitive must surface through catchable JavaScript
 `TypeError` conversion paths for both string concatenation and numeric
 addition. Future operator-coercion work should pin both the error path and the
 `Symbol.toPrimitive` hint before relying on the focused Test262 method group.
+
+Issue #870 / PR #1226 fixed the Test262
+`TypedArrayConstructors_ctors_objectArg` closeout after review caught that the
+initial BigInt typed-array regressions passed raw BigInt primitives directly.
+Those assertions only proved element storage, not observable per-element
+`ToBigInt` coercion. The repair used object elements with
+`Symbol.toPrimitive` call tracking and `callCount` assertions for
+`BigInt64Array` and `BigUint64Array`, matching the sibling `valueOf`-based
+`ToNumber` tests. Future typed-array or collection-constructor coercion tests
+should make the named abstract operation observable before claiming the
+coercion path is pinned.
 
 Issue #823 / PR #1113 fixed `Intl.RelativeTimeFormat.prototype.format` after
 the value argument used a non-observable numeric shortcut before finite-number

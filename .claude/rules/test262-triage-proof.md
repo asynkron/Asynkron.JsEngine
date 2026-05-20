@@ -113,3 +113,12 @@ the build-stage proof on 2026-05-20 passed the issue-supplied method group
 66/66 on current `origin/main`. Future agents should stop at that proof result
 for this class of stale batch report unless a current failing fixture row is
 reproduced.
+
+Issue #878 repeated the same no-source-change closeout for
+`TypedArray_prototype_indexOf`. The investigation identified
+`TypedArrayBase.IndexOfInternal` as the plausible owner for fromIndex coercion
+and strict comparison, but the build-stage proof on 2026-05-20 passed the
+issue-supplied method group 86/86 on current `origin/main`. Future agents should
+treat that owner lookup as context only: once the exact focused proof is green,
+do not patch strict equality, signed-zero, or fromIndex handling without a
+current failing fixture row.

@@ -154,7 +154,7 @@ public sealed class JsBigInt(BigInteger value) : IEquatable<JsBigInt>
         // JavaScript behavior: negative shifts shift in the opposite direction
         if (right < 0)
         {
-            return left >> -right;
+            return ShiftRightWithLargeCount(left.Value, -(long)right);
         }
 
         return new JsBigInt(left.Value << right);
@@ -165,10 +165,33 @@ public sealed class JsBigInt(BigInteger value) : IEquatable<JsBigInt>
         // JavaScript behavior: negative shifts shift in the opposite direction
         if (right < 0)
         {
-            return left << -right;
+            return ShiftLeftWithLargeCount(left.Value, -(long)right);
         }
 
         return new JsBigInt(left.Value >> right);
+    }
+
+    private static JsBigInt ShiftRightWithLargeCount(BigInteger value, long shift)
+    {
+        if (shift <= int.MaxValue)
+        {
+            return new JsBigInt(value >> (int)shift);
+        }
+
+        // Arithmetic right-shift by >= bit width saturates to 0 for non-negative and -1 for negative.
+        return value.Sign >= 0 ? Zero : new JsBigInt(-1);
+    }
+
+    private static JsBigInt ShiftLeftWithLargeCount(BigInteger value, long shift)
+    {
+        if (shift <= int.MaxValue)
+        {
+            return new JsBigInt(value << (int)shift);
+        }
+
+        // Preserve semantics without overflowing the negation path by splitting one extra bit.
+        var nearMax = value << int.MaxValue;
+        return new JsBigInt(nearMax << 1);
     }
 
     public static JsBigInt Pow(JsBigInt baseValue, JsBigInt exponent)

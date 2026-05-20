@@ -171,6 +171,24 @@ public sealed class BigIntTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 2000)]
+    public async Task BigIntLeftShift_WithMinIntShiftCount_DoesNotOverflow()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("1n << -2147483648n;");
+        Assert.IsType<JsBigInt>(result);
+        Assert.Equal(new JsBigInt(0), result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task NegativeBigIntLeftShift_WithMinIntShiftCount_DoesNotOverflow()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("-1n << -2147483648n;");
+        Assert.IsType<JsBigInt>(result);
+        Assert.Equal(new JsBigInt(-1), result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task BigIntStrictEquality()
     {
         await using var engine = CreateEngine();
@@ -308,6 +326,49 @@ public sealed class BigIntTests(ITestOutputHelper output) : InternalTestBase(out
         var exception =
             await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("10n / 5;"));
         Assert.Contains("Cannot mix BigInt and other types", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task BigIntCannotMixWithNumberInLeftShift_BigIntLeftOperand()
+    {
+        await using var engine = CreateEngine();
+        var exception =
+            await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("1n << 1;"));
+        Assert.Contains("Cannot mix BigInt and other types", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task BigIntCannotMixWithNumberInLeftShift_NumberLeftOperand()
+    {
+        await using var engine = CreateEngine();
+        var exception =
+            await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("1 << 1n;"));
+        Assert.Contains("Cannot mix BigInt and other types", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task BigIntLeftShift_UsesBigIntFromBoxedPrimitives()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("Object(0b101n) << Object(1n);");
+        Assert.IsType<JsBigInt>(result);
+        Assert.Equal(new JsBigInt(10), result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task BigIntLeftShift_UsesBigIntFromCustomToPrimitive()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(
+            """
+            const left = { [Symbol.toPrimitive]() { return 0b101n; } };
+            const right = { valueOf() { return 1n; } };
+            left << right;
+            """
+        );
+
+        Assert.IsType<JsBigInt>(result);
+        Assert.Equal(new JsBigInt(10), result);
     }
 
     [Fact(Timeout = 2000)]

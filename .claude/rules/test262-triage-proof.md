@@ -32,6 +32,14 @@ By the build stage on 2026-05-19, the exact focused proof
 fast-forwarding to the locally available `origin/main`, so no implementation
 change was warranted.
 
+Issue #1024 repeated the same pattern from a 2026-05-19 broad Test262 runner
+summary: `DisposableStack_prototype_move` had four reported crashed entries, but
+the build-stage focused proof
+`Name=DisposableStack_prototype_move` passed all 26 tests on the current
+worktree. The correct outcome was to stop without implementation changes and
+carry the learn-stage evidence as confirmation that crash-batch summaries are
+not current failures until reproved.
+
 Future agents should treat old Test262 batch summaries as suspects to reprove,
 not as confirmed current failures.
 

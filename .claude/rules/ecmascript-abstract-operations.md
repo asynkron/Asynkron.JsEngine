@@ -138,7 +138,7 @@ host-runtime shortcuts.
     but let invalid leap-month defaults fall through the numeric month overflow
     path under `overflow: "constrain"` so option ordering and constrain
     semantics remain observable.
-24. For `Temporal.PlainDate.prototype.until` and adjacent PlainDate difference
+26. For `Temporal.PlainDate.prototype.until` and adjacent PlainDate difference
     work, matching BCL-backed non-ISO calendars must compute month and year
     largest-unit differences in calendar space, not through ISO month/year
     arithmetic over the stored ISO projection. Convert endpoints to
@@ -146,13 +146,13 @@ host-runtime shortcuts.
     largest-unit behavior on elapsed ISO dates unless the spec path says
     otherwise, and resolve PlainDate property-bag `monthCode` values through the
     resolved calendar/year for leap-month-aware calendars.
-25. For `Temporal.PlainMonthDay.from` property bags, keep ISO field reads in
+27. For `Temporal.PlainMonthDay.from` property bags, keep ISO field reads in
     observable spec order and keep era reads calendar-dependent. ISO bags must
     read `calendar`, `day`, `month`, `monthCode`, `year`, then options; they
     must not observe `era` or `eraYear` getters. Non-ISO paths may read
     `era`/`eraYear` for validation, but should read them once and reuse the
     observed presence instead of re-reading later.
-26. For `Temporal.PlainMonthDay.prototype.toLocaleString` and adjacent
+28. For `Temporal.PlainMonthDay.prototype.toLocaleString` and adjacent
     `Intl.DateTimeFormat` Temporal formatting, keep calendar-visible fields
     separate from reference ISO slots. Use `ReferenceYear`, `ReferenceMonth`,
     and `ReferenceDay` when constructing host date or epoch values for
@@ -160,53 +160,53 @@ host-runtime shortcuts.
     to supply ISO constructor fields. PlainMonthDay `dateStyle` expansion must
     also filter to month/day fields for that Temporal kind instead of leaking a
     year field through shared date-style defaults.
-27. For `Temporal.PlainMonthDay.prototype.toString`, treat `calendarName` as
+29. For `Temporal.PlainMonthDay.prototype.toString`, treat `calendarName` as
     calendar-annotation policy, not as a request to collapse all calendars to
     the ISO short month-day shape. `calendarName: "never"` must keep ISO
     receivers as `MM-DD`, but non-ISO receivers must return the non-annotated
     reference ISO date `YYYY-MM-DD`. Keep `auto`, `always`, and `critical`
     behavior on their existing annotation branches unless the spec path proves
     a separate change.
-28. For `Temporal.PlainTime.from` property bags, keep leap-second and
+30. For `Temporal.PlainTime.from` property bags, keep leap-second and
     out-of-range time fields on the shared Temporal overflow path. Default and
     `overflow: "constrain"` calls must normalize `second: 60` and higher
     seconds to the valid maximum second, while `overflow: "reject"` must throw
     `RangeError` at the time-range validation point.
-29. For `Temporal.PlainYearMonth.from` and adjacent PlainYearMonth getters or
+31. For `Temporal.PlainYearMonth.from` and adjacent PlainYearMonth getters or
     string formatting, keep calendar-visible year/month fields separate from
     the stored ISO reference date. Map the reference date back through the
     receiver calendar for observable `year`, `month`, and `monthCode`, use the
     stored ISO reference date directly for non-ISO string forms that need a
     date, and treat host BCL calendar range/leap-month limits as helper
     boundaries rather than complete ECMA-402 semantics.
-30. For `Temporal.PlainYearMonth.prototype.toLocaleString` and adjacent
+32. For `Temporal.PlainYearMonth.prototype.toLocaleString` and adjacent
     `Intl.DateTimeFormat` Temporal formatting, keep date-style expansion in the
     field domain of PlainYearMonth. `dateStyle` may format year/month but must
     not leak the reference day, and non-ISO month names must come from the
     receiver calendar's year/month domain rather than a Gregorian
     `DateTimeOffset` month.
-30. For `Temporal.PlainTime.prototype.toLocaleString` and adjacent
+33. For `Temporal.PlainTime.prototype.toLocaleString` and adjacent
     `Intl.DateTimeFormat` Temporal formatting, keep PlainTime output
     timezone-neutral. A supplied `timeZone` remains observable for
     `Intl.DateTimeFormat` option resolution, but PlainTime has no date or
     instant and must not be shifted through that zone. Keep output on the
     receiver's time fields and shared hour-cycle helpers, not a synthetic
     instant-backed host conversion.
-31. For `Temporal.ZonedDateTime` and other instant-backed Temporal
+34. For `Temporal.ZonedDateTime` and other instant-backed Temporal
     constructors, validate the normalized epoch nanoseconds against the shared
     Temporal instant bounds after the spec-required BigInt coercion and before
     constructing or wrapping a `JsTemporalInstant`. Exact min/max bounds remain
     valid; min-1/max+1 must throw `RangeError`. Do not rely on BigInteger
     storage, host date conversion, or downstream string formatting to enforce
     the representable instant range.
-32. For `Temporal.ZonedDateTime.compare` and adjacent ZonedDateTime
+35. For `Temporal.ZonedDateTime.compare` and adjacent ZonedDateTime
     property-bag conversion, preserve observable absent-field order separately
     from present-field validation. Proxy or observer bags without own
     `era`/`eraYear` properties must not observe synthetic missing-field reads
     merely because ordinary bags with present era fields still need coercion
     and validation. Prove this with the focused
     `Name=Temporal_ZonedDateTime_compare` Test262 method group.
-33. For `Temporal.ZonedDateTime.prototype.since` and `.until` (and the shared
+36. For `Temporal.ZonedDateTime.prototype.since` and `.until` (and the shared
     `DifferenceTemporalZonedDateTime` abstract operation), keep the spec step
     order between the time-only fast path and the time-zone equality check
     explicit. The hour-or-smaller `LargestUnit` branch returns from epoch

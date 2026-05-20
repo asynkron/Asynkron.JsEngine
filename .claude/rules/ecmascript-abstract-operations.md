@@ -165,6 +165,12 @@ host-runtime shortcuts.
     `overflow: "constrain"` calls must normalize `second: 60` and higher
     seconds to the valid maximum second, while `overflow: "reject"` must throw
     `RangeError` at the time-range validation point.
+29. For `Temporal.PlainYearMonth.prototype.toLocaleString` and adjacent
+    `Intl.DateTimeFormat` Temporal formatting, keep date-style expansion in the
+    field domain of PlainYearMonth. `dateStyle` may format year/month but must
+    not leak the reference day, and non-ISO month names must come from the
+    receiver calendar's year/month domain rather than a Gregorian
+    `DateTimeOffset` month.
 
 ## Why
 
@@ -424,6 +430,19 @@ ISO-backed while calendar-visible fields are exposed through calendar helpers.
 
 Related ADR:
 `docs/adrs/0061-keep-temporal-plainmonthday-tostring-reference-date.md`.
+
+Issue #852 / PR #1180 fixed
+`Temporal.PlainYearMonth.prototype.toLocaleString` after date-style formatting
+reused the generic `DateTimeOffset` component path and flattened calendar
+year/month output through Gregorian host month names. The durable lesson is
+that PlainYearMonth style formatting has its own field domain: output year and
+month only, keep the reference day internal, and derive non-ISO month names
+from the receiver calendar. Future PlainYearMonth locale-format work should
+prove the focused `Name=Temporal_PlainYearMonth_prototype_toLocaleString`
+Test262 method group plus local Gregorian/non-ISO month-name coverage.
+
+Related ADR:
+`docs/adrs/0063-keep-temporal-plainyearmonth-locale-formatting-on-calendar-fields.md`.
 
 Issue #848 / PR #1173 added local regression coverage for
 `Temporal.PlainTime.from` after the Test262 leap-second property-bag fixture

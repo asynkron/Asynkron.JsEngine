@@ -118,6 +118,13 @@ host-runtime shortcuts.
     the shared rounding abstract operation helper so every rounding mode,
     including `halfCeil`, `halfFloor`, `halfTrunc`, and odd-quotient
     `halfEven`, keeps the same semantics as the generic path.
+23. For `Temporal.PlainDateTime.prototype.with` on non-ISO calendars, merge
+    partial date overrides against the receiver's observable calendar fields,
+    not its internal ISO storage fields. Preserve the receiver's default
+    `monthCode` across year changes when no explicit month or monthCode is
+    supplied, resolve supplied `monthCode` in the receiver calendar and target
+    calendar year, and convert to internal ISO storage only after
+    calendar-field merge and overflow handling.
 
 ## Why
 
@@ -288,3 +295,16 @@ Test262 method group before widening.
 
 Related ADR:
 `docs/adrs/0054-keep-temporal-duration-rounding-ties-shared.md`.
+
+Issue #839 / PR #1159 fixed `Temporal.PlainDateTime.prototype.with` after
+non-ISO receiver defaults were merged through internal ISO date fields. The
+durable lesson extends issue #837's property-bag rule to receiver-based updates:
+the receiver's calendar-visible `year`, `month`, `day`, and `monthCode` are the
+defaults and comparison basis for `with`, while the ISO projection is only the
+storage/range representation after calendar-date merge. Future
+`PlainDateTime.prototype.with` work should prove the focused
+`Name=Temporal_PlainDateTime_prototype_with` Test262 method group, starting
+with the `non-iso-calendar-fields.js` fixture.
+
+Related ADR:
+`docs/adrs/0055-keep-temporal-plaindatetime-with-calendar-date-fields.md`.

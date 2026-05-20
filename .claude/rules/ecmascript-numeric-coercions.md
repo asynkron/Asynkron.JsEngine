@@ -97,6 +97,17 @@ open-coding casts at individual call sites.
     backward boundary span. Pin negative partial totals locally for all three
     calendar units before relying on the focused
     `Name=Temporal_Duration_prototype_total` Test262 method group.
+19. For `Object.defineProperty`/`Reflect.defineProperty` on typed-array
+    integer-indexed keys, preserve the `IntegerIndexedElementSet` order:
+    validate the target index, coerce the descriptor value through `ToNumber`
+    or `ToBigInt`, then perform the second validity check before storing. If
+    the value coercion detaches the receiver buffer, the operation returns
+    `true` with no visible write; do not move the detached-buffer check ahead
+    of observable value conversion. Pin both number and BigInt typed arrays,
+    wrapping behavior, and the detach-during-`valueOf` case with local
+    regressions plus the focused
+    `Name=TypedArrayConstructors_internals_DefineOwnProperty` Test262 method
+    group.
 
 ## Why
 
@@ -217,6 +228,14 @@ negative one-day total relative to the Unix epoch must be `-1 / 7` weeks,
 `-1 / 31` months, and `-1 / 365` years, not the corresponding positive
 fractions. The durable rule is that the adjacent-boundary span is a positive
 measurement, while the signed remainder carries the result direction.
+
+Issue #873 / PR #1228 pinned the typed-array
+`IntegerIndexedElementSet` value-conversion order for
+`Object.defineProperty`. The focused Test262 group was already green, so the
+delivery stayed test-only, but it captured the edge that future refactors are
+likely to break: `ToNumber`/`ToBigInt` and target element wrapping are
+observable before the second valid-index check, and a value coercion that
+detaches the receiver buffer still returns `true` without exposing a write.
 
 Related ADR:
 `docs/adrs/0051-keep-temporal-duration-calendar-total-fractions-signed.md`.

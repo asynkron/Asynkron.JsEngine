@@ -1133,6 +1133,53 @@ export default function() { return 23; };
     }
 
     [Fact(Timeout = 5000)]
+    public async Task TopLevelAwait_TryCatchClassDeclarationWithAwaitedComputedMethodName()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.EvaluateModule("""
+                                                 try {
+                                                   class C {
+                                                     [await Promise.resolve("x")]() { return 42; }
+                                                     static [await Promise.resolve("y")]() { return 43; }
+                                                   }
+                                                   var c = new C();
+                                                   c.x() + C.y()
+                                                 } catch (e) {
+                                                   "caught:" + e;
+                                                 }
+                                                 """);
+
+        Assert.Equal(85.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TopLevelAwait_TryCatchClassDeclarationWithAwaitedComputedAccessorNames()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.EvaluateModule("""
+                                                 try {
+                                                   var stored = 0;
+                                                   class C {
+                                                     get [await Promise.resolve("x")]() { return 10; }
+                                                     set [await Promise.resolve("x")](value) { stored = value; }
+                                                     static get [await Promise.resolve("y")]() { return 20; }
+                                                     static set [await Promise.resolve("y")](value) { stored = value; }
+                                                   }
+                                                   var c = new C();
+                                                   c.x = c.x + C.y;
+                                                   C.y = stored + 2;
+                                                   stored;
+                                                 } catch (e) {
+                                                   "caught:" + e;
+                                                 }
+                                                 """);
+
+        Assert.Equal(32.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task TopLevelAwait_ForAwaitOfAwaitedIterableAndBodyUsesAsyncIteratorPath()
     {
         await using var engine = CreateEngine();

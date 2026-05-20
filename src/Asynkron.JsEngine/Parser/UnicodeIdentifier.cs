@@ -1,51 +1,91 @@
+using System.Globalization;
 using System.Text;
-using Asynkron.JsEngine.StdLib.RegExp;
 
 namespace Asynkron.JsEngine.Parser;
 
 internal static class UnicodeIdentifier
 {
-    private static readonly (int Start, int End)[] IdStartRanges = UnicodePropertyData.Resolve("ID_Start") ?? [];
-    private static readonly (int Start, int End)[] IdContinueRanges = UnicodePropertyData.Resolve("ID_Continue") ?? [];
-    private static readonly (int Start, int End)[] OtherIdStartRanges = UnicodePropertyData.Resolve("Other_ID_Start") ?? [];
-    private static readonly (int Start, int End)[] OtherIdContinueRanges = UnicodePropertyData.Resolve("Other_ID_Continue") ?? [];
-
     public static bool IsIdentifierStart(Rune rune)
     {
-        return rune.Value is '$' or '_' ||
-               Contains(IdStartRanges, rune.Value) ||
-               Contains(OtherIdStartRanges, rune.Value);
+        if (rune.Value is '$' or '_')
+        {
+            return true;
+        }
+
+        if (IsOtherIdStart(rune.Value))
+        {
+            return true;
+        }
+
+        return Rune.GetUnicodeCategory(rune) switch
+        {
+            UnicodeCategory.UppercaseLetter => true,
+            UnicodeCategory.LowercaseLetter => true,
+            UnicodeCategory.TitlecaseLetter => true,
+            UnicodeCategory.ModifierLetter => true,
+            UnicodeCategory.OtherLetter => true,
+            UnicodeCategory.LetterNumber => true,
+            _ => false
+        };
     }
 
     public static bool IsIdentifierPart(Rune rune)
     {
-        return rune.Value is '$' or 0x200C or 0x200D ||
-               Contains(IdContinueRanges, rune.Value) ||
-               Contains(OtherIdContinueRanges, rune.Value);
-    }
-
-    private static bool Contains((int Start, int End)[] ranges, int codePoint)
-    {
-        var lo = 0;
-        var hi = ranges.Length - 1;
-        while (lo <= hi)
+        if (rune.Value is '$' or 0x200C or 0x200D)
         {
-            var mid = lo + ((hi - lo) >> 1);
-            var range = ranges[mid];
-            if (codePoint < range.Start)
-            {
-                hi = mid - 1;
-            }
-            else if (codePoint > range.End)
-            {
-                lo = mid + 1;
-            }
-            else
-            {
-                return true;
-            }
+            return true;
         }
 
-        return false;
+        if (IsIdentifierStart(rune))
+        {
+            return true;
+        }
+
+        if (IsOtherIdContinue(rune.Value))
+        {
+            return true;
+        }
+
+        return Rune.GetUnicodeCategory(rune) switch
+        {
+            UnicodeCategory.NonSpacingMark => true,
+            UnicodeCategory.SpacingCombiningMark => true,
+            UnicodeCategory.DecimalDigitNumber => true,
+            UnicodeCategory.ConnectorPunctuation => true,
+            _ => false
+        };
+    }
+
+    private static bool IsOtherIdStart(int codePoint)
+    {
+        return codePoint switch
+        {
+            0x1885 => true,
+            0x1886 => true,
+            0x2118 => true,
+            0x212E => true,
+            0x309B => true,
+            0x309C => true,
+            _ => false
+        };
+    }
+
+    private static bool IsOtherIdContinue(int codePoint)
+    {
+        return codePoint is
+            0x00B7 or
+            0x0387 or
+            0x1369 or
+            0x136A or
+            0x136B or
+            0x136C or
+            0x136D or
+            0x136E or
+            0x136F or
+            0x1370 or
+            0x1371 or
+            0x19DA or
+            0x30FB or
+            0xFF65;
     }
 }

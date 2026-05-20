@@ -1276,6 +1276,58 @@ public sealed class TypedArrayTests(ITestOutputHelper output) : InternalTestBase
         Assert.Equal("RangeError", obj["name"]?.ToString());
     }
 
+    // Regression: ToIndex coercion for the numeric typed-array length-arg constructor path.
+    // Proves the shared ToIndex helper matches ES 7.1.22 for the non-BigInt typed-array
+    // constructors, mirroring the BigInt64Array/BigUint64Array cases above.
+
+    [Theory(Timeout = 2000)]
+    [InlineData("new Uint8Array(NaN)", 0d)]
+    [InlineData("new Uint8Array(-0)", 0d)]
+    [InlineData("new Uint8Array(undefined)", 0d)]
+    [InlineData("new Uint8Array(0.9)", 0d)]
+    [InlineData("new Uint8Array(1.9)", 1d)]
+    [InlineData("new Uint8Array(3)", 3d)]
+    public async Task Uint8Array_LengthArg_ToIndex_CoercesCorrectly(string expression, double expectedLength)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate($"{expression}.length");
+        Assert.Equal(expectedLength, result);
+    }
+
+    [Theory(Timeout = 2000)]
+    [InlineData("new Uint8Array(-1)", "RangeError")]
+    [InlineData("new Uint8Array(Infinity)", "RangeError")]
+    [InlineData("new Uint8Array(-Infinity)", "RangeError")]
+    [InlineData("new Uint8Array(2**53)", "RangeError")]
+    public async Task Uint8Array_LengthArg_ToIndex_InvalidThrowsRangeError(string expression, string expectedErrorName)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate($$"""
+                                            let threw = false, name = "";
+                                            try { {{expression}}; } catch (e) { threw = true; name = e.constructor.name; }
+                                            return { threw, name };
+                                            """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(true, obj["threw"]);
+        Assert.Equal(expectedErrorName, obj["name"]?.ToString());
+    }
+
+    [Theory(Timeout = 2000)]
+    [InlineData("new Uint8Array(Symbol())", "TypeError")]
+    [InlineData("new Uint8Array(42n)", "TypeError")]
+    public async Task Uint8Array_LengthArg_ToIndex_NonNumericThrowsTypeError(string expression, string expectedErrorName)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate($$"""
+                                            let threw = false, name = "";
+                                            try { {{expression}}; } catch (e) { threw = true; name = e.constructor.name; }
+                                            return { threw, name };
+                                            """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(true, obj["threw"]);
+        Assert.Equal(expectedErrorName, obj["name"]?.ToString());
+    }
+
     // Regression: non-BigInt typed-array buffer-arg ToIndex coercion for byteOffset and length.
     // Mirrors Test262 built-ins/TypedArrayConstructors/ctors/buffer-arg/toindex-bytelength.js
     // and toindex-byteoffset.js. Green-proof closeout: focused method group passed 108/108 on

@@ -122,3 +122,14 @@ issue-supplied method group 86/86 on current `origin/main`. Future agents should
 treat that owner lookup as context only: once the exact focused proof is green,
 do not patch strict equality, signed-zero, or fromIndex handling without a
 current failing fixture row.
+
+Issue #881 repeated the same TypedArray stale-batch closeout for
+`TypedArray_prototype_lastIndexOf`. The investigation identified
+`TypedArrayBase.LastIndexOfInternal` and BigInt typed-array signed-zero
+`fromIndex` handling as the plausible owner surface, but the build-stage proof
+on 2026-05-20 passed the exact
+`TypedArray_prototype_lastIndexOf_BigInt` plus `fromIndex-minus-zero` filter
+2/2 on current `origin/main` with no source diff. Future agents should not
+patch nearby `lastIndexOf` coercion, strict equality, or BigInt typed-array
+search behavior unless the exact reported fixture row or method group fails on
+the current worktree.

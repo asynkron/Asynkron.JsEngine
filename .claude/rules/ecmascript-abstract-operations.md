@@ -178,6 +178,13 @@ host-runtime shortcuts.
     not leak the reference day, and non-ISO month names must come from the
     receiver calendar's year/month domain rather than a Gregorian
     `DateTimeOffset` month.
+30. For `Temporal.PlainTime.prototype.toLocaleString` and adjacent
+    `Intl.DateTimeFormat` Temporal formatting, keep PlainTime output
+    timezone-neutral. A supplied `timeZone` remains observable for
+    `Intl.DateTimeFormat` option resolution, but PlainTime has no date or
+    instant and must not be shifted through that zone. Keep output on the
+    receiver's time fields and shared hour-cycle helpers, not a synthetic
+    instant-backed host conversion.
 
 ## Why
 
@@ -498,3 +505,15 @@ and include local coverage for both string and property-bag calendar aliases.
 
 Related ADR:
 `docs/adrs/0062-keep-temporal-plainyearmonth-string-reference-day.md`.
+
+Issue #849 / PR #1174 fixed
+`Temporal.PlainTime.prototype.toLocaleString` after the resolved time-zone
+fixture could shift PlainTime output through `Pacific/Apia`. The durable lesson
+is that PlainTime locale formatting must preserve resolved `timeZone` option
+semantics without treating the receiver as an instant or date-bearing value.
+Future PlainTime locale-format work should prove the focused
+`Name=Temporal_PlainTime_prototype_toLocaleString` Test262 method group plus
+local coverage using offset-sensitive times.
+
+Related ADR:
+`docs/adrs/0066-keep-temporal-plaintime-locale-formatting-timezone-neutral.md`.

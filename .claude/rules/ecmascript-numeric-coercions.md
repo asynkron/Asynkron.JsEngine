@@ -121,6 +121,12 @@ open-coding casts at individual call sites.
     write becomes an error or no-op. Preserve the same-buffer typed-array source
     copy path separately, because its overlap snapshot is a different spec
     concern.
+21. For BigInt expression operators, prove both the numeric-kind branch and the
+    host integer boundary. Mixed Number/BigInt operands must still throw through
+    the operator's `ToNumeric` path, boxed/custom primitive operands must prove
+    `ToPrimitive`/`ToBigInt` was actually used, and shift-count edge cases such
+    as `int.MinValue` must not rely on unchecked host negation or shift-count
+    assumptions.
 
 ## Why
 
@@ -269,6 +275,16 @@ checks and left conversion-then-write ownership with `TypedArrayBase.SetValue`
 and `BigIntTypedArrayBase.SetValue`, while preserving the separate same-buffer
 typed-array source copy handling. Future `set` refactors should keep that split
 explicit and prove it with `Name=TypedArray_prototype_set`.
+
+Issue #1037 / PR #1276 fixed BigInt left shift after the runtime used host
+`int` negation for negative shift counts and review found the operator-specific
+AC-4 coercion coverage was incomplete. The durable rule is that BigInt operator
+tests cannot stop at raw `n` literals: they need mixed Number/BigInt rejection
+on both operand sides, boxed BigInt operands, custom primitive conversion, and
+host-boundary shift counts so both ECMAScript coercion semantics and .NET
+integer edge behavior stay pinned. Prove this locally and with the focused
+`Name=Expressions_leftShift` Test262 method group when left-shift behavior is
+touched.
 
 Related ADR:
 `docs/adrs/0051-keep-temporal-duration-calendar-total-fractions-signed.md`.

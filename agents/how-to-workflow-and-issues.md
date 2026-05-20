@@ -1,8 +1,5 @@
 # Workflow and GitHub Issues
 
-## Rolling Next Steps
-- `continue.md` tracks in-progress priorities. When finishing items, remove them and add the new next steps.
-
 ## Big Tasks: Use Worktrees
 For any non-trivial bug fix or feature (especially when spawning background coder agents):
 1. **Create a worktree** before starting work - see [how-to-worktrees.md](how-to-worktrees.md)

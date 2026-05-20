@@ -5532,10 +5532,10 @@ public static class TemporalHelper
         if (string.Equals(timeZoneId, "UTC", StringComparison.OrdinalIgnoreCase))
             return "UTC";
 
-        return !IntlUtilities.IsSupportedTimeZoneIdentifier(timeZoneId) &&
-               IntlUtilities.TryCanonicalizeTimeZoneAlias(timeZoneId, out var canonical)
-            ? canonical
-            : timeZoneId;
+        if (IntlUtilities.TryGetSupportedTimeZoneIdentifier(timeZoneId, out var supported))
+            return supported;
+
+        return IntlUtilities.TryCanonicalizeTimeZoneAlias(timeZoneId, out var canonical) ? canonical : timeZoneId;
     }
 
     private static JsValue WrapInstant(JsTemporalInstant instant, RealmState realm, JsObject? prototype = null)

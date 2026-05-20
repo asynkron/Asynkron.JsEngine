@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.StdLib.Temporal;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -673,6 +674,21 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
         // Different named zones are not equal even at same instant
         var diffZones = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(0), 'UTC').equals(new Temporal.ZonedDateTime(BigInt(0), 'America/New_York'))");
         Assert.Equal(false, diffZones);
+    }
+
+    [Fact]
+    public void Temporal_ZonedDateTime_CanonicalizeTimeZoneIdForComparison_CaseVariants()
+    {
+        // CanonicalizeTimeZoneIdForComparison must normalize casing for supported named zones
+        // independent of construction-time normalization (self-sufficient helper contract).
+        var lower = TemporalHelper.CanonicalizeTimeZoneIdForComparison("america/new_york");
+        var upper = TemporalHelper.CanonicalizeTimeZoneIdForComparison("AMERICA/NEW_YORK");
+        var canonical = TemporalHelper.CanonicalizeTimeZoneIdForComparison("America/New_York");
+        Assert.Equal(canonical, lower);
+        Assert.Equal(canonical, upper);
+        // UTC case variants must also normalize
+        var utcLower = TemporalHelper.CanonicalizeTimeZoneIdForComparison("utc");
+        Assert.Equal("UTC", utcLower);
     }
 
     [Fact]

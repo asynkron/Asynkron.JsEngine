@@ -878,6 +878,19 @@ internal static partial class IntlUtilities
         return TimeZoneRegistryCache.Value.Members.Contains(canonical);
     }
 
+    internal static bool TryGetSupportedTimeZoneIdentifier(string id, out string canonical)
+    {
+        var registry = TimeZoneRegistryCache.Value;
+        var normalized = CanonicalizeTimeZoneId(id);
+        if (registry.Lookup.TryGetValue(normalized, out var found) && registry.Members.Contains(found))
+        {
+            canonical = found;
+            return true;
+        }
+        canonical = id;
+        return false;
+    }
+
     private static string CanonicalizeTimeZoneId(string id)
     {
         if (string.Equals(id, "UTC", StringComparison.OrdinalIgnoreCase))

@@ -323,7 +323,7 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
                     TimeZoneId,
                     TimeZone,
                     Instant.EpochNanoseconds);
-            return (long)offset.TotalMilliseconds * 1_000_000;
+            return offset.Ticks * 100L;
         }
     }
 
@@ -1023,8 +1023,9 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
         try
         {
             return Asynkron.JsEngine.StdLib.Temporal.TemporalHistoricalTimeZoneOffsets.GetUtcOffset(
+                TimeZoneId,
                 TimeZone,
-                Instant.ToDateTimeOffset());
+                Instant.EpochNanoseconds);
         }
         catch (OverflowException)
         {

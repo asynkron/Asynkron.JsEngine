@@ -1,11 +1,12 @@
 using System;
 using System.Numerics;
-using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.StdLib.Temporal;
 
 internal static class TemporalHistoricalTimeZoneOffsets
 {
+    private static readonly DateTimeOffset UnixEpoch = DateTimeOffset.UnixEpoch;
+
     private static readonly TimeSpan MonroviaOffset = TimeSpan.FromSeconds(-2670);
     private static readonly DateTime MonroviaLocalCutover = new(1972, 1, 7, 0, 0, 0, DateTimeKind.Unspecified);
     private static readonly DateTimeOffset MonroviaUtcCutover = new(1972, 1, 7, 0, 44, 30, TimeSpan.Zero);
@@ -84,17 +85,8 @@ internal static class TemporalHistoricalTimeZoneOffsets
 
     internal static TimeSpan GetUtcOffset(string requestedTimeZoneId, TimeZoneInfo timeZone, BigInteger epochNanoseconds)
     {
-        if (TryGetUtcOffset(requestedTimeZoneId, epochNanoseconds, out var offset))
-        {
-            return offset;
-        }
-
-        if (TryGetUtcOffset(timeZone.Id, epochNanoseconds, out offset))
-        {
-            return offset;
-        }
-
-        return GetUtcOffset(requestedTimeZoneId, timeZone, ToDateTimeOffsetFloor(epochNanoseconds));
+        var instant = ToDateTimeOffsetFloor(epochNanoseconds);
+        return GetUtcOffset(requestedTimeZoneId, timeZone, instant);
     }
 
     internal static TimeSpan[] GetPossibleUtcOffsets(string requestedTimeZoneId, TimeZoneInfo timeZone, DateTime localDateTime)
@@ -196,45 +188,25 @@ internal static class TemporalHistoricalTimeZoneOffsets
         }
     }
 
-    private static bool TryGetUtcOffset(string timeZoneId, BigInteger epochNanoseconds, out TimeSpan offset)
-    {
-        switch (timeZoneId)
-        {
-            case "Europe/London" when IsInRange(epochNanoseconds, LondonPermanentStandardStartUtc, LondonPermanentStandardEndUtc):
-                offset = LondonPermanentStandardOffset;
-                return true;
-            case "America/Anchorage" when IsInRange(epochNanoseconds, AnchorageStandardStartUtc, AnchorageStandardEndUtc):
-                offset = AnchorageStandardOffset;
-                return true;
-            case "Africa/Monrovia" when epochNanoseconds < new JsTemporalInstant(MonroviaUtcCutover).EpochNanoseconds:
-                offset = MonroviaOffset;
-                return true;
-            case "Europe/Paris" when epochNanoseconds < new JsTemporalInstant(ParisUtcCutover).EpochNanoseconds:
-                offset = ParisPreCutoverOffset;
-                return true;
-            case "Pacific/Niue" when epochNanoseconds < new JsTemporalInstant(NiueUtcCutover).EpochNanoseconds:
-                offset = NiuePreCutoverOffset;
-                return true;
-            default:
-                offset = default;
-                return false;
-        }
-    }
-
-    private static bool IsInRange(BigInteger epochNanoseconds, DateTimeOffset start, DateTimeOffset end)
-    {
-        return epochNanoseconds >= new JsTemporalInstant(start).EpochNanoseconds &&
-               epochNanoseconds < new JsTemporalInstant(end).EpochNanoseconds;
-    }
-
     private static DateTimeOffset ToDateTimeOffsetFloor(BigInteger epochNanoseconds)
     {
-        var (ticksSinceUnixEpoch, remainder) = BigInteger.DivRem(epochNanoseconds, 100);
-        if (remainder != 0 && epochNanoseconds < 0)
+        var ticks = FloorDiv(epochNanoseconds, 100);
+        if (ticks < long.MinValue || ticks > long.MaxValue)
         {
-            ticksSinceUnixEpoch--;
+            throw new OverflowException("Epoch nanoseconds are outside DateTimeOffset range.");
         }
 
-        return DateTimeOffset.UnixEpoch.AddTicks((long)ticksSinceUnixEpoch);
+        return UnixEpoch.AddTicks((long)ticks);
+    }
+
+    private static BigInteger FloorDiv(BigInteger value, int divisor)
+    {
+        var quotient = BigInteger.DivRem(value, divisor, out var remainder);
+        if (remainder != 0 && value.Sign < 0)
+        {
+            quotient--;
+        }
+
+        return quotient;
     }
 }

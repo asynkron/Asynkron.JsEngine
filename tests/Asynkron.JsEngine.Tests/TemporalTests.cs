@@ -660,6 +660,33 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
         Assert.Equal(false, neq);
     }
 
+    [Fact]
+    public async Task Temporal_ZonedDateTime_Equals_TimeZoneAliases()
+    {
+        await using var engine = CreateEngine();
+        // UTC and Etc/UTC are equivalent time zones — equals must return true
+        var etcUtcEqUtc = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(0), 'UTC').equals(new Temporal.ZonedDateTime(BigInt(0), 'Etc/UTC'))");
+        Assert.Equal(true, etcUtcEqUtc);
+        // +00:00 offset and UTC — equals must return true
+        var offsetEqUtc = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(0), 'UTC').equals(new Temporal.ZonedDateTime(BigInt(0), '+00:00'))");
+        Assert.Equal(true, offsetEqUtc);
+        // Different named zones are not equal even at same instant
+        var diffZones = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(0), 'UTC').equals(new Temporal.ZonedDateTime(BigInt(0), 'America/New_York'))");
+        Assert.Equal(false, diffZones);
+    }
+
+    [Fact]
+    public async Task Temporal_ZonedDateTime_Equals_CalendarMatters()
+    {
+        await using var engine = CreateEngine();
+        // Same instant and time zone but different calendar — equals must return false
+        var diffCal = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(0), 'UTC', 'iso8601').equals(new Temporal.ZonedDateTime(BigInt(0), 'UTC', 'gregory'))");
+        Assert.Equal(false, diffCal);
+        // Same instant, time zone, and calendar — equals must return true
+        var sameCal = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(0), 'UTC', 'gregory').equals(new Temporal.ZonedDateTime(BigInt(0), 'UTC', 'gregory'))");
+        Assert.Equal(true, sameCal);
+    }
+
 [Fact]
     public async Task Temporal_Now_ZonedDateTimeISO()
     {

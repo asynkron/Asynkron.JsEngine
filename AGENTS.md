@@ -12,7 +12,7 @@ This page indexes the agent playbooks. MUST READ AND UNDERSTAND ALL OF THESE bef
 
 ## Engineering Rules & Workflow
 - [Development rules (thread safety, compliance, timeouts)](agents/how-to-development-rules.md)
-- [Workflow and GitHub issue logging](agents/how-to-workflow-and-issues.md) — GitHub issues are the persistent working memory; use the gh CLI patterns there to view/create/comment/patch and log every session’s progress.
+- [Workflow and GitHub issue logging](agents/how-to-workflow-and-issues.md) — GitHub issues are the persistent working memory; use Faktorial Source Context/API when supplied, otherwise use the `gh` CLI patterns there to view/create/comment/patch and log progress.
 - [Git worktree workflow](agents/how-to-worktrees.md)
 
 ## JsValue and Performance Patterns

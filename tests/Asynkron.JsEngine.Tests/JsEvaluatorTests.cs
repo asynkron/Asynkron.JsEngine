@@ -67,6 +67,18 @@ public sealed class JsEvaluatorTests(ITestOutputHelper output) : InternalTestBas
     }
 
     [Fact(Timeout = 2000)]
+    public async Task ReflectGetPrototypeOfHonorsExplicitNullPrototypeOnHostFunction()
+    {
+        await using var engine = CreateEngine();
+        engine.SetGlobalFunction("hostFn", _ => JsValue.Undefined);
+
+        var result = await engine.Evaluate(
+            "Object.setPrototypeOf(hostFn, null); Reflect.getPrototypeOf(hostFn) === null;");
+
+        Assert.True(Assert.IsType<bool>(result));
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task EvaluateObjectLiteralAndPropertyUsage()
     {
         await using var engine = CreateEngine();

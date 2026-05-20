@@ -381,10 +381,24 @@ public static class ReflectHelper
             return proxyProto is null ? JsValue.Null : JsValue.FromObjectUnsafe(proxyProto);
         }
 
-        object? proto = target.Prototype;
-        if (proto is null && target is IPrototypeAccessorProvider provider)
+        object? proto;
+        if (target is HostFunction hostFunction)
         {
-            proto = provider.PrototypeAccessor;
+            // Read HostFunction backing state directly: HostFunction.Prototype lazily rehydrates
+            // Function.prototype, which would mask explicit Object.setPrototypeOf(fn, null).
+            proto = hostFunction.Properties.Prototype;
+            if (proto is null && hostFunction.Properties is IPrototypeAccessorProvider hostProvider)
+            {
+                proto = hostProvider.PrototypeAccessor;
+            }
+        }
+        else
+        {
+            proto = target.Prototype;
+            if (proto is null && target is IPrototypeAccessorProvider provider)
+            {
+                proto = provider.PrototypeAccessor;
+            }
         }
 
         // IteratorResultObject is a lightweight object that conceptually inherits from Object.prototype
@@ -392,16 +406,6 @@ public static class ReflectHelper
         if (proto is null && target is IteratorResultObject && realm.ObjectPrototype is { } objectPrototype)
         {
             proto = objectPrototype;
-        }
-
-        if (proto is not IJsPropertyAccessor &&
-            target is HostFunction { Realm: { } fnRealm } &&
-            fnRealm.TryGetProperty("Function", out var fnVal) &&
-            fnVal.TryGetObject<IJsPropertyAccessor>(out var fnAccessor) &&
-            fnAccessor.TryGetProperty("prototype", out var fnProtoObj) &&
-            fnProtoObj.TryGetObject<JsObject>(out var fnProto))
-        {
-            proto = fnProto;
         }
 
         return proto is null ? JsValue.Null : JsValue.FromObjectUnsafe(proto);

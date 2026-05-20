@@ -79,3 +79,13 @@ pinning.
   detached-buffer no-op behavior can hide it, across both Number and BigInt
   typed-array paths. This complements the typed-array coercion rule in
   `.claude/rules/ecmascript-numeric-coercions.md`.
+- Issue #876 repeated the green-closeout path for
+  `TypedArray_prototype_at`. The 2026-05-17 testrunner summary listed only the
+  strict and sloppy
+  `built-ins/TypedArray/prototype/at/returns-undefined-for-holes-in-sparse-arrays.js`
+  rows, but the build-stage proof on current main passed both the exact fixture
+  filter (2/2) and the full `Name=TypedArray_prototype_at` method group (28/28).
+  The correct delivery was no source change: sparse-array hole filling through
+  typed-array construction and `.at()` reads was already fixed by later mainline
+  work, so the stale batch report should not trigger another nearby
+  TypedArray patch.

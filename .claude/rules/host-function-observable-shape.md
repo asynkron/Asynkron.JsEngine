@@ -14,7 +14,13 @@ shape corrections separate from ordinary JavaScript property operations.
 3. Treat `ForceDeleteOwnProperty` as an internal construction/registration
    escape hatch for callable shape setup, similar to `HostFunction`'s own
    prototype-data-property cleanup.
-4. When changing built-in function object shape, add focused tests for the
+4. When reading a host function's observable `[[Prototype]]`, use backing
+   prototype state instead of the `HostFunction.Prototype` convenience
+   accessor if the operation must preserve explicit `null` prototypes. The
+   accessor may lazily rehydrate `Function.prototype` for callable defaults,
+   which is wrong for `Reflect.getPrototypeOf` after
+   `Object.setPrototypeOf(fn, null)`.
+5. When changing built-in function object shape, add focused tests for the
    exact observable property and any aliases that share the same function
    object.
 
@@ -30,3 +36,12 @@ delete semantics are the wrong abstraction for removing engine-created
 non-configurable prototype data properties.
 
 Related ADR: `docs/adrs/0029-keep-host-function-prototype-removal-internal.md`.
+
+Issue #1057 / PR #1287 fixed `Reflect.getPrototypeOf` for host functions after
+the generic prototype path read `HostFunction.Prototype` and masked an explicit
+`Object.setPrototypeOf(hostFn, null)` by rehydrating the realm's
+`Function.prototype`. The durable lesson is that HostFunction default callable
+shape and user-mutated observable prototype state are distinct: prototype-query
+operations must read the backing state when `null` is observable, while default
+construction helpers may still use the convenience accessor where rehydration is
+intended.

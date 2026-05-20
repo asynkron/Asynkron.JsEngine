@@ -28,12 +28,6 @@ public static partial class TypedAstEvaluator
             // Function-scoped declarations are hoisted (handled during function entry).
             if (instruction.Descriptor is { } funcDecl)
             {
-                // Async/generator declarations stay block-scoped for ordinary sloppy switch/catch
-                // Annex B paths, but eval declaration environments preserve existing eval semantics.
-                var suppressAnnexBVarUpdate = (funcDecl.Function.IsAsync || funcDecl.Function.WasAsync ||
-                                               funcDecl.Function.IsGenerator) &&
-                                              !environment.IsEvalDeclarationEnvironment;
-
                 // Pass skipInternalNameBinding: true so the function doesn't create an internal
                 // const binding for its name (the binding is handled by environment.Define below).
                 var functionValue = funcDecl.Function.CreateFunctionValue(environment, ctx,
@@ -46,6 +40,11 @@ public static partial class TypedAstEvaluator
                 var varEnvironment = environment.GetVarEnvironment();
                 var isAtVarEnvironment = ReferenceEquals(varEnvironment, environment) ||
                                          environment.IsEvalDeclarationEnvironment;
+                // Async/generator declarations stay block-scoped for ordinary sloppy switch/catch
+                // Annex B paths, but eval declaration environments preserve existing eval semantics.
+                var suppressAnnexBVarUpdate = (funcDecl.Function.IsAsync || funcDecl.Function.WasAsync ||
+                                               funcDecl.Function.IsGenerator) &&
+                                              ctx.ExecutionKind != ExecutionKind.Eval;
 
                 var isHoistedUndefinedBinding = false;
                 if (!suppressAnnexBVarUpdate && isAtVarEnvironment && !ctx.CurrentScope.IsStrict &&

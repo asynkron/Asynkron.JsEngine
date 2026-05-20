@@ -138,6 +138,16 @@ public class RegressionTests
         Assert.That(timeout, Is.EqualTo(TimeSpan.FromSeconds(90)));
     }
 
+    [TestCase("built-ins/RegExp/CharacterClassEscapes/character-class-non-word-class-escape-positive-cases.js")]
+    [TestCase(
+        "test/built-ins/RegExp/CharacterClassEscapes/character-class-non-digit-class-escape-positive-cases.js")]
+    public void RegExpCharacterClassEscapesFixtures_UseExtendedExecutionTimeout(string fileName)
+    {
+        var timeout = Test262Test.GetTest262ExecutionTimeout(fileName);
+
+        Assert.That(timeout, Is.EqualTo(TimeSpan.FromSeconds(90)));
+    }
+
     [Test]
     public void OrdinaryTest262Fixtures_UseDefaultExecutionTimeout()
     {

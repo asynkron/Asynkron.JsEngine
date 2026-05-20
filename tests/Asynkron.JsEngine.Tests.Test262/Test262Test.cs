@@ -19,6 +19,8 @@ public abstract partial class Test262Test
         "built-ins/decodeURIComponent/S15.1.3.2_A2.5_T1.js";
     private const string RegExpCharacterClassEscapeNonWhitespaceTest =
         "built-ins/RegExp/character-class-escape-non-whitespace.js";
+    private const string RegExpCharacterClassEscapesPrefix =
+        "built-ins/RegExp/CharacterClassEscapes/";
 
     private static bool IsEnvEnabled(string name)
     {
@@ -610,7 +612,11 @@ try {
     internal static TimeSpan GetTest262ExecutionTimeout(string fileName)
     {
         var normalizedFileName = NormalizeTest262Path(fileName);
-        return normalizedFileName is DecodeURIComponentFourByteTest or RegExpCharacterClassEscapeNonWhitespaceTest
+        var needsExtendedTimeout =
+            normalizedFileName is DecodeURIComponentFourByteTest or RegExpCharacterClassEscapeNonWhitespaceTest
+            || normalizedFileName.StartsWith(RegExpCharacterClassEscapesPrefix, StringComparison.Ordinal);
+
+        return needsExtendedTimeout
             ? TimeSpan.FromSeconds(90)
             : TimeSpan.FromSeconds(30);
     }

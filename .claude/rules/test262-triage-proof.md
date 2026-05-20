@@ -122,3 +122,12 @@ issue-supplied method group 86/86 on current `origin/main`. Future agents should
 treat that owner lookup as context only: once the exact focused proof is green,
 do not patch strict equality, signed-zero, or fromIndex handling without a
 current failing fixture row.
+
+Issue #879 repeated the same current-proof boundary for
+`TypedArray_prototype_indexOf_BigInt`: investigation still identified
+`TypedArrayBase.IndexOfInternal` and BigInt strict equality as the plausible
+owner surface, but the build-stage focused proof
+`Name=TypedArray_prototype_indexOf_BigInt` passed on current main with no
+source or test diff. A stale BigInt TypedArray row is therefore not enough to
+change `fromIndex`, signed-zero, or equality code after the current method
+group is green.

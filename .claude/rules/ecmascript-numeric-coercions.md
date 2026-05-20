@@ -89,6 +89,14 @@ open-coding casts at individual call sites.
     Preserve sign separately from absolute magnitude and prove large exact
     object-bag cases with the focused `Name=Temporal_Duration_from` Test262
     method group.
+18. For `Temporal.Duration.prototype.total` with a ZonedDateTime `relativeTo`
+    and calendar units (`week`, `month`, or `year`), keep the fractional
+    denominator as the positive span between adjacent whole-unit boundaries.
+    Preserve the sign on the remainder between the actual end instant and the
+    threshold boundary; do not divide a negative remainder by a negative
+    backward boundary span. Pin negative partial totals locally for all three
+    calendar units before relying on the focused
+    `Name=Temporal_Duration_prototype_total` Test262 method group.
 
 ## Why
 
@@ -201,3 +209,14 @@ balanced into bounded seconds and fractional nanoseconds. This complements the
 Intl DurationFormat rule but applies to `Temporal.Duration.prototype.toString`
 and `Temporal.Duration.from(...).toString()` rather than Intl number
 formatting.
+
+Issue #835 / PR #1133 fixed `Temporal.Duration.prototype.total` after the
+ZonedDateTime calendar-unit fractional path preserved variable calendar spans
+but let the denominator inherit the direction of a negative duration. A
+negative one-day total relative to the Unix epoch must be `-1 / 7` weeks,
+`-1 / 31` months, and `-1 / 365` years, not the corresponding positive
+fractions. The durable rule is that the adjacent-boundary span is a positive
+measurement, while the signed remainder carries the result direction.
+
+Related ADR:
+`docs/adrs/0051-keep-temporal-duration-calendar-total-fractions-signed.md`.

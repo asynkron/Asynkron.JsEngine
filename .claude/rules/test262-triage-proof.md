@@ -50,3 +50,11 @@ internal regression for the static async generator `yield*` abrupt async
 iterator lookup shape. The rule is to preserve that boundary: regression-only
 coverage may be useful, but a green focused proof is not permission to change
 runtime or harness behavior.
+
+Issue #1028 / PR #1101 confirmed the same boundary for
+`Expressions_arrowFunction_dstr`: the delivery stayed test-only and added
+focused internal coverage for arrow-parameter array destructuring defaults
+whose iterator is already complete or whose `next()` throws. Future agents
+should keep that closeout shape narrow: pin the exact reported iterator
+semantics locally when useful, but do not infer a source repair from an old
+batch report after the focused Test262 proof is green on current main.

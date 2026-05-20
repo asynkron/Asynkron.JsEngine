@@ -76,6 +76,11 @@ host-runtime shortcuts.
     `newTarget` turn an ordinary non-Array `target` into an Array, and do not
     miss cross-realm or proxied Array `target` cases just because they are not
     the current realm's Array constructor.
+16. For Intl built-ins that coerce call arguments through `ToNumber`, use the
+    context-aware conversion path and propagate abrupt completions before later
+    numeric validation such as finite-number checks. Raw `JsValue.AsNumber()`
+    or non-context helper shortcuts can skip observable `valueOf`/`toString`
+    errors and turn the wrong condition into the visible failure.
 
 ## Why
 
@@ -157,3 +162,12 @@ and the resulting Symbol primitive must surface through catchable JavaScript
 `TypeError` conversion paths for both string concatenation and numeric
 addition. Future operator-coercion work should pin both the error path and the
 `Symbol.toPrimitive` hint before relying on the focused Test262 method group.
+
+Issue #823 / PR #1113 fixed `Intl.RelativeTimeFormat.prototype.format` after
+the value argument used a non-observable numeric shortcut before finite-number
+validation. The shared `format`/`formatToParts` argument extraction now creates
+a realm evaluation context, runs context-aware `ToNumber`, and rethrows abrupt
+completion with `ThrowSignal` before checking `double.IsFinite`. Future Intl
+argument-coercion work should prove both observable object coercion and the
+ordinary finite-number path with the focused
+`Name=RelativeTimeFormat_prototype_format` Test262 method group.

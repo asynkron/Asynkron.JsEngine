@@ -19,6 +19,10 @@ the current strict/sloppy writeback rules separate:
   property through the generic property setter path;
 - preserve sloppy-mode recreate-after-delete behavior only through an explicit
   sloppy/allow-missing path.
+- simple `var` declarations with initializers must also resolve the binding
+  reference before evaluating the initializer. If the initializer mutates the
+  `with` lookup surface, write back through the pre-resolved reference rather
+  than resolving the name again after the initializer.
 
 Add focused tests for both sides when touching this area: strict missing-binding
 writeback must throw after the side effect that deletes the binding has already
@@ -131,6 +135,13 @@ compound assignment. The compound operator may read through a captured `with`
 binding whose getter deletes the property before the final `PutValue`; strict
 mode must still re-check the captured object binding and throw `ReferenceError`
 instead of letting the generic setter recreate the property per operator.
+
+Issue #829 / PR #1126 fixed simple IR `var` declarations with initializers.
+The initializer can delete or otherwise mutate the `with` object after
+`ResolveBinding` should already have selected the write target. The durable
+lesson is that declaration evaluation has the same observable target-resolution
+step: capture the reference before initializer evaluation and write through it
+afterward.
 
 Issue #772 / PR #947 fixed object destructuring `var` binding order for a
 computed source property under `with`. The durable lesson is that destructuring

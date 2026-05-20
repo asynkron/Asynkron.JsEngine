@@ -13536,9 +13536,9 @@ public static class TemporalHelper
         var absHours = (long)Math.Abs(duration.Hours);
         var absMinutes = (long)Math.Abs(duration.Minutes);
         var absSeconds = (long)Math.Abs(duration.Seconds);
-        var absMilliseconds = (long)Math.Abs(duration.Milliseconds);
-        var absMicroseconds = (long)Math.Abs(duration.Microseconds);
-        var absNanoseconds = (long)Math.Abs(duration.Nanoseconds);
+        var absMilliseconds = DurationComponentMagnitude(duration.Milliseconds);
+        var absMicroseconds = DurationComponentMagnitude(duration.Microseconds);
+        var absNanoseconds = DurationComponentMagnitude(duration.Nanoseconds);
 
         long subSecondNanos;
         var needsRounding = precision.Increment > 1 ||
@@ -13555,9 +13555,9 @@ public static class TemporalHelper
             var totalTimeNanos = new BigInteger(absHours) * NanosecondsPerHour +
                                  new BigInteger(absMinutes) * NanosecondsPerMinute +
                                  new BigInteger(absSeconds) * NanosecondsPerSecond +
-                                 new BigInteger(absMilliseconds) * 1_000_000 +
-                                 new BigInteger(absMicroseconds) * 1_000 +
-                                 new BigInteger(absNanoseconds);
+                                 absMilliseconds * 1_000_000 +
+                                 absMicroseconds * 1_000 +
+                                 absNanoseconds;
 
             // Include days when balance can reach day level
             if (largestUnit == "day")
@@ -13603,9 +13603,9 @@ public static class TemporalHelper
             // No rounding: combine s + ms + µs + ns using BigInteger (handles overflow),
             // then balance subsecond overflow into seconds. Keep h/m/days as-is.
             var totalSecondsNanos = new BigInteger(absSeconds) * NanosecondsPerSecond +
-                                    new BigInteger(absMilliseconds) * 1_000_000 +
-                                    new BigInteger(absMicroseconds) * 1_000 +
-                                    new BigInteger(absNanoseconds);
+                                    absMilliseconds * 1_000_000 +
+                                    absMicroseconds * 1_000 +
+                                    absNanoseconds;
             absSeconds = (long)(totalSecondsNanos / NanosecondsPerSecond);
             subSecondNanos = (long)(totalSecondsNanos % NanosecondsPerSecond);
         }
@@ -13688,6 +13688,11 @@ public static class TemporalHelper
         }
 
         return sb.ToString();
+    }
+
+    private static BigInteger DurationComponentMagnitude(double value)
+    {
+        return BigInteger.Abs(new BigInteger(value));
     }
 
     /// <summary>

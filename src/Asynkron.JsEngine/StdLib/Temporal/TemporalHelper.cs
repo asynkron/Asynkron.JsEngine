@@ -3513,7 +3513,7 @@ public static class TemporalHelper
             }
             if (string.Equals(showCalendar, "never", StringComparison.Ordinal))
             {
-                return new JsValue(ym.ToStringBasic());
+                return new JsValue(ym.ToStringWithoutCalendar());
             }
             return new JsValue(ym.ToString());
         });
@@ -13635,11 +13635,17 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowTypeError("Property bag for ZonedDateTime must have 'day'", realm: realm);
             var day = ToIntegerWithTruncation(dayVal, realm);
 
-            if (CalendarUsesEras(calendarId))
+            // Preserve observable absent-property order while still validating present
+            // era fields on ordinary property bags for era-capable calendars.
+            if (CalendarUsesEras(calendarId) && accessor is not JsProxy)
             {
-                if (accessor.TryGetProperty("era", out var eraVal) && !eraVal.IsUndefined)
+                if (accessor.GetOwnPropertyDescriptor("era") is not null &&
+                    accessor.TryGetProperty("era", out var eraVal) &&
+                    !eraVal.IsUndefined)
                     JsOps.ToJsString(eraVal);
-                if (accessor.TryGetProperty("eraYear", out var eraYearVal) && !eraYearVal.IsUndefined)
+                if (accessor.GetOwnPropertyDescriptor("eraYear") is not null &&
+                    accessor.TryGetProperty("eraYear", out var eraYearVal) &&
+                    !eraYearVal.IsUndefined)
                     ToIntegerWithTruncation(eraYearVal, realm);
             }
 

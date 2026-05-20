@@ -275,6 +275,7 @@ public static partial class TypedAstEvaluator
             var isAnonymousFunctionDefinition = instruction.AllowNameInference;
             var isLexicalDeclaration = instruction.VarKind != VariableKind.Var;
             var isConstDeclaration = instruction.VarKind == VariableKind.Const;
+            AssignmentReference? preResolvedVarReference = null;
 
             using var functionNameHint = isAnonymousFunctionDefinition
                 ? context.EnterFunctionNameHint(instruction.TargetSymbol)
@@ -284,6 +285,17 @@ public static partial class TypedAstEvaluator
             {
                 environment.DefineJsValue(instruction.TargetSymbol, JsValue.Uninitialized,
                     isConstDeclaration, isLexicalBinding: true, blocksFunctionScopeOverride: true);
+            }
+            else if (instruction.VarKind == VariableKind.Var && hasInitializer)
+            {
+                // Per ES variable declaration evaluation, ResolveBinding happens
+                // before the initializer. This matters for with/proxy side effects
+                // that can change the lookup result during initializer evaluation.
+                environment.EnsureFunctionScopedVarBinding(instruction.TargetSymbol, context);
+                preResolvedVarReference = AssignmentReferenceResolver.ResolveIdentifierDirect(
+                    instruction.TargetSymbol,
+                    environment,
+                    context);
             }
 
             var varValue = instruction.AwaitedProgram is { } awaitedProgram
@@ -324,8 +336,15 @@ public static partial class TypedAstEvaluator
                 {
                     if (!environment.TryAssignBlockedBinding(instruction.TargetSymbol, varValue))
                     {
-                        // Assign to the function-scoped binding even if we're currently in a child scope.
-                        environment.AssignJsValue(instruction.TargetSymbol, varValue);
+                        if (preResolvedVarReference is { } resolvedReference)
+                        {
+                            resolvedReference.SetValue(varValue);
+                        }
+                        else
+                        {
+                            // Assign to the function-scoped binding even if we're currently in a child scope.
+                            environment.AssignJsValue(instruction.TargetSymbol, varValue);
+                        }
                     }
                 }
             }

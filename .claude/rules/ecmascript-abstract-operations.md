@@ -185,6 +185,13 @@ host-runtime shortcuts.
     instant and must not be shifted through that zone. Keep output on the
     receiver's time fields and shared hour-cycle helpers, not a synthetic
     instant-backed host conversion.
+31. For `Temporal.ZonedDateTime` and other instant-backed Temporal
+    constructors, validate the normalized epoch nanoseconds against the shared
+    Temporal instant bounds after the spec-required BigInt coercion and before
+    constructing or wrapping a `JsTemporalInstant`. Exact min/max bounds remain
+    valid; min-1/max+1 must throw `RangeError`. Do not rely on BigInteger
+    storage, host date conversion, or downstream string formatting to enforce
+    the representable instant range.
 
 ## Why
 
@@ -517,3 +524,12 @@ local coverage using offset-sensitive times.
 
 Related ADR:
 `docs/adrs/0066-keep-temporal-plaintime-locale-formatting-timezone-neutral.md`.
+
+Issue #855 / PR #1189 fixed `Temporal.ZonedDateTime` constructor limit
+failures after the constructor accepted epoch nanoseconds outside Temporal's
+representable instant range and wrapped them in a `JsTemporalInstant`. The
+durable lesson is that instant-backed constructors need an explicit shared
+Temporal bounds check at the constructor boundary after coercion, while keeping
+the exact boundary values accepted. Future ZonedDateTime or instant-backed
+constructor work should prove both local min/max acceptance and min-1/max+1
+rejection, plus the focused `Name=Temporal_ZonedDateTime` Test262 method group.

@@ -822,7 +822,7 @@ internal static partial class IntlUtilities
 
         // Atlantic aliases
         { "Atlantic/Faeroe", "Atlantic/Faroe" },
-        { "Atlantic/Jan_Mayen", "Europe/Berlin" },
+        { "Atlantic/Jan_Mayen", "Arctic/Longyearbyen" },
         { "Iceland", "Atlantic/Reykjavik" },
 
         // Arctic
@@ -870,6 +870,12 @@ internal static partial class IntlUtilities
     internal static bool TryCanonicalizeTimeZoneAlias(string id, out string canonical)
     {
         return TimeZoneAliases.TryGetValue(id, out canonical!);
+    }
+
+    internal static bool IsSupportedTimeZoneIdentifier(string id)
+    {
+        var canonical = CanonicalizeTimeZoneId(id);
+        return TimeZoneRegistryCache.Value.Members.Contains(canonical);
     }
 
     private static string CanonicalizeTimeZoneId(string id)

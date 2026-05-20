@@ -914,7 +914,10 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
 
     public override int GetHashCode()
     {
-        return HashCode.Combine(Instant, TimeZoneId);
+        return HashCode.Combine(
+            Instant,
+            TemporalHelper.CanonicalizeTimeZoneIdForComparison(TimeZoneId),
+            TemporalHelper.CanonicalizeCalendarIdForComparison(Calendar));
     }
 
     /// <summary>

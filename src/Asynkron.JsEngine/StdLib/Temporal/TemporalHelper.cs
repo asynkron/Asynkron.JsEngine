@@ -5552,11 +5552,22 @@ public static class TemporalHelper
 
     internal static string CanonicalizeTimeZoneIdForComparison(string timeZoneId)
     {
-        var canonical = CanonicalizeTimeZoneId(timeZoneId);
-        // Per spec TimeZonesEqual: UTC and +00:00 are equivalent
-        if (string.Equals(canonical, "+00:00", StringComparison.Ordinal))
+        if (string.IsNullOrEmpty(timeZoneId))
+            return timeZoneId;
+
+        if (ParseOffsetToNanos(timeZoneId) is not null)
+        {
+            var normalizedOffset = NormalizeUtcOffset(timeZoneId);
+            return string.Equals(normalizedOffset, "+00:00", StringComparison.Ordinal) ? "UTC" : normalizedOffset;
+        }
+
+        if (string.Equals(timeZoneId, "UTC", StringComparison.OrdinalIgnoreCase))
             return "UTC";
-        return canonical;
+
+        return !IntlUtilities.IsSupportedTimeZoneIdentifier(timeZoneId) &&
+               IntlUtilities.TryCanonicalizeTimeZoneAlias(timeZoneId, out var canonical)
+            ? canonical
+            : timeZoneId;
     }
 
     private static JsValue WrapInstant(JsTemporalInstant instant, RealmState realm, JsObject? prototype = null)
@@ -13223,36 +13234,6 @@ public static class TemporalHelper
         return lowered;
     }
 
-    private static string CanonicalizeTimeZoneId(string timeZoneId)
-    {
-        if (string.IsNullOrEmpty(timeZoneId))
-            return timeZoneId;
-
-        // UTC (case-insensitive)
-        if (string.Equals(timeZoneId, "UTC", StringComparison.OrdinalIgnoreCase))
-            return "UTC";
-
-        // For offset timezones, normalize format (+0000 → +00:00, +00 → +00:00)
-        if (timeZoneId.Length >= 2 && (timeZoneId[0] == '+' || timeZoneId[0] == '-') && char.IsDigit(timeZoneId[1]))
-            return NormalizeUtcOffset(timeZoneId);
-
-        // Check IANA alias map for deprecated/alternative timezone names
-        if (IntlUtilities.TryCanonicalizeTimeZoneAlias(timeZoneId, out var aliasCanonical))
-            return aliasCanonical;
-
-        // For IANA names, use case-insensitive lookup via FindTimeZone
-        // then return the system's canonical ID.
-        try
-        {
-            var tz = FindTimeZone(timeZoneId);
-            return tz.HasIanaId ? tz.Id : timeZoneId;
-        }
-        catch (TimeZoneNotFoundException)
-        {
-            return timeZoneId;
-        }
-    }
-
     /// <summary>
     ///     Validates and converts a timezone value from a property bag to a timezone identifier string.
     /// </summary>
@@ -13654,11 +13635,13 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowTypeError("Property bag for ZonedDateTime must have 'day'", realm: realm);
             var day = ToIntegerWithTruncation(dayVal, realm);
 
-            // era/eraYear: read for observable order, validates Infinity → RangeError
-            if (accessor.TryGetProperty("era", out var eraV) && !eraV.IsUndefined)
-                JsOps.ToJsString(eraV);
-            if (accessor.TryGetProperty("eraYear", out var eraYV) && !eraYV.IsUndefined)
-                ToIntegerWithTruncation(eraYV, realm);
+            if (CalendarUsesEras(calendarId))
+            {
+                if (accessor.TryGetProperty("era", out var eraVal) && !eraVal.IsUndefined)
+                    JsOps.ToJsString(eraVal);
+                if (accessor.TryGetProperty("eraYear", out var eraYearVal) && !eraYearVal.IsUndefined)
+                    ToIntegerWithTruncation(eraYearVal, realm);
+            }
 
             var hour = GetOptionalIntProperty(accessor, "hour", realm);
             var microsecond = GetOptionalIntProperty(accessor, "microsecond", realm);

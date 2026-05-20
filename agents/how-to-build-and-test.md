@@ -107,4 +107,5 @@ dotnet run --project examples/NpmPackageDemo
 - Runner: `./tools/run-test262-regressions.sh`
 - This pack is intentionally Test262-only and excludes non-Test262 regressions such as `Asynkron.JsEngine.Tests.Array_indexOf_OnlyCallsHasPropertyOnPrototypeAfterLengthZeroed`.
 - Smaller subsystem packs live under `tests/Asynkron.JsEngine.Tests.Test262/regression-packs/`.
-- Examples: `./tools/run-test262-regressions.sh full`, `./tools/run-test262-regressions.sh temporal`, `./tools/run-test262-regressions.sh regexp`, `./tools/run-test262-regressions.sh proxy`.
+- Available packs: `full`, `annexb`, `array-prototype`, `intl`, `language`, `proxy`, `regexp`, `temporal`.
+- Examples: `./tools/run-test262-regressions.sh temporal`, `./tools/run-test262-regressions.sh intl`, `./tools/run-test262-regressions.sh regexp`.

@@ -50,3 +50,13 @@ pinning.
   issue.
 - This ADR is caused by issue #826 and complements
   `.claude/rules/test262-triage-proof.md`.
+- Issue #869 / PR #1223 reused this closeout path for
+  `TypedArrayConstructors_ctors_lengthArg`. The focused proof was 24/24 green
+  on current `origin/main`, so the delivery added only 12 focused `Uint8Array`
+  length-arg regressions in `tests/Asynkron.JsEngine.Tests/TypedArrayTests.cs`
+  pinning the `ToIndex` table (NaN/-0/undefined/fractional → 0,
+  -1/Infinity/-Infinity/2^53 → `RangeError`, Symbol/BigInt → `TypeError`).
+  The companion PR #1224 covered the analogous buffer-arg `ToIndex` shape.
+  Typed-array constructor coercion slices stay test-only when the focused
+  Test262 group is already green; future agents should extend the existing
+  `TypedArrayTests.cs` clusters instead of opening a new file.

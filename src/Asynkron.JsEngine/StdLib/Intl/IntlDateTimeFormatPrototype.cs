@@ -30,7 +30,10 @@ public sealed partial class IntlDateTimeFormatPrototype
     private readonly record struct TemporalFormatterTarget(
         TemporalFormatterKind Kind,
         DateTimeOffset DateTime,
-        string Calendar);
+        string Calendar,
+        int CalendarYear,
+        int CalendarMonth,
+        int CalendarDay);
 
     private readonly record struct ProlepticDateTime(
         int Year,
@@ -909,7 +912,7 @@ public sealed partial class IntlDateTimeFormatPrototype
         if (TryGetTemporalFormatterTargetForFormat(value, out var temporalTarget))
         {
             var effectiveSlots = GetEffectiveTemporalSlots(slots, temporalTarget, realm);
-            return FormatResolvedDateTime(temporalTarget.DateTime, effectiveSlots, displayTimeZoneId);
+            return FormatResolvedTemporalDateTime(temporalTarget, effectiveSlots, displayTimeZoneId);
         }
 
         var epochMilliseconds = ToEpochMilliseconds(value);
@@ -1045,6 +1048,23 @@ public sealed partial class IntlDateTimeFormatPrototype
         return new JsValue(result);
     }
 
+    private static JsValue FormatResolvedTemporalDateTime(TemporalFormatterTarget target,
+        DateTimeFormatInternalSlots slots, string? displayTimeZoneId = null)
+    {
+        if (target.Kind == TemporalFormatterKind.PlainYearMonth)
+        {
+            var culture = IntlUtilities.ResolveCulture(slots.Locale);
+            var result = slots.Components.Count > 0
+                ? FormatPlainYearMonthWithComponents(target, slots, culture)
+                : FormatPlainYearMonthDefault(target, culture);
+
+            result = IntlUtilities.TranslateDigits(result, slots.NumberingSystem);
+            return new JsValue(result);
+        }
+
+        return FormatResolvedDateTime(target.DateTime, slots, displayTimeZoneId);
+    }
+
     private static bool TryGetTemporalFormatterTarget(JsValue value, out TemporalFormatterTarget target)
     {
         target = default;
@@ -1060,7 +1080,10 @@ public sealed partial class IntlDateTimeFormatPrototype
                 TemporalFormatterKind.PlainDateTime,
                 new DateTimeOffset(pdt.Year, pdt.Month, pdt.Day, pdt.Hour, pdt.Minute, pdt.Second, pdt.Millisecond,
                     TimeSpan.Zero),
-                pdt.Calendar);
+                pdt.Calendar,
+                pdt.Year,
+                pdt.Month,
+                pdt.Day);
             return true;
         }
 
@@ -1070,7 +1093,10 @@ public sealed partial class IntlDateTimeFormatPrototype
             target = new TemporalFormatterTarget(
                 TemporalFormatterKind.PlainDate,
                 new DateTimeOffset(pd.Year, pd.Month, pd.Day, 0, 0, 0, TimeSpan.Zero),
-                pd.Calendar);
+                pd.Calendar,
+                pd.Year,
+                pd.Month,
+                pd.Day);
             return true;
         }
 
@@ -1080,7 +1106,10 @@ public sealed partial class IntlDateTimeFormatPrototype
             target = new TemporalFormatterTarget(
                 TemporalFormatterKind.PlainTime,
                 new DateTimeOffset(1970, 1, 1, pt.Hour, pt.Minute, pt.Second, pt.Millisecond, TimeSpan.Zero),
-                "iso8601");
+                "iso8601",
+                1970,
+                1,
+                1);
             return true;
         }
 
@@ -1090,7 +1119,10 @@ public sealed partial class IntlDateTimeFormatPrototype
             target = new TemporalFormatterTarget(
                 TemporalFormatterKind.PlainYearMonth,
                 new DateTimeOffset(ym.Year, ym.Month, Math.Clamp(ym.ReferenceDay, 1, 28), 0, 0, 0, TimeSpan.Zero),
-                ym.Calendar);
+                ym.Calendar,
+                ym.Year,
+                ym.Month,
+                ym.ReferenceDay);
             return true;
         }
 
@@ -1100,7 +1132,10 @@ public sealed partial class IntlDateTimeFormatPrototype
             target = new TemporalFormatterTarget(
                 TemporalFormatterKind.PlainMonthDay,
                 new DateTimeOffset(md.ReferenceYear, md.ReferenceMonth, md.ReferenceDay, 0, 0, 0, TimeSpan.Zero),
-                md.Calendar);
+                md.Calendar,
+                md.ReferenceYear,
+                md.ReferenceMonth,
+                md.ReferenceDay);
             return true;
         }
 
@@ -1108,14 +1143,14 @@ public sealed partial class IntlDateTimeFormatPrototype
         // but they format via the regular epoch-milliseconds path (not the temporal component path).
         if (jsObject.TryGetProperty("[[TemporalInstant]]", out _))
         {
-            target = new TemporalFormatterTarget(TemporalFormatterKind.Instant, default, "iso8601");
+            target = new TemporalFormatterTarget(TemporalFormatterKind.Instant, default, "iso8601", 1970, 1, 1);
             return true;
         }
 
         if (jsObject.TryGetProperty("[[TemporalZonedDateTime]]", out var zdtSlot) &&
             zdtSlot.TryGetObject<JsTemporalZonedDateTime>(out var zdt))
         {
-            target = new TemporalFormatterTarget(TemporalFormatterKind.ZonedDateTime, default, zdt.Calendar);
+            target = new TemporalFormatterTarget(TemporalFormatterKind.ZonedDateTime, default, zdt.Calendar, 1970, 1, 1);
             return true;
         }
 
@@ -1709,6 +1744,40 @@ public sealed partial class IntlDateTimeFormatPrototype
         return sb.ToString();
     }
 
+    private static string FormatPlainYearMonthWithComponents(TemporalFormatterTarget target,
+        DateTimeFormatInternalSlots slots, CultureInfo culture)
+    {
+        var sb = new StringBuilder();
+        var components = slots.Components;
+        var addedSomething = false;
+
+        if (components.TryGetValue("era", out var era))
+        {
+            AppendSeparator(sb, ref addedSomething);
+            sb.Append(FormatEra(target.DateTime, era));
+        }
+
+        var hasYear = components.TryGetValue("year", out var year);
+        var hasMonth = components.TryGetValue("month", out var month);
+
+        if (hasYear || hasMonth)
+        {
+            AppendSeparator(sb, ref addedSomething);
+            var (order, numericSep) = ParseLocaleDateOrder(culture);
+            sb.Append(FormatPlainYearMonthDateString(target, culture, order, numericSep,
+                hasYear, year, hasMonth, month));
+        }
+
+        return sb.ToString();
+    }
+
+    private static string FormatPlainYearMonthDefault(TemporalFormatterTarget target, CultureInfo culture)
+    {
+        var (order, separator) = ParseLocaleDateOrder(culture);
+        return FormatPlainYearMonthDateString(target, culture, order, separator,
+            true, "numeric", true, "numeric");
+    }
+
     private static string FormatWithComponents(ProlepticDateTime dateTime, DateTimeFormatInternalSlots slots,
         CultureInfo culture, string? displayTimeZoneId)
     {
@@ -2038,6 +2107,45 @@ public sealed partial class IntlDateTimeFormatPrototype
         return sb.ToString();
     }
 
+    private static string FormatPlainYearMonthDateString(
+        TemporalFormatterTarget target, CultureInfo culture, DateOrder order, string numericSep,
+        bool hasYear, string? yearWidth,
+        bool hasMonth, string? monthWidth)
+    {
+        var namedMonth = monthWidth is "long" or "short" or "narrow";
+
+        var yearStr = hasYear ? FormatCalendarYear(target, yearWidth) : null;
+        var monthStr = hasMonth ? FormatCalendarMonth(target, monthWidth, culture) : null;
+
+        var parts = new List<(char ch, string value)>();
+        foreach (var c in GetDateComponentChars(order))
+        {
+            switch (c)
+            {
+                case 'M' when monthStr is not null:
+                    parts.Add(('M', monthStr));
+                    break;
+                case 'y' when yearStr is not null:
+                    parts.Add(('y', yearStr));
+                    break;
+            }
+        }
+
+        if (parts.Count == 0)
+        {
+            return "";
+        }
+
+        if (parts.Count == 1)
+        {
+            return parts[0].value;
+        }
+
+        return namedMonth
+            ? JoinNamedCalendarParts(order, parts)
+            : string.Join(numericSep, parts.Select(p => p.value));
+    }
+
     private static string GetNamedMonthSeparator(DateOrder order, List<(char ch, string value)> parts, int index)
     {
         // MDY: "Jan 3, 2019" → " " between M-d, ", " between d-y
@@ -2145,6 +2253,51 @@ public sealed partial class IntlDateTimeFormatPrototype
             "2-digit" => dateTime.Month.ToString("D2", CultureInfo.InvariantCulture),
             _ => dateTime.Month.ToString(CultureInfo.InvariantCulture)
         };
+    }
+
+    private static string FormatCalendarYear(TemporalFormatterTarget target, string? width)
+    {
+        if (target.Calendar.StartsWith("islamic", StringComparison.OrdinalIgnoreCase))
+        {
+            var (year, _) = GetIslamicYearMonth(target.DateTime, target.Calendar);
+            return FormatIslamicYear(year, width);
+        }
+
+        return width switch
+        {
+            "2-digit" => (target.CalendarYear % 100).ToString("D2", CultureInfo.InvariantCulture),
+            _ => target.CalendarYear.ToString(CultureInfo.InvariantCulture)
+        };
+    }
+
+    private static string FormatCalendarMonth(TemporalFormatterTarget target, string? width, CultureInfo culture)
+    {
+        if (target.Calendar.StartsWith("islamic", StringComparison.OrdinalIgnoreCase))
+        {
+            var (_, month) = GetIslamicYearMonth(target.DateTime, target.Calendar);
+            return FormatIslamicMonth(month, width);
+        }
+
+        return width switch
+        {
+            "long" => culture.DateTimeFormat.GetMonthName(target.CalendarMonth),
+            "short" => culture.DateTimeFormat.GetAbbreviatedMonthName(target.CalendarMonth),
+            "narrow" => culture.DateTimeFormat.GetMonthName(target.CalendarMonth)[..1],
+            "2-digit" => target.CalendarMonth.ToString("D2", CultureInfo.InvariantCulture),
+            _ => target.CalendarMonth.ToString(CultureInfo.InvariantCulture)
+        };
+    }
+
+    private static (int year, int month) GetIslamicYearMonth(DateTimeOffset dto, string calendar)
+    {
+        Calendar islamicCalendar = calendar is "islamic-civil" or "islamic-tbla"
+            ? new HijriCalendar { HijriAdjustment = -1 }
+            : calendar is "islamic-umalqura"
+                ? new UmAlQuraCalendar()
+                : new HijriCalendar();
+
+        var dateTime = dto.DateTime;
+        return (islamicCalendar.GetYear(dateTime), islamicCalendar.GetMonth(dateTime));
     }
 
     private static string FormatDay(DateTimeOffset dto, string? width)

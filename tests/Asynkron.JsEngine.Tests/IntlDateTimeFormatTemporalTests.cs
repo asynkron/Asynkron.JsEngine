@@ -93,4 +93,67 @@ public sealed class IntlDateTimeFormatTemporalTests(ITestOutputHelper output) : 
 
         Assert.Equal("8/4/2021, 00:30:45", result);
     }
+
+    [Fact]
+    public async Task PlainYearMonthToLocaleString_UsesCalendarAwareDateStyleMonthNames()
+    {
+        await using var engine = CreateEngine();
+
+        var gregoryLong = await engine.Evaluate("""
+            Temporal.PlainYearMonth
+                .from({ year: 2024, monthCode: "M03", calendar: "gregory" })
+                .toLocaleString("en-u-ca-gregory", { dateStyle: "long" });
+            """);
+        var gregoryShort = await engine.Evaluate("""
+            Temporal.PlainYearMonth
+                .from({ year: 2024, monthCode: "M03", calendar: "gregory" })
+                .toLocaleString("en-u-ca-gregory", { dateStyle: "short" });
+            """);
+        var islamicLong = await engine.Evaluate("""
+            Temporal.PlainYearMonth
+                .from({ year: 1445, monthCode: "M09", calendar: "islamic-tbla" })
+                .toLocaleString("en-u-ca-islamic-tbla", { dateStyle: "long" });
+            """);
+        var islamicShort = await engine.Evaluate("""
+            Temporal.PlainYearMonth
+                .from({ year: 1445, monthCode: "M09", calendar: "islamic-tbla" })
+                .toLocaleString("en-u-ca-islamic-tbla", { dateStyle: "short" });
+            """);
+
+        Assert.Contains("March", Assert.IsType<string>(gregoryLong));
+        Assert.DoesNotContain("March", Assert.IsType<string>(gregoryShort));
+        Assert.Contains("Ramadan", Assert.IsType<string>(islamicLong));
+        Assert.DoesNotContain("Ramadan", Assert.IsType<string>(islamicShort));
+    }
+
+    [Fact]
+    public async Task PlainYearMonthToLocaleString_DateStyleDoesNotFormatReferenceDay()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            new Temporal.PlainYearMonth(2024, 5, "gregory", 31)
+                .toLocaleString("en", { dateStyle: "full" });
+            """);
+
+        Assert.DoesNotContain("31", Assert.IsType<string>(result));
+    }
+
+    [Fact]
+    public async Task PlainYearMonthToLocaleString_UndefinedDateStyleMatchesOmittedDateStyle()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            const yearMonth = Temporal.PlainYearMonth.from({
+                year: 2024,
+                monthCode: "M03",
+                calendar: "gregory"
+            });
+            yearMonth.toLocaleString("en-u-ca-gregory", { dateStyle: undefined }) ===
+                yearMonth.toLocaleString("en-u-ca-gregory", {});
+            """);
+
+        Assert.Equal(true, result);
+    }
 }

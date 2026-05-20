@@ -319,8 +319,7 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
             return ToStringBasic();
         }
 
-        var isoDate = ToIsoDateForCalendar();
-        return isoDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        return FormatYear() + $"-{Month:D2}-{ReferenceDay:D2}";
     }
 
     /// <summary>

@@ -10734,6 +10734,14 @@ public static class TemporalHelper
                     var bclMonth = month;
                     if (monthCode is not null)
                     {
+                        if (string.Equals(overflow, "reject", StringComparison.Ordinal) &&
+                            monthCode.Length == 4 &&
+                            monthCode[3] == 'L' &&
+                            !IsValidLeapMonthCodeForYear(calendar, year, monthCode))
+                        {
+                            throw StandardLibrary.ThrowRangeError($"Month {monthCode} is out of range", realm: realm);
+                        }
+
                         if (string.Equals(overflow, "reject", StringComparison.Ordinal))
                         {
                             bclMonth = ResolveBclMonthFromMonthCode(monthCode, bclCal, year, realm);

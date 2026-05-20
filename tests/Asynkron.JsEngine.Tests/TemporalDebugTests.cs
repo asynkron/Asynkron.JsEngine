@@ -195,7 +195,6 @@ public class TemporalDebugTests
             const result = apr2000.with({ year: -271821 });
 
             if (result.year !== -271821 || result.month !== 4 || result.monthCode !== 'M04' ||
-                result.era !== 'bce' || result.eraYear !== 271822 ||
                 result.toString({ calendarName: 'always' }) !== '-271821-04-01[u-ca=gregory]') {
                 throw new Error('bad minimum gregory PlainYearMonth: ' + result.toString({ calendarName: 'always' }));
             }

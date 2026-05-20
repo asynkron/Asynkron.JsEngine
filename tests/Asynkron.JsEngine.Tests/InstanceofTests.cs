@@ -85,4 +85,39 @@ public sealed class InstanceofTests(ITestOutputHelper output) : InternalTestBase
         ");
         Assert.Equal("correct", result);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task Instanceof_CustomSymbolHasInstance_UsesConstructorAsThisAndPassesCandidate()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            const rhs = {};
+            const lhs = {};
+            let seenThis = null;
+            let seenArg = null;
+            rhs[Symbol.hasInstance] = function(candidate) {
+                seenThis = this;
+                seenArg = candidate;
+                return true;
+            };
+            lhs instanceof rhs;
+            seenThis === rhs && seenArg === lhs;
+        ");
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Instanceof_CustomSymbolHasInstance_ResultUsesBooleanTruthiness()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            const rhs = {};
+            rhs[Symbol.hasInstance] = () => ({});
+            const truthy = ({} instanceof rhs);
+            rhs[Symbol.hasInstance] = () => 0;
+            const falsy = ({} instanceof rhs);
+            truthy === true && falsy === false;
+        ");
+        Assert.True((bool)result!);
+    }
 }

@@ -109,6 +109,18 @@ host-runtime shortcuts.
     fresh realm contexts, or other non-active-context shortcuts can skip or
     isolate observable `valueOf`/`toString` errors and turn the wrong condition
     into the visible failure.
+17a. For built-in prototype methods that perform observable abstract
+    operations such as `ToPropertyKey`/`ToPropertyName`, do not rely on
+    context-free helper overloads. If the operation can call JavaScript
+    user code through `valueOf`, `toString`, `Symbol.toPrimitive`, accessors,
+    proxy traps, or callbacks, pass the active `EvaluationContext?` through the
+    method signature and the generated host binding. Prototype source
+    generation must install `SetInvokeWithContext` for these signatures;
+    changing only the implementation signature leaves ordinary JavaScript calls
+    on a null-context path. WHY: issue #1053 / PR #1286 fixed
+    `Object.prototype.propertyIsEnumerable` after a wrapper property-key
+    argument whose `valueOf` returned a Symbol crashed the focused Test262
+    `Object_prototype_propertyIsEnumerable` fixture.
 18. For Temporal `relativeTo` property-bag conversion, resolve the calendar at
     the `calendar` step before deciding calendar-specific property reads. Read
     and coerce `era` and `eraYear` at their alphabetical slots only when the
@@ -414,6 +426,18 @@ with `ThrowSignal` before checking `double.IsFinite`, and prove both observable
 object coercion and the ordinary finite-number path with the focused
 `Name=RelativeTimeFormat_prototype_format` and
 `Name=RelativeTimeFormat_prototype_formatToParts` Test262 method groups.
+
+Issue #1053 / PR #1286 fixed `Object.prototype.propertyIsEnumerable` after its
+property-key argument conversion used a context-free `ToPropertyName` overload.
+The failing wrapper's `valueOf` returned a Symbol, so `ToPropertyKey` needed to
+run inside the active JavaScript call context and propagate ordinary abrupt
+completion behavior. The repair also taught prototype source generation to
+route context-aware `[JsHostMethod]` signatures through `SetInvokeWithContext`.
+Future prototype-method abstract-operation work should prove both the C#
+method signature and generated host binding carry the active context, then run
+the owning focused Test262 method group.
+
+Related ADR: `docs/adrs/0081-keep-prototype-host-method-context-propagation.md`.
 
 Issue #1036 / PR #1275 fixed `instanceof` custom `Symbol.hasInstance`
 handling after the focused Test262 symbol-hasinstance cluster exposed two

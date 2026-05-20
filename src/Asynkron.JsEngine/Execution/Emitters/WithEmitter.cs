@@ -29,12 +29,15 @@ internal static class WithEmitter
         var leaveWithIndex = ctx.Append(new LeaveWithInstruction(withScopeSlot, nextIndex));
 
         // Build the body (jumps to the leave with instruction when done)
+        ctx.PushWithScope(withScopeSlot);
         if (!ctx.TryBuildStatement(statement.Body, leaveWithIndex, out var bodyEntry, activeLabel))
         {
+            ctx.PopWithScope(withScopeSlot);
             ctx.Rollback(instructionStart);
             entryIndex = -1;
             return false;
         }
+        ctx.PopWithScope(withScopeSlot);
 
         // Build the enter with instruction (comes before the body)
         if (statement.Object is AwaitExpression awaitObject)

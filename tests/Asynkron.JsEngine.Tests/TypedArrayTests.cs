@@ -1354,17 +1354,19 @@ public sealed class TypedArrayTests(ITestOutputHelper output) : InternalTestBase
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
+                                           const calls = [];
                                            const src = {
                                              length: 2,
-                                             0: 9007199254740991n,
-                                             1: -1n
+                                             0: { [Symbol.toPrimitive](hint) { calls.push({ idx: 0, hint }); return 9007199254740991n; } },
+                                             1: { [Symbol.toPrimitive](hint) { calls.push({ idx: 1, hint }); return -1n; } }
                                            };
                                            const arr = new BigInt64Array(src);
-                                           return { arr0: arr[0], arr1: arr[1] };
+                                           return { arr0: arr[0], arr1: arr[1], callCount: calls.length };
                                            """);
         var obj = Assert.IsType<JsObject>(result);
         Assert.Equal("9007199254740991", obj["arr0"]?.ToString());
         Assert.Equal("-1", obj["arr1"]?.ToString());
+        Assert.Equal(2d, obj["callCount"]);
     }
 
     [Fact(Timeout = 2000)]
@@ -1372,17 +1374,19 @@ public sealed class TypedArrayTests(ITestOutputHelper output) : InternalTestBase
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
+                                           const calls = [];
                                            const src = {
                                              length: 2,
-                                             0: 0n,
-                                             1: 18446744073709551615n
+                                             0: { [Symbol.toPrimitive](hint) { calls.push({ idx: 0, hint }); return 0n; } },
+                                             1: { [Symbol.toPrimitive](hint) { calls.push({ idx: 1, hint }); return 18446744073709551615n; } }
                                            };
                                            const arr = new BigUint64Array(src);
-                                           return { arr0: arr[0], arr1: arr[1] };
+                                           return { arr0: arr[0], arr1: arr[1], callCount: calls.length };
                                            """);
         var obj = Assert.IsType<JsObject>(result);
         Assert.Equal("0", obj["arr0"]?.ToString());
         Assert.Equal("18446744073709551615", obj["arr1"]?.ToString());
+        Assert.Equal(2d, obj["callCount"]);
     }
 
     [Fact(Timeout = 2000)]

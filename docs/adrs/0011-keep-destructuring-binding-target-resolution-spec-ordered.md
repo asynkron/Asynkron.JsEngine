@@ -33,6 +33,13 @@ normalizing it into the active `EvaluationContext`. Negative Test262 fixtures
 then saw an unhandled runtime crash where ECMAScript expected a JavaScript
 throw completion.
 
+Issue #1063 / PR #1303 closed out `Statements_class_dstr` by adding class
+method destructuring regressions. Review caught that the abrupt-completion
+iterator-close regression was too weak when it only observed iterator
+`return()` side effects: a default initializer that throws during class-method
+parameter binding must both close the active iterator exactly once and preserve
+the original JavaScript throw for the caller.
+
 ## Decision
 
 Compiled object destructuring binding must keep the spec ordering explicit:
@@ -59,6 +66,11 @@ let internal `ThrowSignal` values escape directly from
 that preserves `try`/`catch`, iterator close, and expected Test262 negative-case
 semantics.
 
+Class method parameter destructuring uses the same binding-target semantics for
+defaults and iterator cleanup. If a default initializer abruptly completes while
+an array pattern is consuming an iterator, keep the original throw as the
+observable completion and run `IteratorClose` once for the active iterator.
+
 Tasks scheduled while `JsEngine.Evaluate` is still executing its synchronous
 script/module prefix should be deferred until the prefix completes. Flushing the
 deferred queue after synchronous evaluation preserves top-level JavaScript
@@ -77,6 +89,9 @@ ordering while still allowing the event loop to drain pending work afterward.
   active evaluation context at declaration boundaries. A passing narrow
   negative Test262 fixture is not enough if the host `ThrowSignal` can bypass
   `HandleBindingVariableDeclarationThrowSlow`.
+- Class-method destructuring regressions for abrupt defaults must assert both
+  sides of the obligation: the thrown JavaScript error still reaches user code,
+  and the iterator's `return()` hook ran exactly once.
 - Event-loop work scheduled during synchronous top-level evaluation must not run
   until the synchronous prefix has completed.
 - Regression proof should include an internal ordering test with computed source

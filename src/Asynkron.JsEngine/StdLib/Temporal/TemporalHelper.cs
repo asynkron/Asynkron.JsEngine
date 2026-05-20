@@ -7143,7 +7143,7 @@ public static class TemporalHelper
             var dto = zdt.Instant.ToDateTimeOffset();
             return TemporalHistoricalTimeZoneOffsets.GetUtcOffset(zdt.TimeZoneId, zdt.TimeZone, dto);
         }
-        catch (ArgumentOutOfRangeException)
+        catch (Exception e) when (e is ArgumentOutOfRangeException or OverflowException)
         {
             return zdt.TimeZone.BaseUtcOffset;
         }

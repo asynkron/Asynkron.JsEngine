@@ -667,6 +667,19 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
     }
 
     [Fact]
+    public async Task Temporal_ZonedDateTime_OutOfDotNetRange_NamedTimezone_DoesNotThrow()
+    {
+        // 10^21 ns is within Temporal's representable range but causes (long)(BigInteger / 100) to
+        // overflow in ToDateTimeOffset() before ArgumentOutOfRangeException can fire.
+        // GetIanaOffset must catch OverflowException and fall back to BaseUtcOffset so that
+        // property access on a named-timezone ZonedDateTime with such an instant does not throw.
+        await using var engine = CreateEngine();
+        var yearType = await engine.Evaluate(
+            "typeof new Temporal.ZonedDateTime(1000000000000000000000n, 'America/New_York').year");
+        Assert.Equal("number", yearType);
+    }
+
+    [Fact]
     public async Task Temporal_ZonedDateTime_Equals()
     {
         await using var engine = CreateEngine();

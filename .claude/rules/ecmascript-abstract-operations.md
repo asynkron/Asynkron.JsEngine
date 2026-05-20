@@ -160,6 +160,11 @@ host-runtime shortcuts.
     reference ISO date `YYYY-MM-DD`. Keep `auto`, `always`, and `critical`
     behavior on their existing annotation branches unless the spec path proves
     a separate change.
+28. For `Temporal.PlainTime.from` property bags, keep leap-second and
+    out-of-range time fields on the shared Temporal overflow path. Default and
+    `overflow: "constrain"` calls must normalize `second: 60` and higher
+    seconds to the valid maximum second, while `overflow: "reject"` must throw
+    `RangeError` at the time-range validation point.
 
 ## Why
 
@@ -419,3 +424,10 @@ ISO-backed while calendar-visible fields are exposed through calendar helpers.
 
 Related ADR:
 `docs/adrs/0061-keep-temporal-plainmonthday-tostring-reference-date.md`.
+
+Issue #848 / PR #1173 added local regression coverage for
+`Temporal.PlainTime.from` after the Test262 leap-second property-bag fixture
+needed a local pin. Future PlainTime property-bag and shared time-overflow work
+should keep default/constrain normalization distinct from reject validation and
+prove both the focused `Name=Temporal_PlainTime_from` Test262 method group and
+local coverage for `second: 60`, `second: 61`, and `overflow: "reject"`.

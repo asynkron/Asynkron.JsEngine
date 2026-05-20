@@ -1210,11 +1210,6 @@ public sealed partial class TypedArrayPrototype
             for (var i = 0; i < srcLen; i++)
             {
                 var value = sourceArray.GetElement(i);
-                if (target.IsDetachedOrOutOfBounds())
-                {
-                    throw target.CreateOutOfBoundsTypeError();
-                }
-
                 target.SetValue(offset + i, value);
             }
 
@@ -1244,12 +1239,6 @@ public sealed partial class TypedArrayPrototype
                 // then step 20c/20d coerces via ToBigInt or ToNumber based on content type.
                 // SetValue handles the correct coercion for both BigInt and Number typed arrays.
                 JsValue ch = new string(str[i], 1);
-
-                if (target.IsDetachedOrOutOfBounds())
-                {
-                    throw target.CreateOutOfBoundsTypeError();
-                }
-
                 target.SetValue(offset + i, ch);
             }
 

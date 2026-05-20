@@ -43,6 +43,16 @@ maintenance pass, keep the slice repo-local and reviewable:
 5. Capture the matching final signal after editing and record both signals in
    the issue update.
 
+Use a compact evidence shape in the issue update so reviewers can compare
+before/after quickly:
+
+- `Baseline signal:` exact command and a short output excerpt captured before
+  editing.
+- `Final signal:` the same command after editing with a short output excerpt.
+- `Slice check:` `git diff --check` result and changed file list for the slice.
+- `Scope note:` one line confirming no recurrence infrastructure, Makefile
+  contract, or unrelated files were changed.
+
 For docs-only maintenance, do not run full builds, Test262, package installs,
 or broad audits unless the edit directly depends on them. The canonical local
 quality gate remains `make quality`, which builds and tests the internal suite

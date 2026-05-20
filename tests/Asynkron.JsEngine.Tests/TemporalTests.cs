@@ -660,6 +660,98 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
         Assert.Equal(false, neq);
     }
 
+    [Fact]
+    public async Task Temporal_ZonedDateTime_Until_HourLargestUnit_AcrossDifferentNamedZones()
+    {
+        // Spec DifferenceTemporalZonedDateTime step 4 returns via epoch-ns difference
+        // before the TimeZoneEquals check, so cross-zone hour-largest differences are valid.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            const a = new Temporal.ZonedDateTime(0n, 'America/New_York');
+            const b = new Temporal.ZonedDateTime(3600000000000n, 'Europe/Paris');
+            a.until(b, { largestUnit: 'hour' }).hours;
+        ");
+        Assert.Equal(1d, result);
+    }
+
+    [Fact]
+    public async Task Temporal_ZonedDateTime_Since_HourLargestUnit_AcrossFixedAndNamedZones()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            const a = new Temporal.ZonedDateTime(7200000000000n, '+01:00');
+            const b = new Temporal.ZonedDateTime(0n, 'America/New_York');
+            a.since(b, { largestUnit: 'hour' }).hours;
+        ");
+        Assert.Equal(2d, result);
+    }
+
+    [Fact]
+    public async Task Temporal_ZonedDateTime_Until_DayLargestUnit_ThrowsOnNamedTimeZoneMismatch()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            try {
+                const a = new Temporal.ZonedDateTime(0n, 'America/New_York');
+                const b = new Temporal.ZonedDateTime(0n, 'Europe/Paris');
+                a.until(b, { largestUnit: 'day' });
+                'missing throw';
+            } catch (error) {
+                error instanceof RangeError;
+            }
+        ");
+        Assert.Equal(true, result);
+    }
+
+    [Fact]
+    public async Task Temporal_ZonedDateTime_Until_DayLargestUnit_ThrowsOnFixedOffsetMismatch()
+    {
+        // The previous FixedOffset bypass let non-equivalent fixed-offset zones
+        // silently pass calendar-unit since/until; verify they now throw.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            try {
+                const a = new Temporal.ZonedDateTime(0n, '+01:00');
+                const b = new Temporal.ZonedDateTime(0n, '+02:00');
+                a.until(b, { largestUnit: 'day' });
+                'missing throw';
+            } catch (error) {
+                error instanceof RangeError;
+            }
+        ");
+        Assert.Equal(true, result);
+    }
+
+    [Fact]
+    public async Task Temporal_ZonedDateTime_Since_DayLargestUnit_ThrowsOnFixedOffsetVsNamedMismatch()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            try {
+                const a = new Temporal.ZonedDateTime(0n, '+01:00');
+                const b = new Temporal.ZonedDateTime(0n, 'Europe/Paris');
+                a.since(b, { largestUnit: 'day' });
+                'missing throw';
+            } catch (error) {
+                error instanceof RangeError;
+            }
+        ");
+        Assert.Equal(true, result);
+    }
+
+    [Fact]
+    public async Task Temporal_ZonedDateTime_Until_DayLargestUnit_AllowsEquivalentFixedOffsets()
+    {
+        // CanonicalizeTimeZoneIdForComparison normalizes '+01' / '+0100' / '+01:00' identically.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            const a = new Temporal.ZonedDateTime(0n, '+01:00');
+            const b = new Temporal.ZonedDateTime(86400000000000n, '+0100');
+            a.until(b, { largestUnit: 'day' }).days;
+        ");
+        Assert.Equal(1d, result);
+    }
+
 [Fact]
     public async Task Temporal_Now_ZonedDateTimeISO()
     {

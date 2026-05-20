@@ -6640,14 +6640,13 @@ public static class TemporalHelper
             throw StandardLibrary.ThrowRangeError("calendar mismatch", realm: realm);
         }
 
-        // Per 2025 Temporal spec: timezone equality is NOT checked for since/until.
-        // Different timezones are allowed — the difference is computed based on epoch nanoseconds.
-
         var isSince = string.Equals(operation, "since", StringComparison.Ordinal);
 
         // Always compute this→other, negate at end for "since"
 
-        // If largestUnit is time-only (hour or smaller), use epoch nanosecond difference
+        // If largestUnit is time-only (hour or smaller), use epoch nanosecond difference.
+        // Per spec DifferenceTemporalZonedDateTime step 4, the time-only branch returns
+        // before the TimeZoneEquals check, so cross-zone hour-largest differences are valid.
         if (UnitRank(settings.LargestUnit) <= TemporalUnit.Hour)
         {
             var diffNanos = other.Instant.EpochNanoseconds - zdt.Instant.EpochNanoseconds;
@@ -6661,6 +6660,17 @@ public static class TemporalHelper
             if (isSince)
                 balanced = balanced.Negated();
             return balanced;
+        }
+
+        // Per spec DifferenceTemporalZonedDateTime step 7, calendar-unit (day or larger)
+        // differences require matching time zones. Compare effective identifiers so
+        // fixed-offset zones agree by canonical offset and named zones by canonical IANA name.
+        if (!string.Equals(
+                CanonicalizeTimeZoneIdForComparison(zdt.TimeZoneId),
+                CanonicalizeTimeZoneIdForComparison(other.TimeZoneId),
+                StringComparison.Ordinal))
+        {
+            throw StandardLibrary.ThrowRangeError("time zone mismatch", realm: realm);
         }
 
         // Date-containing: use epoch ns arithmetic for timezone-aware difference
@@ -6690,10 +6700,29 @@ public static class TemporalHelper
 
         // Step 3: Time diff via epoch ns (automatically DST-aware)
         var timeDiffNanos = other.Instant.EpochNanoseconds - intermediateNs;
+        if (timeDiffNanos.IsZero &&
+            (years != 0 || months != 0) &&
+            UnitRank(settings.LargestUnit) >= TemporalUnit.Month &&
+            string.Equals(settings.SmallestUnit, "nanosecond", StringComparison.Ordinal) &&
+            settings.RoundingIncrement == 1 &&
+            DateDurationTargetsInvalidLocalTime(zdt, dateDur, realm))
+        {
+            var dayBalanced = BalanceTimeDurationToJsDuration(
+                other.Instant.EpochNanoseconds - zdt.Instant.EpochNanoseconds,
+                TemporalUnit.Day,
+                realm);
+            return isSince ? dayBalanced.Negated() : dayBalanced;
+        }
 
         // Step 4: Handle overshoot (time diff sign opposes overall direction)
         var timeSign = timeDiffNanos > 0 ? 1 : timeDiffNanos < 0 ? -1 : 0;
-        if (timeSign != 0 && timeSign == -overallSign)
+        var localTimeDiffNanos = new BigInteger(localOther.Time.TotalNanoseconds) -
+                                 new BigInteger(localDt.Time.TotalNanoseconds);
+        var localTimeSign = localTimeDiffNanos > 0 ? 1 : localTimeDiffNanos < 0 ? -1 : 0;
+        if ((timeSign != 0 && timeSign == -overallSign) ||
+            (timeSign == 0 && localTimeSign != 0 &&
+             (years != 0 || months != 0) &&
+             UnitRank(settings.LargestUnit) >= TemporalUnit.Month))
         {
             // Adjust end date by -overallSign (borrow a day)
             var epochDay = IsoToDayNumber(adjEndY, adjEndM, adjEndD) - overallSign;
@@ -6712,6 +6741,12 @@ public static class TemporalHelper
         var zdtSmallestRank = UnitRank(settings.SmallestUnit);
         if (zdtSmallestRank >= TemporalUnit.Day)
         {
+            ValidateZonedDateTimeDateRoundingBound(
+                localDt,
+                settings,
+                isSince ? -overallSign : overallSign,
+                realm);
+
             // Rounding to a date unit — round date part, include time fraction for week/day
             (years, months, weeks, days) = RoundDateDuration(
                 years, months, weeks, days,
@@ -8710,6 +8745,62 @@ public static class TemporalHelper
 
     private static int CompareEpochNanoseconds(BigInteger left, BigInteger right)
         => left > right ? 1 : left < right ? -1 : 0;
+
+    private static void ValidateZonedDateTimeDateRoundingBound(
+        JsTemporalPlainDateTime relativeDateTime,
+        DifferenceSettings settings,
+        int sign,
+        RealmState realm)
+    {
+        if (settings.RoundingIncrement == 1)
+        {
+            return;
+        }
+
+        long days;
+        switch (settings.SmallestUnit)
+        {
+            case "day":
+                days = settings.RoundingIncrement;
+                break;
+            case "week":
+                days = checked(settings.RoundingIncrement * 7);
+                break;
+            default:
+                return;
+        }
+
+        var startDay = IsoToDayNumber(
+            relativeDateTime.Year,
+            relativeDateTime.Month,
+            relativeDateTime.Day);
+        var endDay = checked(startDay + days * sign);
+        var (year, month, day) = DayNumberToIsoDate(endDay);
+        RejectISODateTimeRange(
+            year, month, day,
+            relativeDateTime.Hour,
+            relativeDateTime.Minute,
+            relativeDateTime.Second,
+            relativeDateTime.Millisecond,
+            relativeDateTime.Microsecond,
+            relativeDateTime.Nanosecond,
+            realm);
+    }
+
+    private static bool DateDurationTargetsInvalidLocalTime(
+        JsTemporalZonedDateTime relativeTo,
+        JsTemporalDuration dateDuration,
+        RealmState realm)
+    {
+        if (relativeTo.FixedOffset.HasValue)
+        {
+            return false;
+        }
+
+        var local = GetLocalPlainDateTime(relativeTo, realm);
+        var target = AddDurationToPlainDateTime(local, dateDuration, 1, "constrain", realm);
+        return relativeTo.TimeZone.IsInvalidTime(CreateTimeZoneLocalDateTime(target));
+    }
 
     /// <summary>
     /// Computes the actual day length at the intermediate point (start + dateDuration) in the timezone.

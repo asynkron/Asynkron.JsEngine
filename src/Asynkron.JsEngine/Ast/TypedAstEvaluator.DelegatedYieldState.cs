@@ -188,13 +188,14 @@ public static partial class TypedAstEvaluator
                     reportedDone = false;
                 }
 
-                // Delegated completion occurs when:
-                // 1. Inner iterator is a generator AND we propagated throw/return, OR
-                // 2. We propagated return AND inner iterator completed (done: true) - even for non-generator iterators
-                // Use reportedDone for delegated completion check to avoid early completion when Promise was awaited
-                var delegatedCompletion = (_isGeneratorObject && (propagateThrow || propagateReturn)) ||
-                                          (propagateReturn && reportedDone);
-                var propagateThrowResult = propagateThrow && reportedDone;
+                // A normal return value from iterator.throw(...) is handled like next().
+                // Only exceptional paths should request throw propagation.
+                var propagateThrowResult = false;
+                // Delegated completion is only observed when the delegated iterator reports done: true
+                // and the caller requested a return-completion path.
+                // throw() completions that are normal iterator results continue through the regular
+                // propagateThrow+done branch in HandleYieldStar.
+                var delegatedCompletion = propagateReturn && reportedDone;
                 return (value, reportedDone, delegatedCompletion, propagateThrowResult, nextResult);
             }
 

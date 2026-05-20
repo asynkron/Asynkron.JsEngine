@@ -153,6 +153,13 @@ host-runtime shortcuts.
     to supply ISO constructor fields. PlainMonthDay `dateStyle` expansion must
     also filter to month/day fields for that Temporal kind instead of leaking a
     year field through shared date-style defaults.
+27. For `Temporal.PlainMonthDay.prototype.toString`, treat `calendarName` as
+    calendar-annotation policy, not as a request to collapse all calendars to
+    the ISO short month-day shape. `calendarName: "never"` must keep ISO
+    receivers as `MM-DD`, but non-ISO receivers must return the non-annotated
+    reference ISO date `YYYY-MM-DD`. Keep `auto`, `always`, and `critical`
+    behavior on their existing annotation branches unless the spec path proves
+    a separate change.
 
 ## Why
 
@@ -398,3 +405,17 @@ through calendar-part helpers.
 
 Related ADR:
 `docs/adrs/0060-keep-temporal-plainmonthday-locale-formatting-on-reference-slots.md`.
+
+Issue #847 / PR #1172 fixed `Temporal.PlainMonthDay.prototype.toString` after
+`calendarName: "never"` routed every receiver to the ISO short `MM-DD` shape.
+The durable lesson is that `calendarName` removes or adds the calendar
+annotation; it does not choose the field domain. ISO PlainMonthDay receivers
+remain `MM-DD`, while non-ISO receivers must preserve their reference ISO date
+without annotation, for example `1972-05-02`. Future PlainMonthDay string work
+should prove the focused `Name=Temporal_PlainMonthDay_prototype_toString`
+Test262 method group and local ISO/non-ISO `calendarName: "never"` coverage.
+The same delivery's quality repair reaffirmed that non-ISO PlainDate storage is
+ISO-backed while calendar-visible fields are exposed through calendar helpers.
+
+Related ADR:
+`docs/adrs/0061-keep-temporal-plainmonthday-tostring-reference-date.md`.

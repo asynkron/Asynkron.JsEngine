@@ -1549,6 +1549,53 @@ public sealed class TypedArrayTests(ITestOutputHelper output) : InternalTestBase
         Assert.Equal(true, arr.GetElement(4).ToObject());  // instanceof <TypedArray>
     }
 
+    // Internal regression for Test262 built-ins/TypedArrayConstructors/of/new-instance-from-zero.js.
+    // Float typed arrays must preserve -0, integer typed arrays normalize to +0, and TA.of must
+    // still return instances with the concrete constructor/prototype identity.
+    [Fact(Timeout = 2000)]
+    public async Task TypedArrayOf_NewInstanceFromZero_PreservesSignedZeroAndIdentity()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const f32 = Float32Array.of(-0, +0);
+                                           const f64 = Float64Array.of(-0, +0);
+                                           const i32 = Int32Array.of(-0, +0);
+                                           return {
+                                             f32Len: f32.length,
+                                             f64Len: f64.length,
+                                             i32Len: i32.length,
+                                             f32NegZero: Object.is(f32[0], -0),
+                                             f64NegZero: Object.is(f64[0], -0),
+                                             f32PosZero: Object.is(f32[1], +0),
+                                             f64PosZero: Object.is(f64[1], +0),
+                                             i32FirstPosZero: Object.is(i32[0], +0),
+                                             i32SecondPosZero: Object.is(i32[1], +0),
+                                             f32Ctor: f32.constructor === Float32Array,
+                                             f64Ctor: f64.constructor === Float64Array,
+                                             i32Ctor: i32.constructor === Int32Array,
+                                             f32Proto: Object.getPrototypeOf(f32) === Float32Array.prototype,
+                                             f64Proto: Object.getPrototypeOf(f64) === Float64Array.prototype,
+                                             i32Proto: Object.getPrototypeOf(i32) === Int32Array.prototype
+                                           };
+                                           """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(2d, obj["f32Len"]);
+        Assert.Equal(2d, obj["f64Len"]);
+        Assert.Equal(2d, obj["i32Len"]);
+        Assert.Equal(true, obj["f32NegZero"]);
+        Assert.Equal(true, obj["f64NegZero"]);
+        Assert.Equal(true, obj["f32PosZero"]);
+        Assert.Equal(true, obj["f64PosZero"]);
+        Assert.Equal(true, obj["i32FirstPosZero"]);
+        Assert.Equal(true, obj["i32SecondPosZero"]);
+        Assert.Equal(true, obj["f32Ctor"]);
+        Assert.Equal(true, obj["f64Ctor"]);
+        Assert.Equal(true, obj["i32Ctor"]);
+        Assert.Equal(true, obj["f32Proto"]);
+        Assert.Equal(true, obj["f64Proto"]);
+        Assert.Equal(true, obj["i32Proto"]);
+    }
+
     // Regression: ToIndex coercion for the numeric typed-array length-arg constructor path.
     // Proves the shared ToIndex helper matches ES 7.1.22 for the non-BigInt typed-array
     // constructors, mirroring the BigInt64Array/BigUint64Array cases above.

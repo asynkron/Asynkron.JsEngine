@@ -95,6 +95,14 @@ host-runtime shortcuts.
     `ConstructWithNewTarget`. WHY: issue #1046 / PR #1282 fixed
     `Intl.ListFormat` after a non-callable object `NewTarget` crashed through a
     host cast instead of producing a catchable constructor error.
+16b. For Promise capability construction, keep resolve and reject capture slots
+    independent. A custom species constructor can call the executor more than
+    once, so duplicate-call checks must fail after either slot was already set,
+    and post-construction callable validation must report resolve and reject
+    separately. WHY: issue #1056 / PR #1288 fixed
+    `Promise.prototype.then` after its local capability helper used pair-level
+    guards that drifted from the constructor helper and failed the focused
+    Test262 `Promise_prototype_then` fixture.
 17. For Intl built-ins that coerce call arguments through `ToNumber`, use the
     active evaluation context and propagate abrupt completions before later
     numeric validation such as finite-number checks. Raw `JsValue.AsNumber()`,

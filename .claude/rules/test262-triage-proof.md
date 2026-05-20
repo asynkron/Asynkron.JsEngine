@@ -105,3 +105,11 @@ rows, while current main passed the exact fixture filter (2/2) and the full
 method group (28/28). Future TypedArray Test262 issues should still inspect the
 owner surface enough to understand the claimed failure, but once the focused
 proof is green, stop without inventing a nearby runtime or harness patch.
+
+Issue #877 repeated the no-source-change variant for
+`TypedArray_prototype_fill`. The 2026-05-17 testrunner summary listed the
+strict and sloppy `fill-values-conversion-operations.js` rows as failures, but
+the build-stage proof on 2026-05-20 passed the issue-supplied method group
+66/66 on current `origin/main`. Future agents should stop at that proof result
+for this class of stale batch report unless a current failing fixture row is
+reproduced.

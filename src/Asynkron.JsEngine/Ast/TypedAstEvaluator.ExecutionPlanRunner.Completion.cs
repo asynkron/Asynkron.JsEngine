@@ -47,14 +47,16 @@ public static partial class TypedAstEvaluator
         }
 
         /// <summary>
-        /// Saves the current completion value to a TryFrame before entering finally.
+        /// Saves the current completion value to a TryFrame before entering finally,
+        /// then starts a separate finally completion window.
         /// </summary>
         [MethodImpl(JsEngineConstants.Inlining)]
-        private void SaveCompletionValueForFinally(TryFrame frame)
+        private void BeginFinallyCompletionValue(TryFrame frame)
         {
             if (_isScriptMode)
             {
                 frame.SavedCompletionValue = _scriptCompletionValue;
+                _scriptCompletionValue = JsValue.Unit;
             }
         }
 
@@ -249,7 +251,7 @@ public static partial class TypedAstEvaluator
             {
                 frame.FinallyScheduled = true;
                 frame.PendingCompletion = PendingCompletion.FromNormal(resumeTarget);
-                SaveCompletionValueForFinally(frame);
+                BeginFinallyCompletionValue(frame);
                 TryCatchStateRef.RestoredEnvironmentFromTry = frame.EntryEnvironment;
                 _programCounter = frame.FinallyIndex;
                 return;
@@ -334,7 +336,7 @@ public static partial class TypedAstEvaluator
                     {
                         frame.FinallyScheduled = true;
                         frame.PendingCompletion = PendingCompletion.FromAbrupt(kind, value);
-                        SaveCompletionValueForFinally(frame);
+                        BeginFinallyCompletionValue(frame);
 
                         // Restore to the environment that was active when entering the try block.
                         // This ensures that block-scoped bindings inside the try are no longer visible in finally.

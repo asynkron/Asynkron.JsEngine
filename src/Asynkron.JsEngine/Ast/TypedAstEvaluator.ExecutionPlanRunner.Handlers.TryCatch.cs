@@ -276,7 +276,7 @@ public static partial class TypedAstEvaluator
 
             if (pending.Kind == AbruptKind.Break || pending.Kind == AbruptKind.Continue)
             {
-                runner.RestoreCompletionValueFromFinally(completedFrame);
+                runner.FinalizeCompletionValue();
                 if (runner.HandleAbruptCompletion(pending.Kind, pending.Value))
                 {
                     returnValue = default;

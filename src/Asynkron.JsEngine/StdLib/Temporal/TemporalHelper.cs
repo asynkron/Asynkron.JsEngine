@@ -3464,7 +3464,7 @@ public static class TemporalHelper
             }
             if (string.Equals(showCalendar, "never", StringComparison.Ordinal))
             {
-                return new JsValue(ym.ToStringBasic());
+                return new JsValue(ym.ToStringWithoutCalendar());
             }
             return new JsValue(ym.ToString());
         });

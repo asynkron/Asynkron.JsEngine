@@ -267,6 +267,13 @@ host-runtime shortcuts.
     while accepting the receiver's actual `00:00:00.000000001` time, and the
     normalized remainder is still needed to preserve the original
     out-of-range Test262 throw.
+42. For `instanceof` custom `@@hasInstance`, preserve the full spec hook
+    shape: get and call the method with the right-hand side as `this`, pass the
+    left-hand side as the sole argument, propagate abrupt completion or stopped
+    evaluation before producing a value, and return `ToBoolean(result)` rather
+    than a local truthiness shortcut. Why: issue #1036 / PR #1275 fixed
+    `Symbol.hasInstance` Test262 failures where the custom hook result and
+    call shape had to match ECMAScript `InstanceofOperator` semantics.
 
 ## Why
 
@@ -383,6 +390,15 @@ with `ThrowSignal` before checking `double.IsFinite`, and prove both observable
 object coercion and the ordinary finite-number path with the focused
 `Name=RelativeTimeFormat_prototype_format` and
 `Name=RelativeTimeFormat_prototype_formatToParts` Test262 method groups.
+
+Issue #1036 / PR #1275 fixed `instanceof` custom `Symbol.hasInstance`
+handling after the focused Test262 symbol-hasinstance cluster exposed two
+operator-hook hazards: the hook call shape is observable (`this` must be the
+right-hand object and the candidate must be the only argument), and the return
+path is the spec `ToBoolean` result after abrupt-completion propagation, not an
+engine-local shortcut. Future `instanceof` or well-known-symbol operator-hook
+work should add focused local regressions for call shape and result coercion,
+then run the owning focused Test262 group before widening.
 
 Issue #832 / PR #1128 fixed `Temporal.Duration.compare` after `relativeTo`
 conversion first skipped `era`/`eraYear` reads entirely, then needed a

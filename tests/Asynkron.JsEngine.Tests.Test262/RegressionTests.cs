@@ -634,4 +634,86 @@ public class RegressionTests
         Assert.That(prototype, Is.SameAs(realm.ObjectPrototype));
         Assert.That(prototype, Is.Not.SameAs(realm.ArrayPrototype));
     }
+
+    // Regression: integer-indexed [[Set]] coercion order (issue #874).
+    // Mirrors built-ins/TypedArrayConstructors/internals/Set/conversion-operation.js shape:
+    // writes through a throwing valueOf/toPrimitive must surface the coercion error even when
+    // the target index is out of range or the backing buffer is detached. The focused Test262
+    // method group TypedArrayConstructors_internals_Set passed 52/52 on current main; these pins
+    // ensure the coercion-before-validity order stays observable through future refactors.
+
+    [TestCase(false)] // non-BigInt typed array (Int8Array)
+    [TestCase(true)]  // BigInt typed array (BigInt64Array)
+    public async Task TypedArray_IntegerIndexedSet_ThrowingValueOfPropagatesEvenForOutOfRangeIndex(bool bigInt)
+    {
+        await using var engine = Test262Test.CreateTest262Engine(logger: null, debugMode: false, useSnapshot: false);
+
+        var script = bigInt
+            ? """
+              var coerced = false;
+              var ta = new BigInt64Array(4);
+              var evil = { valueOf() { coerced = true; throw new TypeError("boom"); } };
+              var threw = false;
+              try { ta[100] = evil; } catch (e) { threw = e instanceof TypeError; }
+              [threw, coerced];
+              """
+            : """
+              var coerced = false;
+              var ta = new Int8Array(4);
+              var evil = { valueOf() { coerced = true; throw new TypeError("boom"); } };
+              var threw = false;
+              try { ta[100] = evil; } catch (e) { threw = e instanceof TypeError; }
+              [threw, coerced];
+              """;
+
+        var result = await engine.Evaluate(script);
+        var arr = result as JsArray ?? throw new AssertionException("Expected array result");
+        Assert.That(arr.Items[0].AsBoolean(), Is.True, "should have thrown from valueOf");
+        Assert.That(arr.Items[1].AsBoolean(), Is.True, "valueOf side effect must run before index validity check");
+    }
+
+    [TestCase(false)] // non-BigInt typed array (Int8Array)
+    [TestCase(true)]  // BigInt typed array (BigInt64Array)
+    public async Task TypedArray_IntegerIndexedSet_ThrowingValueOfPropagatesEvenForDetachedBuffer(bool bigInt)
+    {
+        await using var engine = Test262Test.CreateTest262Engine(logger: null, debugMode: false, useSnapshot: false);
+
+        var script = bigInt
+            ? """
+              var coerced = false;
+              var buf = new ArrayBuffer(32);
+              var ta = new BigInt64Array(buf);
+              var evil = {
+                valueOf() {
+                  coerced = true;
+                  // Detach the buffer via transfer so subsequent writes are no-ops.
+                  buf.transfer();
+                  throw new TypeError("boom");
+                }
+              };
+              var threw = false;
+              try { ta[0] = evil; } catch (e) { threw = e instanceof TypeError; }
+              [threw, coerced];
+              """
+            : """
+              var coerced = false;
+              var buf = new ArrayBuffer(8);
+              var ta = new Int8Array(buf);
+              var evil = {
+                valueOf() {
+                  coerced = true;
+                  buf.transfer();
+                  throw new TypeError("boom");
+                }
+              };
+              var threw = false;
+              try { ta[0] = evil; } catch (e) { threw = e instanceof TypeError; }
+              [threw, coerced];
+              """;
+
+        var result = await engine.Evaluate(script);
+        var arr = result as JsArray ?? throw new AssertionException("Expected array result");
+        Assert.That(arr.Items[0].AsBoolean(), Is.True, "should have thrown from valueOf");
+        Assert.That(arr.Items[1].AsBoolean(), Is.True, "valueOf side effect must run before detached-buffer check");
+    }
 }

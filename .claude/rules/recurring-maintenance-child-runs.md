@@ -9,6 +9,8 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   simplification slice.
 - Capture a cheap baseline signal before editing and the matching final signal
   after editing.
+- Use a compact issue-update evidence shape: `Baseline signal`, `Final signal`,
+  `Slice check`, and `Scope note`.
 - Do not add or modify recurrence infrastructure in the child run; Faktorial
   owns the recurrence schedule.
 - For docs-only maintenance, avoid full builds, Test262, package installs, or
@@ -50,3 +52,9 @@ prevention guidance to `agents/how-to-build-and-test.md` while leaving the
 actual duplicate cleanup and ADR ID allocation policy to the dedicated ADR
 allocation rule. This keeps the maintenance child small and prevents future
 learn-stage agents from treating a filesystem scan as the allocator.
+
+Issue #1240 / PR #1253 clarified that the issue update itself needs a stable
+evidence shape. Without explicit `Baseline signal`, `Final signal`, `Slice
+check`, and `Scope note` fields, review has to infer whether the maintenance
+child actually proved before/after behavior, passed diff hygiene, and stayed
+away from recurrence infrastructure or unrelated files.

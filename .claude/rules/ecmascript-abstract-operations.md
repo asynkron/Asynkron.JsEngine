@@ -80,7 +80,13 @@ host-runtime shortcuts.
     fallback when `newTarget.prototype` is not an object. Do not let an Array
     `newTarget` turn an ordinary non-Array `target` into an Array, and do not
     miss cross-realm or proxied Array `target` cases just because they are not
-    the current realm's Array constructor.
+    the current realm's Array constructor. Concrete typed-array constructors
+    are also `target`-selected constructor behavior: route them through the
+    typed-array constructor path before generic `newTarget.prototype`
+    resolution, and prove invalid primitive typed-array arguments throw before
+    observable prototype access. WHY: issue #871 / PR #1258 fixed
+    `Reflect.construct` typed-array construction after generic prototype
+    resolution moved ahead of the typed-array `ToIndex` error boundary.
 17. For Intl built-ins that coerce call arguments through `ToNumber`, use the
     active evaluation context and propagate abrupt completions before later
     numeric validation such as finite-number checks. Raw `JsValue.AsNumber()`,

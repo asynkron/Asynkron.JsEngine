@@ -651,6 +651,22 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
     }
 
     [Fact]
+    public async Task Temporal_ZonedDateTime_StartOfDay_AmbiguousMidnight()
+    {
+        // America/St_Johns falls back at midnight on 2010-11-07: -02:30 (DST) → -03:30 (standard).
+        // startOfDay must return the first (earlier) midnight instant, which is -02:30.
+        // TryMatchTimeZoneOffsetForString must accept -02:30 as a valid offset for that local midnight.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(
+            "Temporal.ZonedDateTime.from('2010-11-07T12:00:00-03:30[America/St_Johns]').startOfDay().toString()");
+        Assert.Equal("2010-11-07T00:00:00-02:30[America/St_Johns]", result);
+
+        var parsed = await engine.Evaluate(
+            "Temporal.ZonedDateTime.from('2010-11-07T00:00:00-02:30[America/St_Johns]').offsetNanoseconds");
+        Assert.Equal(-9000000000000d, parsed); // -02:30 = -150 minutes = -9000 seconds = -9e12 ns
+    }
+
+    [Fact]
     public async Task Temporal_ZonedDateTime_Equals()
     {
         await using var engine = CreateEngine();

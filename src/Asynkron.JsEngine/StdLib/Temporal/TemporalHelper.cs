@@ -7165,6 +7165,23 @@ public static class TemporalHelper
     }
 
     /// <summary>
+    ///     Returns the DST-aware UTC offset for a named-timezone ZonedDateTime.
+    ///     Falls back to BaseUtcOffset for instants outside the .NET DateTimeOffset range (years 1-9999).
+    /// </summary>
+    private static TimeSpan GetIanaOffset(JsTemporalZonedDateTime zdt)
+    {
+        try
+        {
+            var dto = zdt.Instant.ToDateTimeOffset();
+            return TemporalHistoricalTimeZoneOffsets.GetUtcOffset(zdt.TimeZoneId, zdt.TimeZone, dto);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return zdt.TimeZone.BaseUtcOffset;
+        }
+    }
+
+    /// <summary>
     ///     Computes the local (wall-clock) date for a ZonedDateTime using BigInteger arithmetic.
     ///     Avoids DateTimeOffset which is limited to years 1-9999.
     /// </summary>
@@ -7178,9 +7195,7 @@ public static class TemporalHelper
         }
         else
         {
-            // For IANA timezones at extreme ranges, use base offset as approximation
-            // (DST doesn't apply at years far from 1-9999)
-            localNanos = zdt.Instant.EpochNanoseconds + zdt.TimeZone.BaseUtcOffset.Ticks * 100L;
+            localNanos = zdt.Instant.EpochNanoseconds + GetIanaOffset(zdt).Ticks * 100L;
         }
 
         // Floor division: epoch days from nanoseconds
@@ -7211,7 +7226,7 @@ public static class TemporalHelper
         }
         else
         {
-            localNanos = zdt.Instant.EpochNanoseconds + zdt.TimeZone.BaseUtcOffset.Ticks * 100L;
+            localNanos = zdt.Instant.EpochNanoseconds + GetIanaOffset(zdt).Ticks * 100L;
         }
 
         var dayNumber = DivRemFloor(localNanos, new BigInteger(NanosecondsPerDay), out var remainder);

@@ -79,6 +79,11 @@ internal static class TemporalHistoricalTimeZoneOffsets
             return offsets;
         }
 
+        if (timeZone.IsAmbiguousTime(localDateTime))
+        {
+            return timeZone.GetAmbiguousTimeOffsets(localDateTime);
+        }
+
         return [timeZone.GetUtcOffset(localDateTime)];
     }
 

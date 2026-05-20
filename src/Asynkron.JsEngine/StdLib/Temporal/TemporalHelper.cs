@@ -3591,13 +3591,25 @@ public static class TemporalHelper
 
             RejectObjectWithCalendarOrTimeZone(overrides, accessor, realm);
 
-            // PrepareTemporalFields — alphabetical: month, monthCode, year
+            var receiverFields = GetPlainYearMonthCalendarFields(ym, realm);
+
+            // PrepareTemporalFields — alphabetical calendar fields: era, eraYear, month, monthCode, year
             var any = false;
             int? partialMonth = null, partialYear = null;
             string? partialMonthCode = null;
+            string? partialEra = null;
+            int? partialEraYear = null;
 
-            if (accessor.TryGetProperty("month", out var v) && !v.IsUndefined) { partialMonth = ToIntegerWithTruncation(v, realm); any = true; }
-            if (accessor.TryGetProperty("monthCode", out v) && !v.IsUndefined) { partialMonthCode = JsOps.ToJsString(v); any = true; }
+            var calendarUsesEras = CalendarUsesEras(ym.Calendar);
+            JsValue v;
+            if (calendarUsesEras)
+            {
+                if (accessor.TryGetProperty("era", out v) && !v.IsUndefined) { partialEra = JsOps.ToJsString(v); any = true; }
+                if (accessor.TryGetProperty("eraYear", out v) && !v.IsUndefined) { partialEraYear = ToIntegerWithTruncation(v, realm); any = true; }
+            }
+
+            if (accessor.TryGetProperty("month", out v) && !v.IsUndefined) { partialMonth = ToIntegerWithTruncation(v, realm); any = true; }
+            if (accessor.TryGetProperty("monthCode", out v) && !v.IsUndefined) { partialMonthCode = JsOps.ToJsString(v); ValidateMonthCodeSyntax(partialMonthCode, realm); any = true; }
             if (accessor.TryGetProperty("year", out v) && !v.IsUndefined) { partialYear = ToIntegerWithTruncation(v, realm); any = true; }
 
             if (!any)
@@ -3605,33 +3617,34 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowTypeError("with() argument must have at least one year-month property", realm: realm);
             }
 
-            // Apply defaults and resolve month/monthCode BEFORE options
-            var year = partialYear ?? ym.Year;
-            var month = ResolveISOMonth(partialMonth, partialMonthCode, ym.Month, realm);
-
-            // Pre-validate: reject fundamentally invalid month before options processing
-            if (month < 1)
+            if ((partialEra is null) != !partialEraYear.HasValue)
             {
-                throw StandardLibrary.ThrowRangeError("Month value is out of range", realm: realm);
+                throw StandardLibrary.ThrowTypeError("with() argument must have both 'era' and 'eraYear'", realm: realm);
             }
 
+            var year = partialYear ??
+                       (partialEra is not null
+                           ? ResolveTemporalEraYear(ym.Calendar, partialEra, partialEraYear!.Value, realm)
+                           : receiverFields.Year);
+
+            // Read overflow before resolving month/monthCode so that leap-month defaults from the
+            // receiver's monthCode can be deferred to ApplyOverflowToYearMonth, matching the spec
+            // order where CalendarYearMonthFromFields runs after overflow is determined.
             var options = args.Count > 1 ? args[1] : JsValue.Undefined;
             var optionsObj = ValidateOptionsObject(options, realm, "Temporal.PlainYearMonth.prototype.with");
             var overflow = GetTemporalOverflowOption(optionsObj, realm);
 
-            if (string.Equals(overflow, "constrain", StringComparison.Ordinal))
-            {
-                month = Math.Clamp(month, 1, 12);
-            }
-            else
-            {
-                if (month is < 1 or > 12)
-                {
-                    throw StandardLibrary.ThrowRangeError("Month value is out of range (1-12)", realm: realm);
-                }
-            }
+            var month = ResolvePlainYearMonthWithMonth(
+                ym.Calendar,
+                year,
+                partialMonth,
+                partialMonthCode,
+                receiverFields.MonthCode,
+                overflow,
+                realm);
 
-            return WrapPlainYearMonth(new JsTemporalPlainYearMonth(year, month, ym.Calendar), realm, prototype);
+            var resultMonthCode = partialMonthCode ?? (partialMonth.HasValue ? null : receiverFields.MonthCode);
+            return WrapPlainYearMonth(ApplyOverflowToYearMonth(year, month, ym.Calendar, resultMonthCode, overflow, realm), realm, prototype);
         });
 
         AddPrototypeMethod(prototype, realm, "toPlainDate", 1, (thisValue, args) =>
@@ -4814,6 +4827,94 @@ public static class TemporalHelper
         }
 
         return ResolveBclMonthFromMonthCode(defaultMonthCode, calendar, calendarYear, realm);
+    }
+
+    private static (int Year, int Month, string MonthCode) GetPlainYearMonthCalendarFields(
+        JsTemporalPlainYearMonth yearMonth,
+        RealmState realm)
+    {
+        if (string.Equals(yearMonth.Calendar, "iso8601", StringComparison.Ordinal) ||
+            string.Equals(yearMonth.Calendar, "gregory", StringComparison.Ordinal) ||
+            !TryCreateBclCalendar(yearMonth.Calendar, out var calendar))
+        {
+            return (yearMonth.Year, yearMonth.Month, yearMonth.MonthCode);
+        }
+
+        try
+        {
+            var isoDay = Math.Clamp(yearMonth.ReferenceDay, 1,
+                IsoCalendarHelpers.DaysInMonth(yearMonth.Year, yearMonth.Month));
+            var isoDate = new DateTime(yearMonth.Year, yearMonth.Month, isoDay);
+            var calendarYear = calendar.GetYear(isoDate);
+            var calendarMonth = calendar.GetMonth(isoDate);
+            var monthCode = BuildMonthCodeFromBclMonth(calendarMonth, GetLeapMonth(calendar, calendarYear));
+            return (calendarYear, calendarMonth, monthCode);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            throw StandardLibrary.ThrowRangeError(
+                $"YearMonth year={yearMonth.Year} month={yearMonth.Month} is out of range for calendar '{yearMonth.Calendar}'",
+                realm: realm);
+        }
+    }
+
+    private static int ResolvePlainYearMonthWithMonth(
+        string calendar,
+        int year,
+        int? month,
+        string? monthCode,
+        string defaultMonthCode,
+        string overflow,
+        RealmState realm)
+    {
+        if (monthCode is not null)
+        {
+            var resolvedMonth = ResolvePlainYearMonthMonthCode(calendar, year, monthCode, realm);
+            if (month.HasValue && month.Value != resolvedMonth)
+            {
+                throw StandardLibrary.ThrowRangeError("month and monthCode must agree", realm: realm);
+            }
+
+            return resolvedMonth;
+        }
+
+        if (month.HasValue)
+        {
+            if (month.Value < 1)
+                throw StandardLibrary.ThrowRangeError("Month value is out of range", realm: realm);
+            return month.Value;
+        }
+
+        // Default: use receiver's monthCode. For BCL non-ISO calendars with a leap-month default
+        // that is invalid for the target year, defer constrain/reject to ApplyOverflowToYearMonth
+        // which re-resolves via resultMonthCode and owns the CalendarYearMonthFromFields boundary.
+        if (!string.Equals(calendar, "iso8601", StringComparison.Ordinal) &&
+            !string.Equals(calendar, "gregory", StringComparison.Ordinal) &&
+            TryCreateBclCalendar(calendar, out var bclCal) &&
+            defaultMonthCode.Length == 4 && defaultMonthCode[3] == 'L' &&
+            !IsValidLeapMonthCodeForYear(calendar, year, defaultMonthCode))
+        {
+            if (!string.Equals(overflow, "constrain", StringComparison.Ordinal))
+                throw StandardLibrary.ThrowRangeError($"Month {defaultMonthCode} is out of range", realm: realm);
+
+            // constrain: numeric approximation matching ApplyOverflowToYearMonth's constrain path
+            var numericMonth = MonthCodeNumericValue(defaultMonthCode);
+            return bclCal is HebrewCalendar ? numericMonth + 1 : numericMonth;
+        }
+
+        return ResolvePlainYearMonthMonthCode(calendar, year, defaultMonthCode, realm);
+    }
+
+    private static int ResolvePlainYearMonthMonthCode(string calendar, int year, string monthCode, RealmState realm)
+    {
+        if (string.Equals(calendar, "iso8601", StringComparison.Ordinal) ||
+            string.Equals(calendar, "gregory", StringComparison.Ordinal) ||
+            !TryCreateBclCalendar(calendar, out var bclCalendar))
+        {
+            return ResolveISOMonthCode(monthCode, realm);
+        }
+
+        return ResolveBclMonthFromMonthCode(monthCode, bclCalendar, year, realm);
     }
 
     private static JsTemporalPlainDateTime CreatePlainDateTimeWithCalendarDate(
@@ -10594,9 +10695,7 @@ public static class TemporalHelper
         int month;
         if (hasMonthCode)
         {
-            month = string.Equals(calendar, "iso8601", StringComparison.Ordinal)
-                ? ResolveISOMonthCode(monthCodeStr!, realm)
-                : MonthCodeNumericValue(monthCodeStr!);
+            month = ResolvePlainYearMonthMonthCode(calendar, year, monthCodeStr!, realm);
             if (hasMonth)
             {
                 if (monthInt != month)
@@ -10635,6 +10734,14 @@ public static class TemporalHelper
                     var bclMonth = month;
                     if (monthCode is not null)
                     {
+                        if (string.Equals(overflow, "reject", StringComparison.Ordinal) &&
+                            monthCode.Length == 4 &&
+                            monthCode[3] == 'L' &&
+                            !IsValidLeapMonthCodeForYear(calendar, year, monthCode))
+                        {
+                            throw StandardLibrary.ThrowRangeError($"Month {monthCode} is out of range", realm: realm);
+                        }
+
                         if (string.Equals(overflow, "reject", StringComparison.Ordinal))
                         {
                             bclMonth = ResolveBclMonthFromMonthCode(monthCode, bclCal, year, realm);

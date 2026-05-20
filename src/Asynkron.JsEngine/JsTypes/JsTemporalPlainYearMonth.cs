@@ -332,7 +332,13 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
             return FormatYear() + $"-{Month:D2}";
         }
 
-        return FormatYear() + $"-{Month:D2}-{ReferenceDay:D2}[u-ca={Calendar}]";
+        if (string.Equals(Calendar, "gregory", StringComparison.Ordinal))
+        {
+            return FormatYear() + $"-{Month:D2}-{ReferenceDay:D2}[u-ca={Calendar}]";
+        }
+
+        var isoDate = ToIsoDateForCalendar();
+        return $"{isoDate:yyyy-MM-dd}[u-ca={Calendar}]";
     }
 
     /// <summary>
@@ -347,7 +353,18 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
             return FormatYear() + $"-{Month:D2}-{ReferenceDay:D2}[{prefix}u-ca={Calendar}]";
         }
 
-        return FormatYear() + $"-{Month:D2}-{ReferenceDay:D2}[{prefix}u-ca={Calendar}]";
+        if (string.Equals(Calendar, "gregory", StringComparison.Ordinal))
+        {
+            return FormatYear() + $"-{Month:D2}-{ReferenceDay:D2}[{prefix}u-ca={Calendar}]";
+        }
+
+        var isoDate = ToIsoDateForCalendar();
+        return $"{isoDate:yyyy-MM-dd}[{prefix}u-ca={Calendar}]";
+    }
+
+    private DateTime ToIsoDateForCalendar()
+    {
+        return ToGregorianDate(Calendar, Year, Month, ReferenceDay);
     }
 
     internal static DateTime ToGregorianDate(string calendar, int year, int month, int day)

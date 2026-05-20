@@ -159,6 +159,53 @@ public class TemporalDebugTests
     }
 
     [Fact]
+    public async Task PlainYearMonthWith_PreservesNonIsoCalendarMonthCodeDefaults()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const instance = Temporal.PlainYearMonth.from({ calendar: 'hebrew', year: 5784, monthCode: 'M11' });
+
+            const resultYear = instance.with({ year: 5783 });
+            if (resultYear.year !== 5783 || resultYear.month !== 11 || resultYear.monthCode !== 'M11') {
+                throw new Error('bad year override: ' + resultYear.year + '/' + resultYear.month + '/' + resultYear.monthCode);
+            }
+
+            const resultMonth = instance.with({ month: 13 });
+            if (resultMonth.year !== 5784 || resultMonth.month !== 13 || resultMonth.monthCode !== 'M12') {
+                throw new Error('bad month override: ' + resultMonth.year + '/' + resultMonth.month + '/' + resultMonth.monthCode);
+            }
+
+            const resultMonthCode = instance.with({ monthCode: 'M10' });
+            if (resultMonthCode.year !== 5784 || resultMonthCode.month !== 11 || resultMonthCode.monthCode !== 'M10') {
+                throw new Error('bad monthCode override: ' + resultMonthCode.year + '/' + resultMonthCode.month + '/' + resultMonthCode.monthCode);
+            }
+
+            'ok';
+        ");
+
+        Assert.Equal("ok", result?.ToString());
+    }
+
+    [Fact]
+    public async Task PlainYearMonthWith_AllowsMinimumGregorianYearMonth()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const apr2000 = new Temporal.PlainYearMonth(2000, 4, 'gregory');
+            const result = apr2000.with({ year: -271821 });
+
+            if (result.year !== -271821 || result.month !== 4 || result.monthCode !== 'M04' ||
+                result.toString({ calendarName: 'always' }) !== '-271821-04-01[u-ca=gregory]') {
+                throw new Error('bad minimum gregory PlainYearMonth: ' + result.toString({ calendarName: 'always' }));
+            }
+
+            'ok';
+        ");
+
+        Assert.Equal("ok", result?.ToString());
+    }
+
+    [Fact]
     public async Task ZonedDateTimeFrom_CanonicalizesGregorianEraCodes()
     {
         var engine = new JsEngine();
@@ -263,6 +310,79 @@ public class TemporalDebugTests
               throw new Error('unexpected PlainDate: ' + date.calendarId + '/' + date.year + '/' + date.monthCode + '/' + date.day);
             }
 
+            'ok';
+        ");
+
+        Assert.Equal("ok", result?.ToString());
+    }
+
+    [Fact]
+    public async Task PlainYearMonthWith_HebrewLeapReceiverYearOnlyOverride_ConstrainDoesNotThrow()
+    {
+        // Hebrew year 5782 is a leap year (monthCode M05L = Adar I exists).
+        // Dynamically find a non-leap target year using from() reject to let the BCL
+        // HebrewCalendar decide what years are non-leap (avoids formula discrepancies).
+        // Changing only the year to a non-leap year with the default overflow ("constrain")
+        // must NOT throw. Regression for pre-options leap-month resolution trap per ADR 0067.
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const leap = Temporal.PlainYearMonth.from({ calendar: 'hebrew', year: 5782, monthCode: 'M05L' });
+            if (leap.monthCode !== 'M05L') throw new Error('expected leap receiver monthCode M05L, got: ' + leap.monthCode);
+
+            // Find a non-leap year by asking the engine: years where M05L rejects
+            let nonLeapYear = null;
+            for (let y = 5783; y <= 5800; y++) {
+                try {
+                    Temporal.PlainYearMonth.from({ calendar: 'hebrew', year: y, monthCode: 'M05L' }, { overflow: 'reject' });
+                    // from() succeeded: y is a leap year, try next
+                } catch (e) {
+                    if (e instanceof RangeError) { nonLeapYear = y; break; }
+                }
+            }
+            if (nonLeapYear === null) throw new Error('could not find a non-leap Hebrew year between 5783 and 5800');
+
+            let constrained;
+            try {
+                constrained = leap.with({ year: nonLeapYear });
+            } catch (e) {
+                throw new Error('constrain should not throw for Hebrew leap receiver + non-leap target year ' + nonLeapYear + ': ' + e.message);
+            }
+            if (constrained.year !== nonLeapYear) throw new Error('expected year ' + nonLeapYear + ', got: ' + constrained.year);
+            if (constrained.monthCode === 'M05L') throw new Error('constrained monthCode should not be M05L for non-leap year ' + nonLeapYear);
+            'ok';
+        ");
+
+        Assert.Equal("ok", result?.ToString());
+    }
+
+    [Fact]
+    public async Task PlainYearMonthWith_HebrewLeapReceiverYearOnlyOverride_RejectThrows()
+    {
+        // Same dynamic-discovery approach as the constrain test.
+        // For the non-leap target year, overflow: "reject" must throw RangeError
+        // because M05L is not valid for that year.
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const leap = Temporal.PlainYearMonth.from({ calendar: 'hebrew', year: 5782, monthCode: 'M05L' });
+
+            let nonLeapYear = null;
+            for (let y = 5783; y <= 5800; y++) {
+                try {
+                    Temporal.PlainYearMonth.from({ calendar: 'hebrew', year: y, monthCode: 'M05L' }, { overflow: 'reject' });
+                } catch (e) {
+                    if (e instanceof RangeError) { nonLeapYear = y; break; }
+                }
+            }
+            if (nonLeapYear === null) throw new Error('could not find a non-leap Hebrew year between 5783 and 5800');
+
+            let threw = false;
+            try {
+                leap.with({ year: nonLeapYear, monthCode: 'M05L' }, { overflow: 'reject' });
+            } catch (e) {
+                if (e instanceof RangeError) threw = true;
+                else throw new Error('expected RangeError, got: ' + e);
+            }
+            if (!threw) throw new Error('expected RangeError for M05L with { year: ' + nonLeapYear + ', monthCode: M05L, overflow: reject }');
             'ok';
         ");
 

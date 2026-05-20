@@ -22,6 +22,10 @@ on the current worktree before changing implementation or harness code.
    names a concrete prior crash shape and current main already passes the
    Test262 group. Keep that change test-only, mirror one exact reported fixture
    shape, and state explicitly that no runtime or harness fix was needed.
+6. If the generated Test262 method group is much broader than the crash entries
+   listed on the issue, prove the issue-listed fixture paths first. Use the
+   method group only as a later widening step when it is a useful semantic pack,
+   not as a substitute for the reported crash evidence.
 
 ## Why
 
@@ -58,3 +62,9 @@ whose iterator is already complete or whose `next()` throws. Future agents
 should keep that closeout shape narrow: pin the exact reported iterator
 semantics locally when useful, but do not infer a source repair from an old
 batch report after the focused Test262 proof is green on current main.
+
+Issue #1032 / PR #1106 confirmed the inverse narrow-proof trap for
+`Expressions_class_dstr`: the generated method group was much broader than the
+23 reported crash entries. The build-stage proof had to enumerate the listed
+class destructuring fixture paths in focused clusters before treating the
+delivery as issue-resolved.

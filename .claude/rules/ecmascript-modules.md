@@ -39,6 +39,14 @@ values, and async module evaluation order separate.
    values: sibling async modules, import tick ordering, self-import tick
    ordering, real async-generator `finally`/`return()` cleanup, and
    `Name=ModuleCode_topLevelAwait`.
+11. Treat the engine microtask queue as a serialized runtime boundary when async
+    module continuations can resume on different managed threads. Protect queue
+    enqueue, detach, prepend, dequeue, deferred requeue, and drain-state updates
+    together, but never execute microtask callbacks while holding that lock.
+12. In top-level-await `try/catch` runners, route class declarations with
+    awaited computed method or accessor names through the shared
+    class-declaration await-temp path. Do not add a generic AST fallback or a
+    try-runner-local computed-name evaluator for this shape.
 
 ## Why
 
@@ -62,3 +70,17 @@ await (... of await iterable)` bridge behavior. The trap was that a
 single-iteration top-level-await shortcut still owns the loop cleanup contract:
 breaking out of the loop must call and await the async iterator's `return()` so
 async generator `finally` blocks run before the module body resumes.
+
+Issue #1032 / PR #1106 fixed an async module continuation race in `JsEngine`.
+The durable lesson is that JavaScript execution can remain logically
+single-threaded while host continuations still mutate the shared microtask
+queue from different managed threads. Future TLA repairs must preserve ADR
+0027's tick ordering and serialize the queue structure, not replace the race
+with synchronous continuations or broad forced drains.
+
+Issue #825 / PR #1120 fixed Test262 `Statements_class` failures for
+top-level-await modules where a `try` block contained a class declaration with
+awaited computed method or accessor names. The durable lesson is that
+specialized TLA statement bridges must reuse the syntax owner's await-temp path:
+class declaration evaluation owns computed names, accessors, static elements,
+binding initialization, and resumption as one operation.

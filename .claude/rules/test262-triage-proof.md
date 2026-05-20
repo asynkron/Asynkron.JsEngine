@@ -8,21 +8,26 @@ on the current worktree before changing implementation or harness code.
 
 1. Start with the issue-supplied narrow proof command, usually:
    `dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --filter "Name=<MethodGroup>"`.
-2. If the focused proof passes, stop implementation work and report the issue as
+2. If directory-form `dotnet test` fails because the SDK cannot resolve the
+   test project from a folder argument, rerun the exact same focused proof
+   against
+   `tests/Asynkron.JsEngine.Tests.Test262/Asynkron.JsEngine.Tests.Test262.csproj`.
+   Treat the first failure as command-shape friction, not source evidence.
+3. If the focused proof passes, stop implementation work and report the issue as
    already green or non-reproducible on current main. Do not invent a nearby
    runtime or harness change just because the stale issue body named a
    plausible owner surface.
-3. If a broader testrunner batch showed failures, treat that batch as triage
+4. If a broader testrunner batch showed failures, treat that batch as triage
    input only. Worker crashes, collateral failures, stale binaries, or later
    merged fixes can make the batch disagree with the current focused proof.
-4. Use the focused proof result to decide the next stage: implementation only
+5. Use the focused proof result to decide the next stage: implementation only
    after a current failing repro; learn/closeout when the exact issue proof is
    already green and no source change is needed.
-5. A focused internal regression can still be the right closeout when the issue
+6. A focused internal regression can still be the right closeout when the issue
    names a concrete prior crash shape and current main already passes the
    Test262 group. Keep that change test-only, mirror one exact reported fixture
    shape, and state explicitly that no runtime or harness fix was needed.
-6. If the generated Test262 method group is much broader than the crash entries
+7. If the generated Test262 method group is much broader than the crash entries
    listed on the issue, noisy, or prone to the local inactivity guard, prove
    the exact issue-listed fixture files or file patterns first. Use the method
    group only as a later widening step when it is a useful semantic pack, not
@@ -131,3 +136,13 @@ owner surface, but the build-stage focused proof
 source or test diff. A stale BigInt TypedArray row is therefore not enough to
 change `fromIndex`, signed-zero, or equality code after the current method
 group is green.
+
+Issue #1043 repeated the same current-proof boundary for
+`Language_evalCode_indirect`, and added a proof-command pitfall. The directory
+form of the issue-supplied Test262 command failed under this local SDK, but the
+same filter against
+`tests/Asynkron.JsEngine.Tests.Test262/Asynkron.JsEngine.Tests.Test262.csproj`
+passed, including the previously crashing Annex B indirect-eval fixture. Future
+agents should repair the command shape before treating a focused Test262 proof
+as source failure, then stop without eval or harness changes when the exact
+project-file proof is green.

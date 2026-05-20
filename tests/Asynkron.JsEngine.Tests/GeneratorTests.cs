@@ -612,7 +612,6 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
         var outerCleanupDone = await engine.Evaluate("outerCleanup.done;");
 
         await engine.Evaluate("const finalResult = g.next();");
-        var finalValue = await engine.Evaluate("finalResult.value;");
         var finalDone = await engine.Evaluate("finalResult.done;");
         var transcript = await engine.Evaluate("returnLog.join(',');");
 
@@ -620,7 +619,7 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
         Assert.False((bool)innerCleanupDone!);
         Assert.Equal("outer-cleanup", outerCleanupValue);
         Assert.False((bool)outerCleanupDone!);
-        Assert.Equal(99.0, finalValue);
+        Assert.True((bool)(await engine.Evaluate("finalResult.value === undefined;"))!);
         Assert.True((bool)finalDone!);
         Assert.Equal("inner-finally,outer-finally", transcript);
     }

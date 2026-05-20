@@ -87,6 +87,13 @@ host-runtime shortcuts.
     fresh realm contexts, or other non-active-context shortcuts can skip or
     isolate observable `valueOf`/`toString` errors and turn the wrong condition
     into the visible failure.
+18. For Temporal `relativeTo` property-bag conversion, resolve the calendar at
+    the `calendar` step before deciding calendar-specific property reads. Read
+    and coerce `era` and `eraYear` at their alphabetical slots only when the
+    resolved calendar is era-capable; do not read missing ISO-only `era` fields
+    just to share a generic field list. For fixed-offset ZonedDateTime strings,
+    validate explicit offset agreement without forcing valid boundary instants
+    through host `DateTimeOffset`.
 
 ## Why
 
@@ -192,3 +199,16 @@ with `ThrowSignal` before checking `double.IsFinite`, and prove both observable
 object coercion and the ordinary finite-number path with the focused
 `Name=RelativeTimeFormat_prototype_format` and
 `Name=RelativeTimeFormat_prototype_formatToParts` Test262 method groups.
+
+Issue #832 / PR #1128 fixed `Temporal.Duration.compare` after `relativeTo`
+conversion first skipped `era`/`eraYear` reads entirely, then needed a
+review-bounce repair to restore those reads only for era-capable calendars.
+The durable rule is that Temporal property-bag conversion is observable and
+calendar-dependent: ISO bags must not observe missing era fields, while
+era-capable calendars must still coerce era fields before later fields such as
+`hour`. The same issue fixed fixed-offset `relativeTo` strings at Temporal's
+representable range boundary by validating offset agreement without routing
+valid boundary instants through host `DateTimeOffset`. Future Temporal
+`relativeTo` work should pin both observable property order and boundary string
+handling with the focused `Name=Temporal_Duration_compare` Test262 method
+group.

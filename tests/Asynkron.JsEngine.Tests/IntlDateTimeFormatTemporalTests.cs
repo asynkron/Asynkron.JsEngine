@@ -71,4 +71,26 @@ public sealed class IntlDateTimeFormatTemporalTests(ITestOutputHelper output) : 
                 new Temporal.PlainTime(13, 30));
             """));
     }
+
+    [Fact]
+    public async Task PlainDateTimeToLocaleString_PadsNumericH23HourWithResolvedTimeZone()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            new Temporal.PlainDateTime(2021, 8, 4, 0, 30, 45, 123, 456, 789)
+                .toLocaleString("en", {
+                    timeZone: "Pacific/Apia",
+                    year: "numeric",
+                    month: "numeric",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "numeric",
+                    second: "numeric",
+                    hourCycle: "h23"
+                });
+            """);
+
+        Assert.Equal("8/4/2021, 00:30:45", result);
+    }
 }

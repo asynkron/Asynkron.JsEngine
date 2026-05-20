@@ -2187,6 +2187,7 @@ public sealed partial class IntlDateTimeFormatPrototype
         return width switch
         {
             "2-digit" => hour.ToString("D2", CultureInfo.InvariantCulture),
+            "numeric" when ShouldPadNumericHour(slots) => hour.ToString("D2", CultureInfo.InvariantCulture),
             _ => hour.ToString(CultureInfo.InvariantCulture)
         };
     }
@@ -2218,8 +2219,14 @@ public sealed partial class IntlDateTimeFormatPrototype
         return width switch
         {
             "2-digit" => hour.ToString("D2", CultureInfo.InvariantCulture),
+            "numeric" when ShouldPadNumericHour(slots) => hour.ToString("D2", CultureInfo.InvariantCulture),
             _ => hour.ToString(CultureInfo.InvariantCulture)
         };
+    }
+
+    private static bool ShouldPadNumericHour(DateTimeFormatInternalSlots slots)
+    {
+        return slots.HourCycle is "h23" or "h24";
     }
 
     private static string FormatMinute(DateTimeOffset dto, string width)

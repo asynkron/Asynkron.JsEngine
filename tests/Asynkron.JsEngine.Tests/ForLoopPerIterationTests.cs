@@ -94,4 +94,28 @@ public sealed class ForLoopPerIterationTests(ITestOutputHelper output) : Interna
         Assert.Equal(1d, array.GetElement(1).ToObject());
         Assert.Equal(2d, array.GetElement(2).ToObject());
     }
+
+    [Fact]
+    public async Task ContinueInsideShadowingBlock_PreservesLoopBinding()
+    {
+        // Mirrors test262: language/statements/continue/shadowing-loop-variable-in-same-scope-as-continue.js
+        const string source = """
+            let count = 0;
+            for (let x = 0; x < 10;) {
+              x++;
+              count++;
+              {
+                let x = 'hello';
+                continue;
+              }
+            }
+            count;
+            """;
+
+        await using var engine = TestEngineFactory.CreateDebugEngine(
+            new TestLogger(Output, nameof(ForLoopPerIterationTests)));
+        var result = await engine.Evaluate(source);
+
+        Assert.Equal(10d, result);
+    }
 }

@@ -17,6 +17,10 @@ path-normalized.
 5. Prefer runtime fixes for compliance or allocation bugs; use per-fixture
    harness policy only when the issue is the harness limit around a known heavy
    upstream fixture.
+6. Prefix-based timeout policy is allowed only for a generated heavyweight
+   fixture family with one semantic root, a current focused proof, path
+   normalization coverage, default-timeout coverage for ordinary fixtures, and
+   an ADR naming the accepted prefix.
 
 ## Why
 
@@ -29,3 +33,12 @@ because the first helper matched only the bare path and missed the equivalent
 Future agents should treat Test262 path strings as harness inputs that need
 normalization and direct regression coverage, not as stable literals that can be
 matched in only one form.
+
+Issue #1058 / PR #1289 added the first accepted prefix-based timeout exception:
+`built-ins/RegExp/CharacterClassEscapes/`. The affected fixtures are generated
+RegExp character-class escape packs over large Unicode ranges, and the final
+focused proof
+`dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --filter "Name=RegExp_CharacterClassEscapes"`
+passed 24/24 after the harness-policy change. Future agents may not treat that
+exception as permission to widen other Test262 directories without the same
+proof shape and a new ADR.

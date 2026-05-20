@@ -122,3 +122,13 @@ issue-supplied method group 86/86 on current `origin/main`. Future agents should
 treat that owner lookup as context only: once the exact focused proof is green,
 do not patch strict equality, signed-zero, or fromIndex handling without a
 current failing fixture row.
+
+Issue #882 repeated the same no-source-change closeout for
+`TypedArray_prototype_map`. The investigation identified
+`TypedArrayPrototype.Map`, typed-array species creation, and target element
+conversion writes as plausible owner surfaces for
+`return-new-typedarray-conversion-operation.js`, but the build-stage proof on
+2026-05-20 passed the issue-supplied method group 100/100 on current
+`origin/main`. Future agents should treat that owner lookup as context only:
+once the exact focused proof is green, do not patch typed-array map conversion,
+species creation, or numeric coercion without a current failing fixture row.

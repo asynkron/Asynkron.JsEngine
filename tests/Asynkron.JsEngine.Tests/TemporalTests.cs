@@ -110,6 +110,36 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
     }
 
     [Fact]
+    public async Task Temporal_PlainTime_From_PropertyBag_NormalizesLeapSecond()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            [
+                Temporal.PlainTime.from({ second: 60 }).second,
+                (() => {
+                    try {
+                        Temporal.PlainTime.from({ second: 60 }, { overflow: 'reject' });
+                        return 'no throw';
+                    } catch (err) {
+                        return err.name;
+                    }
+                })(),
+                Temporal.PlainTime.from({ second: 61 }, { overflow: 'constrain' }).second,
+                (() => {
+                    try {
+                        Temporal.PlainTime.from({ second: 61 }, { overflow: 'reject' });
+                        return 'no throw';
+                    } catch (err) {
+                        return err.name;
+                    }
+                })()
+            ].join('|');
+        ");
+
+        Assert.Equal("59|RangeError|59|RangeError", result);
+    }
+
+    [Fact]
     public async Task Temporal_PlainDateTime_Constructor()
     {
         await using var engine = CreateEngine();

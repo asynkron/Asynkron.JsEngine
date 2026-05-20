@@ -10493,8 +10493,8 @@ public static class TemporalHelper
         {
             return era.ToLowerInvariant() switch
             {
-                "ce" or "ad" => eraYear,
-                "bce" or "bc" => 1 - eraYear,
+                "gregory" or "ce" or "ad" => eraYear,
+                "gregory-inverse" or "bce" or "bc" => 1 - eraYear,
                 _ => throw StandardLibrary.ThrowRangeError($"Unsupported era '{era}' for calendar '{calendar}'", realm: realm)
             };
         }

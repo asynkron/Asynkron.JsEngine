@@ -684,4 +684,63 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
         Assert.Equal("M01", r3);
     }
 
+    [Fact]
+    public async Task Temporal_ZonedDateTime_GregoryEra_RoundTrip_CE()
+    {
+        // era getter returns canonical 'gregory' — round-tripping through ZonedDateTime.from must not throw
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const zdt = Temporal.ZonedDateTime.from({ calendar: 'gregory', year: 2024, month: 3, day: 15, timeZone: 'UTC' });
+            const roundTripped = Temporal.ZonedDateTime.from({
+                calendar: 'gregory',
+                era: zdt.era,
+                eraYear: zdt.eraYear,
+                month: zdt.month,
+                day: zdt.day,
+                timeZone: 'UTC',
+            });
+            `${zdt.era}|${zdt.eraYear}|${roundTripped.year}|${roundTripped.month}|${roundTripped.day}`;
+            """);
+        Assert.Equal("gregory|2024|2024|3|15", result);
+    }
+
+    [Fact]
+    public async Task Temporal_ZonedDateTime_GregoryEra_RoundTrip_BCE()
+    {
+        // era getter returns canonical 'gregory-inverse' — round-tripping through ZonedDateTime.from must not throw
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const zdt = Temporal.ZonedDateTime.from({ calendar: 'gregory', year: -43, month: 3, day: 15, timeZone: 'UTC' });
+            const roundTripped = Temporal.ZonedDateTime.from({
+                calendar: 'gregory',
+                era: zdt.era,
+                eraYear: zdt.eraYear,
+                month: zdt.month,
+                day: zdt.day,
+                timeZone: 'UTC',
+            });
+            `${zdt.era}|${zdt.eraYear}|${roundTripped.year}|${roundTripped.month}|${roundTripped.day}`;
+            """);
+        Assert.Equal("gregory-inverse|44|-43|3|15", result);
+    }
+
+    [Fact]
+    public async Task Temporal_PlainDate_GregoryEra_RoundTrip_BCE()
+    {
+        // PlainDate.from round-trip: era/eraYear from getter must be accepted back
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const pd = Temporal.PlainDate.from({ calendar: 'gregory', year: -43, month: 3, day: 15 });
+            const roundTripped = Temporal.PlainDate.from({
+                calendar: 'gregory',
+                era: pd.era,
+                eraYear: pd.eraYear,
+                month: pd.month,
+                day: pd.day,
+            });
+            `${pd.era}|${pd.eraYear}|${roundTripped.year}`;
+            """);
+        Assert.Equal("gregory-inverse|44|-43", result);
+    }
+
 }

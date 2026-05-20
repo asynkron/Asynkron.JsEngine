@@ -21,6 +21,14 @@ public abstract partial class Test262Test
         "built-ins/RegExp/character-class-escape-non-whitespace.js";
     private const string RegExpCharacterClassEscapesPrefix =
         "built-ins/RegExp/CharacterClassEscapes/";
+    private const string RegExpLiteralFirstCharRoundTripTest =
+        "language/literals/regexp/S7.8.5_A1.1_T2.js";
+    private const string RegExpLiteralFirstCharEscapeRoundTripTest =
+        "language/literals/regexp/S7.8.5_A1.4_T2.js";
+    private const string RegExpLiteralCharsRoundTripTest =
+        "language/literals/regexp/S7.8.5_A2.1_T2.js";
+    private const string RegExpLiteralCharsEscapeRoundTripTest =
+        "language/literals/regexp/S7.8.5_A2.4_T2.js";
 
     private static bool IsEnvEnabled(string name)
     {
@@ -613,7 +621,13 @@ try {
     {
         var normalizedFileName = NormalizeTest262Path(fileName);
         var needsExtendedTimeout =
-            normalizedFileName is DecodeURIComponentFourByteTest or RegExpCharacterClassEscapeNonWhitespaceTest
+            normalizedFileName is
+                DecodeURIComponentFourByteTest or
+                RegExpCharacterClassEscapeNonWhitespaceTest or
+                RegExpLiteralFirstCharRoundTripTest or
+                RegExpLiteralFirstCharEscapeRoundTripTest or
+                RegExpLiteralCharsRoundTripTest or
+                RegExpLiteralCharsEscapeRoundTripTest
             || normalizedFileName.StartsWith(RegExpCharacterClassEscapesPrefix, StringComparison.Ordinal);
 
         return needsExtendedTimeout

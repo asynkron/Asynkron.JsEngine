@@ -180,4 +180,12 @@ public sealed class TodoBugFixTests : Test262Test
     {
         RunTestCode(test, strict);
     }
+
+    // FIXED: Promise.prototype.then capability executor duplicate-call semantics
+    [TestCase("built-ins/Promise/prototype/then/capability-executor-called-twice.js", false)]
+    [TestCase("built-ins/Promise/prototype/then/capability-executor-called-twice.js", true)]
+    public void Promise_prototype_then_capability_executor_called_twice(string test, bool strict)
+    {
+        RunTestCode(test, strict);
+    }
 }

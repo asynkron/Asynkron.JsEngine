@@ -3,6 +3,7 @@
 using System.Globalization;
 using System.Numerics;
 using System.Text;
+using System.Buffers;
 
 #endregion
 
@@ -408,7 +409,7 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
                 {
                     ReadNumber();
                 }
-                else if (IsIdentifierStart(c) || c == '\\')
+                else if (c == '\\' || IsIdentifierStartChar(c))
                 {
                     ReadIdentifier(c);
                 }
@@ -426,6 +427,20 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
         return c == '\u1680' || c == '\u2000' || c == '\u2001' || c == '\u2002' || c == '\u2003' ||
                c == '\u2004' || c == '\u2005' || c == '\u2006' || c == '\u2007' || c == '\u2008' ||
                c == '\u2009' || c == '\u200A' || c == '\u202F' || c == '\u205F' || c == '\u3000';
+    }
+
+    private bool IsIdentifierStartChar(char c)
+    {
+        if (IsIdentifierStart(c))
+        {
+            return true;
+        }
+
+        return char.IsHighSurrogate(c) &&
+               !IsAtEnd &&
+               char.IsLowSurrogate(Peek()) &&
+               Rune.TryCreate(c, Peek(), out var rune) &&
+               IsIdentifierStart(rune);
     }
 
     private void SkipSingleLineComment()
@@ -473,7 +488,17 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
         if (firstChar == '\\')
         {
             builder = new StringBuilder();
-            builder.Append(ReadIdentifierEscape(true));
+            builder.Append(ReadIdentifierEscape(true, true));
+        }
+        else if (char.IsHighSurrogate(firstChar) &&
+                 !IsAtEnd &&
+                 char.IsLowSurrogate(Peek()) &&
+                 Rune.TryCreate(firstChar, Peek(), out var firstRune) &&
+                 IsIdentifierStart(firstRune))
+        {
+            // The first UTF-16 code unit is already consumed by ScanToken.
+            // Consume the trailing surrogate so identifier tokenization advances by one scalar.
+            Advance();
         }
 
         while (true)
@@ -487,17 +512,16 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
                     builder.Append(source.AsSpan(_start, _current - _start));
                 }
 
-                builder.Append(ReadIdentifierEscape());
+                builder.Append(ReadIdentifierEscape(isStart: false));
                 continue;
             }
 
-            var current = Peek();
-            if (!IsIdentifierPart(current))
+            if (!TryPeekIdentifierRune(out var current, out var scalarLength) || !IsIdentifierPart(current))
             {
                 break;
             }
 
-            AdvanceAndAppend(builder);
+            AdvanceIdentifierScalarAndAppend(builder, current, scalarLength);
         }
 
         var text = GetBuiltText(builder);
@@ -511,7 +535,7 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
         }
     }
 
-    private string ReadIdentifierEscape(bool backslashConsumed = false)
+    private string ReadIdentifierEscape(bool isStart, bool backslashConsumed = false)
     {
         if (!backslashConsumed)
         {
@@ -543,7 +567,12 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
             }
 
             Advance(); // consume }
-            return char.ConvertFromUtf32(codePoint);
+            if (!TryReadIdentifierEscapeRune(codePoint, isStart, out var rune))
+            {
+                throw new ParseException("Invalid identifier escape sequence.");
+            }
+
+            return rune.ToString();
         }
 
         if (_current + 4 > source.Length)
@@ -559,7 +588,12 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
 
         _current += 4;
         _column += 4;
-        return char.ConvertFromUtf32(value);
+        if (!TryReadIdentifierEscapeRune(value, isStart, out var fixedWidthRune))
+        {
+            throw new ParseException("Invalid identifier escape sequence.");
+        }
+
+        return fixedWidthRune.ToString();
     }
 
     private void ReadPrivateIdentifier()
@@ -571,17 +605,17 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
         {
             builder = new StringBuilder();
             builder.Append('#');
-            builder.Append(ReadIdentifierEscape());
+            builder.Append(ReadIdentifierEscape(isStart: true));
         }
         else
         {
-            var first = Peek();
-            if (!IsIdentifierStart(first))
+            if (!TryPeekIdentifierRune(out var firstRune, out var firstScalarLength) || !IsIdentifierStart(firstRune))
             {
                 throw new ParseException($"Expected identifier after '#' on line {_line} column {_column}.");
             }
 
-            Advance();
+            _current += firstScalarLength;
+            _column += firstScalarLength;
         }
 
         while (true)
@@ -594,17 +628,16 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
                     builder.Append(source.AsSpan(_start, _current - _start));
                 }
 
-                builder.Append(ReadIdentifierEscape());
+                builder.Append(ReadIdentifierEscape(isStart: false));
                 continue;
             }
 
-            var current = Peek();
-            if (!IsIdentifierPart(current))
+            if (!TryPeekIdentifierRune(out var current, out var scalarLength) || !IsIdentifierPart(current))
             {
                 break;
             }
 
-            AdvanceAndAppend(builder);
+            AdvanceIdentifierScalarAndAppend(builder, current, scalarLength);
         }
 
         var text = GetBuiltText(builder);
@@ -1035,18 +1068,6 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
         return c;
     }
 
-    private void AdvanceAndAppend(StringBuilder? builder)
-    {
-        if (builder is not null)
-        {
-            builder.Append(Advance());
-        }
-        else
-        {
-            Advance();
-        }
-    }
-
     private string GetBuiltText(StringBuilder? builder)
     {
         return builder is null
@@ -1294,97 +1315,60 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
         return value;
     }
 
-    private static bool IsIdentifierStart(char c)
+    private bool TryPeekIdentifierRune(out Rune rune, out int scalarLength)
     {
-        // Disallow ASCII digits as a fast-path guard.
-        if (char.IsDigit(c))
+        rune = default;
+        scalarLength = 0;
+        if (IsAtEnd)
         {
             return false;
         }
 
-        // Treat surrogate halves as valid identifier pieces so supplementary plane
-        // ID_Start code points encoded as UTF-16 pairs are accepted.
-        if (char.IsSurrogate(c))
+        var peeked = source.AsSpan(_current);
+        if (Rune.DecodeFromUtf16(peeked, out rune, out scalarLength) != OperationStatus.Done || scalarLength <= 0)
         {
-            return true;
+            return false;
         }
 
-        // Include Other_ID_Start code points (e.g. \u2118, \u212E, \u309B, \u309C, \u1885, \u1886) alongside the usual letter set.
-        if (c == '$' || c == '_' || char.IsLetter(c) ||
-            c is '\u2118' or '\u212E' or '\u309B' or '\u309C' or '\u1885' or '\u1886')
-        {
-            return true;
-        }
-
-        var category = char.GetUnicodeCategory(c);
-        if (category is UnicodeCategory.LetterNumber or UnicodeCategory.OtherLetter
-            or UnicodeCategory.TitlecaseLetter or UnicodeCategory.ModifierLetter)
-        {
-            return true;
-        }
-
-        if (c >= 0x80 &&
-            category is not UnicodeCategory.SpaceSeparator
-                and not UnicodeCategory.LineSeparator
-                and not UnicodeCategory.ParagraphSeparator
-                and not UnicodeCategory.Control
-                and not UnicodeCategory.Format)
-        {
-            // Accept remaining non-ASCII code points (including ones not yet in the runtime's
-            // Unicode tables) to stay in sync with evolving ID_Start sets.
-            // Note: Format category (Cf) characters like ZWNBSP (U+FEFF) are excluded because
-            // they are treated as whitespace in ECMAScript, not identifier start characters.
-            return true;
-        }
-
-        return false;
+        return true;
     }
 
-    private static bool IsIdentifierPart(char c)
+    private void AdvanceIdentifierScalarAndAppend(StringBuilder? builder, Rune rune, int scalarLength)
     {
-        if (IsIdentifierStart(c) || IsDigit(c))
+        if (builder is not null)
         {
-            return true;
+            builder.Append(rune.ToString());
         }
 
-        // Other_ID_Continue code points per ECMA-262 (includes ID_Continue and additional middle dots etc).
-        if (c is '\u00B7' or '\u0387' or '\u19DA' || c is >= '\u1369' and <= '\u1371')
+        _current += scalarLength;
+        _column += scalarLength;
+    }
+
+    private static bool TryReadIdentifierEscapeRune(int codePoint, bool isStart, out Rune rune)
+    {
+        if (!Rune.IsValid(codePoint))
         {
-            return true;
+            rune = default;
+            return false;
         }
 
-        if (c is '\u200C' or '\u200D') // ZWNJ / ZWJ
-        {
-            return true;
-        }
+        rune = new Rune(codePoint);
+        return isStart ? IsIdentifierStart(rune) : IsIdentifierPart(rune);
+    }
 
-        var category = char.GetUnicodeCategory(c);
-        if (category is UnicodeCategory.NonSpacingMark
-            or UnicodeCategory.SpacingCombiningMark
-            or UnicodeCategory.ConnectorPunctuation
-            or UnicodeCategory.LetterNumber
-            or UnicodeCategory.ModifierLetter)
-        {
-            // Note: Format category (Cf) is NOT included here because most Format chars
-            // like Mongolian Vowel Separator (U+180E) are not valid in identifiers.
-            // ZWNJ (U+200C) and ZWJ (U+200D) are handled explicitly above.
-            return true;
-        }
+    private static bool IsIdentifierStart(char c)
+    {
+        return !char.IsSurrogate(c) && IsIdentifierStart(new Rune(c));
+    }
 
-        if (c >= 0x80 &&
-            category is not UnicodeCategory.SpaceSeparator
-                and not UnicodeCategory.LineSeparator
-                and not UnicodeCategory.ParagraphSeparator
-                and not UnicodeCategory.Control
-                and not UnicodeCategory.Format)
-        {
-            // Permit the broader set of non-ASCII code points for ID_Continue to match
-            // latest Unicode revisions (ID_Start plus ID_Continue extras).
-            // Format chars (like Mongolian Vowel Separator) are excluded; ZWNJ/ZWJ handled above.
-            return true;
-        }
+    private static bool IsIdentifierStart(Rune rune)
+    {
+        return UnicodeIdentifier.IsIdentifierStart(rune);
+    }
 
-        return false;
+    private static bool IsIdentifierPart(Rune rune)
+    {
+        return UnicodeIdentifier.IsIdentifierPart(rune);
     }
 
     private static bool IsAlpha(char c)

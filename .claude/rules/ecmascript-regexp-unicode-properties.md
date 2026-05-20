@@ -25,6 +25,13 @@ generator and prove the generated resolver behavior through focused tests.
    encoder problem. Compact astral surrogate-pair output by grouping high
    surrogates that share the same normalized low-surrogate class; do not mask
    the issue with broad Test262 timeouts or generated-data edits.
+7. Do not put normal lexer identifier classification on
+   `UnicodePropertyData.Resolve(...)` or other RegExp Unicode-property resolver
+   paths. Parser hot paths such as `UnicodeIdentifier` should classify
+   ECMAScript `ID_Start` / `ID_Continue` directly, with explicit compatibility
+   handling for `Other_ID_Start` / `Other_ID_Continue` code points. Prove this
+   boundary with focused identifier tests and the issue-supplied
+   `Name=Identifiers` Test262 method group before widening.
 
 ## Why
 
@@ -44,3 +51,11 @@ large astral-heavy ranges produced oversized .NET regex patterns. The durable
 lesson is to separate Unicode data correctness from runtime pattern-size
 correctness: when the data is right, compact `JsRegExp` surrogate-pair output
 instead of changing generated Unicode tables or widening harness timeouts.
+
+Issue #1040 / PR #1283 exposed the opposite boundary from the parser side. A
+lexer fix initially reused `UnicodePropertyData.Resolve(...)` for identifier
+classification, which made ordinary identifier tokenization initialize the
+heavy RegExp Unicode property dataset. Future agents should keep ECMAScript
+identifier classification lightweight and parser-owned, using direct Unicode
+category checks plus the small `Other_ID_*` compatibility set instead of
+coupling lexer hot paths to RegExp property escape infrastructure.

@@ -142,6 +142,13 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             environment.IsStrict ||
             (CallingContext?.RealmState?.Engine?.GlobalExecutionScope?.IsStrict ?? false));
 
+        // Hot path for Test262 regexp literal round-trip eval loops:
+        // eval("/.../") with no trailing source can skip full parse/analyze.
+        if (TryEvaluateSimpleRegExpLiteral(code, environment.RealmState, out var fastRegexLiteralResult))
+        {
+            return fastRegexLiteralResult;
+        }
+
         var hasStrictReservedToken = false;
         if (hasStrictCaller)
         {
@@ -770,6 +777,136 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         }
 
         return false;
+    }
+
+    private static bool TryEvaluateSimpleRegExpLiteral(string code, RealmState? realmState, out JsValue result)
+    {
+        result = JsValue.Undefined;
+
+        if (string.IsNullOrEmpty(code) || realmState is null)
+        {
+            return false;
+        }
+
+        var start = 0;
+        var end = code.Length - 1;
+
+        while (start <= end && char.IsWhiteSpace(code[start]))
+        {
+            start++;
+        }
+
+        while (end >= start && char.IsWhiteSpace(code[end]))
+        {
+            end--;
+        }
+
+        if (start > end)
+        {
+            return false;
+        }
+
+        if (code[end] == ';')
+        {
+            end--;
+            while (end >= start && char.IsWhiteSpace(code[end]))
+            {
+                end--;
+            }
+
+            if (start > end)
+            {
+                return false;
+            }
+        }
+
+        if (code[start] != '/')
+        {
+            return false;
+        }
+
+        // Comment-only eval payloads (//... or /*...*/) are script comments, not regexp literals.
+        if (start < end && code[start + 1] is '/' or '*')
+        {
+            return false;
+        }
+
+        var escaped = false;
+        var inCharClass = false;
+        var closeSlashIndex = -1;
+
+        for (var i = start + 1; i <= end; i++)
+        {
+            var c = code[i];
+            if (escaped)
+            {
+                escaped = false;
+                continue;
+            }
+
+            if (c == '\\')
+            {
+                escaped = true;
+                continue;
+            }
+
+            if (c == '[')
+            {
+                inCharClass = true;
+                continue;
+            }
+
+            if (c == ']' && inCharClass)
+            {
+                inCharClass = false;
+                continue;
+            }
+
+            if (c is '\n' or '\r' or '\u2028' or '\u2029')
+            {
+                return false;
+            }
+
+            if (c == '/' && !inCharClass)
+            {
+                closeSlashIndex = i;
+                break;
+            }
+        }
+
+        if (closeSlashIndex < 0)
+        {
+            return false;
+        }
+
+        var flagStart = closeSlashIndex + 1;
+        for (var i = flagStart; i <= end; i++)
+        {
+            var c = code[i];
+            if (char.IsWhiteSpace(c))
+            {
+                for (var trailing = i; trailing <= end; trailing++)
+                {
+                    if (!char.IsWhiteSpace(code[trailing]))
+                    {
+                        return false;
+                    }
+                }
+
+                break;
+            }
+
+            if (!char.IsLetter(c))
+            {
+                return false;
+            }
+        }
+
+        var pattern = code.Substring(start + 1, closeSlashIndex - start - 1);
+        var flagsLength = Math.Max(0, end - closeSlashIndex);
+        var flags = flagsLength == 0 ? string.Empty : code.Substring(closeSlashIndex + 1, flagsLength);
+        result = new JsValue(RegExpHelper.CreateRegExpLiteral(pattern, flags, realmState));
+        return true;
     }
 
     private static void CollectVarDeclaredNames(

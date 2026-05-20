@@ -100,13 +100,13 @@ host-runtime shortcuts.
     Instant. Defined non-format options such as `timeZone` should still receive
     Instant date/time defaults, but Instant defaults must not inject
     `timeZoneName`; keep ZonedDateTime's time-zone-name default path separate.
-20. For Temporal `PlainDateTime.from` non-ISO property bags, preserve the
-    calendar-visible `year`, `month`, and `day` fields after overflow handling.
-    Use calendar-to-ISO conversion as a validation projection only; do not store
-    the converted ISO fields back into the resulting `PlainDateTime`. Treat
-    `era` and `eraYear` as calendar-dependent: calendars without era support
-    ignore them when `year` is explicit and still require `year` when it is
-    absent.
+20. For Temporal `PlainDate.from` and `PlainDateTime.from` non-ISO property
+    bags, preserve the calendar-visible `year`, `month` or `monthCode`, and
+    `day` fields after overflow handling. Use calendar-to-ISO conversion as a
+    validation projection only; do not store the converted ISO fields back into
+    the resulting object. Treat `era` and `eraYear` as calendar-dependent:
+    calendars without era support ignore them when `year` is explicit and still
+    require `year` when it is absent.
 21. For Temporal `PlainDateTime.prototype.toLocaleString`, keep PlainDateTime
     as wall-clock component formatting even when a resolved `timeZone` option is
     supplied, but route hour output through the shared `Intl.DateTimeFormat`
@@ -271,6 +271,16 @@ fields, keep era handling calendar-dependent, and prove the focused
 `Name=Temporal_PlainDateTime_from` Test262 method group.
 
 Related ADR: `docs/adrs/0048-keep-temporal-plaindatetime-calendar-fields-observable.md`.
+
+Issue #840 / PR #1160 fixed the same Temporal property-bag boundary for
+`Temporal.PlainDate.from`: Hebrew and other non-era calendars must not observe
+throwing `era` or `eraYear` getters when `year` is explicit, and the resulting
+`PlainDate` must keep the source calendar's visible fields after BCL-backed
+calendar validation. Future `PlainDate.from` work should preserve the
+calendar-visible fields, make era reads depend on `CalendarUsesEras`, and prove
+the focused `Name=Temporal_PlainDate_from` Test262 method group.
+
+Related ADR: `docs/adrs/0057-keep-temporal-plaindate-calendar-fields-observable.md`.
 
 Issue #838 / PR #1146 fixed `Temporal.PlainDateTime.prototype.toLocaleString`
 after the `resolved-time-zone.js` Test262 fixture expected the supplied

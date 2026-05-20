@@ -18,6 +18,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   actual directory listing as the baseline signal. Treat doc/filesystem drift
   as the bounded slice; do not widen the run to also edit unrelated examples
   in the same file.
+- When the slice touches ADR creation guidance, include the cheap duplicate
+  prefix signal as evidence, but keep ADR ID allocation aligned with
+  `.claude/rules/adr-allocation.md`: Faktorial learn or knowledge-artifact work
+  must reserve IDs through the runtime allocator, not by guessing from a
+  directory scan.
 
 ## Why
 
@@ -38,3 +43,10 @@ seven subsystem packs (`annexb`, `array-prototype`, `intl`, `language`,
 `proxy`, `regexp`, `temporal`) plus `full`. The directory listing was the
 baseline signal, the updated "Available packs" list was the final signal, and
 no build, Test262, or recurrence-infrastructure work was needed.
+
+Issue #1239 / PR #1251 was a docs-only maintenance slice triggered by the
+pre-existing duplicate ADR prefix `0071`. The useful delivery was adding
+prevention guidance to `agents/how-to-build-and-test.md` while leaving the
+actual duplicate cleanup and ADR ID allocation policy to the dedicated ADR
+allocation rule. This keeps the maintenance child small and prevents future
+learn-stage agents from treating a filesystem scan as the allocator.

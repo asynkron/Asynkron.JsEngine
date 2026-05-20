@@ -198,9 +198,10 @@ public static class TypedArrayHelper
 
             // Primitive Symbol/BigInt arguments must fail via ToIndex before any
             // AllocateTypedArray / prototype-resolution work touches newTarget.
-            if (firstArg.TryUnwrap<JsSymbol>(out _) ||
+            if (firstArg.IsSymbol ||
+                firstArg.TryUnwrap<JsSymbol>(out _) ||
                 firstArg.TryUnwrap<JsBigInt>(out _) ||
-                firstArg.ObjectValue is JsSymbol or JsBigInt)
+                firstArg.ObjectValue is Symbol or JsSymbol or JsBigInt)
             {
                 _ = ToIndex(firstArg, realm);
             }

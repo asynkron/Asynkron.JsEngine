@@ -118,13 +118,27 @@ host-runtime shortcuts.
     the shared rounding abstract operation helper so every rounding mode,
     including `halfCeil`, `halfFloor`, `halfTrunc`, and odd-quotient
     `halfEven`, keeps the same semantics as the generic path.
-23. For `Temporal.PlainDateTime.prototype.with` on non-ISO calendars, merge
+23. For `Temporal.PlainDate.prototype.toZonedDateTime`, keep omitted or
+    explicitly `undefined` `plainTime` distinct from explicit `PlainTime`.
+    Omitted/undefined `plainTime` must use true start-of-day semantics through
+    `GetStartOfDayInstant`; explicit `new Temporal.PlainTime()` remains on the
+    PlainDateTime/midnight disambiguation path. Do not normalize absence into a
+    zero-valued Temporal object before the spec branch that observes absence.
+24. For `Temporal.PlainDateTime.prototype.with` on non-ISO calendars, merge
     partial date overrides against the receiver's observable calendar fields,
     not its internal ISO storage fields. Preserve the receiver's default
     `monthCode` across year changes when no explicit month or monthCode is
     supplied, resolve supplied `monthCode` in the receiver calendar and target
     calendar year, and convert to internal ISO storage only after
     calendar-field merge and overflow handling.
+24. For `Temporal.PlainDate.prototype.until` and adjacent PlainDate difference
+    work, matching BCL-backed non-ISO calendars must compute month and year
+    largest-unit differences in calendar space, not through ISO month/year
+    arithmetic over the stored ISO projection. Convert endpoints to
+    calendar-visible fields before balancing months or years, keep day/week
+    largest-unit behavior on elapsed ISO dates unless the spec path says
+    otherwise, and resolve PlainDate property-bag `monthCode` values through the
+    resolved calendar/year for leap-month-aware calendars.
 
 ## Why
 
@@ -295,6 +309,18 @@ and prove hour-cycle output with the focused
 Related ADR:
 `docs/adrs/0049-keep-temporal-plaindatetime-locale-hours-on-shared-hourcycle-formatting.md`.
 
+Issue #841 / PR #1158 fixed
+`Temporal.PlainDate.prototype.toZonedDateTime` after the skipped-midnight
+Test262 fixture for `America/Toronto` exposed that omitted or explicitly
+undefined `plainTime` is not equivalent to explicit midnight. Future PlainDate
+zoning work should route absent `plainTime` through true start-of-day semantics,
+keep explicit `PlainTime` on the PlainDateTime/midnight disambiguation path,
+and prove the focused `Name=Temporal_PlainDate_prototype_toZonedDateTime`
+Test262 method group before widening.
+
+Related ADR:
+`docs/adrs/0056-keep-temporal-plaindate-zoning-start-of-day-distinct.md`.
+
 Issue #834 / PR #1135 fixed `Temporal.Duration.prototype.round` after the
 ZonedDateTime month midpoint fast path initially collapsed rounding modes into
 a small hand-written list. Review caught that `halfCeil` and odd-quotient
@@ -318,3 +344,16 @@ with the `non-iso-calendar-fields.js` fixture.
 
 Related ADR:
 `docs/adrs/0055-keep-temporal-plaindatetime-with-calendar-date-fields.md`.
+
+Issue #842 / PR #1163 fixed `Temporal.PlainDate.prototype.until` after matching
+Chinese lunisolar PlainDate endpoints were accepted as non-ISO calendars but
+balanced month/year largest units through ISO date arithmetic. The durable
+lesson is that PlainDate difference has two unit domains: day/week counts can
+stay elapsed ISO-date differences, while month/year largest units must use the
+resolved calendar's visible year/month/day fields for BCL-backed non-ISO
+calendars. Future PlainDate difference work should prove the focused
+`Name=Temporal_PlainDate_prototype_until` Test262 method group, starting with
+the lunisolar leap-month fixture.
+
+Related ADR:
+`docs/adrs/0058-keep-temporal-plaindate-difference-calendar-unit-arithmetic-owned.md`.

@@ -23,9 +23,11 @@ on the current worktree before changing implementation or harness code.
    Test262 group. Keep that change test-only, mirror one exact reported fixture
    shape, and state explicitly that no runtime or harness fix was needed.
 6. If the generated Test262 method group is much broader than the crash entries
-   listed on the issue, prove the issue-listed fixture paths first. Use the
-   method group only as a later widening step when it is a useful semantic pack,
-   not as a substitute for the reported crash evidence.
+   listed on the issue, noisy, or prone to the local inactivity guard, prove
+   the exact issue-listed fixture files or file patterns first. Use the method
+   group only as a later widening step when it is a useful semantic pack, not
+   as a substitute for the reported evidence. Treat a group hang as proof
+   friction, not as an implementation failure, when the reported rows are green.
 
 ## Why
 
@@ -68,3 +70,11 @@ Issue #1032 / PR #1106 confirmed the inverse narrow-proof trap for
 23 reported crash entries. The build-stage proof had to enumerate the listed
 class destructuring fixture paths in focused clusters before treating the
 delivery as issue-resolved.
+
+Issue #826 added the method-group fallback clause. The issue listed 14
+`Statements_class_elements` private inner-function fixture rows, and every
+listed private field/getter/setter/method file pattern passed individually on
+current main. The broad `Name=Statements_class_elements` proof hit the
+inactivity guard because it selected the generated method group, so the durable
+lesson is to close from exact row proof when the batch report is stale and the
+group filter is the noisy part.

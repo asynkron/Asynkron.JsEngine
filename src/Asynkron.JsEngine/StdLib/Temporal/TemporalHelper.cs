@@ -9860,7 +9860,7 @@ public static class TemporalHelper
         // For non-ISO calendars, convert calendar-specific year/month/day to ISO
         if (!string.Equals(calendar, "iso8601", StringComparison.Ordinal))
         {
-            return CalendarDateToIsoPlainDate(year, month, day, calendar, overflow, realm, preserveCalendarFields: true);
+            return CalendarDateToIsoPlainDate(year, month, day, calendar, overflow, realm);
         }
 
         if (overflow == "reject")
@@ -9890,7 +9890,7 @@ public static class TemporalHelper
     /// Uses .NET BCL calendars for the conversion.
     /// </summary>
     private static JsTemporalPlainDate CalendarDateToIsoPlainDate(
-        int year, int month, int day, string calendar, string overflow, RealmState realm, bool preserveCalendarFields = false)
+        int year, int month, int day, string calendar, string overflow, RealmState realm)
     {
         // Gregory is the same as ISO for positive years
         if (string.Equals(calendar, "gregory", StringComparison.Ordinal))
@@ -9951,9 +9951,6 @@ public static class TemporalHelper
             var isoDay = dt.Day;
 
             RejectISODate(isoYear, isoMonth, isoDay, realm);
-            if (preserveCalendarFields)
-                return new JsTemporalPlainDate(year, month, day, calendar);
-
             return new JsTemporalPlainDate(isoYear, isoMonth, isoDay, calendar);
         }
         catch (ArgumentOutOfRangeException)

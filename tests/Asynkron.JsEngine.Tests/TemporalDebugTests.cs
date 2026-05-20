@@ -377,12 +377,12 @@ public class TemporalDebugTests
 
             let threw = false;
             try {
-                leap.with({ year: nonLeapYear }, { overflow: 'reject' });
+                leap.with({ year: nonLeapYear, monthCode: 'M05L' }, { overflow: 'reject' });
             } catch (e) {
                 if (e instanceof RangeError) threw = true;
                 else throw new Error('expected RangeError, got: ' + e);
             }
-            if (!threw) throw new Error('expected RangeError for M05L with { year: ' + nonLeapYear + ', overflow: reject }');
+            if (!threw) throw new Error('expected RangeError for M05L with { year: ' + nonLeapYear + ', monthCode: M05L, overflow: reject }');
             'ok';
         ");
 

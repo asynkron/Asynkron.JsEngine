@@ -171,6 +171,24 @@ public sealed class BigIntTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 2000)]
+    public async Task BigIntLeftShift_WithMinIntShiftCount_DoesNotOverflow()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("1n << -2147483648n;");
+        Assert.IsType<JsBigInt>(result);
+        Assert.Equal(new JsBigInt(0), result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task NegativeBigIntLeftShift_WithMinIntShiftCount_DoesNotOverflow()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("-1n << -2147483648n;");
+        Assert.IsType<JsBigInt>(result);
+        Assert.Equal(new JsBigInt(-1), result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task BigIntStrictEquality()
     {
         await using var engine = CreateEngine();

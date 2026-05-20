@@ -206,6 +206,14 @@ public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay
         return FormatYear(ReferenceYear) + $"-{_referenceMonth:D2}-{_referenceDay:D2}[{prefix}u-ca={Calendar}]";
     }
 
+    /// <summary>
+    ///     Returns reference ISO date string without calendar annotation (YYYY-MM-DD).
+    /// </summary>
+    public string ToStringReferenceDate()
+    {
+        return FormatYear(ReferenceYear) + $"-{_referenceMonth:D2}-{_referenceDay:D2}";
+    }
+
     private static string FormatYear(int year)
     {
         if (year is >= 0 and <= 9999)

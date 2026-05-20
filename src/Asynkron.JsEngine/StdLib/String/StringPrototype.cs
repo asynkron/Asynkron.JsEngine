@@ -596,8 +596,8 @@ public sealed partial class StringPrototype
         // 1. Let O be ? RequireObjectCoercible(this value).
         RequireObjectCoercible(thisValue);
 
-        // Per spec: if no args, use undefined (which becomes empty-string regexp)
-        var searchValue = args.Count > 0 ? args[0] : JsValue.Undefined;
+        var hasSearchArgument = args.Count > 0;
+        var searchValue = hasSearchArgument ? args[0] : JsValue.Undefined;
 
         // 2. If regexp is not undefined/null, check for @@match
         if (!searchValue.IsNullOrUndefined)
@@ -641,7 +641,8 @@ public sealed partial class StringPrototype
         RequireObjectCoercible(thisValue);
 
         // Per spec: if no args, use undefined (which becomes empty-string regexp)
-        var searchValue = args.Count > 0 ? args[0] : JsValue.Undefined;
+        var hasSearchArgument = args.Count > 0;
+        var searchValue = hasSearchArgument ? args[0] : JsValue.Undefined;
 
         // 2. If regexp is not undefined/null, check for @@search
         if (!searchValue.IsNullOrUndefined)

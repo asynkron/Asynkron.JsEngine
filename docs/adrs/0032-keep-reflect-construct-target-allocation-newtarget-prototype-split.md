@@ -26,6 +26,13 @@ The review-back repair also exposed the opposite hazard: recognizing an Array
 In that case the object kind stays ordinary and only the prototype fallback may
 come from the `newTarget` realm.
 
+Issue #871 / PR #1258 exposed the same split for concrete typed-array
+constructors. `Reflect.construct(Int8Array, [symbolLike], newTarget)` had to
+run the typed-array constructor path and reject invalid primitive length inputs
+before generic construction observed `newTarget.prototype`. Treating typed-array
+constructors like ordinary constructors moved prototype lookup ahead of the
+typed-array argument-dispatch and `ToIndex` error boundary.
+
 ## Decision
 
 Keep `Reflect.construct` allocation kind keyed to `target` only. Array exotic
@@ -41,6 +48,12 @@ Model future `Reflect.construct` changes as separate abstract-operation roles:
 constructor target behavior first, newTarget prototype selection second, and
 proxy unwrapping only where the spec role being implemented requires it.
 
+Concrete typed-array constructors are constructor behavior selected by
+`target`, not a generic prototype-resolution case. Detect them before
+`newTarget.prototype` resolution so the typed-array constructor's argument
+classification, primitive rejection, and allocation rules run in spec order.
+Keep `%TypedArray%` itself out of the concrete typed-array path.
+
 ## Consequences
 
 - Future construction helpers must prove both sides of the split: Array
@@ -52,7 +65,12 @@ proxy unwrapping only where the spec role being implemented requires it.
 - Proxy handling in this area should be role-specific. Unwrapping a proxy to
   identify the `target` constructor kind must not erase revoked-proxy errors,
   constructability checks, or the separate `newTarget.prototype` lookup path.
+- Typed-array `Reflect.construct` reviews must include error-order cases where
+  invalid primitive arguments such as Symbol or BigInt must throw before any
+  observable `newTarget.prototype` access.
 - Focused proof for this class should include the exact
   `Name=ReflectConstruct_ProxiedNewTargetUsesTargetRealm` Test262 method group
-  and a local non-Array-target regression.
-- This ADR is caused by issue #817 / PR #1018.
+  and a local non-Array-target regression. For typed-array constructor routing,
+  include `Name=TypedArrayConstructors_ctors_typedarrayArg`.
+- This ADR is caused by issue #817 / PR #1018 and extended by issue #871 /
+  PR #1258.

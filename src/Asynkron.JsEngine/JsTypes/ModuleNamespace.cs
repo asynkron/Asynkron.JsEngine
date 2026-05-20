@@ -65,6 +65,12 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
 
         if (IsSymbolLikeNamespaceKey(name))
         {
+            if (ShouldSkipDeferredSymbolLikeBindingLookup(name))
+            {
+                value = JsValue.Undefined;
+                return false;
+            }
+
             if (ExportNames.Contains(name, StringComparer.Ordinal))
             {
                 var lookedUp = _bindingLookup(name);
@@ -117,6 +123,11 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
 
         if (IsSymbolLikeNamespaceKey(name))
         {
+            if (ShouldSkipDeferredSymbolLikeBindingLookup(name))
+            {
+                return null;
+            }
+
             if (ExportNames.Contains(name, StringComparer.Ordinal))
             {
                 var lookedUp = _bindingLookup(name);
@@ -342,6 +353,11 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
             return true;
         }
 
+        return _isDeferred && string.Equals(name, "then", StringComparison.Ordinal);
+    }
+
+    private bool ShouldSkipDeferredSymbolLikeBindingLookup(string name)
+    {
         return _isDeferred && string.Equals(name, "then", StringComparison.Ordinal);
     }
 

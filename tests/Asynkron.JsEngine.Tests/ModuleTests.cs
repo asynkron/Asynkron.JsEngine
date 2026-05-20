@@ -284,6 +284,42 @@ public sealed class ModuleTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 2000)]
+    public async Task DeferredNamespaceThenProbeDoesNotReadUninitializedThenExport()
+    {
+        await using var engine = CreateEngine();
+
+        engine.SetModuleLoader(modulePath =>
+        {
+            if (string.Equals(modulePath, "self.js", StringComparison.Ordinal))
+            {
+                return """
+
+                       export let local = 23;
+                       export { local as then } from "self.js";
+
+                       """;
+            }
+
+            throw new FileNotFoundException($"Module not found: {modulePath}");
+        });
+
+        var result = await engine.EvaluateModule("""
+
+                                                 import defer * as ns from "self.js";
+                                                 let probeResult = "ok";
+                                                 try {
+                                                     Promise.resolve(ns);
+                                                 } catch (e) {
+                                                     probeResult = `${e && e.name}`;
+                                                 }
+                                                 probeResult;
+
+                                                 """);
+
+        Assert.Equal("ok", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task ExportList()
     {
         await using var engine = CreateEngine();

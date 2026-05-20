@@ -87,6 +87,12 @@ host-runtime shortcuts.
     fresh realm contexts, or other non-active-context shortcuts can skip or
     isolate observable `valueOf`/`toString` errors and turn the wrong condition
     into the visible failure.
+18. For `Temporal.Instant.prototype.toLocaleString`, keep absent or undefined
+    options distinct from defined non-format option bags. Absent options should
+    let `Intl.DateTimeFormat` compute its own defaults before formatting the
+    Instant. Defined non-format options such as `timeZone` should still receive
+    Instant date/time defaults, but Instant defaults must not inject
+    `timeZoneName`; keep ZonedDateTime's time-zone-name default path separate.
 
 ## Why
 
@@ -192,3 +198,18 @@ with `ThrowSignal` before checking `double.IsFinite`, and prove both observable
 object coercion and the ordinary finite-number path with the focused
 `Name=RelativeTimeFormat_prototype_format` and
 `Name=RelativeTimeFormat_prototype_formatToParts` Test262 method groups.
+
+Issue #836 / PR #1134 fixed
+`Temporal.Instant.prototype.toLocaleString` after the implementation injected
+the same Temporal date/time/time-zone-name defaults for absent options, defined
+non-format options, and lone component options. The durable lesson is that
+Temporal locale formatting defaults are observable Intl option semantics:
+absent/undefined options must match `Intl.DateTimeFormat(...).format(instant)`,
+defined non-format options still need Instant date/time default fields, a lone
+`timeZoneName` keeps date/time defaults plus the explicit zone-name request,
+and ZonedDateTime owns its separate time-zone-name default. Future work should
+prove the focused `Name=Temporal_Instant_prototype_toLocaleString` Test262
+method group before widening.
+
+Related ADR:
+`docs/adrs/0047-keep-temporal-instant-locale-defaults-absent-options-split.md`.

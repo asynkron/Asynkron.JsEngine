@@ -67,7 +67,9 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
         {
             if (ExportNames.Contains(name, StringComparer.Ordinal))
             {
-                value = _bindingLookup(name);
+                var lookedUp = _bindingLookup(name);
+                EnsureInitialized(name, lookedUp);
+                value = lookedUp;
                 return true;
             }
 
@@ -118,6 +120,7 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
             if (ExportNames.Contains(name, StringComparer.Ordinal))
             {
                 var lookedUp = _bindingLookup(name);
+                EnsureInitialized(name, lookedUp);
                 return new PropertyDescriptor
                 {
                     JsValue = lookedUp,

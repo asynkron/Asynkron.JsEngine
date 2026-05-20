@@ -61,6 +61,12 @@ This applies to generic binding target programs for nested array/object binding,
 defaults, exhausted iterators, and name inference. Prove this class with the
 owning focused Test262 method group rather than a broad suite run.
 
+For class-method parameter destructuring with array-pattern defaults, abrupt
+default initializers must preserve both observable outcomes: the original
+JavaScript throw reaches the caller, and the active iterator's `return()` hook
+runs exactly once. Do not accept a regression that checks only the close side
+effect or only the thrown value.
+
 ## Super Property Reference Order
 
 For expression bytecode that touches `super.property` or `super[expr]`, keep the
@@ -174,6 +180,13 @@ nested/default variable declaration binding raised `ThrowSignal` from
 completion, not a host crash. The durable lesson is that declaration handlers
 must convert binding-program throws back into `EvaluationContext` before using
 the existing declaration throw slow path.
+
+Issue #1063 / PR #1303 added `Statements_class_dstr` closeout coverage for
+class-method destructuring. Review found the iterator-close regression was not
+strong enough until it asserted the caught `Error|boom` and a single
+`return()` call together. The durable lesson is that abrupt destructuring
+proofs must verify both completion preservation and iterator cleanup, because
+either half can pass while the other half regresses.
 
 Issue #778 / PR #970 fixed `delete super[expr]` ordering in expression
 bytecode. Before `super()` initializes a derived constructor's `this`, the

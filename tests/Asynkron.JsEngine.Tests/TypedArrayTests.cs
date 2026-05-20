@@ -1276,6 +1276,111 @@ public sealed class TypedArrayTests(ITestOutputHelper output) : InternalTestBase
         Assert.Equal("RangeError", obj["name"]?.ToString());
     }
 
+    // Regression: Object.defineProperty on TypedArray integer-indexed key must perform
+    // IntegerIndexedElementSet conversion (ToNumber) before storing.
+    // Mirrors built-ins/TypedArrayConstructors/internals/DefineOwnProperty/conversion-operation.js
+    [Fact(Timeout = 2000)]
+    public async Task DefineOwnProperty_NumberArray_ConvertsValueViaToNumber()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           let ta = new Int8Array([0]);
+                                           Object.defineProperty(ta, "0", { value: 129 });
+                                           return ta[0];
+                                           """);
+        // 129 overflows Int8: 129 % 256 = 129, then as signed = -127
+        Assert.Equal(-127d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task DefineOwnProperty_NumberArray_Uint8_ConvertsNegativeValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           let ta = new Uint8Array([0]);
+                                           Object.defineProperty(ta, "0", { value: -1 });
+                                           return ta[0];
+                                           """);
+        // -1 as Uint8 = 255
+        Assert.Equal(255d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task DefineOwnProperty_NumberArray_Float32_ConvertsFloat()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           let ta = new Float32Array([0]);
+                                           Object.defineProperty(ta, "0", { value: 1.5 });
+                                           return ta[0];
+                                           """);
+        Assert.Equal(1.5d, result);
+    }
+
+    // Regression: Object.defineProperty on BigInt TypedArray integer-indexed key must perform
+    // IntegerIndexedElementSet conversion (ToBigInt) before storing.
+    // Mirrors built-ins/TypedArrayConstructors/internals/DefineOwnProperty/conversion-operation.js (BigInt variant)
+    [Fact(Timeout = 2000)]
+    public async Task DefineOwnProperty_BigInt64Array_ConvertsBigIntValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           let ta = new BigInt64Array([0n]);
+                                           Object.defineProperty(ta, "0", { value: 42n });
+                                           return ta[0];
+                                           """);
+        Assert.Equal(new JsBigInt(42), result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task DefineOwnProperty_BigInt64Array_WrapsOverflow()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           let ta = new BigInt64Array([0n]);
+                                           // 2n**63n overflows BigInt64: wraps to -9223372036854775808n (Int64.MinValue)
+                                           Object.defineProperty(ta, "0", { value: 9223372036854775808n });
+                                           return ta[0] === -9223372036854775808n;
+                                           """);
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task DefineOwnProperty_ValueConversion_DetachDuringValueOf_ReturnsTrue()
+    {
+        // Per IntegerIndexedElementSet: ToNumber/ToBigInt is called before second IsValidIntegerIndex check.
+        // If valueOf detaches the buffer, the operation returns true with no write.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           let buffer = new ArrayBuffer(4);
+                                           let ta = new Int32Array(buffer);
+                                           ta[0] = 99;
+                                           let detached = false;
+                                           let obj = {
+                                               valueOf() {
+                                                   // Detach the original receiver buffer during conversion.
+                                                   buffer.transfer();
+                                                   detached = true;
+                                                   return 5;
+                                               }
+                                           };
+                                           let result = Reflect.defineProperty(ta, "0", { value: obj });
+                                           let descriptorAfterDetach = Object.getOwnPropertyDescriptor(ta, "0");
+                                           return {
+                                               result,
+                                               detached,
+                                               byteLengthZero: buffer.byteLength === 0,
+                                               noWriteVisible: descriptorAfterDetach === undefined
+                                           };
+                                           """);
+        var obj2 = Assert.IsType<JsObject>(result);
+        Assert.Equal(true, obj2["detached"]);
+        Assert.Equal(true, obj2["byteLengthZero"]);
+        Assert.Equal(true, obj2["noWriteVisible"]);
+        // defineProperty returns true even though the buffer was detached during conversion
+        Assert.Equal(true, obj2["result"]);
+    }
+
     // Regression: TypedArray object-arg conversion-operation coercion
     // Mirrors Test262 built-ins/TypedArrayConstructors/ctors/object-arg/conversion-operation.js
     // and built-ins/TypedArrayConstructors/ctors/object-arg/conversion-operation-consistent-nan.js

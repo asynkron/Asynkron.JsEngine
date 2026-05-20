@@ -81,11 +81,12 @@ host-runtime shortcuts.
     `newTarget` turn an ordinary non-Array `target` into an Array, and do not
     miss cross-realm or proxied Array `target` cases just because they are not
     the current realm's Array constructor.
-16. For Intl built-ins that coerce call arguments through `ToNumber`, use the
-    context-aware conversion path and propagate abrupt completions before later
-    numeric validation such as finite-number checks. Raw `JsValue.AsNumber()`
-    or non-context helper shortcuts can skip observable `valueOf`/`toString`
-    errors and turn the wrong condition into the visible failure.
+17. For Intl built-ins that coerce call arguments through `ToNumber`, use the
+    active evaluation context and propagate abrupt completions before later
+    numeric validation such as finite-number checks. Raw `JsValue.AsNumber()`,
+    fresh realm contexts, or other non-active-context shortcuts can skip or
+    isolate observable `valueOf`/`toString` errors and turn the wrong condition
+    into the visible failure.
 
 ## Why
 
@@ -182,9 +183,12 @@ addition. Future operator-coercion work should pin both the error path and the
 
 Issue #823 / PR #1113 fixed `Intl.RelativeTimeFormat.prototype.format` after
 the value argument used a non-observable numeric shortcut before finite-number
-validation. The shared `format`/`formatToParts` argument extraction now creates
-a realm evaluation context, runs context-aware `ToNumber`, and rethrows abrupt
-completion with `ThrowSignal` before checking `double.IsFinite`. Future Intl
-argument-coercion work should prove both observable object coercion and the
-ordinary finite-number path with the focused
-`Name=RelativeTimeFormat_prototype_format` Test262 method group.
+validation. Issue #824 / PR #1117 repeated the same abstract-operation lesson
+for `formatToParts`: the shared `format`/`formatToParts` argument extraction
+still used a fresh realm context, which isolated object-coercion abrupt
+completions from the active call. Future Intl argument-coercion work should run
+`ToNumber` through the active `EvaluationContext`, rethrow abrupt completion
+with `ThrowSignal` before checking `double.IsFinite`, and prove both observable
+object coercion and the ordinary finite-number path with the focused
+`Name=RelativeTimeFormat_prototype_format` and
+`Name=RelativeTimeFormat_prototype_formatToParts` Test262 method groups.

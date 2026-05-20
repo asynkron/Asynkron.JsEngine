@@ -2244,16 +2244,16 @@ public static class TemporalHelper
             new PropertyDescriptor { Value = "Temporal.PlainDateTime", Writable = false, Enumerable = false, Configurable = true });
 
         // Prototype getters
-        AddPrototypeGetter(prototype, realm, "year", tv => new JsValue(GetPlainDateTime(tv).Year));
-        AddPrototypeGetter(prototype, realm, "month", tv => new JsValue(GetPlainDateTime(tv).Month));
-        AddPrototypeGetter(prototype, realm, "day", tv => new JsValue(GetPlainDateTime(tv).Day));
+        AddPrototypeGetter(prototype, realm, "year", tv => new JsValue(GetPlainDateTimeCalendarFields(GetPlainDateTime(tv)).Year));
+        AddPrototypeGetter(prototype, realm, "month", tv => new JsValue(GetPlainDateTimeCalendarFields(GetPlainDateTime(tv)).Month));
+        AddPrototypeGetter(prototype, realm, "day", tv => new JsValue(GetPlainDateTimeCalendarFields(GetPlainDateTime(tv)).Day));
         AddPrototypeGetter(prototype, realm, "hour", tv => new JsValue(GetPlainDateTime(tv).Hour));
         AddPrototypeGetter(prototype, realm, "minute", tv => new JsValue(GetPlainDateTime(tv).Minute));
         AddPrototypeGetter(prototype, realm, "second", tv => new JsValue(GetPlainDateTime(tv).Second));
         AddPrototypeGetter(prototype, realm, "millisecond", tv => new JsValue(GetPlainDateTime(tv).Millisecond));
         AddPrototypeGetter(prototype, realm, "microsecond", tv => new JsValue(GetPlainDateTime(tv).Microsecond));
         AddPrototypeGetter(prototype, realm, "nanosecond", tv => new JsValue(GetPlainDateTime(tv).Nanosecond));
-        AddPrototypeGetter(prototype, realm, "monthCode", tv => new JsValue(GetPlainDateTime(tv).MonthCode));
+        AddPrototypeGetter(prototype, realm, "monthCode", tv => new JsValue(GetPlainDateTimeCalendarFields(GetPlainDateTime(tv)).MonthCode));
         AddPrototypeGetter(prototype, realm, "dayOfWeek", tv => new JsValue(GetPlainDateTime(tv).DayOfWeek));
         AddPrototypeGetter(prototype, realm, "dayOfYear", tv => new JsValue(GetPlainDateTime(tv).DayOfYear));
         AddPrototypeGetter(prototype, realm, "weekOfYear", tv => {
@@ -2561,9 +2561,10 @@ public static class TemporalHelper
             }
 
             // Apply defaults and resolve month/monthCode BEFORE options
-            var year = partialYear ?? dt.Year;
-            var month = ResolveISOMonth(partialMonth, partialMonthCode, dt.Month, realm);
-            var day = partialDay ?? dt.Day;
+            var calendarFields = GetPlainDateTimeCalendarFields(dt);
+            var year = partialYear ?? calendarFields.Year;
+            var month = ResolvePlainDateTimeWithMonth(partialMonth, partialMonthCode, year, calendarFields.Month, calendarFields.MonthCode, dt.Calendar, realm);
+            var day = partialDay ?? calendarFields.Day;
             var hour = partialHour ?? dt.Hour;
             var minute = partialMinute ?? dt.Minute;
             var second = partialSecond ?? dt.Second;
@@ -2583,7 +2584,10 @@ public static class TemporalHelper
 
             if (string.Equals(overflow, "constrain", StringComparison.Ordinal))
             {
-                (year, month, day) = ConstrainISODate(year, month, day);
+                if (string.Equals(dt.Calendar, "iso8601", StringComparison.Ordinal))
+                {
+                    (year, month, day) = ConstrainISODate(year, month, day);
+                }
                 hour = ConstrainTimeComponent(hour, 0, 23);
                 minute = ConstrainTimeComponent(minute, 0, 59);
                 second = ConstrainTimeComponent(second, 0, 59);
@@ -2593,11 +2597,14 @@ public static class TemporalHelper
             }
             else
             {
-                RejectISODate(year, month, day, realm);
+                if (string.Equals(dt.Calendar, "iso8601", StringComparison.Ordinal))
+                {
+                    RejectISODate(year, month, day, realm);
+                }
                 RejectISOTime(hour, minute, second, millisecond, microsecond, nanosecond, realm);
             }
 
-            var result = new JsTemporalPlainDateTime(year, month, day, hour, minute, second, millisecond, microsecond, nanosecond, dt.Calendar);
+            var result = CreatePlainDateTimeWithCalendarDate(year, month, day, hour, minute, second, millisecond, microsecond, nanosecond, dt.Calendar, overflow, realm);
             var epochNanos = ToEpochNanoseconds(result);
             if (epochNanos < PlainDateTimeMinEpochNanoseconds || epochNanos > PlainDateTimeMaxEpochNanoseconds)
             {
@@ -4492,6 +4499,91 @@ public static class TemporalHelper
         }
 
         return month ?? defaultMonth;
+    }
+
+    private static (int Year, int Month, int Day, string MonthCode) GetPlainDateTimeCalendarFields(JsTemporalPlainDateTime dateTime)
+    {
+        if (string.Equals(dateTime.Calendar, "iso8601", StringComparison.Ordinal) ||
+            string.Equals(dateTime.Calendar, "gregory", StringComparison.Ordinal) ||
+            !TryCreateBclCalendar(dateTime.Calendar, out var calendar))
+        {
+            return (dateTime.Year, dateTime.Month, dateTime.Day, dateTime.MonthCode);
+        }
+
+        try
+        {
+            var isoDate = new DateTime(dateTime.Year, dateTime.Month, dateTime.Day);
+            var calendarYear = calendar.GetYear(isoDate);
+            var calendarMonth = calendar.GetMonth(isoDate);
+            var calendarDay = calendar.GetDayOfMonth(isoDate);
+            var monthCode = BuildMonthCodeFromBclMonth(calendarMonth, GetLeapMonth(calendar, calendarYear));
+            return (calendarYear, calendarMonth, calendarDay, monthCode);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return (dateTime.Year, dateTime.Month, dateTime.Day, dateTime.MonthCode);
+        }
+    }
+
+    private static int ResolvePlainDateTimeWithMonth(
+        int? month,
+        string? monthCode,
+        int calendarYear,
+        int defaultMonth,
+        string defaultMonthCode,
+        string calendarId,
+        RealmState realm)
+    {
+        if (string.Equals(calendarId, "iso8601", StringComparison.Ordinal) ||
+            string.Equals(calendarId, "gregory", StringComparison.Ordinal) ||
+            !TryCreateBclCalendar(calendarId, out var calendar))
+        {
+            return ResolveISOMonth(month, monthCode, defaultMonth, realm);
+        }
+
+        if (monthCode is not null)
+        {
+            ValidateMonthCodeSyntax(monthCode, realm);
+            var codeMonth = ResolveBclMonthFromMonthCode(monthCode, calendar, calendarYear, realm);
+            if (month is not null && month.Value != codeMonth)
+            {
+                throw StandardLibrary.ThrowRangeError("month and monthCode must agree", realm: realm);
+            }
+
+            return codeMonth;
+        }
+
+        if (month is not null)
+        {
+            return month.Value;
+        }
+
+        return ResolveBclMonthFromMonthCode(defaultMonthCode, calendar, calendarYear, realm);
+    }
+
+    private static JsTemporalPlainDateTime CreatePlainDateTimeWithCalendarDate(
+        int year,
+        int month,
+        int day,
+        int hour,
+        int minute,
+        int second,
+        int millisecond,
+        int microsecond,
+        int nanosecond,
+        string calendar,
+        string overflow,
+        RealmState realm)
+    {
+        if (string.Equals(calendar, "iso8601", StringComparison.Ordinal))
+        {
+            return new JsTemporalPlainDateTime(year, month, day,
+                hour, minute, second, millisecond, microsecond, nanosecond, calendar);
+        }
+
+        var calendarDate = NormalizeCalendarDateTimeFields(year, month, day, calendar, overflow, realm);
+        return new JsTemporalPlainDateTime(calendarDate.IsoDate.Year, calendarDate.IsoDate.Month, calendarDate.IsoDate.Day,
+            hour, minute, second, millisecond, microsecond, nanosecond, calendar);
     }
 
     /// <summary>

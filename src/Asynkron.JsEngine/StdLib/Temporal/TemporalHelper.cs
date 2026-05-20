@@ -2831,10 +2831,7 @@ public static class TemporalHelper
         AddPrototypeGetter(prototype, realm, "offsetNanoseconds", tv =>
         {
             var zdt = GetZonedDateTime(tv);
-            // Parse offset string like "+01:00" to nanoseconds
-            var offset = zdt.Offset;
-            var totalSeconds = ParseOffsetToSeconds(offset);
-            return new JsValue((double)totalSeconds * 1_000_000_000L);
+            return new JsValue((double)zdt.OffsetNanoseconds);
         });
 
         // Prototype methods
@@ -5209,35 +5206,6 @@ public static class TemporalHelper
     // Temporal spec ISO date range limits
     private static readonly (int year, int month, int day) IsoDateMin = (-271821, 4, 19);
     private static readonly (int year, int month, int day) IsoDateMax = (275760, 9, 13);
-
-    private static long ParseOffsetToSeconds(string offset)
-    {
-        // Parse offset string like "+01:00", "-05:30", or "Z"
-        if (string.IsNullOrEmpty(offset) || string.Equals(offset, "Z", StringComparison.Ordinal))
-        {
-            return 0;
-        }
-
-        var sign = 1;
-        var start = 0;
-
-        if (offset[0] == '+')
-        {
-            start = 1;
-        }
-        else if (offset[0] == '-')
-        {
-            sign = -1;
-            start = 1;
-        }
-
-        var parts = offset.Substring(start).Split(':');
-        var hours = int.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture);
-        var minutes = parts.Length > 1 ? int.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture) : 0;
-        var seconds = parts.Length > 2 ? int.Parse(parts[2], System.Globalization.CultureInfo.InvariantCulture) : 0;
-
-        return sign * (hours * 3600L + minutes * 60L + seconds);
-    }
 
     #endregion
 
@@ -9450,6 +9418,27 @@ public static class TemporalHelper
         JsTemporalZonedDateTime zdt, JsTemporalDuration duration, int sign,
         string overflow, RealmState realm)
     {
+        if (duration.Years == 0 && duration.Months == 0 && duration.Weeks == 0 && duration.Days == 0)
+        {
+            var directTimeNanoseconds = ((BigInteger)duration.Hours * 3_600_000_000_000L
+                                         + (BigInteger)duration.Minutes * 60_000_000_000L
+                                         + (BigInteger)duration.Seconds * 1_000_000_000L
+                                         + (BigInteger)duration.Milliseconds * 1_000_000L
+                                         + (BigInteger)duration.Microseconds * 1_000L
+                                         + (BigInteger)duration.Nanoseconds) * sign;
+            var directResultNanoseconds = zdt.Instant.EpochNanoseconds + directTimeNanoseconds;
+            if (directResultNanoseconds < InstantMinEpochNanoseconds ||
+                directResultNanoseconds > InstantMaxEpochNanoseconds)
+            {
+                throw StandardLibrary.ThrowRangeError("Resulting ZonedDateTime is out of range", realm: realm);
+            }
+
+            return new JsTemporalZonedDateTime(
+                JsTemporalInstant.FromEpochNanoseconds(directResultNanoseconds),
+                zdt.TimeZoneId,
+                CanonicalizeCalendarId(zdt.Calendar));
+        }
+
         // Per spec AddZonedDateTime: add date and time parts SEPARATELY.
         // Step 1: Get the local PlainDateTime
         var local = GetLocalPlainDateTime(zdt, realm);

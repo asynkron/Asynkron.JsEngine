@@ -1328,4 +1328,175 @@ public sealed class TypedArrayTests(ITestOutputHelper output) : InternalTestBase
         Assert.Equal(expectedErrorName, obj["name"]?.ToString());
     }
 
+    // Regression: non-BigInt typed-array buffer-arg ToIndex coercion for byteOffset and length.
+    // Mirrors Test262 built-ins/TypedArrayConstructors/ctors/buffer-arg/toindex-bytelength.js
+    // and toindex-byteoffset.js. Green-proof closeout: focused method group passed 108/108 on
+    // current main; these pins ensure future refactors cannot silently regress the regular variants.
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_BufferArg_ToIndex_Length_NegativeZero()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const buf = new ArrayBuffer(8);
+                                           const ta = new Int8Array(buf, 0, -0);
+                                           ta.length;
+                                           """);
+        Assert.Equal(0d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_BufferArg_ToIndex_Length_ObservableValueOf()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const buf = new ArrayBuffer(8);
+                                           let called = false;
+                                           const obj = { valueOf() { called = true; return 2; } };
+                                           const ta = new Int8Array(buf, 0, obj);
+                                           return [called, ta.length];
+                                           """);
+        var arr = Assert.IsType<JsArray>(result);
+        Assert.Equal(true, arr.GetElement(0).ToObject());
+        Assert.Equal(2d, arr.GetElement(1).ToObject());
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_BufferArg_ToIndex_Length_FractionalTruncated()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const buf = new ArrayBuffer(8);
+                                           const ta1 = new Int8Array(buf, 0, 0.9);
+                                           const ta2 = new Int8Array(buf, 0, 3.9);
+                                           return [ta1.length, ta2.length];
+                                           """);
+        var arr = Assert.IsType<JsArray>(result);
+        Assert.Equal(0d, arr.GetElement(0).ToObject());
+        Assert.Equal(3d, arr.GetElement(1).ToObject());
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_BufferArg_ToIndex_Length_SymbolThrowsTypeError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const buf = new ArrayBuffer(8);
+                                           let threw = false, name = "";
+                                           try { new Int8Array(buf, 0, Symbol('1')); }
+                                           catch (e) { threw = true; name = e.constructor.name; }
+                                           return { threw, name };
+                                           """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(true, obj["threw"]);
+        Assert.Equal("TypeError", obj["name"]?.ToString());
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_BufferArg_ToIndex_ByteOffset_NegativeZero()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const buf = new ArrayBuffer(8);
+                                           const ta = new Int8Array(buf, -0);
+                                           ta.byteOffset;
+                                           """);
+        Assert.Equal(0d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_BufferArg_ToIndex_ByteOffset_ObservableValueOf()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const buf = new ArrayBuffer(8);
+                                           let called = false;
+                                           const obj = { valueOf() { called = true; return 4; } };
+                                           const ta = new Int8Array(buf, obj);
+                                           return [called, ta.byteOffset];
+                                           """);
+        var arr = Assert.IsType<JsArray>(result);
+        Assert.Equal(true, arr.GetElement(0).ToObject());
+        Assert.Equal(4d, arr.GetElement(1).ToObject());
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_BufferArg_ToIndex_ByteOffset_FractionalTruncated()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const buf = new ArrayBuffer(8);
+                                           const ta1 = new Int8Array(buf, 0.9);
+                                           const ta2 = new Int8Array(buf, 3.9);
+                                           return [ta1.byteOffset, ta2.byteOffset];
+                                           """);
+        var arr = Assert.IsType<JsArray>(result);
+        Assert.Equal(0d, arr.GetElement(0).ToObject());
+        Assert.Equal(3d, arr.GetElement(1).ToObject());
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_BufferArg_ToIndex_ByteOffset_SymbolThrowsTypeError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const buf = new ArrayBuffer(8);
+                                           let threw = false, name = "";
+                                           try { new Int8Array(buf, Symbol('1')); }
+                                           catch (e) { threw = true; name = e.constructor.name; }
+                                           return { threw, name };
+                                           """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(true, obj["threw"]);
+        Assert.Equal("TypeError", obj["name"]?.ToString());
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_SharedArrayBuffer_BufferArg_ToIndex_Length_NegativeZero()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const sab = new SharedArrayBuffer(8);
+                                           const ta = new Int8Array(sab, 0, -0);
+                                           ta.length;
+                                           """);
+        Assert.Equal(0d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_SharedArrayBuffer_BufferArg_ToIndex_ByteOffset_FractionalTruncated()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const sab = new SharedArrayBuffer(8);
+                                           const ta = new Int8Array(sab, 3.9);
+                                           ta.byteOffset;
+                                           """);
+        Assert.Equal(3d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_ResizableBuffer_BufferArg_ToIndex_ByteOffset_FractionalTruncated()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const rab = new ArrayBuffer(16, { maxByteLength: 32 });
+                                           const ta = new Int8Array(rab, 3.9);
+                                           ta.byteOffset;
+                                           """);
+        Assert.Equal(3d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_ResizableBuffer_BufferArg_ToIndex_Length_FractionalTruncated()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const rab = new ArrayBuffer(16, { maxByteLength: 32 });
+                                           const ta = new Int8Array(rab, 0, 4.9);
+                                           ta.length;
+                                           """);
+        Assert.Equal(4d, result);
+    }
+
 }

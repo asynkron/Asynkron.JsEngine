@@ -103,6 +103,16 @@ host-runtime shortcuts.
     `Promise.prototype.then` after its local capability helper used pair-level
     guards that drifted from the constructor helper and failed the focused
     Test262 `Promise_prototype_then` fixture.
+16c. For typed-array species-copy operations such as
+    `%TypedArray%.prototype.slice`, validate the species-created destination
+    after `TypedArraySpeciesCreate` has run, not before constructor/species
+    side effects. Reject Number/BigInt content-type mismatches before copying,
+    and re-check source and destination detached/out-of-bounds state at the
+    copy boundary so side effects become JavaScript errors instead of host
+    crashes. WHY: issue #1085 / PR #1319 fixed
+    `TypedArray_prototype_slice_BigInt` after the slice path trusted the
+    species-created result and let BigInt-to-Number copies fall through the
+    wrong storage path.
 17. For Intl built-ins that coerce call arguments through `ToNumber`, use the
     active evaluation context and propagate abrupt completions before later
     numeric validation such as finite-number checks. Raw `JsValue.AsNumber()`,

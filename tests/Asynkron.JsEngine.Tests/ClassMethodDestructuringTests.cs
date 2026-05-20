@@ -59,6 +59,7 @@ public sealed class ClassMethodDestructuringTests(ITestOutputHelper output) : In
         var result = await engine.Evaluate(
             """
             var returnCount = 0;
+            var caught = "";
             var iterator = {
               next() {
                 return { value: undefined, done: false };
@@ -81,12 +82,13 @@ public sealed class ClassMethodDestructuringTests(ITestOutputHelper output) : In
             try {
               new C().method();
             } catch (error) {
+              caught = error.name + "|" + error.message;
             }
 
-            returnCount;
+            caught + "|" + returnCount;
             """);
 
-        Assert.Equal(1d, result);
+        Assert.Equal("Error|boom|1", result?.ToString());
     }
 
     [Fact(Timeout = 2000)]

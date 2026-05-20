@@ -67,4 +67,64 @@ public sealed class ClassComputedAccessorTests(ITestOutputHelper output) : Inter
         Assert.Equal("set yield", array.GetElement(1).AsString());
     }
 
+    [Fact(Timeout = 2000)]
+    public async Task AsyncFunction_ClassDeclarationComputedMethodNameCanAwait()
+    {
+        await using var engine = CreateEngine();
+        AsyncTestHelpers.RegisterDelayHelper(engine);
+
+        await engine.Evaluate("""
+            let log = [];
+
+            async function run() {
+                class Box {
+                    [await __delay(1, "value")]() {
+                        return "method";
+                    }
+                }
+
+                log.push(new Box().value());
+            }
+
+            run();
+            """);
+
+        var result = await engine.Evaluate("log.join(',');");
+        Assert.Equal("method", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task AsyncFunction_ClassDeclarationComputedAccessorNamesCanAwait()
+    {
+        await using var engine = CreateEngine();
+        AsyncTestHelpers.RegisterDelayHelper(engine);
+
+        await engine.Evaluate("""
+            let log = [];
+            let stored = "";
+
+            async function run() {
+                class Box {
+                    get [await __delay(1, "value")]() {
+                        return "get";
+                    }
+
+                    set [await __delay(1, "value")](input) {
+                        stored = input;
+                    }
+                }
+
+                let box = new Box();
+                log.push(box.value);
+                box.value = "set";
+                log.push(stored);
+            }
+
+            run();
+            """);
+
+        var result = await engine.Evaluate("log.join(',');");
+        Assert.Equal("get,set", result);
+    }
+
 }

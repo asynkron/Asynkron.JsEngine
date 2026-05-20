@@ -6743,6 +6743,12 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                         advanceTopLevelStatement: false,
                         onCompleted);
 
+                case ClassDeclaration classDeclaration
+                    when TryRewriteClassDeclarationAwaitTemps(classDeclaration, out _, out _):
+                    return TryEvaluateClassDeclarationWithAwait(classDeclaration, env, isStrict,
+                        advanceTopLevelStatement: false,
+                        onCompleted);
+
                 case TryStatement tryStatement
                     when AstShapeAnalyzer.StatementContainsAwait(tryStatement):
                     return TryEvaluateTryStatementWithAwait(tryStatement, env, isStrict, onCompleted);

@@ -137,8 +137,8 @@ public class TemporalDebugTests
               month: 4,
             });
 
-            if (gregory.year !== 0 || gregory.era !== 'bce' || gregory.eraYear !== 1) {
-              throw new Error('unexpected gregory remap: ' + gregory.year + '/' + gregory.era + '/' + gregory.eraYear);
+            if (gregory.year !== 0 || gregory.era !== 'gregory-inverse' || gregory.eraYear !== 1) {
+                throw new Error('unexpected gregory remap: ' + gregory.year + '/' + gregory.era + '/' + gregory.eraYear);
             }
 
             const japanese = Temporal.PlainYearMonth.from({
@@ -198,6 +198,89 @@ public class TemporalDebugTests
                 result.era !== 'bce' || result.eraYear !== 271822 ||
                 result.toString({ calendarName: 'always' }) !== '-271821-04-01[u-ca=gregory]') {
                 throw new Error('bad minimum gregory PlainYearMonth: ' + result.toString({ calendarName: 'always' }));
+            }
+
+            'ok';
+        ");
+
+        Assert.Equal("ok", result?.ToString());
+    }
+
+    [Fact]
+    public async Task ZonedDateTimeFrom_CanonicalizesGregorianEraCodes()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const ce = Temporal.ZonedDateTime.from({
+              calendar: 'gregory',
+              era: 'ce',
+              eraYear: 2024,
+              year: 2024,
+              month: 1,
+              day: 1,
+              timeZone: 'UTC',
+            });
+
+            if (ce.era !== 'gregory' || ce.eraYear !== 2024) {
+              throw new Error('unexpected CE era: ' + ce.era + '/' + ce.eraYear);
+            }
+
+            const bce = Temporal.ZonedDateTime.from({
+              calendar: 'gregory',
+              era: 'bce',
+              eraYear: 44,
+              year: -43,
+              month: 3,
+              day: 15,
+              timeZone: 'Europe/Rome',
+            });
+
+            if (bce.era !== 'gregory-inverse' || bce.eraYear !== 44) {
+              throw new Error('unexpected BCE era: ' + bce.era + '/' + bce.eraYear);
+            }
+
+            'ok';
+        ");
+
+        Assert.Equal("ok", result?.ToString());
+    }
+
+    [Fact]
+    public async Task ZonedDateTimeFrom_UsesCompatibleDisambiguationByDefault()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const timeZone = 'America/Vancouver';
+            const ambiguous = Temporal.ZonedDateTime.from({
+              timeZone,
+              year: 2000,
+              month: 10,
+              day: 29,
+              hour: 1,
+              minute: 34,
+              second: 56,
+              millisecond: 987,
+              microsecond: 654,
+              nanosecond: 321,
+            });
+            if (ambiguous.epochNanoseconds !== 972808496987654321n) {
+              throw new Error('unexpected ambiguous instant: ' + ambiguous.epochNanoseconds);
+            }
+
+            const skipped = Temporal.ZonedDateTime.from({
+              timeZone,
+              year: 2000,
+              month: 4,
+              day: 2,
+              hour: 2,
+              minute: 34,
+              second: 56,
+              millisecond: 987,
+              microsecond: 654,
+              nanosecond: 321,
+            });
+            if (skipped.epochNanoseconds !== 954671696987654321n) {
+              throw new Error('unexpected skipped instant: ' + skipped.epochNanoseconds);
             }
 
             'ok';

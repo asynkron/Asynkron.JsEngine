@@ -244,6 +244,15 @@ host-runtime shortcuts.
     branch itself observes that distinction. Do not pre-stringify explicit
     `undefined` or route it through a legacy compatibility shortcut before an
     operation such as `RegExpCreate` gets the original value.
+40. For `Temporal.PlainYearMonth.prototype.with` on non-ISO calendars, merge
+    partial overrides against the receiver's observable calendar `year`,
+    `month`, and `monthCode`, not the stored ISO reference projection. Read
+    `overflow` before resolving omitted month/monthCode defaults, preserve the
+    receiver `monthCode` only when neither `month` nor `monthCode` is supplied,
+    and validate explicit leap `monthCode` overrides in the target calendar
+    year. Why: issue #854 / PR #1186 showed Hebrew leap month `M05L` can be a
+    valid receiver default, a constrain fallback, or an explicit reject case
+    depending on whether the field was inherited or supplied.
 
 ## Why
 
@@ -474,6 +483,19 @@ coverage for Hebrew leap-month constrain behavior.
 
 Related ADR:
 `docs/adrs/0067-keep-temporal-plaindate-with-calendar-date-fields.md`.
+
+Issue #854 / PR #1186 fixed `Temporal.PlainYearMonth.prototype.with` after
+non-ISO receiver defaults, era-capable calendar fields, and Hebrew leap-month
+handling could be merged or validated in the wrong domain. The durable lesson
+extends PlainDate/PlainDateTime `.with`: merge against the receiver's
+calendar-visible year/month fields, read `overflow` before resolving omitted
+leap-month defaults, and distinguish inherited defaults from explicit
+`monthCode` overrides. Future `PlainYearMonth.prototype.with` work should prove
+the focused `Name=Temporal_PlainYearMonth_prototype_with` Test262 method group
+and keep local Hebrew leap-month constrain/reject coverage.
+
+Related ADR:
+`docs/adrs/0074-keep-temporal-plainyearmonth-with-calendar-year-month-fields.md`.
 
 Issue #842 / PR #1163 fixed `Temporal.PlainDate.prototype.until` after matching
 Chinese lunisolar PlainDate endpoints were accepted as non-ISO calendars but

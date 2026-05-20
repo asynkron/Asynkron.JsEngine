@@ -483,14 +483,24 @@ public static partial class TypedAstEvaluator
                     _ => throw new ArgumentOutOfRangeException(nameof(instruction.VarKind), instruction.VarKind, null)
                 };
 
-                runner.ApplyBindingTargetProgram(
-                    instruction.TargetProgram,
-                    bindingValue,
-                    environment,
-                    context,
-                    mode,
-                    hasInitializer,
-                    allowNameInference: false);
+                try
+                {
+                    runner.ApplyBindingTargetProgram(
+                        instruction.TargetProgram,
+                        bindingValue,
+                        environment,
+                        context,
+                        mode,
+                        hasInitializer,
+                        allowNameInference: false);
+                }
+                catch (ThrowSignal signal)
+                {
+                    if (!context.IsThrow)
+                    {
+                        context.SetThrow(signal.ThrownValue);
+                    }
+                }
             }
 
             if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingResult, environment))

@@ -381,7 +381,30 @@ public static class ReflectHelper
             return proto is null ? JsValue.Null : JsValue.FromObjectUnsafe(proto);
         }
 
-        return target.Prototype is null ? JsValue.Null : (JsValue)target.Prototype;
+        object? proto = target.Prototype;
+        if (proto is null && target is IPrototypeAccessorProvider provider)
+        {
+            proto = provider.PrototypeAccessor;
+        }
+
+        // IteratorResultObject is a lightweight object that conceptually inherits from Object.prototype
+        // but doesn't store a prototype reference for pooling efficiency.
+        if (proto is null && target is IteratorResultObject && realm.ObjectPrototype is { } objectPrototype)
+        {
+            proto = objectPrototype;
+        }
+
+        if (proto is not IJsPropertyAccessor &&
+            target is HostFunction { Realm: { } fnRealm } &&
+            fnRealm.TryGetProperty("Function", out var fnVal) &&
+            fnVal.TryGetObject<IJsPropertyAccessor>(out var fnAccessor) &&
+            fnAccessor.TryGetProperty("prototype", out var fnProtoObj) &&
+            fnProtoObj.TryGetObject<JsObject>(out var fnProto))
+        {
+            proto = fnProto;
+        }
+
+        return proto is null ? JsValue.Null : JsValue.FromObjectUnsafe(proto);
     }
 
     internal static JsValue ReflectHas(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)

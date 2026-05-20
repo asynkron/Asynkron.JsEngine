@@ -9834,7 +9834,7 @@ public static class TemporalHelper
         // For non-ISO calendars, convert calendar-specific year/month/day to ISO
         if (!string.Equals(calendar, "iso8601", StringComparison.Ordinal))
         {
-            return CalendarDateToIsoPlainDate(year, month, day, calendar, overflow, realm, preserveCalendarFields: true);
+            return CalendarDateToIsoPlainDate(year, month, day, calendar, overflow, realm);
         }
 
         if (overflow == "reject")

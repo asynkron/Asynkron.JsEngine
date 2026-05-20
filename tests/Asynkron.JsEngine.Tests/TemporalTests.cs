@@ -445,7 +445,7 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
             const date = new Temporal.PlainDate(1981, 12, 15, "gregory").with({ era: "bce", eraYear: 1 });
             `${date.year}|${date.month}|${date.monthCode}|${date.day}|${date.era}|${date.eraYear}`;
             """);
-        Assert.Equal("0|12|M12|15|bce|1", result);
+        Assert.Equal("0|12|M12|15|gregory-inverse|1", result);
     }
 
     [Fact]
@@ -703,6 +703,98 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
         Assert.Equal(true, sameCal);
     }
 
+    [Fact]
+    public async Task Temporal_ZonedDateTime_Until_HourLargestUnit_AcrossDifferentNamedZones()
+    {
+        // Spec DifferenceTemporalZonedDateTime step 4 returns via epoch-ns difference
+        // before the TimeZoneEquals check, so cross-zone hour-largest differences are valid.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            const a = new Temporal.ZonedDateTime(0n, 'America/New_York');
+            const b = new Temporal.ZonedDateTime(3600000000000n, 'Europe/Paris');
+            a.until(b, { largestUnit: 'hour' }).hours;
+        ");
+        Assert.Equal(1d, result);
+    }
+
+    [Fact]
+    public async Task Temporal_ZonedDateTime_Since_HourLargestUnit_AcrossFixedAndNamedZones()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            const a = new Temporal.ZonedDateTime(7200000000000n, '+01:00');
+            const b = new Temporal.ZonedDateTime(0n, 'America/New_York');
+            a.since(b, { largestUnit: 'hour' }).hours;
+        ");
+        Assert.Equal(2d, result);
+    }
+
+    [Fact]
+    public async Task Temporal_ZonedDateTime_Until_DayLargestUnit_ThrowsOnNamedTimeZoneMismatch()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            try {
+                const a = new Temporal.ZonedDateTime(0n, 'America/New_York');
+                const b = new Temporal.ZonedDateTime(0n, 'Europe/Paris');
+                a.until(b, { largestUnit: 'day' });
+                'missing throw';
+            } catch (error) {
+                error instanceof RangeError;
+            }
+        ");
+        Assert.Equal(true, result);
+    }
+
+    [Fact]
+    public async Task Temporal_ZonedDateTime_Until_DayLargestUnit_ThrowsOnFixedOffsetMismatch()
+    {
+        // The previous FixedOffset bypass let non-equivalent fixed-offset zones
+        // silently pass calendar-unit since/until; verify they now throw.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            try {
+                const a = new Temporal.ZonedDateTime(0n, '+01:00');
+                const b = new Temporal.ZonedDateTime(0n, '+02:00');
+                a.until(b, { largestUnit: 'day' });
+                'missing throw';
+            } catch (error) {
+                error instanceof RangeError;
+            }
+        ");
+        Assert.Equal(true, result);
+    }
+
+    [Fact]
+    public async Task Temporal_ZonedDateTime_Since_DayLargestUnit_ThrowsOnFixedOffsetVsNamedMismatch()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            try {
+                const a = new Temporal.ZonedDateTime(0n, '+01:00');
+                const b = new Temporal.ZonedDateTime(0n, 'Europe/Paris');
+                a.since(b, { largestUnit: 'day' });
+                'missing throw';
+            } catch (error) {
+                error instanceof RangeError;
+            }
+        ");
+        Assert.Equal(true, result);
+    }
+
+    [Fact]
+    public async Task Temporal_ZonedDateTime_Until_DayLargestUnit_AllowsEquivalentFixedOffsets()
+    {
+        // CanonicalizeTimeZoneIdForComparison normalizes '+01' / '+0100' / '+01:00' identically.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            const a = new Temporal.ZonedDateTime(0n, '+01:00');
+            const b = new Temporal.ZonedDateTime(86400000000000n, '+0100');
+            a.until(b, { largestUnit: 'day' }).days;
+        ");
+        Assert.Equal(1d, result);
+    }
+
 [Fact]
     public async Task Temporal_Now_ZonedDateTimeISO()
     {
@@ -725,6 +817,65 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
         // Check month
         var r3 = await engine.Evaluate("Temporal.PlainMonthDay.from('01-15').monthCode");
         Assert.Equal("M01", r3);
+    }
+
+    [Fact]
+    public async Task Temporal_ZonedDateTime_GregoryEra_RoundTrip_CE()
+    {
+        // era getter returns canonical 'gregory' — round-tripping through ZonedDateTime.from must not throw
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const zdt = Temporal.ZonedDateTime.from({ calendar: 'gregory', year: 2024, month: 3, day: 15, timeZone: 'UTC' });
+            const roundTripped = Temporal.ZonedDateTime.from({
+                calendar: 'gregory',
+                era: zdt.era,
+                eraYear: zdt.eraYear,
+                month: zdt.month,
+                day: zdt.day,
+                timeZone: 'UTC',
+            });
+            `${zdt.era}|${zdt.eraYear}|${roundTripped.year}|${roundTripped.month}|${roundTripped.day}`;
+            """);
+        Assert.Equal("gregory|2024|2024|3|15", result);
+    }
+
+    [Fact]
+    public async Task Temporal_ZonedDateTime_GregoryEra_RoundTrip_BCE()
+    {
+        // era getter returns canonical 'gregory-inverse' — round-tripping through ZonedDateTime.from must not throw
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const zdt = Temporal.ZonedDateTime.from({ calendar: 'gregory', year: -43, month: 3, day: 15, timeZone: 'UTC' });
+            const roundTripped = Temporal.ZonedDateTime.from({
+                calendar: 'gregory',
+                era: zdt.era,
+                eraYear: zdt.eraYear,
+                month: zdt.month,
+                day: zdt.day,
+                timeZone: 'UTC',
+            });
+            `${zdt.era}|${zdt.eraYear}|${roundTripped.year}|${roundTripped.month}|${roundTripped.day}`;
+            """);
+        Assert.Equal("gregory-inverse|44|-43|3|15", result);
+    }
+
+    [Fact]
+    public async Task Temporal_PlainDate_GregoryEra_RoundTrip_BCE()
+    {
+        // PlainDate.from round-trip: era/eraYear from getter must be accepted back
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const pd = Temporal.PlainDate.from({ calendar: 'gregory', year: -43, month: 3, day: 15 });
+            const roundTripped = Temporal.PlainDate.from({
+                calendar: 'gregory',
+                era: pd.era,
+                eraYear: pd.eraYear,
+                month: pd.month,
+                day: pd.day,
+            });
+            `${pd.era}|${pd.eraYear}|${roundTripped.year}`;
+            """);
+        Assert.Equal("gregory-inverse|44|-43", result);
     }
 
 }

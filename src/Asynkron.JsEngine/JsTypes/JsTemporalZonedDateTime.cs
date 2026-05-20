@@ -227,15 +227,56 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
         }
     }
 
+    private (int Year, int Month, int Day, int Hour, int Minute, int Second, int Millisecond, int Microsecond, int Nanosecond) LocalComponents
+    {
+        get
+        {
+            const long nsPerDay = 86_400_000_000_000L;
+            const long nsPerSecond = 1_000_000_000L;
+
+            var offset = GetOffsetTimeSpan();
+            var localEpochNs = Instant.EpochNanoseconds + (BigInteger)offset.Ticks * 100;
+            var dayNs = localEpochNs >= 0
+                ? localEpochNs % nsPerDay
+                : nsPerDay - 1 - ((-localEpochNs - 1) % nsPerDay);
+            var dayNumber = (long)((localEpochNs - dayNs) / nsPerDay);
+
+            var z = dayNumber + 719468L;
+            var era = (z >= 0 ? z : z - 146096) / 146097;
+            var doe = z - era * 146097;
+            var yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+            var y = yoe + era * 400;
+            var doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+            var mp = (5 * doy + 2) / 153;
+            var d = doy - (153 * mp + 2) / 5 + 1;
+            var m = mp + (mp < 10 ? 3 : -9);
+            y += m <= 2 ? 1 : 0;
+
+            var timeNs = (long)dayNs;
+            var hour = (int)(timeNs / 3_600_000_000_000L);
+            timeNs %= 3_600_000_000_000L;
+            var minute = (int)(timeNs / 60_000_000_000L);
+            timeNs %= 60_000_000_000L;
+            var second = (int)(timeNs / nsPerSecond);
+            timeNs %= nsPerSecond;
+            var millisecond = (int)(timeNs / 1_000_000L);
+            timeNs %= 1_000_000L;
+            var microsecond = (int)(timeNs / 1_000L);
+            var nanosecond = (int)(timeNs % 1_000L);
+
+            return ((int)y, (int)m, (int)d, hour, minute, second, millisecond, microsecond, nanosecond);
+        }
+    }
+
     // Date/time components in wall-clock time
-    public int Year => LocalDateTime.Year;
-    public int Month => LocalDateTime.Month;
-    public int Day => LocalDateTime.Day;
-    public int Hour => LocalDateTime.Hour;
-    public int Minute => LocalDateTime.Minute;
-    public int Second => LocalDateTime.Second;
-    public int Millisecond => LocalDateTime.Millisecond;
-    public int Microsecond => LocalDateTime.Microsecond;
+    public int Year => LocalComponents.Year;
+    public int Month => LocalComponents.Month;
+    public int Day => LocalComponents.Day;
+    public int Hour => LocalComponents.Hour;
+    public int Minute => LocalComponents.Minute;
+    public int Second => LocalComponents.Second;
+    public int Millisecond => LocalComponents.Millisecond;
+    public int Microsecond => LocalComponents.Microsecond;
 
     /// <summary>
     ///     Nanoseconds component (0-999). Note: .NET doesn't track nanoseconds, so we derive from Instant.
@@ -244,8 +285,7 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
     {
         get
         {
-            var nanos = (int)(Instant.EpochNanoseconds % 1000);
-            return nanos < 0 ? nanos + 1000 : nanos;
+            return LocalComponents.Nanosecond;
         }
     }
 
@@ -1030,7 +1070,7 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
                 TimeZone,
                 Instant.EpochNanoseconds);
         }
-        catch (OverflowException)
+        catch (Exception ex) when (ex is ArgumentOutOfRangeException or OverflowException)
         {
             // For extreme years outside .NET's range, fall back to UTC offset
             return TimeSpan.Zero;

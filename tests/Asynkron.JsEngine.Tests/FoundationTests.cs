@@ -470,6 +470,26 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
         Assert.Equal(42d, result);
     }
 
+    [Fact]
+    public async Task Conditional_SwitchInsideWith_BreakPreservesEnclosingWithScope()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            let scope = { p: 'with' };
+            let p = 'global';
+            let result;
+            with (scope) {
+                switch (0) {
+                    case 0:
+                        break;
+                }
+                result = p;
+            }
+            result;
+        ");
+        Assert.Equal("with", result);
+    }
+
     #endregion
 
     #region Loops
@@ -488,6 +508,25 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("let i = 0; while (i < 5) { i++; } i");
         Assert.Equal(5d, result);
+    }
+
+    [Fact]
+    public async Task Loop_WhileInsideWith_BreakPreservesEnclosingWithScope()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            let scope = { p: 'with' };
+            let p = 'global';
+            let result;
+            with (scope) {
+                while (true) {
+                    break;
+                }
+                result = p;
+            }
+            result;
+        ");
+        Assert.Equal("with", result);
     }
 
     [Fact]

@@ -226,8 +226,10 @@ internal static class LoopEmitterHelpers
         // ================================================================
         // Phase D: Build body
         // ================================================================
-        var targetScopeId = config.IterationScopeId >= 0 ? config.IterationScopeId : ctx.CurrentScopeId;
-        ctx.PushLoopScope(label, continueTarget, loopExitTarget, targetScopeId);
+        var targetBoundary = config.IterationScopeId >= 0
+            ? new ScopeExitBoundary(config.IterationScopeId, null)
+            : ctx.CurrentScopeExitBoundary;
+        ctx.PushLoopScope(label, continueTarget, loopExitTarget, targetBoundary);
 
         var pushedIterationScope = false;
         if (config.HasPerIterationBindings && config.IterationScopeId >= 0)

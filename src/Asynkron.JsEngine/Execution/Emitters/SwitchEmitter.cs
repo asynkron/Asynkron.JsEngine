@@ -289,7 +289,7 @@ internal static class SwitchEmitter
         // Push a loop scope so break statements in nested blocks (e.g., try/catch inside
         // switch cases) can resolve their targets during IR building. ContinueTarget is -1
         // because switch statements do not support continue.
-        ctx.PushLoopScope(activeLabel, -1, breakableExitIndex, ctx.CurrentScopeId);
+        ctx.PushLoopScope(activeLabel, -1, breakableExitIndex, ctx.CurrentScopeExitBoundary);
 
         // IMPORTANT: Re-enable SuppressIfCompletionReset while emitting the lowered block.
         // This prevents SetCompletionValueInstruction from being added after case body statements,

@@ -40,9 +40,14 @@ public static partial class TypedAstEvaluator
                 var varEnvironment = environment.GetVarEnvironment();
                 var isAtVarEnvironment = ReferenceEquals(varEnvironment, environment) ||
                                          environment.IsEvalDeclarationEnvironment;
+                // Async/generator declarations stay block-scoped for ordinary sloppy switch/catch
+                // Annex B paths, but eval declaration environments preserve existing eval semantics.
+                var suppressAnnexBVarUpdate = (funcDecl.Function.IsAsync || funcDecl.Function.WasAsync ||
+                                               funcDecl.Function.IsGenerator) &&
+                                              ctx.ExecutionKind != ExecutionKind.Eval;
 
                 var isHoistedUndefinedBinding = false;
-                if (isAtVarEnvironment && !ctx.CurrentScope.IsStrict &&
+                if (!suppressAnnexBVarUpdate && isAtVarEnvironment && !ctx.CurrentScope.IsStrict &&
                     varEnvironment.HasFunctionScopedBinding(funcDecl.Name))
                 {
                     var existingValue = varEnvironment.GetBindingValueDirect(funcDecl.Name);
@@ -96,7 +101,7 @@ public static partial class TypedAstEvaluator
                     // For hoisted functions in sloppy mode, also update the var-scoped binding.
                     // This implements Annex B semantics where block-scoped functions also
                     // update the outer binding visible to the surrounding eval/function body.
-                    if (!varEnvironment.IsStrict && !isBlocked)
+                    if (!suppressAnnexBVarUpdate && !varEnvironment.IsStrict && !isBlocked)
                     {
                         // Update the var-scoped binding in the function scope.
                         ref var varBinding = ref varEnvironment.TryGetSlotRef(funcDecl.Name);

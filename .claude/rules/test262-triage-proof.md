@@ -97,3 +97,11 @@ The same delivery also surfaced an adjacency conflict with sibling typed-array
 closeouts (#869 / #1223 / #1224 ToIndex regressions in the same test file);
 resolve those by keeping both non-overlapping test blocks rather than
 collapsing one closeout into the other.
+
+Issue #876 repeated this pattern for `TypedArray_prototype_at`: the stale batch
+listed only the strict and sloppy
+`built-ins/TypedArray/prototype/at/returns-undefined-for-holes-in-sparse-arrays.js`
+rows, while current main passed the exact fixture filter (2/2) and the full
+method group (28/28). Future TypedArray Test262 issues should still inspect the
+owner surface enough to understand the claimed failure, but once the focused
+proof is green, stop without inventing a nearby runtime or harness patch.

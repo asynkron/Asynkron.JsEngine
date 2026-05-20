@@ -61,12 +61,6 @@ internal static partial class IntlUtilities
     private static readonly Lazy<HashSet<string>> AvailableLocales = new(BuildAvailableLocales);
     private static readonly Lazy<string> DefaultLocale = new(DetermineDefaultLocale);
 
-    private static readonly Regex LanguageTagRegex = MyRegex();
-
-    private static readonly Regex DuplicateSingletonRegex = MyRegex1();
-
-    private static readonly Regex DuplicateVariantRegex = MyRegex2();
-
     private static readonly Regex TransformKeyRegex = MyRegex3();
 
     static IntlUtilities()
@@ -903,14 +897,330 @@ internal static partial class IntlUtilities
 
     private static bool IsStructurallyValidLanguageTag(string locale)
     {
-        if (!LanguageTagRegex.IsMatch(locale))
+        if (string.IsNullOrEmpty(locale))
         {
             return false;
         }
 
-        var privateSplit = locale.Split(["-x-"], StringSplitOptions.None);
-        var head = privateSplit[0];
-        return !DuplicateSingletonRegex.IsMatch(head) && !DuplicateVariantRegex.IsMatch(head);
+        if (locale.Contains("--", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var subtags = locale.ToLowerInvariant().Split('-');
+        for (var i = 0; i < subtags.Length; i++)
+        {
+            var subtag = subtags[i];
+            if (subtag.Length is < 1 or > 8 || !IsAlphaNumericSubtag(subtag))
+            {
+                return false;
+            }
+        }
+
+        var index = 0;
+        if (!TryReadLanguage(subtags, ref index))
+        {
+            return false;
+        }
+
+        if (!TryReadBaseLanguageParts(subtags, ref index))
+        {
+            return false;
+        }
+
+        var seenVariants = new HashSet<string>(StringComparer.Ordinal);
+        while (index < subtags.Length && IsVariantSubtag(subtags[index]))
+        {
+            if (!seenVariants.Add(subtags[index]))
+            {
+                return false;
+            }
+
+            index++;
+        }
+
+        var seenSingletons = new HashSet<string>(StringComparer.Ordinal);
+        while (index < subtags.Length && subtags[index].Length == 1 && !string.Equals(subtags[index], "x", StringComparison.Ordinal))
+        {
+            var singleton = subtags[index];
+            if (!seenSingletons.Add(singleton))
+            {
+                return false;
+            }
+
+            if (!IsAlphaNumericSubtag(singleton))
+            {
+                return false;
+            }
+
+            index++;
+            if (index >= subtags.Length)
+            {
+                return false;
+            }
+
+            if (string.Equals(singleton, "t", StringComparison.Ordinal))
+            {
+                if (!TryReadTransformedExtension(subtags, ref index))
+                {
+                    return false;
+                }
+
+                continue;
+            }
+
+            if (string.Equals(singleton, "u", StringComparison.Ordinal))
+            {
+                if (!TryReadUnicodeExtension(subtags, ref index))
+                {
+                    return false;
+                }
+
+                continue;
+            }
+
+            var valueCount = 0;
+            while (index < subtags.Length && subtags[index].Length is >= 2 and <= 8)
+            {
+                valueCount++;
+                index++;
+            }
+
+            if (valueCount == 0)
+            {
+                return false;
+            }
+        }
+
+        if (index < subtags.Length && string.Equals(subtags[index], "x", StringComparison.Ordinal))
+        {
+            index++;
+            if (index >= subtags.Length)
+            {
+                return false;
+            }
+
+            while (index < subtags.Length)
+            {
+                if (subtags[index].Length is < 1 or > 8)
+                {
+                    return false;
+                }
+
+                index++;
+            }
+        }
+
+        return index == subtags.Length;
+    }
+
+    private static bool TryReadLanguage(string[] subtags, ref int index, bool allowExtlang = false)
+    {
+        if (index >= subtags.Length)
+        {
+            return false;
+        }
+
+        var language = subtags[index];
+        if (!(language.Length is >= 2 and <= 3 || language.Length is >= 5 and <= 8) || !IsAlphaSubtag(language))
+        {
+            return false;
+        }
+
+        index++;
+        if (allowExtlang && language.Length is >= 2 and <= 3)
+        {
+            var extlangCount = 0;
+            while (index < subtags.Length && extlangCount < 3 && subtags[index].Length == 3 && IsAlphaSubtag(subtags[index]))
+            {
+                extlangCount++;
+                index++;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryReadBaseLanguageParts(string[] subtags, ref int index)
+    {
+        if (index < subtags.Length && subtags[index].Length == 4 && IsAlphaSubtag(subtags[index]))
+        {
+            index++;
+        }
+
+        if (index < subtags.Length && IsRegionSubtag(subtags[index]))
+        {
+            index++;
+        }
+
+        return true;
+    }
+
+    private static bool TryReadTransformedExtension(string[] subtags, ref int index)
+    {
+        if (index >= subtags.Length)
+        {
+            return false;
+        }
+
+        var hasContent = false;
+        if (!IsTransformKeySubtag(subtags[index]))
+        {
+            var languageStart = index;
+            if (!TryReadLanguage(subtags, ref index, allowExtlang: false))
+            {
+                return false;
+            }
+
+            if (!TryReadBaseLanguageParts(subtags, ref index))
+            {
+                return false;
+            }
+
+            var seenLanguageVariants = new HashSet<string>(StringComparer.Ordinal);
+            while (index < subtags.Length && IsVariantSubtag(subtags[index]))
+            {
+                if (!seenLanguageVariants.Add(subtags[index]))
+                {
+                    return false;
+                }
+
+                index++;
+            }
+
+            if (index == languageStart)
+            {
+                return false;
+            }
+
+            hasContent = true;
+        }
+
+        var seenKeys = new HashSet<string>(StringComparer.Ordinal);
+        while (index < subtags.Length && IsTransformKeySubtag(subtags[index]))
+        {
+            var key = subtags[index];
+            if (!seenKeys.Add(key))
+            {
+                return false;
+            }
+
+            index++;
+            hasContent = true;
+
+            var valueCount = 0;
+            while (index < subtags.Length && subtags[index].Length is >= 3 and <= 8)
+            {
+                valueCount++;
+                index++;
+            }
+
+            if (valueCount == 0)
+            {
+                return false;
+            }
+        }
+
+        return hasContent;
+    }
+
+    private static bool IsVariantSubtag(string subtag)
+    {
+        return (subtag.Length is >= 5 and <= 8 && IsAlphaNumericSubtag(subtag)) ||
+               (subtag.Length == 4 && char.IsDigit(subtag[0]) && IsAlphaNumericSubtag(subtag));
+    }
+
+    private static bool IsRegionSubtag(string subtag)
+    {
+        return (subtag.Length == 2 && IsAlphaSubtag(subtag)) || (subtag.Length == 3 && IsDigitSubtag(subtag));
+    }
+
+    private static bool IsTransformKeySubtag(string subtag)
+    {
+        return subtag.Length == 2 && char.IsLetter(subtag[0]) && char.IsDigit(subtag[1]);
+    }
+
+    private static bool IsAlphaNumericSubtag(string subtag)
+    {
+        foreach (var c in subtag)
+        {
+            if (!IsAsciiAlphaNumeric(c))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsAlphaSubtag(string subtag)
+    {
+        foreach (var c in subtag)
+        {
+            if (!IsAsciiLetter(c))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsDigitSubtag(string subtag)
+    {
+        foreach (var c in subtag)
+        {
+            if (!char.IsDigit(c))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryReadUnicodeExtension(string[] subtags, ref int index)
+    {
+        var hasContent = false;
+        while (index < subtags.Length && subtags[index].Length >= 3)
+        {
+            hasContent = true;
+            index++;
+        }
+
+        var seenKeys = new HashSet<string>(StringComparer.Ordinal);
+        while (index < subtags.Length && subtags[index].Length == 2)
+        {
+            var key = subtags[index];
+            if (!IsUnicodeKeySubtag(key) || !seenKeys.Add(key))
+            {
+                return false;
+            }
+
+            hasContent = true;
+            index++;
+            while (index < subtags.Length && subtags[index].Length >= 3)
+            {
+                index++;
+            }
+        }
+
+        return hasContent;
+    }
+
+    private static bool IsUnicodeKeySubtag(string subtag)
+    {
+        return subtag.Length == 2 && IsAsciiAlphaNumeric(subtag[0]) && IsAsciiLetter(subtag[1]);
+    }
+
+    private static bool IsAsciiLetter(char c)
+    {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+    }
+
+    private static bool IsAsciiAlphaNumeric(char c)
+    {
+        return IsAsciiLetter(c) || char.IsDigit(c);
     }
 
     private static string CanonicalizeLanguageTag(string locale)
@@ -1873,12 +2183,6 @@ internal static partial class IntlUtilities
         return numberingSystem is "arab" or "arabext" ? "\u066B" : ".";
     }
 
-    [GeneratedRegex(@"^(([a-z]{2,3}|[a-z]{5,8})(-([a-z]{4}))?(-([a-z]{2}|[0-9]{3}))?(-([a-z0-9]{5,8}|(?:[0-9][a-z0-9]{3})))*(-((u((-([a-z0-9][a-z](-[a-z0-9]{3,8})*))+|((-([a-z0-9]{3,8}))+(-([a-z0-9][a-z](-[a-z0-9]{3,8})*))*)))|(t((-(([a-z]{2,3}|[a-z]{5,8})(-([a-z]{4}))?(-([a-z]{2}|[0-9]{3}))?(-([a-z0-9]{5,8}|(?:[0-9][a-z0-9]{3})))*)(-([a-z][0-9](-[a-z0-9]{3,8})+))*)|(-([a-z][0-9](-[a-z0-9]{3,8})+))+))|(([0-9]|[a-sv-wy-z])(-[a-z0-9]{2,8})+)))*(-(x(-[a-z0-9]{1,8})+))?)$", RegexOptions.IgnoreCase | RegexOptions.Compiled, "sv-SE")]
-    private static partial Regex MyRegex();
-    [GeneratedRegex(@"-([0-9]|[a-wy-z])-(.*-)?\1(?![a-z0-9])", RegexOptions.IgnoreCase | RegexOptions.Compiled, "sv-SE")]
-    private static partial Regex MyRegex1();
-    [GeneratedRegex(@"([a-z0-9]{2,8}-)+([a-z0-9]{5,8}|(?:[0-9][a-z0-9]{3}))-([a-z0-9]{2,8}-)*\2(?![a-z0-9])", RegexOptions.IgnoreCase | RegexOptions.Compiled, "sv-SE")]
-    private static partial Regex MyRegex2();
     [GeneratedRegex(@"^[a-z][0-9]$", RegexOptions.IgnoreCase | RegexOptions.Compiled, "sv-SE")]
     private static partial Regex MyRegex3();
 }

@@ -1381,6 +1381,151 @@ public sealed class TypedArrayTests(ITestOutputHelper output) : InternalTestBase
         Assert.Equal(true, obj2["result"]);
     }
 
+    // Regression: TypedArray object-arg conversion-operation coercion
+    // Mirrors Test262 built-ins/TypedArrayConstructors/ctors/object-arg/conversion-operation.js
+    // and built-ins/TypedArrayConstructors/ctors/object-arg/conversion-operation-consistent-nan.js
+    // Focused proof (TypedArrayConstructors_ctors_objectArg) passed 56/56 green on current main;
+    // this pin ensures per-element ToNumber/ToBigInt coercion semantics from object-source
+    // construction stay observable per test262-triage-proof rule 5.
+
+    [Fact(Timeout = 2000)]
+    public async Task Int8Array_ObjectArg_ToNumber_CoercesElementsViaValueOf()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const calls = [];
+                                           const src = {
+                                             length: 3,
+                                             0: { valueOf() { calls.push(0); return 1.7; } },
+                                             1: { valueOf() { calls.push(1); return -130; } },
+                                             2: { valueOf() { calls.push(2); return 256; } }
+                                           };
+                                           const arr = new Int8Array(src);
+                                           return { arr0: arr[0], arr1: arr[1], arr2: arr[2], len: arr.length, calls };
+                                           """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(3d, obj["len"]);
+        Assert.Equal(1d, obj["arr0"]);
+        Assert.Equal(126d, obj["arr1"]);
+        Assert.Equal(0d, obj["arr2"]);
+        var calls = Assert.IsType<JsArray>(obj["calls"]);
+        Assert.Equal(3, calls.Length);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Uint8ClampedArray_ObjectArg_ToNumber_ClampsElements()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const src = {
+                                             length: 4,
+                                             0: { valueOf() { return -1; } },
+                                             1: { valueOf() { return 0; } },
+                                             2: { valueOf() { return 255; } },
+                                             3: { valueOf() { return 300; } }
+                                           };
+                                           const arr = new Uint8ClampedArray(src);
+                                           return { arr0: arr[0], arr1: arr[1], arr2: arr[2], arr3: arr[3] };
+                                           """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(0d, obj["arr0"]);
+        Assert.Equal(0d, obj["arr1"]);
+        Assert.Equal(255d, obj["arr2"]);
+        Assert.Equal(255d, obj["arr3"]);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Float32Array_ObjectArg_ToNumber_PreservesNaN()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const src = {
+                                             length: 3,
+                                             0: { valueOf() { return NaN; } },
+                                             1: { valueOf() { return 1.5; } },
+                                             2: { valueOf() { return -0; } }
+                                           };
+                                           const arr = new Float32Array(src);
+                                           return { isNaN0: Number.isNaN(arr[0]), arr1: arr[1], isNegZero2: Object.is(arr[2], -0) };
+                                           """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(true, obj["isNaN0"]);
+        Assert.Equal(1.5d, (double)obj["arr1"]!, 5);
+        Assert.Equal(true, obj["isNegZero2"]);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task BigInt64Array_ObjectArg_ToBigInt_CoercesElements()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const calls = [];
+                                           const src = {
+                                             length: 2,
+                                             0: { [Symbol.toPrimitive](hint) { calls.push({ idx: 0, hint }); return 9007199254740991n; } },
+                                             1: { [Symbol.toPrimitive](hint) { calls.push({ idx: 1, hint }); return -1n; } }
+                                           };
+                                           const arr = new BigInt64Array(src);
+                                           return { arr0: arr[0], arr1: arr[1], callCount: calls.length };
+                                           """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal("9007199254740991", obj["arr0"]?.ToString());
+        Assert.Equal("-1", obj["arr1"]?.ToString());
+        Assert.Equal(2d, obj["callCount"]);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task BigUint64Array_ObjectArg_ToBigInt_CoercesElements()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const calls = [];
+                                           const src = {
+                                             length: 2,
+                                             0: { [Symbol.toPrimitive](hint) { calls.push({ idx: 0, hint }); return 0n; } },
+                                             1: { [Symbol.toPrimitive](hint) { calls.push({ idx: 1, hint }); return 18446744073709551615n; } }
+                                           };
+                                           const arr = new BigUint64Array(src);
+                                           return { arr0: arr[0], arr1: arr[1], callCount: calls.length };
+                                           """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal("0", obj["arr0"]?.ToString());
+        Assert.Equal("18446744073709551615", obj["arr1"]?.ToString());
+        Assert.Equal(2d, obj["callCount"]);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Int8Array_ObjectArg_BigInt_ThrowsTypeError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           let threw = false, name = "";
+                                           try {
+                                             new Int8Array({ length: 1, 0: 1n });
+                                           } catch (e) { threw = true; name = e.constructor.name; }
+                                           return { threw, name };
+                                           """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(true, obj["threw"]);
+        Assert.Equal("TypeError", obj["name"]?.ToString());
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task BigInt64Array_ObjectArg_NonBigInt_ThrowsTypeError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           let threw = false, name = "";
+                                           try {
+                                             new BigInt64Array({ length: 1, 0: 42 });
+                                           } catch (e) { threw = true; name = e.constructor.name; }
+                                           return { threw, name };
+                                           """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(true, obj["threw"]);
+        Assert.Equal("TypeError", obj["name"]?.ToString());
+    }
+
     // Internal regression for Test262 built-ins/TypedArrayConstructors/from/new-instance-from-zero.js
     // Primitive numeric source (0) has no @@iterator and no length property after ToObject boxing,
     // so %TypedArray%.from must produce a zero-length typed array instance with correct shape.

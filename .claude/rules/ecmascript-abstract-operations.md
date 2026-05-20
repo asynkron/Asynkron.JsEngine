@@ -125,6 +125,12 @@ host-runtime shortcuts.
     supplied, resolve supplied `monthCode` in the receiver calendar and target
     calendar year, and convert to internal ISO storage only after
     calendar-field merge and overflow handling.
+24. For `Temporal.PlainMonthDay.from` property bags, keep ISO field reads in
+    observable spec order and keep era reads calendar-dependent. ISO bags must
+    read `calendar`, `day`, `month`, `monthCode`, `year`, then options; they
+    must not observe `era` or `eraYear` getters. Non-ISO paths may read
+    `era`/`eraYear` for validation, but should read them once and reuse the
+    observed presence instead of re-reading later.
 
 ## Why
 
@@ -318,3 +324,15 @@ with the `non-iso-calendar-fields.js` fixture.
 
 Related ADR:
 `docs/adrs/0055-keep-temporal-plaindatetime-with-calendar-date-fields.md`.
+
+Issue #844 / PR #1162 fixed `Temporal.PlainMonthDay.from` after ISO property
+bags observed `era` and `eraYear` reads before `month`, `monthCode`, `year`,
+and options. The durable lesson is that `PlainMonthDay` follows the same
+observable Temporal property-bag discipline as the adjacent PlainDate and
+PlainDateTime readers, but ISO `PlainMonthDay` specifically must not touch era
+fields. Future `PlainMonthDay.from` work should prove the focused
+`Name=Temporal_PlainMonthDay_from` Test262 method group and review clone/string
+paths separately from property bags.
+
+Related ADR:
+`docs/adrs/0059-keep-temporal-plainmonthday-field-order-calendar-dependent.md`.

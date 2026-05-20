@@ -199,6 +199,13 @@ host-runtime shortcuts.
     valid; min-1/max+1 must throw `RangeError`. Do not rely on BigInteger
     storage, host date conversion, or downstream string formatting to enforce
     the representable instant range.
+32. For `Temporal.ZonedDateTime.compare` and adjacent ZonedDateTime
+    property-bag conversion, preserve observable absent-field order separately
+    from present-field validation. Proxy or observer bags without own
+    `era`/`eraYear` properties must not observe synthetic missing-field reads
+    merely because ordinary bags with present era fields still need coercion
+    and validation. Prove this with the focused
+    `Name=Temporal_ZonedDateTime_compare` Test262 method group.
 
 ## Why
 
@@ -554,3 +561,14 @@ Temporal bounds check at the constructor boundary after coercion, while keeping
 the exact boundary values accepted. Future ZonedDateTime or instant-backed
 constructor work should prove both local min/max acceptance and min-1/max+1
 rejection, plus the focused `Name=Temporal_ZonedDateTime` Test262 method group.
+
+Issue #856 / PR #1191 fixed `Temporal.ZonedDateTime.compare` after the
+property-bag path unconditionally attempted absent `era`/`eraYear` reads. That
+preserved validation for ordinary present fields but made proxy/observer bags
+see extra missing-property probes before later fields. The durable lesson is
+that Temporal property-bag readers must distinguish absent-field observability
+from present-field validation: skip synthetic absent `era`/`eraYear` reads for
+observable bags, but still coerce and validate ordinary own era fields when
+present. This remains under ADR 0046's broader Temporal property-bag
+observability rule and should be proven with the focused
+`Name=Temporal_ZonedDateTime_compare` Test262 method group.

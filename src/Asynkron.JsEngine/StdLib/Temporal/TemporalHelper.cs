@@ -3604,22 +3604,27 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowTypeError("with() argument must have both 'era' and 'eraYear'", realm: realm);
             }
 
-            // Apply defaults and resolve month/monthCode BEFORE options.
             var year = partialYear ??
                        (partialEra is not null
                            ? ResolveTemporalEraYear(ym.Calendar, partialEra, partialEraYear!.Value, realm)
                            : receiverFields.Year);
+
+            // Read overflow before resolving month/monthCode so that leap-month defaults from the
+            // receiver's monthCode can be deferred to ApplyOverflowToYearMonth, matching the spec
+            // order where CalendarYearMonthFromFields runs after overflow is determined.
+            var options = args.Count > 1 ? args[1] : JsValue.Undefined;
+            var optionsObj = ValidateOptionsObject(options, realm, "Temporal.PlainYearMonth.prototype.with");
+            var overflow = GetTemporalOverflowOption(optionsObj, realm);
+
             var month = ResolvePlainYearMonthWithMonth(
                 ym.Calendar,
                 year,
                 partialMonth,
                 partialMonthCode,
                 receiverFields.MonthCode,
+                overflow,
                 realm);
 
-            var options = args.Count > 1 ? args[1] : JsValue.Undefined;
-            var optionsObj = ValidateOptionsObject(options, realm, "Temporal.PlainYearMonth.prototype.with");
-            var overflow = GetTemporalOverflowOption(optionsObj, realm);
             var resultMonthCode = partialMonthCode ?? (partialMonth.HasValue ? null : receiverFields.MonthCode);
             return WrapPlainYearMonth(ApplyOverflowToYearMonth(year, month, ym.Calendar, resultMonthCode, overflow, realm), realm, prototype);
         });
@@ -4737,6 +4742,7 @@ public static class TemporalHelper
         int? month,
         string? monthCode,
         string defaultMonthCode,
+        string overflow,
         RealmState realm)
     {
         if (monthCode is not null)
@@ -4755,6 +4761,23 @@ public static class TemporalHelper
             if (month.Value < 1)
                 throw StandardLibrary.ThrowRangeError("Month value is out of range", realm: realm);
             return month.Value;
+        }
+
+        // Default: use receiver's monthCode. For BCL non-ISO calendars with a leap-month default
+        // that is invalid for the target year, defer constrain/reject to ApplyOverflowToYearMonth
+        // which re-resolves via resultMonthCode and owns the CalendarYearMonthFromFields boundary.
+        if (!string.Equals(calendar, "iso8601", StringComparison.Ordinal) &&
+            !string.Equals(calendar, "gregory", StringComparison.Ordinal) &&
+            TryCreateBclCalendar(calendar, out var bclCal) &&
+            defaultMonthCode.Length == 4 && defaultMonthCode[3] == 'L' &&
+            !IsValidLeapMonthCodeForYear(calendar, year, defaultMonthCode))
+        {
+            if (!string.Equals(overflow, "constrain", StringComparison.Ordinal))
+                throw StandardLibrary.ThrowRangeError($"Month {defaultMonthCode} is out of range", realm: realm);
+
+            // constrain: numeric approximation matching ApplyOverflowToYearMonth's constrain path
+            var numericMonth = MonthCodeNumericValue(defaultMonthCode);
+            return bclCal is HebrewCalendar ? numericMonth + 1 : numericMonth;
         }
 
         return ResolvePlainYearMonthMonthCode(calendar, year, defaultMonthCode, realm);

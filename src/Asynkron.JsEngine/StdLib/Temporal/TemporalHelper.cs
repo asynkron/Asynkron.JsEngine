@@ -6979,6 +6979,7 @@ public static class TemporalHelper
                 localDt,
                 settings,
                 isSince ? -overallSign : overallSign,
+                timeDiffNanos,
                 realm);
 
             // Rounding to a date unit — round date part, include time fraction for week/day
@@ -8999,6 +9000,7 @@ public static class TemporalHelper
         JsTemporalPlainDateTime relativeDateTime,
         DifferenceSettings settings,
         int sign,
+        BigInteger normalizedTimeNanoseconds,
         RealmState realm)
     {
         if (settings.RoundingIncrement == 1)
@@ -9024,15 +9026,46 @@ public static class TemporalHelper
             relativeDateTime.Month,
             relativeDateTime.Day);
         var endDay = checked(startDay + days * sign);
+        var timeNanoseconds =
+            (BigInteger)relativeDateTime.Hour * NanosecondsPerHour +
+            (BigInteger)relativeDateTime.Minute * NanosecondsPerMinute +
+            (BigInteger)relativeDateTime.Second * NanosecondsPerSecond +
+            (BigInteger)relativeDateTime.Millisecond * NanosecondsPerMillisecond +
+            (BigInteger)relativeDateTime.Microsecond * NanosecondsPerMicrosecond +
+            relativeDateTime.Nanosecond +
+            normalizedTimeNanoseconds;
+
+        var dayAdjustment = BigInteger.DivRem(timeNanoseconds, NanosecondsPerDay, out var timeOfDayNanoseconds);
+        if (timeOfDayNanoseconds < 0)
+        {
+            dayAdjustment--;
+            timeOfDayNanoseconds += NanosecondsPerDay;
+        }
+
+        if (dayAdjustment < long.MinValue || dayAdjustment > long.MaxValue)
+            throw StandardLibrary.ThrowRangeError("Resulting PlainDateTime is out of representable range", realm: realm);
+
+        endDay = checked(endDay + (long)dayAdjustment);
         var (year, month, day) = DayNumberToIsoDate(endDay);
+        var timeOfDay = (long)timeOfDayNanoseconds;
+        var hour = (int)(timeOfDay / NanosecondsPerHour);
+        timeOfDay %= NanosecondsPerHour;
+        var minute = (int)(timeOfDay / NanosecondsPerMinute);
+        timeOfDay %= NanosecondsPerMinute;
+        var second = (int)(timeOfDay / NanosecondsPerSecond);
+        timeOfDay %= NanosecondsPerSecond;
+        var millisecond = (int)(timeOfDay / NanosecondsPerMillisecond);
+        timeOfDay %= NanosecondsPerMillisecond;
+        var microsecond = (int)(timeOfDay / NanosecondsPerMicrosecond);
+        var nanosecond = (int)(timeOfDay % NanosecondsPerMicrosecond);
         RejectISODateTimeRange(
             year, month, day,
-            relativeDateTime.Hour,
-            relativeDateTime.Minute,
-            relativeDateTime.Second,
-            relativeDateTime.Millisecond,
-            relativeDateTime.Microsecond,
-            relativeDateTime.Nanosecond,
+            hour,
+            minute,
+            second,
+            millisecond,
+            microsecond,
+            nanosecond,
             realm);
     }
 

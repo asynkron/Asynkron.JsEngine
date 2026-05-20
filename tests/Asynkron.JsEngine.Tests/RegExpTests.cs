@@ -22,6 +22,30 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 2000)]
+    public async Task RegExp_UnicodePropertyEscape_FullStringFastPath_PreservesExecShape()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       const match = /^\p{Script=Egyptian_Hieroglyphs}+$/u.exec("𓀀");
+                                                       const lastAfterExec = RegExp.lastMatch;
+                                                       [
+                                                         /^\p{Script=Egyptian_Hieroglyphs}+$/u.test("𓀀"),
+                                                         /^\P{Script=Egyptian_Hieroglyphs}+$/u.test("A"),
+                                                         match[0],
+                                                         match.index,
+                                                         match.input,
+                                                         match.groups,
+                                                         lastAfterExec,
+                                                         RegExp.lastMatch
+                                                       ].join("|");
+
+                                           """);
+
+        Assert.Equal("true|true|𓀀|0|𓀀||𓀀|A", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task RegExp_Constructor_Basic()
     {
         await using var engine = CreateEngine();

@@ -136,6 +136,7 @@ public sealed class JsRegExp
 
     private readonly string _normalizedPattern;
     private readonly RegexOptions _regexOptions;
+    private readonly SimpleFullPropertyEscapeMatcher? _simpleFullPropertyEscapeMatcher;
 
     /// <summary>
     /// Maps .NET-safe group names back to original ECMAScript group names.
@@ -191,6 +192,20 @@ public sealed class JsRegExp
         _flags = flags;
         RealmState = realmState;
         JsObject = existingObject ?? new JsObject();
+        _simpleFullPropertyEscapeMatcher = TryCreateSimpleFullPropertyEscapeMatcher(pattern, encodedFlags);
+
+        if (existingObject is null)
+        {
+            JsObject.DefineProperty("lastIndex",
+                new PropertyDescriptor { Value = 0d, Writable = true, Enumerable = false, Configurable = false });
+        }
+
+        if (_simpleFullPropertyEscapeMatcher is not null)
+        {
+            _normalizedPattern = pattern;
+            _regexOptions = RegexOptions.CultureInvariant;
+            return;
+        }
 
         var normalized = NormalizePattern(pattern, Unicode || UnicodeSets, UnicodeSets, IgnoreCase, DotAll, Multiline);
         var sanitized = SanitizeGroupNamesForDotNet(normalized, out var nameMapping);
@@ -223,12 +238,6 @@ public sealed class JsRegExp
         }
 
         _regexOptions = options;
-
-        if (existingObject is null)
-        {
-            JsObject.DefineProperty("lastIndex",
-                new PropertyDescriptor { Value = 0d, Writable = true, Enumerable = false, Configurable = false });
-        }
 
         if (canDeferInitialConstruction)
         {
@@ -325,6 +334,17 @@ public sealed class JsRegExp
             return false;
         }
 
+        if (_simpleFullPropertyEscapeMatcher is { } propertyMatcher)
+        {
+            var success = propertyMatcher.IsMatch(input);
+            if (success)
+            {
+                UpdateSimpleFullMatchRegExpStatics(input);
+            }
+
+            return success;
+        }
+
         var match = EnsureRegex().Match(input, startIndex);
 
         // Sticky: match must start exactly at startIndex.
@@ -394,6 +414,17 @@ public sealed class JsRegExp
             }
 
             return null;
+        }
+
+        if (_simpleFullPropertyEscapeMatcher is { } propertyMatcher)
+        {
+            if (!propertyMatcher.IsMatch(input))
+            {
+                return null;
+            }
+
+            UpdateSimpleFullMatchRegExpStatics(input);
+            return CreateSimpleFullMatchArray(input);
         }
 
         var match = EnsureRegex().Match(input, startIndex);
@@ -1304,6 +1335,106 @@ public sealed class JsRegExp
         return _compiledRegex ??= new Regex(CapLargeQuantifiers(_normalizedPattern), _regexOptions);
     }
 
+    private static SimpleFullPropertyEscapeMatcher? TryCreateSimpleFullPropertyEscapeMatcher(
+        string pattern,
+        byte encodedFlags)
+    {
+        if (encodedFlags != FlagUnicode ||
+            pattern.Length < 8 ||
+            pattern[0] != '^' ||
+            pattern[1] != '\\' ||
+            pattern[2] is not ('p' or 'P') ||
+            pattern[3] != '{')
+        {
+            return null;
+        }
+
+        var endBrace = pattern.IndexOf('}', 4);
+        if (endBrace < 0 ||
+            endBrace + 3 != pattern.Length ||
+            pattern[endBrace + 1] != '+' ||
+            pattern[endBrace + 2] != '$')
+        {
+            return null;
+        }
+
+        var propertyExpression = pattern.Substring(4, endBrace - 4);
+        var ranges = UnicodePropertyData.Resolve(propertyExpression);
+        return ranges is null
+            ? null
+            : new SimpleFullPropertyEscapeMatcher(ranges, pattern[2] == 'P');
+    }
+
+    private sealed class SimpleFullPropertyEscapeMatcher
+    {
+        private readonly (int Start, int End)[] _ranges;
+        private readonly bool _negate;
+
+        public SimpleFullPropertyEscapeMatcher((int Start, int End)[] ranges, bool negate)
+        {
+            _ranges = ranges;
+            _negate = negate;
+        }
+
+        public bool IsMatch(string input)
+        {
+            if (input.Length == 0)
+            {
+                return false;
+            }
+
+            for (var index = 0; index < input.Length;)
+            {
+                var codePoint = ReadCodePoint(input, ref index);
+                var contains = ContainsCodePoint(_ranges, codePoint);
+                if (contains == _negate)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static int ReadCodePoint(string input, ref int index)
+        {
+            var current = input[index++];
+            if (char.IsHighSurrogate(current) &&
+                index < input.Length &&
+                char.IsLowSurrogate(input[index]))
+            {
+                return char.ConvertToUtf32(current, input[index++]);
+            }
+
+            return current;
+        }
+
+        private static bool ContainsCodePoint((int Start, int End)[] ranges, int codePoint)
+        {
+            var low = 0;
+            var high = ranges.Length - 1;
+            while (low <= high)
+            {
+                var mid = low + ((high - low) / 2);
+                var (start, end) = ranges[mid];
+                if (codePoint < start)
+                {
+                    high = mid - 1;
+                }
+                else if (codePoint > end)
+                {
+                    low = mid + 1;
+                }
+                else
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+
     private static bool CanDeferInitialRegexConstruction(string pattern, byte encodedFlags)
     {
         // Annex B permits single legacy identity escapes such as /\a/ and /\0/.
@@ -1607,6 +1738,50 @@ public sealed class JsRegExp
         }
 
         return result;
+    }
+
+    private JsArray CreateSimpleFullMatchArray(string input)
+    {
+        var result = new JsArray(RealmState);
+        result.Push(new JsValue(input));
+        result.DefineProperty("index",
+            new PropertyDescriptor
+            {
+                Value = 0d, Writable = true, Enumerable = true, Configurable = true
+            });
+        result.DefineProperty("input",
+            new PropertyDescriptor
+            {
+                Value = new JsValue(input), Writable = true, Enumerable = true, Configurable = true
+            });
+        result.DefineProperty("groups", new PropertyDescriptor
+        {
+            Value = JsValue.Undefined,
+            Writable = true,
+            Enumerable = true,
+            Configurable = true
+        });
+
+        return result;
+    }
+
+    private void UpdateSimpleFullMatchRegExpStatics(string input)
+    {
+        if (RealmState is null)
+        {
+            return;
+        }
+
+        var statics = RealmState.RegExpStatics;
+        statics.Input = input;
+        statics.LastMatch = input;
+        statics.LastParen = string.Empty;
+        statics.LeftContext = string.Empty;
+        statics.RightContext = string.Empty;
+        for (var i = 0; i < statics.Captures.Length; i++)
+        {
+            statics.Captures[i] = string.Empty;
+        }
     }
 
     /// <summary>

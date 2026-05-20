@@ -181,4 +181,41 @@ public class IntlLocaleDebugTests
 
         Assert.Equal("zh-Hans-CN-t-ca-u-ca-x-t-u|zh-Hans-CN-t-ca-u-ca-x-t-u|zh-Hans-CN", result?.ToString());
     }
+
+    [Fact]
+    public async Task IntlConstructors_TolerateUnsupportedUnicodeExtensionValuesInLocale()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            const constructors = [
+              Intl.Collator,
+              Intl.NumberFormat,
+              Intl.DateTimeFormat,
+              Intl.PluralRules,
+              Intl.RelativeTimeFormat,
+              Intl.ListFormat,
+            ].filter(Boolean);
+
+            const requested = 'en-u-co-phonebk-nu-invalid';
+            const outcomes = constructors.map(Ctor => {
+              const supported = Ctor.supportedLocalesOf([requested], { localeMatcher: 'lookup' })[0];
+              let resolved;
+              try {
+                resolved = new Ctor([requested], { localeMatcher: 'lookup' }).resolvedOptions().locale;
+              } catch (error) {
+                resolved = `THREW:${error?.name ?? 'Error'}`;
+              }
+
+              return `${Ctor.name}:${supported}:${resolved}`;
+            });
+
+            outcomes.join('|');
+        ");
+
+        var summary = result?.ToString();
+        Assert.NotNull(summary);
+        Assert.DoesNotContain("THREW:", summary!, StringComparison.Ordinal);
+        Assert.DoesNotContain(":undefined:", summary!, StringComparison.Ordinal);
+        Assert.Contains("Collator:en-u-co-phonebk-nu-invalid:", summary!, StringComparison.Ordinal);
+    }
 }

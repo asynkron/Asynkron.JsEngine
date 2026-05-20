@@ -856,7 +856,12 @@ public static partial class TypedAstEvaluator
                 try
                 {
                     var result = callable.Invoke(new SingleValueArgs(left), right);
-                    return result.IsTruthy;
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return false;
+                    }
+
+                    return JsOps.ToBoolean(result);
                 }
                 catch (ThrowSignal signal)
                 {

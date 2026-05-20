@@ -230,6 +230,31 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
     }
 
     [Fact]
+    public async Task Temporal_ZonedDateTime_Constructor_EnforcesInstantLimits()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const min = -8640000000000000000000n;
+            const max = 8640000000000000000000n;
+            function construct(value) {
+                try {
+                    new Temporal.ZonedDateTime(value, 'UTC');
+                    return 'ok';
+                } catch (error) {
+                    return error.name;
+                }
+            }
+            [
+                construct(min),
+                construct(max),
+                construct(min - 1n),
+                construct(max + 1n)
+            ].join('|');
+            """);
+        Assert.Equal("ok|ok|RangeError|RangeError", result);
+    }
+
+    [Fact]
     public async Task Temporal_ZonedDateTime_Properties()
     {
         await using var engine = CreateEngine();
@@ -409,6 +434,56 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.PlainDate(2024, 1, 15).with({month: 6}).toString()");
         Assert.Equal("2024-06-15", result);
+    }
+
+    [Fact]
+    public async Task Temporal_PlainDate_With_GregoryEraFields()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const date = new Temporal.PlainDate(1981, 12, 15, "gregory").with({ era: "bce", eraYear: 1 });
+            `${date.year}|${date.month}|${date.monthCode}|${date.day}|${date.era}|${date.eraYear}`;
+            """);
+        Assert.Equal("0|12|M12|15|bce|1", result);
+    }
+
+    [Fact]
+    public async Task Temporal_PlainDate_With_HebrewCalendarFields()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const date = new Temporal.PlainDate(2024, 8, 8, "hebrew").with({ year: 5783 });
+            `${date.toString()}|${date.year}|${date.month}|${date.monthCode}|${date.day}`;
+            """);
+        Assert.Equal("2023-07-22[u-ca=hebrew]|5783|11|M11|4", result);
+    }
+
+    [Fact]
+    public async Task Temporal_PlainDate_With_HebrewLeapMonthConstrain()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const leapMonth = Temporal.PlainDate.from({ year: 5784, monthCode: "M05L", day: 1, calendar: "hebrew" });
+            const constrained = leapMonth.with({ year: 5783 });
+            `${constrained.toString()}|${constrained.year}|${constrained.month}|${constrained.monthCode}|${constrained.day}`;
+            """);
+        Assert.Equal("2023-02-22[u-ca=hebrew]|5783|6|M06|1", result);
+    }
+
+    [Fact]
+    public async Task Temporal_PlainDate_With_EraRequiresEraYear()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const date = Temporal.PlainDate.from({ era: "showa", eraYear: 64, year: 1989, month: 1, monthCode: "M01", day: 7, calendar: "japanese" });
+            try {
+                date.with({ eraYear: 1 });
+                "missing throw";
+            } catch (error) {
+                error instanceof TypeError;
+            }
+            """);
+        Assert.Equal(true, result);
     }
 
     [Fact]

@@ -430,7 +430,6 @@ public static partial class TypedAstEvaluator
         for (var index = 0; index < fields.Length; index++)
         {
             var field = fields[index];
-            _ = field.DeclaredName;
             string? propertyName;
             if (!field.TryResolveFieldName(
                     fieldNamePrograms.IsDefaultOrEmpty ? null : fieldNamePrograms[index],

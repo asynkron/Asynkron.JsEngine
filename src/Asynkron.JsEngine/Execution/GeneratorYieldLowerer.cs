@@ -693,6 +693,15 @@ internal static class GeneratorYieldLowerer
                 return true;
             }
 
+            if (expression is CallExpression callExpression &&
+                TryRewriteSimpleCallExpressionWithNestedAwaitArguments(
+                    callExpression,
+                    out prefixStatements,
+                    out rewrittenExpression))
+            {
+                return true;
+            }
+
             if (expression is BinaryExpression binaryExpression &&
                 TryRewriteBinaryExpressionWithNestedAwait(
                     binaryExpression,
@@ -717,6 +726,95 @@ internal static class GeneratorYieldLowerer
                     [new VariableDeclarator(awaitedExpression.Source, tempBinding, awaitedExpression)])
             ];
             return true;
+        }
+
+        private bool TryRewriteSimpleCallExpressionWithNestedAwaitArguments(
+            CallExpression callExpression,
+            out ImmutableArray<StatementNode> prefixStatements,
+            out ExpressionNode rewrittenExpression)
+        {
+            prefixStatements = default;
+            rewrittenExpression = callExpression;
+
+            if (callExpression.IsOptional ||
+                CallArgumentsContainAwait(callExpression.Arguments) == false ||
+                !IsSimpleCallAwaitCallee(callExpression.Callee))
+            {
+                return false;
+            }
+
+            var prefixBuilder = ImmutableArray.CreateBuilder<StatementNode>();
+            var rewrittenArgs = ImmutableArray.CreateBuilder<CallArgument>(callExpression.Arguments.Length);
+            var changed = false;
+
+            foreach (var argument in callExpression.Arguments)
+            {
+                if (!AstShapeAnalyzer.ContainsAwait(argument.Expression))
+                {
+                    rewrittenArgs.Add(argument);
+                    continue;
+                }
+
+                if (argument.IsSpread)
+                {
+                    return false;
+                }
+
+                changed = true;
+                var rewrittenArgExpression =
+                    RewriteAwaitExpressionToSyntheticIdentifier(argument.Expression, prefixBuilder);
+                if (AstShapeAnalyzer.ContainsAwait(rewrittenArgExpression))
+                {
+                    return false;
+                }
+
+                rewrittenArgs.Add(argument with
+                {
+                    Expression = rewrittenArgExpression
+                });
+            }
+
+            if (!changed)
+            {
+                return false;
+            }
+
+            prefixStatements = prefixBuilder.ToImmutable();
+            rewrittenExpression = callExpression with { Arguments = rewrittenArgs.ToImmutable() };
+            return true;
+        }
+
+        private static bool IsSimpleCallAwaitCallee(ExpressionNode expression)
+        {
+            return expression switch
+            {
+                IdentifierExpression => true,
+                MemberExpression memberExpression
+                    when !memberExpression.IsOptional &&
+                         !memberExpression.IsComputed &&
+                         IsSimpleMemberAwaitTarget(memberExpression.Target) &&
+                         IsSimpleMemberAwaitProperty(memberExpression.Property) => true,
+                _ => false
+            };
+        }
+
+        private static bool IsSimpleMemberAwaitTarget(ExpressionNode expression)
+        {
+            return expression switch
+            {
+                IdentifierExpression => true,
+                MemberExpression memberExpression
+                    when !memberExpression.IsOptional &&
+                         !memberExpression.IsComputed &&
+                         IsSimpleMemberAwaitTarget(memberExpression.Target) &&
+                         IsSimpleMemberAwaitProperty(memberExpression.Property) => true,
+                _ => false
+            };
+        }
+
+        private static bool IsSimpleMemberAwaitProperty(ExpressionNode expression)
+        {
+            return expression is IdentifierExpression or LiteralExpression;
         }
 
         private bool TryRewriteBinaryExpressionWithNestedAwait(

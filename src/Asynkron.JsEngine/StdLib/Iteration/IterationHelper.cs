@@ -14,6 +14,63 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class IterationHelper
 {
+    [JsHostFunction("__getAsyncIterator", DeletePrototype = true)]
+    private static JsValue GetAsyncIterator(IReadOnlyList<JsValue> args, RealmState realm)
+    {
+        var engine = realm.Engine ?? throw new InvalidOperationException("Engine not available in RealmState");
+
+        if (args.Count == 0)
+        {
+            throw new InvalidOperationException("__getAsyncIterator requires an iterable");
+        }
+
+        var iterable = args[0];
+
+        if (iterable.TryGetObject(out var jsObject))
+        {
+            if (HasCallableNext(jsObject))
+            {
+                engine.WriteAsyncIteratorTrace("getAsyncIterator: branch=next-property");
+                return new JsValue(jsObject);
+            }
+
+            if (TryInvokeSymbolIterator(jsObject, Symbols.AsyncIterator, out var asyncIterator))
+            {
+                engine.WriteAsyncIteratorTrace(
+                    $"getAsyncIterator: branch=symbol-asyncIterator hasCallableNext={HasCallableNext(asyncIterator)}");
+                return new JsValue(asyncIterator!);
+            }
+
+            if (TryInvokeSymbolIterator(jsObject, Symbols.Iterator, out var iterator))
+            {
+                engine.WriteAsyncIteratorTrace(
+                    $"getAsyncIterator: branch=symbol-iterator hasCallableNext={HasCallableNext(iterator)}");
+                return new JsValue(iterator!);
+            }
+
+            throw new InvalidOperationException(
+                "Object is not iterable (no Symbol.asyncIterator or Symbol.iterator method)");
+        }
+
+        if (iterable.TryGetObject<JsArray>(out var jsArray))
+        {
+            var iteratorObj = CreateArrayIterator(jsArray);
+            engine.WriteAsyncIteratorTrace(
+                $"getAsyncIterator: branch=array length={jsArray.Length}");
+            return new JsValue(iteratorObj);
+        }
+
+        if (iterable.TryGetString(out var str))
+        {
+            var iteratorObj = CreateStringIterator(str);
+            engine.WriteAsyncIteratorTrace(
+                $"getAsyncIterator: branch=string hasCallableNext={HasCallableNext(iteratorObj)} length={str.Length}");
+            return new JsValue(iteratorObj);
+        }
+
+        throw new InvalidOperationException($"Value is not iterable: {iterable.Kind}");
+    }
+
     private static bool TryInvokeSymbolIterator(JsObject target, JsSymbol symbol, out JsObject? iterator)
     {
         var propertyName = JsSymbol.PropertyKey(symbol);
@@ -286,6 +343,79 @@ public static partial class IterationHelper
     ///     Helper method for async iteration: gets next value from iterator and wraps in Promise if needed.
     ///     This handles both sync and async iterators uniformly.
     /// </summary>
+    [JsHostFunction("__iteratorNext", DeletePrototype = true)]
+    private static JsValue IteratorNext(IReadOnlyList<JsValue> args, RealmState realm)
+    {
+        var engine = realm.Engine ?? throw new InvalidOperationException("Engine not available in RealmState");
+
+        // args[0] should be the iterator object
+        if (args.Count == 0 || !args[0].TryGetObject(out var iterator))
+        {
+            throw new InvalidOperationException("__iteratorNext requires an iterator object");
+        }
+
+        // Call iterator.next()
+        if (!iterator.TryGetProperty("next", out var nextMethod) ||
+            !nextMethod.TryGetObject<IJsCallable>(out var nextCallable))
+        {
+            throw new InvalidOperationException("Iterator must have a 'next' method");
+        }
+
+        engine.WriteAsyncIteratorTrace("iteratorNext: invoking next() on iterator");
+        JsValue result;
+        try
+        {
+            result = nextCallable.Invoke([], new JsValue(iterator));
+            engine.WriteAsyncIteratorTrace("iteratorNext: next() invocation succeeded");
+        }
+        catch (Exception ex)
+        {
+            // Log the exception for debugging
+            engine.LogException(ex, "Iterator.next() invocation");
+
+            engine.WriteAsyncIteratorTrace($"iteratorNext: next() threw exception='{ex.Message}'");
+
+            // If next() throws an error, wrap it in a rejected promise
+            var rejectedPromise = new JsPromise(engine);
+            AddPromiseInstanceMethods(rejectedPromise.JsObject, rejectedPromise, engine);
+            rejectedPromise.Reject(ex.Message);
+            engine.WriteAsyncIteratorTrace("iteratorNext: returning rejected promise due to exception");
+            return new JsValue(rejectedPromise.JsObject);
+        }
+
+        // Iterator.next must return an object; if it doesn't, surface a
+        // rejection so async iteration can stop instead of recursing forever.
+        if (!result.TryGetObject(out var resultObject))
+        {
+            var rejectedPromise = new JsPromise(engine);
+            AddPromiseInstanceMethods(rejectedPromise.JsObject, rejectedPromise, engine);
+            var error = CreateTypeError("Iterator.next() did not return an object");
+            rejectedPromise.Reject(error);
+            engine.WriteAsyncIteratorTrace("iteratorNext: rejected promise because next() returned non-object");
+            return new JsValue(rejectedPromise.JsObject);
+        }
+
+        // Check if result is already a promise (has a "then" method)
+        if (resultObject.TryGetProperty("then", out var thenMethod) &&
+            thenMethod.TryGetObject<IJsCallable>(out _))
+        {
+            engine.WriteAsyncIteratorTrace("iteratorNext: result already promise-like, returning as-is");
+            // Already a promise, return as-is
+            return new JsValue(resultObject);
+        }
+
+        // Not a promise, wrap in Promise.resolve()
+        var promise = new JsPromise(engine);
+        AddPromiseInstanceMethods(promise.JsObject, promise, engine);
+        promise.Resolve(result);
+        engine.WriteAsyncIteratorTrace("iteratorNext: wrapped result in resolved promise");
+        return new JsValue(promise.JsObject);
+    }
+
+    /// <summary>
+    ///     Helper method for async iteration: gets next value from iterator and wraps in Promise if needed.
+    ///     This handles both sync and async iterators uniformly.
+    /// </summary>
     [Obsolete("Use RegisterHostFunctions instead")]
     public static HostFunction CreateIteratorNextHelper(JsEngineInstance engine)
     {
@@ -356,5 +486,32 @@ public static partial class IterationHelper
             engine.WriteAsyncIteratorTrace("iteratorNext: wrapped result in resolved promise");
             return new JsValue(promise.JsObject);
         }
+    }
+
+    /// <summary>
+    ///     Helper function for await expressions: wraps value in Promise if needed.
+    ///     Checks if the value is already a promise (has a "then" method) before wrapping.
+    /// </summary>
+    [JsHostFunction("__awaitHelper", DeletePrototype = true)]
+    private static JsValue AwaitHelper(IReadOnlyList<JsValue> args, RealmState realm)
+    {
+        // args[0] should be the value to await
+        var value = args.Count > 0 ? args[0] : JsValue.Undefined;
+
+        // Check if value is already a promise (has a "then" method)
+        if (value.TryGetObject(out var valueObj) &&
+            valueObj.TryGetProperty("then", out var thenMethod) &&
+            thenMethod.TryGetObject<IJsCallable>(out _))
+        {
+            // Already a promise, return as-is
+            return value;
+        }
+
+        // Not a promise, wrap in Promise.resolve()
+        var engine = realm.Engine ?? throw new InvalidOperationException("Engine not available in RealmState");
+        var promise = new JsPromise(engine);
+        AddPromiseInstanceMethods(promise.JsObject, promise, engine);
+        promise.Resolve(value);
+        return new JsValue(promise.JsObject);
     }
 }

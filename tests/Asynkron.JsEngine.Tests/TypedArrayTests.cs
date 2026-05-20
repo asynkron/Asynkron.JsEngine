@@ -1358,18 +1358,25 @@ public sealed class TypedArrayTests(ITestOutputHelper output) : InternalTestBase
                                            let detached = false;
                                            let obj = {
                                                valueOf() {
-                                                   let ab = new ArrayBuffer(0);
-                                                   // Detach by transfer
-                                                   ta = new Int32Array(ab);
+                                                   // Detach the original receiver buffer during conversion.
+                                                   buffer.transfer();
                                                    detached = true;
                                                    return 5;
                                                }
                                            };
                                            let result = Reflect.defineProperty(ta, "0", { value: obj });
-                                           return { result, detached };
+                                           let descriptorAfterDetach = Object.getOwnPropertyDescriptor(ta, "0");
+                                           return {
+                                               result,
+                                               detached,
+                                               byteLengthZero: buffer.byteLength === 0,
+                                               noWriteVisible: descriptorAfterDetach === undefined
+                                           };
                                            """);
         var obj2 = Assert.IsType<JsObject>(result);
         Assert.Equal(true, obj2["detached"]);
+        Assert.Equal(true, obj2["byteLengthZero"]);
+        Assert.Equal(true, obj2["noWriteVisible"]);
         // defineProperty returns true even though the buffer was detached during conversion
         Assert.Equal(true, obj2["result"]);
     }

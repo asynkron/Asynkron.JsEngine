@@ -444,7 +444,7 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
             const date = new Temporal.PlainDate(1981, 12, 15, "gregory").with({ era: "bce", eraYear: 1 });
             `${date.year}|${date.month}|${date.monthCode}|${date.day}|${date.era}|${date.eraYear}`;
             """);
-        Assert.Equal("0|12|M12|15|bce|1", result);
+        Assert.Equal("0|12|M12|15|gregory-inverse|1", result);
     }
 
     [Fact]

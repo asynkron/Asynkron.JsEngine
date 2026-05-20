@@ -402,6 +402,20 @@ paths separately from property bags.
 Related ADR:
 `docs/adrs/0059-keep-temporal-plainmonthday-field-order-calendar-dependent.md`.
 
+Issue #845 / PR #1167 fixed `Temporal.PlainMonthDay.prototype.equals` after
+constructor and string conversion paths normalized calendar aliases but still
+stored non-ISO month-day reference slots through ad hoc converted fields. The
+durable lesson is that PlainMonthDay equality depends on both canonical calendar
+identity and normalized reference ISO slots. Future PlainMonthDay equality or
+conversion work should route ISO reference-date construction through the shared
+non-ISO month-day helper, add explicit ISO-date conversion coverage before
+accepting a calendar ID, and prove the focused
+`Name=Temporal_PlainMonthDay_prototype_equals` Test262 method group plus local
+coverage for accepted non-ISO constructor calendars.
+
+Related ADR:
+`docs/adrs/0065-keep-temporal-plainmonthday-reference-normalization-shared.md`.
+
 Issue #846 / PR #1171 fixed
 `Temporal.PlainMonthDay.prototype.toLocaleString` after Islamic calendar
 date-style formatting mixed calendar-visible month/day fields with the

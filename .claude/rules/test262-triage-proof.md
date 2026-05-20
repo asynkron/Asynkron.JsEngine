@@ -122,3 +122,13 @@ issue-supplied method group 86/86 on current `origin/main`. Future agents should
 treat that owner lookup as context only: once the exact focused proof is green,
 do not patch strict equality, signed-zero, or fromIndex handling without a
 current failing fixture row.
+
+Issue #1034 repeated the same no-source-change closeout for
+`Expressions_generators_dstr`. Investigation identified plausible expression
+bytecode and binding-target destructuring owner files for nested generator
+destructuring crashes, but build-stage proof on 2026-05-20 passed the existing
+internal generator destructuring checks 2/2 and the issue-supplied Test262
+method group 372/372 on current `origin/main`. Future agents should treat the
+owner-surface map as context only: once the focused generator destructuring
+proof is green, do not patch `ApplyBindingTarget`, nested array binding, or
+iterator-close handling without a current failing fixture row.

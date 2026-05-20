@@ -95,3 +95,11 @@ pinning.
   focused proof on 2026-05-20 passed the whole issue-supplied method group
   66/66 on current `origin/main`. No runtime, harness, or regression-test
   patch was warranted because the exact current proof was green.
+- Issue #1034 reused the no-source-change form for
+  `Expressions_generators_dstr`. Investigation mapped the plausible runtime
+  surface to expression bytecode destructuring assignment, binding-target
+  program compilation, and generator destructuring coverage, but the
+  build-stage proof on 2026-05-20 passed the existing focused internal
+  generator destructuring tests 2/2 and the issue-supplied Test262 method group
+  372/372 on current `origin/main`. No runtime or harness patch was warranted
+  because the current generator destructuring proof was already green.

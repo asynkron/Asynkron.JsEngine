@@ -234,6 +234,56 @@ public sealed class ModuleTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 2000)]
+    public async Task SelfReExportedNamespaceBindingStaysInTdzForNamespaceInternals()
+    {
+        await using var engine = CreateEngine();
+
+        engine.SetModuleLoader(modulePath =>
+        {
+            if (string.Equals(modulePath, "self.js", StringComparison.Ordinal))
+            {
+                return """
+
+                       import * as ns from "self.js";
+                       const deleteFalse = Reflect.deleteProperty(ns, "indirect") === false;
+                       const getThrows = (() => {
+                           try {
+                               ns.indirect;
+                               return false;
+                           } catch (e) {
+                               return e instanceof ReferenceError;
+                           }
+                       })();
+                       const hasOwnThrows = (() => {
+                           try {
+                               Object.prototype.hasOwnProperty.call(ns, "indirect");
+                               return false;
+                           } catch (e) {
+                               return e instanceof ReferenceError;
+                           }
+                       })();
+
+                       export let local1 = 23;
+                       export { local1 as indirect } from "self.js";
+                       export default `${deleteFalse}:${getThrows}:${hasOwnThrows}`;
+
+                       """;
+            }
+
+            throw new FileNotFoundException($"Module not found: {modulePath}");
+        });
+
+        var result = await engine.EvaluateModule("""
+
+                                                 import result from "self.js";
+                                                 result;
+
+                                                 """);
+
+        Assert.Equal("true:true:true", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task ExportList()
     {
         await using var engine = CreateEngine();

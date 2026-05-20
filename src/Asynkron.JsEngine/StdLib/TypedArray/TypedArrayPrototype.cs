@@ -1314,12 +1314,26 @@ public sealed partial class TypedArrayPrototype
         var end = ClampRelativeIndex(endIndex, length);
         var count = Math.Max(end - start, 0);
         var result = SpeciesCreate(typedArray, count);
+        if (result.IsDetachedOrOutOfBounds())
+        {
+            throw result.CreateOutOfBoundsTypeError();
+        }
+
+        if (typedArray.IsBigIntArray != result.IsBigIntArray)
+        {
+            throw ThrowTypeError("Cannot mix BigInt and other types in TypedArray operations", realm: Realm);
+        }
 
         for (var i = 0; i < count; i++)
         {
             if (typedArray.IsDetachedOrOutOfBounds())
             {
                 throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            if (result.IsDetachedOrOutOfBounds())
+            {
+                throw result.CreateOutOfBoundsTypeError();
             }
 
             var sourceIndex = start + i;

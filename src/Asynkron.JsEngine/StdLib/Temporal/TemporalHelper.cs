@@ -4350,6 +4350,7 @@ public static class TemporalHelper
             var step = TimeSpan.FromDays(1);
             var scanPoint = from.Subtract(step);
             var iterations = 0;
+            var syntheticBoundaries = TemporalHistoricalTimeZoneOffsets.GetSyntheticBoundaries(requestedTimeZoneId);
 
             while (iterations++ < 800)
             {
@@ -4362,6 +4363,35 @@ public static class TemporalHelper
                         found = true;
                         break;
                     }
+
+                    // A large expansion step can jump from inside a synthetic override window to a
+                    // point outside it that coincidentally has the same offset (e.g., native summer
+                    // DST). Detect this by checking whether a known synthetic boundary lies in the
+                    // interval (scanPoint, hi) and whether the tick just before it has a different
+                    // offset than startOffset.
+                    var syntheticFound = false;
+                    foreach (var boundary in syntheticBoundaries)
+                    {
+                        if (boundary > scanPoint && boundary < hi)
+                        {
+                            var beforeBoundary = boundary.AddTicks(-1);
+                            try
+                            {
+                                if (GetOffset(beforeBoundary) != startOffset)
+                                {
+                                    lo = beforeBoundary;
+                                    hi = boundary;
+                                    found = true;
+                                    syntheticFound = true;
+                                    break;
+                                }
+                            }
+                            catch { }
+                        }
+                    }
+
+                    if (syntheticFound) break;
+
                     hi = scanPoint;
                     startOffset = scanOffset;
                 }

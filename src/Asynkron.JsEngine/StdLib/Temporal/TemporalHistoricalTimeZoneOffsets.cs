@@ -120,6 +120,20 @@ internal static class TemporalHistoricalTimeZoneOffsets
             : $"{sign}{totalHours:D2}:{absolute.Minutes:D2}:{absolute.Seconds:D2}";
     }
 
+    /// <summary>
+    /// Returns the UTC instants that mark the start or end of a synthetic override window for the
+    /// given timezone. The expansion phase of the binary search uses these to avoid stepping over
+    /// a boundary where both sides coincidentally share the same offset value through different
+    /// mechanisms (e.g., the override window and native summer DST).
+    /// </summary>
+    internal static DateTimeOffset[] GetSyntheticBoundaries(string timeZoneId) =>
+        timeZoneId switch
+        {
+            "Europe/London" => [LondonPermanentStandardStartUtc, LondonPermanentStandardEndUtc],
+            "America/Anchorage" => [AnchorageStandardStartUtc, AnchorageStandardEndUtc],
+            _ => []
+        };
+
     private static bool TryGetUtcOffset(string timeZoneId, DateTime localDateTime, out TimeSpan offset)
     {
         switch (timeZoneId)

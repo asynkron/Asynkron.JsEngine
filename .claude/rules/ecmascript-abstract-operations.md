@@ -218,6 +218,21 @@ host-runtime shortcuts.
     mixed pairs are checked uniformly. Do not bypass the equality check for
     fixed-offset operands, since `+01:00` vs `+02:00` is a real mismatch that
     must still throw `RangeError` for calendar-unit differences.
+37. For `Temporal.ZonedDateTime` offset lookups (`offsetNanoseconds` getter,
+    `offset` getter, local `PlainDateTime` projection, and `AddZonedDateTime`
+    time-only fast path), read the offset from epoch nanoseconds directly; do
+    not round-trip through `Instant.ToDateTimeOffset()` or a formatted offset
+    string. Convert `BigInteger` epoch nanoseconds to .NET ticks with floor
+    division (`epochNs / 100`, rounding toward −∞ for negative remainders)
+    before calling `TimeZoneInfo.GetUtcOffset(...)`, so instants in the
+    interval `[transition − 1 ns, transition)` stay on the pre-transition side
+    of the DST boundary. Return `OffsetNanoseconds` directly from the stored
+    model value rather than parsing the formatted offset string, which drops
+    sub-second precision. For time-only durations with zero years, months,
+    weeks, and days, apply the nanosecond delta directly to the stored instant
+    and validate against the shared Temporal instant bounds instead of routing
+    through the local PlainDateTime wall-clock path, which fails for skipped or
+    ambiguous wall-clock times at DST transitions.
 
 ## Why
 
@@ -603,3 +618,18 @@ fixed-offset spelling success) before relying on the focused
 
 Related ADR:
 `docs/adrs/0070-keep-temporal-zoneddatetime-difference-step-order-explicit.md`.
+
+Issue #860 / PR #1197 fixed `Temporal.ZonedDateTime` offset getters and time-only
+`add`/`subtract` after DST transition-boundary instants returned the wrong UTC
+offset. The implementation routed offset lookup through `Instant.ToDateTimeOffset()`
+(which truncates to 100 ns tick precision and can slide across the transition
+boundary) and re-parsed the formatted offset string (which drops sub-second
+precision). The durable lesson is that ZonedDateTime offset work must stay on the
+epoch-nanosecond domain: convert to ticks with floor division, read
+`OffsetNanoseconds` directly from the stored model value, and for time-only
+durations bypass the local PlainDateTime path entirely. Future ZonedDateTime offset
+or arithmetic work should prove the transition-minus-one-nanosecond case and the
+time-only fast path locally before widening.
+
+Related ADR:
+`docs/adrs/0068-keep-temporal-zoneddatetime-offsets-and-time-arithmetic-on-epoch-nanoseconds.md`.

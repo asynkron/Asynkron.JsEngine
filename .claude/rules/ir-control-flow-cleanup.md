@@ -35,6 +35,11 @@ scope cleanup chains.
    try/catch completion value for pending `break` or `continue` that originated
    before the finally block; an abrupt `break`, `continue`, `return`, or `throw`
    raised inside `finally` must still replace the saved completion.
+8. If an abrupt target can be registered while a `with` object environment is
+   active, store the full current scope-exit boundary, not only an integer
+   lexical scope id. Dynamic `with` frames have to be matched by their
+   slot/frame identity so cleanup stops at the enclosing object environment
+   instead of treating the no-lexical-scope case as unbounded cleanup.
 
 ## Why
 
@@ -63,3 +68,11 @@ completion from inside `finally` win, but it also risked overwriting a try-body
 durable rule is that `EndFinally` needs origin-aware pending completion state:
 normal finally completion discards its own value and restores the saved
 try/catch completion, while abrupt finally completion replaces it.
+
+Issue #830 / PR #1131 fixed Test262 `Statements_with` failures after `break`
+cleanup inside loops and switches nested in an enclosing `with` frame could pop
+the dynamic object environment too far. The durable rule is that abrupt cleanup
+boundaries are not lexical ids only: when `with` is active, loop, switch, and
+labeled target emitters must capture a boundary that can identify the dynamic
+frame by slot identity and prove property lookup after the break still sees the
+enclosing object.

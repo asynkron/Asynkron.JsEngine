@@ -20,6 +20,11 @@ generator and prove the generated resolver behavior through focused tests.
    `Script_Extensions=Unknown` and `scx=Zzzz`.
 5. Keep proof narrow for Test262 property-escape issues. Use the exact failing
    fixture or the issue-supplied method group before widening.
+6. If generated property-escape fixtures crash or time out while the Unicode
+   range data is already correct, treat .NET regex pattern size as a runtime
+   encoder problem. Compact astral surrogate-pair output by grouping high
+   surrogates that share the same normalized low-surrogate class; do not mask
+   the issue with broad Test262 timeouts or generated-data edits.
 
 ## Why
 
@@ -33,3 +38,9 @@ Unicode `Scripts.txt`.
 Future agents should treat Unicode property data gaps as part of the upstream
 data model and repair the generator pipeline, not the RegExp parser or a
 generated C# table by hand.
+
+Issue #821 / PR #1114 fixed generated Test262 property-escape crashes where
+large astral-heavy ranges produced oversized .NET regex patterns. The durable
+lesson is to separate Unicode data correctness from runtime pattern-size
+correctness: when the data is right, compact `JsRegExp` surrogate-pair output
+instead of changing generated Unicode tables or widening harness timeouts.

@@ -133,6 +133,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         var methodAliases = ImmutableArray.CreateBuilder<MethodAliasInfo>();
         var jsValueType = wellKnown.JsValueType;
         var readOnlyListType = wellKnown.ReadOnlyListType;
+        var evaluationContextType = wellKnown.EvaluationContextType;
 
         // Collect class-level symbol aliases and method aliases
         foreach (var attr in typeSymbol.GetAttributes())
@@ -231,7 +232,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                             var configurable = GetNamedBool(attr, "Configurable", true);
                             var writable = GetNamedBool(attr, "Writable", true);
 
-                            var signature = GetHostMethodSignature(member, jsValueType, readOnlyListType);
+                            var signature = GetHostMethodSignature(member, jsValueType, readOnlyListType, evaluationContextType);
                             methods.Add(new MethodInfo(member.Name, propertyName, displayName, lengthLiteral, enumerable,
                                 configurable, writable, signature, member.IsStatic));
                             break;
@@ -252,7 +253,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                             var configurable = GetNamedBool(attr, "Configurable", true);
                             var writable = GetNamedBool(attr, "Writable", true);
 
-                            var signature = GetHostMethodSignature(member, jsValueType, readOnlyListType);
+                            var signature = GetHostMethodSignature(member, jsValueType, readOnlyListType, evaluationContextType);
                             symbolMethods.Add(new SymbolMethodInfo(member.Name, symbolName, displayName, lengthLiteral, enumerable,
                                 configurable, writable, signature, member.IsStatic));
                             break;
@@ -776,10 +777,21 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                     membersSource.Append("(thisValue, _) => ").Append(target).Append(".").Append(method.MethodName)
                         .AppendLine("(thisValue), realm, isConstructor: false);");
                     break;
+                case HostMethodSignature.ThisArgsContext:
+                    membersSource.Append("(thisValue, args) => ").Append(target).Append(".").Append(method.MethodName)
+                        .AppendLine("(thisValue, args, null), realm, isConstructor: false);");
+                    break;
                 default:
                     membersSource.Append("(thisValue, args) => ").Append(target).Append(".").Append(method.MethodName)
                         .AppendLine("(thisValue, args), realm, isConstructor: false);");
                     break;
+            }
+            if (method.Signature == HostMethodSignature.ThisArgsContext)
+            {
+                membersSource.Append("        ").Append(methodVar)
+                    .Append(".SetInvokeWithContext((args, thisValue, context, _) => ").Append(target)
+                    .Append('.').Append(method.MethodName)
+                    .AppendLine("(thisValue, args, context));");
             }
             membersSource.Append("        ").Append(methodVar)
                 .Append(".DefineProperty(\"length\", new PropertyDescriptor { Value = ")
@@ -820,10 +832,21 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                     membersSource.Append("(thisValue, _) => ").Append(target).Append(".").Append(symMethod.MethodName)
                         .AppendLine("(thisValue), realm, isConstructor: false);");
                     break;
+                case HostMethodSignature.ThisArgsContext:
+                    membersSource.Append("(thisValue, args) => ").Append(target).Append(".").Append(symMethod.MethodName)
+                        .AppendLine("(thisValue, args, null), realm, isConstructor: false);");
+                    break;
                 default:
                     membersSource.Append("(thisValue, args) => ").Append(target).Append(".").Append(symMethod.MethodName)
                         .AppendLine("(thisValue, args), realm, isConstructor: false);");
                     break;
+            }
+            if (symMethod.Signature == HostMethodSignature.ThisArgsContext)
+            {
+                membersSource.Append("        ").Append(methodVar)
+                    .Append(".SetInvokeWithContext((args, thisValue, context, _) => ").Append(target)
+                    .Append('.').Append(symMethod.MethodName)
+                    .AppendLine("(thisValue, args, context));");
             }
             membersSource.Append("        ").Append(methodVar)
                 .Append(".DefineProperty(\"length\", new PropertyDescriptor { Value = ")
@@ -2500,7 +2523,8 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         ThisAndArgs = 0,
         ThisOnly = 1,
         ArgsOnly = 2,
-        NoArgs = 3
+        NoArgs = 3,
+        ThisArgsContext = 4
     }
 
     private enum HostFunctionSignature
@@ -2555,7 +2579,8 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
     private static HostMethodSignature GetHostMethodSignature(
         IMethodSymbol method,
         INamedTypeSymbol? jsValueType,
-        INamedTypeSymbol? readOnlyListType)
+        INamedTypeSymbol? readOnlyListType,
+        INamedTypeSymbol? evaluationContextType)
     {
         if (jsValueType is null || readOnlyListType is null)
         {
@@ -2574,6 +2599,15 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
             IsReadOnlyListOfJsValue(parameters[1].Type, readOnlyListType, jsValueType))
         {
             return HostMethodSignature.ThisAndArgs;
+        }
+
+        if (parameters.Length == 3 &&
+            IsJsValue(parameters[0].Type, jsValueType) &&
+            IsReadOnlyListOfJsValue(parameters[1].Type, readOnlyListType, jsValueType) &&
+            evaluationContextType is not null &&
+            IsNullableEvaluationContext(parameters[2].Type, evaluationContextType))
+        {
+            return HostMethodSignature.ThisArgsContext;
         }
 
         if (parameters.Length == 1)

@@ -1183,4 +1183,97 @@ public sealed class TypedArrayTests(ITestOutputHelper output) : InternalTestBase
         Assert.Equal(8d, result);
     }
 
+    // Regression: BigInt typed-array length-arg ToIndex coercion (1-argument constructor)
+    // Mirrors Test262 built-ins/TypedArrayConstructors/ctors-bigint/length-arg/toindex-length.js
+    // Focused proof passed (24/24 green); this pin ensures future refactors cannot silently regress
+    // the BigInt variants (BigInt64Array / BigUint64Array) per test262-triage-proof rule 5.
+
+    [Theory(Timeout = 2000)]
+    [InlineData("new BigInt64Array(-0)", 0d)]
+    [InlineData("new BigInt64Array('')", 0d)]
+    [InlineData("new BigInt64Array('0')", 0d)]
+    [InlineData("new BigInt64Array('1')", 1d)]
+    [InlineData("new BigInt64Array(true)", 1d)]
+    [InlineData("new BigInt64Array(false)", 0d)]
+    [InlineData("new BigInt64Array(NaN)", 0d)]
+    [InlineData("new BigInt64Array(null)", 0d)]
+    [InlineData("new BigInt64Array(undefined)", 0d)]
+    [InlineData("new BigInt64Array(0.1)", 0d)]
+    [InlineData("new BigInt64Array(0.9)", 0d)]
+    [InlineData("new BigInt64Array(1.1)", 1d)]
+    [InlineData("new BigInt64Array(1.9)", 1d)]
+    [InlineData("new BigInt64Array(-0.1)", 0d)]
+    [InlineData("new BigInt64Array(-0.99999)", 0d)]
+    public async Task BigInt64Array_LengthArg_ToIndex_CoercesCorrectly(string expression, double expectedLength)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate($"{expression}.length");
+        Assert.Equal(expectedLength, result);
+    }
+
+    [Theory(Timeout = 2000)]
+    [InlineData("new BigUint64Array(-0)", 0d)]
+    [InlineData("new BigUint64Array('')", 0d)]
+    [InlineData("new BigUint64Array('0')", 0d)]
+    [InlineData("new BigUint64Array('1')", 1d)]
+    [InlineData("new BigUint64Array(true)", 1d)]
+    [InlineData("new BigUint64Array(false)", 0d)]
+    [InlineData("new BigUint64Array(NaN)", 0d)]
+    [InlineData("new BigUint64Array(null)", 0d)]
+    [InlineData("new BigUint64Array(undefined)", 0d)]
+    [InlineData("new BigUint64Array(0.1)", 0d)]
+    [InlineData("new BigUint64Array(0.9)", 0d)]
+    [InlineData("new BigUint64Array(1.1)", 1d)]
+    [InlineData("new BigUint64Array(1.9)", 1d)]
+    [InlineData("new BigUint64Array(-0.1)", 0d)]
+    [InlineData("new BigUint64Array(-0.99999)", 0d)]
+    public async Task BigUint64Array_LengthArg_ToIndex_CoercesCorrectly(string expression, double expectedLength)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate($"{expression}.length");
+        Assert.Equal(expectedLength, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task BigInt64Array_LengthArg_ToIndex_NegativeIntegerThrowsRangeError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           let threw = false, name = "";
+                                           try { new BigInt64Array(-1); } catch (e) { threw = true; name = e.constructor.name; }
+                                           return { threw, name };
+                                           """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(true, obj["threw"]);
+        Assert.Equal("RangeError", obj["name"]?.ToString());
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task BigInt64Array_LengthArg_ToIndex_InfinityThrowsRangeError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           let threw = false, name = "";
+                                           try { new BigInt64Array(Infinity); } catch (e) { threw = true; name = e.constructor.name; }
+                                           return { threw, name };
+                                           """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(true, obj["threw"]);
+        Assert.Equal("RangeError", obj["name"]?.ToString());
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task BigUint64Array_LengthArg_ToIndex_NegativeIntegerThrowsRangeError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           let threw = false, name = "";
+                                           try { new BigUint64Array(-1); } catch (e) { threw = true; name = e.constructor.name; }
+                                           return { threw, name };
+                                           """);
+        var obj = Assert.IsType<JsObject>(result);
+        Assert.Equal(true, obj["threw"]);
+        Assert.Equal("RangeError", obj["name"]?.ToString());
+    }
+
 }

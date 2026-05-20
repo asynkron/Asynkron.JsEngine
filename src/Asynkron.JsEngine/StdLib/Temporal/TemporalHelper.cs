@@ -7561,19 +7561,7 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowTypeError("Property bag for relativeTo must have 'day'", realm: realm);
             var day = ToIntegerWithTruncation(dayVal, realm);
 
-            // 3. era (read for observable order; used for era-capable calendars)
-            var hasEra = accessor.TryGetProperty("era", out var eraVal) && !eraVal.IsUndefined;
-            string? era = null;
-            if (hasEra)
-                era = JsOps.ToJsString(eraVal);
-
-            // 4. eraYear (read for observable order; validates Infinity → RangeError)
-            var hasEraYear = accessor.TryGetProperty("eraYear", out var eraYearVal) && !eraYearVal.IsUndefined;
-            int eraYear = 0;
-            if (hasEraYear)
-                eraYear = ToIntegerWithTruncation(eraYearVal, realm);
-
-            // 5. hour
+            // 3. hour
             var hour = GetOptionalIntProperty(accessor, "hour", realm);
 
             // 4. microsecond
@@ -7727,6 +7715,15 @@ public static class TemporalHelper
         if (hasOffset)
         {
             var stringOffsetNanos = ExtractOffsetNanosFromString(baseStr);
+            if (fixedOff.HasValue)
+            {
+                var fixedOffsetNanos = fixedOff.Value.Ticks * 100L;
+                if (!OffsetsMatchStringInput(baseStr, stringOffsetNanos, fixedOffsetNanos))
+                    throw StandardLibrary.ThrowRangeError("Offset does not match the time zone", realm: realm);
+
+                return new JsTemporalZonedDateTime(parsed, timeZoneId, calendar);
+            }
+
             var wallNanos = parsed.EpochNanoseconds + stringOffsetNanos;
             var wallInstant = JsTemporalInstant.FromEpochNanoseconds(wallNanos);
             var approxLocal = wallInstant.ToDateTimeOffset().DateTime;

@@ -1118,7 +1118,15 @@ public static class ReflectHelper
             return false;
         }
 
-        return ReferenceEquals(hostCtor.PropertiesObject.Prototype, realm.TypedArrayConstructor.PropertiesObject);
+        if (ReferenceEquals(hostCtor.PropertiesObject.Prototype, realm.TypedArrayConstructor.PropertiesObject))
+        {
+            return true;
+        }
+
+        // Concrete typed array constructors expose a numeric BYTES_PER_ELEMENT
+        // own property, while %TypedArray% itself does not.
+        return hostCtor.TryGetProperty("BYTES_PER_ELEMENT", out var bytesPerElement) &&
+               bytesPerElement.IsNumber;
     }
 
     private static bool IsArrayConstructor(IJsCallable candidate, RealmState realm)

@@ -824,7 +824,24 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
         Assert.Equal(1d, result);
     }
 
-[Fact]
+    [Fact]
+    public async Task Temporal_ZonedDateTime_Until_DayRoundingIncrement_PreservesNegativeBoundaryTime()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const start = Temporal.ZonedDateTime.from('-271821-04-21T00:00:00.000000001+00:00[UTC]');
+            const end = Temporal.ZonedDateTime.from('-271821-04-20T00:00:00.000000001+00:00[UTC]');
+            try {
+                start.until(end, { largestUnit: 'day', smallestUnit: 'day', roundingIncrement: 2 });
+                true;
+            } catch {
+                false;
+            }
+            """);
+        Assert.Equal(true, result);
+    }
+
+    [Fact]
     public async Task Temporal_Now_ZonedDateTimeISO()
     {
         await using var engine = CreateEngine();

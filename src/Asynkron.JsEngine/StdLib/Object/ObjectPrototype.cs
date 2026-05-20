@@ -275,9 +275,18 @@ public sealed partial class ObjectPrototype
     }
 
     [JsHostMethod("propertyIsEnumerable", Length = 1d)]
-    private JsValue PropertyIsEnumerable(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue PropertyIsEnumerable(
+        JsValue thisValue,
+        IReadOnlyList<JsValue> args,
+        EvaluationContext? context)
     {
         if (args.Count == 0)
+        {
+            return new JsValue(false);
+        }
+
+        var propertyName = JsOps.ToPropertyName(args[0], context);
+        if (propertyName is null)
         {
             return new JsValue(false);
         }
@@ -285,12 +294,6 @@ public sealed partial class ObjectPrototype
         if (!TryGetObject(thisValue, Realm, out var obj))
         {
             throw ThrowTypeError("Object.prototype.propertyIsEnumerable called on null or undefined", realm: Realm);
-        }
-
-        var propertyName = JsOps.ToPropertyName(args[0]);
-        if (propertyName is null)
-        {
-            return new JsValue(false);
         }
 
         if (obj is not IJsObjectLike accessor)

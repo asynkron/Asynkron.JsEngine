@@ -60,6 +60,17 @@ pinning.
   Typed-array constructor coercion slices stay test-only when the focused
   Test262 group is already green; future agents should extend the existing
   `TypedArrayTests.cs` clusters instead of opening a new file.
+- Issue #873 / PR #1228 reused the same test-only closeout path for
+  `TypedArrayConstructors_internals_DefineOwnProperty`. The focused Test262
+  proof was already green on current `origin/main`, so the delivery added
+  internal regressions for integer-indexed `Object.defineProperty` value
+  conversion: number typed arrays use `ToNumber`, BigInt typed arrays use
+  `ToBigInt`, conversion overflow wraps through the target element semantics,
+  and a `valueOf` that detaches the receiver buffer still makes
+  `Reflect.defineProperty` return `true` without a visible write. This also
+  confirms that nearby typed-array closeout branches should be merged by
+  preserving independent test blocks rather than replacing sibling regression
+  clusters.
 - Issue #874 / PR #1233 reused the same green-closeout decision for
   `TypedArrayConstructors_internals_Set`. The focused Test262 method group
   passed 52/52 on current main, so the delivery added only regression coverage

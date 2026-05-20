@@ -3259,7 +3259,18 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         {
             if (!entry.Exports.TryGetValue(name, out var value))
             {
-                return (JsValue)Symbol.Undefined;
+                var resolution = ResolveExport(entry, name, phase, []);
+                if (resolution.Kind != ExportResolutionKind.Resolved)
+                {
+                    return (JsValue)Symbol.Undefined;
+                }
+
+                if (resolution.DirectValue is { } directValue)
+                {
+                    return directValue;
+                }
+
+                return resolution.Module!.Environment.GetJsValue(resolution.BindingName!);
             }
 
             if (value is LiveExportBinding liveBinding)

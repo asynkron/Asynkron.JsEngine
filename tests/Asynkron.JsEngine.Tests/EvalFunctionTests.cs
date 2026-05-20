@@ -277,6 +277,26 @@ public sealed class EvalFunctionTests(ITestOutputHelper output) : InternalTestBa
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Eval_WithLineCommentOnlyScript_ReturnsUndefined()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                                       eval('//foo');
+                                           """);
+        Assert.True(ReferenceEquals(result, Symbol.Undefined), $"Expected undefined, got: {result}");
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Eval_WithBlockCommentOnlyScript_ReturnsUndefined()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                                       eval('/*foo*/');
+                                           """);
+        Assert.True(ReferenceEquals(result, Symbol.Undefined), $"Expected undefined, got: {result}");
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Eval_WithComplexExpression()
     {
         await using var engine = CreateEngine();

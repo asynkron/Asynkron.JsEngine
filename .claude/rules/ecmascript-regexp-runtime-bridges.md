@@ -29,6 +29,10 @@ model explicitly.
 7. For positive-lookbehind numeric-backreference shims, preserve all observable
    match metadata: match index, capture text, `/d` capture spans, legacy
    `RegExp` statics, and assertion zero-width behavior under relevant flags.
+8. For eval-source RegExp literal fast paths, first prove the source is a
+   standalone RegExp literal in JavaScript source grammar. Comment prefixes
+   (`//`, `/*`) and any ambiguous source shape must decline the fast path and
+   fall back to normal script parsing.
 
 ## Why
 
@@ -51,3 +55,13 @@ capture spans and legacy `RegExp` statics, treat unescaped `^` and `$` as
 zero-width assertions, and decline unsupported escapes such as `\b` / `\B`
 instead of literalizing them. Future custom shims should stay narrow and
 fall back whenever they cannot prove exact ECMAScript semantics.
+
+Issue #1047 / PR #1285 added an eval fast path for Test262 RegExp literal
+round-trip loops and widened deferred .NET `Regex` construction to simple
+flagless literal-only patterns after normalization. Review found that a
+comment-only eval payload such as `eval('//foo')` was misclassified as a
+RegExp literal because the fast path looked at slash delimiters without first
+excluding JavaScript comments. Future eval fast paths must be grammar-shaped
+pre-filters: if the payload starts with a source comment or otherwise cannot be
+proven to be only a RegExp literal plus optional semicolon/trivia, let the
+normal parser own the result.

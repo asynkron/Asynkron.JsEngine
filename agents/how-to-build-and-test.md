@@ -35,10 +35,11 @@ maintenance pass, keep the slice repo-local and reviewable:
 2. Capture a cheap baseline signal before editing. Prefer evidence such as
    `make -n quality`, a targeted `rg` check, `git diff --check`, or another
    narrow command tied directly to the chosen slice.
-3. If the slice adds a new ADR under `docs/adrs/`, first check existing
-   `NNNN-*` numeric prefixes and pick the next unused number; if the lesson
+3. If the slice adds a new ADR under `docs/adrs/`, reserve the ID with
+   `faktorial-api adr-next` first and use the returned `adr_id`; if the lesson
    fits an existing durable document, update that file instead of creating a
-   duplicate-number ADR.
+   duplicate-number ADR. After writing or renaming ADRs, run a duplicate-prefix
+   check over `docs/adrs` and record a clean result in the issue update.
 4. Make only the small change required for that slice.
 5. Capture the matching final signal after editing and record both signals in
    the issue update.

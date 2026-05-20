@@ -825,6 +825,12 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             return false;
         }
 
+        // Comment-only eval payloads (//... or /*...*/) are script comments, not regexp literals.
+        if (start < end && code[start + 1] is '/' or '*')
+        {
+            return false;
+        }
+
         var escaped = false;
         var inCharClass = false;
         var closeSlashIndex = -1;

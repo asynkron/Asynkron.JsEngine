@@ -87,6 +87,14 @@ host-runtime shortcuts.
     observable prototype access. WHY: issue #871 / PR #1258 fixed
     `Reflect.construct` typed-array construction after generic prototype
     resolution moved ahead of the typed-array `ToIndex` error boundary.
+16a. For constructor paths that receive a `NewTarget` `JsValue`, do not use
+    `AsObject<IJsCallable>()` behind an `IsObject` guard. A non-callable object
+    can be a valid object value but not a constructor/callable implementation;
+    convert that mismatch into a JavaScript `TypeError` with
+    `TryGetObject<IJsCallable>` before passing the value to
+    `ConstructWithNewTarget`. WHY: issue #1046 / PR #1282 fixed
+    `Intl.ListFormat` after a non-callable object `NewTarget` crashed through a
+    host cast instead of producing a catchable constructor error.
 17. For Intl built-ins that coerce call arguments through `ToNumber`, use the
     active evaluation context and propagate abrupt completions before later
     numeric validation such as finite-number checks. Raw `JsValue.AsNumber()`,
@@ -347,6 +355,14 @@ prove the focused `Name=RelativeTimeFormat_constructor_constructor` or owning
 constructor Test262 method group.
 
 Related ADR: `docs/adrs/0039-keep-intl-constructor-options-toobject-coercion.md`.
+
+Issue #1046 / PR #1282 fixed `Intl.ListFormat` constructor
+`NewTarget` handling after the constructor guarded only `newTarget.IsObject`
+before casting to `IJsCallable`. Test262 exposed a non-callable object
+`NewTarget` path where the implementation threw a host cast exception instead
+of a JavaScript `TypeError`. Future constructor work should guard
+`NewTarget` with `TryGetObject<IJsCallable>` and prove the owning constructor
+Test262 method group before widening.
 
 Issue #817 / PR #1018 fixed `Reflect.construct` after the Array allocation
 special case mixed the roles of `target` and `newTarget`. A cross-realm or

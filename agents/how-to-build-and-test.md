@@ -24,6 +24,26 @@ single build-and-test `test-internal` run.
 dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~SomeTestName"
 ```
 
+## Recurring Maintenance Child Runs
+
+When a spawned maintenance-child issue asks for one bounded repository
+maintenance pass, keep the slice repo-local and reviewable:
+
+1. Choose exactly one docs, tooling, test-fixture, or workflow simplification
+   slice. Do not add or change recurrence infrastructure; Faktorial owns the
+   recurrence schedule.
+2. Capture a cheap baseline signal before editing. Prefer evidence such as
+   `make -n quality`, a targeted `rg` check, `git diff --check`, or another
+   narrow command tied directly to the chosen slice.
+3. Make only the small change required for that slice.
+4. Capture the matching final signal after editing and record both signals in
+   the issue update.
+
+For docs-only maintenance, do not run full builds, Test262, package installs,
+or broad audits unless the edit directly depends on them. The canonical local
+quality gate remains `make quality`, which builds and tests the internal suite
+only.
+
 ## ECMAScript Test262 Suite
 
 Run the full LanguageTests class (43,000+ tests):

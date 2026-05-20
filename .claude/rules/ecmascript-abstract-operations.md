@@ -206,6 +206,18 @@ host-runtime shortcuts.
     merely because ordinary bags with present era fields still need coercion
     and validation. Prove this with the focused
     `Name=Temporal_ZonedDateTime_compare` Test262 method group.
+33. For `Temporal.ZonedDateTime.prototype.since` and `.until` (and the shared
+    `DifferenceTemporalZonedDateTime` abstract operation), keep the spec step
+    order between the time-only fast path and the time-zone equality check
+    explicit. The hour-or-smaller `LargestUnit` branch returns from epoch
+    nanosecond difference before `TimeZoneEquals`, so cross-zone hour-largest
+    differences are valid; only calendar-unit (day or larger) differences
+    require matching time zones. Compare time zones through a canonical
+    identifier helper such as `CanonicalizeTimeZoneIdForComparison` so
+    fixed-offset spellings (`+01`, `+0100`, `+01:00`), named IANA zones, and
+    mixed pairs are checked uniformly. Do not bypass the equality check for
+    fixed-offset operands, since `+01:00` vs `+02:00` is a real mismatch that
+    must still throw `RangeError` for calendar-unit differences.
 
 ## Why
 
@@ -572,3 +584,22 @@ observable bags, but still coerce and validate ordinary own era fields when
 present. This remains under ADR 0046's broader Temporal property-bag
 observability rule and should be proven with the focused
 `Name=Temporal_ZonedDateTime_compare` Test262 method group.
+
+
+Issue #861 / PR #1198 fixed `Temporal.ZonedDateTime.prototype.since` and
+`.until` after the `TimeZoneEquals` check ran ahead of the hour-largest
+time fast path and the `FixedOffset` bypass silently accepted non-equivalent
+fixed-offset operands for calendar-unit differences. The durable lesson is
+that `DifferenceTemporalZonedDateTime` has two distinct spec ordering
+requirements: hour-or-smaller largest units return via epoch nanosecond
+difference before any time-zone equality check, and calendar-unit largest
+units require a single canonical identifier comparison that handles
+fixed-offset, named, and mixed pairs uniformly. Future ZonedDateTime
+difference work should pin both sides locally (hour-largest cross-zone
+success, day-largest mismatch throw across named/fixed/mixed, and equivalent
+fixed-offset spelling success) before relying on the focused
+`Name=Temporal_ZonedDateTime_prototype_since` and
+`Name=Temporal_ZonedDateTime_prototype_until` Test262 method groups.
+
+Related ADR:
+`docs/adrs/0070-keep-temporal-zoneddatetime-difference-step-order-explicit.md`.

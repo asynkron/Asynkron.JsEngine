@@ -131,6 +131,13 @@ host-runtime shortcuts.
     supplied, resolve supplied `monthCode` in the receiver calendar and target
     calendar year, and convert to internal ISO storage only after
     calendar-field merge and overflow handling.
+25. For `Temporal.PlainDate.prototype.with` on non-ISO calendars, merge
+    partial date overrides against the receiver's observable calendar fields,
+    not its internal ISO storage fields. When `month` and `monthCode` are both
+    omitted, preserve a valid visible default `monthCode` in the target year,
+    but let invalid leap-month defaults fall through the numeric month overflow
+    path under `overflow: "constrain"` so option ordering and constrain
+    semantics remain observable.
 24. For `Temporal.PlainDate.prototype.until` and adjacent PlainDate difference
     work, matching BCL-backed non-ISO calendars must compute month and year
     largest-unit differences in calendar space, not through ISO month/year
@@ -390,6 +397,20 @@ with the `non-iso-calendar-fields.js` fixture.
 
 Related ADR:
 `docs/adrs/0055-keep-temporal-plaindatetime-with-calendar-date-fields.md`.
+
+Issue #843 / PR #1169 fixed `Temporal.PlainDate.prototype.with` after Gregorian
+era fields and Hebrew calendar fields were merged against the wrong
+representation. The durable lesson mirrors PlainDateTime.with but adds a
+PlainDate-specific leap-month ordering trap: receiver defaults come from
+calendar-visible fields, the internal ISO projection is only the final storage
+representation, and an omitted Hebrew leap `monthCode` must not throw before
+`overflow: "constrain"` can fall back through the numeric month path. Future
+`PlainDate.prototype.with` work should prove the focused
+`Name=Temporal_PlainDate_prototype_with` Test262 method group and keep local
+coverage for Hebrew leap-month constrain behavior.
+
+Related ADR:
+`docs/adrs/0067-keep-temporal-plaindate-with-calendar-date-fields.md`.
 
 Issue #842 / PR #1163 fixed `Temporal.PlainDate.prototype.until` after matching
 Chinese lunisolar PlainDate endpoints were accepted as non-ISO calendars but

@@ -10228,11 +10228,20 @@ public static class TemporalHelper
             throw StandardLibrary.ThrowTypeError("Property bag for PlainMonthDay must have 'day'", realm: realm);
         var day = ToIntegerWithTruncation(dayVal, realm);
 
-        // 3-4. era/eraYear: read for observable order, validates Infinity → RangeError
-        if (accessor.TryGetProperty("era", out var eraVal2) && !eraVal2.IsUndefined)
-            JsOps.ToJsString(eraVal2);
-        if (accessor.TryGetProperty("eraYear", out var eraYearVal2) && !eraYearVal2.IsUndefined)
-            ToIntegerWithTruncation(eraYearVal2, realm);
+        // 3-4. era/eraYear: only non-ISO calendars observe era fields here.
+        var isIsoCalendar = string.Equals(calendar, "iso8601", StringComparison.Ordinal);
+        var hasEra = false;
+        var hasEraYear = false;
+        if (!isIsoCalendar)
+        {
+            hasEra = accessor.TryGetProperty("era", out var eraVal) && !eraVal.IsUndefined;
+            if (hasEra)
+                JsOps.ToJsString(eraVal);
+
+            hasEraYear = accessor.TryGetProperty("eraYear", out var eraYearVal) && !eraYearVal.IsUndefined;
+            if (hasEraYear)
+                ToIntegerWithTruncation(eraYearVal, realm);
+        }
 
         // 5. month — eagerly convert to trigger valueOf for observable order
         accessor.TryGetProperty("month", out var monthVal);
@@ -10256,10 +10265,8 @@ public static class TemporalHelper
         var hasYear = !yearVal.IsUndefined;
         var yearForValidation = hasYear ? ToIntegerWithTruncation(yearVal, realm) : 1972;
 
-        if (!string.Equals(calendar, "iso8601", StringComparison.Ordinal))
+        if (!isIsoCalendar)
         {
-            var hasEra = accessor.TryGetProperty("era", out var eraVal) && !eraVal.IsUndefined;
-            var hasEraYear = accessor.TryGetProperty("eraYear", out var eraYearVal) && !eraYearVal.IsUndefined;
             if (hasEra != hasEraYear)
             {
                 throw StandardLibrary.ThrowTypeError("Property bag for PlainMonthDay must have both 'era' and 'eraYear' together",
@@ -10268,7 +10275,7 @@ public static class TemporalHelper
         }
 
         if (!hasMonthCode &&
-            !string.Equals(calendar, "iso8601", StringComparison.Ordinal) &&
+            !isIsoCalendar &&
             !hasYear)
         {
             throw StandardLibrary.ThrowTypeError("Property bag for PlainMonthDay must have 'monthCode' or 'year' for non-ISO calendars",
@@ -10282,7 +10289,7 @@ public static class TemporalHelper
         int month;
         if (hasMonthCode)
         {
-            month = string.Equals(calendar, "iso8601", StringComparison.Ordinal)
+            month = isIsoCalendar
                 ? ResolveISOMonthCode(monthCodeStr!, realm)
                 : MonthCodeNumericValue(monthCodeStr!);
             if (hasMonth)

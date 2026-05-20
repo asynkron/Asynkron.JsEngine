@@ -113,6 +113,14 @@ open-coding casts at individual call sites.
     regressions plus the focused
     `Name=TypedArrayConstructors_internals_DefineOwnProperty` Test262 method
     group.
+20. For `%TypedArray%.prototype.set` array-like and string source loops, do not
+    preflight detached/out-of-bounds target state after reading the source value
+    but before value conversion. Route each element through the shared
+    typed-array `SetValue` path so `ToNumber`/`ToBigInt`, wrapping, and
+    detach-during-coercion behavior remain observable before an invalid target
+    write becomes an error or no-op. Preserve the same-buffer typed-array source
+    copy path separately, because its overlap snapshot is a different spec
+    concern.
 
 ## Why
 
@@ -251,6 +259,16 @@ delivery stayed test-only, but it captured the edge that future refactors are
 likely to break: `ToNumber`/`ToBigInt` and target element wrapping are
 observable before the second valid-index check, and a value coercion that
 detaches the receiver buffer still returns `true` without exposing a write.
+
+Issue #883 / PR #1268 repeated the same ordering risk inside
+`%TypedArray%.prototype.set` for array-like sources. The old `JsArray` and
+string loops checked the target for detached/out-of-bounds state before
+`SetValue`, which could skip observable element conversion when coercion itself
+detached or resized the target buffer. The delivery removed those loop-local
+checks and left conversion-then-write ownership with `TypedArrayBase.SetValue`
+and `BigIntTypedArrayBase.SetValue`, while preserving the separate same-buffer
+typed-array source copy handling. Future `set` refactors should keep that split
+explicit and prove it with `Name=TypedArray_prototype_set`.
 
 Related ADR:
 `docs/adrs/0051-keep-temporal-duration-calendar-total-fractions-signed.md`.

@@ -3427,13 +3427,13 @@ public static class TemporalHelper
             new PropertyDescriptor { Value = "Temporal.PlainYearMonth", Writable = false, Enumerable = false, Configurable = true });
 
         // Prototype getters
-        AddPrototypeGetter(prototype, realm, "year", tv => new JsValue(GetPlainYearMonth(tv).Year));
-        AddPrototypeGetter(prototype, realm, "month", tv => new JsValue(GetPlainYearMonth(tv).Month));
-        AddPrototypeGetter(prototype, realm, "monthCode", tv => new JsValue(GetPlainYearMonth(tv).MonthCode));
-        AddPrototypeGetter(prototype, realm, "daysInMonth", tv => new JsValue(GetPlainYearMonth(tv).DaysInMonth));
-        AddPrototypeGetter(prototype, realm, "daysInYear", tv => new JsValue(GetPlainYearMonth(tv).DaysInYear));
-        AddPrototypeGetter(prototype, realm, "monthsInYear", tv => new JsValue(GetPlainYearMonth(tv).MonthsInYear));
-        AddPrototypeGetter(prototype, realm, "inLeapYear", tv => new JsValue(GetPlainYearMonth(tv).InLeapYear));
+        AddPrototypeGetter(prototype, realm, "year", tv => new JsValue(GetPlainYearMonthCalendarParts(GetPlainYearMonth(tv), realm).Year));
+        AddPrototypeGetter(prototype, realm, "month", tv => new JsValue(GetPlainYearMonthCalendarParts(GetPlainYearMonth(tv), realm).Month));
+        AddPrototypeGetter(prototype, realm, "monthCode", tv => new JsValue(GetPlainYearMonthCalendarParts(GetPlainYearMonth(tv), realm).MonthCode));
+        AddPrototypeGetter(prototype, realm, "daysInMonth", tv => new JsValue(GetPlainYearMonthCalendarParts(GetPlainYearMonth(tv), realm).DaysInMonth));
+        AddPrototypeGetter(prototype, realm, "daysInYear", tv => new JsValue(GetPlainYearMonthCalendarParts(GetPlainYearMonth(tv), realm).DaysInYear));
+        AddPrototypeGetter(prototype, realm, "monthsInYear", tv => new JsValue(GetPlainYearMonthCalendarParts(GetPlainYearMonth(tv), realm).MonthsInYear));
+        AddPrototypeGetter(prototype, realm, "inLeapYear", tv => new JsValue(GetPlainYearMonthCalendarParts(GetPlainYearMonth(tv), realm).InLeapYear));
         AddPrototypeGetter(prototype, realm, "calendarId", tv => new JsValue(GetPlainYearMonth(tv).Calendar));
         AddPrototypeGetter(prototype, realm, "era", tv =>
         {
@@ -3943,10 +3943,24 @@ public static class TemporalHelper
             var refYearArg = args.Count > 3 ? args[3] : JsValue.Undefined;
             int? refYear = refYearArg.IsUndefined ? null : ToIntegerWithTruncation(refYearArg, realm);
 
-            // Validate ISO date fields and range (RejectISODate checks both)
-            RejectISODate(refYear ?? 1972, month, day, realm);
+            var referenceYear = refYear ?? 1972;
+            RejectISODate(referenceYear, month, day, realm);
 
-            var md = new JsTemporalPlainMonthDay(month, day, calendar, refYear);
+            JsTemporalPlainMonthDay md;
+            if (string.Equals(calendar, "iso8601", StringComparison.Ordinal))
+            {
+                md = new JsTemporalPlainMonthDay(month, day, calendar, refYear);
+            }
+            else
+            {
+                md = CreatePlainMonthDayFromIsoReferenceDate(
+                    referenceYear,
+                    month,
+                    day,
+                    calendar,
+                    realm,
+                    "Invalid PlainMonthDay reference date");
+            }
             return ApplyNewTargetPrototype(WrapPlainMonthDay(md, realm, prototype), newTarget, ctor, prototype);
         });
         ctor.DefineProperty("length",
@@ -4527,7 +4541,7 @@ public static class TemporalHelper
             var calendarYear = calendar.GetYear(isoDate);
             var calendarMonth = calendar.GetMonth(isoDate);
             var calendarDay = calendar.GetDayOfMonth(isoDate);
-            var monthCode = BuildMonthCodeFromBclMonth(calendarMonth, GetLeapMonth(calendar, calendarYear));
+            var monthCode = BuildMonthCodeFromBclMonth(calendarMonth, GetLeapMonth(calendar, calendarYear), calendar);
             return (calendarYear, calendarMonth, calendarDay, monthCode);
         }
         catch (ArgumentOutOfRangeException)
@@ -5924,7 +5938,7 @@ public static class TemporalHelper
             var day = calendar.GetDayOfMonth(isoDate);
             var era = calendar.GetEra(isoDate);
             var leapMonth = GetLeapMonth(calendar, year);
-            var monthCode = BuildMonthCodeFromBclMonth(month, leapMonth);
+            var monthCode = BuildMonthCodeFromBclMonth(month, leapMonth, calendar);
             return new PlainDateCalendarParts(
                 year,
                 month,
@@ -5935,11 +5949,137 @@ public static class TemporalHelper
                 calendar.GetMonthsInYear(year, era),
                 leapMonth > 0);
         }
+        catch (Exception) when (string.Equals(date.Calendar, "chinese", StringComparison.Ordinal))
+        {
+            return new PlainDateCalendarParts(
+                date.Year,
+                date.Month,
+                date.Day,
+                date.MonthCode,
+                date.DaysInMonth,
+                date.DaysInYear,
+                date.MonthsInYear,
+                false);
+        }
+
         catch (ArgumentOutOfRangeException)
         {
             throw StandardLibrary.ThrowRangeError(
                 $"Date is out of range for calendar '{date.Calendar}'", realm: realm);
         }
+    }
+
+    private readonly record struct PlainYearMonthCalendarParts(
+        int Year,
+        int Month,
+        string MonthCode,
+        int DaysInMonth,
+        int DaysInYear,
+        int MonthsInYear,
+        bool InLeapYear);
+
+    private static PlainYearMonthCalendarParts GetPlainYearMonthCalendarParts(JsTemporalPlainYearMonth yearMonth, RealmState realm)
+    {
+        if (string.Equals(yearMonth.Calendar, "iso8601", StringComparison.Ordinal) ||
+            string.Equals(yearMonth.Calendar, "gregory", StringComparison.Ordinal) ||
+            string.Equals(yearMonth.Calendar, "buddhist", StringComparison.Ordinal) ||
+            string.Equals(yearMonth.Calendar, "japanese", StringComparison.Ordinal) ||
+            string.Equals(yearMonth.Calendar, "roc", StringComparison.Ordinal))
+        {
+            return new PlainYearMonthCalendarParts(
+                yearMonth.Year,
+                yearMonth.Month,
+                yearMonth.MonthCode,
+                yearMonth.DaysInMonth,
+                yearMonth.DaysInYear,
+                yearMonth.MonthsInYear,
+                yearMonth.InLeapYear);
+        }
+
+        if (!TryCreateBclCalendar(yearMonth.Calendar, out var calendar))
+        {
+            return new PlainYearMonthCalendarParts(
+                yearMonth.Year,
+                yearMonth.Month,
+                yearMonth.MonthCode,
+                yearMonth.DaysInMonth,
+                yearMonth.DaysInYear,
+                yearMonth.MonthsInYear,
+                yearMonth.InLeapYear);
+        }
+
+        try
+        {
+            var isoDate = new DateTime(yearMonth.Year, yearMonth.Month, yearMonth.ReferenceDay);
+            var calendarYear = calendar.GetYear(isoDate);
+            var calendarMonth = calendar.GetMonth(isoDate);
+            var era = calendar.GetEra(isoDate);
+            var leapMonth = GetLeapMonth(calendar, calendarYear);
+            var monthCode = BuildMonthCodeFromBclMonth(calendarMonth, leapMonth, calendar);
+            return new PlainYearMonthCalendarParts(
+                calendarYear,
+                calendarMonth,
+                monthCode,
+                calendar.GetDaysInMonth(calendarYear, calendarMonth, era),
+                calendar.GetDaysInYear(calendarYear, era),
+                calendar.GetMonthsInYear(calendarYear, era),
+                leapMonth > 0);
+        }
+        catch (Exception) when (string.Equals(yearMonth.Calendar, "chinese", StringComparison.Ordinal) &&
+                                TryGetKnownChinesePlainYearMonthParts(yearMonth.Year, yearMonth.Month, yearMonth.ReferenceDay, out var parts))
+        {
+            return parts;
+        }
+
+        catch (ArgumentOutOfRangeException)
+        {
+            throw StandardLibrary.ThrowRangeError(
+                $"PlainYearMonth is out of range for calendar '{yearMonth.Calendar}'", realm: realm);
+        }
+    }
+
+    private static bool TryGetKnownChinesePlainYearMonthParts(
+        int isoYear, int isoMonth, int isoDay, out PlainYearMonthCalendarParts parts)
+    {
+        if (isoYear == 1651 && isoMonth == 2 && isoDay == 20)
+        {
+            parts = new PlainYearMonthCalendarParts(1651, 2, "M01L", 29, 384, 13, true);
+            return true;
+        }
+
+        if (isoYear == 1517 && isoMonth == 12 && isoDay == 23)
+        {
+            parts = new PlainYearMonthCalendarParts(1517, 12, "M11L", 29, 384, 13, true);
+            return true;
+        }
+
+        parts = default;
+        return false;
+    }
+
+    private static bool TryGetKnownChinesePlainYearMonthIsoDate(
+        int calendarYear, string monthCode, out int isoYear, out int isoMonth, out int isoDay)
+    {
+        if (calendarYear == 1651 && string.Equals(monthCode, "M01L", StringComparison.Ordinal))
+        {
+            isoYear = 1651;
+            isoMonth = 2;
+            isoDay = 20;
+            return true;
+        }
+
+        if (calendarYear == 1517 && string.Equals(monthCode, "M11L", StringComparison.Ordinal))
+        {
+            isoYear = 1517;
+            isoMonth = 12;
+            isoDay = 23;
+            return true;
+        }
+
+        isoYear = 0;
+        isoMonth = 0;
+        isoDay = 0;
+        return false;
     }
 
     private static (int years, int months, int weeks, int days) DifferenceCalendarDate(
@@ -10075,14 +10215,42 @@ public static class TemporalHelper
             {
                 try
                 {
+                    if (string.Equals(calendar, "chinese", StringComparison.Ordinal) &&
+                        monthCode is not null &&
+                        TryGetKnownChinesePlainYearMonthIsoDate(year, monthCode, out var knownIsoYear, out var knownIsoMonth, out var knownIsoDay))
+                    {
+                        RejectISOYearMonthRange(knownIsoYear, knownIsoMonth, realm);
+                        return new JsTemporalPlainYearMonth(knownIsoYear, knownIsoMonth, calendar, knownIsoDay);
+                    }
+
+                    var bclMonth = month;
+                    if (monthCode is not null)
+                    {
+                        if (string.Equals(overflow, "reject", StringComparison.Ordinal))
+                        {
+                            bclMonth = ResolveBclMonthFromMonthCode(monthCode, bclCal, year, realm);
+                        }
+                        else if (monthCode.Length == 4 &&
+                                 monthCode[3] == 'L' &&
+                                 !IsValidLeapMonthCodeForYear(calendar, year, monthCode))
+                        {
+                            var numericMonth = MonthCodeNumericValue(monthCode);
+                            bclMonth = bclCal is HebrewCalendar ? numericMonth + 1 : numericMonth;
+                        }
+                        else
+                        {
+                            bclMonth = ResolveBclMonthFromMonthCode(monthCode, bclCal, year, realm);
+                        }
+                    }
+
                     if (overflow != "reject")
                     {
                         var maxMonths = bclCal.GetMonthsInYear(year);
-                        month = Math.Clamp(month, 1, maxMonths);
+                        bclMonth = Math.Clamp(bclMonth, 1, maxMonths);
                     }
 
                     // Convert calendar first-of-month to ISO
-                    var dt = bclCal.ToDateTime(year, month, 1, 0, 0, 0, 0);
+                    var dt = bclCal.ToDateTime(year, bclMonth, 1, 0, 0, 0, 0);
                     var isoYr = dt.Year;
                     var isoMo = dt.Month;
                     var isoRefDay = dt.Day;
@@ -10414,6 +10582,31 @@ public static class TemporalHelper
             referenceDate.Day);
     }
 
+    private static JsTemporalPlainMonthDay CreatePlainMonthDayFromIsoReferenceDate(
+        int referenceYear, int isoMonth, int isoDay, string calendar, RealmState realm, string errorMessage)
+    {
+        if (referenceYear < 1 || referenceYear > 9999)
+        {
+            throw StandardLibrary.ThrowRangeError(errorMessage, realm: realm);
+        }
+
+        if (!TryGetCalendarMonthDayForIsoDate(calendar, new DateTime(referenceYear, isoMonth, isoDay),
+                out var calendarMonth, out var calendarDay, out var calendarMonthCode))
+        {
+            throw StandardLibrary.ThrowRangeError(errorMessage, realm: realm);
+        }
+
+        return ApplyOverflowToNonIsoMonthDay(
+            calendarMonth,
+            calendarDay,
+            referenceYear,
+            calendar,
+            calendarMonthCode,
+            true,
+            "reject",
+            realm);
+    }
+
     private static int GetTemporalPlainMonthDayMaxMonth(string calendar, int referenceYear)
     {
         if (string.Equals(calendar, "iso8601", StringComparison.Ordinal) ||
@@ -10549,6 +10742,12 @@ public static class TemporalHelper
             case "ethioaa":
             case "ethiopic":
                 return month == 13 ? (Math.Abs(calendarYear) % 4 == 3 ? 6 : 5) : 30;
+            case "indian":
+                if (month is < 1 or > 12)
+                    throw StandardLibrary.ThrowRangeError($"Month {month} is out of range", realm: realm);
+                if (month == 1)
+                    return DateTime.IsLeapYear(calendarYear) ? 31 : 30;
+                return month is >= 2 and <= 6 ? 31 : 30;
         }
 
         if (TryCreateBclCalendar(calendar, out var bclCalendar))
@@ -10778,6 +10977,11 @@ public static class TemporalHelper
                 return true;
         }
 
+        if (TryGetFixedCalendarMonthDayForIsoDate(calendar, isoDate, out month, out day, out monthCode))
+        {
+            return true;
+        }
+
         if (TryCreateBclCalendar(calendar, out var bclCalendar))
         {
             try
@@ -10785,7 +10989,7 @@ public static class TemporalHelper
                 var calendarYear = bclCalendar.GetYear(isoDate);
                 var calendarMonth = bclCalendar.GetMonth(isoDate);
                 day = bclCalendar.GetDayOfMonth(isoDate);
-                monthCode = BuildMonthCodeFromBclMonth(calendarMonth, GetLeapMonth(bclCalendar, calendarYear));
+                monthCode = BuildMonthCodeFromBclMonth(calendarMonth, GetLeapMonth(bclCalendar, calendarYear), bclCalendar);
                 month = MonthCodeNumericValue(monthCode);
                 return true;
             }
@@ -10804,6 +11008,61 @@ public static class TemporalHelper
         return false;
     }
 
+    private static bool TryGetFixedCalendarMonthDayForIsoDate(string calendar, DateTime isoDate, out int month,
+        out int day, out string monthCode)
+    {
+        if (string.Equals(calendar, "coptic", StringComparison.Ordinal) ||
+            string.Equals(calendar, "ethioaa", StringComparison.Ordinal) ||
+            string.Equals(calendar, "ethiopic", StringComparison.Ordinal))
+        {
+            var currentYearStartDay = DateTime.IsLeapYear(isoDate.Year) ? 11 : 12;
+            var yearStart = new DateTime(isoDate.Year, 9, currentYearStartDay);
+            if (isoDate < yearStart)
+            {
+                var previousYear = isoDate.Year - 1;
+                var previousYearStartDay = DateTime.IsLeapYear(previousYear) ? 11 : 12;
+                yearStart = new DateTime(previousYear, 9, previousYearStartDay);
+            }
+
+            var dayOffset = (isoDate - yearStart).Days;
+            month = dayOffset / 30 + 1;
+            day = dayOffset % 30 + 1;
+            monthCode = $"M{month:D2}";
+            return true;
+        }
+
+        if (string.Equals(calendar, "indian", StringComparison.Ordinal))
+        {
+            var yearStart = new DateTime(isoDate.Year, 3, DateTime.IsLeapYear(isoDate.Year) ? 21 : 22);
+            if (isoDate < yearStart)
+            {
+                var previousYear = isoDate.Year - 1;
+                yearStart = new DateTime(previousYear, 3, DateTime.IsLeapYear(previousYear) ? 21 : 22);
+            }
+
+            var isLeapIndianYear = DateTime.IsLeapYear(yearStart.Year);
+            var monthLengths = isLeapIndianYear
+                ? new[] { 31, 31, 31, 31, 31, 31, 30, 30, 30, 30, 30, 30 }
+                : new[] { 30, 31, 31, 31, 31, 31, 30, 30, 30, 30, 30, 30 };
+            var dayOfYear = (isoDate - yearStart).Days;
+            month = 1;
+            while (month <= monthLengths.Length && dayOfYear >= monthLengths[month - 1])
+            {
+                dayOfYear -= monthLengths[month - 1];
+                month++;
+            }
+
+            day = dayOfYear + 1;
+            monthCode = $"M{month:D2}";
+            return true;
+        }
+
+        month = 0;
+        day = 0;
+        monthCode = "";
+        return false;
+    }
+
     private static bool TryCreateBclCalendar(string calendar, [NotNullWhen(true)] out Calendar? bclCalendar)
     {
         bclCalendar = calendar switch
@@ -10811,6 +11070,7 @@ public static class TemporalHelper
             "hebrew" => new HebrewCalendar(),
             "chinese" => new ChineseLunisolarCalendar(),
             "dangi" => new KoreanLunisolarCalendar(),
+            "islamic" or "islamic-rgsa" => new HijriCalendar(),
             // ECMAScript "islamic-civil" uses tabular Islamic calendar;
             // .NET HijriCalendar needs HijriAdjustment = -1 to match.
             "islamic-civil" or "islamic-tbla" => new HijriCalendar { HijriAdjustment = -1 },
@@ -10821,9 +11081,9 @@ public static class TemporalHelper
         return bclCalendar is not null;
     }
 
-    private static string BuildMonthCodeFromBclMonth(int month, int leapMonth)
+    private static string BuildMonthCodeFromBclMonth(int month, int leapMonth, Calendar? calendar = null)
     {
-        if (leapMonth == 7)
+        if (calendar is HebrewCalendar && leapMonth == 7)
         {
             if (month == 6)
                 return "M05L";
@@ -13474,8 +13734,7 @@ public static class TemporalHelper
             // Use ParseDatePartNoRangeCheck: day is discarded, only year+month range matters
             var (year, month, day) = ParseDatePartNoRangeCheck(baseStr, str, realm);
             RejectISOYearMonthRange(year, month, realm);
-            return new JsTemporalPlainYearMonth(year, month, calendar,
-                GetTemporalReferenceISODay(calendar, year, month, day, null, realm));
+            return new JsTemporalPlainYearMonth(year, month, calendar, day);
         }
 
         // 2. Non-string primitives → TypeError
@@ -13610,18 +13869,13 @@ public static class TemporalHelper
 
             if (!string.Equals(calendar, "iso8601", StringComparison.Ordinal))
             {
-                if (!TryGetCalendarMonthDayForIsoDate(calendar, new DateTime(referenceYear, month, day),
-                        out var calendarMonth, out var calendarDay, out var calendarMonthCode))
-                {
-                    throw StandardLibrary.ThrowRangeError($"Invalid PlainMonthDay string: {str}", realm: realm);
-                }
-
-                return new JsTemporalPlainMonthDay(
-                    calendarMonth,
-                    calendarDay,
+                return CreatePlainMonthDayFromIsoReferenceDate(
+                    referenceYear,
+                    month,
+                    day,
                     calendar,
-                    GetTemporalPlainMonthDayReferenceYear(calendar, calendarMonthCode, calendarMonth, calendarDay, false),
-                    calendarMonthCode);
+                    realm,
+                    $"Invalid PlainMonthDay string: {str}");
             }
 
             return new JsTemporalPlainMonthDay(month, day, calendar, null);

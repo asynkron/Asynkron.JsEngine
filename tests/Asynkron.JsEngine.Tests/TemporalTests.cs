@@ -907,4 +907,55 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
         Assert.Equal("gregory-inverse|44|-43", result);
     }
 
+    // Regression for issue #863: ZonedDateTime.prototype.toPlainDateTime wall-clock component fidelity
+    [Fact]
+    public async Task Temporal_ZonedDateTime_ToPlainDateTime_UTC_EpochZero()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const zdt = new Temporal.ZonedDateTime(0n, 'UTC');
+            const pdt = zdt.toPlainDateTime();
+            `${pdt.year}|${pdt.month}|${pdt.day}|${pdt.hour}|${pdt.minute}|${pdt.second}|${pdt.millisecond}|${pdt.microsecond}|${pdt.nanosecond}|${pdt.calendarId}`;
+            """);
+        Assert.Equal("1970|1|1|0|0|0|0|0|0|iso8601", result);
+    }
+
+    [Fact]
+    public async Task Temporal_ZonedDateTime_ToPlainDateTime_PositiveOffset()
+    {
+        await using var engine = CreateEngine();
+        // epoch 0 in +05:30 wall-clock is 1970-01-01T05:30:00
+        var result = await engine.Evaluate("""
+            const zdt = new Temporal.ZonedDateTime(0n, '+05:30');
+            const pdt = zdt.toPlainDateTime();
+            `${pdt.year}|${pdt.month}|${pdt.day}|${pdt.hour}|${pdt.minute}|${pdt.second}|${pdt.calendarId}`;
+            """);
+        Assert.Equal("1970|1|1|5|30|0|iso8601", result);
+    }
+
+    [Fact]
+    public async Task Temporal_ZonedDateTime_ToPlainDateTime_NegativeOffset()
+    {
+        await using var engine = CreateEngine();
+        // epoch 0 in -08:00 wall-clock is 1969-12-31T16:00:00
+        var result = await engine.Evaluate("""
+            const zdt = new Temporal.ZonedDateTime(0n, '-08:00');
+            const pdt = zdt.toPlainDateTime();
+            `${pdt.year}|${pdt.month}|${pdt.day}|${pdt.hour}|${pdt.minute}|${pdt.second}|${pdt.calendarId}`;
+            """);
+        Assert.Equal("1969|12|31|16|0|0|iso8601", result);
+    }
+
+    [Fact]
+    public async Task Temporal_ZonedDateTime_ToPlainDateTime_SubSecondPrecision()
+    {
+        await using var engine = CreateEngine();
+        // 1ns past epoch in UTC: ms=0, us=0, ns=1
+        var result = await engine.Evaluate("""
+            const zdt = new Temporal.ZonedDateTime(1n, 'UTC');
+            const pdt = zdt.toPlainDateTime();
+            `${pdt.millisecond}|${pdt.microsecond}|${pdt.nanosecond}`;
+            """);
+        Assert.Equal("0|0|1", result);
+    }
 }

@@ -1761,11 +1761,18 @@ public static class TemporalHelper
                 timeZone = ToTemporalTimeZoneSlot(arg, realm);
             }
 
-            var time = temporalTime ?? new JsTemporalPlainTime(0, 0, 0, 0, 0, 0);
-            var dt = date.ToPlainDateTime(time);
+            if (temporalTime == null)
+            {
+                var tz = JsTemporalZonedDateTime.ResolveTimeZone(timeZone, out var fixedOffset);
+                var startOfDayEpochNanos = GetStartOfDayInstant(date.Year, date.Month, date.Day, tz, fixedOffset, realm);
+                var startOfDayInstant = JsTemporalInstant.FromEpochNanoseconds(startOfDayEpochNanos);
+                var startOfDayZonedDateTime = new JsTemporalZonedDateTime(startOfDayInstant, timeZone, date.Calendar);
+                return WrapZonedDateTime(startOfDayZonedDateTime, realm, prototypes.ZonedDateTimePrototype);
+            }
+
+            var dt = date.ToPlainDateTime(temporalTime);
 
             // ISODateTimeWithinLimits check when plainTime is provided
-            if (temporalTime != null)
             {
                 var dtNanos = ToEpochNanoseconds(dt);
                 if (dtNanos < PlainDateTimeMinEpochNanoseconds || dtNanos > PlainDateTimeMaxEpochNanoseconds)

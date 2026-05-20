@@ -377,8 +377,8 @@ public static class ReflectHelper
         // For proxies, GetPrototypeOf may throw (return-abrupt-from-result test)
         if (target is JsProxy proxy)
         {
-            var proto = proxy.GetPrototypeWithTrap();
-            return proto is null ? JsValue.Null : JsValue.FromObjectUnsafe(proto);
+            var proxyProto = proxy.GetPrototypeWithTrap();
+            return proxyProto is null ? JsValue.Null : JsValue.FromObjectUnsafe(proxyProto);
         }
 
         object? proto = target.Prototype;

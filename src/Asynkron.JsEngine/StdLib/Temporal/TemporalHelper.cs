@@ -3513,7 +3513,7 @@ public static class TemporalHelper
             }
             if (string.Equals(showCalendar, "never", StringComparison.Ordinal))
             {
-                return new JsValue(ym.ToStringBasic());
+                return new JsValue(ym.ToStringWithoutCalendar());
             }
             return new JsValue(ym.ToString());
         });
@@ -13717,11 +13717,18 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowTypeError("Property bag for ZonedDateTime must have 'day'", realm: realm);
             var day = ToIntegerWithTruncation(dayVal, realm);
 
-            // era/eraYear: read for observable order, validates Infinity → RangeError
-            if (accessor.TryGetProperty("era", out var eraV) && !eraV.IsUndefined)
-                JsOps.ToJsString(eraV);
-            if (accessor.TryGetProperty("eraYear", out var eraYV) && !eraYV.IsUndefined)
-                ToIntegerWithTruncation(eraYV, realm);
+            // Preserve compare()'s observable absent-property order while still validating
+            // present era fields on ordinary property bags.
+            if (accessor is not JsProxy && accessor.GetOwnPropertyDescriptor("era") is not null)
+            {
+                if (accessor.TryGetProperty("era", out var eraVal) && !eraVal.IsUndefined)
+                    JsOps.ToJsString(eraVal);
+            }
+            if (accessor is not JsProxy && accessor.GetOwnPropertyDescriptor("eraYear") is not null)
+            {
+                if (accessor.TryGetProperty("eraYear", out var eraYearVal) && !eraYearVal.IsUndefined)
+                    ToIntegerWithTruncation(eraYearVal, realm);
+            }
 
             var hour = GetOptionalIntProperty(accessor, "hour", realm);
             var microsecond = GetOptionalIntProperty(accessor, "microsecond", realm);

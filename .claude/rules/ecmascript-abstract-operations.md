@@ -131,6 +131,13 @@ host-runtime shortcuts.
     supplied, resolve supplied `monthCode` in the receiver calendar and target
     calendar year, and convert to internal ISO storage only after
     calendar-field merge and overflow handling.
+25. For `Temporal.PlainDate.prototype.with` on non-ISO calendars, merge
+    partial date overrides against the receiver's observable calendar fields,
+    not its internal ISO storage fields. When `month` and `monthCode` are both
+    omitted, preserve a valid visible default `monthCode` in the target year,
+    but let invalid leap-month defaults fall through the numeric month overflow
+    path under `overflow: "constrain"` so option ordering and constrain
+    semantics remain observable.
 24. For `Temporal.PlainDate.prototype.until` and adjacent PlainDate difference
     work, matching BCL-backed non-ISO calendars must compute month and year
     largest-unit differences in calendar space, not through ISO month/year
@@ -185,6 +192,20 @@ host-runtime shortcuts.
     instant and must not be shifted through that zone. Keep output on the
     receiver's time fields and shared hour-cycle helpers, not a synthetic
     instant-backed host conversion.
+31. For `Temporal.ZonedDateTime` and other instant-backed Temporal
+    constructors, validate the normalized epoch nanoseconds against the shared
+    Temporal instant bounds after the spec-required BigInt coercion and before
+    constructing or wrapping a `JsTemporalInstant`. Exact min/max bounds remain
+    valid; min-1/max+1 must throw `RangeError`. Do not rely on BigInteger
+    storage, host date conversion, or downstream string formatting to enforce
+    the representable instant range.
+32. For `Temporal.ZonedDateTime.compare` and adjacent ZonedDateTime
+    property-bag conversion, preserve observable absent-field order separately
+    from present-field validation. Proxy or observer bags without own
+    `era`/`eraYear` properties must not observe synthetic missing-field reads
+    merely because ordinary bags with present era fields still need coercion
+    and validation. Prove this with the focused
+    `Name=Temporal_ZonedDateTime_compare` Test262 method group.
 
 ## Why
 
@@ -391,6 +412,20 @@ with the `non-iso-calendar-fields.js` fixture.
 Related ADR:
 `docs/adrs/0055-keep-temporal-plaindatetime-with-calendar-date-fields.md`.
 
+Issue #843 / PR #1169 fixed `Temporal.PlainDate.prototype.with` after Gregorian
+era fields and Hebrew calendar fields were merged against the wrong
+representation. The durable lesson mirrors PlainDateTime.with but adds a
+PlainDate-specific leap-month ordering trap: receiver defaults come from
+calendar-visible fields, the internal ISO projection is only the final storage
+representation, and an omitted Hebrew leap `monthCode` must not throw before
+`overflow: "constrain"` can fall back through the numeric month path. Future
+`PlainDate.prototype.with` work should prove the focused
+`Name=Temporal_PlainDate_prototype_with` Test262 method group and keep local
+coverage for Hebrew leap-month constrain behavior.
+
+Related ADR:
+`docs/adrs/0067-keep-temporal-plaindate-with-calendar-date-fields.md`.
+
 Issue #842 / PR #1163 fixed `Temporal.PlainDate.prototype.until` after matching
 Chinese lunisolar PlainDate endpoints were accepted as non-ISO calendars but
 balanced month/year largest units through ISO date arithmetic. The durable
@@ -517,3 +552,23 @@ local coverage using offset-sensitive times.
 
 Related ADR:
 `docs/adrs/0066-keep-temporal-plaintime-locale-formatting-timezone-neutral.md`.
+
+Issue #855 / PR #1189 fixed `Temporal.ZonedDateTime` constructor limit
+failures after the constructor accepted epoch nanoseconds outside Temporal's
+representable instant range and wrapped them in a `JsTemporalInstant`. The
+durable lesson is that instant-backed constructors need an explicit shared
+Temporal bounds check at the constructor boundary after coercion, while keeping
+the exact boundary values accepted. Future ZonedDateTime or instant-backed
+constructor work should prove both local min/max acceptance and min-1/max+1
+rejection, plus the focused `Name=Temporal_ZonedDateTime` Test262 method group.
+
+Issue #856 / PR #1191 fixed `Temporal.ZonedDateTime.compare` after the
+property-bag path unconditionally attempted absent `era`/`eraYear` reads. That
+preserved validation for ordinary present fields but made proxy/observer bags
+see extra missing-property probes before later fields. The durable lesson is
+that Temporal property-bag readers must distinguish absent-field observability
+from present-field validation: skip synthetic absent `era`/`eraYear` reads for
+observable bags, but still coerce and validate ordinary own era fields when
+present. This remains under ADR 0046's broader Temporal property-bag
+observability rule and should be proven with the focused
+`Name=Temporal_ZonedDateTime_compare` Test262 method group.

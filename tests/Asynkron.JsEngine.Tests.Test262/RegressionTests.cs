@@ -15,6 +15,111 @@ public class RegressionTests
         Assert.That(engine.ExecutionTimeout, Is.EqualTo(TimeSpan.FromSeconds(30)));
     }
 
+    [Test]
+    public async Task Test262AgentBroadcastSharesArrayBufferWithWorkerRealm()
+    {
+        await using var engine = Test262Test.CreateTest262Engine(logger: null, debugMode: false, useSnapshot: false);
+        using var agentRuntime = new Test262AgentRuntime(
+            () => Test262Test.CreateTest262Engine(logger: null, debugMode: false, useSnapshot: false),
+            State.Sources);
+
+        engine.SetGlobalValue("$262", new JsObject
+        {
+            ["agent"] = agentRuntime.CreateMainAgentObject(),
+        });
+
+        var result = await engine.Evaluate(
+            """
+            var i32a = new Int32Array(new SharedArrayBuffer(16));
+
+            $262.agent.start(`
+              $262.agent.receiveBroadcast(function(sab) {
+                try {
+                  var i32a = new Int32Array(sab);
+                  var before = Atomics.load(i32a, 1);
+                  Atomics.add(i32a, 1, 1);
+                  var after = Atomics.load(i32a, 1);
+                  $262.agent.report("worker:" + before + ":" + after);
+                } catch (error) {
+                  $262.agent.report("error:" + error.name + ":" + error.message);
+                }
+                $262.agent.leaving();
+              });
+            `);
+
+            $262.agent.broadcast(i32a.buffer);
+
+            var report = null;
+            for (var i = 0; i < 100 && report === null; i++) {
+              $262.agent.sleep(10);
+              report = $262.agent.getReport();
+            }
+
+            [Atomics.load(i32a, 1), report];
+            """);
+
+        var values = result as JsArray ?? throw new AssertionException("Expected array result");
+        Assert.That(values.Items[0].AsDouble(), Is.EqualTo(1d));
+        Assert.That(values.Items[1].AsString(), Is.EqualTo("worker:0:1"));
+    }
+
+    [Test]
+    public async Task Test262AgentAsyncBroadcastCallbackRunsBeforeFirstAwait()
+    {
+        await using var engine = Test262Test.CreateTest262Engine(logger: null, debugMode: false, useSnapshot: false);
+        using var agentRuntime = new Test262AgentRuntime(
+            () => Test262Test.CreateTest262Engine(logger: null, debugMode: false, useSnapshot: false),
+            State.Sources);
+
+        engine.SetGlobalValue("$262", new JsObject
+        {
+            ["agent"] = agentRuntime.CreateMainAgentObject(),
+        });
+
+        var result = await engine.Evaluate(
+            """
+            var i32a = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * 4));
+
+            $262.agent.start(`
+              $262.agent.receiveBroadcast(async function(sab) {
+                try {
+                  var i32a = new Int32Array(sab);
+                  Atomics.add(i32a, 1, 1);
+                  $262.agent.report("running:" + Atomics.load(i32a, 1));
+                  $262.agent.report(await Atomics.waitAsync(i32a, 0, 0, false).value);
+                  $262.agent.report(Atomics.waitAsync(i32a, 0, 0, false).value);
+                } catch (error) {
+                  $262.agent.report("error:" + error.name + ":" + error.message);
+                }
+                $262.agent.leaving();
+              });
+            `);
+
+            $262.agent.broadcast(i32a.buffer);
+
+            var reports = [];
+            for (var i = 0; i < 100 && reports.length < 3; i++) {
+              $262.agent.sleep(10);
+              var report = $262.agent.getReport();
+              if (report !== null) {
+                reports.push(report);
+              }
+            }
+
+            [Atomics.load(i32a, 1), reports];
+            """);
+
+        var values = result as JsArray ?? throw new AssertionException("Expected array result");
+        if (!values.Items[1].TryGetObject<JsArray>(out var reports))
+        {
+            throw new AssertionException("Expected reports array");
+        }
+
+        Assert.That(values.Items[0].AsDouble(), Is.EqualTo(1d));
+        Assert.That(reports.Items.Select(item => item.AsString()).ToArray(),
+            Is.EqualTo(new[] { "running:1", "timed-out", "timed-out" }));
+    }
+
     [TestCase("built-ins/decodeURIComponent/S15.1.3.2_A2.5_T1.js")]
     [TestCase("test/built-ins/decodeURIComponent/S15.1.3.2_A2.5_T1.js")]
     public void DecodeURIComponentFourByteFixture_UsesExtendedExecutionTimeout(string fileName)

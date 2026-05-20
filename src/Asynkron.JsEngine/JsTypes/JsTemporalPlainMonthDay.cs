@@ -67,6 +67,8 @@ public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay
     public int Day { get; }
     public string Calendar { get; }
     internal int ReferenceYear { get; }
+    internal int ReferenceMonth => _referenceMonth;
+    internal int ReferenceDay => _referenceDay;
 
     /// <summary>
     ///     The month code (e.g., "M01" for January).

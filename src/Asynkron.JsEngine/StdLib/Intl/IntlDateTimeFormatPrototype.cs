@@ -1099,7 +1099,7 @@ public sealed partial class IntlDateTimeFormatPrototype
         {
             target = new TemporalFormatterTarget(
                 TemporalFormatterKind.PlainMonthDay,
-                new DateTimeOffset(md.ReferenceYear, md.Month, md.Day, 0, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(md.ReferenceYear, md.ReferenceMonth, md.ReferenceDay, 0, 0, 0, TimeSpan.Zero),
                 md.Calendar);
             return true;
         }
@@ -1611,6 +1611,11 @@ public sealed partial class IntlDateTimeFormatPrototype
                     out var chineseDate))
             {
                 sb.Append(chineseDate);
+            }
+            else if (TryFormatIslamicDate(dto, slots.Calendar, culture, hasYear, year, hasMonth, month, hasDay, day,
+                         out var islamicDate))
+            {
+                sb.Append(islamicDate);
             }
             else
             {
@@ -2763,6 +2768,116 @@ public sealed partial class IntlDateTimeFormatPrototype
         return true;
     }
 
+    private static bool TryFormatIslamicDate(DateTimeOffset dto, string calendar, CultureInfo culture,
+        bool hasYear, string? yearWidth, bool hasMonth, string? monthWidth, bool hasDay, string? dayWidth,
+        out string formatted)
+    {
+        formatted = string.Empty;
+        if (!calendar.StartsWith("islamic", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        Calendar islamicCalendar = calendar is "islamic-civil" or "islamic-tbla"
+            ? new HijriCalendar { HijriAdjustment = -1 }
+            : calendar is "islamic-umalqura"
+                ? new UmAlQuraCalendar()
+                : new HijriCalendar();
+
+        var dateTime = dto.DateTime;
+        var calendarYear = islamicCalendar.GetYear(dateTime);
+        var calendarMonth = islamicCalendar.GetMonth(dateTime);
+        var calendarDay = islamicCalendar.GetDayOfMonth(dateTime);
+
+        var yearStr = hasYear ? FormatIslamicYear(calendarYear, yearWidth) : null;
+        var monthStr = hasMonth ? FormatIslamicMonth(calendarMonth, monthWidth) : null;
+        var dayStr = hasDay ? FormatIslamicDay(calendarDay, dayWidth) : null;
+
+        var parts = new List<(char ch, string value)>();
+        var (order, numericSep) = ParseLocaleDateOrder(culture);
+        foreach (var c in GetDateComponentChars(order))
+        {
+            switch (c)
+            {
+                case 'M' when monthStr is not null:
+                    parts.Add(('M', monthStr));
+                    break;
+                case 'd' when dayStr is not null:
+                    parts.Add(('d', dayStr));
+                    break;
+                case 'y' when yearStr is not null:
+                    parts.Add(('y', yearStr));
+                    break;
+            }
+        }
+
+        if (parts.Count == 0)
+        {
+            return false;
+        }
+
+        var namedMonth = monthWidth is "long" or "short" or "narrow";
+        formatted = namedMonth
+            ? JoinNamedCalendarParts(order, parts)
+            : string.Join(numericSep, parts.Select(p => p.value));
+        return true;
+    }
+
+    private static string JoinNamedCalendarParts(DateOrder order, List<(char ch, string value)> parts)
+    {
+        var sb = new StringBuilder();
+        for (var i = 0; i < parts.Count; i++)
+        {
+            if (i > 0)
+            {
+                sb.Append(GetNamedMonthSeparator(order, parts, i));
+            }
+
+            sb.Append(parts[i].value);
+        }
+
+        return sb.ToString();
+    }
+
+    private static string FormatIslamicYear(int year, string? width)
+    {
+        return width == "2-digit"
+            ? (year % 100).ToString("D2", CultureInfo.InvariantCulture)
+            : year.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static string FormatIslamicMonth(int month, string? width)
+    {
+        var monthName = GetIslamicMonthName(month);
+        return width switch
+        {
+            "long" => monthName,
+            "short" => monthName.Length <= 3 ? monthName : monthName[..3],
+            "narrow" => monthName[..1],
+            "2-digit" => month.ToString("D2", CultureInfo.InvariantCulture),
+            _ => month.ToString(CultureInfo.InvariantCulture)
+        };
+    }
+
+    private static string FormatIslamicDay(int day, string? width)
+    {
+        return width == "2-digit"
+            ? day.ToString("D2", CultureInfo.InvariantCulture)
+            : day.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static string GetIslamicMonthName(int month)
+    {
+        var monthNames = new[]
+        {
+            "Muharram", "Safar", "Rabi I", "Rabi II", "Jumada I", "Jumada II",
+            "Rajab", "Sha'ban", "Ramadan", "Shawwal", "Dhu al-Qadah", "Dhu al-Hijjah"
+        };
+        return month >= 1 && month <= monthNames.Length
+            ? monthNames[month - 1]
+            : month.ToString(CultureInfo.InvariantCulture);
+    }
+
     private bool TryAppendChineseDateParts(JsArray parts, ref bool addedSomething, DateTimeOffset dto, string calendar,
         CultureInfo culture, bool hasYear, string? yearWidth, bool hasMonth, string? monthWidth, bool hasDay,
         string? dayWidth)
@@ -3268,7 +3383,7 @@ public sealed partial class IntlDateTimeFormatPrototype
                 mdSlot.TryGetObject<JsTemporalPlainMonthDay>(out var md))
             {
                 // Use reference year from the month-day object (internal, but accessible within assembly)
-                var dto = new DateTimeOffset(md.ReferenceYear, md.Month, md.Day, 0, 0, 0, TimeSpan.Zero);
+                var dto = new DateTimeOffset(md.ReferenceYear, md.ReferenceMonth, md.ReferenceDay, 0, 0, 0, TimeSpan.Zero);
                 return TimeClip(dto.ToUnixTimeMilliseconds());
             }
         }

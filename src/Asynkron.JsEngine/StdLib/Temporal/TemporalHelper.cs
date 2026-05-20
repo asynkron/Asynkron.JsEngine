@@ -8111,7 +8111,7 @@ public static class TemporalHelper
             new JsTemporalDuration(0, 0, 0, wholeWeeks * 7, 0, 0, 0, 0, 0, 0), realm);
         var nextBoundaryNs = AddZonedDateTimeEpochNs(relativeTo,
             new JsTemporalDuration(0, 0, 0, (wholeWeeks + sign) * 7, 0, 0, 0, 0, 0, 0), realm);
-        var denominatorNs = nextBoundaryNs - thresholdNs;
+        var denominatorNs = BigInteger.Abs(nextBoundaryNs - thresholdNs);
         if (denominatorNs.IsZero)
             return wholeWeeks;
 
@@ -8146,7 +8146,7 @@ public static class TemporalHelper
             new JsTemporalDuration(0, boundaryMonths, 0, 0, 0, 0, 0, 0, 0, 0), realm);
         var nextBoundaryNs = AddZonedDateTimeEpochNs(relativeTo,
             new JsTemporalDuration(0, boundaryMonths + sign * monthsPerUnit, 0, 0, 0, 0, 0, 0, 0, 0), realm);
-        var denominatorNs = nextBoundaryNs - thresholdNs;
+        var denominatorNs = BigInteger.Abs(nextBoundaryNs - thresholdNs);
         if (denominatorNs.IsZero)
             return wholeUnits;
 

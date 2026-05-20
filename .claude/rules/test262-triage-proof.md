@@ -122,3 +122,13 @@ issue-supplied method group 86/86 on current `origin/main`. Future agents should
 treat that owner lookup as context only: once the exact focused proof is green,
 do not patch strict equality, signed-zero, or fromIndex handling without a
 current failing fixture row.
+
+Issue #1035 repeated the same no-source-change closeout for
+`Expressions_greaterThan`. Investigation correctly narrowed the plausible owner
+surface to binary-expression relational coercion in `JsOps`, including
+object-wrapped Boolean/String comparisons with nullish and primitive operands,
+but the build-stage focused proof for the reported `greater-than` fixtures was
+already green on the current worktree. Future agents should keep that owner
+lookup as context only: once the reported relational-expression fixtures pass,
+do not patch `PerformComparisonOperation`, `ToPrimitive`, or expression
+bytecode dispatch without a current failing fixture row.

@@ -95,3 +95,10 @@ pinning.
   focused proof on 2026-05-20 passed the whole issue-supplied method group
   66/66 on current `origin/main`. No runtime, harness, or regression-test
   patch was warranted because the exact current proof was green.
+- Issue #1035 reused the no-source-change form for `Expressions_greaterThan`.
+  Investigation found the right owner surface in binary-expression relational
+  coercion (`JsOps.PerformComparisonOperation` / `ToPrimitive`), but the
+  build-stage focused proof for the reported `greater-than` fixture cluster was
+  already green on the current worktree. Owner-surface analysis remains useful
+  for understanding the stale report, but a green exact fixture proof is not a
+  reason to patch relational comparison runtime or expression bytecode dispatch.

@@ -17,7 +17,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "express": "^4.22.1",
+    "express": "^4.22.2",
     "polka": "^0.5.2"
   }
 }

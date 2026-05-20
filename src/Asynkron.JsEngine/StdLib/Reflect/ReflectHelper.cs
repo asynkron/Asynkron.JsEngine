@@ -377,11 +377,38 @@ public static class ReflectHelper
         // For proxies, GetPrototypeOf may throw (return-abrupt-from-result test)
         if (target is JsProxy proxy)
         {
-            var proto = proxy.GetPrototypeWithTrap();
-            return proto is null ? JsValue.Null : JsValue.FromObjectUnsafe(proto);
+            var proxyProto = proxy.GetPrototypeWithTrap();
+            return proxyProto is null ? JsValue.Null : JsValue.FromObjectUnsafe(proxyProto);
         }
 
-        return target.Prototype is null ? JsValue.Null : (JsValue)target.Prototype;
+        object? proto;
+        if (target is HostFunction hostFunction)
+        {
+            // Read HostFunction backing state directly: HostFunction.Prototype lazily rehydrates
+            // Function.prototype, which would mask explicit Object.setPrototypeOf(fn, null).
+            proto = hostFunction.Properties.Prototype;
+            if (proto is null && hostFunction.Properties is IPrototypeAccessorProvider hostProvider)
+            {
+                proto = hostProvider.PrototypeAccessor;
+            }
+        }
+        else
+        {
+            proto = target.Prototype;
+            if (proto is null && target is IPrototypeAccessorProvider provider)
+            {
+                proto = provider.PrototypeAccessor;
+            }
+        }
+
+        // IteratorResultObject is a lightweight object that conceptually inherits from Object.prototype
+        // but doesn't store a prototype reference for pooling efficiency.
+        if (proto is null && target is IteratorResultObject && realm.ObjectPrototype is { } objectPrototype)
+        {
+            proto = objectPrototype;
+        }
+
+        return proto is null ? JsValue.Null : JsValue.FromObjectUnsafe(proto);
     }
 
     internal static JsValue ReflectHas(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)

@@ -1306,15 +1306,39 @@ public sealed class JsRegExp
 
     private static bool CanDeferInitialRegexConstruction(string pattern, byte encodedFlags)
     {
-        // Annex B permits single legacy identity escapes such as /\a/ and /\0/.
-        // They cannot contain captures or quantifier-reset metadata, and
-        // NormalizeLegacyPattern has already rejected line-terminator escapes.
-        // Deferring .NET Regex construction here keeps source-only RegExp
-        // literals cheap while preserving construction-time errors elsewhere.
-        return encodedFlags == 0 &&
-               pattern.Length == 2 &&
-               pattern[0] == '\\' &&
-               !IsLineTerminator(pattern[1]);
+        // Keep defer narrow: only flagless literal-only legacy patterns are
+        // eligible. NormalizePattern already enforces syntax errors first.
+        if (encodedFlags != 0 || pattern.Length == 0)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < pattern.Length; i++)
+        {
+            var c = pattern[i];
+            if (c == '\\')
+            {
+                i++;
+                if (i >= pattern.Length || IsLineTerminator(pattern[i]))
+                {
+                    return false;
+                }
+
+                continue;
+            }
+
+            if (IsLineTerminator(c) || IsLegacyRegexSyntaxCharacter(c))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsLegacyRegexSyntaxCharacter(char c)
+    {
+        return c is '^' or '$' or '.' or '*' or '+' or '?' or '(' or ')' or '[' or ']' or '{' or '}' or '|';
     }
 
     /// <summary>

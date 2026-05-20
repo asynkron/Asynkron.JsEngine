@@ -36,9 +36,9 @@ values, and async module evaluation order separate.
    and await the active async iterator's `return()` before the module body
    continuation advances.
 10. Keep TLA proof packs focused on scheduling and cleanup, not just final
-   values: sibling async modules, import tick ordering, self-import tick
-   ordering, real async-generator `finally`/`return()` cleanup, and
-   `Name=ModuleCode_topLevelAwait`.
+    values: sibling async modules, import tick ordering, self-import tick
+    ordering, real async-generator `finally`/`return()` cleanup, and
+    `Name=ModuleCode_topLevelAwait`.
 11. Treat the engine microtask queue as a serialized runtime boundary when async
     module continuations can resume on different managed threads. Protect queue
     enqueue, detach, prepend, dequeue, deferred requeue, and drain-state updates
@@ -47,6 +47,10 @@ values, and async module evaluation order separate.
     awaited computed method or accessor names through the shared
     class-declaration await-temp path. Do not add a generic AST fallback or a
     try-runner-local computed-name evaluator for this shape.
+13. For deferred module namespace objects, keep Promise/thenable probing of
+    `"then"` non-observing. The probe must not force live export binding
+    resolution, module evaluation, or TDZ reads, but real namespace internals
+    must still preserve TDZ for actual exported names.
 
 ## Why
 
@@ -84,3 +88,11 @@ awaited computed method or accessor names. The durable lesson is that
 specialized TLA statement bridges must reuse the syntax owner's await-temp path:
 class declaration evaluation owns computed names, accessors, static elements,
 binding initialization, and resumption as one operation.
+
+Issue #1048 / PR #1284 fixed a deferred module namespace regression where
+ordinary Promise thenable detection probed `then` on a deferred namespace whose
+`then` export was still in TDZ through a self-re-export cycle. The durable
+lesson is that thenable detection is not a real namespace export observation:
+it must not call the binding resolver or TDZ guard, while direct namespace
+reads and namespace own-property internals must keep throwing for uninitialized
+exports.

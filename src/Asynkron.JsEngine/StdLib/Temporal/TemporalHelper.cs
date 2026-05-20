@@ -3329,16 +3329,24 @@ public static class TemporalHelper
             var timeZoneId = ToTemporalTimeZoneSlotStrict(timeZoneArg, realm);
             var calendar = calendarArg.IsUndefined ? "iso8601" : ValidateCalendarIdStrict(calendarArg);
 
-            JsTemporalInstant instant;
+            BigInteger epochNanosecondsValue;
             if (epochNanoseconds.TryGetBigInt(out var bigInt))
             {
-                instant = new JsTemporalInstant(bigInt.Value);
+                epochNanosecondsValue = bigInt.Value;
             }
             else
             {
                 var ns = JsOps.ToNumber(epochNanoseconds);
-                instant = JsTemporalInstant.FromEpochNanoseconds(new System.Numerics.BigInteger(ns));
+                epochNanosecondsValue = new BigInteger(ns);
             }
+
+            if (epochNanosecondsValue < InstantMinEpochNanoseconds ||
+                epochNanosecondsValue > InstantMaxEpochNanoseconds)
+            {
+                throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime: epoch nanoseconds out of range", realm: realm);
+            }
+
+            var instant = JsTemporalInstant.FromEpochNanoseconds(epochNanosecondsValue);
 
             var zdt = new JsTemporalZonedDateTime(instant, timeZoneId, calendar);
             return ApplyNewTargetPrototype(WrapZonedDateTime(zdt, realm, prototype), newTarget, ctor, prototype);

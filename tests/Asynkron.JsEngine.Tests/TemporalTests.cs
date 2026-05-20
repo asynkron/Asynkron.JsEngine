@@ -230,6 +230,31 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
     }
 
     [Fact]
+    public async Task Temporal_ZonedDateTime_Constructor_EnforcesInstantLimits()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const min = -8640000000000000000000n;
+            const max = 8640000000000000000000n;
+            function construct(value) {
+                try {
+                    new Temporal.ZonedDateTime(value, 'UTC');
+                    return 'ok';
+                } catch (error) {
+                    return error.name;
+                }
+            }
+            [
+                construct(min),
+                construct(max),
+                construct(min - 1n),
+                construct(max + 1n)
+            ].join('|');
+            """);
+        Assert.Equal("ok|ok|RangeError|RangeError", result);
+    }
+
+    [Fact]
     public async Task Temporal_ZonedDateTime_Properties()
     {
         await using var engine = CreateEngine();

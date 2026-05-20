@@ -1,4 +1,6 @@
 using System;
+using System.Numerics;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.StdLib.Temporal;
 
@@ -9,6 +11,14 @@ internal static class TemporalHistoricalTimeZoneOffsets
     private static readonly DateTimeOffset MonroviaUtcCutover = new(1972, 1, 7, 0, 44, 30, TimeSpan.Zero);
     private static readonly TimeSpan[] MonroviaOffsets = [MonroviaOffset];
 
+    private static readonly TimeSpan LondonPermanentStandardOffset = TimeSpan.FromHours(1);
+    private static readonly DateTimeOffset LondonPermanentStandardStartUtc = new(1968, 2, 18, 2, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset LondonPermanentStandardEndUtc = new(1971, 10, 31, 2, 0, 0, TimeSpan.Zero);
+
+    private static readonly TimeSpan AnchorageStandardOffset = TimeSpan.FromHours(-10);
+    private static readonly DateTimeOffset AnchorageStandardStartUtc = new(1945, 9, 30, 11, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset AnchorageStandardEndUtc = new(1969, 4, 27, 12, 0, 0, TimeSpan.Zero);
+
     private static readonly TimeSpan NiuePreCutoverOffset = TimeSpan.FromSeconds(-(11 * 3600 + 19 * 60 + 40));
     private static readonly TimeSpan NiuePostCutoverOffset = TimeSpan.FromSeconds(-(11 * 3600 + 20 * 60));
     private static readonly DateTime NiueLocalCutover = new(1952, 10, 16, 0, 0, 0, DateTimeKind.Unspecified);
@@ -16,6 +26,11 @@ internal static class TemporalHistoricalTimeZoneOffsets
     private static readonly DateTime NiueAmbiguousWindowStart = new(1952, 10, 15, 23, 59, 40, DateTimeKind.Unspecified);
     private static readonly TimeSpan[] NiuePreCutoverOffsets = [NiuePreCutoverOffset];
     private static readonly TimeSpan[] NiueAmbiguousOffsets = [NiuePreCutoverOffset, NiuePostCutoverOffset];
+
+    private static readonly TimeSpan ParisPreCutoverOffset = TimeSpan.FromSeconds(9 * 60 + 21);
+    private static readonly DateTime ParisLocalCutover = new(1911, 3, 11, 0, 0, 0, DateTimeKind.Unspecified);
+    private static readonly DateTimeOffset ParisUtcCutover = new(1911, 3, 10, 23, 50, 39, TimeSpan.Zero);
+    private static readonly TimeSpan[] ParisPreCutoverOffsets = [ParisPreCutoverOffset];
 
     internal static TimeSpan GetUtcOffset(TimeZoneInfo timeZone, DateTime localDateTime)
     {
@@ -67,6 +82,21 @@ internal static class TemporalHistoricalTimeZoneOffsets
         return timeZone.GetUtcOffset(instant);
     }
 
+    internal static TimeSpan GetUtcOffset(string requestedTimeZoneId, TimeZoneInfo timeZone, BigInteger epochNanoseconds)
+    {
+        if (TryGetUtcOffset(requestedTimeZoneId, epochNanoseconds, out var offset))
+        {
+            return offset;
+        }
+
+        if (TryGetUtcOffset(timeZone.Id, epochNanoseconds, out offset))
+        {
+            return offset;
+        }
+
+        return GetUtcOffset(requestedTimeZoneId, timeZone, ToDateTimeOffsetFloor(epochNanoseconds));
+    }
+
     internal static TimeSpan[] GetPossibleUtcOffsets(string requestedTimeZoneId, TimeZoneInfo timeZone, DateTime localDateTime)
     {
         if (TryGetPossibleUtcOffsets(requestedTimeZoneId, localDateTime, out var offsets))
@@ -105,6 +135,9 @@ internal static class TemporalHistoricalTimeZoneOffsets
             case "Africa/Monrovia" when localDateTime < MonroviaLocalCutover:
                 offset = MonroviaOffset;
                 return true;
+            case "Europe/Paris" when localDateTime < ParisLocalCutover:
+                offset = ParisPreCutoverOffset;
+                return true;
             case "Pacific/Niue" when localDateTime < NiueLocalCutover:
                 offset = NiuePreCutoverOffset;
                 return true;
@@ -120,6 +153,9 @@ internal static class TemporalHistoricalTimeZoneOffsets
         {
             case "Africa/Monrovia" when localDateTime < MonroviaLocalCutover:
                 offsets = MonroviaOffsets;
+                return true;
+            case "Europe/Paris" when localDateTime < ParisLocalCutover:
+                offsets = ParisPreCutoverOffsets;
                 return true;
             case "Pacific/Niue" when localDateTime >= NiueAmbiguousWindowStart && localDateTime < NiueLocalCutover:
                 offsets = NiueAmbiguousOffsets;
@@ -137,8 +173,19 @@ internal static class TemporalHistoricalTimeZoneOffsets
     {
         switch (timeZoneId)
         {
+            case "Europe/London" when instant.ToUniversalTime() >= LondonPermanentStandardStartUtc &&
+                                      instant.ToUniversalTime() < LondonPermanentStandardEndUtc:
+                offset = LondonPermanentStandardOffset;
+                return true;
+            case "America/Anchorage" when instant.ToUniversalTime() >= AnchorageStandardStartUtc &&
+                                          instant.ToUniversalTime() < AnchorageStandardEndUtc:
+                offset = AnchorageStandardOffset;
+                return true;
             case "Africa/Monrovia" when instant.ToUniversalTime() < MonroviaUtcCutover:
                 offset = MonroviaOffset;
+                return true;
+            case "Europe/Paris" when instant.ToUniversalTime() < ParisUtcCutover:
+                offset = ParisPreCutoverOffset;
                 return true;
             case "Pacific/Niue" when instant.ToUniversalTime() < NiueUtcCutover:
                 offset = NiuePreCutoverOffset;
@@ -147,5 +194,47 @@ internal static class TemporalHistoricalTimeZoneOffsets
                 offset = default;
                 return false;
         }
+    }
+
+    private static bool TryGetUtcOffset(string timeZoneId, BigInteger epochNanoseconds, out TimeSpan offset)
+    {
+        switch (timeZoneId)
+        {
+            case "Europe/London" when IsInRange(epochNanoseconds, LondonPermanentStandardStartUtc, LondonPermanentStandardEndUtc):
+                offset = LondonPermanentStandardOffset;
+                return true;
+            case "America/Anchorage" when IsInRange(epochNanoseconds, AnchorageStandardStartUtc, AnchorageStandardEndUtc):
+                offset = AnchorageStandardOffset;
+                return true;
+            case "Africa/Monrovia" when epochNanoseconds < new JsTemporalInstant(MonroviaUtcCutover).EpochNanoseconds:
+                offset = MonroviaOffset;
+                return true;
+            case "Europe/Paris" when epochNanoseconds < new JsTemporalInstant(ParisUtcCutover).EpochNanoseconds:
+                offset = ParisPreCutoverOffset;
+                return true;
+            case "Pacific/Niue" when epochNanoseconds < new JsTemporalInstant(NiueUtcCutover).EpochNanoseconds:
+                offset = NiuePreCutoverOffset;
+                return true;
+            default:
+                offset = default;
+                return false;
+        }
+    }
+
+    private static bool IsInRange(BigInteger epochNanoseconds, DateTimeOffset start, DateTimeOffset end)
+    {
+        return epochNanoseconds >= new JsTemporalInstant(start).EpochNanoseconds &&
+               epochNanoseconds < new JsTemporalInstant(end).EpochNanoseconds;
+    }
+
+    private static DateTimeOffset ToDateTimeOffsetFloor(BigInteger epochNanoseconds)
+    {
+        var (ticksSinceUnixEpoch, remainder) = BigInteger.DivRem(epochNanoseconds, 100);
+        if (remainder != 0 && epochNanoseconds < 0)
+        {
+            ticksSinceUnixEpoch--;
+        }
+
+        return DateTimeOffset.UnixEpoch.AddTicks((long)ticksSinceUnixEpoch);
     }
 }

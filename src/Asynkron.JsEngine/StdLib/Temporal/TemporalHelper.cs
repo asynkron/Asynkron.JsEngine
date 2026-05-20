@@ -2867,8 +2867,19 @@ public static class TemporalHelper
             else
             {
                 // Named timezone — need to compute offset at the rounded instant
-                var roundedZdtForOffset = new JsTemporalZonedDateTime(new JsTemporalInstant(rounded), zdt.TimeZoneId, CanonicalizeCalendarId(zdt.Calendar));
-                offsetNanos = roundedZdtForOffset.OffsetNanoseconds;
+                if (TryToDateTimeOffset(rounded, out _))
+                {
+                    var offset = TemporalHistoricalTimeZoneOffsets.GetUtcOffset(
+                        zdt.TimeZoneId,
+                        zdt.TimeZone,
+                        rounded);
+                    offsetNanos = offset.Ticks * 100L;
+                }
+                else
+                {
+                    var roundedZdtForOffset = new JsTemporalZonedDateTime(new JsTemporalInstant(rounded), zdt.TimeZoneId, CanonicalizeCalendarId(zdt.Calendar));
+                    offsetNanos = roundedZdtForOffset.OffsetNanoseconds;
+                }
             }
 
             // Decompose into date/time components using BigInteger math (bypasses .NET DateTimeOffset)
@@ -3247,35 +3258,42 @@ public static class TemporalHelper
             {
                 var tz = FindTimeZone(timeZoneId);
 
-                // UTC timezone info has no adjustment rules
-                if (tz == TimeZoneInfo.Utc || tz.GetAdjustmentRules().Length == 0)
+                if (tz == TimeZoneInfo.Utc)
                 {
                     return JsValue.Null;
                 }
 
                 var epochNs = zdt.Instant.EpochNanoseconds;
-                var epochMs = (long)(epochNs / 1_000_000);
-                var dto = DateTimeOffset.FromUnixTimeMilliseconds(epochMs);
-
-                DateTimeOffset? transition;
-                if (isNext)
+                var searchFrom = ToTransitionSearchInstant(epochNs, isNext);
+                if (!searchFrom.HasValue)
                 {
-                    transition = FindTransitionBinarySearch(tz, dto, true);
-                }
-                else
-                {
-                    transition = FindTransitionBinarySearch(tz, dto, false);
+                    return JsValue.Null;
                 }
 
-                if (transition.HasValue)
+                var transition = FindTransitionBinarySearch(timeZoneId, tz, searchFrom.Value, isNext);
+                while (transition.HasValue)
                 {
                     var transNs = new JsTemporalInstant(transition.Value).EpochNanoseconds;
-                    // Clamp to valid instant range
                     if (transNs < InstantMinEpochNanoseconds || transNs > InstantMaxEpochNanoseconds)
+                    {
                         return JsValue.Null;
-                    var transInstant = new JsTemporalInstant(transNs);
-                    var transZdt = new JsTemporalZonedDateTime(transInstant, timeZoneId, CanonicalizeCalendarId(zdt.Calendar));
-                    return WrapZonedDateTime(transZdt, realm, prototype);
+                    }
+
+                    if ((isNext ? transNs > epochNs : transNs < epochNs) &&
+                        IsObservableOffsetTransition(timeZoneId, tz, transition.Value))
+                    {
+                        var transInstant = new JsTemporalInstant(transNs);
+                        var transZdt = new JsTemporalZonedDateTime(transInstant, timeZoneId, CanonicalizeCalendarId(zdt.Calendar));
+                        return WrapZonedDateTime(transZdt, realm, prototype);
+                    }
+
+                    var nextSearchFrom = StepPastTransition(transition.Value, isNext);
+                    if (!nextSearchFrom.HasValue)
+                    {
+                        break;
+                    }
+
+                    transition = FindTransitionBinarySearch(timeZoneId, tz, nextSearchFrom.Value, isNext);
                 }
 
                 return JsValue.Null;
@@ -4288,9 +4306,16 @@ public static class TemporalHelper
     /// Finds the next or previous timezone transition from a given DateTimeOffset using binary search.
     /// Uses GetUtcOffset(DateTimeOffset) which is unambiguous — avoids issues with ambiguous local times.
     /// </summary>
-    private static DateTimeOffset? FindTransitionBinarySearch(TimeZoneInfo tz, DateTimeOffset from, bool forward)
+    private static DateTimeOffset? FindTransitionBinarySearch(
+        string requestedTimeZoneId,
+        TimeZoneInfo tz,
+        DateTimeOffset from,
+        bool forward)
     {
-        var startOffset = tz.GetUtcOffset(from);
+        TimeSpan GetOffset(DateTimeOffset instant) =>
+            TemporalHistoricalTimeZoneOffsets.GetUtcOffset(requestedTimeZoneId, tz, instant);
+
+        var startOffset = GetOffset(from);
         DateTimeOffset lo = from, hi = from;
         var found = false;
 
@@ -4305,7 +4330,7 @@ public static class TemporalHelper
             {
                 try
                 {
-                    var scanOffset = tz.GetUtcOffset(scanPoint);
+                    var scanOffset = GetOffset(scanPoint);
                     if (scanOffset != startOffset)
                     {
                         hi = scanPoint;
@@ -4333,7 +4358,7 @@ public static class TemporalHelper
             {
                 try
                 {
-                    var scanOffset = tz.GetUtcOffset(scanPoint);
+                    var scanOffset = GetOffset(scanPoint);
                     if (scanOffset != startOffset)
                     {
                         lo = scanPoint;
@@ -4353,22 +4378,89 @@ public static class TemporalHelper
 
         if (!found) return null;
 
-        // Binary search for exact transition second
-        var loOffset = tz.GetUtcOffset(lo);
-        while ((hi - lo).TotalSeconds > 1)
+        // Binary search for the first tick with the new offset.
+        var loOffset = GetOffset(lo);
+        while ((hi.UtcTicks - lo.UtcTicks) > 1)
         {
             var mid = lo.Add((hi - lo) / 2);
-            if (tz.GetUtcOffset(mid) == loOffset)
+            if (GetOffset(mid) == loOffset)
+            {
                 lo = mid;
+            }
             else
+            {
                 hi = mid;
+            }
         }
 
-        // hi is the first second with the new offset = the transition point
-        // Align to second boundary in UTC
-        var utc = hi.UtcDateTime;
-        return new DateTimeOffset(utc.Year, utc.Month, utc.Day,
-            utc.Hour, utc.Minute, utc.Second, TimeSpan.Zero);
+        return hi.ToUniversalTime();
+    }
+
+    private static DateTimeOffset? ToTransitionSearchInstant(BigInteger epochNanoseconds, bool forward)
+    {
+        if (TryToDateTimeOffset(epochNanoseconds, out var instant))
+        {
+            return instant;
+        }
+
+        var min = new JsTemporalInstant(DateTimeOffset.MinValue).EpochNanoseconds;
+        if (epochNanoseconds < min)
+        {
+            return forward ? DateTimeOffset.MinValue : null;
+        }
+
+        var max = new JsTemporalInstant(DateTimeOffset.MaxValue).EpochNanoseconds;
+        if (epochNanoseconds > max)
+        {
+            return forward ? null : DateTimeOffset.MaxValue;
+        }
+
+        return null;
+    }
+
+    private static bool TryToDateTimeOffset(BigInteger epochNanoseconds, out DateTimeOffset instant)
+    {
+        var min = new JsTemporalInstant(DateTimeOffset.MinValue).EpochNanoseconds;
+        var max = new JsTemporalInstant(DateTimeOffset.MaxValue).EpochNanoseconds;
+        if (epochNanoseconds < min || epochNanoseconds > max)
+        {
+            instant = default;
+            return false;
+        }
+
+        var ticksSinceUnixEpoch = DivRemFloor(epochNanoseconds, new BigInteger(100), out _);
+        var ticks = DateTimeOffset.UnixEpoch.Ticks + (long)ticksSinceUnixEpoch;
+        instant = new DateTimeOffset(ticks, TimeSpan.Zero);
+        return true;
+    }
+
+    private static DateTimeOffset? StepPastTransition(DateTimeOffset transition, bool forward)
+    {
+        try
+        {
+            return forward
+                ? transition.AddTicks(1)
+                : transition.AddTicks(-1);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return null;
+        }
+    }
+
+    private static bool IsObservableOffsetTransition(string requestedTimeZoneId, TimeZoneInfo timeZone, DateTimeOffset transition)
+    {
+        var before = StepPastTransition(transition, forward: false);
+        if (!before.HasValue) return true;
+        var beforeOffset = TemporalHistoricalTimeZoneOffsets.GetUtcOffset(
+            requestedTimeZoneId,
+            timeZone,
+            before.Value);
+        var afterOffset = TemporalHistoricalTimeZoneOffsets.GetUtcOffset(
+            requestedTimeZoneId,
+            timeZone,
+            transition);
+        return beforeOffset != afterOffset;
     }
 
     ///     Normalizes a UTC offset string to a colon-separated Temporal form.
@@ -9439,6 +9531,27 @@ public static class TemporalHelper
         JsTemporalZonedDateTime zdt, JsTemporalDuration duration, int sign,
         string overflow, RealmState realm)
     {
+        if (duration.Years == 0 && duration.Months == 0 && duration.Weeks == 0 && duration.Days == 0)
+        {
+            var fastTimeNs = ((BigInteger)duration.Hours * NanosecondsPerHour
+                         + (BigInteger)duration.Minutes * NanosecondsPerMinute
+                         + (BigInteger)duration.Seconds * NanosecondsPerSecond
+                         + (BigInteger)duration.Milliseconds * NanosecondsPerMillisecond
+                         + (BigInteger)duration.Microseconds * NanosecondsPerMicrosecond
+                         + (BigInteger)duration.Nanoseconds) * sign;
+            var fastResultInstantNanoseconds = zdt.Instant.EpochNanoseconds + fastTimeNs;
+            if (fastResultInstantNanoseconds < InstantMinEpochNanoseconds ||
+                fastResultInstantNanoseconds > InstantMaxEpochNanoseconds)
+            {
+                throw StandardLibrary.ThrowRangeError("Resulting ZonedDateTime is out of range", realm: realm);
+            }
+
+            return new JsTemporalZonedDateTime(
+                JsTemporalInstant.FromEpochNanoseconds(fastResultInstantNanoseconds),
+                zdt.TimeZoneId,
+                CanonicalizeCalendarId(zdt.Calendar));
+        }
+
         // Per spec AddZonedDateTime: add date and time parts SEPARATELY.
         // Step 1: Get the local PlainDateTime
         var local = GetLocalPlainDateTime(zdt, realm);

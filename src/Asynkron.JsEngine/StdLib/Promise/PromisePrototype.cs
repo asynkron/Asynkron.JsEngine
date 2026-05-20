@@ -131,7 +131,12 @@ public sealed partial class PromisePrototype
 
         var executorFn = new HostFunction((_, executorArgs) =>
         {
-            if (!capturedResolve.IsUndefined || !capturedReject.IsUndefined)
+            if (!capturedResolve.IsUndefined)
+            {
+                throw ThrowTypeError("Promise executor already called", realm: Realm);
+            }
+
+            if (!capturedReject.IsUndefined)
             {
                 throw ThrowTypeError("Promise executor already called", realm: Realm);
             }
@@ -144,9 +149,14 @@ public sealed partial class PromisePrototype
         SetBuiltInFunctionProperties(executorFn, "", 2);
 
         var promise = Construct(constructor, [JsValue.FromObjectUnsafe(executorFn)], constructor, Realm);
-        if (!capturedResolve.TryGetCallable(out _) || !capturedReject.TryGetCallable(out _))
+        if (!capturedResolve.TryGetCallable(out _))
         {
-            throw ThrowTypeError("Promise capability executor did not capture callable resolve/reject", realm: Realm);
+            throw ThrowTypeError("Promise resolve is not callable", realm: Realm);
+        }
+
+        if (!capturedReject.TryGetCallable(out _))
+        {
+            throw ThrowTypeError("Promise reject is not callable", realm: Realm);
         }
 
         return (promise, capturedResolve, capturedReject);

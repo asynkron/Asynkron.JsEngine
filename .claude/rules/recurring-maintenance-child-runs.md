@@ -9,6 +9,8 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   simplification slice.
 - Capture a cheap baseline signal before editing and the matching final signal
   after editing.
+- Use a compact issue-update evidence shape: `Baseline signal`, `Final signal`,
+  `Slice check`, and `Scope note`.
 - Do not add or modify recurrence infrastructure in the child run; Faktorial
   owns the recurrence schedule.
 - For docs-only maintenance, avoid full builds, Test262, package installs, or
@@ -38,3 +40,9 @@ seven subsystem packs (`annexb`, `array-prototype`, `intl`, `language`,
 `proxy`, `regexp`, `temporal`) plus `full`. The directory listing was the
 baseline signal, the updated "Available packs" list was the final signal, and
 no build, Test262, or recurrence-infrastructure work was needed.
+
+Issue #1240 / PR #1253 clarified that the issue update itself needs a stable
+evidence shape. Without explicit `Baseline signal`, `Final signal`, `Slice
+check`, and `Scope note` fields, review has to infer whether the maintenance
+child actually proved before/after behavior, passed diff hygiene, and stayed
+away from recurrence infrastructure or unrelated files.

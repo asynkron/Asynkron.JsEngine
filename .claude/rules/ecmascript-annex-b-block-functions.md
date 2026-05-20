@@ -34,12 +34,20 @@ parse-phase redeclaration checks scoped to the correct syntactic container.
    class bodies.
 8. Do not move static parse-phase redeclaration failures into runtime hoisting,
    IR lowering, Test262 harness policy, or generated Test262 files.
-9. Prove this class with focused coverage: the Test262
+9. Keep async/generator switch and catch declarations eval-aware. Ordinary
+   sloppy non-eval execution must not leak `async function`, `async function*`,
+   or `function*` declarations into the enclosing var binding through Annex B.
+   Eval declaration environments still preserve eval var-binding update
+   semantics, so do not suppress solely from declaration kind.
+10. Prove this class with focused coverage: the Test262
    `Name=Language_functionCode` method group or exact failing files, plus local
    strict/sloppy block function tests. For parse-phase block redeclaration
    issues, include local block-scope parser regressions plus the exact
-   `Name=BlockScope_syntax_redeclaration` method group. Do not use broad
-   harness policy or a full Test262 run as a substitute for the semantic proof.
+   `Name=BlockScope_syntax_redeclaration` method group. For switch
+   async/generator declaration scoping, include `Name=Statements_switch`, local
+   sloppy switch async/generator tests, and eval switch var-update tests. Do not
+   use broad harness policy or a full Test262 run as a substitute for the
+   semantic proof.
 
 ## Why
 
@@ -60,3 +68,12 @@ syntactic boundary precise: class static blocks still reject lexical
 declarations that conflict with `var`, but direct function declarations inside a
 static block are not part of that lexical-name side for `function f() {}` plus
 `var f`.
+
+Issue #1069 / PR #1241 fixed focused `Statements_switch` failures where
+sloppy switch clauses containing `async function`, `async function*`, or
+`function*` declarations incorrectly exposed the declaration name outside the
+switch. The quality-gate repair showed the durable boundary: ordinary non-eval
+switch/catch execution suppresses the Annex B outer var update for these
+declarations, but eval declaration environments must keep eval var-binding
+update semantics. Related ADR:
+`docs/adrs/0075-keep-switch-async-generator-declarations-eval-aware.md`.

@@ -1460,10 +1460,10 @@ public static class TemporalHelper
             new PropertyDescriptor { Value = "Temporal.PlainDate", Writable = false, Enumerable = false, Configurable = true });
 
         // Prototype getters
-        AddPrototypeGetter(prototype, realm, "year", tv => new JsValue(GetPlainDate(tv).Year));
-        AddPrototypeGetter(prototype, realm, "month", tv => new JsValue(GetPlainDate(tv).Month));
-        AddPrototypeGetter(prototype, realm, "day", tv => new JsValue(GetPlainDate(tv).Day));
-        AddPrototypeGetter(prototype, realm, "monthCode", tv => new JsValue(GetPlainDate(tv).MonthCode));
+        AddPrototypeGetter(prototype, realm, "year", tv => new JsValue(GetPlainDateCalendarParts(GetPlainDate(tv), realm).Year));
+        AddPrototypeGetter(prototype, realm, "month", tv => new JsValue(GetPlainDateCalendarParts(GetPlainDate(tv), realm).Month));
+        AddPrototypeGetter(prototype, realm, "day", tv => new JsValue(GetPlainDateCalendarParts(GetPlainDate(tv), realm).Day));
+        AddPrototypeGetter(prototype, realm, "monthCode", tv => new JsValue(GetPlainDateCalendarParts(GetPlainDate(tv), realm).MonthCode));
         AddPrototypeGetter(prototype, realm, "dayOfWeek", tv => new JsValue(GetPlainDate(tv).DayOfWeek));
         AddPrototypeGetter(prototype, realm, "dayOfYear", tv => new JsValue(GetPlainDate(tv).DayOfYear));
         AddPrototypeGetter(prototype, realm, "weekOfYear", tv => {
@@ -1474,10 +1474,10 @@ public static class TemporalHelper
             var d = GetPlainDate(tv);
             return string.Equals(d.Calendar, "iso8601", StringComparison.Ordinal) ? new JsValue(d.YearOfWeek) : JsValue.Undefined;
         });
-        AddPrototypeGetter(prototype, realm, "daysInMonth", tv => new JsValue(GetPlainDate(tv).DaysInMonth));
-        AddPrototypeGetter(prototype, realm, "daysInYear", tv => new JsValue(GetPlainDate(tv).DaysInYear));
-        AddPrototypeGetter(prototype, realm, "monthsInYear", tv => new JsValue(GetPlainDate(tv).MonthsInYear));
-        AddPrototypeGetter(prototype, realm, "inLeapYear", tv => new JsValue(GetPlainDate(tv).InLeapYear));
+        AddPrototypeGetter(prototype, realm, "daysInMonth", tv => new JsValue(GetPlainDateCalendarParts(GetPlainDate(tv), realm).DaysInMonth));
+        AddPrototypeGetter(prototype, realm, "daysInYear", tv => new JsValue(GetPlainDateCalendarParts(GetPlainDate(tv), realm).DaysInYear));
+        AddPrototypeGetter(prototype, realm, "monthsInYear", tv => new JsValue(GetPlainDateCalendarParts(GetPlainDate(tv), realm).MonthsInYear));
+        AddPrototypeGetter(prototype, realm, "inLeapYear", tv => new JsValue(GetPlainDateCalendarParts(GetPlainDate(tv), realm).InLeapYear));
         AddPrototypeGetter(prototype, realm, "calendarId", tv => new JsValue(GetPlainDate(tv).Calendar));
         AddPrototypeGetter(prototype, realm, "daysInWeek", tv => { GetPlainDate(tv); return new JsValue(7); }); // ISO 8601 always has 7 days per week
         AddPrototypeGetter(prototype, realm, "era", tv =>
@@ -5870,6 +5870,162 @@ public static class TemporalHelper
         return (years, months, 0, leftoverDays);
     }
 
+    private readonly record struct PlainDateCalendarParts(
+        int Year,
+        int Month,
+        int Day,
+        string MonthCode,
+        int DaysInMonth,
+        int DaysInYear,
+        int MonthsInYear,
+        bool InLeapYear);
+
+    private static PlainDateCalendarParts GetPlainDateCalendarParts(JsTemporalPlainDate date, RealmState realm)
+    {
+        if (string.Equals(date.Calendar, "iso8601", StringComparison.Ordinal) ||
+            string.Equals(date.Calendar, "gregory", StringComparison.Ordinal) ||
+            string.Equals(date.Calendar, "buddhist", StringComparison.Ordinal) ||
+            string.Equals(date.Calendar, "japanese", StringComparison.Ordinal) ||
+            string.Equals(date.Calendar, "roc", StringComparison.Ordinal))
+        {
+            return new PlainDateCalendarParts(
+                date.Year,
+                date.Month,
+                date.Day,
+                date.MonthCode,
+                date.DaysInMonth,
+                date.DaysInYear,
+                date.MonthsInYear,
+                date.InLeapYear);
+        }
+
+        if (!TryCreateBclCalendar(date.Calendar, out var calendar))
+        {
+            return new PlainDateCalendarParts(
+                date.Year,
+                date.Month,
+                date.Day,
+                date.MonthCode,
+                date.DaysInMonth,
+                date.DaysInYear,
+                date.MonthsInYear,
+                date.InLeapYear);
+        }
+
+        try
+        {
+            var isoDate = new DateTime(date.Year, date.Month, date.Day);
+            var year = calendar.GetYear(isoDate);
+            var month = calendar.GetMonth(isoDate);
+            var day = calendar.GetDayOfMonth(isoDate);
+            var era = calendar.GetEra(isoDate);
+            var leapMonth = GetLeapMonth(calendar, year);
+            var monthCode = BuildMonthCodeFromBclMonth(month, leapMonth);
+            return new PlainDateCalendarParts(
+                year,
+                month,
+                day,
+                monthCode,
+                calendar.GetDaysInMonth(year, month, era),
+                calendar.GetDaysInYear(year, era),
+                calendar.GetMonthsInYear(year, era),
+                leapMonth > 0);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            throw StandardLibrary.ThrowRangeError(
+                $"Date is out of range for calendar '{date.Calendar}'", realm: realm);
+        }
+    }
+
+    private static (int years, int months, int weeks, int days) DifferenceCalendarDate(
+        JsTemporalPlainDate start, JsTemporalPlainDate end, string largestUnit, RealmState realm)
+    {
+        if (string.Equals(largestUnit, "day", StringComparison.Ordinal) ||
+            string.Equals(largestUnit, "week", StringComparison.Ordinal) ||
+            string.Equals(start.Calendar, "iso8601", StringComparison.Ordinal) ||
+            string.Equals(start.Calendar, "gregory", StringComparison.Ordinal) ||
+            !TryCreateBclCalendar(start.Calendar, out var calendar))
+        {
+            return DifferenceISODate(start.Year, start.Month, start.Day, end.Year, end.Month, end.Day, largestUnit);
+        }
+
+        var comparison = CompareISODate(start.Year, start.Month, start.Day, end.Year, end.Month, end.Day);
+        if (comparison == 0)
+            return (0, 0, 0, 0);
+
+        if (comparison > 0)
+        {
+            var reverse = DifferenceCalendarDate(end, start, largestUnit, realm);
+            return (-reverse.years, -reverse.months, -reverse.weeks, -reverse.days);
+        }
+
+        try
+        {
+            var startIso = new DateTime(start.Year, start.Month, start.Day);
+            var endIso = new DateTime(end.Year, end.Month, end.Day);
+            var startYear = calendar.GetYear(startIso);
+            var startMonth = calendar.GetMonth(startIso);
+            var startDay = calendar.GetDayOfMonth(startIso);
+
+            var totalMonths = 0;
+            while (true)
+            {
+                var candidate = AddBclCalendarMonths(calendar, startYear, startMonth, startDay, totalMonths + 1);
+                if (candidate > endIso)
+                    break;
+
+                totalMonths++;
+            }
+
+            var monthBoundary = AddBclCalendarMonths(calendar, startYear, startMonth, startDay, totalMonths);
+            var leftoverDays = (int)(endIso - monthBoundary).TotalDays;
+
+            return string.Equals(largestUnit, "month", StringComparison.Ordinal) ||
+                   string.Equals(largestUnit, "year", StringComparison.Ordinal)
+                ? (0, totalMonths, 0, leftoverDays)
+                : DifferenceISODate(start.Year, start.Month, start.Day, end.Year, end.Month, end.Day, largestUnit);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            throw StandardLibrary.ThrowRangeError(
+                $"Date difference is out of range for calendar '{start.Calendar}'", realm: realm);
+        }
+    }
+
+    private static DateTime AddBclCalendarMonths(Calendar calendar, int year, int month, int day, int months)
+    {
+        var targetYear = year;
+        var targetMonth = month;
+
+        while (months > 0)
+        {
+            targetMonth++;
+            if (targetMonth > calendar.GetMonthsInYear(targetYear, calendar.Eras[0]))
+            {
+                targetYear++;
+                targetMonth = 1;
+            }
+
+            months--;
+        }
+
+        while (months < 0)
+        {
+            targetMonth--;
+            if (targetMonth < 1)
+            {
+                targetYear--;
+                targetMonth = calendar.GetMonthsInYear(targetYear, calendar.Eras[0]);
+            }
+
+            months++;
+        }
+
+        var targetDay = Math.Min(day, calendar.GetDaysInMonth(targetYear, targetMonth, calendar.Eras[0]));
+        return calendar.ToDateTime(targetYear, targetMonth, targetDay, 0, 0, 0, 0, calendar.Eras[0]);
+    }
+
     /// <summary>
     ///     Rounds a date-unit duration relative to a reference date.
     ///     Used by since/until when smallestUnit is a date unit (year, month, week, day).
@@ -6086,10 +6242,11 @@ public static class TemporalHelper
             $"Temporal.PlainDate.prototype.{operation}",
             DateUnits, "day", "day");
 
-        var (years, months, weeks, days) = DifferenceISODate(
-            date.Year, date.Month, date.Day,
-            other.Year, other.Month, other.Day,
-            settings.LargestUnit);
+        var (years, months, weeks, days) = DifferenceCalendarDate(
+            date,
+            other,
+            settings.LargestUnit,
+            realm);
 
         // Apply rounding for date units
         if (!string.Equals(settings.SmallestUnit, "day", StringComparison.Ordinal) ||
@@ -9618,20 +9775,8 @@ public static class TemporalHelper
                 if (!hasMonth && !hasMonthCode)
                     throw StandardLibrary.ThrowTypeError("Property bag for PlainDate must have 'month' or 'monthCode'", realm: realm);
 
-                int monthFromEra;
-                if (hasMonthCode)
-                {
-                    monthFromEra = ResolveISOMonthCode(monthCodeStr!, realm);
-                    if (hasMonth)
-                    {
-                        if (monthInt != monthFromEra)
-                            throw StandardLibrary.ThrowRangeError("month and monthCode must agree", realm: realm);
-                    }
-                }
-                else
-                {
-                    monthFromEra = monthInt;
-                }
+                var monthFromEra = ResolvePlainDateMonth(calendar, yearFromEra, hasMonth, monthInt,
+                    hasMonthCode, monthCodeStr, realm);
 
                 return (yearFromEra, monthFromEra, day, calendar);
             }
@@ -9644,22 +9789,38 @@ public static class TemporalHelper
         if (!hasMonth && !hasMonthCode)
             throw StandardLibrary.ThrowTypeError("Property bag for PlainDate must have 'month' or 'monthCode'", realm: realm);
 
-        int month;
-        if (hasMonthCode)
+        var month = ResolvePlainDateMonth(calendar, year, hasMonth, monthInt, hasMonthCode, monthCodeStr, realm);
+
+        return (year, month, day, calendar);
+    }
+
+    private static int ResolvePlainDateMonth(
+        string calendar, int year, bool hasMonth, int month, bool hasMonthCode, string? monthCode, RealmState realm)
+    {
+        if (!hasMonth && !hasMonthCode)
+            throw StandardLibrary.ThrowTypeError("Property bag for PlainDate must have 'month' or 'monthCode'", realm: realm);
+
+        if (!hasMonthCode)
+            return month;
+
+        int resolvedMonth;
+        if (string.Equals(calendar, "iso8601", StringComparison.Ordinal))
         {
-            month = ResolveISOMonthCode(monthCodeStr!, realm);
-            if (hasMonth)
-            {
-                if (monthInt != month)
-                    throw StandardLibrary.ThrowRangeError("month and monthCode must agree", realm: realm);
-            }
+            resolvedMonth = ResolveISOMonthCode(monthCode!, realm);
+        }
+        else if (TryCreateBclCalendar(calendar, out var bclCalendar))
+        {
+            resolvedMonth = ResolveBclMonthFromMonthCode(monthCode!, bclCalendar, year, realm);
         }
         else
         {
-            month = monthInt;
+            resolvedMonth = MonthCodeNumericValue(monthCode!);
         }
 
-        return (year, month, day, calendar);
+        if (hasMonth && month != resolvedMonth)
+            throw StandardLibrary.ThrowRangeError("month and monthCode must agree", realm: realm);
+
+        return resolvedMonth;
     }
 
     private static JsTemporalPlainDate ApplyOverflowToDate(int year, int month, int day, string calendar, string overflow, RealmState realm)
@@ -10067,11 +10228,20 @@ public static class TemporalHelper
             throw StandardLibrary.ThrowTypeError("Property bag for PlainMonthDay must have 'day'", realm: realm);
         var day = ToIntegerWithTruncation(dayVal, realm);
 
-        // 3-4. era/eraYear: read for observable order, validates Infinity → RangeError
-        if (accessor.TryGetProperty("era", out var eraVal2) && !eraVal2.IsUndefined)
-            JsOps.ToJsString(eraVal2);
-        if (accessor.TryGetProperty("eraYear", out var eraYearVal2) && !eraYearVal2.IsUndefined)
-            ToIntegerWithTruncation(eraYearVal2, realm);
+        // 3-4. era/eraYear: only non-ISO calendars observe era fields here.
+        var isIsoCalendar = string.Equals(calendar, "iso8601", StringComparison.Ordinal);
+        var hasEra = false;
+        var hasEraYear = false;
+        if (!isIsoCalendar)
+        {
+            hasEra = accessor.TryGetProperty("era", out var eraVal) && !eraVal.IsUndefined;
+            if (hasEra)
+                JsOps.ToJsString(eraVal);
+
+            hasEraYear = accessor.TryGetProperty("eraYear", out var eraYearVal) && !eraYearVal.IsUndefined;
+            if (hasEraYear)
+                ToIntegerWithTruncation(eraYearVal, realm);
+        }
 
         // 5. month — eagerly convert to trigger valueOf for observable order
         accessor.TryGetProperty("month", out var monthVal);
@@ -10095,10 +10265,8 @@ public static class TemporalHelper
         var hasYear = !yearVal.IsUndefined;
         var yearForValidation = hasYear ? ToIntegerWithTruncation(yearVal, realm) : 1972;
 
-        if (!string.Equals(calendar, "iso8601", StringComparison.Ordinal))
+        if (!isIsoCalendar)
         {
-            var hasEra = accessor.TryGetProperty("era", out var eraVal) && !eraVal.IsUndefined;
-            var hasEraYear = accessor.TryGetProperty("eraYear", out var eraYearVal) && !eraYearVal.IsUndefined;
             if (hasEra != hasEraYear)
             {
                 throw StandardLibrary.ThrowTypeError("Property bag for PlainMonthDay must have both 'era' and 'eraYear' together",
@@ -10107,7 +10275,7 @@ public static class TemporalHelper
         }
 
         if (!hasMonthCode &&
-            !string.Equals(calendar, "iso8601", StringComparison.Ordinal) &&
+            !isIsoCalendar &&
             !hasYear)
         {
             throw StandardLibrary.ThrowTypeError("Property bag for PlainMonthDay must have 'monthCode' or 'year' for non-ISO calendars",
@@ -10121,7 +10289,7 @@ public static class TemporalHelper
         int month;
         if (hasMonthCode)
         {
-            month = string.Equals(calendar, "iso8601", StringComparison.Ordinal)
+            month = isIsoCalendar
                 ? ResolveISOMonthCode(monthCodeStr!, realm)
                 : MonthCodeNumericValue(monthCodeStr!);
             if (hasMonth)

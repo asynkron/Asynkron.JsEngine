@@ -100,13 +100,13 @@ host-runtime shortcuts.
     Instant. Defined non-format options such as `timeZone` should still receive
     Instant date/time defaults, but Instant defaults must not inject
     `timeZoneName`; keep ZonedDateTime's time-zone-name default path separate.
-20. For Temporal `PlainDateTime.from` non-ISO property bags, preserve the
-    calendar-visible `year`, `month`, and `day` fields after overflow handling.
-    Use calendar-to-ISO conversion as a validation projection only; do not store
-    the converted ISO fields back into the resulting `PlainDateTime`. Treat
-    `era` and `eraYear` as calendar-dependent: calendars without era support
-    ignore them when `year` is explicit and still require `year` when it is
-    absent.
+20. For Temporal `PlainDate.from` and `PlainDateTime.from` non-ISO property
+    bags, preserve the calendar-visible `year`, `month` or `monthCode`, and
+    `day` fields after overflow handling. Use calendar-to-ISO conversion as a
+    validation projection only; do not store the converted ISO fields back into
+    the resulting object. Treat `era` and `eraYear` as calendar-dependent:
+    calendars without era support ignore them when `year` is explicit and still
+    require `year` when it is absent.
 21. For Temporal `PlainDateTime.prototype.toLocaleString`, keep PlainDateTime
     as wall-clock component formatting even when a resolved `timeZone` option is
     supplied, but route hour output through the shared `Intl.DateTimeFormat`
@@ -125,6 +125,14 @@ host-runtime shortcuts.
     supplied, resolve supplied `monthCode` in the receiver calendar and target
     calendar year, and convert to internal ISO storage only after
     calendar-field merge and overflow handling.
+24. For `Temporal.PlainDate.prototype.until` and adjacent PlainDate difference
+    work, matching BCL-backed non-ISO calendars must compute month and year
+    largest-unit differences in calendar space, not through ISO month/year
+    arithmetic over the stored ISO projection. Convert endpoints to
+    calendar-visible fields before balancing months or years, keep day/week
+    largest-unit behavior on elapsed ISO dates unless the spec path says
+    otherwise, and resolve PlainDate property-bag `monthCode` values through the
+    resolved calendar/year for leap-month-aware calendars.
 
 ## Why
 
@@ -272,6 +280,16 @@ fields, keep era handling calendar-dependent, and prove the focused
 
 Related ADR: `docs/adrs/0048-keep-temporal-plaindatetime-calendar-fields-observable.md`.
 
+Issue #840 / PR #1160 fixed the same Temporal property-bag boundary for
+`Temporal.PlainDate.from`: Hebrew and other non-era calendars must not observe
+throwing `era` or `eraYear` getters when `year` is explicit, and the resulting
+`PlainDate` must keep the source calendar's visible fields after BCL-backed
+calendar validation. Future `PlainDate.from` work should preserve the
+calendar-visible fields, make era reads depend on `CalendarUsesEras`, and prove
+the focused `Name=Temporal_PlainDate_from` Test262 method group.
+
+Related ADR: `docs/adrs/0057-keep-temporal-plaindate-calendar-fields-observable.md`.
+
 Issue #838 / PR #1146 fixed `Temporal.PlainDateTime.prototype.toLocaleString`
 after the `resolved-time-zone.js` Test262 fixture expected the supplied
 `Pacific/Apia` time zone to remain resolved but not shift PlainDateTime's
@@ -308,3 +326,16 @@ with the `non-iso-calendar-fields.js` fixture.
 
 Related ADR:
 `docs/adrs/0055-keep-temporal-plaindatetime-with-calendar-date-fields.md`.
+
+Issue #842 / PR #1163 fixed `Temporal.PlainDate.prototype.until` after matching
+Chinese lunisolar PlainDate endpoints were accepted as non-ISO calendars but
+balanced month/year largest units through ISO date arithmetic. The durable
+lesson is that PlainDate difference has two unit domains: day/week counts can
+stay elapsed ISO-date differences, while month/year largest units must use the
+resolved calendar's visible year/month/day fields for BCL-backed non-ISO
+calendars. Future PlainDate difference work should prove the focused
+`Name=Temporal_PlainDate_prototype_until` Test262 method group, starting with
+the lunisolar leap-month fixture.
+
+Related ADR:
+`docs/adrs/0058-keep-temporal-plaindate-difference-calendar-unit-arithmetic-owned.md`.

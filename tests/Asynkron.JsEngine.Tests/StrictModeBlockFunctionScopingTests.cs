@@ -267,4 +267,61 @@ public sealed class StrictModeBlockFunctionScopingTests(ITestOutputHelper output
 
         Assert.Equal("inner declaration", result?.ToString());
     }
+
+    [Fact]
+    public async Task SloppyMode_SwitchAsyncFunctionDeclaration_DoesNotHoistToOuterScope()
+    {
+        await using var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            var threw = false;
+            try {
+              switch (0) { default: async function x() {} }
+              x;
+            } catch (e) {
+              threw = e instanceof ReferenceError;
+            }
+            threw;
+            """);
+
+        Assert.Equal("true", result?.ToString(), ignoreCase: true);
+    }
+
+    [Fact]
+    public async Task SloppyMode_SwitchAsyncGeneratorDeclaration_DoesNotHoistToOuterScope()
+    {
+        await using var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            var threw = false;
+            try {
+              switch (0) { default: async function * x() {} }
+              x;
+            } catch (e) {
+              threw = e instanceof ReferenceError;
+            }
+            threw;
+            """);
+
+        Assert.Equal("true", result?.ToString(), ignoreCase: true);
+    }
+
+    [Fact]
+    public async Task SloppyMode_SwitchGeneratorDeclaration_DoesNotHoistToOuterScope()
+    {
+        await using var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            var threw = false;
+            try {
+              switch (0) { default: function * x() {} }
+              x;
+            } catch (e) {
+              threw = e instanceof ReferenceError;
+            }
+            threw;
+            """);
+
+        Assert.Equal("true", result?.ToString(), ignoreCase: true);
+    }
 }

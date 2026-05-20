@@ -28,6 +28,9 @@ public static partial class TypedAstEvaluator
             // Function-scoped declarations are hoisted (handled during function entry).
             if (instruction.Descriptor is { } funcDecl)
             {
+                var suppressAnnexBVarUpdate = funcDecl.Function.IsAsync || funcDecl.Function.WasAsync ||
+                                              funcDecl.Function.IsGenerator;
+
                 // Pass skipInternalNameBinding: true so the function doesn't create an internal
                 // const binding for its name (the binding is handled by environment.Define below).
                 var functionValue = funcDecl.Function.CreateFunctionValue(environment, ctx,
@@ -42,7 +45,7 @@ public static partial class TypedAstEvaluator
                                          environment.IsEvalDeclarationEnvironment;
 
                 var isHoistedUndefinedBinding = false;
-                if (isAtVarEnvironment && !ctx.CurrentScope.IsStrict &&
+                if (!suppressAnnexBVarUpdate && isAtVarEnvironment && !ctx.CurrentScope.IsStrict &&
                     varEnvironment.HasFunctionScopedBinding(funcDecl.Name))
                 {
                     var existingValue = varEnvironment.GetBindingValueDirect(funcDecl.Name);
@@ -96,7 +99,7 @@ public static partial class TypedAstEvaluator
                     // For hoisted functions in sloppy mode, also update the var-scoped binding.
                     // This implements Annex B semantics where block-scoped functions also
                     // update the outer binding visible to the surrounding eval/function body.
-                    if (!varEnvironment.IsStrict && !isBlocked)
+                    if (!suppressAnnexBVarUpdate && !varEnvironment.IsStrict && !isBlocked)
                     {
                         // Update the var-scoped binding in the function scope.
                         ref var varBinding = ref varEnvironment.TryGetSlotRef(funcDecl.Name);

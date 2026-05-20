@@ -76,4 +76,21 @@ public sealed class TestVariableDeclarations(ITestOutputHelper output) : Interna
         ");
         Assert.Equal(true, result);
     }
+
+    [Fact]
+    public async Task VarInitializerInsideWith_ShouldAssignPreResolvedBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            var obj = { test262id: 1 };
+
+            with (obj) {
+                var test262id = delete obj.test262id;
+            }
+
+            obj.test262id === true && test262id === undefined;
+        ");
+
+        Assert.Equal(true, result);
+    }
 }

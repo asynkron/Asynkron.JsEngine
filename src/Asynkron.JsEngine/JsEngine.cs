@@ -31,9 +31,10 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
     private readonly Queue<Action> _deferredEventTasks = new();
 
     // Synchronous microtask queue for top-level await support.
-    // JsEngine is single-threaded by design, so microtask bookkeeping does not use locks.
+    // Async module continuations may preserve/drain this queue from different managed threads.
     // Microtasks implement IMicrotask and carry their own epoch for proper timing semantics.
     private readonly Queue<IMicrotask> _microtaskQueue = new();
+    private readonly Lock _microtaskQueueLock = new();
 
     private readonly Dictionary<JsObject, ModuleNamespace> _moduleNamespaces =
         new(ReferenceEqualityComparer<JsObject>.Instance);
@@ -2351,7 +2352,10 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
     internal void QueueMicrotask(IMicrotask task)
     {
         task.Epoch = MicrotaskEpoch;
-        _microtaskQueue.Enqueue(task);
+        lock (_microtaskQueueLock)
+        {
+            _microtaskQueue.Enqueue(task);
+        }
     }
 
     /// <summary>
@@ -2366,13 +2370,16 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
 
     private List<IMicrotask> DetachMicrotasks()
     {
-        var preserved = new List<IMicrotask>(_microtaskQueue.Count);
-        while (_microtaskQueue.Count > 0)
+        lock (_microtaskQueueLock)
         {
-            preserved.Add(_microtaskQueue.Dequeue());
-        }
+            var preserved = new List<IMicrotask>(_microtaskQueue.Count);
+            while (_microtaskQueue.Count > 0)
+            {
+                preserved.Add(_microtaskQueue.Dequeue());
+            }
 
-        return preserved;
+            return preserved;
+        }
     }
 
     private void PrependMicrotasks(List<IMicrotask>? tasks)
@@ -2382,26 +2389,29 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             return;
         }
 
-        if (_microtaskQueue.Count == 0)
+        lock (_microtaskQueueLock)
         {
+            if (_microtaskQueue.Count == 0)
+            {
+                foreach (var task in tasks)
+                {
+                    _microtaskQueue.Enqueue(task);
+                }
+
+                return;
+            }
+
+            var existing = new Queue<IMicrotask>(_microtaskQueue);
+            _microtaskQueue.Clear();
             foreach (var task in tasks)
             {
                 _microtaskQueue.Enqueue(task);
             }
 
-            return;
-        }
-
-        var existing = new Queue<IMicrotask>(_microtaskQueue);
-        _microtaskQueue.Clear();
-        foreach (var task in tasks)
-        {
-            _microtaskQueue.Enqueue(task);
-        }
-
-        while (existing.Count > 0)
-        {
-            _microtaskQueue.Enqueue(existing.Dequeue());
+            while (existing.Count > 0)
+            {
+                _microtaskQueue.Enqueue(existing.Dequeue());
+            }
         }
     }
 
@@ -2415,20 +2425,23 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
     internal void DrainMicrotasks(int maxEpoch = int.MaxValue, bool force = false,
         CancellationToken cancellationToken = default)
     {
-        if (_isDrainingMicrotasks)
+        lock (_microtaskQueueLock)
         {
-            return;
-        }
+            if (_isDrainingMicrotasks)
+            {
+                return;
+            }
 
-        // Don't drain microtasks during module body execution unless explicitly forced.
-        // This ensures Promise.resolve().then() callbacks only run after the synchronous
-        // module body completes, matching ES specification semantics.
-        if (_moduleBodyExecutionDepth > 0 && !force)
-        {
-            return;
-        }
+            // Don't drain microtasks during module body execution unless explicitly forced.
+            // This ensures Promise.resolve().then() callbacks only run after the synchronous
+            // module body completes, matching ES specification semantics.
+            if (_moduleBodyExecutionDepth > 0 && !force)
+            {
+                return;
+            }
 
-        _isDrainingMicrotasks = true;
+            _isDrainingMicrotasks = true;
+        }
 
         try
         {
@@ -2437,12 +2450,16 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                if (_microtaskQueue.Count == 0)
+                IMicrotask task;
+                lock (_microtaskQueueLock)
                 {
-                    break;
-                }
+                    if (_microtaskQueue.Count == 0)
+                    {
+                        break;
+                    }
 
-                var task = _microtaskQueue.Dequeue();
+                    task = _microtaskQueue.Dequeue();
+                }
 
                 // If this task is from a later epoch than allowed, defer it
                 if (task.Epoch > maxEpoch)
@@ -2472,14 +2489,20 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             }
 
             //TODO: this seems wrong, maybe we should just have a priority queue instead of this dance
-            foreach (var deferredTask in deferred)
+            lock (_microtaskQueueLock)
             {
-                _microtaskQueue.Enqueue(deferredTask);
+                foreach (var deferredTask in deferred)
+                {
+                    _microtaskQueue.Enqueue(deferredTask);
+                }
             }
         }
         finally
         {
-            _isDrainingMicrotasks = false;
+            lock (_microtaskQueueLock)
+            {
+                _isDrainingMicrotasks = false;
+            }
         }
     }
 

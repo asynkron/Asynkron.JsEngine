@@ -104,3 +104,10 @@ pinning.
   and the delivery branch carried no source or test diff. The correct closeout
   was to stop after proof instead of changing nearby typed-array search
   semantics.
+- Issue #1065 repeated this decision for `Statements_forAwaitOf`. The issue
+  listed seven crashed `async-func-dstr-const-ary-ptrn-*` rows from the
+  2026-05-19 Test262 runner summary. The issue-supplied
+  `Name=Statements_forAwaitOf` method-group proof hit the local 60 second
+  inactivity guard, but every listed fixture pattern passed directly on current
+  `origin/main`. No runtime, harness, or regression-test patch was warranted
+  because the exact current proof was green.

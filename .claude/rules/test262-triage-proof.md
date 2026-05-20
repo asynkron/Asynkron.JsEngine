@@ -128,6 +128,14 @@ treat that owner lookup as context only: once the exact focused proof is green,
 do not patch strict equality, signed-zero, or fromIndex handling without a
 current failing fixture row.
 
+Issue #1065 repeated the fixture-exact fallback for `Statements_forAwaitOf`.
+The issue listed seven crashed `async-func-dstr-const-ary-ptrn-*` rows from the
+2026-05-19 Test262 runner summary. The build-stage method-group proof hit the
+local 60 second inactivity guard, but each listed fixture pattern passed when
+run directly on current `origin/main`. The durable lesson is the same: a broad
+generated group hang is proof friction, not source evidence, when the exact
+reported rows are green.
+
 Issue #879 repeated the same current-proof boundary for
 `TypedArray_prototype_indexOf_BigInt`: investigation still identified
 `TypedArrayBase.IndexOfInternal` and BigInt strict equality as the plausible

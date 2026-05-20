@@ -110,7 +110,6 @@ public static partial class TypedAstEvaluator
                 "[AsyncFunctionInvoker] DriveToCompletion mode={Mode} argKind={Kind}",
                 mode,
                 argument.Kind);
-            System.Console.WriteLine($"[AsyncFunctionInvoker] DriveToCompletion mode={mode} argKind={argument.Kind}");
             try
             {
                 var step = _inner!.ExecuteAsyncStep(mode, argument);
@@ -207,7 +206,6 @@ public static partial class TypedAstEvaluator
                     "[AsyncFunctionInvoker] ResumeCallback isRejection={IsRejection} argKind={Kind}",
                     isRejection,
                     args.Count > 0 ? args[0].Kind.ToString() : "none");
-                System.Console.WriteLine($"[AsyncFunctionInvoker] ResumeCallback isRejection={isRejection} argKind={(args.Count > 0 ? args[0].Kind.ToString() : "none")}");
 
                 // Clear state before execution
                 _executor = null;

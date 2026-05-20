@@ -1,7 +1,8 @@
 # ECMAScript Abstract Operation Order
 
-When implementing ECMAScript built-ins, model the named abstract operation
-sequence directly before adding local type guards or host-runtime shortcuts.
+When implementing ECMAScript built-ins or expression operators, model the named
+abstract operation sequence directly before adding local type guards or
+host-runtime shortcuts.
 
 ## Rules
 
@@ -12,16 +13,21 @@ sequence directly before adding local type guards or host-runtime shortcuts.
 2. Store the result of the abstract operation when later checks depend on its
    normalized shape. Re-detecting from the original `JsValue` can move errors or
    side effects ahead of required coercions.
-3. For Intl Temporal formatting, route supported Temporal values through their
+3. For binary `+`, keep object `ToPrimitive` with the default hint before the
+   string-concatenation or numeric-addition branch decision. If that primitive
+   result is a `Symbol`, `ToString(Symbol)` and `ToNumber(Symbol)` must become
+   catchable JavaScript `TypeError` completions, not host exceptions or
+   shortcut-specific behavior.
+4. For Intl Temporal formatting, route supported Temporal values through their
    effective Temporal slots instead of falling back to epoch milliseconds or
    `valueOf` behavior. The slots define which date/time fields are meaningful
    for `PlainDate`, `PlainDateTime`, `PlainTime`, `PlainYearMonth`, and
    `PlainMonthDay`.
-4. Keep unsupported Temporal kinds explicit. `Temporal.ZonedDateTime` and
+5. Keep unsupported Temporal kinds explicit. `Temporal.ZonedDateTime` and
    distinct Temporal operand kinds should fail at the spec point that follows
    conversion to formattable operands, not through incidental host conversion
    failures.
-5. For Intl `formatRangeToParts` helpers, preserve the source formatter's part
+6. For Intl `formatRangeToParts` helpers, preserve the source formatter's part
    boundaries and observable part objects. Do not flatten a formatted endpoint
    into one synthetic `integer` or `literal` part when formatter output already
    carries `currency`, `integer`, `minusSign`, grouping, decimal, or other
@@ -31,45 +37,55 @@ sequence directly before adding local type guards or host-runtime shortcuts.
    Keep range string and range-parts composition on the same endpoint formatter,
    locale separator, and affix-sharing rules unless a spec proof requires an
    observable split.
-6. For `Intl.DateTimeFormat.prototype.formatRangeToParts`, preserve source
+7. For `Intl.DateTimeFormat.prototype.formatRangeToParts`, preserve source
    tagging after Temporal slot filtering. Do not prove only the formatted range
    string when the observable parts array has separate boundaries and labels.
-7. Add focused coverage for both the error-order case and the successful
+8. Add focused coverage for both the error-order case and the successful
    normalized path. Include the exact Test262 method group or file cluster when
    the issue came from Test262.
-8. For `Intl.DateTimeFormat` epoch-based formatting, do not let host
+9. For `Intl.DateTimeFormat` epoch-based formatting, do not let host
    `DateTimeOffset` range limits define ECMAScript proleptic Gregorian calendar
    fields. When the epoch is outside the host-supported range, derive Gregorian
    component fields from ECMAScript date math and keep `format`, `formatToParts`,
    `formatRange`, and `formatRangeToParts` on the same representation unless a
    helper proves it cannot observe out-of-range dates.
-9. For `Intl.Locale`, keep BCP47 subtag parsing grammar-owned. Preserve empty
-   subtags while validating user-provided option strings so leading, trailing,
-   and doubled separators remain RangeError cases instead of disappearing
-   during splitting.
-10. For Locale variant handling, detect duplicates on the normalized variant
-   subtag before sorting canonical output. Do not canonicalize a malformed
-   variant sequence by routing it through a synthetic language tag first.
-11. For Locale base-name and getter parsing, classify script, region, variant,
+10. For `Intl.Locale`, keep BCP47 subtag parsing grammar-owned. Preserve empty
+    subtags while validating user-provided option strings so leading, trailing,
+    and doubled separators remain RangeError cases instead of disappearing
+    during splitting.
+11. For Locale variant handling, detect duplicates on the normalized variant
+    subtag before sorting canonical output. Do not canonicalize a malformed
+    variant sequence by routing it through a synthetic language tag first.
+12. For Locale base-name and getter parsing, classify script, region, variant,
     and extension singleton boundaries from BCP47 subtag grammar. Digit-leading
     four-character subtags are variants, not scripts, and likely-subtags
     operations must preserve arbitrary extension singletons, not only `u`, `t`,
     or `x`.
-12. For Unicode extension keyword parsing, keep the first duplicate keyword
+13. For Unicode extension keyword parsing, keep the first duplicate keyword
     value and ignore later duplicates unless the spec text being implemented
     explicitly says otherwise.
-13. For Object built-ins that begin with `ToObject`, keep primitive boxing and
+14. For Object built-ins that begin with `ToObject`, keep primitive boxing and
     nullish rejection as separate proof cases. Primitive numbers, strings,
     booleans, symbols, and bigints are valid receivers after coercion, while
     `null` and `undefined` still throw `TypeError`; internal primitive-wrapper
     slots must not become ordinary enumerable or own descriptor properties.
-14. For `Reflect.construct`, keep `target` and `newTarget` roles separate.
+15. For Intl constructors that accept options, use the ECMA-402 ToObject
+    options path when the constructor requires it. `undefined` remains absent,
+    `null` throws at options coercion, and non-null primitives are boxed before
+    option property reads. Keep the constructor's spec option read order after
+    coercion.
+16. For `Reflect.construct`, keep `target` and `newTarget` roles separate.
     `target` selects constructor behavior and allocation kind, including Array
     exotic allocation. `newTarget` selects the prototype path and realm
     fallback when `newTarget.prototype` is not an object. Do not let an Array
     `newTarget` turn an ordinary non-Array `target` into an Array, and do not
     miss cross-realm or proxied Array `target` cases just because they are not
     the current realm's Array constructor.
+16. For Intl built-ins that coerce call arguments through `ToNumber`, use the
+    context-aware conversion path and propagate abrupt completions before later
+    numeric validation such as finite-number checks. Raw `JsValue.AsNumber()`
+    or non-context helper shortcuts can skip observable `valueOf`/`toString`
+    errors and turn the wrong condition into the visible failure.
 
 ## Why
 
@@ -132,6 +148,18 @@ Object built-in work should prove both the primitive-success path and the
 nullish-error path locally so wrapper implementation details such as
 `__value__` do not leak into descriptor enumeration.
 
+Issue #822 / PR #1110 fixed `Intl.RelativeTimeFormat` constructor
+`options-toobject` Test262 failures after the constructor used the strict
+object-only options path. ECMA-402 constructors can observe option coercion:
+`undefined` means no options, `null` throws before property reads, and non-null
+primitive options are boxed before properties such as `localeMatcher`,
+`numberingSystem`, `style`, and `numeric` are read in spec order. Future Intl
+constructor work should reuse the shared ToObject-compatible options helper and
+prove the focused `Name=RelativeTimeFormat_constructor_constructor` or owning
+constructor Test262 method group.
+
+Related ADR: `docs/adrs/0039-keep-intl-constructor-options-toobject-coercion.md`.
+
 Issue #817 / PR #1018 fixed `Reflect.construct` after the Array allocation
 special case mixed the roles of `target` and `newTarget`. A cross-realm or
 proxied Array `target` must still allocate a `JsArray`, while an Array
@@ -142,3 +170,21 @@ should prove the focused
 and a local non-Array-target regression before widening.
 
 Related ADR: `docs/adrs/0032-keep-reflect-construct-target-allocation-newtarget-prototype-split.md`.
+
+Issue #1027 / PR #1100 added focused regressions after the Test262
+`Expressions_addition` crash cluster around Symbol wrapper coercion. The
+durable lesson is that binary addition is also abstract-operation work: wrapper
+operands must run `ToPrimitive` with the default hint before branch selection,
+and the resulting Symbol primitive must surface through catchable JavaScript
+`TypeError` conversion paths for both string concatenation and numeric
+addition. Future operator-coercion work should pin both the error path and the
+`Symbol.toPrimitive` hint before relying on the focused Test262 method group.
+
+Issue #823 / PR #1113 fixed `Intl.RelativeTimeFormat.prototype.format` after
+the value argument used a non-observable numeric shortcut before finite-number
+validation. The shared `format`/`formatToParts` argument extraction now creates
+a realm evaluation context, runs context-aware `ToNumber`, and rethrows abrupt
+completion with `ThrowSignal` before checking `double.IsFinite`. Future Intl
+argument-coercion work should prove both observable object coercion and the
+ordinary finite-number path with the focused
+`Name=RelativeTimeFormat_prototype_format` Test262 method group.

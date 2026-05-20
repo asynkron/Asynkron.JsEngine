@@ -839,7 +839,7 @@ public sealed class JsAstParser(
 
                 if (isStatic && Check(TokenType.LeftBrace))
                 {
-                    var block = ParseBlock();
+                    var block = ParseBlock(functionDeclarationsAreLexical: false);
                     var staticBlock = new ClassStaticBlock(block.Source, block);
                     staticBlocks.Add(staticBlock);
                     staticElements.Add(new ClassStaticElement(ClassStaticElementKind.Block,
@@ -1588,7 +1588,10 @@ public sealed class JsAstParser(
                 new ExportDefaultExpression(exportSource, hoistableFunction));
         }
 
-        private BlockStatement ParseBlock(bool leftBraceConsumed = false, bool isFunctionBody = false)
+        private BlockStatement ParseBlock(
+            bool leftBraceConsumed = false,
+            bool isFunctionBody = false,
+            bool functionDeclarationsAreLexical = true)
         {
             Token startToken;
             if (leftBraceConsumed)
@@ -1616,7 +1619,229 @@ public sealed class JsAstParser(
             }
 
             Consume(TokenType.RightBrace, "Expected '}' after block.");
-            return new BlockStatement(CreateSourceReference(startToken), statements.ToImmutable(), isStrict);
+            var blockStatements = statements.ToImmutable();
+            if (!isFunctionBody)
+            {
+                ValidateBlockDeclarationConflicts(blockStatements, startToken, functionDeclarationsAreLexical);
+            }
+
+            return new BlockStatement(CreateSourceReference(startToken), blockStatements, isStrict);
+        }
+
+        private void ValidateBlockDeclarationConflicts(
+            ImmutableArray<StatementNode> statements,
+            Token token,
+            bool functionDeclarationsAreLexical)
+        {
+            HashSet<Symbol>? lexicalNames = null;
+            foreach (var statement in statements)
+            {
+                switch (statement)
+                {
+                    case VariableDeclaration
+                    {
+                        Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
+                    } declaration:
+                        lexicalNames ??= new HashSet<Symbol>();
+                        CollectBindingIdentifiers(declaration, lexicalNames);
+                        break;
+
+                    case FunctionDeclaration functionDeclaration when functionDeclarationsAreLexical:
+                        lexicalNames ??= new HashSet<Symbol>();
+                        lexicalNames.Add(functionDeclaration.Name);
+                        break;
+
+                    case ClassDeclaration classDeclaration:
+                        lexicalNames ??= new HashSet<Symbol>();
+                        lexicalNames.Add(classDeclaration.Name);
+                        break;
+                }
+            }
+
+            if (lexicalNames is null || lexicalNames.Count == 0)
+            {
+                return;
+            }
+
+            HashSet<Symbol>? varNames = null;
+            foreach (var statement in statements)
+            {
+                CollectBlockVarDeclaredNames(statement, ref varNames);
+            }
+
+            if (varNames is null)
+            {
+                return;
+            }
+
+            foreach (var lexicalName in lexicalNames)
+            {
+                if (varNames.Contains(lexicalName))
+                {
+                    throw new ParseException(
+                        $"Identifier '{lexicalName.Name}' has already been declared.",
+                        token,
+                        source);
+                }
+            }
+        }
+
+        private static void CollectBlockVarDeclaredNames(StatementNode statement, ref HashSet<Symbol>? names)
+        {
+            while (true)
+            {
+                switch (statement)
+                {
+                    case BlockStatement block:
+                        foreach (var inner in block.Statements)
+                        {
+                            CollectBlockVarDeclaredNames(inner, ref names);
+                        }
+
+                        break;
+
+                    case VariableDeclaration { Kind: VariableKind.Var } declaration:
+                        CollectBindingIdentifiers(declaration, ref names);
+                        break;
+
+                    case IfStatement ifStatement:
+                        CollectBlockVarDeclaredNames(ifStatement.Then, ref names);
+                        if (ifStatement.Else is { } elseBranch)
+                        {
+                            statement = elseBranch;
+                            continue;
+                        }
+
+                        break;
+
+                    case WhileStatement whileStatement:
+                        statement = whileStatement.Body;
+                        continue;
+
+                    case DoWhileStatement doWhileStatement:
+                        statement = doWhileStatement.Body;
+                        continue;
+
+                    case WithStatement withStatement:
+                        statement = withStatement.Body;
+                        continue;
+
+                    case LabeledStatement labeledStatement:
+                        statement = labeledStatement.Statement;
+                        continue;
+
+                    case ForStatement forStatement:
+                        if (forStatement.Initializer is { } initializer)
+                        {
+                            CollectBlockVarDeclaredNames(initializer, ref names);
+                        }
+
+                        statement = forStatement.Body;
+                        continue;
+
+                    case ForEachStatement { DeclarationKind: VariableKind.Var } forEachStatement:
+                        CollectBindingIdentifiers(forEachStatement.Target, ref names);
+                        statement = forEachStatement.Body;
+                        continue;
+
+                    case ForEachStatement forEachStatement:
+                        statement = forEachStatement.Body;
+                        continue;
+
+                    case SwitchStatement switchStatement:
+                        foreach (var switchCase in switchStatement.Cases)
+                        {
+                            CollectBlockVarDeclaredNames(switchCase.Body, ref names);
+                        }
+
+                        break;
+
+                    case TryStatement tryStatement:
+                        CollectBlockVarDeclaredNames(tryStatement.TryBlock, ref names);
+                        if (tryStatement.Catch is { } catchClause)
+                        {
+                            CollectBlockVarDeclaredNames(catchClause.Body, ref names);
+                        }
+
+                        if (tryStatement.Finally is { } finallyBlock)
+                        {
+                            statement = finallyBlock;
+                            continue;
+                        }
+
+                        break;
+                }
+
+                break;
+            }
+        }
+
+        private static void CollectBindingIdentifiers(VariableDeclaration declaration, HashSet<Symbol> names)
+        {
+            foreach (var declarator in declaration.Declarators)
+            {
+                CollectBindingIdentifiers(declarator.Target, names);
+            }
+        }
+
+        private static void CollectBindingIdentifiers(VariableDeclaration declaration, ref HashSet<Symbol>? names)
+        {
+            foreach (var declarator in declaration.Declarators)
+            {
+                CollectBindingIdentifiers(declarator.Target, ref names);
+            }
+        }
+
+        private static void CollectBindingIdentifiers(BindingTarget target, HashSet<Symbol> names)
+        {
+            while (true)
+            {
+                switch (target)
+                {
+                    case IdentifierBinding identifier:
+                        names.Add(identifier.Name);
+                        break;
+
+                    case ArrayBinding arrayBinding:
+                        foreach (var element in arrayBinding.Elements)
+                        {
+                            if (element.Target is not null)
+                            {
+                                CollectBindingIdentifiers(element.Target, names);
+                            }
+                        }
+
+                        if (arrayBinding.RestElement is not null)
+                        {
+                            target = arrayBinding.RestElement;
+                            continue;
+                        }
+
+                        break;
+
+                    case ObjectBinding objectBinding:
+                        foreach (var property in objectBinding.Properties)
+                        {
+                            CollectBindingIdentifiers(property.Target, names);
+                        }
+
+                        if (objectBinding.RestElement is not null)
+                        {
+                            target = objectBinding.RestElement;
+                            continue;
+                        }
+
+                        break;
+                }
+
+                break;
+            }
+        }
+
+        private static void CollectBindingIdentifiers(BindingTarget target, ref HashSet<Symbol>? names)
+        {
+            names ??= new HashSet<Symbol>();
+            CollectBindingIdentifiers(target, names);
         }
 
         private StatementNode ParseForStatement(Token forToken)

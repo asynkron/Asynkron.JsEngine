@@ -619,7 +619,7 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
         Assert.False((bool)innerCleanupDone!);
         Assert.Equal("outer-cleanup", outerCleanupValue);
         Assert.False((bool)outerCleanupDone!);
-        Assert.True((bool)(await engine.Evaluate("finalResult.value === undefined;"))!);
+        Assert.Equal(99.0, await engine.Evaluate("finalResult.value;"));
         Assert.True((bool)finalDone!);
         Assert.Equal("inner-finally,outer-finally", transcript);
     }

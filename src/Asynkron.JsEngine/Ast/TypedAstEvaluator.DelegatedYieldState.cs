@@ -191,11 +191,12 @@ public static partial class TypedAstEvaluator
                 // A normal return value from iterator.throw(...) is handled like next().
                 // Only exceptional paths should request throw propagation.
                 var propagateThrowResult = false;
-                // Delegated completion is only observed when the delegated iterator reports done: true
-                // and the caller requested a return-completion path.
+                // A yield* return path must stay in delegated-completion mode even when the delegated
+                // iterator temporarily yields (done:false), such as cleanup yields from finally.
+                // The runner persists pending return completion and replays it on resume.
                 // throw() completions that are normal iterator results continue through the regular
                 // propagateThrow+done branch in HandleYieldStar.
-                var delegatedCompletion = propagateReturn && reportedDone;
+                var delegatedCompletion = propagateReturn;
                 return (value, reportedDone, delegatedCompletion, propagateThrowResult, nextResult);
             }
 

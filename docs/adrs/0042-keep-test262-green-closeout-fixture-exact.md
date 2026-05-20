@@ -89,6 +89,12 @@ pinning.
   typed-array construction and `.at()` reads was already fixed by later mainline
   work, so the stale batch report should not trigger another nearby
   TypedArray patch.
+- Issue #877 reused the no-source-change form of this decision for
+  `TypedArray_prototype_fill`. The issue came from a 2026-05-17 Test262 batch
+  summary for `fill-values-conversion-operations.js`, but the build-stage
+  focused proof on 2026-05-20 passed the whole issue-supplied method group
+  66/66 on current `origin/main`. No runtime, harness, or regression-test
+  patch was warranted because the exact current proof was green.
 - Issue #879 repeated the green-closeout path for
   `TypedArray_prototype_indexOf_BigInt`. Investigation identified
   `TypedArrayBase.IndexOfInternal` as the plausible owner for BigInt

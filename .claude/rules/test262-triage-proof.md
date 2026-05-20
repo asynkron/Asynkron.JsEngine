@@ -106,6 +106,23 @@ method group (28/28). Future TypedArray Test262 issues should still inspect the
 owner surface enough to understand the claimed failure, but once the focused
 proof is green, stop without inventing a nearby runtime or harness patch.
 
+Issue #877 repeated the no-source-change variant for
+`TypedArray_prototype_fill`. The 2026-05-17 testrunner summary listed the
+strict and sloppy `fill-values-conversion-operations.js` rows as failures, but
+the build-stage proof on 2026-05-20 passed the issue-supplied method group
+66/66 on current `origin/main`. Future agents should stop at that proof result
+for this class of stale batch report unless a current failing fixture row is
+reproduced.
+
+Issue #878 repeated the same no-source-change closeout for
+`TypedArray_prototype_indexOf`. The investigation identified
+`TypedArrayBase.IndexOfInternal` as the plausible owner for fromIndex coercion
+and strict comparison, but the build-stage proof on 2026-05-20 passed the
+issue-supplied method group 86/86 on current `origin/main`. Future agents should
+treat that owner lookup as context only: once the exact focused proof is green,
+do not patch strict equality, signed-zero, or fromIndex handling without a
+current failing fixture row.
+
 Issue #879 repeated the same current-proof boundary for
 `TypedArray_prototype_indexOf_BigInt`: investigation still identified
 `TypedArrayBase.IndexOfInternal` and BigInt strict equality as the plausible

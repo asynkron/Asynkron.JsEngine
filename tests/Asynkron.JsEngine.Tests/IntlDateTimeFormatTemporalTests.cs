@@ -156,4 +156,27 @@ public sealed class IntlDateTimeFormatTemporalTests(ITestOutputHelper output) : 
 
         Assert.Equal(true, result);
     }
+
+    [Fact]
+    public async Task PlainTimeToLocaleString_IgnoresResolvedTimeZoneOffset()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            const options = {
+                timeZone: "Pacific/Apia",
+                hour: "numeric",
+                minute: "numeric",
+                second: "numeric",
+                hourCycle: "h23"
+            };
+
+            [
+                new Temporal.PlainTime(0, 30, 45, 123, 456, 789).toLocaleString("en", options),
+                new Temporal.PlainTime(23, 30, 45, 123, 456, 789).toLocaleString("en", options)
+            ].join("|");
+            """);
+
+        Assert.Equal("00:30:45|23:30:45", result);
+    }
 }

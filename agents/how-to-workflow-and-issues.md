@@ -27,6 +27,8 @@ This step is **critical** - agent investigation findings are lost if not documen
 
 ## GitHub Issue Logging (persistent working memory)
 - Treat GitHub issues as the long-lived log of progress, research, and reasoning.
+- When running inside Faktorial and Source Context or the Faktorial API is supplied, use that context/API as the authoritative source for issue details, comments, stage history, logs, and write actions. Do not treat missing `gh` CLI auth in that runtime as a blocker.
+- Use the `gh` CLI patterns below for ordinary local/manual GitHub workflows, or only in Faktorial when explicitly instructed and the runtime context does not provide the needed operation.
 - For each session, update an existing issue or create one if none fit.
 - Find/confirm an issue:
   - `gh issue list -S "keyword"`

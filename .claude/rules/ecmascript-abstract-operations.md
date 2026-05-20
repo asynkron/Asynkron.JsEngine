@@ -69,7 +69,12 @@ host-runtime shortcuts.
     booleans, symbols, and bigints are valid receivers after coercion, while
     `null` and `undefined` still throw `TypeError`; internal primitive-wrapper
     slots must not become ordinary enumerable or own descriptor properties.
-15. For `Reflect.construct`, keep `target` and `newTarget` roles separate.
+15. For Intl constructors that accept options, use the ECMA-402 ToObject
+    options path when the constructor requires it. `undefined` remains absent,
+    `null` throws at options coercion, and non-null primitives are boxed before
+    option property reads. Keep the constructor's spec option read order after
+    coercion.
+16. For `Reflect.construct`, keep `target` and `newTarget` roles separate.
     `target` selects constructor behavior and allocation kind, including Array
     exotic allocation. `newTarget` selects the prototype path and realm
     fallback when `newTarget.prototype` is not an object. Do not let an Array
@@ -137,6 +142,18 @@ already green. The behavior to keep pinned is the abstract-operation split:
 Object built-in work should prove both the primitive-success path and the
 nullish-error path locally so wrapper implementation details such as
 `__value__` do not leak into descriptor enumeration.
+
+Issue #822 / PR #1110 fixed `Intl.RelativeTimeFormat` constructor
+`options-toobject` Test262 failures after the constructor used the strict
+object-only options path. ECMA-402 constructors can observe option coercion:
+`undefined` means no options, `null` throws before property reads, and non-null
+primitive options are boxed before properties such as `localeMatcher`,
+`numberingSystem`, `style`, and `numeric` are read in spec order. Future Intl
+constructor work should reuse the shared ToObject-compatible options helper and
+prove the focused `Name=RelativeTimeFormat_constructor_constructor` or owning
+constructor Test262 method group.
+
+Related ADR: `docs/adrs/0039-keep-intl-constructor-options-toobject-coercion.md`.
 
 Issue #817 / PR #1018 fixed `Reflect.construct` after the Array allocation
 special case mixed the roles of `target` and `newTarget`. A cross-realm or

@@ -86,3 +86,14 @@ current main. The broad `Name=Statements_class_elements` proof hit the
 inactivity guard because it selected the generated method group, so the durable
 lesson is to close from exact row proof when the batch report is stale and the
 group filter is the noisy part.
+
+Issue #872 / PR #1227 repeated the green-on-main closeout shape for
+`TypedArrayConstructors_from`. The reported fixture
+`built-ins/TypedArrayConstructors/from/new-instance-from-zero.js` was already
+covered by the live method group (58/58 passing on current `origin/main`), so
+the delivery stayed test-only and added a single focused regression mirroring
+the fixture across `Int8Array`, `Uint8Array`, `Int32Array`, and `Float64Array`.
+The same delivery also surfaced an adjacency conflict with sibling typed-array
+closeouts (#869 / #1223 / #1224 ToIndex regressions in the same test file);
+resolve those by keeping both non-overlapping test blocks rather than
+collapsing one closeout into the other.

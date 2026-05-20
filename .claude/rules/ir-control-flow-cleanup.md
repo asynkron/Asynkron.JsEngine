@@ -30,6 +30,11 @@ scope cleanup chains.
    iteration. The loop binding statement owns first-iteration initialization;
    copying from the enclosing scope can preserve TDZ state before the binding is
    initialized.
+7. For `try`/`finally` IR completion bookkeeping, keep pending abrupt
+   completion origin explicit. A normal `finally` must restore the saved
+   try/catch completion value for pending `break` or `continue` that originated
+   before the finally block; an abrupt `break`, `continue`, `return`, or `throw`
+   raised inside `finally` must still replace the saved completion.
 
 ## Why
 
@@ -50,3 +55,11 @@ symptom looked helper-specific but whose cause was active iterator scope setup.
 The first `for-of` iteration copied a same-name TDZ binding from the enclosing
 scope before the loop binding statement initialized the iteration binding. Keep
 iterator-frame ownership explicit before adding helper-specific workarounds.
+
+Issue #828 / PR #1127 fixed Test262 `Statements_try` completion-value failures
+after review exposed a try/finally pairing bug. The first repair let abrupt
+completion from inside `finally` win, but it also risked overwriting a try-body
+`break` or `continue` that merely passed through a normal `finally`. The
+durable rule is that `EndFinally` needs origin-aware pending completion state:
+normal finally completion discards its own value and restores the saved
+try/catch completion, while abrupt finally completion replaces it.

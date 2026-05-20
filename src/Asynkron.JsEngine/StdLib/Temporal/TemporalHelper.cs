@@ -5178,6 +5178,8 @@ public static class TemporalHelper
         var hasDateStyle = false;
         var hasTimeStyle = false;
         var hasFormattingOption = false;
+        var hasFormattingOptionOtherThanTimeZoneName = false;
+        var hasDefinedOption = false;
 
         if (!optionsArg.IsUndefined && !optionsArg.IsNull && optionsArg.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
@@ -5187,21 +5189,32 @@ public static class TemporalHelper
                     continue;
 
                 formatOptions.SetProperty(property, value);
+                hasDefinedOption = true;
                 hasDateStyle |= string.Equals(property, "dateStyle", StringComparison.Ordinal);
                 hasTimeStyle |= string.Equals(property, "timeStyle", StringComparison.Ordinal);
-                hasFormattingOption |= Array.IndexOf(TemporalToLocaleStringFormattingOptionNames, property) >= 0;
+                var isFormattingOption = Array.IndexOf(TemporalToLocaleStringFormattingOptionNames, property) >= 0;
+                hasFormattingOption |= isFormattingOption;
+                hasFormattingOptionOtherThanTimeZoneName |= isFormattingOption &&
+                                                            !string.Equals(property, "timeZoneName",
+                                                                StringComparison.Ordinal);
             }
         }
 
-        if (!hasDateStyle && !hasTimeStyle && !hasFormattingOption)
+        var isInstant = HasTemporalSlot<JsTemporalInstant>(thisValue, TemporalInstantSlot);
+        var shouldApplyDefaults = !hasDateStyle && !hasTimeStyle &&
+                                  (!hasFormattingOption ||
+                                   (isInstant && !hasFormattingOptionOtherThanTimeZoneName));
+
+        if (shouldApplyDefaults)
         {
-            ApplyTemporalDefaultFormatComponents(thisValue, formatOptions);
+            ApplyTemporalDefaultFormatComponents(thisValue, formatOptions, hasDefinedOption, isInstant);
         }
 
         return JsValue.FromObjectUnsafe(formatOptions);
     }
 
-    private static void ApplyTemporalDefaultFormatComponents(JsValue thisValue, JsObject formatOptions)
+    private static void ApplyTemporalDefaultFormatComponents(JsValue thisValue, JsObject formatOptions,
+        bool hasDefinedOption, bool isInstant)
     {
         if (HasTemporalSlot<JsTemporalPlainDate>(thisValue, TemporalPlainDateSlot))
         {
@@ -5233,9 +5246,11 @@ public static class TemporalHelper
             return;
         }
 
-        if (HasTemporalSlot<JsTemporalInstant>(thisValue, TemporalInstantSlot) ||
-            HasTemporalSlot<JsTemporalPlainDateTime>(thisValue, TemporalPlainDateTimeSlot))
+        if (isInstant || HasTemporalSlot<JsTemporalPlainDateTime>(thisValue, TemporalPlainDateTimeSlot))
         {
+            if (!hasDefinedOption && isInstant)
+                return;
+
             formatOptions.SetProperty("year", "numeric");
             formatOptions.SetProperty("month", "numeric");
             formatOptions.SetProperty("day", "numeric");
@@ -7575,9 +7590,9 @@ public static class TemporalHelper
         if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
             // 1. calendar
-            var calendarId = "iso8601";
+            var calendar = "iso8601";
             if (accessor.TryGetProperty("calendar", out var calVal) && !calVal.IsUndefined)
-                calendarId = ResolveTemporalCalendarId(calVal, realm);
+                calendar = CanonicalizeCalendarId(ResolveTemporalCalendarId(calVal, realm));
 
             // 2. day
             if (!accessor.TryGetProperty("day", out var dayVal) || dayVal.IsUndefined)
@@ -7586,33 +7601,40 @@ public static class TemporalHelper
 
             string? era = null;
             int? eraYear = null;
-            if (!string.Equals(calendarId, "iso8601", StringComparison.Ordinal))
+            // 3-4. era / eraYear are only relevant for era-capable calendars.
+            if (CalendarUsesEras(calendar))
             {
-                if (accessor.TryGetProperty("era", out var eraVal) && !eraVal.IsUndefined)
+                var hasEra = accessor.TryGetProperty("era", out var eraVal) && !eraVal.IsUndefined;
+                if (hasEra)
                     era = JsOps.ToJsString(eraVal);
-                if (accessor.TryGetProperty("eraYear", out var eraYearVal) && !eraYearVal.IsUndefined)
+
+                var hasEraYear = accessor.TryGetProperty("eraYear", out var eraYearVal) && !eraYearVal.IsUndefined;
+                if (hasEraYear)
                     eraYear = ToIntegerWithTruncation(eraYearVal, realm);
+
+                if (hasEra != hasEraYear)
+                    throw StandardLibrary.ThrowTypeError("Property bag for relativeTo must have both 'era' and 'eraYear'", realm: realm);
             }
 
-            // 3. hour
+            // 5. hour
             var hour = GetOptionalIntProperty(accessor, "hour", realm);
 
-            // 4. microsecond
+            // 6. microsecond
             var microsecond = GetOptionalIntProperty(accessor, "microsecond", realm);
 
-            // 5. millisecond
+            // 7. millisecond
             var millisecond = GetOptionalIntProperty(accessor, "millisecond", realm);
 
-            // 6. minute
+            // 8. minute
             var minute = GetOptionalIntProperty(accessor, "minute", realm);
 
-            // 7. month
+            // 9. month
             accessor.TryGetProperty("month", out var monthVal);
             var hasMonth = !monthVal.IsUndefined;
             int monthInt = 0;
             if (hasMonth) monthInt = ToIntegerWithTruncation(monthVal, realm);
 
-            // 8. monthCode — call ToString immediately for observable order
+            // 10. monthCode — call ToString immediately for observable order
             accessor.TryGetProperty("monthCode", out var monthCodeVal);
             var hasMonthCode = !monthCodeVal.IsUndefined;
             string? monthCodeStr = null;
@@ -7622,10 +7644,10 @@ public static class TemporalHelper
                 ValidateMonthCodeSyntax(monthCodeStr, realm);
             }
 
-            // 9. nanosecond
+            // 11. nanosecond
             var nanosecond = GetOptionalIntProperty(accessor, "nanosecond", realm);
 
-            // 10. offset — call ToString immediately if not undefined
+            // 12. offset — call ToString immediately if not undefined
             accessor.TryGetProperty("offset", out var offsetVal);
             string? offsetStr = null;
             if (!offsetVal.IsUndefined)
@@ -7637,14 +7659,14 @@ public static class TemporalHelper
                 offsetStr = offsetVal.IsString ? offsetVal.AsString() : JsOps.ToJsString(offsetVal);
             }
 
-            // 11. second
+            // 13. second
             var second = GetOptionalIntProperty(accessor, "second", realm);
 
-            // 12. timeZone
+            // 14. timeZone
             accessor.TryGetProperty("timeZone", out var tzVal);
             var hasTimeZone = !tzVal.IsUndefined;
 
-            // 13. year
+            // 15. year
             int year;
             if (!accessor.TryGetProperty("year", out var yearVal) || yearVal.IsUndefined)
             {
@@ -7761,23 +7783,21 @@ public static class TemporalHelper
         if (hasOffset)
         {
             var stringOffsetNanos = ExtractOffsetNanosFromString(baseStr);
-            TimeSpan tzOffset;
             if (fixedOff.HasValue)
             {
-                tzOffset = fixedOff.Value;
-                if (!TryMatchTimeZoneOffsetForString(baseStr, stringOffsetNanos, timeZoneId, tz, fixedOff,
-                        DateTime.UnixEpoch, out _))
+                var fixedOffsetNanos = fixedOff.Value.Ticks * 100L;
+                if (!OffsetsMatchStringInput(baseStr, stringOffsetNanos, fixedOffsetNanos))
                     throw StandardLibrary.ThrowRangeError("Offset does not match the time zone", realm: realm);
-            }
-            else
-            {
-                if (!TryParseDateTimeForTimeZoneOffsetLookup(baseStr, out var approxLocal))
-                    throw StandardLibrary.ThrowRangeError($"Invalid ZonedDateTime string: {str}", realm: realm);
 
-                if (!TryMatchTimeZoneOffsetForString(baseStr, stringOffsetNanos, timeZoneId, tz, fixedOff, approxLocal,
-                        out tzOffset))
-                    throw StandardLibrary.ThrowRangeError("Offset does not match the time zone", realm: realm);
+                return new JsTemporalZonedDateTime(parsed, timeZoneId, calendar);
             }
+
+            if (!TryParseDateTimeForTimeZoneOffsetLookup(baseStr, out var approxLocal))
+                throw StandardLibrary.ThrowRangeError($"Invalid ZonedDateTime string: {str}", realm: realm);
+
+            if (!TryMatchTimeZoneOffsetForString(baseStr, stringOffsetNanos, timeZoneId, tz, fixedOff, approxLocal,
+                    out var tzOffset))
+                throw StandardLibrary.ThrowRangeError("Offset does not match the time zone", realm: realm);
 
             var wallTimeInstant =
                 JsTemporalInstant.FromEpochNanoseconds(parsed.EpochNanoseconds + stringOffsetNanos - tzOffset.Ticks * 100L);

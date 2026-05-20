@@ -319,8 +319,7 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
             return FormatYear() + $"-{Month:D2}";
         }
 
-        var isoDate = ToIsoDateForCalendar();
-        return $"{isoDate:yyyy-MM-dd}[u-ca={Calendar}]";
+        return FormatYear() + $"-{Month:D2}-{ReferenceDay:D2}[u-ca={Calendar}]";
     }
 
     /// <summary>
@@ -335,13 +334,7 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
             return FormatYear() + $"-{Month:D2}-{ReferenceDay:D2}[{prefix}u-ca={Calendar}]";
         }
 
-        var isoDate = ToIsoDateForCalendar();
-        return $"{isoDate:yyyy-MM-dd}[{prefix}u-ca={Calendar}]";
-    }
-
-    private DateTime ToIsoDateForCalendar()
-    {
-        return ToGregorianDate(Calendar, Year, Month, ReferenceDay);
+        return FormatYear() + $"-{Month:D2}-{ReferenceDay:D2}[{prefix}u-ca={Calendar}]";
     }
 
     internal static DateTime ToGregorianDate(string calendar, int year, int month, int day)

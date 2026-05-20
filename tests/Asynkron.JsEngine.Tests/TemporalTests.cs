@@ -594,6 +594,54 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
         Assert.Equal(15d, result);
     }
 
+    [Fact]
+    public async Task Temporal_PlainDateTime_Since_InfinityPropertyBagYear_ThrowsRangeError_AndPreservesValueOfObservationOrder()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const dateTime = new Temporal.PlainDateTime(2000, 5, 2, 12, 34, 56, 987, 654, 321);
+            const log = [];
+            const fields = {
+              month: 5,
+              day: 2,
+              hour: 12,
+              minute: 34,
+              second: 56,
+              millisecond: 987,
+              microsecond: 654,
+              nanosecond: 321,
+            };
+
+            try {
+              dateTime.since({ year: Infinity, ...fields });
+              log.push("direct:no-throw");
+            } catch (error) {
+              log.push(`direct:${error.name}`);
+            }
+
+            const yearObserver = {
+              get valueOf() {
+                log.push("observer:get valueOf");
+                return function() {
+                  log.push("observer:call valueOf");
+                  return Infinity;
+                };
+              },
+            };
+
+            try {
+              dateTime.since({ year: yearObserver, ...fields });
+              log.push("observer:no-throw");
+            } catch (error) {
+              log.push(`observer:${error.name}`);
+            }
+
+            log.join("|");
+            """);
+
+        Assert.Equal("direct:RangeError|observer:get valueOf|observer:call valueOf|observer:RangeError", result);
+    }
+
     // Duration methods
     [Fact]
     public async Task Temporal_Duration_With()

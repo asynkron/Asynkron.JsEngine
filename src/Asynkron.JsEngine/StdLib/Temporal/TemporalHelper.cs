@@ -9383,13 +9383,13 @@ public static class TemporalHelper
             throw StandardLibrary.ThrowTypeError("Property bag for PlainDate must have 'day'", realm: realm);
         var day = ToIntegerWithTruncation(dayVal, realm);
 
-        // 3-4. era/eraYear: only read for non-ISO calendars (ISO calendar ignores them per spec).
-        var isIso = string.Equals(calendar, "iso8601", StringComparison.Ordinal);
+        // 3-4. era/eraYear are only relevant for era-capable calendars.
+        var calendarUsesEras = CalendarUsesEras(calendar);
         var hasEra = false;
         var hasEraYear = false;
         string? era = null;
         int eraYear = 0;
-        if (!isIso)
+        if (calendarUsesEras)
         {
             hasEra = accessor.TryGetProperty("era", out var eraVal) && !eraVal.IsUndefined;
             if (hasEra)
@@ -9428,7 +9428,7 @@ public static class TemporalHelper
                 if (!hasEra || !hasEraYear)
                     throw StandardLibrary.ThrowTypeError("Property bag for PlainDate must have both 'era' and 'eraYear'", realm: realm);
 
-                if (!CalendarUsesEras(calendar))
+                if (!calendarUsesEras)
                     throw StandardLibrary.ThrowTypeError("Property bag for PlainDate must have 'year'", realm: realm);
 
                 var yearFromEra = ResolveTemporalEraYear(calendar, era!, eraYear, realm);
@@ -9492,7 +9492,7 @@ public static class TemporalHelper
         // For non-ISO calendars, convert calendar-specific year/month/day to ISO
         if (!string.Equals(calendar, "iso8601", StringComparison.Ordinal))
         {
-            return CalendarDateToIsoPlainDate(year, month, day, calendar, overflow, realm);
+            return CalendarDateToIsoPlainDate(year, month, day, calendar, overflow, realm, preserveCalendarFields: true);
         }
 
         if (overflow == "reject")
@@ -9522,7 +9522,7 @@ public static class TemporalHelper
     /// Uses .NET BCL calendars for the conversion.
     /// </summary>
     private static JsTemporalPlainDate CalendarDateToIsoPlainDate(
-        int year, int month, int day, string calendar, string overflow, RealmState realm)
+        int year, int month, int day, string calendar, string overflow, RealmState realm, bool preserveCalendarFields = false)
     {
         // Gregory is the same as ISO for positive years
         if (string.Equals(calendar, "gregory", StringComparison.Ordinal))
@@ -9583,6 +9583,9 @@ public static class TemporalHelper
             var isoDay = dt.Day;
 
             RejectISODate(isoYear, isoMonth, isoDay, realm);
+            if (preserveCalendarFields)
+                return new JsTemporalPlainDate(year, month, day, calendar);
+
             return new JsTemporalPlainDate(isoYear, isoMonth, isoDay, calendar);
         }
         catch (ArgumentOutOfRangeException)

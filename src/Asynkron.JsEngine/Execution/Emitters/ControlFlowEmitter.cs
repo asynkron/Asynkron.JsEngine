@@ -189,7 +189,7 @@ internal static class ControlFlowEmitter
         BreakStatement statement,
         out int entryIndex)
     {
-        if (!ctx.TryFindBreakTarget(statement.Label, out var target, out var scopeId))
+        if (!ctx.TryFindBreakTarget(statement.Label, out var target, out var targetBoundary))
         {
             ctx.SetFailureReason(
                 $"Break target not found for label: {statement.Label?.Name ?? "(none)"}",
@@ -198,8 +198,8 @@ internal static class ControlFlowEmitter
             return false;
         }
 
-        var cleanupTarget = ctx.BuildScopeExitTarget(target, scopeId);
-        entryIndex = ctx.Append(new BreakInstruction(cleanupTarget, scopeId));
+        var cleanupTarget = ctx.BuildScopeExitTarget(target, targetBoundary);
+        entryIndex = ctx.Append(new BreakInstruction(cleanupTarget, targetBoundary.ScopeId));
         return true;
     }
 
@@ -213,7 +213,7 @@ internal static class ControlFlowEmitter
         ContinueStatement statement,
         out int entryIndex)
     {
-        if (!ctx.TryFindContinueTarget(statement.Label, out var target, out var scopeId))
+        if (!ctx.TryFindContinueTarget(statement.Label, out var target, out var targetBoundary))
         {
             ctx.SetFailureReason(
                 $"Continue target not found for label: {statement.Label?.Name ?? "(none)"}",
@@ -222,8 +222,8 @@ internal static class ControlFlowEmitter
             return false;
         }
 
-        var cleanupTarget = ctx.BuildScopeExitTarget(target, scopeId);
-        entryIndex = ctx.Append(new ContinueInstruction(cleanupTarget, scopeId));
+        var cleanupTarget = ctx.BuildScopeExitTarget(target, targetBoundary);
+        entryIndex = ctx.Append(new ContinueInstruction(cleanupTarget, targetBoundary.ScopeId));
         return true;
     }
 
@@ -244,7 +244,7 @@ internal static class ControlFlowEmitter
 
         // Push scope so that labeled break can be resolved during IR building.
         // ContinueTarget is -1 because continue is not valid for non-loop labeled statements.
-        ctx.PushLoopScope(labeled.Label, -1, breakableExitIndex, ctx.CurrentScopeId);
+        ctx.PushLoopScope(labeled.Label, -1, breakableExitIndex, ctx.CurrentScopeExitBoundary);
 
         var bodyBuilt = ctx.TryBuildStatement(labeled.Statement, breakableExitIndex, out var bodyEntry);
         ctx.PopLoopScope();

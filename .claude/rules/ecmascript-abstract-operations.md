@@ -100,6 +100,19 @@ host-runtime shortcuts.
     Instant. Defined non-format options such as `timeZone` should still receive
     Instant date/time defaults, but Instant defaults must not inject
     `timeZoneName`; keep ZonedDateTime's time-zone-name default path separate.
+20. For Temporal `PlainDateTime.from` non-ISO property bags, preserve the
+    calendar-visible `year`, `month`, and `day` fields after overflow handling.
+    Use calendar-to-ISO conversion as a validation projection only; do not store
+    the converted ISO fields back into the resulting `PlainDateTime`. Treat
+    `era` and `eraYear` as calendar-dependent: calendars without era support
+    ignore them when `year` is explicit and still require `year` when it is
+    absent.
+21. For Temporal `PlainDateTime.prototype.toLocaleString`, keep PlainDateTime
+    as wall-clock component formatting even when a resolved `timeZone` option is
+    supplied, but route hour output through the shared `Intl.DateTimeFormat`
+    hour-cycle formatting helpers. `h23` and `h24` numeric hours still need the
+    same zero-padding behavior as the epoch/proleptic DateTimeFormat paths; do
+    not fix Temporal output with a Temporal-only string special case.
 
 ## Why
 
@@ -235,3 +248,27 @@ method group before widening.
 
 Related ADR:
 `docs/adrs/0047-keep-temporal-instant-locale-defaults-absent-options-split.md`.
+
+Issue #837 / PR #1137 fixed `Temporal.PlainDateTime.from` after non-ISO
+calendar property bags reused the converted ISO date as the object's visible
+date fields. The durable lesson is that Temporal property-bag conversion can
+need two representations at once: source calendar fields remain observable on
+the Temporal object, while the converted ISO projection is only for range
+validation. Future `PlainDateTime.from` work should preserve calendar-visible
+fields, keep era handling calendar-dependent, and prove the focused
+`Name=Temporal_PlainDateTime_from` Test262 method group.
+
+Related ADR: `docs/adrs/0048-keep-temporal-plaindatetime-calendar-fields-observable.md`.
+
+Issue #838 / PR #1146 fixed `Temporal.PlainDateTime.prototype.toLocaleString`
+after the `resolved-time-zone.js` Test262 fixture expected the supplied
+`Pacific/Apia` time zone to remain resolved but not shift PlainDateTime's
+wall-clock fields. The implementation already preserved wall-clock fields, but
+the Temporal component path bypassed shared hour-cycle padding and formatted
+`h23` numeric midnight as `0` instead of `00`. Future Temporal locale-format
+work should keep PlainDateTime on the component path, keep `timeZone` resolved,
+and prove hour-cycle output with the focused
+`Name=Temporal_PlainDateTime_prototype_toLocaleString` Test262 method group.
+
+Related ADR:
+`docs/adrs/0049-keep-temporal-plaindatetime-locale-hours-on-shared-hourcycle-formatting.md`.

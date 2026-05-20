@@ -2,6 +2,8 @@
 
 For any significant work session, maintain a GitHub issue as persistent memory.
 
+When Faktorial Source Context or the Faktorial API is supplied, that runtime context takes precedence for issue details, comments, stage history, logs, and write actions. In that case, use the provided Faktorial helpers/API instead of `gh`, and do not report missing Docker `gh` auth as a blocker. The `gh` commands below are for ordinary local/manual GitHub workflows, or for explicit fallback cases where Faktorial context does not cover the operation.
+
 ## Naming Convention
 
 - **GitHub issue work**: `AgentContext: issue/NNN` (e.g., `AgentContext: issue/465`)

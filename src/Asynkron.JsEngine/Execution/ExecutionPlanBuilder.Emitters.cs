@@ -60,5 +60,9 @@ internal sealed partial class ExecutionPlanBuilder
     /// <summary>
     /// Loop scope structure for break/continue resolution.
     /// </summary>
-    internal readonly record struct LoopScope(Symbol? Label, int ContinueTarget, int BreakTarget, int TargetScopeId);
+    internal readonly record struct LoopScope(
+        Symbol? Label,
+        int ContinueTarget,
+        int BreakTarget,
+        ScopeExitBoundary TargetBoundary);
 }

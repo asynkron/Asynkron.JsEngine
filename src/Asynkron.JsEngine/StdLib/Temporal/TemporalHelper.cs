@@ -6602,17 +6602,17 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
             }
 
-            var localDateTime = FromEpochNanoseconds(localEpochNanoseconds);
+            var fixedOffsetLocalDateTime = FromEpochNanoseconds(localEpochNanoseconds);
             return new JsTemporalPlainDateTime(
-                localDateTime.Year,
-                localDateTime.Month,
-                localDateTime.Day,
-                localDateTime.Hour,
-                localDateTime.Minute,
-                localDateTime.Second,
-                localDateTime.Millisecond,
-                localDateTime.Microsecond,
-                localDateTime.Nanosecond,
+                fixedOffsetLocalDateTime.Year,
+                fixedOffsetLocalDateTime.Month,
+                fixedOffsetLocalDateTime.Day,
+                fixedOffsetLocalDateTime.Hour,
+                fixedOffsetLocalDateTime.Minute,
+                fixedOffsetLocalDateTime.Second,
+                fixedOffsetLocalDateTime.Millisecond,
+                fixedOffsetLocalDateTime.Microsecond,
+                fixedOffsetLocalDateTime.Nanosecond,
                 zonedDateTime.Calendar);
         }
 
@@ -6801,6 +6801,26 @@ public static class TemporalHelper
         }
 
         return TemporalHistoricalTimeZoneOffsets.GetUtcOffset(timeZone, localDateTime);
+    }
+
+    private static TimeSpan ResolveTimeZoneOffset(
+        DateTime localDateTime,
+        string requestedTimeZoneId,
+        TimeZoneInfo timeZone,
+        TimeSpan? fixedOffset)
+    {
+        if (fixedOffset.HasValue)
+        {
+            return fixedOffset.Value;
+        }
+
+        if (timeZone.IsAmbiguousTime(localDateTime))
+        {
+            var offsets = timeZone.GetAmbiguousTimeOffsets(localDateTime);
+            return offsets.Max();
+        }
+
+        return TemporalHistoricalTimeZoneOffsets.GetUtcOffset(requestedTimeZoneId, timeZone, localDateTime);
     }
 
     private static BigInteger ToEpochNanoseconds(DateTime localDateTime, TimeSpan offset)
@@ -7778,8 +7798,12 @@ public static class TemporalHelper
                 return new JsTemporalZonedDateTime(parsed, timeZoneId, calendar);
             }
 
-            var approxLocal = ParseApproximateWallClock(baseStr);
-            TryMatchTimeZoneOffsetForString(baseStr, stringOffsetNanos, timeZoneId, tz, fixedOff, approxLocal, out var tzOffset);
+            if (!TryParseDateTimeForTimeZoneOffsetLookup(baseStr, out var approxLocal))
+                throw StandardLibrary.ThrowRangeError($"Invalid ZonedDateTime string: {str}", realm: realm);
+
+            if (!TryMatchTimeZoneOffsetForString(baseStr, stringOffsetNanos, timeZoneId, tz, fixedOff, approxLocal,
+                    out var tzOffset))
+                throw StandardLibrary.ThrowRangeError("Offset does not match the time zone", realm: realm);
 
             var wallTimeInstant =
                 JsTemporalInstant.FromEpochNanoseconds(parsed.EpochNanoseconds + stringOffsetNanos - tzOffset.Ticks * 100L);
@@ -8058,19 +8082,85 @@ public static class TemporalHelper
             return TotalDaysForZonedDateTime(relativeTo, diffNs, realm);
         }
 
-        // For calendar units (week/month/year), validate the target epoch ns, then use PlainDate logic
-        AddZonedDateTimeEpochNs(relativeTo, duration, realm);
-        try
+        var endEpochNsForCalendarUnits = AddZonedDateTimeEpochNs(relativeTo, duration, realm);
+        if (string.Equals(unit, "week", StringComparison.Ordinal))
         {
-            var localPdt = GetLocalPlainDateTime(relativeTo, realm);
-            var plainDate = new JsTemporalPlainDate(localPdt.Year, localPdt.Month, localPdt.Day, relativeTo.Calendar);
-            return TotalDurationRelativeToPlainDate(duration, unit, plainDate, realm);
+            return TotalWeekRelativeToZonedDateTime(relativeTo, endEpochNsForCalendarUnits, realm);
         }
-        catch (OverflowException)
+
+        if (string.Equals(unit, "month", StringComparison.Ordinal) ||
+            string.Equals(unit, "year", StringComparison.Ordinal))
         {
-            throw StandardLibrary.ThrowRangeError("Resulting date-time is out of valid range", realm: realm);
+            return TotalMonthOrYearRelativeToZonedDateTime(unit, relativeTo, endEpochNsForCalendarUnits, realm);
         }
+
+        return 0;
     }
+
+    private static double TotalWeekRelativeToZonedDateTime(
+        JsTemporalZonedDateTime relativeTo,
+        BigInteger endEpochNs,
+        RealmState realm)
+    {
+        var startLocal = GetLocalPlainDateTime(relativeTo, realm);
+        var endLocal = GetLocalPlainDateTime(
+            new JsTemporalZonedDateTime(JsTemporalInstant.FromEpochNanoseconds(endEpochNs), relativeTo.TimeZoneId, relativeTo.Calendar),
+            realm);
+        var totalDays = IsoToDayNumber(endLocal.Year, endLocal.Month, endLocal.Day) -
+                        IsoToDayNumber(startLocal.Year, startLocal.Month, startLocal.Day);
+        var wholeWeeks = totalDays / 7;
+        var sign = CompareEpochNanoseconds(endEpochNs, relativeTo.Instant.EpochNanoseconds);
+        if (sign == 0)
+            return 0;
+
+        var thresholdNs = AddZonedDateTimeEpochNs(relativeTo,
+            new JsTemporalDuration(0, 0, 0, wholeWeeks * 7, 0, 0, 0, 0, 0, 0), realm);
+        var nextBoundaryNs = AddZonedDateTimeEpochNs(relativeTo,
+            new JsTemporalDuration(0, 0, 0, (wholeWeeks + sign) * 7, 0, 0, 0, 0, 0, 0), realm);
+        var denominatorNs = BigInteger.Abs(nextBoundaryNs - thresholdNs);
+        if (denominatorNs.IsZero)
+            return wholeWeeks;
+
+        return wholeWeeks + BigIntegerToDouble(endEpochNs - thresholdNs) / BigIntegerToDouble(denominatorNs);
+    }
+
+    private static double TotalMonthOrYearRelativeToZonedDateTime(
+        string unit,
+        JsTemporalZonedDateTime relativeTo,
+        BigInteger endEpochNs,
+        RealmState realm)
+    {
+        var startLocal = GetLocalPlainDateTime(relativeTo, realm);
+        var endLocal = GetLocalPlainDateTime(
+            new JsTemporalZonedDateTime(JsTemporalInstant.FromEpochNanoseconds(endEpochNs), relativeTo.TimeZoneId, relativeTo.Calendar),
+            realm);
+
+        var (years, months, _, _) = DifferenceISODate(
+            startLocal.Year, startLocal.Month, startLocal.Day,
+            endLocal.Year, endLocal.Month, endLocal.Day,
+            unit);
+        var wholeUnits = string.Equals(unit, "year", StringComparison.Ordinal)
+            ? years
+            : years * 12 + months;
+        var monthsPerUnit = string.Equals(unit, "year", StringComparison.Ordinal) ? 12 : 1;
+        var sign = CompareEpochNanoseconds(endEpochNs, relativeTo.Instant.EpochNanoseconds);
+        if (sign == 0)
+            return 0;
+
+        var boundaryMonths = wholeUnits * monthsPerUnit;
+        var thresholdNs = AddZonedDateTimeEpochNs(relativeTo,
+            new JsTemporalDuration(0, boundaryMonths, 0, 0, 0, 0, 0, 0, 0, 0), realm);
+        var nextBoundaryNs = AddZonedDateTimeEpochNs(relativeTo,
+            new JsTemporalDuration(0, boundaryMonths + sign * monthsPerUnit, 0, 0, 0, 0, 0, 0, 0, 0), realm);
+        var denominatorNs = BigInteger.Abs(nextBoundaryNs - thresholdNs);
+        if (denominatorNs.IsZero)
+            return wholeUnits;
+
+        return wholeUnits + BigIntegerToDouble(endEpochNs - thresholdNs) / BigIntegerToDouble(denominatorNs);
+    }
+
+    private static int CompareEpochNanoseconds(BigInteger left, BigInteger right)
+        => left > right ? 1 : left < right ? -1 : 0;
 
     /// <summary>
     /// Computes the actual day length at the intermediate point (start + dateDuration) in the timezone.
@@ -8811,7 +8901,7 @@ public static class TemporalHelper
 
         // 2. Convert intermediate date back to epoch nanoseconds using the timezone
         var offset = zdt.FixedOffset ?? ResolveTimeZoneOffset(
-            CreateTimeZoneLocalDateTime(intermediateDate), zdt.TimeZone, zdt.FixedOffset);
+            CreateTimeZoneLocalDateTime(intermediateDate), zdt.TimeZoneId, zdt.TimeZone, zdt.FixedOffset);
         var offsetNanos = new BigInteger(offset.Ticks) * 100;
         var intermediateEpochNs = ToEpochNanoseconds(intermediateDate) - offsetNanos;
 
@@ -8849,7 +8939,7 @@ public static class TemporalHelper
 
         // Step 3: Convert intermediate back to epoch ns using timezone
         var offset = zdt.FixedOffset ?? ResolveTimeZoneOffset(
-            CreateTimeZoneLocalDateTime(intermediateLocal), zdt.TimeZone, zdt.FixedOffset);
+            CreateTimeZoneLocalDateTime(intermediateLocal), zdt.TimeZoneId, zdt.TimeZone, zdt.FixedOffset);
         var offsetNanoseconds = new BigInteger(offset.Ticks) * 100;
         var intermediateEpochNs = ToEpochNanoseconds(intermediateLocal) - offsetNanoseconds;
 
@@ -9078,6 +9168,146 @@ public static class TemporalHelper
         }
 
         return false;
+    }
+
+    private static bool TryParseDateTimeForTimeZoneOffsetLookup(string dateTimeString, out DateTime localDateTime)
+    {
+        localDateTime = default;
+        var tIdx = dateTimeString.IndexOf('T');
+        if (tIdx < 0)
+            tIdx = dateTimeString.IndexOf('t');
+        if (tIdx < 0)
+            tIdx = dateTimeString.IndexOf(' ');
+
+        var datePart = tIdx >= 0 ? dateTimeString[..tIdx] : dateTimeString;
+        var timePart = tIdx >= 0 ? dateTimeString[(tIdx + 1)..] : "00:00:00";
+
+        var sign = 1;
+        if (datePart.Length > 0 && (datePart[0] == '+' || datePart[0] == '-' || datePart[0] == '\u2212'))
+        {
+            sign = datePart[0] == '-' || datePart[0] == '\u2212' ? -1 : 1;
+            datePart = datePart[1..];
+        }
+
+        int year;
+        int month;
+        int day;
+        if (datePart.Contains('-'))
+        {
+            var lastDash = datePart.LastIndexOf('-');
+            var secondLastDash = lastDash > 0 ? datePart.LastIndexOf('-', lastDash - 1) : -1;
+            if (secondLastDash <= 0 ||
+                !int.TryParse(datePart[..secondLastDash], CultureInfo.InvariantCulture, out var yearAbs) ||
+                !int.TryParse(datePart[(secondLastDash + 1)..lastDash], CultureInfo.InvariantCulture, out month) ||
+                !int.TryParse(datePart[(lastDash + 1)..], CultureInfo.InvariantCulture, out day))
+            {
+                return false;
+            }
+
+            year = sign * yearAbs;
+        }
+        else
+        {
+            if (datePart.Length < 8)
+                return false;
+
+            var yearLength = datePart.Length - 4;
+            if (!int.TryParse(datePart[..yearLength], CultureInfo.InvariantCulture, out var yearAbs) ||
+                !int.TryParse(datePart[yearLength..(yearLength + 2)], CultureInfo.InvariantCulture, out month) ||
+                !int.TryParse(datePart[(yearLength + 2)..], CultureInfo.InvariantCulture, out day))
+            {
+                return false;
+            }
+
+            year = sign * yearAbs;
+        }
+
+        if (year is < 1 or > 9999)
+            return false;
+
+        var offsetStart = -1;
+        if (timePart.EndsWith('Z') || timePart.EndsWith('z'))
+        {
+            timePart = timePart[..^1];
+        }
+        else
+        {
+            for (var i = timePart.Length - 1; i >= 1; i--)
+            {
+                if ((timePart[i] == '+' || timePart[i] == '-') &&
+                    i + 1 < timePart.Length && char.IsDigit(timePart[i + 1]))
+                {
+                    offsetStart = i;
+                    break;
+                }
+            }
+        }
+
+        if (offsetStart >= 0)
+            timePart = timePart[..offsetStart];
+
+        timePart = timePart.Replace(',', '.');
+        var hour = 0;
+        var minute = 0;
+        var second = 0;
+        var millisecond = 0;
+        var microsecond = 0;
+        if (timePart.Length > 0)
+        {
+            string secondsPart;
+            if (timePart.Contains(':'))
+            {
+                var timeParts = timePart.Split(':');
+                if (timeParts.Length > 0 && !int.TryParse(timeParts[0], CultureInfo.InvariantCulture, out hour))
+                    return false;
+                if (timeParts.Length > 1 && !int.TryParse(timeParts[1], CultureInfo.InvariantCulture, out minute))
+                    return false;
+                secondsPart = timeParts.Length > 2 ? timeParts[2] : "0";
+            }
+            else
+            {
+                var dotIdx = timePart.IndexOf('.');
+                var digits = dotIdx >= 0 ? timePart[..dotIdx] : timePart;
+                if (digits.Length >= 2 && !int.TryParse(digits[..2], CultureInfo.InvariantCulture, out hour))
+                    return false;
+                if (digits.Length >= 4 && !int.TryParse(digits[2..4], CultureInfo.InvariantCulture, out minute))
+                    return false;
+                secondsPart = digits.Length >= 6 ? digits[4..6] : "0";
+                if (dotIdx >= 0)
+                    secondsPart += timePart[dotIdx..];
+            }
+
+            var fractionIdx = secondsPart.IndexOf('.');
+            if (fractionIdx >= 0)
+            {
+                if (!int.TryParse(secondsPart[..fractionIdx], CultureInfo.InvariantCulture, out second))
+                    return false;
+                var fraction = secondsPart[(fractionIdx + 1)..].PadRight(6, '0');
+                if (fraction.Length > 6)
+                    fraction = fraction[..6];
+                if (!int.TryParse(fraction[..3], CultureInfo.InvariantCulture, out millisecond) ||
+                    !int.TryParse(fraction[3..6], CultureInfo.InvariantCulture, out microsecond))
+                    return false;
+            }
+            else if (!int.TryParse(secondsPart, CultureInfo.InvariantCulture, out second))
+            {
+                return false;
+            }
+        }
+
+        if (second == 60)
+            second = 59;
+
+        try
+        {
+            localDateTime = new DateTime(year, month, day, hour, minute, second, millisecond, microsecond,
+                DateTimeKind.Unspecified);
+            return true;
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return false;
+        }
     }
 
     private static JsTemporalDuration ToTemporalDuration(JsValue value, RealmState realm)

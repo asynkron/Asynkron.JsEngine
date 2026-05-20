@@ -85,8 +85,9 @@ internal static class AssignmentReferenceResolver
         var isStrictTarget = isStrictContext &&
                              (ReferenceEquals(name, Symbol.Eval) || ReferenceEquals(name, Symbol.Arguments));
 
-        // Fast path: skip with-binding check when AllowIdentifierCache is true (no with/eval in scope)
-        if (!context.AllowIdentifierCache && environment.TryResolveWithBinding(name, context, out var withBinding))
+        // Fast path: skip with-binding check when there is no dynamic object environment.
+        if ((!context.AllowIdentifierCache || environment.HasWithObjectInChain()) &&
+            environment.TryResolveWithBinding(name, context, out var withBinding))
         {
             return AssignmentReference.ForWithBinding(
                 withBinding,

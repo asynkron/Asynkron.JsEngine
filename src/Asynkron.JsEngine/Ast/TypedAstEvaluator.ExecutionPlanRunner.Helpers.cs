@@ -1377,7 +1377,7 @@ public static partial class TypedAstEvaluator
                     : HandleIdentifierNotFound(name, context);
             }
 
-            if (!context.AllowIdentifierCache)
+            if (!context.AllowIdentifierCache || environment.HasWithObjectInChain())
             {
                 return environment.TryGetIdentifierJsValue(name, context, out var resolvedValue)
                     ? resolvedValue
@@ -1435,13 +1435,9 @@ public static partial class TypedAstEvaluator
             }
 
             receiver = JsValue.Undefined;
-            callee = EvaluateProgramIdentifier(
-                identifier.Name,
-                identifier.ScopeId,
-                identifier.SlotIndex,
-                isArguments,
-                environment,
-                context);
+            callee = environment.TryGetIdentifierJsValueAfterWithMiss(identifier.Name, context, out var value)
+                ? value
+                : HandleIdentifierNotFound(identifier.Name, context);
         }
 
         private void ApplyProgramIdentifierAssignment(
@@ -1458,6 +1454,13 @@ public static partial class TypedAstEvaluator
                 value is { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget nameTarget })
             {
                 nameTarget.EnsureHasName(name.Name);
+            }
+
+            if (!context.AllowIdentifierCache || environment.HasWithObjectInChain())
+            {
+                var reference = environment.ResolveIdentifierAssignmentReference(name, context);
+                reference.SetValue(value);
+                return;
             }
 
             var variable = FlatSlotAccessor.Create(this, flatSlotId);
@@ -1489,7 +1492,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext context)
         {
             var identifier = update.GetIdentifier(identifierConstants);
-            if (!context.AllowIdentifierCache)
+            if (!context.AllowIdentifierCache || environment.HasWithObjectInChain())
             {
                 var reference = environment.ResolveIdentifierAssignmentReference(identifier.Name, context);
                 var referencedValue = reference.GetJsValue();
@@ -2944,7 +2947,7 @@ public static partial class TypedAstEvaluator
                     : HandleIdentifierNotFound(identifier.Name, context);
             }
 
-            if (!context.AllowIdentifierCache)
+            if (!context.AllowIdentifierCache || environment.HasWithObjectInChain())
             {
                 return environment.TryGetIdentifierJsValue(identifier.Name, context, out var resolvedValue)
                     ? resolvedValue

@@ -150,6 +150,31 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
     }
 
     [Fact]
+    public async Task Temporal_Duration_Total_ZonedDateTime_NegativeCalendarFractions()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            const relativeTo = new Temporal.ZonedDateTime(0n, 'UTC');
+            const oneDayBack = new Temporal.Duration(0, 0, 0, -1);
+            const values = [
+                [oneDayBack.total({ unit: 'week', relativeTo }), -1 / 7],
+                [oneDayBack.total({ unit: 'month', relativeTo }), -1 / 31],
+                [oneDayBack.total({ unit: 'year', relativeTo }), -1 / 365],
+            ];
+
+            for (const [actual, expected] of values) {
+                if (Math.abs(actual - expected) > 1e-12) {
+                    throw new Error(actual + ' !== ' + expected);
+                }
+            }
+
+            'ok';
+        ");
+
+        Assert.Equal("ok", result);
+    }
+
+    [Fact]
     public async Task Temporal_Instant_ToString()
     {
         await using var engine = CreateEngine();

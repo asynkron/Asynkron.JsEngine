@@ -9,6 +9,8 @@ using Asynkron.JsEngine.Execution.Instructions;
 
 namespace Asynkron.JsEngine.Execution.Emitters;
 
+internal readonly record struct ScopeExitBoundary(int ScopeId, Symbol? WithScopeSlot);
+
 /// <summary>
 /// Provides context for IR emitters, encapsulating access to the instruction list,
 /// loop scope stack, and helper methods for building execution plans.
@@ -23,6 +25,20 @@ internal sealed class EmitContext(
     private readonly int _rootScopeId = rootScopeId;
 
     public int CurrentScopeId => _scopeStack.Count > 0 ? _scopeStack.Peek().ScopeId : _rootScopeId;
+
+    public ScopeExitBoundary CurrentScopeExitBoundary
+    {
+        get
+        {
+            if (_scopeStack.Count == 0)
+            {
+                return new ScopeExitBoundary(_rootScopeId, null);
+            }
+
+            var currentScope = _scopeStack.Peek();
+            return new ScopeExitBoundary(currentScope.ScopeId, currentScope.WithScopeSlot);
+        }
+    }
 
     /// <summary>
     /// Whether we're currently in a nested scope (e.g., per-iteration scope for for-of).
@@ -89,9 +105,9 @@ internal sealed class EmitContext(
     /// <summary>
     /// Push a loop scope for break/continue resolution.
     /// </summary>
-    public void PushLoopScope(Symbol? label, int continueTarget, int breakTarget, int targetScopeId)
+    public void PushLoopScope(Symbol? label, int continueTarget, int breakTarget, ScopeExitBoundary targetBoundary)
     {
-        loopScopes.Push(new ExecutionPlanBuilder.LoopScope(label, continueTarget, breakTarget, targetScopeId));
+        loopScopes.Push(new ExecutionPlanBuilder.LoopScope(label, continueTarget, breakTarget, targetBoundary));
     }
 
     /// <summary>
@@ -106,7 +122,21 @@ internal sealed class EmitContext(
     {
         if (scopeId >= 0)
         {
-            _scopeStack.Push(new ScopeFrame(scopeId, allowPooling));
+            _scopeStack.Push(new ScopeFrame(scopeId, allowPooling, null));
+        }
+    }
+
+    public void PushWithScope(Symbol withScopeSlot)
+    {
+        _scopeStack.Push(new ScopeFrame(-1, false, withScopeSlot));
+    }
+
+    public void PopWithScope(Symbol withScopeSlot)
+    {
+        if (_scopeStack.Count > 0 &&
+            ReferenceEquals(_scopeStack.Peek().WithScopeSlot, withScopeSlot))
+        {
+            _scopeStack.Pop();
         }
     }
 
@@ -123,9 +153,9 @@ internal sealed class EmitContext(
         }
     }
 
-    public int BuildScopeExitTarget(int targetIndex, int targetScopeId)
+    public int BuildScopeExitTarget(int targetIndex, ScopeExitBoundary targetBoundary)
     {
-        if (targetScopeId < 0 || _scopeStack.Count == 0)
+        if (_scopeStack.Count == 0)
         {
             return targetIndex;
         }
@@ -134,7 +164,7 @@ internal sealed class EmitContext(
         List<ScopeFrame>? scopesToPop = null;
         foreach (var scope in _scopeStack)
         {
-            if (scope.ScopeId == targetScopeId)
+            if (ScopeMatchesBoundary(scope, targetBoundary))
             {
                 break;
             }
@@ -151,36 +181,45 @@ internal sealed class EmitContext(
         for (var i = scopesToPop.Count - 1; i >= 0; i--)
         {
             var scope = scopesToPop[i];
-            exitTarget = Append(new PopEnvironmentInstruction(scope.ScopeId, scope.AllowPooling, exitTarget));
+            exitTarget = scope.WithScopeSlot is not null
+                ? Append(new LeaveWithInstruction(scope.WithScopeSlot, exitTarget))
+                : Append(new PopEnvironmentInstruction(scope.ScopeId, scope.AllowPooling, exitTarget));
         }
 
         return exitTarget;
     }
 
+    private static bool ScopeMatchesBoundary(ScopeFrame scope, ScopeExitBoundary boundary)
+    {
+        return boundary.WithScopeSlot is not null
+            ? ReferenceEquals(scope.WithScopeSlot, boundary.WithScopeSlot)
+            : boundary.ScopeId >= 0 && scope.ScopeId == boundary.ScopeId;
+    }
+
     /// <summary>
     /// Try to find a loop scope for a break statement.
     /// </summary>
-    public bool TryFindBreakTarget(Symbol? label, out int target, out int scopeId)
+    public bool TryFindBreakTarget(Symbol? label, out int target, out ScopeExitBoundary boundary)
     {
         foreach (var scope in loopScopes)
         {
             if (label is null || ReferenceEquals(scope.Label, label))
             {
                 target = scope.BreakTarget;
-                scopeId = scope.TargetScopeId;
+                boundary = scope.TargetBoundary;
                 return true;
             }
         }
 
         target = -1;
-        scopeId = -1;
+        boundary = default;
         return false;
     }
 
     /// <summary>
     /// Try to find a loop scope for a continue statement.
     /// </summary>
-    public bool TryFindContinueTarget(Symbol? label, out int target, out int scopeId)
+    public bool TryFindContinueTarget(Symbol? label, out int target, out ScopeExitBoundary boundary)
     {
         foreach (var scope in loopScopes)
         {
@@ -193,13 +232,13 @@ internal sealed class EmitContext(
                 }
 
                 target = scope.ContinueTarget;
-                scopeId = scope.TargetScopeId;
+                boundary = scope.TargetBoundary;
                 return true;
             }
         }
 
         target = -1;
-        scopeId = -1;
+        boundary = default;
         return false;
     }
 
@@ -485,5 +524,5 @@ internal sealed class EmitContext(
         }
     }
 
-    private readonly record struct ScopeFrame(int ScopeId, bool AllowPooling);
+    private readonly record struct ScopeFrame(int ScopeId, bool AllowPooling, Symbol? WithScopeSlot);
 }

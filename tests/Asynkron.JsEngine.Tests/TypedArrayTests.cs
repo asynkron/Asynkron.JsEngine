@@ -1276,6 +1276,29 @@ public sealed class TypedArrayTests(ITestOutputHelper output) : InternalTestBase
         Assert.Equal("RangeError", obj["name"]?.ToString());
     }
 
+    // Internal regression for Test262 built-ins/TypedArrayConstructors/from/new-instance-from-zero.js
+    // Primitive numeric source (0) has no @@iterator and no length property after ToObject boxing,
+    // so %TypedArray%.from must produce a zero-length typed array instance with correct shape.
+    [Theory(Timeout = 2000)]
+    [InlineData("Int8Array")]
+    [InlineData("Uint8Array")]
+    [InlineData("Int32Array")]
+    [InlineData("Float64Array")]
+    public async Task TypedArrayFrom_PrimitiveNumberSource_ReturnsZeroLengthInstance(string typeName)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate($"""
+            const ta = {typeName}.from(0);
+            [ta.length, ta.byteOffset, ta.byteLength, ta.buffer instanceof ArrayBuffer, ta instanceof {typeName}]
+            """);
+        var arr = Assert.IsType<JsArray>(result);
+        Assert.Equal(0d,   arr.GetElement(0).ToObject());  // length
+        Assert.Equal(0d,   arr.GetElement(1).ToObject());  // byteOffset
+        Assert.Equal(0d,   arr.GetElement(2).ToObject());  // byteLength
+        Assert.Equal(true, arr.GetElement(3).ToObject());  // buffer instanceof ArrayBuffer
+        Assert.Equal(true, arr.GetElement(4).ToObject());  // instanceof <TypedArray>
+    }
+
     // Regression: ToIndex coercion for the numeric typed-array length-arg constructor path.
     // Proves the shared ToIndex helper matches ES 7.1.22 for the non-BigInt typed-array
     // constructors, mirroring the BigInt64Array/BigUint64Array cases above.

@@ -6640,21 +6640,13 @@ public static class TemporalHelper
             throw StandardLibrary.ThrowRangeError("calendar mismatch", realm: realm);
         }
 
-        if (!zdt.FixedOffset.HasValue &&
-            !other.FixedOffset.HasValue &&
-            !string.Equals(
-                CanonicalizeTimeZoneIdForComparison(zdt.TimeZoneId),
-                CanonicalizeTimeZoneIdForComparison(other.TimeZoneId),
-                StringComparison.Ordinal))
-        {
-            throw StandardLibrary.ThrowRangeError("time zone mismatch", realm: realm);
-        }
-
         var isSince = string.Equals(operation, "since", StringComparison.Ordinal);
 
         // Always compute this→other, negate at end for "since"
 
-        // If largestUnit is time-only (hour or smaller), use epoch nanosecond difference
+        // If largestUnit is time-only (hour or smaller), use epoch nanosecond difference.
+        // Per spec DifferenceTemporalZonedDateTime step 4, the time-only branch returns
+        // before the TimeZoneEquals check, so cross-zone hour-largest differences are valid.
         if (UnitRank(settings.LargestUnit) <= TemporalUnit.Hour)
         {
             var diffNanos = other.Instant.EpochNanoseconds - zdt.Instant.EpochNanoseconds;
@@ -6668,6 +6660,17 @@ public static class TemporalHelper
             if (isSince)
                 balanced = balanced.Negated();
             return balanced;
+        }
+
+        // Per spec DifferenceTemporalZonedDateTime step 7, calendar-unit (day or larger)
+        // differences require matching time zones. Compare effective identifiers so
+        // fixed-offset zones agree by canonical offset and named zones by canonical IANA name.
+        if (!string.Equals(
+                CanonicalizeTimeZoneIdForComparison(zdt.TimeZoneId),
+                CanonicalizeTimeZoneIdForComparison(other.TimeZoneId),
+                StringComparison.Ordinal))
+        {
+            throw StandardLibrary.ThrowRangeError("time zone mismatch", realm: realm);
         }
 
         // Date-containing: use epoch ns arithmetic for timezone-aware difference

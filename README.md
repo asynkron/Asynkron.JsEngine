@@ -103,6 +103,13 @@ dotnet test tests/Asynkron.JsEngine.Tests
 dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~SomeTestName"
 ```
 
+Recurring documentation-maintenance child runs should execute one bounded
+repo-local docs slice, capture a cheap baseline signal before editing and the
+matching final signal after editing, and avoid adding recurrence
+infrastructure. See
+[`agents/how-to-build-and-test.md`](agents/how-to-build-and-test.md) for the
+full maintenance-child workflow.
+
 ---
 
 ## Contributing

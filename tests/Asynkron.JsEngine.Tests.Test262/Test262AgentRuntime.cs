@@ -324,8 +324,13 @@ internal sealed class Test262AgentRuntime : IDisposable
             while (Volatile.Read(ref _leaving) == 0)
             {
                 engine.DrainMicrotasks();
-                if (promise.TryGetSettled(out _, out _))
+                if (promise.TryGetSettled(out var settledValue, out var rejected))
                 {
+                    if (rejected)
+                    {
+                        _runtime.Report("callback rejected:" + FormatReportValue(settledValue));
+                    }
+
                     return;
                 }
 

@@ -1460,10 +1460,10 @@ public static class TemporalHelper
             new PropertyDescriptor { Value = "Temporal.PlainDate", Writable = false, Enumerable = false, Configurable = true });
 
         // Prototype getters
-        AddPrototypeGetter(prototype, realm, "year", tv => new JsValue(GetPlainDateCalendarParts(GetPlainDate(tv), realm).Year));
-        AddPrototypeGetter(prototype, realm, "month", tv => new JsValue(GetPlainDateCalendarParts(GetPlainDate(tv), realm).Month));
-        AddPrototypeGetter(prototype, realm, "day", tv => new JsValue(GetPlainDateCalendarParts(GetPlainDate(tv), realm).Day));
-        AddPrototypeGetter(prototype, realm, "monthCode", tv => new JsValue(GetPlainDateCalendarParts(GetPlainDate(tv), realm).MonthCode));
+        AddPrototypeGetter(prototype, realm, "year", tv => new JsValue(GetPlainDateCalendarFields(GetPlainDate(tv)).Year));
+        AddPrototypeGetter(prototype, realm, "month", tv => new JsValue(GetPlainDateCalendarFields(GetPlainDate(tv)).Month));
+        AddPrototypeGetter(prototype, realm, "day", tv => new JsValue(GetPlainDateCalendarFields(GetPlainDate(tv)).Day));
+        AddPrototypeGetter(prototype, realm, "monthCode", tv => new JsValue(GetPlainDateCalendarFields(GetPlainDate(tv)).MonthCode));
         AddPrototypeGetter(prototype, realm, "dayOfWeek", tv => new JsValue(GetPlainDate(tv).DayOfWeek));
         AddPrototypeGetter(prototype, realm, "dayOfYear", tv => new JsValue(GetPlainDate(tv).DayOfYear));
         AddPrototypeGetter(prototype, realm, "weekOfYear", tv => {
@@ -1619,12 +1619,29 @@ public static class TemporalHelper
             // Step 5: PrepareTemporalFields — read fields in alphabetical order
             var any = false;
             int? partialDay = null, partialMonth = null, partialYear = null;
-            string? partialMonthCode = null;
+            string? partialEra = null, partialMonthCode = null;
+            int? partialEraYear = null;
 
             if (accessor.TryGetProperty("day", out var v) && !v.IsUndefined)
             {
                 partialDay = ToIntegerWithTruncation(v, realm);
                 any = true;
+            }
+
+            var calendarUsesEras = CalendarUsesEras(date.Calendar);
+            if (calendarUsesEras)
+            {
+                if (accessor.TryGetProperty("era", out v) && !v.IsUndefined)
+                {
+                    partialEra = JsOps.ToJsString(v);
+                    any = true;
+                }
+
+                if (accessor.TryGetProperty("eraYear", out v) && !v.IsUndefined)
+                {
+                    partialEraYear = ToIntegerWithTruncation(v, realm);
+                    any = true;
+                }
             }
 
             if (accessor.TryGetProperty("month", out v) && !v.IsUndefined)
@@ -1651,14 +1668,28 @@ public static class TemporalHelper
             }
 
             // Apply defaults and resolve month/monthCode BEFORE options
-            var year = partialYear ?? date.Year;
-            var month = ResolveISOMonth(partialMonth, partialMonthCode, date.Month, realm);
-            var day = partialDay ?? date.Day;
+            var calendarFields = GetPlainDateCalendarFields(date);
+            int year;
+            if (partialYear.HasValue)
+            {
+                year = partialYear.Value;
+            }
+            else if (partialEra is not null || partialEraYear.HasValue)
+            {
+                if (partialEra is null || !partialEraYear.HasValue)
+                {
+                    throw StandardLibrary.ThrowTypeError("Property bag for PlainDate must have both 'era' and 'eraYear'", realm: realm);
+                }
+                year = ResolveTemporalEraYear(date.Calendar, partialEra, partialEraYear.Value, realm);
+            }
+            else
+            {
+                year = calendarFields.Year;
+            }
 
-            // Pre-validate: reject fundamentally invalid values before options processing
-            // Only reject values that are ALWAYS invalid regardless of overflow mode
-            // (day < 1, month < 1 are never valid; month > 12 can be constrained)
-            if (month < 1 || day < 1)
+            var day = partialDay ?? calendarFields.Day;
+
+            if (partialMonth is < 1 || day < 1)
             {
                 throw StandardLibrary.ThrowRangeError("Invalid ISO date value", realm: realm);
             }
@@ -1668,16 +1699,26 @@ public static class TemporalHelper
             var optionsObj = ValidateOptionsObject(options, realm, "Temporal.PlainDate.prototype.with");
             var overflow = GetTemporalOverflowOption(optionsObj, realm);
 
-            if (string.Equals(overflow, "constrain", StringComparison.Ordinal))
+            var month = ResolvePlainDateWithMonth(partialMonth, partialMonthCode, year, calendarFields.Month,
+                calendarFields.MonthCode, date.Calendar, overflow, realm);
+
+            // Pre-validate: reject fundamentally invalid merged values
+            // Only reject values that are ALWAYS invalid regardless of overflow mode
+            // (day < 1, month < 1 are never valid; month > 12 can be constrained)
+            if (month < 1)
             {
-                (year, month, day) = ConstrainISODate(year, month, day);
-            }
-            else
-            {
-                RejectISODate(year, month, day, realm);
+                throw StandardLibrary.ThrowRangeError("Invalid ISO date value", realm: realm);
             }
 
-            return WrapPlainDate(new JsTemporalPlainDate(year, month, day, date.Calendar), realm, prototype);
+            if (string.Equals(overflow, "constrain", StringComparison.Ordinal))
+            {
+                if (string.Equals(date.Calendar, "iso8601", StringComparison.Ordinal))
+                {
+                    (year, month, day) = ConstrainISODate(year, month, day);
+                }
+            }
+
+            return WrapPlainDate(ApplyOverflowToDate(year, month, day, date.Calendar, overflow, realm), realm, prototype);
         });
 
         AddPrototypeMethod(prototype, realm, "toPlainDateTime", 0, (thisValue, args) =>
@@ -2790,10 +2831,7 @@ public static class TemporalHelper
         AddPrototypeGetter(prototype, realm, "offsetNanoseconds", tv =>
         {
             var zdt = GetZonedDateTime(tv);
-            // Parse offset string like "+01:00" to nanoseconds
-            var offset = zdt.Offset;
-            var totalSeconds = ParseOffsetToSeconds(offset);
-            return new JsValue((double)totalSeconds * 1_000_000_000L);
+            return new JsValue((double)zdt.OffsetNanoseconds);
         });
 
         // Prototype methods
@@ -3329,16 +3367,24 @@ public static class TemporalHelper
             var timeZoneId = ToTemporalTimeZoneSlotStrict(timeZoneArg, realm);
             var calendar = calendarArg.IsUndefined ? "iso8601" : ValidateCalendarIdStrict(calendarArg);
 
-            JsTemporalInstant instant;
+            BigInteger epochNanosecondsValue;
             if (epochNanoseconds.TryGetBigInt(out var bigInt))
             {
-                instant = new JsTemporalInstant(bigInt.Value);
+                epochNanosecondsValue = bigInt.Value;
             }
             else
             {
                 var ns = JsOps.ToNumber(epochNanoseconds);
-                instant = JsTemporalInstant.FromEpochNanoseconds(new System.Numerics.BigInteger(ns));
+                epochNanosecondsValue = new BigInteger(ns);
             }
+
+            if (epochNanosecondsValue < InstantMinEpochNanoseconds ||
+                epochNanosecondsValue > InstantMaxEpochNanoseconds)
+            {
+                throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime: epoch nanoseconds out of range", realm: realm);
+            }
+
+            var instant = JsTemporalInstant.FromEpochNanoseconds(epochNanosecondsValue);
 
             var zdt = new JsTemporalZonedDateTime(instant, timeZoneId, calendar);
             return ApplyNewTargetPrototype(WrapZonedDateTime(zdt, realm, prototype), newTarget, ctor, prototype);
@@ -3464,7 +3510,7 @@ public static class TemporalHelper
             }
             if (string.Equals(showCalendar, "never", StringComparison.Ordinal))
             {
-                return new JsValue(ym.ToStringBasic());
+                return new JsValue(ym.ToStringWithoutCalendar());
             }
             return new JsValue(ym.ToString());
         });
@@ -4534,6 +4580,68 @@ public static class TemporalHelper
         return month ?? defaultMonth;
     }
 
+    private static (int Year, int Month, int Day, string MonthCode) GetPlainDateCalendarFields(JsTemporalPlainDate date)
+    {
+        if (string.Equals(date.Calendar, "iso8601", StringComparison.Ordinal) ||
+            string.Equals(date.Calendar, "gregory", StringComparison.Ordinal) ||
+            string.Equals(date.Calendar, "buddhist", StringComparison.Ordinal) ||
+            string.Equals(date.Calendar, "japanese", StringComparison.Ordinal) ||
+            string.Equals(date.Calendar, "roc", StringComparison.Ordinal) ||
+            !TryCreateBclCalendar(date.Calendar, out var calendar))
+        {
+            return (date.Year, date.Month, date.Day, date.MonthCode);
+        }
+
+        try
+        {
+            var isoDate = new DateTime(date.Year, date.Month, date.Day);
+            var calendarYear = calendar.GetYear(isoDate);
+            var calendarMonth = calendar.GetMonth(isoDate);
+            var calendarDay = calendar.GetDayOfMonth(isoDate);
+            var monthCode = BuildMonthCodeFromBclMonth(calendarMonth, GetLeapMonth(calendar, calendarYear), calendar);
+            return (calendarYear, calendarMonth, calendarDay, monthCode);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            var monthCode = BuildMonthCodeFromBclMonth(date.Month, GetLeapMonth(calendar, date.Year), calendar);
+            return (date.Year, date.Month, date.Day, monthCode);
+        }
+    }
+
+    private static int ResolvePlainDateWithMonth(
+        int? month,
+        string? monthCode,
+        int calendarYear,
+        int defaultMonth,
+        string defaultMonthCode,
+        string calendarId,
+        string overflow,
+        RealmState realm)
+    {
+        if (month is null && monthCode is null)
+        {
+            if (!string.Equals(calendarId, "iso8601", StringComparison.Ordinal) &&
+                !string.Equals(calendarId, "gregory", StringComparison.Ordinal) &&
+                TryCreateBclCalendar(calendarId, out _) &&
+                IsValidLeapMonthCodeForYear(calendarId, calendarYear, defaultMonthCode))
+            {
+                return ResolvePlainDateTimeWithMonth(null, defaultMonthCode, calendarYear, defaultMonth, defaultMonthCode, calendarId,
+                    realm);
+            }
+
+            if (string.Equals(overflow, "reject", StringComparison.Ordinal) &&
+                !IsValidLeapMonthCodeForYear(calendarId, calendarYear, defaultMonthCode))
+            {
+                throw StandardLibrary.ThrowRangeError($"Month {defaultMonthCode} is out of range", realm: realm);
+            }
+
+            return defaultMonth;
+        }
+
+        return ResolvePlainDateTimeWithMonth(month, monthCode, calendarYear, defaultMonth, defaultMonthCode, calendarId,
+            realm);
+    }
+
     private static (int Year, int Month, int Day, string MonthCode) GetPlainDateTimeCalendarFields(JsTemporalPlainDateTime dateTime)
     {
         if (string.Equals(dateTime.Calendar, "iso8601", StringComparison.Ordinal) ||
@@ -5176,35 +5284,6 @@ public static class TemporalHelper
     // Temporal spec ISO date range limits
     private static readonly (int year, int month, int day) IsoDateMin = (-271821, 4, 19);
     private static readonly (int year, int month, int day) IsoDateMax = (275760, 9, 13);
-
-    private static long ParseOffsetToSeconds(string offset)
-    {
-        // Parse offset string like "+01:00", "-05:30", or "Z"
-        if (string.IsNullOrEmpty(offset) || string.Equals(offset, "Z", StringComparison.Ordinal))
-        {
-            return 0;
-        }
-
-        var sign = 1;
-        var start = 0;
-
-        if (offset[0] == '+')
-        {
-            start = 1;
-        }
-        else if (offset[0] == '-')
-        {
-            sign = -1;
-            start = 1;
-        }
-
-        var parts = offset.Substring(start).Split(':');
-        var hours = int.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture);
-        var minutes = parts.Length > 1 ? int.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture) : 0;
-        var seconds = parts.Length > 2 ? int.Parse(parts[2], System.Globalization.CultureInfo.InvariantCulture) : 0;
-
-        return sign * (hours * 3600L + minutes * 60L + seconds);
-    }
 
     #endregion
 
@@ -9406,6 +9485,27 @@ public static class TemporalHelper
         JsTemporalZonedDateTime zdt, JsTemporalDuration duration, int sign,
         string overflow, RealmState realm)
     {
+        if (duration.Years == 0 && duration.Months == 0 && duration.Weeks == 0 && duration.Days == 0)
+        {
+            var directTimeNanoseconds = ((BigInteger)duration.Hours * 3_600_000_000_000L
+                                         + (BigInteger)duration.Minutes * 60_000_000_000L
+                                         + (BigInteger)duration.Seconds * 1_000_000_000L
+                                         + (BigInteger)duration.Milliseconds * 1_000_000L
+                                         + (BigInteger)duration.Microseconds * 1_000L
+                                         + (BigInteger)duration.Nanoseconds) * sign;
+            var directResultNanoseconds = zdt.Instant.EpochNanoseconds + directTimeNanoseconds;
+            if (directResultNanoseconds < InstantMinEpochNanoseconds ||
+                directResultNanoseconds > InstantMaxEpochNanoseconds)
+            {
+                throw StandardLibrary.ThrowRangeError("Resulting ZonedDateTime is out of range", realm: realm);
+            }
+
+            return new JsTemporalZonedDateTime(
+                JsTemporalInstant.FromEpochNanoseconds(directResultNanoseconds),
+                zdt.TimeZoneId,
+                CanonicalizeCalendarId(zdt.Calendar));
+        }
+
         // Per spec AddZonedDateTime: add date and time parts SEPARATELY.
         // Step 1: Get the local PlainDateTime
         var local = GetLocalPlainDateTime(zdt, realm);
@@ -13619,11 +13719,18 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowTypeError("Property bag for ZonedDateTime must have 'day'", realm: realm);
             var day = ToIntegerWithTruncation(dayVal, realm);
 
-            // era/eraYear: read for observable order, validates Infinity → RangeError
-            if (accessor.TryGetProperty("era", out var eraV) && !eraV.IsUndefined)
-                JsOps.ToJsString(eraV);
-            if (accessor.TryGetProperty("eraYear", out var eraYV) && !eraYV.IsUndefined)
-                ToIntegerWithTruncation(eraYV, realm);
+            // Preserve compare()'s observable absent-property order while still validating
+            // present era fields on ordinary property bags.
+            if (accessor is not JsProxy && accessor.GetOwnPropertyDescriptor("era") is not null)
+            {
+                if (accessor.TryGetProperty("era", out var eraVal) && !eraVal.IsUndefined)
+                    JsOps.ToJsString(eraVal);
+            }
+            if (accessor is not JsProxy && accessor.GetOwnPropertyDescriptor("eraYear") is not null)
+            {
+                if (accessor.TryGetProperty("eraYear", out var eraYearVal) && !eraYearVal.IsUndefined)
+                    ToIntegerWithTruncation(eraYearVal, realm);
+            }
 
             var hour = GetOptionalIntProperty(accessor, "hour", realm);
             var microsecond = GetOptionalIntProperty(accessor, "microsecond", realm);

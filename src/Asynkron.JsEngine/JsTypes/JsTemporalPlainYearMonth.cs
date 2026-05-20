@@ -310,6 +310,19 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
     }
 
     /// <summary>
+    ///     Returns the Temporal year-month string without calendar annotation.
+    /// </summary>
+    public string ToStringWithoutCalendar()
+    {
+        if (string.Equals(Calendar, "iso8601", StringComparison.Ordinal))
+        {
+            return ToStringBasic();
+        }
+
+        return FormatYear() + $"-{Month:D2}-{ReferenceDay:D2}";
+    }
+
+    /// <summary>
     ///     Returns ISO 8601 year-month string (YYYY-MM), with calendar annotation for non-ISO calendars.
     /// </summary>
     public override string ToString()

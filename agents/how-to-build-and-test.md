@@ -53,6 +53,22 @@ before/after quickly:
 - `Scope note:` one line confirming no recurrence infrastructure, Makefile
   contract, or unrelated files were changed.
 
+Preferred issue update template for recurring child runs:
+
+```md
+## Build Update
+- Slice: <one bounded docs/tooling/test-fixture/workflow slice>
+- Baseline signal: `<command>`
+  - Output: <short excerpt>
+- Final signal: `<same command>`
+  - Output: <short excerpt>
+- Slice check: `git diff --check` and changed files: <paths>
+- Scope note: No recurrence infrastructure or unrelated surfaces changed.
+```
+
+If the run is evidence-only, keep the same template and state why no file
+change was required.
+
 For docs-only maintenance, do not run full builds, Test262, package installs,
 or broad audits unless the edit directly depends on them. The canonical local
 quality gate remains `make quality`, which builds and tests the internal suite

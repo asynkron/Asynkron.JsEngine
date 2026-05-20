@@ -401,6 +401,44 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
     }
 
     [Fact]
+    public async Task Temporal_PlainDate_With_GregoryEraFields()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const date = new Temporal.PlainDate(1981, 12, 15, "gregory").with({ era: "bce", eraYear: 1 });
+            `${date.year}|${date.month}|${date.monthCode}|${date.day}|${date.era}|${date.eraYear}`;
+            """);
+        Assert.Equal("0|12|M12|15|bce|1", result);
+    }
+
+    [Fact]
+    public async Task Temporal_PlainDate_With_HebrewCalendarFields()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const date = new Temporal.PlainDate(2024, 8, 8, "hebrew").with({ year: 5783 });
+            `${date.year}|${date.month}|${date.monthCode}|${date.day}`;
+            """);
+        Assert.Equal("5783|11|M11|4", result);
+    }
+
+    [Fact]
+    public async Task Temporal_PlainDate_With_EraRequiresEraYear()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const date = Temporal.PlainDate.from({ era: "showa", eraYear: 64, year: 1989, month: 1, monthCode: "M01", day: 7, calendar: "japanese" });
+            try {
+                date.with({ eraYear: 1 });
+                "missing throw";
+            } catch (error) {
+                error instanceof TypeError;
+            }
+            """);
+        Assert.Equal(true, result);
+    }
+
+    [Fact]
     public async Task Temporal_PlainDate_Until()
     {
         await using var engine = CreateEngine();

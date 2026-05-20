@@ -1460,10 +1460,10 @@ public static class TemporalHelper
             new PropertyDescriptor { Value = "Temporal.PlainDate", Writable = false, Enumerable = false, Configurable = true });
 
         // Prototype getters
-        AddPrototypeGetter(prototype, realm, "year", tv => new JsValue(GetPlainDateCalendarParts(GetPlainDate(tv), realm).Year));
-        AddPrototypeGetter(prototype, realm, "month", tv => new JsValue(GetPlainDateCalendarParts(GetPlainDate(tv), realm).Month));
-        AddPrototypeGetter(prototype, realm, "day", tv => new JsValue(GetPlainDateCalendarParts(GetPlainDate(tv), realm).Day));
-        AddPrototypeGetter(prototype, realm, "monthCode", tv => new JsValue(GetPlainDateCalendarParts(GetPlainDate(tv), realm).MonthCode));
+        AddPrototypeGetter(prototype, realm, "year", tv => new JsValue(GetPlainDateCalendarFields(GetPlainDate(tv)).Year));
+        AddPrototypeGetter(prototype, realm, "month", tv => new JsValue(GetPlainDateCalendarFields(GetPlainDate(tv)).Month));
+        AddPrototypeGetter(prototype, realm, "day", tv => new JsValue(GetPlainDateCalendarFields(GetPlainDate(tv)).Day));
+        AddPrototypeGetter(prototype, realm, "monthCode", tv => new JsValue(GetPlainDateCalendarFields(GetPlainDate(tv)).MonthCode));
         AddPrototypeGetter(prototype, realm, "dayOfWeek", tv => new JsValue(GetPlainDate(tv).DayOfWeek));
         AddPrototypeGetter(prototype, realm, "dayOfYear", tv => new JsValue(GetPlainDate(tv).DayOfYear));
         AddPrototypeGetter(prototype, realm, "weekOfYear", tv => {
@@ -1619,12 +1619,29 @@ public static class TemporalHelper
             // Step 5: PrepareTemporalFields — read fields in alphabetical order
             var any = false;
             int? partialDay = null, partialMonth = null, partialYear = null;
-            string? partialMonthCode = null;
+            string? partialEra = null, partialMonthCode = null;
+            int? partialEraYear = null;
 
             if (accessor.TryGetProperty("day", out var v) && !v.IsUndefined)
             {
                 partialDay = ToIntegerWithTruncation(v, realm);
                 any = true;
+            }
+
+            var calendarUsesEras = CalendarUsesEras(date.Calendar);
+            if (calendarUsesEras)
+            {
+                if (accessor.TryGetProperty("era", out v) && !v.IsUndefined)
+                {
+                    partialEra = JsOps.ToJsString(v);
+                    any = true;
+                }
+
+                if (accessor.TryGetProperty("eraYear", out v) && !v.IsUndefined)
+                {
+                    partialEraYear = ToIntegerWithTruncation(v, realm);
+                    any = true;
+                }
             }
 
             if (accessor.TryGetProperty("month", out v) && !v.IsUndefined)
@@ -1651,9 +1668,28 @@ public static class TemporalHelper
             }
 
             // Apply defaults and resolve month/monthCode BEFORE options
-            var year = partialYear ?? date.Year;
-            var month = ResolveISOMonth(partialMonth, partialMonthCode, date.Month, realm);
-            var day = partialDay ?? date.Day;
+            var calendarFields = GetPlainDateCalendarFields(date);
+            int year;
+            if (partialYear.HasValue)
+            {
+                year = partialYear.Value;
+            }
+            else if (partialEra is not null || partialEraYear.HasValue)
+            {
+                if (partialEra is null || !partialEraYear.HasValue)
+                {
+                    throw StandardLibrary.ThrowTypeError("Property bag for PlainDate must have both 'era' and 'eraYear'", realm: realm);
+                }
+                year = ResolveTemporalEraYear(date.Calendar, partialEra, partialEraYear.Value, realm);
+            }
+            else
+            {
+                year = calendarFields.Year;
+            }
+
+            var month = ResolvePlainDateWithMonth(partialMonth, partialMonthCode, year, calendarFields.Month,
+                calendarFields.MonthCode, date.Calendar, realm);
+            var day = partialDay ?? calendarFields.Day;
 
             // Pre-validate: reject fundamentally invalid values before options processing
             // Only reject values that are ALWAYS invalid regardless of overflow mode
@@ -1670,14 +1706,13 @@ public static class TemporalHelper
 
             if (string.Equals(overflow, "constrain", StringComparison.Ordinal))
             {
-                (year, month, day) = ConstrainISODate(year, month, day);
-            }
-            else
-            {
-                RejectISODate(year, month, day, realm);
+                if (string.Equals(date.Calendar, "iso8601", StringComparison.Ordinal))
+                {
+                    (year, month, day) = ConstrainISODate(year, month, day);
+                }
             }
 
-            return WrapPlainDate(new JsTemporalPlainDate(year, month, day, date.Calendar), realm, prototype);
+            return WrapPlainDate(ApplyOverflowToDate(year, month, day, date.Calendar, overflow, realm), realm, prototype);
         });
 
         AddPrototypeMethod(prototype, realm, "toPlainDateTime", 0, (thisValue, args) =>
@@ -4524,6 +4559,47 @@ public static class TemporalHelper
         }
 
         return month ?? defaultMonth;
+    }
+
+    private static (int Year, int Month, int Day, string MonthCode) GetPlainDateCalendarFields(JsTemporalPlainDate date)
+    {
+        if (string.Equals(date.Calendar, "iso8601", StringComparison.Ordinal) ||
+            string.Equals(date.Calendar, "gregory", StringComparison.Ordinal) ||
+            string.Equals(date.Calendar, "buddhist", StringComparison.Ordinal) ||
+            string.Equals(date.Calendar, "japanese", StringComparison.Ordinal) ||
+            string.Equals(date.Calendar, "roc", StringComparison.Ordinal) ||
+            !TryCreateBclCalendar(date.Calendar, out var calendar))
+        {
+            return (date.Year, date.Month, date.Day, date.MonthCode);
+        }
+
+        try
+        {
+            var isoDate = new DateTime(date.Year, date.Month, date.Day);
+            var calendarYear = calendar.GetYear(isoDate);
+            var calendarMonth = calendar.GetMonth(isoDate);
+            var calendarDay = calendar.GetDayOfMonth(isoDate);
+            var monthCode = BuildMonthCodeFromBclMonth(calendarMonth, GetLeapMonth(calendar, calendarYear));
+            return (calendarYear, calendarMonth, calendarDay, monthCode);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            var monthCode = BuildMonthCodeFromBclMonth(date.Month, GetLeapMonth(calendar, date.Year));
+            return (date.Year, date.Month, date.Day, monthCode);
+        }
+    }
+
+    private static int ResolvePlainDateWithMonth(
+        int? month,
+        string? monthCode,
+        int calendarYear,
+        int defaultMonth,
+        string defaultMonthCode,
+        string calendarId,
+        RealmState realm)
+    {
+        return ResolvePlainDateTimeWithMonth(month, monthCode, calendarYear, defaultMonth, defaultMonthCode, calendarId,
+            realm);
     }
 
     private static (int Year, int Month, int Day, string MonthCode) GetPlainDateTimeCalendarFields(JsTemporalPlainDateTime dateTime)

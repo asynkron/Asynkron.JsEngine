@@ -6761,78 +6761,65 @@ public sealed class JsRegExp
         if (ranges.Count == 0)
             return string.Empty;
 
-        var sb = new StringBuilder();
-        var first = true;
+        var lowRangesByHighSurrogate = new SortedDictionary<int, List<(int Start, int End)>>();
 
         foreach (var (start, end) in ranges)
         {
-            var highStart = (char)(((start - 0x10000) >> 10) + 0xD800);
-            var lowStart = (char)(((start - 0x10000) & 0x3FF) + 0xDC00);
-            var highEnd = (char)(((end - 0x10000) >> 10) + 0xD800);
-            var lowEnd = (char)(((end - 0x10000) & 0x3FF) + 0xDC00);
+            var highStart = ((start - 0x10000) >> 10) + 0xD800;
+            var lowStart = ((start - 0x10000) & 0x3FF) + 0xDC00;
+            var highEnd = ((end - 0x10000) >> 10) + 0xD800;
+            var lowEnd = ((end - 0x10000) & 0x3FF) + 0xDC00;
 
-            if (highStart == highEnd)
+            for (var high = highStart; high <= highEnd; high++)
             {
-                // Single high surrogate, range of low surrogates
-                if (!first) sb.Append('|');
-                first = false;
-                sb.Append(EscapeCharClassCodeUnit(highStart));
-                sb.Append('[');
-                sb.Append(EscapeCharClassCodeUnit(lowStart));
-                if (lowStart != lowEnd)
+                var lowRangeStart = high == highStart ? lowStart : 0xDC00;
+                var lowRangeEnd = high == highEnd ? lowEnd : 0xDFFF;
+                if (!lowRangesByHighSurrogate.TryGetValue(high, out var lowRanges))
                 {
-                    sb.Append('-');
-                    sb.Append(EscapeCharClassCodeUnit(lowEnd));
+                    lowRanges = [];
+                    lowRangesByHighSurrogate.Add(high, lowRanges);
                 }
-                sb.Append(']');
+
+                lowRanges.Add((lowRangeStart, lowRangeEnd));
+            }
+        }
+
+        var highSurrogatesByLowClass = new SortedDictionary<string, List<(int Start, int End)>>(StringComparer.Ordinal);
+        foreach (var (high, lowRanges) in lowRangesByHighSurrogate)
+        {
+            var lowClass = BuildBmpClassContent([.. NormalizeRanges(lowRanges).ToList()]);
+            if (!highSurrogatesByLowClass.TryGetValue(lowClass, out var highRanges))
+            {
+                highRanges = [];
+                highSurrogatesByLowClass.Add(lowClass, highRanges);
+            }
+
+            highRanges.Add((high, high));
+        }
+
+        var sb = new StringBuilder();
+        var first = true;
+        foreach (var (lowClass, highRanges) in highSurrogatesByLowClass)
+        {
+            if (!first)
+                sb.Append('|');
+            first = false;
+
+            var normalizedHighRanges = NormalizeRanges(highRanges).ToList();
+            if (normalizedHighRanges.Count == 1 && normalizedHighRanges[0].Start == normalizedHighRanges[0].End)
+            {
+                sb.Append(EscapeCharClassCodeUnit(normalizedHighRanges[0].Start));
             }
             else
             {
-                // Multiple high surrogates
-                // First partial: highStart [lowStart-\uDFFF]
-                if (!first) sb.Append('|');
-                first = false;
-                sb.Append(EscapeCharClassCodeUnit(highStart));
                 sb.Append('[');
-                sb.Append(EscapeCharClassCodeUnit(lowStart));
-                if (lowStart != 0xDFFF)
-                {
-                    sb.Append('-');
-                    sb.Append(EscapeCharClassCodeUnit(0xDFFF));
-                }
-                sb.Append(']');
-
-                // Middle: [highStart+1..highEnd-1] [\uDC00-\uDFFF] (full low range)
-                if (highStart + 1 <= highEnd - 1)
-                {
-                    sb.Append('|');
-                    sb.Append('[');
-                    sb.Append(EscapeCharClassCodeUnit(highStart + 1));
-                    if (highStart + 1 != highEnd - 1)
-                    {
-                        sb.Append('-');
-                        sb.Append(EscapeCharClassCodeUnit(highEnd - 1));
-                    }
-                    sb.Append(']');
-                    sb.Append('[');
-                    sb.Append(EscapeCharClassCodeUnit(0xDC00));
-                    sb.Append('-');
-                    sb.Append(EscapeCharClassCodeUnit(0xDFFF));
-                    sb.Append(']');
-                }
-
-                // Last partial: highEnd [\uDC00-lowEnd]
-                sb.Append('|');
-                sb.Append(EscapeCharClassCodeUnit(highEnd));
-                sb.Append('[');
-                sb.Append(EscapeCharClassCodeUnit(0xDC00));
-                if (0xDC00 != lowEnd)
-                {
-                    sb.Append('-');
-                    sb.Append(EscapeCharClassCodeUnit(lowEnd));
-                }
+                sb.Append(BuildBmpClassContent([.. normalizedHighRanges]));
                 sb.Append(']');
             }
+
+            sb.Append('[');
+            sb.Append(lowClass);
+            sb.Append(']');
         }
 
         return sb.ToString();

@@ -11657,10 +11657,10 @@ public static class TemporalHelper
         // For non-ISO calendars, convert calendar date → ISO date
         if (!string.Equals(calendar, "iso8601", StringComparison.Ordinal))
         {
-            var isoDate = CalendarDateToIsoPlainDate(year, month, day, calendar, overflow, realm);
-            year = isoDate.Year;
-            month = isoDate.Month;
-            day = isoDate.Day;
+            var calendarDate = NormalizeCalendarDateTimeFields(year, month, day, calendar, overflow, realm);
+            year = calendarDate.Year;
+            month = calendarDate.Month;
+            day = calendarDate.Day;
             // Time components still need constraining
             if (overflow != "reject")
             {
@@ -11676,7 +11676,7 @@ public static class TemporalHelper
                 RejectISOTime(hour, minute, second, millisecond, microsecond, nanosecond, realm);
             }
 
-            RejectISODateTimeRange(year, month, day,
+            RejectISODateTimeRange(calendarDate.IsoDate.Year, calendarDate.IsoDate.Month, calendarDate.IsoDate.Day,
                 hour, minute, second, millisecond, microsecond, nanosecond, realm);
 
             return new JsTemporalPlainDateTime(year, month, day,
@@ -11711,6 +11711,72 @@ public static class TemporalHelper
 
         return new JsTemporalPlainDateTime(year, month, day,
             hour, minute, second, millisecond, microsecond, nanosecond, calendar);
+    }
+
+    private static (int Year, int Month, int Day, JsTemporalPlainDate IsoDate) NormalizeCalendarDateTimeFields(
+        int year, int month, int day, string calendar, string overflow, RealmState realm)
+    {
+        if (string.Equals(calendar, "gregory", StringComparison.Ordinal))
+        {
+            if (overflow == "reject")
+            {
+                if (month > 12)
+                    throw StandardLibrary.ThrowRangeError($"Month {month} is out of range", realm: realm);
+                var maxDay = IsoCalendarHelpers.DaysInMonth(year is >= 1 and <= 9999 ? year : 2000, month);
+                if (day > maxDay)
+                    throw StandardLibrary.ThrowRangeError($"Day {day} is out of range for month {month}", realm: realm);
+            }
+            else
+            {
+                month = Math.Min(month, 12);
+                var maxDay = IsoCalendarHelpers.DaysInMonth(year is >= 1 and <= 9999 ? year : 2000, month);
+                day = Math.Min(day, maxDay);
+            }
+
+            RejectISODate(year, month, day, realm);
+            return (year, month, day, new JsTemporalPlainDate(year, month, day, calendar));
+        }
+
+        if (!TryCreateBclCalendar(calendar, out var bclCal))
+        {
+            if (overflow == "reject")
+            {
+                if (month > 12)
+                    throw StandardLibrary.ThrowRangeError($"Month {month} is out of range", realm: realm);
+            }
+            else
+            {
+                month = Math.Min(month, 12);
+            }
+
+            RejectISODate(year, month, day, realm);
+            return (year, month, day, new JsTemporalPlainDate(year, month, day, calendar));
+        }
+
+        try
+        {
+            if (overflow != "reject")
+            {
+                var maxMonths = bclCal.GetMonthsInYear(year);
+                month = Math.Clamp(month, 1, maxMonths);
+                var maxDays = bclCal.GetDaysInMonth(year, month);
+                day = Math.Clamp(day, 1, maxDays);
+            }
+
+            var dt = bclCal.ToDateTime(year, month, day, 0, 0, 0, 0);
+            var isoDate = new JsTemporalPlainDate(dt.Year, dt.Month, dt.Day, calendar);
+
+            RejectISODate(isoDate.Year, isoDate.Month, isoDate.Day, realm);
+            return (year, month, day, isoDate);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            if (overflow == "reject")
+                throw StandardLibrary.ThrowRangeError(
+                    $"Date year={year} month={month} day={day} is out of range for calendar '{calendar}'", realm: realm);
+
+            return (1970, 1, 1, new JsTemporalPlainDate(1970, 1, 1, calendar));
+        }
     }
 
     private static int GetOptionalIntProperty(IJsPropertyAccessor accessor, string name, RealmState realm)

@@ -450,6 +450,26 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
         Assert.Equal("two", result);
     }
 
+    [Fact]
+    public async Task Conditional_SwitchBreakInsideWith_PreservesEnclosingBlockScope()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            {
+                let outer = 41;
+                switch (0) {
+                    case 0:
+                        with ({ outer: -1 }) {
+                            break;
+                        }
+                }
+                outer += 1;
+                outer;
+            }
+        ");
+        Assert.Equal(42d, result);
+    }
+
     #endregion
 
     #region Loops

@@ -8926,12 +8926,7 @@ public static class TemporalHelper
         var (year, month, day) = DayNumberToIsoDate(endDay);
         RejectISODateTimeRange(
             year, month, day,
-            relativeDateTime.Hour,
-            relativeDateTime.Minute,
-            relativeDateTime.Second,
-            relativeDateTime.Millisecond,
-            relativeDateTime.Microsecond,
-            relativeDateTime.Nanosecond,
+            0, 0, 0, 0, 0, 0,
             realm);
     }
 

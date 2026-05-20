@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.StdLib.Temporal;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -687,6 +688,48 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
         var neq = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(0), 'UTC').equals(new Temporal.ZonedDateTime(BigInt(1000000000), 'UTC'))");
         Assert.Equal(true, eq);
         Assert.Equal(false, neq);
+    }
+
+    [Fact]
+    public async Task Temporal_ZonedDateTime_Equals_TimeZoneAliases()
+    {
+        await using var engine = CreateEngine();
+        // UTC and Etc/UTC are equivalent time zones — equals must return true
+        var etcUtcEqUtc = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(0), 'UTC').equals(new Temporal.ZonedDateTime(BigInt(0), 'Etc/UTC'))");
+        Assert.Equal(true, etcUtcEqUtc);
+        // +00:00 offset and UTC — equals must return true
+        var offsetEqUtc = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(0), 'UTC').equals(new Temporal.ZonedDateTime(BigInt(0), '+00:00'))");
+        Assert.Equal(true, offsetEqUtc);
+        // Different named zones are not equal even at same instant
+        var diffZones = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(0), 'UTC').equals(new Temporal.ZonedDateTime(BigInt(0), 'America/New_York'))");
+        Assert.Equal(false, diffZones);
+    }
+
+    [Fact]
+    public void Temporal_ZonedDateTime_CanonicalizeTimeZoneIdForComparison_CaseVariants()
+    {
+        // CanonicalizeTimeZoneIdForComparison must normalize casing for supported named zones
+        // independent of construction-time normalization (self-sufficient helper contract).
+        var lower = TemporalHelper.CanonicalizeTimeZoneIdForComparison("america/new_york");
+        var upper = TemporalHelper.CanonicalizeTimeZoneIdForComparison("AMERICA/NEW_YORK");
+        var canonical = TemporalHelper.CanonicalizeTimeZoneIdForComparison("America/New_York");
+        Assert.Equal(canonical, lower);
+        Assert.Equal(canonical, upper);
+        // UTC case variants must also normalize
+        var utcLower = TemporalHelper.CanonicalizeTimeZoneIdForComparison("utc");
+        Assert.Equal("UTC", utcLower);
+    }
+
+    [Fact]
+    public async Task Temporal_ZonedDateTime_Equals_CalendarMatters()
+    {
+        await using var engine = CreateEngine();
+        // Same instant and time zone but different calendar — equals must return false
+        var diffCal = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(0), 'UTC', 'iso8601').equals(new Temporal.ZonedDateTime(BigInt(0), 'UTC', 'gregory'))");
+        Assert.Equal(false, diffCal);
+        // Same instant, time zone, and calendar — equals must return true
+        var sameCal = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(0), 'UTC', 'gregory').equals(new Temporal.ZonedDateTime(BigInt(0), 'UTC', 'gregory'))");
+        Assert.Equal(true, sameCal);
     }
 
     [Fact]

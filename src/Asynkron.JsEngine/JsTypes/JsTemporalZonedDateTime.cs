@@ -219,7 +219,10 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
         {
             var instant = Instant.ToDateTimeOffset();
             var offset = FixedOffset
-                ?? Asynkron.JsEngine.StdLib.Temporal.TemporalHistoricalTimeZoneOffsets.GetUtcOffset(TimeZone, instant);
+                ?? Asynkron.JsEngine.StdLib.Temporal.TemporalHistoricalTimeZoneOffsets.GetUtcOffset(
+                    TimeZoneId,
+                    TimeZone,
+                    Instant.EpochNanoseconds);
             return DateTime.SpecifyKind(instant.UtcDateTime + offset, DateTimeKind.Unspecified);
         }
     }
@@ -317,9 +320,10 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
         {
             var offset = FixedOffset
                 ?? Asynkron.JsEngine.StdLib.Temporal.TemporalHistoricalTimeZoneOffsets.GetUtcOffset(
+                    TimeZoneId,
                     TimeZone,
-                    Instant.ToDateTimeOffset());
-            return (long)offset.TotalMilliseconds * 1_000_000;
+                    Instant.EpochNanoseconds);
+            return offset.Ticks * 100L;
         }
     }
 
@@ -332,8 +336,9 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
         {
             var offset = FixedOffset
                 ?? Asynkron.JsEngine.StdLib.Temporal.TemporalHistoricalTimeZoneOffsets.GetUtcOffset(
+                    TimeZoneId,
                     TimeZone,
-                    Instant.ToDateTimeOffset());
+                    Instant.EpochNanoseconds);
             return Asynkron.JsEngine.StdLib.Temporal.TemporalHistoricalTimeZoneOffsets.FormatOffset(offset);
         }
     }
@@ -1018,8 +1023,9 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
         try
         {
             return Asynkron.JsEngine.StdLib.Temporal.TemporalHistoricalTimeZoneOffsets.GetUtcOffset(
+                TimeZoneId,
                 TimeZone,
-                Instant.ToDateTimeOffset());
+                Instant.EpochNanoseconds);
         }
         catch (OverflowException)
         {

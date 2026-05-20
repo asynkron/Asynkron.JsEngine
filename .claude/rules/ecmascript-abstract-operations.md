@@ -253,6 +253,14 @@ host-runtime shortcuts.
     year. Why: issue #854 / PR #1186 showed Hebrew leap month `M05L` can be a
     valid receiver default, a constrain fallback, or an explicit reject case
     depending on whether the field was inherited or supplied.
+41. For `Temporal.ZonedDateTime.prototype.since` and `.until` date-unit
+    rounding bound validation, validate the rounded candidate as a full
+    date-time built from the receiver wall-clock time plus the normalized time
+    remainder. Do not validate the rounded date at synthetic midnight: issue
+    #864 / PR #1245 showed that the lower Temporal boundary can reject midnight
+    while accepting the receiver's actual `00:00:00.000000001` time, and the
+    normalized remainder is still needed to preserve the original
+    out-of-range Test262 throw.
 
 ## Why
 
@@ -662,6 +670,22 @@ fixed-offset spelling success) before relying on the focused
 
 Related ADR:
 `docs/adrs/0070-keep-temporal-zoneddatetime-difference-step-order-explicit.md`.
+
+Issue #864 / PR #1245 fixed `Temporal.ZonedDateTime.prototype.until` after
+date-unit rounding-increment bound validation used a rounded ISO date at
+midnight. That preserved one out-of-range Test262 throw but over-rejected valid
+negative-boundary values where the receiver wall-clock time was just after
+midnight. The durable lesson is that `ValidateZonedDateTimeDateRoundingBound`
+must validate the full receiver-relative date-time: combine the receiver's time
+fields with the normalized time remainder, carry or borrow days from that
+nanosecond total, then call the shared `RejectISODateTimeRange` helper. Future
+ZonedDateTime since/until rounding work should prove both the focused
+negative-boundary internal regression and the
+`roundingincrement-addition-out-of-range` Test262 fixture before widening to the
+full `Name=Temporal_ZonedDateTime_prototype_until` method group.
+
+Related ADR:
+`docs/adrs/0076-keep-temporal-zoneddatetime-rounding-bound-wallclock-preserving.md`.
 
 Issue #860 / PR #1197 fixed `Temporal.ZonedDateTime` offset getters and time-only
 `add`/`subtract` after DST transition-boundary instants returned the wrong UTC

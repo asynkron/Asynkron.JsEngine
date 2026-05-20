@@ -165,6 +165,13 @@ host-runtime shortcuts.
     `overflow: "constrain"` calls must normalize `second: 60` and higher
     seconds to the valid maximum second, while `overflow: "reject"` must throw
     `RangeError` at the time-range validation point.
+29. For `Temporal.PlainYearMonth.from` and adjacent PlainYearMonth getters or
+    string formatting, keep calendar-visible year/month fields separate from
+    the stored ISO reference date. Map the reference date back through the
+    receiver calendar for observable `year`, `month`, and `monthCode`, use the
+    stored ISO reference date directly for non-ISO string forms that need a
+    date, and treat host BCL calendar range/leap-month limits as helper
+    boundaries rather than complete ECMA-402 semantics.
 
 ## Why
 
@@ -431,3 +438,15 @@ needed a local pin. Future PlainTime property-bag and shared time-overflow work
 should keep default/constrain normalization distinct from reject validation and
 prove both the focused `Name=Temporal_PlainTime_from` Test262 method group and
 local coverage for `second: 60`, `second: 61`, and `overflow: "reject"`.
+
+Issue #850 / PR #1181 fixed `Temporal.PlainYearMonth.from` after non-ISO
+calendar property bags, era remapping, and Chinese/Hebrew reference-day cases
+mixed calendar-visible fields with the stored ISO reference date or trusted BCL
+calendar support too broadly. Future PlainYearMonth work should map the stored
+reference date back through the receiver calendar for getters, use the stored
+ISO reference date directly for non-ISO string forms, resolve month codes in
+the resolved calendar/year, and prove the focused
+`Name=Temporal_PlainYearMonth_from` Test262 method group.
+
+Related ADR:
+`docs/adrs/0064-keep-temporal-plainyearmonth-reference-day-calendar-owned.md`.

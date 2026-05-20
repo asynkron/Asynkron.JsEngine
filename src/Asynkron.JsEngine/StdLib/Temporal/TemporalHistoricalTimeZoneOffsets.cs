@@ -1,9 +1,12 @@
 using System;
+using System.Numerics;
 
 namespace Asynkron.JsEngine.StdLib.Temporal;
 
 internal static class TemporalHistoricalTimeZoneOffsets
 {
+    private static readonly DateTimeOffset UnixEpoch = DateTimeOffset.UnixEpoch;
+
     private static readonly TimeSpan MonroviaOffset = TimeSpan.FromSeconds(-2670);
     private static readonly DateTime MonroviaLocalCutover = new(1972, 1, 7, 0, 0, 0, DateTimeKind.Unspecified);
     private static readonly DateTimeOffset MonroviaUtcCutover = new(1972, 1, 7, 0, 44, 30, TimeSpan.Zero);
@@ -65,6 +68,12 @@ internal static class TemporalHistoricalTimeZoneOffsets
         }
 
         return timeZone.GetUtcOffset(instant);
+    }
+
+    internal static TimeSpan GetUtcOffset(string requestedTimeZoneId, TimeZoneInfo timeZone, BigInteger epochNanoseconds)
+    {
+        var instant = ToDateTimeOffsetFloor(epochNanoseconds);
+        return GetUtcOffset(requestedTimeZoneId, timeZone, instant);
     }
 
     internal static TimeSpan[] GetPossibleUtcOffsets(string requestedTimeZoneId, TimeZoneInfo timeZone, DateTime localDateTime)
@@ -152,5 +161,27 @@ internal static class TemporalHistoricalTimeZoneOffsets
                 offset = default;
                 return false;
         }
+    }
+
+    private static DateTimeOffset ToDateTimeOffsetFloor(BigInteger epochNanoseconds)
+    {
+        var ticks = FloorDiv(epochNanoseconds, 100);
+        if (ticks < long.MinValue || ticks > long.MaxValue)
+        {
+            throw new OverflowException("Epoch nanoseconds are outside DateTimeOffset range.");
+        }
+
+        return UnixEpoch.AddTicks((long)ticks);
+    }
+
+    private static BigInteger FloorDiv(BigInteger value, int divisor)
+    {
+        var quotient = BigInteger.DivRem(value, divisor, out var remainder);
+        if (remainder != 0 && value.Sign < 0)
+        {
+            quotient--;
+        }
+
+        return quotient;
     }
 }

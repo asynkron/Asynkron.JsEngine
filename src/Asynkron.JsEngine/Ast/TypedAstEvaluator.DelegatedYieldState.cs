@@ -196,10 +196,11 @@ public static partial class TypedAstEvaluator
                 // The runner persists pending return completion and replays it on resume.
                 // throw() completions that are normal iterator results continue through the regular
                 // propagateThrow+done branch in HandleYieldStar.
-                // Preserve pending return completion only for delegated generator objects.
-                // Generic iterators that return { done: false } from return() must continue
-                // as ordinary yield* iteration and eventually produce their own completion value.
-                var delegatedCompletion = propagateReturn && _isGeneratorObject;
+                // Preserve pending return completion for delegated generator objects, and for
+                // non-generator iterators only once return() reports done:true. Plain iterators
+                // that return { done: false } from return() must continue as ordinary yield*
+                // iteration until they eventually complete.
+                var delegatedCompletion = propagateReturn && (_isGeneratorObject || done);
                 return (value, reportedDone, delegatedCompletion, propagateThrowResult, nextResult);
             }
 

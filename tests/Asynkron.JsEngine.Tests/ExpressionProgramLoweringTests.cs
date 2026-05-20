@@ -409,6 +409,35 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ExpressionStatement_SimpleMemberCallAwaitedArgument_UsesSyntheticAwaitedTemp()
+    {
+        var plan = await GetFunctionPlan("""
+            async function probe(host, valuePromise) {
+                host.agent.report(await valuePromise);
+                return 1;
+            }
+            """, "probe");
+
+        var tempInstruction = Assert.Single(
+            plan.Instructions.OfType<SimpleVariableDeclarationInstruction>(),
+            i => i.AwaitedProgram is not null && i.TargetSymbol.Name!.StartsWith("__yield_lower_", StringComparison.Ordinal));
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            tempInstruction.AwaitedProgram,
+            op => op.Name.Name == "valuePromise");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
+        AssertProgramContains<LoadNamedCallTargetExpressionOp>(
+            instruction.ExpressionProgram,
+            op => op.PropertyName == "report");
+        AssertProgramContains<CallExpressionOp>(
+            instruction.ExpressionProgram,
+            op => op.ArgumentCount == 1 && op.HasExplicitThis);
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            instruction.ExpressionProgram,
+            op => op.Name.Name!.StartsWith("__yield_lower_", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task IteratorInitInstruction_SimpleIterableIdentifier_IsLoweredToExpressionProgram()
     {
         var plan = await GetFunctionPlan("""

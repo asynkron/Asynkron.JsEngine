@@ -658,12 +658,7 @@ public sealed partial class StringPrototype
         var value = CoerceToString(thisValue);
 
         // 4. Let rx be ? RegExpCreate(regexp, undefined).
-        // Keep legacy/ES5 distinction used by this Test262 slice:
-        // omitted argument behaves like search(""), explicit undefined behaves like search("undefined").
-        var regExpCreatePattern = hasSearchArgument && searchValue.IsUndefined
-            ? new JsValue("undefined")
-            : searchValue;
-        var rxObj = ToRegExpObject(regExpCreatePattern, string.Empty);
+        var rxObj = ToRegExpObject(searchValue, string.Empty);
 
         // 5. Return ? Invoke(rx, @@search, << string >>).
         var rxSearchMethod = GetMethod(rxObj, SymbolKeys.Search, "@@search");

@@ -13071,9 +13071,10 @@ public static class TemporalHelper
         if (!string.Equals(calendar, "iso8601", StringComparison.Ordinal))
         {
             var calendarDate = NormalizeCalendarDateTimeFields(year, month, day, calendar, overflow, realm);
-            year = calendarDate.Year;
-            month = calendarDate.Month;
-            day = calendarDate.Day;
+            // Temporal requires calendar field values to be converted to ISO date coordinates.
+            year = calendarDate.IsoDate.Year;
+            month = calendarDate.IsoDate.Month;
+            day = calendarDate.IsoDate.Day;
             // Time components still need constraining
             if (overflow != "reject")
             {

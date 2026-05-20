@@ -172,6 +172,12 @@ host-runtime shortcuts.
     stored ISO reference date directly for non-ISO string forms that need a
     date, and treat host BCL calendar range/leap-month limits as helper
     boundaries rather than complete ECMA-402 semantics.
+30. For `Temporal.PlainYearMonth.prototype.toLocaleString` and adjacent
+    `Intl.DateTimeFormat` Temporal formatting, keep date-style expansion in the
+    field domain of PlainYearMonth. `dateStyle` may format year/month but must
+    not leak the reference day, and non-ISO month names must come from the
+    receiver calendar's year/month domain rather than a Gregorian
+    `DateTimeOffset` month.
 
 ## Why
 
@@ -432,6 +438,19 @@ ISO-backed while calendar-visible fields are exposed through calendar helpers.
 Related ADR:
 `docs/adrs/0061-keep-temporal-plainmonthday-tostring-reference-date.md`.
 
+Issue #852 / PR #1180 fixed
+`Temporal.PlainYearMonth.prototype.toLocaleString` after date-style formatting
+reused the generic `DateTimeOffset` component path and flattened calendar
+year/month output through Gregorian host month names. The durable lesson is
+that PlainYearMonth style formatting has its own field domain: output year and
+month only, keep the reference day internal, and derive non-ISO month names
+from the receiver calendar. Future PlainYearMonth locale-format work should
+prove the focused `Name=Temporal_PlainYearMonth_prototype_toLocaleString`
+Test262 method group plus local Gregorian/non-ISO month-name coverage.
+
+Related ADR:
+`docs/adrs/0063-keep-temporal-plainyearmonth-locale-formatting-on-calendar-fields.md`.
+
 Issue #848 / PR #1173 added local regression coverage for
 `Temporal.PlainTime.from` after the Test262 leap-second property-bag fixture
 needed a local pin. Future PlainTime property-bag and shared time-overflow work
@@ -450,3 +469,18 @@ the resolved calendar/year, and prove the focused
 
 Related ADR:
 `docs/adrs/0064-keep-temporal-plainyearmonth-reference-day-calendar-owned.md`.
+
+Issue #851 / PR #1178 fixed `Temporal.PlainYearMonth.prototype.equals` after
+full-date string conversion canonicalized the `islamicc` calendar alias and
+then recomputed the PlainYearMonth reference day through the canonical calendar.
+The durable lesson is that PlainYearMonth full-date strings already supply the
+ISO reference day used for equality; calendar annotation validation and alias
+canonicalization must not change that parsed reference-day domain. Property
+bags remain separate because their calendar-visible fields may require
+calendar-to-ISO conversion. Future PlainYearMonth equality or conversion work
+should prove the focused `Name=Temporal_PlainYearMonth_prototype_equals`
+Test262 method group, starting with the `canonicalize-calendar.js` fixture,
+and include local coverage for both string and property-bag calendar aliases.
+
+Related ADR:
+`docs/adrs/0062-keep-temporal-plainyearmonth-string-reference-day.md`.

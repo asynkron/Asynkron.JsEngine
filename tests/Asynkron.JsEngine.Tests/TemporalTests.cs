@@ -417,9 +417,21 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             const date = new Temporal.PlainDate(2024, 8, 8, "hebrew").with({ year: 5783 });
-            `${date.year}|${date.month}|${date.monthCode}|${date.day}`;
+            `${date.toString()}|${date.year}|${date.month}|${date.monthCode}|${date.day}`;
             """);
-        Assert.Equal("5783|11|M11|4", result);
+        Assert.Equal("2023-07-22[u-ca=hebrew]|5783|11|M11|4", result);
+    }
+
+    [Fact]
+    public async Task Temporal_PlainDate_With_HebrewLeapMonthConstrain()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const leapMonth = Temporal.PlainDate.from({ year: 5784, monthCode: "M05L", day: 1, calendar: "hebrew" });
+            const constrained = leapMonth.with({ year: 5783 });
+            `${constrained.toString()}|${constrained.year}|${constrained.month}|${constrained.monthCode}|${constrained.day}`;
+            """);
+        Assert.Equal("2023-02-22[u-ca=hebrew]|5783|6|M06|1", result);
     }
 
     [Fact]

@@ -1687,14 +1687,9 @@ public static class TemporalHelper
                 year = calendarFields.Year;
             }
 
-            var month = ResolvePlainDateWithMonth(partialMonth, partialMonthCode, year, calendarFields.Month,
-                calendarFields.MonthCode, date.Calendar, realm);
             var day = partialDay ?? calendarFields.Day;
 
-            // Pre-validate: reject fundamentally invalid values before options processing
-            // Only reject values that are ALWAYS invalid regardless of overflow mode
-            // (day < 1, month < 1 are never valid; month > 12 can be constrained)
-            if (month < 1 || day < 1)
+            if (partialMonth is < 1 || day < 1)
             {
                 throw StandardLibrary.ThrowRangeError("Invalid ISO date value", realm: realm);
             }
@@ -1703,6 +1698,17 @@ public static class TemporalHelper
             var options = args.Count > 1 ? args[1] : JsValue.Undefined;
             var optionsObj = ValidateOptionsObject(options, realm, "Temporal.PlainDate.prototype.with");
             var overflow = GetTemporalOverflowOption(optionsObj, realm);
+
+            var month = ResolvePlainDateWithMonth(partialMonth, partialMonthCode, year, calendarFields.Month,
+                calendarFields.MonthCode, date.Calendar, overflow, realm);
+
+            // Pre-validate: reject fundamentally invalid merged values
+            // Only reject values that are ALWAYS invalid regardless of overflow mode
+            // (day < 1, month < 1 are never valid; month > 12 can be constrained)
+            if (month < 1)
+            {
+                throw StandardLibrary.ThrowRangeError("Invalid ISO date value", realm: realm);
+            }
 
             if (string.Equals(overflow, "constrain", StringComparison.Ordinal))
             {
@@ -4579,12 +4585,12 @@ public static class TemporalHelper
             var calendarYear = calendar.GetYear(isoDate);
             var calendarMonth = calendar.GetMonth(isoDate);
             var calendarDay = calendar.GetDayOfMonth(isoDate);
-            var monthCode = BuildMonthCodeFromBclMonth(calendarMonth, GetLeapMonth(calendar, calendarYear));
+            var monthCode = BuildMonthCodeFromBclMonth(calendarMonth, GetLeapMonth(calendar, calendarYear), calendar);
             return (calendarYear, calendarMonth, calendarDay, monthCode);
         }
         catch (ArgumentOutOfRangeException)
         {
-            var monthCode = BuildMonthCodeFromBclMonth(date.Month, GetLeapMonth(calendar, date.Year));
+            var monthCode = BuildMonthCodeFromBclMonth(date.Month, GetLeapMonth(calendar, date.Year), calendar);
             return (date.Year, date.Month, date.Day, monthCode);
         }
     }
@@ -4596,8 +4602,29 @@ public static class TemporalHelper
         int defaultMonth,
         string defaultMonthCode,
         string calendarId,
+        string overflow,
         RealmState realm)
     {
+        if (month is null && monthCode is null)
+        {
+            if (!string.Equals(calendarId, "iso8601", StringComparison.Ordinal) &&
+                !string.Equals(calendarId, "gregory", StringComparison.Ordinal) &&
+                TryCreateBclCalendar(calendarId, out _) &&
+                IsValidLeapMonthCodeForYear(calendarId, calendarYear, defaultMonthCode))
+            {
+                return ResolvePlainDateTimeWithMonth(null, defaultMonthCode, calendarYear, defaultMonth, defaultMonthCode, calendarId,
+                    realm);
+            }
+
+            if (string.Equals(overflow, "reject", StringComparison.Ordinal) &&
+                !IsValidLeapMonthCodeForYear(calendarId, calendarYear, defaultMonthCode))
+            {
+                throw StandardLibrary.ThrowRangeError($"Month {defaultMonthCode} is out of range", realm: realm);
+            }
+
+            return defaultMonth;
+        }
+
         return ResolvePlainDateTimeWithMonth(month, monthCode, calendarYear, defaultMonth, defaultMonthCode, calendarId,
             realm);
     }

@@ -38,7 +38,12 @@ public sealed partial class IntlListFormatConstructor(IJsObjectLike prototype, R
             }
 
             var target = _constructor!;
-            var newTargetCallable = newTarget.IsObject ? newTarget.AsObject<IJsCallable>() : null;
+            IJsCallable? newTargetCallable = null;
+            if (newTarget.IsObject && !newTarget.TryGetObject<IJsCallable>(out newTargetCallable))
+            {
+                throw ThrowTypeError("Intl.ListFormat constructor NewTarget must be a constructor", realm: Realm);
+            }
+
             return ConstructWithNewTarget(args, newTargetCallable ?? target, target);
         });
 

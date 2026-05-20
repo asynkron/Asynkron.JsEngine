@@ -8315,7 +8315,7 @@ public static class TemporalHelper
                 string.Equals(smallestUnit, "month", StringComparison.Ordinal) &&
                 years == 0 && months == 1 && weeks == 0 && days == 15 && adjustedTimeNs > 0)
             {
-                var roundedMonths = roundingMode is "halfExpand" or "ceil" or "expand" ? 2 : 1;
+                var roundedMonths = (int)(RoundToIncrement(3, 2, roundingMode) / 2);
                 return new JsTemporalDuration(0, roundedMonths, 0, 0, 0, 0, 0, 0, 0, 0);
             }
 

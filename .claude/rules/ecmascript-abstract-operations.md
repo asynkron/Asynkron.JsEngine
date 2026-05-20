@@ -239,6 +239,11 @@ host-runtime shortcuts.
     count/order/hint where relevant. Raw primitives prove only the already
     normalized storage path; they do not prove that `ToNumber`, `ToBigInt`,
     `ToPrimitive`, or similar coercion hooks actually ran.
+39. For optional built-in arguments that flow into a named abstract operation,
+    distinguish argument absence from explicit `undefined` only when the spec
+    branch itself observes that distinction. Do not pre-stringify explicit
+    `undefined` or route it through a legacy compatibility shortcut before an
+    operation such as `RegExpCreate` gets the original value.
 
 ## Why
 
@@ -650,3 +655,13 @@ time-only fast path locally before widening.
 
 Related ADR:
 `docs/adrs/0068-keep-temporal-zoneddatetime-offsets-and-time-arithmetic-on-epoch-nanoseconds.md`.
+
+Issue #1071 / PR #1243 fixed `String.prototype.search(undefined)` after the
+first build-stage fix forced explicit `undefined` into the literal pattern
+`"undefined"`. Review caught that the current spec path is
+`RegExpCreate(undefined, undefined)`, which creates the same empty-pattern
+behavior as an omitted argument. Future string/RegExp built-in work should let
+the abstract operation receive the original `JsValue` unless the spec text has
+an explicit argument-count branch, and should prove the focused
+`Name=String_prototype_search` Test262 method group plus local search
+regressions before claiming the fix.

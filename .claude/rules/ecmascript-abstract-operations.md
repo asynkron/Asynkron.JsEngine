@@ -100,13 +100,13 @@ host-runtime shortcuts.
     Instant. Defined non-format options such as `timeZone` should still receive
     Instant date/time defaults, but Instant defaults must not inject
     `timeZoneName`; keep ZonedDateTime's time-zone-name default path separate.
-20. For Temporal `PlainDateTime.from` non-ISO property bags, preserve the
-    calendar-visible `year`, `month`, and `day` fields after overflow handling.
-    Use calendar-to-ISO conversion as a validation projection only; do not store
-    the converted ISO fields back into the resulting `PlainDateTime`. Treat
-    `era` and `eraYear` as calendar-dependent: calendars without era support
-    ignore them when `year` is explicit and still require `year` when it is
-    absent.
+20. For Temporal `PlainDate.from` and `PlainDateTime.from` non-ISO property
+    bags, preserve the calendar-visible `year`, `month` or `monthCode`, and
+    `day` fields after overflow handling. Use calendar-to-ISO conversion as a
+    validation projection only; do not store the converted ISO fields back into
+    the resulting object. Treat `era` and `eraYear` as calendar-dependent:
+    calendars without era support ignore them when `year` is explicit and still
+    require `year` when it is absent.
 21. For Temporal `PlainDateTime.prototype.toLocaleString`, keep PlainDateTime
     as wall-clock component formatting even when a resolved `timeZone` option is
     supplied, but route hour output through the shared `Intl.DateTimeFormat`
@@ -124,6 +124,13 @@ host-runtime shortcuts.
     `GetStartOfDayInstant`; explicit `new Temporal.PlainTime()` remains on the
     PlainDateTime/midnight disambiguation path. Do not normalize absence into a
     zero-valued Temporal object before the spec branch that observes absence.
+24. For `Temporal.PlainDateTime.prototype.with` on non-ISO calendars, merge
+    partial date overrides against the receiver's observable calendar fields,
+    not its internal ISO storage fields. Preserve the receiver's default
+    `monthCode` across year changes when no explicit month or monthCode is
+    supplied, resolve supplied `monthCode` in the receiver calendar and target
+    calendar year, and convert to internal ISO storage only after
+    calendar-field merge and overflow handling.
 
 ## Why
 
@@ -271,6 +278,16 @@ fields, keep era handling calendar-dependent, and prove the focused
 
 Related ADR: `docs/adrs/0048-keep-temporal-plaindatetime-calendar-fields-observable.md`.
 
+Issue #840 / PR #1160 fixed the same Temporal property-bag boundary for
+`Temporal.PlainDate.from`: Hebrew and other non-era calendars must not observe
+throwing `era` or `eraYear` getters when `year` is explicit, and the resulting
+`PlainDate` must keep the source calendar's visible fields after BCL-backed
+calendar validation. Future `PlainDate.from` work should preserve the
+calendar-visible fields, make era reads depend on `CalendarUsesEras`, and prove
+the focused `Name=Temporal_PlainDate_from` Test262 method group.
+
+Related ADR: `docs/adrs/0057-keep-temporal-plaindate-calendar-fields-observable.md`.
+
 Issue #838 / PR #1146 fixed `Temporal.PlainDateTime.prototype.toLocaleString`
 after the `resolved-time-zone.js` Test262 fixture expected the supplied
 `Pacific/Apia` time zone to remain resolved but not shift PlainDateTime's
@@ -306,3 +323,16 @@ Test262 method group before widening.
 
 Related ADR:
 `docs/adrs/0054-keep-temporal-duration-rounding-ties-shared.md`.
+
+Issue #839 / PR #1159 fixed `Temporal.PlainDateTime.prototype.with` after
+non-ISO receiver defaults were merged through internal ISO date fields. The
+durable lesson extends issue #837's property-bag rule to receiver-based updates:
+the receiver's calendar-visible `year`, `month`, `day`, and `monthCode` are the
+defaults and comparison basis for `with`, while the ISO projection is only the
+storage/range representation after calendar-date merge. Future
+`PlainDateTime.prototype.with` work should prove the focused
+`Name=Temporal_PlainDateTime_prototype_with` Test262 method group, starting
+with the `non-iso-calendar-fields.js` fixture.
+
+Related ADR:
+`docs/adrs/0055-keep-temporal-plaindatetime-with-calendar-date-fields.md`.

@@ -330,6 +330,31 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
     }
 
     [Fact]
+    public async Task Temporal_PlainDate_Until_UsesNonIsoCalendarMonthsAcrossLeapMonth()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            const year2000 = new Temporal.PlainDate(2000, 3, 1).withCalendar('chinese').year;
+            const year2001 = new Temporal.PlainDate(2001, 3, 1).withCalendar('chinese').year;
+            const one = Temporal.PlainDate.from({ year: year2000, month: 6, day: 1, calendar: 'chinese' });
+            const two = Temporal.PlainDate.from({ year: year2001, month: 6, day: 1, calendar: 'chinese' });
+
+            [
+                one.inLeapYear,
+                one.monthCode,
+                two.inLeapYear,
+                two.monthCode,
+                one.until(two, { largestUnit: 'years' }).toString(),
+                one.until(two, { largestUnit: 'months' }).toString(),
+                one.until(two, { largestUnit: 'weeks' }).toString(),
+                one.until(two, { largestUnit: 'days' }).toString(),
+            ].join('|');
+        ");
+
+        Assert.Equal("false|M06|true|M05|P12M|P12M|P50W4D|P354D", result);
+    }
+
+    [Fact]
     public async Task Temporal_PlainDate_Since()
     {
         await using var engine = CreateEngine();

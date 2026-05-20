@@ -118,6 +118,12 @@ host-runtime shortcuts.
     the shared rounding abstract operation helper so every rounding mode,
     including `halfCeil`, `halfFloor`, `halfTrunc`, and odd-quotient
     `halfEven`, keeps the same semantics as the generic path.
+23. For `Temporal.PlainDate.prototype.toZonedDateTime`, keep omitted or
+    explicitly `undefined` `plainTime` distinct from explicit `PlainTime`.
+    Omitted/undefined `plainTime` must use true start-of-day semantics through
+    `GetStartOfDayInstant`; explicit `new Temporal.PlainTime()` remains on the
+    PlainDateTime/midnight disambiguation path. Do not normalize absence into a
+    zero-valued Temporal object before the spec branch that observes absence.
 
 ## Why
 
@@ -277,6 +283,18 @@ and prove hour-cycle output with the focused
 
 Related ADR:
 `docs/adrs/0049-keep-temporal-plaindatetime-locale-hours-on-shared-hourcycle-formatting.md`.
+
+Issue #841 / PR #1158 fixed
+`Temporal.PlainDate.prototype.toZonedDateTime` after the skipped-midnight
+Test262 fixture for `America/Toronto` exposed that omitted or explicitly
+undefined `plainTime` is not equivalent to explicit midnight. Future PlainDate
+zoning work should route absent `plainTime` through true start-of-day semantics,
+keep explicit `PlainTime` on the PlainDateTime/midnight disambiguation path,
+and prove the focused `Name=Temporal_PlainDate_prototype_toZonedDateTime`
+Test262 method group before widening.
+
+Related ADR:
+`docs/adrs/0056-keep-temporal-plaindate-zoning-start-of-day-distinct.md`.
 
 Issue #834 / PR #1135 fixed `Temporal.Duration.prototype.round` after the
 ZonedDateTime month midpoint fast path initially collapsed rounding modes into

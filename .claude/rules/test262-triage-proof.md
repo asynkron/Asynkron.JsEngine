@@ -146,3 +146,15 @@ passed, including the previously crashing Annex B indirect-eval fixture. Future
 agents should repair the command shape before treating a focused Test262 proof
 as source failure, then stop without eval or harness changes when the exact
 project-file proof is green.
+
+Issue #1080 repeated the no-source-change closeout for
+`Temporal_ZonedDateTime_prototype_withCalendar`. The 2026-05-19 crash batch
+listed branding and builtin-shape rows as crashed, and investigation correctly
+identified `TemporalHelper`, `JsTemporalZonedDateTime`, `HostFunction`, and
+`JsValue` as plausible owner surfaces. The build-stage focused proof on current
+`origin/main` passed the issue-supplied method group 40/40 with no source diff,
+so the owner lookup stayed context only. Future Temporal Test262 crash issues
+should still inspect the branded receiver and built-in function shape surface,
+but once the exact focused proof is green, stop without changing Temporal,
+HostFunction, or harness code unless a current failing fixture row is
+reproduced.

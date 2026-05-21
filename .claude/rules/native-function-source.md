@@ -19,7 +19,11 @@ creation-time stamped.
 5. When adding generated built-ins, accessors, symbol members, constructor
    members, globals, or compatibility stubs, stamp the native display metadata
    at `HostFunction` creation time.
-6. Add focused regression coverage for both mutable `name` forgery and malformed
+6. When cloning or snapshotting `HostFunction` instances for realm reuse, copy
+   the private native display metadata explicitly. Cloning the JavaScript
+   properties object is not enough because this metadata is deliberately not a
+   mutable observable property.
+7. Add focused regression coverage for both mutable `name` forgery and malformed
    bracketed native names when touching this area.
 
 ## Why
@@ -30,5 +34,10 @@ blocker showed that using the public `name` property was observable and mutable:
 user code could redefine it and forge built-in source strings. The accepted fix
 stores private creation-time display metadata, stamps it from generated
 built-in creation sites, and rejects malformed bracketed names before rendering.
+
+Issue #1378 / PR #1380 showed the same invariant applies to engine-owned clone
+paths: `BaseRealmSnapshot` created replacement `HostFunction` objects for
+Test262 base-realm reuse and dropped the private display metadata until the
+clone copied it explicitly.
 
 Related ADR: `docs/adrs/0014-keep-native-function-source-display-metadata-immutable.md`.

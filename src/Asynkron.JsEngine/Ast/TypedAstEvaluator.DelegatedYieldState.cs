@@ -197,10 +197,10 @@ public static partial class TypedAstEvaluator
                 // throw() completions that are normal iterator results continue through the regular
                 // propagateThrow+done branch in HandleYieldStar.
                 // Preserve pending return completion for delegated generator objects, and for
-                // non-generator iterators only once return() reports done:true. Plain iterators
-                // that return { done: false } from return() must continue as ordinary yield*
-                // iteration until they eventually complete.
-                var delegatedCompletion = propagateReturn && (_isGeneratorObject || done);
+                // non-generator iterators only when return() synchronously reports done:true.
+                // If the return() result came from an awaited Promise, reportedDone is forced
+                // to false above and yield* should keep delegating on the next resume.
+                var delegatedCompletion = propagateReturn && (_isGeneratorObject || (done && !awaitedPromise));
                 return (value, reportedDone, delegatedCompletion, propagateThrowResult, nextResult);
             }
 

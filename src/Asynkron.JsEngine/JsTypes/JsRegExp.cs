@@ -167,8 +167,20 @@ public sealed class JsRegExp
 
     private Regex? _compiledRegex;
     private readonly AnchoredPropertyEscapeMatcher? _anchoredPropertyEscapeMatcher;
+    private readonly AnchoredSimpleClassEscape _anchoredSimpleClassEscape;
     private readonly byte _encodedFlags;
     private string? _flags;
+
+    private enum AnchoredSimpleClassEscape : byte
+    {
+        None,
+        Digit,
+        NonDigit,
+        Whitespace,
+        NonWhitespace,
+        Word,
+        NonWord
+    }
 
     public JsRegExp(string pattern, string flags = "", RealmState? realmState = null, JsObject? existingObject = null)
         : this(pattern, EncodeFlags(flags), flags, realmState, existingObject)
@@ -201,6 +213,7 @@ public sealed class JsRegExp
             : renamed;
         _groupNameMapping = nameMapping;
         _anchoredPropertyEscapeMatcher = TryCreateAnchoredPropertyEscapeMatcher(pattern, _encodedFlags);
+        _anchoredSimpleClassEscape = TryCreateAnchoredSimpleClassEscape(pattern, _encodedFlags);
 
         var canDeferInitialConstruction = CanDeferInitialRegexConstruction(pattern, _encodedFlags);
 
@@ -209,7 +222,9 @@ public sealed class JsRegExp
         // identity escapes are frequently source-only and one-shot in Test262,
         // so those stay interpreted when first matched.
         var options = RegexOptions.CultureInvariant;
-        if (!canDeferInitialConstruction && _normalizedPattern.Length <= LargePatternThreshold)
+        if (!canDeferInitialConstruction &&
+            (_encodedFlags & FlagGlobal) == 0 &&
+            _normalizedPattern.Length <= LargePatternThreshold)
         {
             options |= RegexOptions.Compiled;
         }
@@ -232,7 +247,14 @@ public sealed class JsRegExp
                 new PropertyDescriptor { Value = 0d, Writable = true, Enumerable = false, Configurable = false });
         }
 
-        if (canDeferInitialConstruction || _anchoredPropertyEscapeMatcher is not null)
+        if (canDeferInitialConstruction ||
+            _anchoredPropertyEscapeMatcher is not null ||
+            _anchoredSimpleClassEscape != AnchoredSimpleClassEscape.None)
+        {
+            return;
+        }
+
+        if (IsLegacyGlobalNonWhitespacePlus())
         {
             return;
         }
@@ -327,6 +349,26 @@ public sealed class JsRegExp
             return false;
         }
 
+        if (TryMatchLegacyGlobalNonWhitespacePlus(input, startIndex, out var fastIndex, out var fastLength))
+        {
+            SetLastIndexStrict(fastIndex + fastLength);
+            RealmState.UpdateRegExpStatics(input, fastIndex, fastLength);
+            return true;
+        }
+
+        if (_anchoredSimpleClassEscape != AnchoredSimpleClassEscape.None)
+        {
+            var simpleClassMatch = startIndex == 0 &&
+                                   IsAnchoredSimpleClassEscapeMatch(input, _anchoredSimpleClassEscape);
+            if (!simpleClassMatch)
+            {
+                return false;
+            }
+
+            UpdateWholeInputRegExpStatics(input);
+            return true;
+        }
+
         if (_anchoredPropertyEscapeMatcher is { } anchoredMatcher)
         {
             var anchoredMatch = startIndex == 0 && anchoredMatcher.IsMatch(input);
@@ -408,6 +450,27 @@ public sealed class JsRegExp
             }
 
             return null;
+        }
+
+        if (TryMatchLegacyGlobalNonWhitespacePlus(input, startIndex, out var fastIndex, out var fastLength))
+        {
+            SetLastIndexStrict(fastIndex + fastLength);
+            RealmState.UpdateRegExpStatics(input, fastIndex, fastLength);
+            return CreateSimpleMatchArray(input, fastIndex, fastLength);
+        }
+
+        if (_anchoredSimpleClassEscape != AnchoredSimpleClassEscape.None)
+        {
+            var simpleClassMatch = startIndex == 0 &&
+                                   IsAnchoredSimpleClassEscapeMatch(input, _anchoredSimpleClassEscape);
+            if (!simpleClassMatch)
+            {
+                return null;
+            }
+
+            var fastResult = CreateWholeInputMatchArray(input);
+            UpdateWholeInputRegExpStatics(input);
+            return fastResult;
         }
 
         if (_anchoredPropertyEscapeMatcher is { } anchoredMatcher)
@@ -1375,6 +1438,108 @@ public sealed class JsRegExp
         return _compiledRegex ??= new Regex(CapLargeQuantifiers(_normalizedPattern), _regexOptions);
     }
 
+    private bool IsLegacyGlobalNonWhitespacePlus()
+    {
+        return _encodedFlags == FlagGlobal &&
+               Pattern.Length == 3 &&
+               Pattern[0] == '\\' &&
+               Pattern[1] == 'S' &&
+               Pattern[2] == '+';
+    }
+
+    private static AnchoredSimpleClassEscape TryCreateAnchoredSimpleClassEscape(string pattern, byte encodedFlags)
+    {
+        if ((encodedFlags & ~(FlagUnicode | FlagUnicodeSets)) != 0 ||
+            pattern.Length != 5 ||
+            pattern[0] != '^' ||
+            pattern[1] != '\\' ||
+            pattern[3] != '+' ||
+            pattern[4] != '$')
+        {
+            return AnchoredSimpleClassEscape.None;
+        }
+
+        return pattern[2] switch
+        {
+            'd' => AnchoredSimpleClassEscape.Digit,
+            'D' => AnchoredSimpleClassEscape.NonDigit,
+            's' => AnchoredSimpleClassEscape.Whitespace,
+            'S' => AnchoredSimpleClassEscape.NonWhitespace,
+            'w' => AnchoredSimpleClassEscape.Word,
+            'W' => AnchoredSimpleClassEscape.NonWord,
+            _ => AnchoredSimpleClassEscape.None
+        };
+    }
+
+    private static bool IsAnchoredSimpleClassEscapeMatch(string input, AnchoredSimpleClassEscape escape)
+    {
+        if (input.Length == 0)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < input.Length; i++)
+        {
+            if (!IsSimpleClassEscapeMatch(input[i], escape))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsSimpleClassEscapeMatch(char c, AnchoredSimpleClassEscape escape)
+    {
+        return escape switch
+        {
+            AnchoredSimpleClassEscape.Digit => c is >= '0' and <= '9',
+            AnchoredSimpleClassEscape.NonDigit => c is < '0' or > '9',
+            AnchoredSimpleClassEscape.Whitespace => IsEcmaWhitespace(c),
+            AnchoredSimpleClassEscape.NonWhitespace => !IsEcmaWhitespace(c),
+            AnchoredSimpleClassEscape.Word => IsEcmaWordChar(c),
+            AnchoredSimpleClassEscape.NonWord => !IsEcmaWordChar(c),
+            _ => false
+        };
+    }
+
+    private static bool IsEcmaWordChar(char c)
+    {
+        return c is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or >= '0' and <= '9' or '_';
+    }
+
+    private bool TryMatchLegacyGlobalNonWhitespacePlus(string input, int startIndex, out int index, out int length)
+    {
+        index = -1;
+        length = 0;
+
+        if (!IsLegacyGlobalNonWhitespacePlus())
+        {
+            return false;
+        }
+
+        for (var i = startIndex; i < input.Length; i++)
+        {
+            if (IsEcmaWhitespace(input[i]))
+            {
+                continue;
+            }
+
+            var end = i + 1;
+            while (end < input.Length && !IsEcmaWhitespace(input[end]))
+            {
+                end++;
+            }
+
+            index = i;
+            length = end - i;
+            return true;
+        }
+
+        SetLastIndexStrict(0);
+        return false;
+    }
+
     private static AnchoredPropertyEscapeMatcher? TryCreateAnchoredPropertyEscapeMatcher(
         string pattern,
         byte encodedFlags)
@@ -1831,6 +1996,31 @@ public sealed class JsRegExp
                 Configurable = true
             });
         }
+
+        return result;
+    }
+
+    private JsArray CreateSimpleMatchArray(string input, int index, int length)
+    {
+        var result = new JsArray(RealmState);
+        result.Push(input.Substring(index, length));
+        result.DefineProperty("index",
+            new PropertyDescriptor
+            {
+                Value = (double)index, Writable = true, Enumerable = true, Configurable = true
+            });
+        result.DefineProperty("input",
+            new PropertyDescriptor
+            {
+                Value = new JsValue(input), Writable = true, Enumerable = true, Configurable = true
+            });
+        result.DefineProperty("groups", new PropertyDescriptor
+        {
+            Value = JsValue.Undefined,
+            Writable = true,
+            Enumerable = true,
+            Configurable = true
+        });
 
         return result;
     }
@@ -5446,6 +5636,30 @@ public sealed class JsRegExp
     private static bool IsLineTerminator(char c)
     {
         return c is '\n' or '\r' or '\u2028' or '\u2029';
+    }
+
+    private static bool IsEcmaWhitespace(char c)
+    {
+        switch (c)
+        {
+            case '\t':
+            case '\n':
+            case '\v':
+            case '\f':
+            case '\r':
+            case ' ':
+            case '\u00a0':
+            case '\u1680':
+            case '\u2028':
+            case '\u2029':
+            case '\u202f':
+            case '\u205f':
+            case '\u3000':
+            case '\ufeff':
+                return true;
+            default:
+                return c >= '\u2000' && c <= '\u200a';
+        }
     }
 
     private static bool IsControlLetter(char c)

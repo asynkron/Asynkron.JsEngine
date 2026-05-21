@@ -269,6 +269,71 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 2000)]
+    public async Task String_Replace_GlobalNonWhitespace_HonorsOwnExecOverride()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let regex = /\S+/g;
+            let calls = 0;
+            regex.exec = function (input) {
+                calls++;
+                if (calls === 1) {
+                    let match = ["a"];
+                    match.index = 0;
+                    match.input = input;
+                    return match;
+                }
+
+                return null;
+            };
+
+            "a b".replace(regex, "X") + ":" + calls;
+        """);
+        Assert.Equal("X b:2", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task String_Replace_GlobalNonWhitespace_HonorsPrototypeExecOverride()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let originalExec = RegExp.prototype.exec;
+            let calls = 0;
+            let result;
+            RegExp.prototype.exec = function (input) {
+                calls++;
+                if (calls === 1) {
+                    let match = ["a"];
+                    match.index = 0;
+                    match.input = input;
+                    return match;
+                }
+
+                return null;
+            };
+
+            try {
+                result = "a b".replace(/\S+/g, "X") + ":" + calls;
+            } finally {
+                RegExp.prototype.exec = originalExec;
+            }
+
+            result;
+        """);
+        Assert.Equal("X b:2", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task String_Replace_GlobalNonWhitespace_PreservesLeadingWhitespace()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            " a".replace(/\S+/g, "X");
+        """);
+        Assert.Equal(" X", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task RegExp_GlobalFlag_Test_UpdatesLastIndex()
     {
         await using var engine = CreateEngine();
@@ -1171,6 +1236,25 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
         """);
 
         Assert.Equal("3|il a", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task RegExp_AnchoredNonWordClassEscape_MatchesGeneratedRangeShape()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var input = "`:[]{}" + "\u0660" + String.fromCodePoint(0x10000) + "\uDC00";
+            [
+              /^\W+$/.test(input),
+              /^\W+$/u.test(input),
+              /^\W+$/v.test(input),
+              /^\W+$/.exec(input)[0] === input,
+              /^\W+$/.test(input + "A"),
+              /^\W+$/.test("")
+            ].join("|");
+        """);
+
+        Assert.Equal("true|true|true|true|false|false", result);
     }
 
     [Fact(Timeout = 5000)]

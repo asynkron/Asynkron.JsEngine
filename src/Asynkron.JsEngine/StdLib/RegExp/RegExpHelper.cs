@@ -267,6 +267,25 @@ public static class RegExpHelper
         }
     }
 
+    internal static void UpdateRegExpStatics(this RealmState? realm, string input, int index, int length)
+    {
+        if (realm is null)
+        {
+            return;
+        }
+
+        var statics = realm.RegExpStatics;
+        statics.Input = input;
+        statics.LastMatch = input.Substring(index, length);
+        statics.LeftContext = input[..index];
+        statics.RightContext = input[(index + length)..];
+        statics.LastParen = string.Empty;
+        for (var i = 0; i < statics.Captures.Length; i++)
+        {
+            statics.Captures[i] = string.Empty;
+        }
+    }
+
     internal static void DefineLegacyRegExpAccessors(HostFunction constructor, RealmState realm)
     {
         var inputDescriptor = new PropertyDescriptor

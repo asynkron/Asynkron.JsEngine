@@ -16,6 +16,9 @@ namespace Asynkron.JsEngine.StdLib;
 [JsPrototype("RegExp")]
 public sealed partial class RegExpPrototype
 {
+    private HostFunction? _defaultExecFunction;
+    private int _defaultExecPrototypeMutationVersion;
+
     [JsHostMethod("test", Length = 1d)]
     public JsValue Test(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -258,6 +261,16 @@ public sealed partial class RegExpPrototype
         }
 
         Realm.RegExpPrototype ??= Prototype as JsObject;
+        if (_defaultExecFunction is null &&
+            Prototype.GetOwnPropertyDescriptor("exec") is { HasValue: true } execDescriptor &&
+            execDescriptor.JsValue.TryGetObject<HostFunction>(out var execFunction))
+        {
+            _defaultExecFunction = execFunction;
+            if (Prototype is JsObject prototypeObject)
+            {
+                _defaultExecPrototypeMutationVersion = prototypeObject.CurrentMutationVersion;
+            }
+        }
     }
 
     private JsRegExp RequireRegExp(JsValue receiver)
@@ -529,6 +542,13 @@ public sealed partial class RegExpPrototype
         // Step 7: If flags contains "g", let global be true, else let global be false.
         var isGlobal = flags.Contains('g', StringComparison.Ordinal);
 
+        if (!functionalReplace &&
+            isGlobal &&
+            TryReplaceLegacyGlobalNonWhitespacePlus(thisValue, input, replaceStr, out var fastReplaceResult))
+        {
+            return new JsValue(fastReplaceResult);
+        }
+
         bool fullUnicode = false;
         if (isGlobal)
         {
@@ -658,6 +678,130 @@ public sealed partial class RegExpPrototype
         }
 
         return new JsValue(accumulatedResult.ToString());
+    }
+
+    private bool HasDefaultRegExpExec(JsValue thisValue)
+    {
+        if (!thisValue.TryGetObject<JsObject>(out var instance) ||
+            instance.GetOwnPropertyDescriptor("exec") is not null ||
+            Realm.RegExpPrototype is not { } regExpPrototype ||
+            !ReferenceEquals(instance.Prototype, regExpPrototype) ||
+            _defaultExecFunction is null)
+        {
+            return false;
+        }
+
+        if (regExpPrototype.CurrentMutationVersion == _defaultExecPrototypeMutationVersion)
+        {
+            return true;
+        }
+
+        if (regExpPrototype.GetOwnPropertyDescriptor("exec") is not { HasValue: true } execDescriptor ||
+            !execDescriptor.JsValue.TryGetObject<HostFunction>(out var currentExec) ||
+            !ReferenceEquals(currentExec, _defaultExecFunction))
+        {
+            return false;
+        }
+
+        _defaultExecPrototypeMutationVersion = regExpPrototype.CurrentMutationVersion;
+        return true;
+    }
+
+    private bool TryReplaceLegacyGlobalNonWhitespacePlus(
+        JsValue thisValue,
+        string input,
+        string replacement,
+        out string result)
+    {
+        result = string.Empty;
+        if (replacement.Contains('$', StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var regex = ResolveRegExpFromThisValue(thisValue);
+        if (regex is null ||
+            !string.Equals(regex.Pattern, @"\S+", StringComparison.Ordinal) ||
+            !string.Equals(regex.Flags, "g", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (!HasDefaultRegExpExec(thisValue))
+        {
+            return false;
+        }
+
+        SetProperty(thisValue, "lastIndex", new JsValue(0d));
+
+        StringBuilder? builder = null;
+        var sourcePosition = 0;
+        var lastMatchIndex = -1;
+        var lastMatchLength = 0;
+
+        for (var i = 0; i < input.Length; i++)
+        {
+            if (IsEcmaWhitespace(input[i]))
+            {
+                continue;
+            }
+
+            var end = i + 1;
+            while (end < input.Length && !IsEcmaWhitespace(input[end]))
+            {
+                end++;
+            }
+
+            if (sourcePosition == 0 && i == 0 && end == input.Length)
+            {
+                result = replacement;
+                Realm.UpdateRegExpStatics(input, i, end - i);
+                return true;
+            }
+
+            builder ??= new StringBuilder(input.Length + replacement.Length);
+            builder.Append(input.AsSpan(sourcePosition, i - sourcePosition));
+            builder.Append(replacement);
+            sourcePosition = end;
+            lastMatchIndex = i;
+            lastMatchLength = end - i;
+            i = end - 1;
+        }
+
+        if (builder is null)
+        {
+            result = input;
+            return true;
+        }
+
+        builder.Append(input.AsSpan(sourcePosition));
+        result = builder.ToString();
+        Realm.UpdateRegExpStatics(input, lastMatchIndex, lastMatchLength);
+        return true;
+    }
+
+    private static bool IsEcmaWhitespace(char c)
+    {
+        switch (c)
+        {
+            case '\t':
+            case '\n':
+            case '\v':
+            case '\f':
+            case '\r':
+            case ' ':
+            case '\u00a0':
+            case '\u1680':
+            case '\u2028':
+            case '\u2029':
+            case '\u202f':
+            case '\u205f':
+            case '\u3000':
+            case '\ufeff':
+                return true;
+            default:
+                return c >= '\u2000' && c <= '\u200a';
+        }
     }
 
     [JsSymbolMethod("search", Length = 1d)]

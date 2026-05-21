@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 #endregion
 
-#pragma warning disable CS0618 // Obsolete AST evaluation methods are used intentionally here
+#pragma warning disable CS0618 // Compatibility overloads remain for dynamic/resume seams; not proof of direct runner AST fallback.
 
 namespace Asynkron.JsEngine.Ast;
 

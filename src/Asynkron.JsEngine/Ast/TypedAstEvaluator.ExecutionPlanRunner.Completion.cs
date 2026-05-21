@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 #endregion
 
-#pragma warning disable CS0618 // Obsolete AST evaluation methods are used intentionally here
+#pragma warning disable CS0618 // Compatibility overloads remain for dynamic/resume seams; not proof of direct runner AST fallback.
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -83,7 +83,7 @@ public static partial class TypedAstEvaluator
             // right YieldExpression (ECMA-262 GeneratorResume, step threading of sent values).
             YieldStateRef.LastYieldIndex = context.LastYieldIndex;
 
-            // Also save source positions for yields from the legacy AST fallback path.
+            // Also save source positions for yields observed via compatibility resume tracking.
             // These are used to set up resume state so the yield expression returns the resume value.
             YieldStateRef.LastYieldSourceStart = context.LastYieldSourceStart;
             YieldStateRef.LastYieldSourceEnd = context.LastYieldSourceEnd;

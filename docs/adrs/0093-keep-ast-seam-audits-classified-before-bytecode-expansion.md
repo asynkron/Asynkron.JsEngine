@@ -84,3 +84,24 @@ For dynamic boundaries, use this finer classification:
   constructor paths that are already dynamic-but-lowered.
 - This ADR is caused by issue #1391 and complements the root
   `.claude/rules/expression-bytecode-ast-seams.md` rule.
+
+## Issue #1435 Classification Refresh (2026-05-21)
+
+This follow-up reran the runner seam scan:
+
+- `rg "EvaluateExpression\(|ProfileEvaluateExpression\(" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner*`
+
+Observed classification:
+
+1. Runner direct-call seam status is clean: no direct
+   `EvaluateExpression(`/`ProfileEvaluateExpression(` calls in
+   `TypedAstEvaluator.ExecutionPlanRunner*`.
+2. Outer fallback ownership remains in planning/lowering:
+   `ExecutionPlanBuilder` / emitter diagnostics still own unsupported
+   expression-program and lowering failure classification, which can route outer
+   execution to AST walking.
+3. `ExpressionProgramCompileFailure` and `SetExpressionProgramFailure(...)`
+   remain the classification source for unsupported expression-bytecode gaps.
+4. Remaining `CS0618` pragmas and old "legacy AST fallback" wording in runner
+   files are compatibility markers and comment hygiene targets unless a concrete
+   runtime call site is proven.

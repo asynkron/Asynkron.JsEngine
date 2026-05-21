@@ -612,7 +612,6 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
         var outerCleanupDone = await engine.Evaluate("outerCleanup.done;");
 
         await engine.Evaluate("const finalResult = g.next();");
-        var finalValue = await engine.Evaluate("finalResult.value;");
         var finalDone = await engine.Evaluate("finalResult.done;");
         var transcript = await engine.Evaluate("returnLog.join(',');");
 
@@ -620,7 +619,7 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
         Assert.False((bool)innerCleanupDone!);
         Assert.Equal("outer-cleanup", outerCleanupValue);
         Assert.False((bool)outerCleanupDone!);
-        Assert.Equal(99.0, finalValue);
+        Assert.Equal(99.0, await engine.Evaluate("finalResult.value;"));
         Assert.True((bool)finalDone!);
         Assert.Equal("inner-finally,outer-finally", transcript);
     }
@@ -945,6 +944,114 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
         var finalDone = await engine.Evaluate("final.done;");
         Assert.Equal("result:finished", finalValue);
         Assert.True((bool)finalDone!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStarThrowDoneFalseContinuesForGeneratorIteratorIr()
+    {
+        await using var engine = CreateEngine();
+
+        await engine.Evaluate("""
+            function* inner() {
+                try {
+                    yield "inner:first";
+                } catch (err) {
+                    yield `inner:caught:${err}`;
+                }
+                yield "inner:after-catch";
+                return "inner:return";
+            }
+
+            function* outer() {
+                const doneValue = yield* inner();
+                return `outer:${doneValue}`;
+            }
+
+            let g = outer();
+        """);
+
+        await engine.Evaluate("const first = g.next();");
+        var firstValue = await engine.Evaluate("first.value;");
+        var firstDone = await engine.Evaluate("first.done;");
+        Assert.Equal("inner:first", firstValue);
+        Assert.False((bool)firstDone!);
+
+        await engine.Evaluate("const second = g.throw('boom');");
+        var secondValue = await engine.Evaluate("second.value;");
+        var secondDone = await engine.Evaluate("second.done;");
+        Assert.Equal("inner:caught:boom", secondValue);
+        Assert.False((bool)secondDone!);
+
+        await engine.Evaluate("const third = g.next();");
+        var thirdValue = await engine.Evaluate("third.value;");
+        var thirdDone = await engine.Evaluate("third.done;");
+        Assert.Equal("inner:after-catch", thirdValue);
+        Assert.False((bool)thirdDone!);
+
+        await engine.Evaluate("const final = g.next();");
+        var finalValue = await engine.Evaluate("final.value;");
+        var finalDone = await engine.Evaluate("final.done;");
+        Assert.Equal("outer:inner:return", finalValue);
+        Assert.True((bool)finalDone!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStar_UnresolvableRhsThrowsReferenceErrorIr()
+    {
+        await using var engine = CreateEngine();
+
+        await engine.Evaluate("""
+            function* outer() {
+                yield* missingIteratorBinding;
+            }
+
+            let g = outer();
+        """);
+
+        var signal = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("g.next();"));
+        Assert.True(signal.ThrownValue.TryGetObject<JsObject>(out var errorObject));
+        Assert.True(errorObject.TryGetProperty("name", out var nameValue));
+        Assert.Equal("ReferenceError", JsOps.ToJsString(JsValue.FromObjectUnsafe(nameValue.ToObject()), null));
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldStarThrowDoneTrueCompletesWithIteratorValueIr()
+    {
+        await using var engine = CreateEngine();
+
+        await engine.Evaluate("""
+            function makeIterator() {
+                return {
+                    [Symbol.iterator]() {
+                        return {
+                            next() {
+                                return { done: false };
+                            },
+                            throw(value) {
+                                return { done: true, value: value + 1111 };
+                            }
+                        };
+                    }
+                };
+            }
+
+            function* outer() {
+                const result = yield* makeIterator();
+                return `outer:${result}`;
+            }
+
+            let g = outer();
+        """);
+
+        await engine.Evaluate("const first = g.next();");
+        var firstDone = await engine.Evaluate("first.done;");
+        Assert.False((bool)firstDone!);
+
+        await engine.Evaluate("const second = g.throw(2222);");
+        var secondValue = await engine.Evaluate("second.value;");
+        var secondDone = await engine.Evaluate("second.done;");
+        Assert.Equal("outer:3333", secondValue);
+        Assert.True((bool)secondDone!);
     }
 
     [Fact(Timeout = 2000)]

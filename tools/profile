@@ -113,8 +113,8 @@ has_profiler_flag() {
 
 run_default_split_profile() {
   local profile_key=$1
-  local cpu_args=("${profiler_args[@]-}")
-  local memory_args=("${profiler_args[@]-}")
+  local cpu_args=("${profiler_args[@]}")
+  local memory_args=("${profiler_args[@]}")
 
   if ! has_profiler_flag "--root"; then
     cpu_args+=("--root" "$jsengine_scope")
@@ -131,7 +131,7 @@ run_default_split_profile() {
 
 run_mode_profile_with_scope_defaults() {
   local profile_key=$1
-  local scoped_args=("${profiler_args[@]-}")
+  local scoped_args=("${profiler_args[@]}")
   local cpu_requested=false
 
   if has_profiler_flag "--cpu" "-c"; then

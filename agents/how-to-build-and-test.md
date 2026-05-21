@@ -42,6 +42,11 @@ maintenance pass, keep the slice repo-local and reviewable:
 2. Capture a cheap baseline signal before editing. Prefer evidence such as
    `make -n quality`, a targeted `rg` check, `git diff --check`, or another
    narrow command tied directly to the chosen slice.
+   If `faktorial-api` helper commands are unavailable in the local agent
+   environment, use the bounded fallback command
+   `faktorial log-summary <issue-number> --root '<repo-root>'` and proceed
+   with local/embedded Faktorial context instead of treating missing helpers
+   or missing `gh` auth as blockers.
 3. If the slice adds a new ADR under `docs/adrs/`, reserve the ID with
    `faktorial-api adr-next` first and use the returned `adr_id`; if the lesson
    fits an existing durable document, update that file instead of creating a

@@ -63,14 +63,20 @@ fallback or cleanup.
     from static-key normalization, and prove both the new accepted shapes and
     the still-invalid computed-key shape.
 14. When retiring dynamic operand AST seams, migrate one operand family at a
-    time through the cached `ExpressionProgram` bridge when the operand only
+    time through the dynamic `ExpressionProgram` bridge when the operand only
     needs a value. Dynamic return operands are the reference shape: evaluate
-    the return expression with `EvaluateCachedExpressionProgram(...)`, preserve
+    the return expression with `EvaluateDynamicExpressionProgram(...)`, preserve
     precise unsupported-bytecode failures, and prove the path with a focused
     DEBUG `EvaluationContext.AssertNoAstEvaluation` regression. Keep
     suspending operands (`await`, `yield`), assignment/name-inference operands,
     and delete-default operands as separate slices until their evaluation order,
     resume, and side-effect semantics are proven.
+15. When renaming, removing, or splitting expression-program bridge APIs, search
+    both the primary IR/runtime files and the quarantined legacy AST evaluator
+    directory for stale bridge calls. Legacy dynamic boundaries may still be the
+    caller that routes AST-owned statements into lowered `ExpressionProgram`
+    execution; a stale call there can make `main` fail to compile even when the
+    normal runner path and focused AST-free tests look correct.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 
@@ -160,8 +166,18 @@ node normalization, and computed-key validation as separate proof points.
 
 Issue #1447 / PR #1457 converted the dynamic return-expression boundary from
 `EvaluateDynamicExpressionOperand(...)` to the existing cached expression-program
-path. The important constraint is scope: a return operand only needs a
-`JsValue` before setting the return completion, so it can be bytecode-backed
-without changing suspension or name-inference behavior. Future dynamic operand
-work should repeat that narrow proof shape instead of mixing return, await,
-yield, assignment, and delete semantics in one migration.
+path, which is now reached through the dynamic expression-program bridge. The
+important constraint is scope: a return operand only needs a `JsValue` before
+setting the return completion, so it can be bytecode-backed without changing
+suspension or name-inference behavior. Future dynamic operand work should repeat
+that narrow proof shape instead of mixing return, await, yield, assignment, and
+delete semantics in one migration.
+
+Issue #1461 / PR #1462 repaired a `main is red` compile failure after
+`EvaluateCachedExpressionProgram` was removed but the legacy dynamic
+return-expression boundary still called it. The correct caller is
+`EvaluateDynamicExpressionProgram`, because this seam starts in quarantined AST
+statement evaluation but must execute the return expression through the dynamic
+expression-program bridge. Future bridge refactors need a whole-AST bridge-call
+search, including `src/Asynkron.JsEngine/Ast/Legacy`, before they claim the
+rename/removal is complete.

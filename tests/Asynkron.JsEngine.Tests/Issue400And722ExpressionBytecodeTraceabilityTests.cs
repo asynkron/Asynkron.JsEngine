@@ -40,18 +40,50 @@ public sealed class Issue400And722ExpressionBytecodeTraceabilityTests : IAsyncLi
         Assert.False(returnInstruction.ReturnProgram!.Value.IsEmpty);
 
         var throwPlan = await GetFunctionPlan("""
-            async function proofThrow(valuePromise) {
-                throw await valuePromise;
+            function proofThrow(value) {
+                throw value + 1;
             }
             """, "proofThrow");
-        var throwInstruction = Assert.Single(throwPlan.Instructions.OfType<ThrowInstruction>(), i => i.AwaitedProgram is not null);
+        var throwInstruction = Assert.Single(throwPlan.Instructions.OfType<ThrowInstruction>(), i => i.ThrowProgram is not null);
         Assert.Null(throwInstruction.Expression);
-        Assert.False(throwInstruction.AwaitedProgram!.Value.IsEmpty);
+        Assert.False(throwInstruction.ThrowProgram!.Value.IsEmpty);
+
+        var branchPlan = await GetFunctionPlan("""
+            function proofBranch(value) {
+                if (value > 1) {
+                    return value;
+                }
+
+                return 0;
+            }
+            """, "proofBranch");
+        var branchInstruction = Assert.Single(branchPlan.Instructions.OfType<BranchInstruction>());
+        Assert.False(branchInstruction.ConditionProgram.IsEmpty);
+
+        var expressionStatementPlan = await GetFunctionPlan("""
+            function proofExpressionStatement(value) {
+                value + 1;
+                return value;
+            }
+            """, "proofExpressionStatement");
+        var expressionStatementInstruction = Assert.Single(expressionStatementPlan.Instructions.OfType<EvaluateAndDiscardInstruction>());
+        Assert.Null(expressionStatementInstruction.Expression);
+        Assert.False(expressionStatementInstruction.ExpressionProgram.IsEmpty);
+
+        var declarationPlan = await GetFunctionPlan("""
+            function proofDeclaration(value) {
+                let current = value + 2;
+                return current;
+            }
+            """, "proofDeclaration");
+        var declarationInstruction = Assert.Single(declarationPlan.Instructions.OfType<SimpleVariableDeclarationInstruction>());
+        Assert.Null(declarationInstruction.Initializer);
+        Assert.False(declarationInstruction.InitializerProgram!.Value.IsEmpty);
 
         var assignmentPlan = await GetFunctionPlan("""
-            async function proofAssign(valuePromise) {
+            function proofAssign(value) {
                 let current = 0;
-                current = (await valuePromise) + 1;
+                current = value + 1;
                 return current;
             }
             """, "proofAssign");
@@ -59,14 +91,71 @@ public sealed class Issue400And722ExpressionBytecodeTraceabilityTests : IAsyncLi
         Assert.Null(assignmentInstruction.ValueExpression);
         Assert.False(assignmentInstruction.ValueProgram!.Value.IsEmpty);
 
-        var awaitPlan = await GetFunctionPlan("""
-            async function proofAwait(value) {
-                await value;
-                return 1;
+        var yieldPlan = await GetFunctionPlan("""
+            function* proofYield(value) {
+                yield value + 1;
             }
-            """, "proofAwait");
-        var awaitInstruction = Assert.Single(awaitPlan.Instructions.OfType<AwaitAndDiscardInstruction>());
-        Assert.False(awaitInstruction.AwaitedProgram.IsEmpty);
+            """, "proofYield");
+        var yieldInstruction = Assert.Single(yieldPlan.Instructions.OfType<YieldInstruction>(), i => i.YieldProgram is not null);
+        Assert.False(yieldInstruction.YieldProgram!.Value.IsEmpty);
+
+        var yieldStarPlan = await GetFunctionPlan("""
+            function* proofYieldStar(iterable) {
+                yield* iterable;
+            }
+            """, "proofYieldStar");
+        var yieldStarInstruction = Assert.Single(yieldStarPlan.Instructions.OfType<YieldStarInstruction>(), i => i.IterableProgram is not null);
+        Assert.False(yieldStarInstruction.IterableProgram!.Value.IsEmpty);
+
+        var withPlan = await GetFunctionPlan("""
+            function proofWith(target) {
+                with (target) {
+                    return value;
+                }
+            }
+            """, "proofWith");
+        var withInstruction = Assert.Single(withPlan.Instructions.OfType<EnterWithInstruction>(), i => i.ObjectProgram is not null);
+        Assert.False(withInstruction.ObjectProgram!.Value.IsEmpty);
+
+        var forInPlan = await GetFunctionPlan("""
+            function proofForIn(target) {
+                for (const key in target) {
+                    return key;
+                }
+            }
+            """, "proofForIn");
+        var forInInstruction = Assert.Single(forInPlan.Instructions.OfType<ForInInitInstruction>(), i => i.ObjectProgram is not null);
+        Assert.False(forInInstruction.ObjectProgram!.Value.IsEmpty);
+
+        var forOfPlan = await GetFunctionPlan("""
+            function proofForOf(source) {
+                for (const value of source) {
+                    return value;
+                }
+            }
+            """, "proofForOf");
+        var forOfInstruction = Assert.Single(forOfPlan.Instructions.OfType<IteratorInitInstruction>(), i => i.IterableProgram is not null);
+        Assert.False(forOfInstruction.IterableProgram!.Value.IsEmpty);
+
+        var objectDestructuringPlan = await GetFunctionPlan("""
+            function proofObjectDestructure(source) {
+                let { first } = source;
+                return first;
+            }
+            """, "proofObjectDestructure");
+        var bindingInstruction = Assert.Single(objectDestructuringPlan.Instructions.OfType<BindingVariableDeclarationInstruction>());
+        Assert.Null(bindingInstruction.Initializer);
+        Assert.False(bindingInstruction.InitializerProgram!.Value.IsEmpty);
+
+        var destructuringPlan = await GetFunctionPlan("""
+            function proofDestructure(source) {
+                let [first] = source;
+                return first;
+            }
+            """, "proofDestructure");
+        var destructuringInitInstruction = Assert.Single(destructuringPlan.Instructions.OfType<ArrayDestructuringInitInstruction>());
+        Assert.Null(destructuringInitInstruction.SourceExpression);
+        Assert.False(destructuringInitInstruction.SourceProgram.IsEmpty);
     }
 
     [Fact]

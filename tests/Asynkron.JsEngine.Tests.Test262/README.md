@@ -27,7 +27,7 @@ rtk ./tools/run-test262-regressions.sh --list
 Run a named pack:
 
 ```bash
-rtk ./tools/run-test262-regressions.sh temporal-property-bags
+rtk ./tools/run-test262-regressions.sh temporal
 ```
 
 Named packs are resolved from:
@@ -46,15 +46,26 @@ Filter files are plain text with one xUnit filter expression per line.
 
 ## Local Test262 Data Path
 
-If your local setup requires a custom Test262 checkout location, use the runsettings file at:
+If your local setup requires a custom Test262 checkout location, use one of the runsettings files in this project:
 
-- `tests/Asynkron.JsEngine.Tests.Test262/Asynkron.JsEngine.Tests.Test262.runsettings`
+- `tests/Asynkron.JsEngine.Tests.Test262/LanguageTests.runsettings`
+- `tests/Asynkron.JsEngine.Tests.Test262/BuiltInsTests.runsettings`
 
 Example:
 
 ```bash
 rtk dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release \
-  --settings tests/Asynkron.JsEngine.Tests.Test262/Asynkron.JsEngine.Tests.Test262.runsettings
+  --settings tests/Asynkron.JsEngine.Tests.Test262/LanguageTests.runsettings
+```
+
+## Quality Gate Scope
+
+`make quality` is the canonical fast quality gate and does not run Test262.
+
+Test262 regression runs are separate, heavier proof commands. Run them explicitly with:
+
+```bash
+rtk ./tools/run-test262-regressions.sh
 ```
 
 ## Maintenance Workflow

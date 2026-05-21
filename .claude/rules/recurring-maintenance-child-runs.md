@@ -31,6 +31,10 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   signal pair. Prefer redirecting readers to maintained source files over
   recreating stale status documents unless the issue explicitly asks for a new
   durable status artifact.
+- When a tooling/docs slice needs agents to discover available options, prefer
+  an explicit non-failing inventory command over making agents probe an invalid
+  argument just to see an error message. Keep the listing path backed by the
+  same computed source that validation uses.
 - When the slice touches ADR creation guidance, include the cheap duplicate
   prefix signal as evidence, but keep ADR ID allocation aligned with
   `.claude/rules/adr-allocation.md`: Faktorial learn or knowledge-artifact work
@@ -89,3 +93,9 @@ Test262 evidence lived in
 `tests/Asynkron.JsEngine.Tests.Test262/regression-packs/`. The durable lesson
 is to prove the missing target before editing and then point docs at the active
 evidence source, not to recreate an obsolete tracking document.
+
+Issue #1325 / PR #1326 made `tools/run-test262-regressions.sh --list` exit
+successfully and print the same pack list used by invalid-pack validation.
+Before that, agents had to call an intentionally invalid pack name to discover
+available regression packs, which turned normal workflow discovery into a
+failing command and added avoidable noise to recurring maintenance evidence.

@@ -33,6 +33,14 @@ on the current worktree before changing implementation or harness code.
    group only as a later widening step when it is a useful semantic pack, not
    as a substitute for the reported evidence. Treat a group hang as proof
    friction, not as an implementation failure, when the reported rows are green.
+8. If a stale Test262 crash slice is suspected to be stress-sensitive rather
+   than plainly still failing, keep the proof bounded to representative
+   issue-listed rows before editing source. Run a normal focused proof, repeat
+   the same filter in a small loop, rerun with the Test262 harness/base-realm
+   caches disabled when cache contamination is suspected, and enable
+   `JSENGINE_DEBUG_POOL_GUARDS=true` for pooled-state suspects. If all of those
+   focused stress checks stay green, close out without runtime or harness
+   changes.
 
 ## Why
 
@@ -175,3 +183,13 @@ should still inspect the branded receiver and built-in function shape surface,
 but once the exact focused proof is green, stop without changing Temporal,
 HostFunction, or harness code unless a current failing fixture row is
 reproduced.
+
+Issue #1347 extended this green-closeout rule to stress-sensitive stale slices.
+It revisited the mixed TypedArray/ArrayBuffer rows from #1333 after the normal
+focused proof was already green. The delivery ran the representative detached,
+resize/shrink, receiver-validation, and transfer filters once (28/28), repeated
+the same focused filter three times (3/3 green), reran it with the Test262
+harness and base-realm caches disabled (28/28), and reran the callback/iteration
+subset with `JSENGINE_DEBUG_POOL_GUARDS=true` (28/28). That evidence was enough
+to stop without changing `TypedArrayPrototype`, `TypedArrayBase`,
+`JsArrayBuffer`, object pools, or Test262 harness cache/agent code.

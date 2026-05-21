@@ -7412,65 +7412,26 @@ public static class TemporalHelper
         JsTemporalZonedDateTime zonedDateTime,
         RealmState realm)
     {
-        if (zonedDateTime.FixedOffset.HasValue)
-        {
-            var offsetNanoseconds = new BigInteger(zonedDateTime.FixedOffset.Value.Ticks) * 100;
-            var localEpochNanoseconds = zonedDateTime.Instant.EpochNanoseconds + offsetNanoseconds;
-            if (localEpochNanoseconds < PlainDateTimeMinEpochNanoseconds ||
-                localEpochNanoseconds > PlainDateTimeMaxEpochNanoseconds)
-            {
-                throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
-            }
-
-            var fixedOffsetLocalDateTime = FromEpochNanoseconds(localEpochNanoseconds);
-            return new JsTemporalPlainDateTime(
-                fixedOffsetLocalDateTime.Year,
-                fixedOffsetLocalDateTime.Month,
-                fixedOffsetLocalDateTime.Day,
-                fixedOffsetLocalDateTime.Hour,
-                fixedOffsetLocalDateTime.Minute,
-                fixedOffsetLocalDateTime.Second,
-                fixedOffsetLocalDateTime.Millisecond,
-                fixedOffsetLocalDateTime.Microsecond,
-                fixedOffsetLocalDateTime.Nanosecond,
-                zonedDateTime.Calendar);
-        }
-
-        try
-        {
-            var utc = zonedDateTime.Instant.ToDateTimeOffset();
-            var offset = TemporalHistoricalTimeZoneOffsets.GetUtcOffset(
-                zonedDateTime.TimeZoneId,
-                zonedDateTime.TimeZone,
-                utc);
-            var localEpochNanoseconds = zonedDateTime.Instant.EpochNanoseconds + offset.Ticks * 100L;
-            if (localEpochNanoseconds < PlainDateTimeMinEpochNanoseconds ||
-                localEpochNanoseconds > PlainDateTimeMaxEpochNanoseconds)
-            {
-                throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
-            }
-
-            var localDateTime = FromEpochNanoseconds(localEpochNanoseconds);
-            return new JsTemporalPlainDateTime(
-                localDateTime.Year,
-                localDateTime.Month,
-                localDateTime.Day,
-                localDateTime.Hour,
-                localDateTime.Minute,
-                localDateTime.Second,
-                localDateTime.Millisecond,
-                localDateTime.Microsecond,
-                localDateTime.Nanosecond,
-                zonedDateTime.Calendar);
-        }
-        catch (ArgumentOutOfRangeException)
+        var offset = zonedDateTime.FixedOffset ?? GetIanaOffset(zonedDateTime);
+        var localEpochNanoseconds = zonedDateTime.Instant.EpochNanoseconds + new BigInteger(offset.Ticks) * 100;
+        if (localEpochNanoseconds < PlainDateTimeMinEpochNanoseconds ||
+            localEpochNanoseconds > PlainDateTimeMaxEpochNanoseconds)
         {
             throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
         }
-        catch (OverflowException)
-        {
-            throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
-        }
+
+        var localDateTime = FromEpochNanoseconds(localEpochNanoseconds);
+        return new JsTemporalPlainDateTime(
+            localDateTime.Year,
+            localDateTime.Month,
+            localDateTime.Day,
+            localDateTime.Hour,
+            localDateTime.Minute,
+            localDateTime.Second,
+            localDateTime.Millisecond,
+            localDateTime.Microsecond,
+            localDateTime.Nanosecond,
+            zonedDateTime.Calendar);
     }
 
     /// <summary>

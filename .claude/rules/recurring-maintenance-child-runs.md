@@ -11,9 +11,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   after editing.
 - Use a compact issue-update evidence shape: `Baseline signal`, `Final signal`,
   `Slice check`, and `Scope note`.
+- Policy ownership lives here; keep this file as the durable semantic home for
+  recurring-child scope, sibling coordination, and lessons learned.
 - Prefer the copy/paste `## Build Update` template in
-  `agents/how-to-build-and-test.md` so child-run updates stay comparable across
-  recurring issues.
+  `agents/how-to-build-and-test.md` for the operational build-stage update
+  format so child-run updates stay comparable across recurring issues.
 - Do not add or modify recurrence infrastructure in the child run; Faktorial
   owns the recurrence schedule.
 - For docs-only maintenance, avoid full builds, Test262, package installs, or
@@ -37,9 +39,9 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   same computed source that validation uses.
 - When the slice touches ADR creation guidance, include the cheap duplicate
   prefix signal as evidence, but keep ADR ID allocation aligned with
-  `.claude/rules/adr-allocation.md`: Faktorial learn or knowledge-artifact work
-  must reserve IDs through the runtime allocator, not by guessing from a
-  directory scan.
+  `.claude/rules/adr-allocation.md`, which is the allocator authority:
+  Faktorial learn or knowledge-artifact work must reserve IDs through the
+  runtime allocator, not by guessing from a directory scan.
 
 ## Why
 

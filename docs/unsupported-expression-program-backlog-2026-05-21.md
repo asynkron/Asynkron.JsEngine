@@ -37,7 +37,7 @@ Current bucket set (`ExpressionProgramFailureCode`):
 ## Ranked implementation backlog
 
 ### First slice (lower risk / normalization-friendly)
-- `UnsupportedStaticObjectPropertyName`: constrained object literal/property-name handling; mostly syntax-shape normalization.
+- `UnsupportedStaticObjectPropertyName`: remaining object literal/property-name normalization edge cases after parser-literal + identifier/literal AST key coverage.
 - `InvalidComputedObjectKey`: narrow object key validation/classification seam.
 - `UnsupportedDotAccessPropertyName`: literal property-name classifier gap.
 - `UnsupportedDirectMemberCallPropertyName`: direct member-call property-name classifier gap.

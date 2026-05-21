@@ -33,6 +33,12 @@ model explicitly.
    standalone RegExp literal in JavaScript source grammar. Comment prefixes
    (`//`, `/*`) and any ambiguous source shape must decline the fast path and
    fall back to normal script parsing.
+9. For RegExp replace shortcuts, prove that the shortcut is not bypassing
+   observable `RegExpExec` behavior. Decline when the instance has an own `exec`
+   property or `RegExp.prototype.exec` has changed from the captured default.
+   Preserve `lastIndex`, legacy RegExp statics, match indexes, and prefix/gap
+   replacement assembly. Whole-input early returns are allowed only when the
+   first match starts at index `0`.
 
 ## Why
 
@@ -65,3 +71,12 @@ excluding JavaScript comments. Future eval fast paths must be grammar-shaped
 pre-filters: if the payload starts with a source comment or otherwise cannot be
 proven to be only a RegExp literal plus optional semicolon/trivia, let the
 normal parser own the result.
+
+Issue #1335 / PR #1355 added a narrow `String.prototype.replace` fast path for
+legacy `/\S+/g` to satisfy RegExp runtime performance gates. Review and the
+final delivery exposed that replace shortcuts are still ECMAScript-observable:
+custom own or prototype `exec` hooks must be called by the normal path, and a
+nonzero first match such as `" a".replace(/\S+/g, "X")` must preserve the input
+prefix rather than collapse to a whole-input replacement. Future replace
+shortcuts should keep the same guard shape and add regression coverage for
+custom `exec`, prefix preservation, and metadata updates.

@@ -23,15 +23,27 @@ fallback or cleanup.
 6. If a suspending or nested shape still needs runtime AST evaluation, prefer
    emit-time or lowering-time normalization into existing bytecode/IR
    instructions when JavaScript evaluation order can be proven.
-7. When turning a source seam scan into an automated test, assert that the
+7. For dynamic JavaScript boundary audits, classify direct eval, `with`,
+   Function/AsyncFunction constructors, generated function bodies, and modules
+   separately before picking a migration target. Do not group
+   `dynamic-but-lowered` eval/with/generated-function paths with the remaining
+   module-body dispatch leak unless a current call site proves the same AST
+   runtime behavior.
+8. When turning a source seam scan into an automated test, assert that the
    expected source files were discovered before asserting zero forbidden calls.
    A source gate that can pass with zero scanned files is not a guardrail.
-8. When documenting or planning direct `ExpressionProgramCompiler` coverage,
+9. When documenting or planning direct `ExpressionProgramCompiler` coverage,
    start from `docs/expression-bytecode-coverage.md` and keep it complete for
    every concrete `ExpressionNode`. New concrete expression nodes must be added
    to the map with a status (`supported`, `shape-dependent`, `unsupported`, or
    `not-compiled-directly`), the owning failure-code/compiler restriction where
    applicable, and representative test evidence.
+10. When reporting or planning `UnsupportedExpressionProgram` backlog work,
+   derive the bucket list from the current compiler/diagnostic surfaces and
+   explicitly rank catch-all buckets such as `UnsupportedExpressionNode`.
+   Treat catch-all buckets as high-risk/deferred until narrower typed buckets
+   have been burned down, so one implementation slice does not mix unrelated
+   semantic risks.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 
@@ -68,9 +80,15 @@ dynamic-only boundaries, and a profiling bridge. Future bytecode work needs
 that classification discipline so stale references do not create new mixed
 AST/IR fallback paths and real legacy boundaries remain visible follow-up work.
 
-Issue #1405 (retried by #1414) added the dynamic-boundary map above so future
-agents can preserve where expression bytecode already owns execution and where
-module-body migration remains unresolved.
+Issue #1405, retried by #1414, applied the same lesson to dynamic boundaries.
+Direct eval and Function constructors parse dynamic source and then lower
+through script or function IR; supported `with` execution is already lowered
+while deliberately using dynamic environment lookup instead of user slot fast
+paths. The durable next slice is module body execution, where non-import/export
+statements still pass through a per-statement wrapper rather than an explicit
+module-body plan/cache. Future agents need this split so eval/with work does not
+absorb the module-body migration or accidentally remove dynamic-scope
+safeguards.
 
 Issue #1408 added execution-plan diagnostics drift gates. Review found the
 runner seam source-gate test could pass vacuously if no
@@ -83,3 +101,11 @@ after the bytecode audit needed a durable handoff. The risk was future agents
 claiming coverage from spot checks while newly added `ExpressionNode` types
 silently escaped the map. The reflection guard keeps the map complete, while
 the map keeps support status and failure-code ownership explicit.
+
+Issue #1436 / PR #1443 added the first durable
+`UnsupportedExpressionProgram` backlog report for bytecode expansion. Review
+found that the initial report ranked the narrower buckets but did not explicitly
+rank the broad `UnsupportedExpressionNode` catch-all, which could have made a
+future agent pick a mixed-risk implementation slice. Future backlog reports
+must classify and defer catch-all buckets until narrower diagnostics make the
+remaining work specific.

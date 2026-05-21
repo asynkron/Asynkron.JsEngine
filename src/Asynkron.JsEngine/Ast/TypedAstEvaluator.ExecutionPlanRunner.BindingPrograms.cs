@@ -1,5 +1,6 @@
 #region
 
+using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -368,11 +369,26 @@ public static partial class TypedAstEvaluator
             }
 
             var iteratorRecord = new ArrayPatternIterator(iterator, enumerator);
+            var activeIteratorState = context.InGeneratorContext && iterator is not null
+                ? new ActiveArrayPatternIteratorState(iterator)
+                : null;
+            var activeIteratorSymbol = activeIteratorState is not null
+                ? Symbol.Synthetic("[[arrayPatternIterator]]")
+                : null;
             var iteratorDone = false;
             var iteratorThrew = false;
 
             try
             {
+                if (activeIteratorState is not null)
+                {
+                    environment.DefineJsValue(
+                        activeIteratorSymbol!,
+                        JsValue.FromObjectUnsafe(activeIteratorState),
+                        isLexicalBinding: false,
+                        canDelete: true);
+                }
+
                 foreach (var element in binding.Elements)
                 {
                     AssignmentReference? preResolvedReference = null;
@@ -400,7 +416,7 @@ public static partial class TypedAstEvaluator
                         throw;
                     }
 
-                    iteratorDone = next.Done;
+                    SetIteratorDone(next.Done);
                     if (context.ShouldStopEvaluation)
                     {
                         CloseIteratorOnAbrupt();
@@ -485,7 +501,7 @@ public static partial class TypedAstEvaluator
                             throw;
                         }
 
-                        iteratorDone = restNext.Done;
+                        SetIteratorDone(restNext.Done);
                         if (context.ShouldStopEvaluation)
                         {
                             CloseIteratorOnAbrupt();
@@ -550,20 +566,68 @@ public static partial class TypedAstEvaluator
             }
             finally
             {
+                if (activeIteratorSymbol is not null && !IsSuspendedForResume())
+                {
+                    environment.DeleteBinding(activeIteratorSymbol);
+                }
+
                 enumerator?.Dispose();
             }
 
             if (iterator is not null && !iteratorDone)
             {
                 iterator.IteratorClose(context, preserveExistingThrow: context.IsThrow);
+                activeIteratorState?.MarkIteratorClosed();
+            }
+
+            void SetIteratorDone(bool done)
+            {
+                iteratorDone = done;
+                if (done)
+                {
+                    activeIteratorState?.MarkIteratorClosed();
+                }
+            }
+
+            bool IsSuspendedForResume()
+            {
+                return context.IsYield || context.IsPendingAwait;
             }
 
             void CloseIteratorOnAbrupt()
             {
+                if (IsSuspendedForResume())
+                {
+                    return;
+                }
+
                 if (iterator is not null && !iteratorThrew && !iteratorDone)
                 {
                     iterator.IteratorClose(context, preserveExistingThrow: context.IsThrow);
+                    activeIteratorState?.MarkIteratorClosed();
                 }
+            }
+        }
+
+        private sealed class ActiveArrayPatternIteratorState(IJsObjectLike iterator) : IActiveIteratorState
+        {
+            private bool _closed;
+
+            public bool TryGetActiveIterator(out IJsObjectLike activeIterator)
+            {
+                if (!_closed)
+                {
+                    activeIterator = iterator;
+                    return true;
+                }
+
+                activeIterator = null!;
+                return false;
+            }
+
+            public void MarkIteratorClosed()
+            {
+                _closed = true;
             }
         }
 

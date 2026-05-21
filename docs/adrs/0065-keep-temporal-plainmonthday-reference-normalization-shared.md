@@ -27,6 +27,12 @@ month-day helper. The same delivery added fixed-calendar ISO-date conversion
 coverage for Coptic, Ethiopic/Ethioaa, and Indian calendars, and BCL-backed
 handling for accepted Islamic aliases.
 
+Issue #1341 / PR #1352 refined this helper boundary for Hebrew reference dates.
+The non-ISO ISO-reference-date path must derive the calendar year from the ISO
+date before overflow and reference-date normalization. Reusing the ISO year as
+the calendar year can put the month/day into the wrong calendar year even when
+the converted month code and day look plausible.
+
 ## Decision
 
 Keep non-ISO `Temporal.PlainMonthDay` construction from ISO reference dates on a
@@ -38,14 +44,17 @@ For future PlainMonthDay equality or conversion work:
    of manually storing converted calendar fields;
 2. normalize through the existing non-ISO month-day helper so reference ISO
    slots, `MonthCode`, and calendar-visible month/day stay mutually consistent;
-3. treat calendar alias canonicalization as necessary but insufficient for
+3. derive the source calendar year from the ISO reference date before applying
+   overflow or reference-date normalization for non-ISO calendars;
+4. treat calendar alias canonicalization as necessary but insufficient for
    equality when reference slots can differ;
-4. add explicit conversion coverage before accepting non-BCL calendar IDs in
+5. add explicit conversion coverage before accepting non-BCL calendar IDs in
    constructor/string paths; and
-5. prove this class with the focused
+6. prove this class with the focused
    `Name=Temporal_PlainMonthDay_prototype_equals` Test262 method group plus
    local coverage for accepted non-ISO constructor calendars and equal
-   month-days created from different ISO reference dates.
+   month-days created from different ISO reference dates. When parsing grammar
+   is touched, also prove `Name=Temporal_PlainMonthDay_from`.
 
 ## Consequences
 
@@ -58,7 +67,10 @@ For future PlainMonthDay equality or conversion work:
 - Future calendar support additions should include ISO-date-to-calendar
   conversion coverage before exposing the calendar through PlainMonthDay
   construction.
+- Future PlainMonthDay parsing fixes should validate any date-time tail before
+  truncating it, matching the PlainYearMonth partial-date string policy refined
+  by issue #1341 / PR #1352.
 - This ADR is caused by issue #845 / PR #1167 and complements ADR 0059, ADR
   0060, ADR 0061, ADR 0062, and the root
   `.claude/rules/ecmascript-abstract-operations.md` rule for Temporal
-  calendar-domain behavior.
+  calendar-domain behavior. It was refined by issue #1341 / PR #1352.

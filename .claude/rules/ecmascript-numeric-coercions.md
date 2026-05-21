@@ -127,6 +127,14 @@ open-coding casts at individual call sites.
     `ToPrimitive`/`ToBigInt` was actually used, and shift-count edge cases such
     as `int.MinValue` must not rely on unchecked host negation or shift-count
     assumptions.
+22. For Temporal range arithmetic, validate Temporal integer/date/duration
+    fields before host narrowing, `BigInteger` construction, or calendar
+    normalization. Non-finite, non-integral, or out-of-host-range values must
+    become JavaScript `RangeError`/`TypeError` at the Temporal operation
+    boundary, not CLR `OverflowException`/`ArgumentOutOfRangeException`.
+    Arithmetic over untrusted duration magnitudes must be constant-time; do not
+    normalize years, months, days, or subsecond totals with loops proportional
+    to the input magnitude.
 
 ## Why
 
@@ -286,5 +294,16 @@ integer edge behavior stay pinned. Prove this locally and with the focused
 `Name=Expressions_leftShift` Test262 method group when left-shift behavior is
 touched.
 
-Related ADR:
-`docs/adrs/0051-keep-temporal-duration-calendar-total-fractions-signed.md`.
+Issue #1340 / PR #1350 fixed Temporal crash-bucket cases where
+`PlainMonthDay.prototype.toPlainDate`, `PlainDateTime.prototype.add`, and
+`Duration.from` could leak host range/overflow behavior or spend excessive time
+normalizing huge duration magnitudes. The durable rule is that Temporal helpers
+own the conversion boundary: route fields through Temporal integer/range
+validation, guard `BigInteger` construction against non-finite or
+non-representable `double` values, and use constant-time date arithmetic rather
+than input-proportional normalization loops. Pin this with focused internal
+regressions plus the owning Test262 method groups.
+
+Related ADRs:
+- `docs/adrs/0051-keep-temporal-duration-calendar-total-fractions-signed.md`.
+- `docs/adrs/0086-keep-temporal-range-arithmetic-host-overflow-safe.md`.

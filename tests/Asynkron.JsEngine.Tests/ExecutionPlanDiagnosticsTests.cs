@@ -1,6 +1,8 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
+using System.Text;
+using System.Text.RegularExpressions;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -8,6 +10,9 @@ namespace Asynkron.JsEngine.Tests;
 [Category(TestCategories.Debugging)]
 public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : InternalTestBase(output)
 {
+    private static readonly Regex EvaluateExpressionPattern = new(@"EvaluateExpression\(", RegexOptions.Compiled);
+    private static readonly Regex ProfileEvaluateExpressionPattern = new(@"ProfileEvaluateExpression\(", RegexOptions.Compiled);
+
     [Fact]
     public void FunctionPlanCache_Reads_DoNotInflateBuildCounters()
     {
@@ -110,6 +115,90 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
         Assert.True(snapshot.ExpressionFailureCodes.TryGetValue(ExpressionProgramFailureCode.OptionalTaggedTemplate, out var expressionCount));
         Assert.Equal(1, expressionCount);
         Assert.Equal(ExpressionProgramFailureCode.OptionalTaggedTemplate, ExecutionPlanDiagnostics.LastExpressionFailureCode);
+    }
+
+    [Fact]
+    public void SourceGate_ExecutionPlanRunner_Partials_DoNotIntroduceAstExpressionEvaluationSeams()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var runnerDirectory = Path.Combine(repositoryRoot.FullName, "src", "Asynkron.JsEngine", "Ast");
+        var matches = Directory
+            .EnumerateFiles(runnerDirectory, "TypedAstEvaluator.ExecutionPlanRunner*.cs", SearchOption.TopDirectoryOnly)
+            .SelectMany(file =>
+            {
+                var relativePath = Path.GetRelativePath(repositoryRoot.FullName, file).Replace('\\', '/');
+                return File.ReadAllLines(file)
+                    .Select((line, index) => new { line, index })
+                    .Where(entry => EvaluateExpressionPattern.IsMatch(entry.line) || ProfileEvaluateExpressionPattern.IsMatch(entry.line))
+                    .Select(entry => $"{relativePath}:{entry.index + 1}:{entry.line.Trim()}");
+            })
+            .ToArray();
+
+        Assert.True(
+            matches.Length == 0,
+            "ExecutionPlanRunner AST expression seams detected:\n" + string.Join('\n', matches));
+    }
+
+    [Fact]
+    public async Task DetailedSnapshot_UnsupportedExpressionProgramBuckets_MatchRepresentativeProbe()
+    {
+        ExecutionPlanDiagnostics.Reset();
+        await using var engine = CreateEngine();
+
+        var probes = new[]
+        {
+            (
+                Name: "delete optional member",
+                Source: """
+                    function deleteOptionalMember(box) {
+                        return delete box?.value;
+                    }
+                    """),
+            (
+                Name: "optional tagged template",
+                Source: """
+                    function optionalTaggedTemplate(box) {
+                        return box?.tag`ok`;
+                    }
+                    """),
+            (
+                Name: "nested optional tagged template",
+                Source: """
+                    function nestedOptionalTaggedTemplate(box) {
+                        return box?.inner.tag`ok`;
+                    }
+                    """),
+            (
+                Name: "computed member call target",
+                Source: """
+                    function computedMemberCallTarget(box, key) {
+                        return box[key]();
+                    }
+                    """),
+            (
+                Name: "computed tagged template member access",
+                Source: """
+                    function computedTaggedTemplateMemberAccess(box, key) {
+                        return box[key]`ok`;
+                    }
+                    """)
+        };
+
+        var expectedBuckets = new Dictionary<ExpressionProgramFailureCode, int>();
+        foreach (var probe in probes)
+        {
+            var program = engine.ParseProgram(probe.Source);
+            var function = Assert.IsType<FunctionDeclaration>(Assert.Single(program.Body)).Function;
+            var buildResult = ExecutionPlanBuilder.Build(function);
+            Assert.True(buildResult.Succeeded, $"{probe.Name} should build without UnsupportedExpressionProgram drift.");
+        }
+
+        var snapshot = ExecutionPlanDiagnostics.DetailedSnapshot();
+        Assert.False(snapshot.FailureCodes.ContainsKey(ExecutionPlanFailureCode.UnsupportedExpressionProgram));
+        AssertEqualBucketsWithIntentMessage(
+            expectedBuckets,
+            snapshot.ExpressionFailureCodes,
+            "Update expected unsupported-expression buckets only when migration intentionally changes bytecode support; this probe currently expects a zero-bucket baseline.");
     }
 
     [Fact]
@@ -350,5 +439,63 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             member => Assert.True(
                 member.Callable.PlanSeed.Succeeded,
                 $"Class '{className}' member '{member.Name}' should build an IR plan. Failure: {member.Callable.PlanSeed.FailureReason}"));
+    }
+
+    private static void AssertEqualBucketsWithIntentMessage(
+        IReadOnlyDictionary<ExpressionProgramFailureCode, int> expected,
+        IReadOnlyDictionary<ExpressionProgramFailureCode, int> actual,
+        string updateGuidance)
+    {
+        if (expected.OrderBy(entry => entry.Key).SequenceEqual(actual.OrderBy(entry => entry.Key)))
+        {
+            return;
+        }
+
+        static string FormatBuckets(IReadOnlyDictionary<ExpressionProgramFailureCode, int> buckets)
+        {
+            if (buckets.Count == 0)
+            {
+                return "(none)";
+            }
+
+            var builder = new StringBuilder();
+            foreach (var entry in buckets.OrderBy(entry => entry.Key))
+            {
+                builder.Append(entry.Key);
+                builder.Append(": ");
+                builder.Append(entry.Value);
+                builder.AppendLine();
+            }
+
+            return builder.ToString().TrimEnd();
+        }
+
+        var message = $$"""
+            Unsupported-expression bucket drift detected.
+            Expected:
+            {{FormatBuckets(expected)}}
+
+            Actual:
+            {{FormatBuckets(actual)}}
+
+            {{updateGuidance}}
+            """;
+        Assert.Fail(message);
+    }
+
+    private static DirectoryInfo FindRepositoryRoot()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            if (File.Exists(Path.Combine(current.FullName, "Asynkron.JsEngine.sln")))
+            {
+                return current;
+            }
+
+            current = current.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not locate the repository root from the test output directory.");
     }
 }

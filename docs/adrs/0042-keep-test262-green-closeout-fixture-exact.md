@@ -111,3 +111,12 @@ pinning.
   inactivity guard, but every listed fixture pattern passed directly on current
   `origin/main`. No runtime, harness, or regression-test patch was warranted
   because the exact current proof was green.
+- Issue #1347 reused this decision for a stress-sensitive recheck of the mixed
+  TypedArray/ArrayBuffer rows from #1333. The build-stage delivery proved the
+  representative detached-buffer, resize/shrink, receiver-validation, and
+  transfer filters on current main, then repeated the same focused filter three
+  times, reran it with Test262 harness/base-realm caches disabled, and reran
+  the callback/iteration subset with `JSENGINE_DEBUG_POOL_GUARDS=true`. All
+  checks stayed green and the delivery branch had no source diff, so no
+  `TypedArrayPrototype`, `TypedArrayBase`, `JsArrayBuffer`, pool, or Test262
+  harness/cache change was warranted.

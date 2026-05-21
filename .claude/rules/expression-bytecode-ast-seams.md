@@ -26,6 +26,12 @@ fallback or cleanup.
 7. When turning a source seam scan into an automated test, assert that the
    expected source files were discovered before asserting zero forbidden calls.
    A source gate that can pass with zero scanned files is not a guardrail.
+8. When reporting or planning `UnsupportedExpressionProgram` backlog work,
+   derive the bucket list from the current compiler/diagnostic surfaces and
+   explicitly rank catch-all buckets such as `UnsupportedExpressionNode`.
+   Treat catch-all buckets as high-risk/deferred until narrower typed buckets
+   have been burned down, so one implementation slice does not mix unrelated
+   semantic risks.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 
@@ -70,3 +76,11 @@ Issue #1408 added execution-plan diagnostics drift gates. Review found the
 runner seam source-gate test could pass vacuously if no
 `TypedAstEvaluator.ExecutionPlanRunner*.cs` files were found, so source-scan
 tests must prove discovery before they claim absence of forbidden AST seams.
+
+Issue #1436 / PR #1443 added the first durable
+`UnsupportedExpressionProgram` backlog report for bytecode expansion. Review
+found that the initial report ranked the narrower buckets but did not explicitly
+rank the broad `UnsupportedExpressionNode` catch-all, which could have made a
+future agent pick a mixed-risk implementation slice. Future backlog reports
+must classify and defer catch-all buckets until narrower diagnostics make the
+remaining work specific.

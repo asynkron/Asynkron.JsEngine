@@ -26,6 +26,12 @@ fallback or cleanup.
 7. When turning a source seam scan into an automated test, assert that the
    expected source files were discovered before asserting zero forbidden calls.
    A source gate that can pass with zero scanned files is not a guardrail.
+8. When documenting or planning direct `ExpressionProgramCompiler` coverage,
+   start from `docs/expression-bytecode-coverage.md` and keep it complete for
+   every concrete `ExpressionNode`. New concrete expression nodes must be added
+   to the map with a status (`supported`, `shape-dependent`, `unsupported`, or
+   `not-compiled-directly`), the owning failure-code/compiler restriction where
+   applicable, and representative test evidence.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 
@@ -70,3 +76,10 @@ Issue #1408 added execution-plan diagnostics drift gates. Review found the
 runner seam source-gate test could pass vacuously if no
 `TypedAstEvaluator.ExecutionPlanRunner*.cs` files were found, so source-scan
 tests must prove discovery before they claim absence of forbidden AST seams.
+
+Issue #1437 added `docs/expression-bytecode-coverage.md` and
+`ExpressionProgramCoverageMapTests.CoverageMap_ListsEveryConcreteExpressionNodeType`
+after the bytecode audit needed a durable handoff. The risk was future agents
+claiming coverage from spot checks while newly added `ExpressionNode` types
+silently escaped the map. The reflection guard keeps the map complete, while
+the map keeps support status and failure-code ownership explicit.

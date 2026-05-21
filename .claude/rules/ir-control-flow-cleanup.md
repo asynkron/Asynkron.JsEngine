@@ -47,6 +47,13 @@ scope cleanup chains.
    `return()` synchronously reports `done:true`. Awaited non-generator
    `return()` results must resume delegation instead of immediately completing
    the outer generator.
+10. For array binding patterns in generator or async generator contexts, treat
+    `yield` and pending `await` as suspension, not abrupt completion. Do not
+    close the destructuring iterator just because evaluation stopped for
+    suspension; instead keep an active iterator state reachable from the
+    function environment so a later generator `return()` can close it, and
+    remove or mark that state closed after normal exhaustion or explicit
+    close.
 
 ## Why
 
@@ -92,3 +99,12 @@ delegating on resume unless `return()` synchronously completed with
 `done:true`. The durable rule is that delegated abrupt-completion state must
 preserve that split instead of treating every propagated return or throw as the
 same pending completion.
+
+Issue #1339 / PR #1353 fixed a mixed iterator, async generator, and
+destructuring lifecycle crash bucket. Array binding destructuring already knew
+how to close iterators on ordinary abrupt completion, but generator suspension
+through a default initializer needs the iterator to stay resumable while also
+remaining discoverable for later generator `return()` cleanup. The durable rule
+is to distinguish suspension from abrupt completion and keep active
+array-pattern iterator state scoped to the function environment until
+exhaustion, resume cleanup, or explicit close.

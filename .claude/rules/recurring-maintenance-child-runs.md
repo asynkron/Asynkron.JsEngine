@@ -18,6 +18,9 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   owns the recurrence schedule.
 - For docs-only maintenance, avoid full builds, Test262, package installs, or
   broad audits unless the edit directly depends on them.
+- When multiple recurring-maintenance children are active, check active sibling
+  child log summaries before choosing a slice so two children do not target the
+  same narrow docs cleanup in parallel.
 - When a docs slice enumerates filesystem contents (regression packs, demo
   directories, runsettings files, build targets), compare the doc against the
   actual directory listing as the baseline signal. Treat doc/filesystem drift
@@ -67,3 +70,9 @@ copy/paste `## Build Update` template in `agents/how-to-build-and-test.md`.
 Without a template, recurring maintenance children can still mention the right
 fields while varying the structure enough that review has to reconstruct the
 slice, before/after signals, diff hygiene, and scope boundaries by hand.
+
+Issue #1324 captured a sibling-coordination gap while concurrent issue #1323
+was already handling the README stale-link candidate
+(`docs/remaining-test262-gaps.md`). The durable lesson for #1324 was not to
+duplicate the README slice, but to add an explicit sibling-summary check so
+parallel recurring children choose different bounded slices.

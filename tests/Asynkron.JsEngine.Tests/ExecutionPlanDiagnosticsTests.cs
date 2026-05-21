@@ -192,6 +192,55 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void SourceGate_ExpressionOpKind_RuntimeAndDiagnosticSurfaces_DoNotDrift()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var values = Enum.GetValues<ExpressionOpKind>();
+        var sourceTargets = new[]
+        {
+            new SourceGateTarget(
+                "execution runner dispatch",
+                Path.Combine("src", "Asynkron.JsEngine", "Ast", "TypedAstEvaluator.ExecutionPlanRunner.Helpers.cs")),
+            new SourceGateTarget(
+                "stack-depth analysis",
+                Path.Combine("src", "Asynkron.JsEngine", "Execution", "Instructions", "ExpressionOp.cs")),
+            new SourceGateTarget(
+                "execution-plan printer formatting",
+                Path.Combine("src", "Asynkron.JsEngine", "Execution", "ExecutionPlanPrinter.cs"))
+        };
+
+        var missingByTarget = new List<string>();
+        foreach (var target in sourceTargets)
+        {
+            var fullPath = Path.Combine(repositoryRoot.FullName, target.RelativePath);
+            var sourceText = File.ReadAllText(fullPath);
+            var missing = values
+                .Where(kind => !sourceText.Contains($"ExpressionOpKind.{kind}", StringComparison.Ordinal))
+                .OrderBy(kind => kind)
+                .ToArray();
+            if (missing.Length == 0)
+            {
+                continue;
+            }
+
+            var missingNames = string.Join(", ", missing.Select(kind => kind.ToString()));
+            var normalizedPath = target.RelativePath.Replace('\\', '/');
+            missingByTarget.Add($"{target.SurfaceName} ({normalizedPath}): {missingNames}");
+        }
+
+        Assert.True(
+            missingByTarget.Count == 0,
+            $$"""
+            ExpressionOpKind drift gate failed.
+            Missing enum coverage:
+            {{string.Join(Environment.NewLine, missingByTarget)}}
+
+            Keep this allowlist-free guard strict: when adding or renaming ExpressionOpKind values,
+            update runner dispatch, stack-depth analysis, and printer formatting in the same change.
+            """);
+    }
+
+    [Fact]
     public async Task DetailedSnapshot_UnsupportedExpressionProgramBuckets_MatchRepresentativeProbe()
     {
         ExecutionPlanDiagnostics.Reset();
@@ -573,4 +622,6 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
 
         throw new DirectoryNotFoundException("Could not locate the repository root from the test output directory.");
     }
+
+    private sealed record SourceGateTarget(string SurfaceName, string RelativePath);
 }

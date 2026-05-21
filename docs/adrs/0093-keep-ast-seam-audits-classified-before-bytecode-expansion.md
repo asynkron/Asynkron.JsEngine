@@ -29,6 +29,10 @@ profiling bridge that still invokes legacy statement evaluation. The highest
 risk was treating those intentional boundaries, stale comments, and enum
 compatibility markers as the same class of runtime AST re-entry.
 
+Issue #1405 (retried by #1414) added a second failure mode: dynamic JavaScript
+entry points were being described as generic AST fallback paths even when
+supported execution was already lowered into IR/expression bytecode.
+
 ## Decision
 
 Before expanding expression bytecode or designing compact statement bytecode,
@@ -47,6 +51,22 @@ classify AST-seam evidence by runtime meaning:
    commands and classification, so later bytecode work can start from the
    baseline instead of repeating broad discovery.
 
+For dynamic boundaries, use this finer classification:
+
+6. direct `eval` is dynamic-but-lowered through source parse/analyze and
+   `EvaluateProgram(..., ExecutionKind.Eval, ...)`, not a blanket AST runtime;
+7. `with` support is IR-backed for supported shapes via `WithEmitter`
+   (`EnterWithInstruction`/`LeaveWithInstruction`) with expression bytecode for
+   the object expression;
+8. `Function` / `AsyncFunction` constructors are dynamic-but-lowered generated
+   source paths, not a separate AST interpreter mode;
+9. normal/generated sync function bodies should execute the cached
+   `ExecutionPlan` runner path or fail explicitly when planning is unsupported;
+10. module body per-statement dispatch remains the primary AST-runtime leak /
+   unclear contract and is the recommended next migration slice;
+11. expression payloads on inspected IR paths are bytecode-backed via
+   `ExpressionProgram` and `EvaluateExpressionProgram`.
+
 ## Consequences
 
 - Future IR/bytecode agents should run the focused AST-seam scans before
@@ -59,5 +79,8 @@ classify AST-seam evidence by runtime meaning:
 - Profiling and legacy dynamic boundaries remain legitimate follow-up targets,
   but they need their own issue with proof that the boundary is observable on a
   hot or non-dynamic path.
+- Follow-up migration work should target module-body dispatch first; this ADR
+  explicitly does not authorize runtime behavior changes for eval/with/generated
+  constructor paths that are already dynamic-but-lowered.
 - This ADR is caused by issue #1391 and complements the root
   `.claude/rules/expression-bytecode-ast-seams.md` rule.

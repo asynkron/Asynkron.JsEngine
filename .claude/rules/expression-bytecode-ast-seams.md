@@ -24,6 +24,31 @@ fallback or cleanup.
    emit-time or lowering-time normalization into existing bytecode/IR
    instructions when JavaScript evaluation order can be proven.
 
+## Dynamic Boundary Classification (#1405 Retry)
+
+Use this boundary map when documenting or planning expression-bytecode vs AST
+work. Do not collapse these seams into one generic "AST fallback" bucket.
+
+1. Direct `eval`: dynamic-but-lowered. `EvalHostFunction` parses source, builds
+   eval environments, and executes through
+   `EvaluateProgram(..., ExecutionKind.Eval, ...)`.
+2. `with` statements: IR-only for supported shapes. `WithEmitter` lowers the
+   object expression into expression bytecode and emits
+   `EnterWithInstruction`/`LeaveWithInstruction`; dynamic lookup is handled by
+   runtime scope behavior, not AST expression walking.
+3. `Function` / `AsyncFunction` constructors: dynamic-but-lowered. Generated
+   source is parsed and executed through the normal program/function execution
+   pipeline.
+4. Normal/generated sync function bodies: IR runner path. Supported functions
+   execute cached `ExecutionPlan` via `ExecutionPlanRunner`; expected plan
+   failures throw instead of silently falling back to AST evaluation.
+5. Module body dispatch: AST-runtime leak / unclear migration target.
+   Non-import/export module statements still run through per-statement wrapper
+   execution in `JsEngine` and should be treated as the next migration slice.
+6. Expression payloads on inspected IR paths: bytecode-backed via
+   `ExpressionProgram` and `EvaluateExpressionProgram`, not raw AST expression
+   walking.
+
 ## Why
 
 Issue #1391 audited AST runtime seams before bytecode expansion. The audit found
@@ -33,3 +58,7 @@ no direct `EvaluateExpression(` or `ProfileEvaluateExpression(` hits in
 dynamic-only boundaries, and a profiling bridge. Future bytecode work needs
 that classification discipline so stale references do not create new mixed
 AST/IR fallback paths and real legacy boundaries remain visible follow-up work.
+
+Issue #1405 (retried by #1414) added the dynamic-boundary map above so future
+agents can preserve where expression bytecode already owns execution and where
+module-body migration remains unresolved.

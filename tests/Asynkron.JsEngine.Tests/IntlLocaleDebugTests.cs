@@ -235,7 +235,7 @@ public class IntlLocaleDebugTests
         ");
 
         Assert.Equal(
-            "he-IL|sfb|zh-Hans-CN-t-ca-u-ca-x-t-u|en-a-not-assigned-x-private|de-1901",
+            "he-IL|gss|zh-Hans-CN-t-ca-u-ca-x-t-u|en-a-not-assigned-x-private|de-1901",
             result?.ToString());
     }
 

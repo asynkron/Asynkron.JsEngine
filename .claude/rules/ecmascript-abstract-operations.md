@@ -278,6 +278,16 @@ host-runtime shortcuts.
     and validate against the shared Temporal instant bounds instead of routing
     through the local PlainDateTime wall-clock path, which fails for skipped or
     ambiguous wall-clock times at DST transitions.
+37a. For `Temporal.ZonedDateTime` local field extraction, keep offset selection
+     separate from local component decomposition. After a named time zone falls
+     back to `BaseUtcOffset` because the instant is outside .NET's
+     `DateTimeOffset` range, derive `year`, `month`, `day`, `monthCode`,
+     `era`, `eraYear`, and shared `GetLocalPlainDateTime` components from
+     epoch nanoseconds plus offset with BigInteger date math. Do not send those
+     extended-year fields back through a DateTimeOffset-only path. WHY: issue
+     #1375 / PR #1387 fixed a run-quality failure where the offset bridge was
+     overflow-safe but named-timezone local fields still threw for valid
+     Temporal-range instants outside .NET's supported year window.
 38. When a regression test claims to prove an abstract-operation coercion path,
     make the coercion observable. Use object wrappers with `valueOf`,
     `toString`, or `Symbol.toPrimitive` call tracking, and assert the call

@@ -315,6 +315,37 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
     }
 
     [Fact]
+    public async Task Temporal_PlainYearMonth_From_ValidatesTimeAndOffsetGrammar()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const valid = [
+                Temporal.PlainYearMonth.from('2019-12[Africa/Abidjan]').toString(),
+                Temporal.PlainYearMonth.from('2019-12-15T00+00:00[UTC]').toString(),
+                Temporal.PlainYearMonth.from('2016-12-31T23:59:60').toString(),
+                new Temporal.PlainYearMonth(2019, 12).equals('2019-12-15T15:23+00:00[!Africa/Abidjan]')
+            ].join('|');
+            const invalid = [
+                '2022-09+01:00',
+                '2022-09-15+00:00',
+                '2022-09-15T24:00',
+                '2022-09-15T00:60',
+                '2022-09-15T00:00:61'
+            ].map(value => {
+                try {
+                    Temporal.PlainYearMonth.from(value);
+                    return 'ok';
+                } catch (error) {
+                    return error.name;
+                }
+            }).join('|');
+            valid + '//' + invalid;
+        """);
+
+        Assert.Equal("2019-12|2019-12|2016-12|true//RangeError|RangeError|RangeError|RangeError|RangeError", result?.ToString());
+    }
+
+    [Fact]
     public async Task Temporal_PlainYearMonth_DaysInMonth()
     {
         await using var engine = CreateEngine();
@@ -387,6 +418,22 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
         ");
 
         Assert.Equal(true, result);
+    }
+
+    [Fact]
+    public async Task Temporal_PlainMonthDay_From_NonIsoReferenceDateUsesCalendarYear()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const pmd = Temporal.PlainMonthDay.from('2023-01-01[u-ca=hebrew]');
+            [
+                pmd.monthCode,
+                pmd.day,
+                pmd.toString({ calendarName: 'always' }).split('-')[0]
+            ].join('|');
+        """);
+
+        Assert.Equal("M04|8|1972", result?.ToString());
     }
 
     [Fact]

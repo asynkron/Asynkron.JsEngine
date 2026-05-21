@@ -115,12 +115,12 @@ public sealed class EvaluationContext(
     public int LastYieldIndex { get; private set; } = -1;
 
     /// <summary>
-    ///     Source start position of the last yield expression (for AST-evaluated yields).
+    ///     Source start position of the last yielded expression used by legacy AST fallback resume state.
     /// </summary>
     public int LastYieldSourceStart { get; set; } = -1;
 
     /// <summary>
-    ///     Source end position of the last yield expression (for AST-evaluated yields).
+    ///     Source end position of the last yielded expression used by legacy AST fallback resume state.
     /// </summary>
     public int LastYieldSourceEnd { get; set; } = -1;
 

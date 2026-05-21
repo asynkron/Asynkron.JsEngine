@@ -309,7 +309,7 @@ internal static class SwitchEmitter
         }
 
         // Wrap entry with BreakableEnterInstruction to push context at runtime.
-        // This enables break statements from AST-evaluated code (via StatementInstruction)
+        // This enables break statements from legacy AST fallback paths
         // to resolve their jump targets using the runtime breakable stack.
         // ContinueTarget is -1 because switch statements do not support continue.
         // Use HandlesCompletionInternally because switch handles it with explicit undefined statement above.

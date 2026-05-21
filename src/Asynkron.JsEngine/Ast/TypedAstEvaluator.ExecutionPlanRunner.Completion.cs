@@ -83,7 +83,7 @@ public static partial class TypedAstEvaluator
             // right YieldExpression (ECMA-262 GeneratorResume, step threading of sent values).
             YieldStateRef.LastYieldIndex = context.LastYieldIndex;
 
-            // Also save source positions for yields from StatementInstruction (AST-evaluated yields).
+            // Also save source positions for yields from the legacy AST fallback path.
             // These are used to set up resume state so the yield expression returns the resume value.
             YieldStateRef.LastYieldSourceStart = context.LastYieldSourceStart;
             YieldStateRef.LastYieldSourceEnd = context.LastYieldSourceEnd;

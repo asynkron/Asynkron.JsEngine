@@ -29,8 +29,7 @@ internal sealed record ThrowInstruction(
 ///     Evaluates the expression and discards the result.
 /// </summary>
 /// <param name="Next">Next instruction index.</param>
-/// <param name="Expression">AST representation of the expression (nullable during migration).</param>
-/// <param name="ExpressionProgram">Bytecode representation of the expression (nullable during migration).</param>
+/// <param name="ExpressionProgram">Lowered bytecode representation of the expression statement.</param>
 /// <param name="SuppressCompletionValue">
 ///     When true, the completion value is NOT updated (used for loop update expressions).
 ///     Per ES spec, for-loop update expressions don't contribute to the loop's completion value.
@@ -374,8 +373,8 @@ internal sealed record LeaveTryInstruction(int Next)
 
 /// <summary>
 ///     Marks entry into a breakable construct (loop or switch).
-///     Pushes context onto the breakable stack so that break/continue statements
-///     from AST-evaluated code (via StatementInstruction) can resolve their jump targets.
+///     Pushes context onto the breakable stack so break/continue from legacy AST
+///     fallback paths can resolve their jump targets.
 /// </summary>
 /// <param name="Next">The next instruction index (body entry).</param>
 /// <param name="Label">The label (null for unlabeled constructs).</param>

@@ -74,8 +74,8 @@ public static partial class TypedAstEvaluator
                 IteratorStateRef.ResumedWithEnvironment = wasStart ? null : environment;
                 context = EnsureEvaluationContext();
 
-                // If we're resuming from a yield that happened during AST evaluation
-                // (via StatementInstruction), handle based on the resume mode.
+                // If we're resuming from a yield that happened during legacy AST fallback
+                // evaluation, handle based on the resume mode.
                 _realmState.Logger?.LogInformation(
                     "ExecutePlan resume check: wasStart={WasStart} mode={Mode} YieldStateRef.LastYieldSourceStart={Start}",
                     wasStart, mode, YieldStateRef.LastYieldSourceStart);

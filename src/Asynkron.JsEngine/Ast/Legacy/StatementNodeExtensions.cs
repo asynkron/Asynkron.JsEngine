@@ -494,7 +494,7 @@ public static partial class TypedAstEvaluator
     {
         var jsValue = statement.Expression is null
             ? JsValue.Undefined
-            : EvaluateCachedExpressionProgram(
+            : EvaluateDynamicExpressionProgram(
                 statement.Expression,
                 environment,
                 context,

@@ -91,6 +91,70 @@ public sealed class Issue400And722ExpressionBytecodeTraceabilityTests : IAsyncLi
         Assert.Null(assignmentInstruction.ValueExpression);
         Assert.False(assignmentInstruction.ValueProgram!.Value.IsEmpty);
 
+        var logicalCompoundPlan = await GetFunctionPlan("""
+            function proofLogicalCompound(value) {
+                let current = 0;
+                current ||= value + 1;
+                return current;
+            }
+            """, "proofLogicalCompound");
+        var logicalCompoundInstruction = Assert.Single(logicalCompoundPlan.Instructions.OfType<LogicalCompoundAssignmentSlotInstruction>());
+        Assert.Null(logicalCompoundInstruction.RhsExpression);
+        Assert.False(logicalCompoundInstruction.RhsProgram!.Value.IsEmpty);
+
+        var compoundPlan = await GetFunctionPlan("""
+            function proofCompound(value) {
+                let current = 0;
+                current += value + 1;
+                return current;
+            }
+            """, "proofCompound");
+        var compoundInstruction = Assert.Single(compoundPlan.Instructions.OfType<CompoundAssignmentSlotInstruction>());
+        Assert.Null(compoundInstruction.RhsExpression);
+        Assert.False(compoundInstruction.RhsProgram!.Value.IsEmpty);
+
+        var awaitAndDiscardPlan = await GetFunctionPlan("""
+            async function proofAwaitAndDiscard(value) {
+                await value;
+                return value;
+            }
+            """, "proofAwaitAndDiscard");
+        var awaitAndDiscardInstruction = Assert.Single(awaitAndDiscardPlan.Instructions.OfType<AwaitAndDiscardInstruction>());
+        Assert.False(awaitAndDiscardInstruction.AwaitedProgram.IsEmpty);
+
+        var awaitedAssignmentPlan = await GetFunctionPlan("""
+            async function proofAwaitAssignment(value) {
+                let current = 0;
+                current = await value;
+                return current;
+            }
+            """, "proofAwaitAssignment");
+        var awaitedAssignmentInstruction = Assert.Single(awaitedAssignmentPlan.Instructions.OfType<AssignmentSlotInstruction>(), i => i.AwaitedProgram is not null);
+        Assert.Null(awaitedAssignmentInstruction.ValueExpression);
+        Assert.False(awaitedAssignmentInstruction.AwaitedProgram!.Value.IsEmpty);
+
+        var awaitedLogicalCompoundPlan = await GetFunctionPlan("""
+            async function proofAwaitLogicalCompound(value) {
+                let current = 0;
+                current ||= await value;
+                return current;
+            }
+            """, "proofAwaitLogicalCompound");
+        var awaitedLogicalCompoundInstruction = Assert.Single(awaitedLogicalCompoundPlan.Instructions.OfType<LogicalCompoundAssignmentSlotInstruction>(), i => i.AwaitedProgram is not null);
+        Assert.Null(awaitedLogicalCompoundInstruction.RhsExpression);
+        Assert.False(awaitedLogicalCompoundInstruction.AwaitedProgram!.Value.IsEmpty);
+
+        var awaitedCompoundPlan = await GetFunctionPlan("""
+            async function proofAwaitCompound(value) {
+                let current = 0;
+                current += await value;
+                return current;
+            }
+            """, "proofAwaitCompound");
+        var awaitedCompoundInstruction = Assert.Single(awaitedCompoundPlan.Instructions.OfType<CompoundAssignmentSlotInstruction>(), i => i.AwaitedProgram is not null);
+        Assert.Null(awaitedCompoundInstruction.RhsExpression);
+        Assert.False(awaitedCompoundInstruction.AwaitedProgram!.Value.IsEmpty);
+
         var yieldPlan = await GetFunctionPlan("""
             function* proofYield(value) {
                 yield value + 1;
@@ -156,6 +220,17 @@ public sealed class Issue400And722ExpressionBytecodeTraceabilityTests : IAsyncLi
         var destructuringInitInstruction = Assert.Single(destructuringPlan.Instructions.OfType<ArrayDestructuringInitInstruction>());
         Assert.Null(destructuringInitInstruction.SourceExpression);
         Assert.False(destructuringInitInstruction.SourceProgram.IsEmpty);
+
+        var nestedObjectDestructuringPlan = await GetFunctionPlan("""
+            function proofNestedObjectDestructure(source, fallbackKey) {
+                let { [fallbackKey]: value = source.alt } = source;
+                return value;
+            }
+            """, "proofNestedObjectDestructure");
+        var nestedBindingInstruction = Assert.Single(nestedObjectDestructuringPlan.Instructions.OfType<BindingVariableDeclarationInstruction>());
+        Assert.Null(nestedBindingInstruction.Initializer);
+        Assert.False(nestedBindingInstruction.InitializerProgram!.Value.IsEmpty);
+        AssertObjectBindingProgramsPresent(Assert.IsType<ObjectBindingTargetProgram>(nestedBindingInstruction.TargetProgram));
     }
 
     [Fact]
@@ -240,5 +315,12 @@ public sealed class Issue400And722ExpressionBytecodeTraceabilityTests : IAsyncLi
         }
 
         throw new DirectoryNotFoundException("Could not locate the repository root from the test output directory.");
+    }
+
+    private static void AssertObjectBindingProgramsPresent(ObjectBindingTargetProgram targetProgram)
+    {
+        var property = Assert.Single(targetProgram.Properties);
+        Assert.False(property.NameProgram!.Value.IsEmpty);
+        Assert.False(property.DefaultProgram!.Value.IsEmpty);
     }
 }

@@ -122,8 +122,15 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
     {
         var repositoryRoot = FindRepositoryRoot();
         var runnerDirectory = Path.Combine(repositoryRoot.FullName, "src", "Asynkron.JsEngine", "Ast");
-        var matches = Directory
+        var runnerFiles = Directory
             .EnumerateFiles(runnerDirectory, "TypedAstEvaluator.ExecutionPlanRunner*.cs", SearchOption.TopDirectoryOnly)
+            .ToArray();
+
+        Assert.True(
+            runnerFiles.Length > 0,
+            "Source gate invariant failed: no TypedAstEvaluator.ExecutionPlanRunner*.cs files were discovered.");
+
+        var matches = runnerFiles
             .SelectMany(file =>
             {
                 var relativePath = Path.GetRelativePath(repositoryRoot.FullName, file).Replace('\\', '/');

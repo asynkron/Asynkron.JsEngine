@@ -41,8 +41,6 @@ FullyQualifiedName~DateTimeFormat_prototype_formatToParts&FullyQualifiedName~tem
 FullyQualifiedName~DateTimeFormat_prototype_resolvedOptions&FullyQualifiedName~offset-timezone-basic.js
 FullyQualifiedName~DateTimeFormat_prototype_resolvedOptions&FullyQualifiedName~offset-timezone-change.js
 FullyQualifiedName~DateTimeFormat_prototype_resolvedOptions&FullyQualifiedName~resolved-numbering-system-unicode-extensions-and-options.js
-FullyQualifiedName~DecodeURI&FullyQualifiedName~S15.1.3.1_A2.5_T1.js
-FullyQualifiedName~DecodeURIComponent&FullyQualifiedName~S15.1.3.2_A2.5_T1.js
 FullyQualifiedName~DurationFormat_prototype_format&FullyQualifiedName~digital-style-with-hours-display-auto-with-zero-hour.js
 FullyQualifiedName~DurationFormat_prototype_format&FullyQualifiedName~fractions-of-subsecond-units-en.js
 FullyQualifiedName~DurationFormat_prototype_format&FullyQualifiedName~mixed-short-and-numeric.js

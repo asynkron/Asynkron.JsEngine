@@ -261,14 +261,6 @@ public static partial class GlobalHelper
         ';', '/', '?', ':', '@', '&', '=', '+', '$', ',', '#'
     ];
 
-    // Characters that are NOT decoded by decodeURI (uriReserved + '#')
-    // uriReserved: ; / ? : @ & = + $ ,
-    // Plus: #
-    private static readonly HashSet<char> DecodeUriReserved =
-    [
-        ';', '/', '?', ':', '@', '&', '=', '+', '$', ',', '#'
-    ];
-
     // Characters that are NOT encoded by encodeURIComponent (uriUnescaped only)
     // uriUnescaped: A-Z a-z 0-9 - _ . ! ~ * ' ( )
     private static readonly HashSet<char> EncodeUriComponentUnescaped =
@@ -299,14 +291,14 @@ public static partial class GlobalHelper
     private static JsValue DecodeURI(IReadOnlyList<JsValue> args, RealmState realm)
     {
         var str = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? "" : "undefined";
-        return DecodeUri(str, DecodeUriReserved, realm);
+        return DecodeUri(str, preserveReservedEscapes: true, realm);
     }
 
     [JsHostFunction("decodeURIComponent", Length = 1d, DeletePrototype = true)]
     private static JsValue DecodeURIComponent(IReadOnlyList<JsValue> args, RealmState realm)
     {
         var str = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? "" : "undefined";
-        return DecodeUri(str, null, realm);
+        return DecodeUri(str, preserveReservedEscapes: false, realm);
     }
 
     private static JsValue EncodeUri(string str, HashSet<char> unescapedSet, RealmState realm)
@@ -360,8 +352,13 @@ public static partial class GlobalHelper
         return sb.ToString();
     }
 
-    private static JsValue DecodeUri(string str, HashSet<char>? reservedSet, RealmState realm)
+    private static JsValue DecodeUri(string str, bool preserveReservedEscapes, RealmState realm)
     {
+        if (TryDecodeSinglePercentEncodedScalar(str, preserveReservedEscapes, realm, out var fastDecoded))
+        {
+            return fastDecoded;
+        }
+
         var sb = new StringBuilder(str.Length);
         for (var i = 0; i < str.Length; i++)
         {
@@ -380,7 +377,7 @@ public static partial class GlobalHelper
             if (expectedBytes == 1)
             {
                 var decoded = (char)firstByte;
-                if (reservedSet is not null && reservedSet.Contains(decoded))
+                if (preserveReservedEscapes && IsDecodeUriReserved(decoded))
                 {
                     sb.Append(str, start, nextIndex - start);
                 }
@@ -412,6 +409,68 @@ public static partial class GlobalHelper
         }
 
         return sb.ToString();
+    }
+
+    private static bool TryDecodeSinglePercentEncodedScalar(
+        string str,
+        bool preserveReservedEscapes,
+        RealmState realm,
+        out string decoded)
+    {
+        decoded = string.Empty;
+
+        if (str.Length is not (3 or 6 or 9 or 12) || str[0] != '%')
+        {
+            return false;
+        }
+
+        var byteCount = str.Length / 3;
+        Span<byte> bytes = stackalloc byte[4];
+        for (var i = 0; i < byteCount; i++)
+        {
+            var index = i * 3;
+            if (str[index] != '%')
+            {
+                return false;
+            }
+
+            if (!TryParsePercentEncodedByte(str[index + 1], str[index + 2], out var parsed))
+            {
+                throw ThrowURIError("URI malformed", realm: realm);
+            }
+
+            bytes[i] = parsed;
+        }
+
+        if (byteCount == 1)
+        {
+            var decodedChar = (char)bytes[0];
+            decoded = preserveReservedEscapes && IsDecodeUriReserved(decodedChar)
+                ? str
+                : decodedChar.ToString();
+            return true;
+        }
+
+        var firstByte = bytes[0];
+        var expectedBytes = GetUtf8SequenceLength(firstByte, realm);
+        if (expectedBytes != byteCount)
+        {
+            return false;
+        }
+
+        var secondByte = bytes[1];
+        var thirdByte = byteCount >= 3 ? bytes[2] : (byte)0;
+        var fourthByte = byteCount == 4 ? bytes[3] : (byte)0;
+
+        if (!IsContinuationByte(secondByte) || (byteCount >= 3 && !IsContinuationByte(thirdByte)) ||
+            (byteCount == 4 && !IsContinuationByte(fourthByte)))
+        {
+            return false;
+        }
+
+        var codePoint = DecodeUtf8CodePoint(expectedBytes, firstByte, secondByte, thirdByte, fourthByte, realm);
+        decoded = CreateStringFromCodePoint(codePoint);
+        return true;
     }
 
     private static byte ParsePercentEncodedByte(string str, int index, RealmState realm)
@@ -482,6 +541,12 @@ public static partial class GlobalHelper
         byte fourth,
         RealmState realm)
     {
+        var codePoint = DecodeUtf8CodePoint(length, first, second, third, fourth, realm);
+        AppendCodePoint(sb, codePoint);
+    }
+
+    private static uint DecodeUtf8CodePoint(int length, byte first, byte second, byte third, byte fourth, RealmState realm)
+    {
         uint codePoint;
         switch (length)
         {
@@ -540,6 +605,11 @@ public static partial class GlobalHelper
             throw ThrowURIError("URI malformed", realm: realm);
         }
 
+        return codePoint;
+    }
+
+    private static void AppendCodePoint(StringBuilder sb, uint codePoint)
+    {
         if (codePoint <= 0xFFFF)
         {
             sb.Append((char)codePoint);
@@ -549,6 +619,41 @@ public static partial class GlobalHelper
         codePoint -= 0x10000;
         sb.Append((char)((codePoint >> 10) + 0xD800));
         sb.Append((char)((codePoint & 0x3FF) + 0xDC00));
+    }
+
+    private static string CreateStringFromCodePoint(uint codePoint)
+    {
+        if (codePoint <= 0xFFFF)
+        {
+            return ((char)codePoint).ToString();
+        }
+
+        Span<char> chars = stackalloc char[2];
+        codePoint -= 0x10000;
+        chars[0] = (char)((codePoint >> 10) + 0xD800);
+        chars[1] = (char)((codePoint & 0x3FF) + 0xDC00);
+        return new string(chars);
+    }
+
+    private static bool IsDecodeUriReserved(char c)
+    {
+        return c is ';' or '/' or '?' or ':' or '@' or '&' or '=' or '+' or '$' or ',' or '#';
+    }
+
+    private static bool IsContinuationByte(byte value) => (value & 0xC0) == 0x80;
+
+    private static bool TryParsePercentEncodedByte(char high, char low, out byte value)
+    {
+        var highNibble = HexValue(high);
+        var lowNibble = HexValue(low);
+        if (highNibble < 0 || lowNibble < 0)
+        {
+            value = 0;
+            return false;
+        }
+
+        value = (byte)((highNibble << 4) | lowNibble);
+        return true;
     }
 
     // Characters that are NOT escaped by the legacy escape() function

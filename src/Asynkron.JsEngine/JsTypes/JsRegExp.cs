@@ -1418,11 +1418,15 @@ public sealed class JsRegExp
     {
         private readonly (int Start, int End)[] _ranges;
         private readonly bool _negate;
+        private readonly bool _matchesAllCodePoints;
+        private readonly bool _useLinearRangeScan;
 
         public AnchoredPropertyEscapeMatcher((int Start, int End)[] ranges, bool negate)
         {
             _ranges = ranges;
             _negate = negate;
+            _matchesAllCodePoints = ranges.Length == 1 && ranges[0] is { Start: 0, End: 0x10FFFF };
+            _useLinearRangeScan = ranges.Length <= 8;
         }
 
         public bool IsMatch(string input)
@@ -1430,6 +1434,11 @@ public sealed class JsRegExp
             if (input.Length == 0)
             {
                 return false;
+            }
+
+            if (_matchesAllCodePoints)
+            {
+                return !_negate;
             }
 
             for (var index = 0; index < input.Length;)
@@ -1459,6 +1468,19 @@ public sealed class JsRegExp
 
         private bool ContainsCodePoint(int codePoint)
         {
+            if (_useLinearRangeScan)
+            {
+                foreach (var (start, end) in _ranges)
+                {
+                    if (codePoint >= start && codePoint <= end)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
             var low = 0;
             var high = _ranges.Length - 1;
             while (low <= high)

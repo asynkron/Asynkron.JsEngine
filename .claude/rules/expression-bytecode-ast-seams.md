@@ -23,6 +23,9 @@ fallback or cleanup.
 6. If a suspending or nested shape still needs runtime AST evaluation, prefer
    emit-time or lowering-time normalization into existing bytecode/IR
    instructions when JavaScript evaluation order can be proven.
+7. When turning a source seam scan into an automated test, assert that the
+   expected source files were discovered before asserting zero forbidden calls.
+   A source gate that can pass with zero scanned files is not a guardrail.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 
@@ -62,3 +65,8 @@ AST/IR fallback paths and real legacy boundaries remain visible follow-up work.
 Issue #1405 (retried by #1414) added the dynamic-boundary map above so future
 agents can preserve where expression bytecode already owns execution and where
 module-body migration remains unresolved.
+
+Issue #1408 added execution-plan diagnostics drift gates. Review found the
+runner seam source-gate test could pass vacuously if no
+`TypedAstEvaluator.ExecutionPlanRunner*.cs` files were found, so source-scan
+tests must prove discovery before they claim absence of forbidden AST seams.

@@ -292,6 +292,11 @@ internal static class GeneratorYieldLowerer
                 }
                 case ForEachStatement { Body: BlockStatement forEachBody } forEachStatement:
                 {
+                    if (!AstShapeAnalyzer.StatementContainsAwait(forEachBody))
+                    {
+                        return false;
+                    }
+
                     var rewrittenBody = RewriteBlock(forEachBody);
                     if (ReferenceEquals(rewrittenBody, forEachBody))
                     {

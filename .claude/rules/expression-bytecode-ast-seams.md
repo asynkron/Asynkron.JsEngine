@@ -23,22 +23,27 @@ fallback or cleanup.
 6. If a suspending or nested shape still needs runtime AST evaluation, prefer
    emit-time or lowering-time normalization into existing bytecode/IR
    instructions when JavaScript evaluation order can be proven.
-7. For dynamic JavaScript boundary audits, classify direct eval, `with`,
+7. Treat runner-file `CS0618` pragmas and old "legacy AST fallback" wording as
+   compatibility/comment evidence unless the focused runner scan or a concrete
+   call site proves direct AST evaluation. Outer execution fallback ownership
+   belongs to planning/lowering diagnostics, not to the runner compatibility
+   overload comments.
+8. For dynamic JavaScript boundary audits, classify direct eval, `with`,
    Function/AsyncFunction constructors, generated function bodies, and modules
    separately before picking a migration target. Do not group
    `dynamic-but-lowered` eval/with/generated-function paths with the remaining
    module-body dispatch leak unless a current call site proves the same AST
    runtime behavior.
-8. When turning a source seam scan into an automated test, assert that the
+9. When turning a source seam scan into an automated test, assert that the
    expected source files were discovered before asserting zero forbidden calls.
    A source gate that can pass with zero scanned files is not a guardrail.
-9. When documenting or planning direct `ExpressionProgramCompiler` coverage,
+10. When documenting or planning direct `ExpressionProgramCompiler` coverage,
    start from `docs/expression-bytecode-coverage.md` and keep it complete for
    every concrete `ExpressionNode`. New concrete expression nodes must be added
    to the map with a status (`supported`, `shape-dependent`, `unsupported`, or
    `not-compiled-directly`), the owning failure-code/compiler restriction where
    applicable, and representative test evidence.
-10. When reporting or planning `UnsupportedExpressionProgram` backlog work,
+11. When reporting or planning `UnsupportedExpressionProgram` backlog work,
    derive the bucket list from the current compiler/diagnostic surfaces and
    explicitly rank catch-all buckets such as `UnsupportedExpressionNode`.
    Treat catch-all buckets as high-risk/deferred until narrower typed buckets
@@ -94,6 +99,13 @@ Issue #1408 added execution-plan diagnostics drift gates. Review found the
 runner seam source-gate test could pass vacuously if no
 `TypedAstEvaluator.ExecutionPlanRunner*.cs` files were found, so source-scan
 tests must prove discovery before they claim absence of forbidden AST seams.
+
+Issue #1435 reran the focused runner seam scan and confirmed the direct runner
+call surface was still clean. The durable lesson was not a runtime change: stale
+runner comments and `CS0618` rationale can make compatibility/resume overloads
+look like active AST fallbacks, while actual outer fallback classification lives
+in `ExecutionPlanBuilder`, emitter diagnostics, and
+`ExpressionProgramCompileFailure` / `SetExpressionProgramFailure(...)`.
 
 Issue #1437 added `docs/expression-bytecode-coverage.md` and
 `ExpressionProgramCoverageMapTests.CoverageMap_ListsEveryConcreteExpressionNodeType`

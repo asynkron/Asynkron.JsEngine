@@ -188,13 +188,19 @@ public static partial class TypedAstEvaluator
                     reportedDone = false;
                 }
 
-                // Delegated completion occurs when:
-                // 1. Inner iterator is a generator AND we propagated throw/return, OR
-                // 2. We propagated return AND inner iterator completed (done: true) - even for non-generator iterators
-                // Use reportedDone for delegated completion check to avoid early completion when Promise was awaited
-                var delegatedCompletion = (_isGeneratorObject && (propagateThrow || propagateReturn)) ||
-                                          (propagateReturn && reportedDone);
-                var propagateThrowResult = propagateThrow && reportedDone;
+                // A normal return value from iterator.throw(...) is handled like next().
+                // Only exceptional paths should request throw propagation.
+                var propagateThrowResult = false;
+                // A yield* return path must stay in delegated-completion mode even when the delegated
+                // iterator temporarily yields (done:false), such as cleanup yields from finally.
+                // The runner persists pending return completion and replays it on resume.
+                // throw() completions that are normal iterator results continue through the regular
+                // propagateThrow+done branch in HandleYieldStar.
+                // Preserve pending return completion for delegated generator objects, and for
+                // non-generator iterators only when return() synchronously reports done:true.
+                // If the return() result came from an awaited Promise, reportedDone is forced
+                // to false above and yield* should keep delegating on the next resume.
+                var delegatedCompletion = propagateReturn && (_isGeneratorObject || (done && !awaitedPromise));
                 return (value, reportedDone, delegatedCompletion, propagateThrowResult, nextResult);
             }
 

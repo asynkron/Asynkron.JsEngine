@@ -230,6 +230,61 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 2000)]
+    public async Task String_Replace_GlobalNonWhitespace_HonorsOwnExecOverride()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let regex = /\S+/g;
+            let calls = 0;
+            regex.exec = function (input) {
+                calls++;
+                if (calls === 1) {
+                    let match = ["a"];
+                    match.index = 0;
+                    match.input = input;
+                    return match;
+                }
+
+                return null;
+            };
+
+            "a b".replace(regex, "X") + ":" + calls;
+        """);
+        Assert.Equal("X b:2", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task String_Replace_GlobalNonWhitespace_HonorsPrototypeExecOverride()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let originalExec = RegExp.prototype.exec;
+            let calls = 0;
+            let result;
+            RegExp.prototype.exec = function (input) {
+                calls++;
+                if (calls === 1) {
+                    let match = ["a"];
+                    match.index = 0;
+                    match.input = input;
+                    return match;
+                }
+
+                return null;
+            };
+
+            try {
+                result = "a b".replace(/\S+/g, "X") + ":" + calls;
+            } finally {
+                RegExp.prototype.exec = originalExec;
+            }
+
+            result;
+        """);
+        Assert.Equal("X b:2", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task RegExp_GlobalFlag_Test_UpdatesLastIndex()
     {
         await using var engine = CreateEngine();

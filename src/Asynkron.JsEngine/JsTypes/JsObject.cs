@@ -468,6 +468,8 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
     public IJsPropertyAccessor? PrototypeAccessor { get; private set; }
 
+    internal int CurrentMutationVersion => MutationVersion;
+
     private void MarkMutated()
     {
         unchecked

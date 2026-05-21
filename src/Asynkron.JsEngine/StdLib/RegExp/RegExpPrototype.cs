@@ -16,6 +16,9 @@ namespace Asynkron.JsEngine.StdLib;
 [JsPrototype("RegExp")]
 public sealed partial class RegExpPrototype
 {
+    private HostFunction? _defaultExecFunction;
+    private int _defaultExecPrototypeMutationVersion;
+
     [JsHostMethod("test", Length = 1d)]
     public JsValue Test(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -258,6 +261,16 @@ public sealed partial class RegExpPrototype
         }
 
         Realm.RegExpPrototype ??= Prototype as JsObject;
+        if (_defaultExecFunction is null &&
+            Prototype.GetOwnPropertyDescriptor("exec") is { HasValue: true } execDescriptor &&
+            execDescriptor.JsValue.TryGetObject<HostFunction>(out var execFunction))
+        {
+            _defaultExecFunction = execFunction;
+            if (Prototype is JsObject prototypeObject)
+            {
+                _defaultExecPrototypeMutationVersion = prototypeObject.CurrentMutationVersion;
+            }
+        }
     }
 
     private JsRegExp RequireRegExp(JsValue receiver)
@@ -667,6 +680,33 @@ public sealed partial class RegExpPrototype
         return new JsValue(accumulatedResult.ToString());
     }
 
+    private bool HasDefaultRegExpExec(JsValue thisValue)
+    {
+        if (!thisValue.TryGetObject<JsObject>(out var instance) ||
+            instance.GetOwnPropertyDescriptor("exec") is not null ||
+            Realm.RegExpPrototype is not { } regExpPrototype ||
+            !ReferenceEquals(instance.Prototype, regExpPrototype) ||
+            _defaultExecFunction is null)
+        {
+            return false;
+        }
+
+        if (regExpPrototype.CurrentMutationVersion == _defaultExecPrototypeMutationVersion)
+        {
+            return true;
+        }
+
+        if (regExpPrototype.GetOwnPropertyDescriptor("exec") is not { HasValue: true } execDescriptor ||
+            !execDescriptor.JsValue.TryGetObject<HostFunction>(out var currentExec) ||
+            !ReferenceEquals(currentExec, _defaultExecFunction))
+        {
+            return false;
+        }
+
+        _defaultExecPrototypeMutationVersion = regExpPrototype.CurrentMutationVersion;
+        return true;
+    }
+
     private bool TryReplaceLegacyGlobalNonWhitespacePlus(
         JsValue thisValue,
         string input,
@@ -683,6 +723,11 @@ public sealed partial class RegExpPrototype
         if (regex is null ||
             !string.Equals(regex.Pattern, @"\S+", StringComparison.Ordinal) ||
             !string.Equals(regex.Flags, "g", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (!HasDefaultRegExpExec(thisValue))
         {
             return false;
         }
@@ -705,6 +750,13 @@ public sealed partial class RegExpPrototype
             while (end < input.Length && !IsEcmaWhitespace(input[end]))
             {
                 end++;
+            }
+
+            if (sourcePosition == 0 && end == input.Length)
+            {
+                result = replacement;
+                Realm.UpdateRegExpStatics(input, i, end - i);
+                return true;
             }
 
             builder ??= new StringBuilder(input.Length + replacement.Length);

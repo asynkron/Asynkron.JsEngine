@@ -26,6 +26,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   actual directory listing as the baseline signal. Treat doc/filesystem drift
   as the bounded slice; do not widen the run to also edit unrelated examples
   in the same file.
+- When a docs slice fixes links or status pointers to deleted files, use the
+  missing target plus the current live evidence path as the baseline/final
+  signal pair. Prefer redirecting readers to maintained source files over
+  recreating stale status documents unless the issue explicitly asks for a new
+  durable status artifact.
 - When the slice touches ADR creation guidance, include the cheap duplicate
   prefix signal as evidence, but keep ADR ID allocation aligned with
   `.claude/rules/adr-allocation.md`: Faktorial learn or knowledge-artifact work
@@ -76,3 +81,11 @@ was already handling the README stale-link candidate
 (`docs/remaining-test262-gaps.md`). The durable lesson for #1324 was not to
 duplicate the README slice, but to add an explicit sibling-summary check so
 parallel recurring children choose different bounded slices.
+
+Issue #1323 / PR #1327 was the stale-link slice itself: README still pointed
+operators at deleted `docs/remaining-test262-gaps.md`, while the maintained
+Test262 evidence lived in
+`tests/Asynkron.JsEngine.Tests.Test262/current-regressions.filter.txt` and
+`tests/Asynkron.JsEngine.Tests.Test262/regression-packs/`. The durable lesson
+is to prove the missing target before editing and then point docs at the active
+evidence source, not to recreate an obsolete tracking document.

@@ -118,6 +118,51 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void ExpressionProgramFailureClassification_CoversCurrentBacklogBuckets()
+    {
+        var expression = new IdentifierExpression(null, Symbol.Intern("value"));
+        var representativeDetails = new (string Detail, ExpressionProgramFailureCode ExpectedCode)[]
+        {
+            ("Expression bytecode does not yet support delete on super or optional member expressions.", ExpressionProgramFailureCode.UnsupportedDeleteTarget),
+            ("Expression bytecode does not yet support super call expressions.", ExpressionProgramFailureCode.SuperCall),
+            ("Expression bytecode does not yet support nested optional call expressions.", ExpressionProgramFailureCode.NestedOptionalCall),
+            ("Expression bytecode does not yet support super or optional member update expressions.", ExpressionProgramFailureCode.OptionalOrSuperMemberUpdate),
+            ("Expression bytecode does not yet support super tagged templates.", ExpressionProgramFailureCode.SuperTaggedTemplate),
+            ("Expression bytecode does not yet support optional tagged templates.", ExpressionProgramFailureCode.OptionalTaggedTemplate),
+            ("Expression bytecode does not yet support nested optional tagged templates.", ExpressionProgramFailureCode.NestedOptionalTaggedTemplate),
+            ("Expression bytecode does not yet support super or optional property assignments.", ExpressionProgramFailureCode.OptionalOrSuperPropertyAssignment),
+            ("Expression bytecode does not yet support super or optional index assignments.", ExpressionProgramFailureCode.OptionalOrSuperIndexAssignment),
+            ("Expression bytecode does not yet support super member access.", ExpressionProgramFailureCode.SuperMemberAccess),
+            ("Expression bytecode only supports lowered binary compound assignments.", ExpressionProgramFailureCode.UnsupportedCompoundAssignmentShape),
+            ("Expression bytecode only supports identifier and member update expressions.", ExpressionProgramFailureCode.UnsupportedUpdateTarget),
+            ("Expression bytecode only supports static string object property names.", ExpressionProgramFailureCode.UnsupportedStaticObjectPropertyName),
+            ("Expression bytecode only supports static literal object property names.", ExpressionProgramFailureCode.UnsupportedStaticObjectPropertyName),
+            ("Computed object property names must use an expression key.", ExpressionProgramFailureCode.InvalidComputedObjectKey),
+            ("Expression bytecode only supports literal property names for dot access.", ExpressionProgramFailureCode.UnsupportedDotAccessPropertyName),
+            ("Expression bytecode only supports literal property names for direct member calls.", ExpressionProgramFailureCode.UnsupportedDirectMemberCallPropertyName),
+            ("Expression bytecode only supports literal property names for tagged template member access.", ExpressionProgramFailureCode.UnsupportedTaggedTemplateMemberAccessName),
+            ("Expression bytecode does not yet support optional or super member call targets.", ExpressionProgramFailureCode.OptionalOrSuperMemberCallTarget),
+            ("Expression bytecode does not yet support object member kind 'Spread'.", ExpressionProgramFailureCode.UnsupportedObjectMemberKind),
+            ("Expression bytecode does not yet support unary operator 'Delete'.", ExpressionProgramFailureCode.UnsupportedUnaryOperator),
+            ("Expression bytecode does not yet support 'ImportExpression'.", ExpressionProgramFailureCode.UnsupportedExpressionNode)
+        };
+
+        var seenCodes = new HashSet<ExpressionProgramFailureCode>();
+        foreach (var (detail, expectedCode) in representativeDetails)
+        {
+            var failure = ExpressionProgramCompiler.ClassifyFailure(expression, detail);
+            Assert.Equal(expectedCode, failure.Code);
+            seenCodes.Add(failure.Code);
+        }
+
+        var expectedCodes = Enum.GetValues<ExpressionProgramFailureCode>().ToHashSet();
+        AssertEqualCodeSetsWithIntentMessage(
+            expectedCodes,
+            seenCodes,
+            "Update this backlog probe only when bytecode classification categories intentionally change.");
+    }
+
+    [Fact]
     public void SourceGate_ExecutionPlanRunner_Partials_DoNotIntroduceAstExpressionEvaluationSeams()
     {
         var repositoryRoot = FindRepositoryRoot();
@@ -477,6 +522,36 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
 
             Actual:
             {{FormatBuckets(actual)}}
+
+            {{updateGuidance}}
+            """;
+        Assert.Fail(message);
+    }
+
+    private static void AssertEqualCodeSetsWithIntentMessage(
+        IReadOnlySet<ExpressionProgramFailureCode> expected,
+        IReadOnlySet<ExpressionProgramFailureCode> actual,
+        string updateGuidance)
+    {
+        if (expected.OrderBy(code => code).SequenceEqual(actual.OrderBy(code => code)))
+        {
+            return;
+        }
+
+        static string FormatSet(IEnumerable<ExpressionProgramFailureCode> values)
+        {
+            return string.Join(
+                Environment.NewLine,
+                values.OrderBy(value => value).Select(value => value.ToString()));
+        }
+
+        var message = $$"""
+            Unsupported-expression classification bucket drift detected.
+            Expected:
+            {{FormatSet(expected)}}
+
+            Actual:
+            {{FormatSet(actual)}}
 
             {{updateGuidance}}
             """;

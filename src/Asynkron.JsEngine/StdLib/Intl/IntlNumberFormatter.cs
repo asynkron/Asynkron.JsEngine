@@ -1051,11 +1051,15 @@ internal static class IntlNumberFormatter
 
         // Ensure the minimum constraint of the chosen path is satisfied.
         // For FD: ensure MinimumFractionDigits; for SD: EnsureMinimumSignificantDigits already applied.
-        if (!useSD && quantity.Scale < slots.MinimumFractionDigits)
+        if (!useSD)
         {
-            var diff = slots.MinimumFractionDigits - quantity.Scale;
-            quantity.Coefficient *= Pow10(diff);
-            quantity.Scale = slots.MinimumFractionDigits;
+            NormalizeTrailingZeros(quantity);
+            if (quantity.Scale < slots.MinimumFractionDigits)
+            {
+                var diff = slots.MinimumFractionDigits - quantity.Scale;
+                quantity.Coefficient *= Pow10(diff);
+                quantity.Scale = slots.MinimumFractionDigits;
+            }
         }
     }
 
@@ -1144,6 +1148,7 @@ internal static class IntlNumberFormatter
         var totalDigits = digits.Length;
         if (totalDigits <= maxDigits)
         {
+            NormalizeTrailingZeros(quantity);
             return;
         }
 

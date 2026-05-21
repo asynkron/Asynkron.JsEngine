@@ -5,8 +5,13 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 master_list="$repo_root/tests/Asynkron.JsEngine.Tests.Test262/current-regressions.filter.txt"
 pack_dir="$repo_root/tests/Asynkron.JsEngine.Tests.Test262/regression-packs"
 pack_name="${1:-full}"
+available_packs="full $(cd "$pack_dir" && printf '%s ' *.filter.txt | sed 's/\.filter\.txt//g')"
 
 case "$pack_name" in
+  --list|-l|list)
+    echo "$available_packs"
+    exit 0
+    ;;
   full)
     list_file="$master_list"
     ;;
@@ -20,7 +25,7 @@ esac
 
 if [[ ! -f "$list_file" ]]; then
   echo "Missing regression list: $list_file" >&2
-  echo "Available packs: full $(cd "$pack_dir" && printf '%s ' *.filter.txt | sed 's/\.filter\.txt//g')" >&2
+  echo "Available packs: $available_packs" >&2
   exit 1
 fi
 

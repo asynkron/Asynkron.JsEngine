@@ -120,3 +120,27 @@ Observed classification:
 4. Remaining `CS0618` pragmas and old "legacy AST fallback" wording in runner
    files are compatibility markers and comment hygiene targets unless a concrete
    runtime call site is proven.
+
+## Issue #1437 Coverage Map Guardrail (2026-05-21)
+
+Issue #1437 turned the classified expression-bytecode audit into a durable
+coverage map instead of another one-time source search. The resulting artifact
+is `docs/expression-bytecode-coverage.md`, backed by
+`ExpressionProgramCoverageMapTests.CoverageMap_ListsEveryConcreteExpressionNodeType`.
+
+The guardrail decision is:
+
+1. expression-bytecode coverage claims should enumerate every current concrete
+   `ExpressionNode` type;
+2. each entry should classify the node as `supported`, `shape-dependent`,
+   `unsupported`, or `not-compiled-directly`;
+3. shape-dependent or unsupported entries should point at the current
+   `ExpressionProgramFailureCode` / compiler restriction owner; and
+4. the source guard should fail when a new concrete expression node is added
+   without a corresponding map entry.
+
+This keeps future bytecode expansion from repeating broad discovery or silently
+skipping new AST node types. It complements the seam classification rules above:
+classified runner seams explain where AST evaluation can still occur, while the
+coverage map explains how the direct `ExpressionProgramCompiler` surface owns
+or rejects each expression-node family.

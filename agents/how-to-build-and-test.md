@@ -29,6 +29,13 @@ dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~SomeTestN
 When a spawned maintenance-child issue asks for one bounded repository
 maintenance pass, keep the slice repo-local and reviewable:
 
+- Policy ownership: recurring-child policy and edge-case lessons live in
+  `.claude/rules/recurring-maintenance-child-runs.md`.
+- Operational ownership: this section owns the runnable checklist and `## Build
+  Update` template used in build-stage issue updates.
+- ADR allocation ownership: `.claude/rules/adr-allocation.md` owns ADR ID
+  reservation (`faktorial-api adr-next`) and duplicate-prefix guardrails.
+
 1. Choose exactly one docs, tooling, test-fixture, or workflow simplification
    slice. Do not add or change recurrence infrastructure; Faktorial owns the
    recurrence schedule.

@@ -19,6 +19,7 @@ Default scoping contract:
 - If no explicit mode is provided, `./tools/profile <profile>` runs CPU and memory as two separate profiler invocations.
 - CPU defaults to `--root Asynkron.JsEngine --filter Asynkron.JsEngine`.
 - Memory defaults to `--root Asynkron.JsEngine`.
+- `--cpu` / `--memory` keep mode-only behavior but still add the same default scope when caller does not provide `--root` / `--filter`.
 - Explicit `--cpu`, `--memory`, `--root`, and `--filter` flags are preserved and are not overridden.
 
 Output example:

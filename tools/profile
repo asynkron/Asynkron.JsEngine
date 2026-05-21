@@ -129,6 +129,26 @@ run_default_split_profile() {
   run_profile "$profile_key" --memory "${memory_args[@]}"
 }
 
+run_mode_profile_with_scope_defaults() {
+  local profile_key=$1
+  local scoped_args=("${profiler_args[@]-}")
+  local cpu_requested=false
+
+  if has_profiler_flag "--cpu" "-c"; then
+    cpu_requested=true
+  fi
+
+  if ! has_profiler_flag "--root"; then
+    scoped_args+=("--root" "$jsengine_scope")
+  fi
+
+  if [[ "$cpu_requested" == true ]] && ! has_profiler_flag "--filter"; then
+    scoped_args+=("--filter" "$jsengine_scope")
+  fi
+
+  run_profile "$profile_key" "${scoped_args[@]}"
+}
+
 args=("$@")
 filtered_args=()
 for arg in "${args[@]}"; do
@@ -292,7 +312,12 @@ for key in profiles:
             cmd = [*profiler_cmd, *mode_args, "--", *runner_cmd, *engine_args, key]
             subprocess.run(cmd, check=True, cwd=str(tools_dir))
     else:
-        cmd = [*profiler_cmd, *profiler_args, "--", *runner_cmd, *engine_args, key]
+        scoped_args = [*profiler_args]
+        if not has_root:
+            scoped_args.extend(["--root", jsengine_scope])
+        if has_cpu and not has_filter:
+            scoped_args.extend(["--filter", jsengine_scope])
+        cmd = [*profiler_cmd, *scoped_args, "--", *runner_cmd, *engine_args, key]
         subprocess.run(cmd, check=True, cwd=str(tools_dir))
 PY
   exit 0
@@ -300,7 +325,7 @@ fi
 
 build_runner
 if has_profiler_flag "--cpu" "-c" || has_profiler_flag "--memory" "-m"; then
-  run_profile "$profile_key" "${profiler_args[@]-}"
+  run_mode_profile_with_scope_defaults "$profile_key"
 else
   run_default_split_profile "$profile_key"
 fi

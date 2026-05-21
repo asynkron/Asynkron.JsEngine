@@ -35,6 +35,9 @@ maintenance pass, keep the slice repo-local and reviewable:
   Update` template used in build-stage issue updates.
 - ADR allocation ownership: `.claude/rules/adr-allocation.md` owns ADR ID
   reservation (`faktorial-api adr-next`) and duplicate-prefix guardrails.
+- Persistent ADR/rule compaction child runs must first verify whether guidance
+  already exists in the current semantic home and then update that existing
+  document instead of creating duplicate ADRs, local rules, or durable notes.
 
 1. Choose exactly one docs, tooling, test-fixture, or workflow simplification
    slice. Do not add or change recurrence infrastructure; Faktorial owns the

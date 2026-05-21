@@ -166,6 +166,7 @@ public sealed class JsRegExp
     private int[]? _quantifiedAncestorMap;
 
     private Regex? _compiledRegex;
+    private readonly AnchoredPropertyEscapeMatcher? _anchoredPropertyEscapeMatcher;
     private readonly byte _encodedFlags;
     private string? _flags;
 
@@ -199,6 +200,7 @@ public sealed class JsRegExp
             ? InsertQuantifierResets(renamed, _duplicateGroupNames)
             : renamed;
         _groupNameMapping = nameMapping;
+        _anchoredPropertyEscapeMatcher = TryCreateAnchoredPropertyEscapeMatcher(pattern, _encodedFlags);
 
         var canDeferInitialConstruction = CanDeferInitialRegexConstruction(pattern, _encodedFlags);
 
@@ -230,7 +232,7 @@ public sealed class JsRegExp
                 new PropertyDescriptor { Value = 0d, Writable = true, Enumerable = false, Configurable = false });
         }
 
-        if (canDeferInitialConstruction)
+        if (canDeferInitialConstruction || _anchoredPropertyEscapeMatcher is not null)
         {
             return;
         }
@@ -325,6 +327,18 @@ public sealed class JsRegExp
             return false;
         }
 
+        if (_anchoredPropertyEscapeMatcher is { } anchoredMatcher)
+        {
+            var anchoredMatch = startIndex == 0 && anchoredMatcher.IsMatch(input);
+            if (!anchoredMatch)
+            {
+                return false;
+            }
+
+            UpdateWholeInputRegExpStatics(input);
+            return true;
+        }
+
         var match = EnsureRegex().Match(input, startIndex);
 
         // Sticky: match must start exactly at startIndex.
@@ -394,6 +408,19 @@ public sealed class JsRegExp
             }
 
             return null;
+        }
+
+        if (_anchoredPropertyEscapeMatcher is { } anchoredMatcher)
+        {
+            var anchoredMatch = startIndex == 0 && anchoredMatcher.IsMatch(input);
+            if (!anchoredMatch)
+            {
+                return null;
+            }
+
+            var fastResult = CreateWholeInputMatchArray(input);
+            UpdateWholeInputRegExpStatics(input);
+            return fastResult;
         }
 
         var match = EnsureRegex().Match(input, startIndex);
@@ -591,6 +618,50 @@ public sealed class JsRegExp
                 statics.LastParen = capture.Value.Text;
             }
         }
+    }
+
+    private void UpdateWholeInputRegExpStatics(string input)
+    {
+        if (RealmState is null)
+        {
+            return;
+        }
+
+        var statics = RealmState.RegExpStatics;
+        statics.Input = input;
+        statics.LastMatch = input;
+        statics.LeftContext = string.Empty;
+        statics.RightContext = string.Empty;
+        statics.LastParen = string.Empty;
+        for (var i = 0; i < statics.Captures.Length; i++)
+        {
+            statics.Captures[i] = string.Empty;
+        }
+    }
+
+    private JsArray CreateWholeInputMatchArray(string input)
+    {
+        var result = new JsArray(RealmState);
+        result.Push(new JsValue(input));
+        result.DefineProperty("index",
+            new PropertyDescriptor
+            {
+                Value = 0d, Writable = true, Enumerable = true, Configurable = true
+            });
+        result.DefineProperty("input",
+            new PropertyDescriptor
+            {
+                Value = new JsValue(input), Writable = true, Enumerable = true, Configurable = true
+            });
+        result.DefineProperty("groups", new PropertyDescriptor
+        {
+            Value = JsValue.Undefined,
+            Writable = true,
+            Enumerable = true,
+            Configurable = true
+        });
+
+        return result;
     }
 
     private JsArray CreateIndexPair(int start, int end)
@@ -1302,6 +1373,137 @@ public sealed class JsRegExp
     private Regex EnsureRegex()
     {
         return _compiledRegex ??= new Regex(CapLargeQuantifiers(_normalizedPattern), _regexOptions);
+    }
+
+    private static AnchoredPropertyEscapeMatcher? TryCreateAnchoredPropertyEscapeMatcher(
+        string pattern,
+        byte encodedFlags)
+    {
+        if ((encodedFlags & ~FlagUnicode) != 0 || (encodedFlags & FlagUnicode) == 0)
+        {
+            return null;
+        }
+
+        if (pattern.Length < 8 ||
+            pattern[0] != '^' ||
+            pattern[1] != '\\' ||
+            pattern[2] is not ('p' or 'P') ||
+            pattern[3] != '{')
+        {
+            return null;
+        }
+
+        var endBrace = pattern.IndexOf('}', 4);
+        if (endBrace < 0 ||
+            endBrace + 2 >= pattern.Length ||
+            pattern[endBrace + 1] != '+' ||
+            pattern[endBrace + 2] != '$' ||
+            endBrace + 3 != pattern.Length)
+        {
+            return null;
+        }
+
+        var propertyExpression = pattern.Substring(4, endBrace - 4);
+        var ranges = UnicodePropertyData.Resolve(propertyExpression);
+        if (ranges is null)
+        {
+            throw new ParseException(
+                $"Invalid regular expression: invalid unicode property escape \\{pattern[2]}{{{propertyExpression}}}.");
+        }
+
+        return new AnchoredPropertyEscapeMatcher(ranges, pattern[2] == 'P');
+    }
+
+    private sealed class AnchoredPropertyEscapeMatcher
+    {
+        private readonly (int Start, int End)[] _ranges;
+        private readonly bool _negate;
+        private readonly bool _matchesAllCodePoints;
+        private readonly bool _useLinearRangeScan;
+
+        public AnchoredPropertyEscapeMatcher((int Start, int End)[] ranges, bool negate)
+        {
+            _ranges = ranges;
+            _negate = negate;
+            _matchesAllCodePoints = ranges.Length == 1 && ranges[0] is { Start: 0, End: 0x10FFFF };
+            _useLinearRangeScan = ranges.Length <= 8;
+        }
+
+        public bool IsMatch(string input)
+        {
+            if (input.Length == 0)
+            {
+                return false;
+            }
+
+            if (_matchesAllCodePoints)
+            {
+                return !_negate;
+            }
+
+            for (var index = 0; index < input.Length;)
+            {
+                var codePoint = ReadCodePoint(input, ref index);
+                if (ContainsCodePoint(codePoint) == _negate)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static int ReadCodePoint(string input, ref int index)
+        {
+            var current = input[index++];
+            if (char.IsHighSurrogate(current) &&
+                index < input.Length &&
+                char.IsLowSurrogate(input[index]))
+            {
+                return char.ConvertToUtf32(current, input[index++]);
+            }
+
+            return current;
+        }
+
+        private bool ContainsCodePoint(int codePoint)
+        {
+            if (_useLinearRangeScan)
+            {
+                foreach (var (start, end) in _ranges)
+                {
+                    if (codePoint >= start && codePoint <= end)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
+            var low = 0;
+            var high = _ranges.Length - 1;
+            while (low <= high)
+            {
+                var mid = low + ((high - low) >> 1);
+                var (start, end) = _ranges[mid];
+                if (codePoint < start)
+                {
+                    high = mid - 1;
+                    continue;
+                }
+
+                if (codePoint > end)
+                {
+                    low = mid + 1;
+                    continue;
+                }
+
+                return true;
+            }
+
+            return false;
+        }
     }
 
     private static bool CanDeferInitialRegexConstruction(string pattern, byte encodedFlags)

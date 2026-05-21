@@ -23,6 +23,9 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
 - When multiple recurring-maintenance children are active, check active sibling
   child log summaries before choosing a slice so two children do not target the
   same narrow docs cleanup in parallel.
+- When sibling summaries influence slice selection, record that sibling check
+  explicitly in the child-run evidence (issue update) so review can confirm the
+  run stayed non-overlapping without reconstructing scheduler state.
 - When a docs slice enumerates filesystem contents (regression packs, demo
   directories, runsettings files, build targets), compare the doc against the
   actual directory listing as the baseline signal. Treat doc/filesystem drift

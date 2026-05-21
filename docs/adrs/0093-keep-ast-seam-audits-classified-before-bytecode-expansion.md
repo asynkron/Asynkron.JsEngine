@@ -29,6 +29,17 @@ profiling bridge that still invokes legacy statement evaluation. The highest
 risk was treating those intentional boundaries, stale comments, and enum
 compatibility markers as the same class of runtime AST re-entry.
 
+Issue #1405 repeated the classification discipline specifically for dynamic
+JavaScript boundaries: direct eval, `with`, Function constructors, generated
+function bodies, and modules. That audit found that direct eval and Function
+constructors parse dynamic source and then route through script/function IR
+with explicit failure if a required plan is missing. Supported `with` shapes are
+also lowered, with slot fast paths intentionally disabled where dynamic object
+environment lookup owns the semantics. The remaining boundary to treat as the
+next migration slice is module body dispatch, where `JsEngine.ExecuteModuleBody`
+still iterates non-import/export statements through a per-statement wrapper
+instead of an explicit module-body plan/cache.
+
 ## Decision
 
 Before expanding expression bytecode or designing compact statement bytecode,
@@ -46,6 +57,9 @@ classify AST-seam evidence by runtime meaning:
 5. planning notes and implementation issues must record the exact search
    commands and classification, so later bytecode work can start from the
    baseline instead of repeating broad discovery.
+6. dynamic-boundary audits must separate `dynamic-but-lowered` eval/with/
+   generated-function paths from true module-body dispatch debt before choosing
+   an implementation slice.
 
 ## Consequences
 
@@ -59,5 +73,8 @@ classify AST-seam evidence by runtime meaning:
 - Profiling and legacy dynamic boundaries remain legitimate follow-up targets,
   but they need their own issue with proof that the boundary is observable on a
   hot or non-dynamic path.
-- This ADR is caused by issue #1391 and complements the root
+- Module body execution should be migrated or documented as a coherent
+  module-body plan/cache boundary separately from eval and with work, because
+  the latter already rely on dynamic-scope safeguards that are easy to regress.
+- This ADR is caused by issues #1391 and #1405 and complements the root
   `.claude/rules/expression-bytecode-ast-seams.md` rule.

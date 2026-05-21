@@ -23,6 +23,12 @@ fallback or cleanup.
 6. If a suspending or nested shape still needs runtime AST evaluation, prefer
    emit-time or lowering-time normalization into existing bytecode/IR
    instructions when JavaScript evaluation order can be proven.
+7. For dynamic JavaScript boundary audits, classify direct eval, `with`,
+   Function/AsyncFunction constructors, generated function bodies, and modules
+   separately before picking a migration target. Do not group
+   `dynamic-but-lowered` eval/with/generated-function paths with the remaining
+   module-body dispatch leak unless a current call site proves the same AST
+   runtime behavior.
 
 ## Why
 
@@ -33,3 +39,12 @@ no direct `EvaluateExpression(` or `ProfileEvaluateExpression(` hits in
 dynamic-only boundaries, and a profiling bridge. Future bytecode work needs
 that classification discipline so stale references do not create new mixed
 AST/IR fallback paths and real legacy boundaries remain visible follow-up work.
+
+Issue #1405 applied the same lesson to dynamic boundaries. Direct eval and
+Function constructors parse dynamic source and then lower through script or
+function IR; supported `with` execution is already lowered while deliberately
+using dynamic environment lookup instead of user slot fast paths. The durable
+next slice is module body execution, where non-import/export statements still
+pass through a per-statement wrapper rather than an explicit module-body
+plan/cache. Future agents need this split so eval/with work does not absorb the
+module-body migration or accidentally remove dynamic-scope safeguards.

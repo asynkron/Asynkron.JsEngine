@@ -204,6 +204,23 @@ public sealed class JsRegExp
         _flags = flags;
         RealmState = realmState;
         JsObject = existingObject ?? new JsObject();
+        _anchoredPropertyEscapeMatcher = TryCreateAnchoredPropertyEscapeMatcher(pattern, _encodedFlags);
+        _anchoredSimpleClassEscape = TryCreateAnchoredSimpleClassEscape(pattern, _encodedFlags);
+
+        if (existingObject is null)
+        {
+            JsObject.DefineProperty("lastIndex",
+                new PropertyDescriptor { Value = 0d, Writable = true, Enumerable = false, Configurable = false });
+        }
+
+        if (_anchoredPropertyEscapeMatcher is not null)
+        {
+            _normalizedPattern = pattern;
+            _regexOptions = RegexOptions.CultureInvariant;
+            _groupNameMapping = null;
+            _duplicateGroupNames = null;
+            return;
+        }
 
         var normalized = NormalizePattern(pattern, Unicode || UnicodeSets, UnicodeSets, IgnoreCase, DotAll, Multiline);
         var sanitized = SanitizeGroupNamesForDotNet(normalized, out var nameMapping);
@@ -212,8 +229,6 @@ public sealed class JsRegExp
             ? InsertQuantifierResets(renamed, _duplicateGroupNames)
             : renamed;
         _groupNameMapping = nameMapping;
-        _anchoredPropertyEscapeMatcher = TryCreateAnchoredPropertyEscapeMatcher(pattern, _encodedFlags);
-        _anchoredSimpleClassEscape = TryCreateAnchoredSimpleClassEscape(pattern, _encodedFlags);
 
         var canDeferInitialConstruction = CanDeferInitialRegexConstruction(pattern, _encodedFlags);
 
@@ -241,14 +256,7 @@ public sealed class JsRegExp
 
         _regexOptions = options;
 
-        if (existingObject is null)
-        {
-            JsObject.DefineProperty("lastIndex",
-                new PropertyDescriptor { Value = 0d, Writable = true, Enumerable = false, Configurable = false });
-        }
-
         if (canDeferInitialConstruction ||
-            _anchoredPropertyEscapeMatcher is not null ||
             _anchoredSimpleClassEscape != AnchoredSimpleClassEscape.None)
         {
             return;

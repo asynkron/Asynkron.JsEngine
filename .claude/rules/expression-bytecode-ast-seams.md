@@ -62,6 +62,13 @@ fallback or cleanup.
     `object.ToString()` fallback. Keep computed-key shape validation separate
     from static-key normalization, and prove both the new accepted shapes and
     the still-invalid computed-key shape.
+14. Keep dynamic expression-program bridges explicitly named and source-gated.
+    Quarantined legacy or dynamic callers should route through
+    `EvaluateDynamicExpressionProgram`, which lowers/caches the dynamic
+    expression and throws on lowering failure. Already-lowered payloads should
+    continue to use `EvaluateLoweredExpressionProgram`; do not blur these
+    surfaces under generic cached-helper naming or add raw AST expression
+    fallback on compile failure.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 
@@ -148,3 +155,13 @@ must use JavaScript property-name conversion, because diagnostic `ToString()`
 can leak string quotes or a BigInt `n` suffix into lowered property names. Future
 object-literal bytecode slices should keep parser-literal normalization, AST key
 node normalization, and computed-key validation as separate proof points.
+
+Issue #1446 / PR #1456 locked down the dynamic expression bridge after
+investigation found `EvaluateCachedExpressionProgram` was semantically a
+dynamic-boundary helper but named like a general cache path. The delivery
+renamed it to `EvaluateDynamicExpressionProgram`, kept unsupported lowering as
+an explicit throw instead of a raw AST expression fallback, and added a source
+gate for approved dynamic call sites. Future AST-seam work should preserve that
+classification so dynamic bridge callers cannot drift into normal
+already-lowered expression-program execution, and already-lowered class or
+initializer payloads do not get mislabeled as legacy fallback.

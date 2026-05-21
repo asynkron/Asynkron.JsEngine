@@ -144,3 +144,24 @@ skipping new AST node types. It complements the seam classification rules above:
 classified runner seams explain where AST evaluation can still occur, while the
 coverage map explains how the direct `ExpressionProgramCompiler` surface owns
 or rejects each expression-node family.
+
+## Issue #1446 Dynamic Bridge Boundary Lockdown (2026-05-22)
+
+Issue #1446 / PR #1456 refined the same seam-classification decision for the
+dynamic expression-program bridge. The delivery renamed
+`EvaluateCachedExpressionProgram` to `EvaluateDynamicExpressionProgram` because
+the helper is not a generic cache entry point; it is the approved bridge from
+quarantined legacy/dynamic evaluation into lowered `ExpressionProgram`
+execution.
+
+The helper keeps the existing semantics: lower and cache the dynamic expression
+once, execute it as an expression program when supported, and throw on lowering
+failure instead of falling back to raw AST expression evaluation. Non-dynamic
+callers that already hold lowered payloads remain on
+`EvaluateLoweredExpressionProgram`.
+
+The follow-up guardrail is
+`SourceGate_DynamicExpressionProgramBridge_StaysInsideApprovedBoundarySurface`.
+Future AST-seam work should preserve the split between dynamic bridge callers
+and already-lowered expression-program callers, and should update the source
+gate before expanding the approved boundary surface.

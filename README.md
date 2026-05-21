@@ -66,6 +66,14 @@ dotnet run
 
 Demonstrates setTimeout, setInterval, Promise creation, chaining, error handling, and event queue processing.
 
+### Event Queue Demo
+```bash
+cd examples/EventQueueDemo
+dotnet run
+```
+
+Shows host-scheduled task execution, nested scheduling, and async task queue draining through `JsEngine.ScheduleTask(...)`.
+
 ### NPM Package Compatibility Demo
 ```bash
 cd examples/NpmPackageDemo
@@ -74,13 +82,12 @@ dotnet run
 
 Shows that the engine can run pure JavaScript npm packages without Node.js dependencies.
 
-### S-Expression Demo
+### Node Host Demo
 ```bash
-cd examples/SExpressionDemo
-dotnet run
+dotnet run --project examples/NodeHostDemo
 ```
 
-Displays the legacy S-expression representation used by that demo.
+Runs the Node-shaped host sample that exposes a small `require(...)` module surface and can execute progressively larger CommonJS apps (including real npm frameworks) via the scripts documented in `examples/NodeHostDemo/README.md`.
 
 ---
 

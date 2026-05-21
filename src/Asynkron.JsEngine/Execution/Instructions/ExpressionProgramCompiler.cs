@@ -2350,6 +2350,9 @@ internal static class ExpressionProgramCompiler
 
         switch (key)
         {
+            case JsValue jsValue:
+                propertyName = JsOps.ToPropertyName(jsValue) ?? string.Empty;
+                return true;
             case string value:
                 propertyName = value;
                 return true;

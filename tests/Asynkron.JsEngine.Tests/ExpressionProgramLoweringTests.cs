@@ -1,6 +1,7 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -435,6 +436,60 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         Assert.Equal("Computed object property names must use an expression key.", failureReason);
         var classified = ExpressionProgramCompiler.ClassifyFailure(expression, failureReason);
         Assert.Equal(ExpressionProgramFailureCode.InvalidComputedObjectKey, classified.Code);
+    }
+
+    [Theory]
+    [InlineData("key", "key")]
+    [InlineData(7d, "7")]
+    public void ObjectExpression_StaticLiteralKeyNode_IsLoweredWithJavaScriptPropertyName(object literalValue, string expectedPropertyName)
+    {
+        var keyExpression = new LiteralExpression(Source: null, Value: JsValue.FromObjectUnsafe(literalValue));
+        var expression = new ObjectExpression(
+            Source: null,
+            Members:
+            [
+                new ObjectMember(
+                    Source: null,
+                    Kind: ObjectMemberKind.Property,
+                    Key: keyExpression,
+                    Value: new LiteralExpression(null, 1d),
+                    Function: null,
+                    IsComputed: false,
+                    IsStatic: false,
+                    Parameter: null)
+            ],
+            HasCoverInitializedName: false);
+
+        var compiled = ExpressionProgramCompiler.TryCompile(expression, out var program, out var failureReason);
+
+        Assert.True(compiled, failureReason);
+        AssertProgramContains<DefineObjectPropertyExpressionOp>(program, op => op.PropertyName == expectedPropertyName);
+    }
+
+    [Fact]
+    public void ObjectExpression_StaticBigIntLiteralKeyNode_IsLoweredWithoutDiagnosticSuffix()
+    {
+        var keyExpression = new LiteralExpression(Source: null, Value: JsValue.FromObjectUnsafe(new JsBigInt(12)));
+        var expression = new ObjectExpression(
+            Source: null,
+            Members:
+            [
+                new ObjectMember(
+                    Source: null,
+                    Kind: ObjectMemberKind.Property,
+                    Key: keyExpression,
+                    Value: new LiteralExpression(null, 1d),
+                    Function: null,
+                    IsComputed: false,
+                    IsStatic: false,
+                    Parameter: null)
+            ],
+            HasCoverInitializedName: false);
+
+        var compiled = ExpressionProgramCompiler.TryCompile(expression, out var program, out var failureReason);
+
+        Assert.True(compiled, failureReason);
+        AssertProgramContains<DefineObjectPropertyExpressionOp>(program, op => op.PropertyName == "12");
     }
 
     [Fact]

@@ -240,14 +240,18 @@ fi
 
 if [[ "$profile_key" == "list" ]]; then
   build_runner
-  "${runner_cmd[@]}" "${engine_args[@]}" list
+  if [[ ${#engine_args[@]} -gt 0 ]]; then
+    "${runner_cmd[@]}" "${engine_args[@]}" list
+  else
+    "${runner_cmd[@]}" list
+  fi
   exit 0
 fi
 
 if [[ "$profile_key" == "all" ]]; then
   build_runner
   ensure_profiler
-  python3 - <<'PY' "$script_dir/profile-manifest.json" "${runner_exe}" "${runner_dll}" "$jsengine_scope" --profiler-cmd "${profiler_cmd[@]}" --engine-args "${engine_args[@]}" --profiler-args "${profiler_args[@]}"
+  python3 - <<'PY' "$script_dir/profile-manifest.json" "${runner_exe}" "${runner_dll}" "$jsengine_scope" --profiler-cmd "${profiler_cmd[@]}" --engine-args "${engine_args[@]+"${engine_args[@]}"}" --profiler-args "${profiler_args[@]+"${profiler_args[@]}"}"
 import json
 import subprocess
 import sys

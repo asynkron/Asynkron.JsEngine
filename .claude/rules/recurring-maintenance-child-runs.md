@@ -45,6 +45,10 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   `faktorial log-summary <issue-number> --root '<repo-root>'` plus supplied
   issue context instead of blocking on helper availability or missing `gh`
   authentication.
+- When older completed sibling issue logs are no longer available via
+  `faktorial log-summary`, treat the failed lookup itself as baseline evidence
+  and continue from durable in-repo artifacts (for example ADRs and owned rule
+  documents) rather than blocking or widening into external source-host reads.
 - When the slice touches ADR creation guidance, include the cheap duplicate
   prefix signal as evidence, but keep ADR ID allocation aligned with
   `.claude/rules/adr-allocation.md`, which is the allocator authority:
@@ -120,3 +124,10 @@ durable lesson is that helper availability is not the unit of progress:
 recurring children should continue from supplied context and bounded
 `faktorial log-summary` evidence, while treating missing `gh` auth or missing
 optional helpers as an environment limitation rather than a source blocker.
+
+Issue #1432 extended that fallback to older completed siblings where
+`faktorial log-summary` no longer has compact history (for example #1403 or
+#1365). The durable lesson is to record the unavailable summary attempt as
+baseline evidence, then continue from maintained ADR/rule artifacts already
+capturing the completed work (for example ADR 0095 and
+`.claude/rules/expression-bytecode-packing.md`) instead of blocking.

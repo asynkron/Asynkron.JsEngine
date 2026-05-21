@@ -144,3 +144,36 @@ skipping new AST node types. It complements the seam classification rules above:
 classified runner seams explain where AST evaluation can still occur, while the
 coverage map explains how the direct `ExpressionProgramCompiler` surface owns
 or rejects each expression-node family.
+
+## Issue #1447 Dynamic Return Boundary (2026-05-21)
+
+Issue #1447 implemented the first narrow dynamic-operand migration slice after
+the boundary audit. The selected seam was the legacy dynamic return-expression
+path in `StatementNodeExtensions.EvaluateReturnJsValue`.
+
+The architectural decision is to route dynamic return operands through the
+existing cached `ExpressionProgram` bridge instead of the generic
+`EvaluateDynamicExpressionOperand(...)` helper. A return operand only needs a
+value before setting the return completion signal, so the path can use
+expression bytecode directly and keep unsupported shapes on the precise
+expression-program failure path.
+
+This does not generalize automatically to every dynamic operand. `await` and
+`yield` operands have suspension/resume behavior, assignment operands may carry
+name-inference semantics, and delete-default operands have side-effect-only
+observable behavior. Those remain separate follow-up slices until each one has
+its own evaluation-order proof and focused regression coverage.
+
+The proof shape for future similar slices is:
+
+1. convert one operand family to `EvaluateCachedExpressionProgram(...)` or an
+   equivalent expression-bytecode bridge;
+2. keep unsupported-bytecode failures explicit rather than silently falling
+   back to AST evaluation;
+3. add focused DEBUG coverage with `EvaluationContext.AssertNoAstEvaluation`;
+4. rerun the runner seam scan and a narrow owning test; and
+5. recheck `./tools/profile forloop --memory` when the slice touches hot
+   expression execution.
+
+This section is caused by issue #1447 / PR #1457 and complements the root
+`.claude/rules/expression-bytecode-ast-seams.md` rule.

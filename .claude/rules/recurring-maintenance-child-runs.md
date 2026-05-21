@@ -79,6 +79,14 @@ seven subsystem packs (`annexb`, `array-prototype`, `intl`, `language`,
 baseline signal, the updated "Available packs" list was the final signal, and
 no build, Test262, or recurrence-infrastructure work was needed.
 
+Issue #1431 / PR #1434 was the same docs/filesystem drift pattern on the
+top-level README demo list. `README.md` still omitted `EventQueueDemo`, pointed
+at the obsolete S-expression-era surface, and did not name the maintained Node
+host demo path even though those runnable example directories and host scripts
+were present. Future README demo-list maintenance should compare the listed
+examples against `examples/` first, then update the README as the bounded slice
+without widening into demo behavior or broad validation work.
+
 Issue #1239 / PR #1251 was a docs-only maintenance slice triggered by the
 pre-existing duplicate ADR prefix `0071`. The useful delivery was adding
 prevention guidance to `agents/how-to-build-and-test.md` while leaving the

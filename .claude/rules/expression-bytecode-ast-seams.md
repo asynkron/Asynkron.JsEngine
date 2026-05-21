@@ -62,6 +62,15 @@ fallback or cleanup.
     `object.ToString()` fallback. Keep computed-key shape validation separate
     from static-key normalization, and prove both the new accepted shapes and
     the still-invalid computed-key shape.
+14. When a dynamic JavaScript boundary is classified as lowered or
+    dynamic-but-lowered, back that classification with
+    `EvaluationContext.AssertNoAstEvaluation` behavior tests for each boundary
+    family being claimed. Include direct and indirect eval, `with`,
+    `Function`/`AsyncFunction` generated-code constructors, and any adjacent
+    generated body shape in the affected slice. A seam scan alone proves only
+    that the runner files have no obvious direct call; it does not prove that a
+    dynamic entry point still reaches the IR/function pipeline under runtime
+    execution.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 
@@ -148,3 +157,11 @@ must use JavaScript property-name conversion, because diagnostic `ToString()`
 can leak string quotes or a BigInt `n` suffix into lowered property names. Future
 object-literal bytecode slices should keep parser-literal normalization, AST key
 node normalization, and computed-key validation as separate proof points.
+
+Issue #1445 / PR #1455 added missing AST-free boundary proofs after the dynamic
+boundary classification work had already documented eval/with/generated-code
+paths as lowered or dynamic-but-lowered. The gap was not a runtime fix; it was
+that indirect eval plus `Function` and `AsyncFunction` constructor execution
+lacked explicit `AssertNoAstEvaluation` tests. Future agents should turn
+classification claims for dynamic boundaries into executable proof coverage,
+not rely only on seam scans or adjacent direct-eval/with tests.

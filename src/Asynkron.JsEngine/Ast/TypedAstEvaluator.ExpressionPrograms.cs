@@ -20,7 +20,7 @@ public static partial class TypedAstEvaluator
         return ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(program, environment, context);
     }
 
-    private static JsValue EvaluateCachedExpressionProgram(
+    private static JsValue EvaluateDynamicExpressionProgram(
         ExpressionNode expression,
         JsEnvironment environment,
         EvaluationContext context,

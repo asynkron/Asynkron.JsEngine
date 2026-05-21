@@ -192,6 +192,43 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void SourceGate_DynamicExpressionProgramBridge_StaysInsideApprovedBoundarySurface()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var sourceRoot = Path.Combine(repositoryRoot.FullName, "src", "Asynkron.JsEngine");
+        var allowedCallSites = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "src/Asynkron.JsEngine/Ast/FunctionExpressionExtensions.cs",
+            "src/Asynkron.JsEngine/Ast/VariableKindExtensions.cs",
+            "src/Asynkron.JsEngine/Ast/Legacy/ExpressionNodeExtensions.cs",
+            "src/Asynkron.JsEngine/Ast/Legacy/LoopPlanExtensions.cs",
+            "src/Asynkron.JsEngine/Ast/Legacy/StatementNodeExtensions.cs",
+            "src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExpressionPrograms.cs"
+        };
+
+        var matches = Directory
+            .EnumerateFiles(sourceRoot, "*.cs", SearchOption.AllDirectories)
+            .SelectMany(file =>
+            {
+                var relativePath = Path.GetRelativePath(repositoryRoot.FullName, file).Replace('\\', '/');
+                return File.ReadAllLines(file)
+                    .Select((line, index) => new { line, index })
+                    .Where(entry => entry.line.Contains("EvaluateDynamicExpressionProgram(", StringComparison.Ordinal))
+                    .Select(entry => (relativePath, entry.index + 1, entry.line.Trim()));
+            })
+            .ToArray();
+
+        var disallowed = matches
+            .Where(match => !allowedCallSites.Contains(match.relativePath))
+            .Select(match => $"{match.relativePath}:{match.Item2}:{match.Item3}")
+            .ToArray();
+
+        Assert.True(
+            disallowed.Length == 0,
+            "EvaluateDynamicExpressionProgram call-site drift detected:\n" + string.Join('\n', disallowed));
+    }
+
+    [Fact]
     public void SourceGate_ExpressionOpKind_RuntimeAndDiagnosticSurfaces_DoNotDrift()
     {
         var repositoryRoot = FindRepositoryRoot();

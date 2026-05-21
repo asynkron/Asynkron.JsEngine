@@ -26,7 +26,7 @@ See `/agents/how-to-architecture.md` for detailed information about the executio
 
 ## Boundary Classification
 
-- `EvaluateCachedExpressionProgram` is the dynamic-boundary bridge from quarantined
+- `EvaluateDynamicExpressionProgram` is the dynamic-boundary bridge from quarantined
   AST evaluation to lowered `ExpressionProgram` execution. It lowers once, caches
   success/failure per node, and throws when lowering fails. It must not fall back
   to raw AST expression evaluation on compile failure.

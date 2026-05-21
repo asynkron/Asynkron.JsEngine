@@ -482,7 +482,7 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        var test = EvaluateCachedExpressionProgram(
+        var test = EvaluateDynamicExpressionProgram(
             plan.Condition,
             environment,
             context,
@@ -509,7 +509,7 @@ public static partial class TypedAstEvaluator
             // directly to avoid ToObject/GetNumber boxing on every iteration.
             if (statement is ExpressionStatement expr)
             {
-                _ = EvaluateCachedExpressionProgram(
+                _ = EvaluateDynamicExpressionProgram(
                     expr.Expression,
                     environment,
                     context,

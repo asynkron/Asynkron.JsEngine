@@ -44,7 +44,6 @@ FullyQualifiedName~ModuleCode&FullyQualifiedName~eval-export-dflt-expr-fn-named.
 FullyQualifiedName~ModuleCode&FullyQualifiedName~eval-export-dflt-expr-gen-anon.js
 FullyQualifiedName~ModuleCode&FullyQualifiedName~eval-export-dflt-expr-gen-named.js
 FullyQualifiedName~ModuleCode&FullyQualifiedName~eval-export-dflt-expr-in.js
-FullyQualifiedName~ModuleCode&FullyQualifiedName~eval-self-once.js
 FullyQualifiedName~ModuleCode&FullyQualifiedName~export-star-as-dflt.js
 FullyQualifiedName~ModuleCode&FullyQualifiedName~instn-iee-bndng-cls.js
 FullyQualifiedName~ModuleCode&FullyQualifiedName~instn-iee-bndng-const.js
@@ -56,7 +55,6 @@ FullyQualifiedName~ModuleCode&FullyQualifiedName~instn-named-bndng-dflt-expr.js
 FullyQualifiedName~ModuleCode&FullyQualifiedName~instn-named-bndng-dflt-named.js
 FullyQualifiedName~ModuleCode&FullyQualifiedName~instn-named-bndng-dflt-star.js
 FullyQualifiedName~ModuleCode&FullyQualifiedName~instn-named-bndng-let.js
-FullyQualifiedName~ModuleCode&FullyQualifiedName~instn-once.js
 FullyQualifiedName~ModuleCode_topLevelAwait&FullyQualifiedName~async-module-does-not-block-sibling-modules.js
 FullyQualifiedName~ModuleCode_topLevelAwait&FullyQualifiedName~await-expr-reject-throws.js
 FullyQualifiedName~ModuleCode_topLevelAwait&FullyQualifiedName~await-expr-resolution.js

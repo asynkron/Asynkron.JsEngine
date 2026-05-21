@@ -3222,21 +3222,14 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         }
 
         EnsureModuleInstantiated(entry, phase);
-        var exportedNames = GetExportedNames(entry, new HashSet<string>(StringComparer.Ordinal));
-        var resolvedNames = new List<string>();
-        foreach (var name in exportedNames)
-        {
-            var resolution = ResolveExport(entry, name, phase, []);
-            if (resolution.Kind == ExportResolutionKind.Resolved &&
+        // Build namespace keys from exported names without eagerly resolving each one.
+        // Eager resolution can recurse indefinitely for self namespace re-exports
+        // (e.g. `export * as ns from "./self.js"`), while Lookup resolves on demand.
+        var exportNames = GetExportedNames(entry, new HashSet<string>(StringComparer.Ordinal))
+            .Where(static name =>
                 !name.StartsWith("__getter__", StringComparison.Ordinal) &&
                 !name.StartsWith("__setter__", StringComparison.Ordinal) &&
                 !name.StartsWith("@@symbol:", StringComparison.Ordinal))
-            {
-                resolvedNames.Add(name);
-            }
-        }
-
-        var exportNames = resolvedNames
             .Order(StringComparer.Ordinal)
             .ToArray();
 

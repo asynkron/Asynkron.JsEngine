@@ -374,8 +374,8 @@ internal sealed record LeaveTryInstruction(int Next)
 
 /// <summary>
 ///     Marks entry into a breakable construct (loop or switch).
-///     Pushes context onto the breakable stack so that break/continue statements
-///     from AST-evaluated code (via StatementInstruction) can resolve their jump targets.
+///     Pushes context onto the breakable stack so break/continue from legacy AST
+///     fallback paths can resolve their jump targets.
 /// </summary>
 /// <param name="Next">The next instruction index (body entry).</param>
 /// <param name="Label">The label (null for unlabeled constructs).</param>

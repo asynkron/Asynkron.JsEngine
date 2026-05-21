@@ -257,7 +257,7 @@ internal static class ControlFlowEmitter
         }
 
         // Wrap entry with BreakableEnterInstruction to push context at runtime.
-        // This enables labeled break statements from AST-evaluated code to resolve their jump targets.
+        // This enables labeled break statements from legacy AST fallback paths to resolve jump targets.
         // Use ResetsCompletionValue because labeled statements return UpdateEmpty(stmtResult, undefined)
         // per ES spec, which means we need to reset on entry and finalize on exit.
         entryIndex = ctx.Append(new BreakableEnterInstruction(

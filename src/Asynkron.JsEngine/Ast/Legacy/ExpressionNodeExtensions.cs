@@ -18,7 +18,7 @@ public static partial class TypedAstEvaluator
 {
     /// <summary>
     /// Well-known symbol for storing yield resume state in the environment.
-    /// Used when yields happen inside StatementInstruction (e.g., in destructuring defaults).
+    /// Used when yields happen in legacy AST fallback execution (e.g., destructuring defaults).
     /// </summary>
     private static readonly Symbol YieldResumeStateKey = Symbol.Intern("__yield_resume_state__");
 
@@ -368,7 +368,7 @@ public static partial class TypedAstEvaluator
     }
 
     /// <summary>
-    /// State for resuming from a yield that happened during AST evaluation (via StatementInstruction).
+    /// State for resuming from a yield that happened during legacy AST fallback evaluation.
     /// </summary>
     internal sealed class YieldResumeState
     {
@@ -397,7 +397,7 @@ public static partial class TypedAstEvaluator
     {
         // Most yield expressions should be lowered by GeneratorYieldLowerer and compiled to IR.
         // However, some yields (like those in destructuring default values) cannot be extracted
-        // and are evaluated via StatementInstruction wrapping the containing for-of loop.
+            // and are evaluated via a legacy AST fallback wrapper around the containing for-of loop.
         // In this case, we signal a yield via the context so the caller can save state.
 
         if (expression.IsDelegated)

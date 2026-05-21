@@ -332,7 +332,7 @@ internal static class LoopEmitterHelpers
                 SlotNames: slotNames));
         }
 
-        // BreakableEnter - pushes context for break/continue from AST-evaluated code
+        // BreakableEnter - pushes context for break/continue from legacy AST fallback paths
         var breakableEnterIndex = ctx.Append(new BreakableEnterInstruction(
             loopEntryTarget,
             label,

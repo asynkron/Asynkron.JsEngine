@@ -145,8 +145,8 @@ public static partial class TypedAstEvaluator
         }
 
         /// <summary>
-        /// Tracks breakable construct context at runtime so break/continue from AST-evaluated code
-        /// (via StatementInstruction) can resolve their jump targets.
+        /// Tracks breakable construct context at runtime so break/continue from legacy AST
+        /// fallback paths can resolve their jump targets.
         /// Works for both loops and switch statements.
         /// </summary>
         private readonly record struct BreakableFrame(Symbol? Label, int BreakTarget, int ContinueTarget);

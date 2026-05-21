@@ -271,7 +271,7 @@ internal static class StatementEmitter
         }
 
         // Always use EnterWith/LeaveWith instructions for proper IR execution.
-        // This removes the StatementInstruction fallback for with statements.
+        // This removes the legacy AST fallback for with statements.
         return WithEmitter.TryEmitWith(ctx, withStatement, nextIndex, activeLabel, out entryIndex);
     }
 }

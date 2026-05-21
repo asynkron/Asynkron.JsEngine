@@ -2156,8 +2156,8 @@ internal static class GeneratorYieldLowerer
                         // - Defaults are conditional (only evaluated when value is undefined)
                         // - AssignmentTargetBinding yields must happen AFTER the iterator is opened,
                         //   otherwise iterator close semantics break (the iterator won't exist yet)
-                        // Let the expression pass through unchanged so the IR builder can wrap it
-                        // in a StatementInstruction for proper handling.
+                        // Let the expression pass through unchanged so IR can route it through
+                        // the legacy AST fallback path for correct semantics.
                         if (AstShapeAnalyzer.BindingTargetContainsYieldInDefaultValue(destructuringAssignment.Target) ||
                             BindingTargetContainsYieldInAssignmentTarget(destructuringAssignment.Target))
                         {
@@ -2424,7 +2424,7 @@ internal static class GeneratorYieldLowerer
             }
 
             // NOTE: Do NOT rewrite yields in default values - they're conditional
-            // and must be handled via StatementInstruction
+            // and must stay on the legacy AST fallback path.
 
             if (!ReferenceEquals(target, element.Target))
             {
@@ -2446,7 +2446,7 @@ internal static class GeneratorYieldLowerer
             target = RewriteBindingTargetForExtractableYields(target, prefixStatements, ref changed);
 
             // NOTE: Do NOT rewrite yields in default values - they're conditional
-            // and must be handled via StatementInstruction
+            // and must stay on the legacy AST fallback path.
 
             // Handle computed property keys (NameExpression) - these ARE extractable
             var nameExpr = prop.NameExpression;

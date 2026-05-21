@@ -3984,20 +3984,14 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowTypeError("toPlainDate requires a 'year' property", realm: realm);
             }
 
-            var yearNum = JsOps.ToNumber(yearValue);
-            if (double.IsInfinity(yearNum) || double.IsNaN(yearNum))
-            {
-                throw StandardLibrary.ThrowRangeError("year value must be finite", realm: realm);
-            }
-
-            var year = (int)yearNum;
+            var year = ToIntegerWithTruncation(yearValue, realm);
 
             // Constrain day to valid range for the target year/month
             var maxDay = IsoCalendarHelpers.DaysInMonth(year, md.Month);
             var day = Math.Min(md.Day, maxDay);
 
+            RejectISODate(year, md.Month, day, realm);
             var date = new JsTemporalPlainDate(year, md.Month, day, md.Calendar);
-            ValidatePlainDateRange(date, realm);
             return WrapPlainDate(date, realm, prototypes.PlainDatePrototype);
         });
 
@@ -4651,7 +4645,13 @@ public static class TemporalHelper
             throw StandardLibrary.ThrowRangeError("Value must be a finite number", realm: realm);
         }
 
-        return (int)Math.Truncate(number);
+        var integer = Math.Truncate(number);
+        if (integer < int.MinValue || integer > int.MaxValue)
+        {
+            throw StandardLibrary.ThrowRangeError("Value is out of supported integer range", realm: realm);
+        }
+
+        return (int)integer;
     }
 
     /// <summary>
@@ -5236,26 +5236,53 @@ public static class TemporalHelper
             return false;
         }
 
-        // 2. NormalizeTimeDuration: compute total nanoseconds from all time fields
-        // Use BigInteger to handle arbitrarily large values
-        var totalNanoseconds =
-            new BigInteger(days) * 86_400_000_000_000 +
-            new BigInteger(hours) * 3_600_000_000_000 +
-            new BigInteger(minutes) * 60_000_000_000 +
-            new BigInteger(seconds) * 1_000_000_000 +
-            new BigInteger(milliseconds) * 1_000_000 +
-            new BigInteger(microseconds) * 1_000 +
-            new BigInteger(nanoseconds);
+        if (!TryCreateDurationInteger(days, out var daysBig) ||
+            !TryCreateDurationInteger(hours, out var hoursBig) ||
+            !TryCreateDurationInteger(minutes, out var minutesBig) ||
+            !TryCreateDurationInteger(seconds, out var secondsBig) ||
+            !TryCreateDurationInteger(milliseconds, out var millisecondsBig) ||
+            !TryCreateDurationInteger(microseconds, out var microsecondsBig) ||
+            !TryCreateDurationInteger(nanoseconds, out var nanosecondsBig))
+        {
+            return false;
+        }
 
-        // Per spec: abs(normalizedSeconds) >= 2^53 → invalid
-        // In nanoseconds: abs(totalNanoseconds) >= 2^53 * 10^9
-        var maxTimeDuration = new BigInteger(9007199254740992) * 1_000_000_000;
-        if (BigInteger.Abs(totalNanoseconds) >= maxTimeDuration)
+        // 2. NormalizeTimeDuration: compute total nanoseconds from all time fields.
+        var totalNanoseconds =
+            daysBig * NanosecondsPerDay +
+            hoursBig * NanosecondsPerHour +
+            minutesBig * NanosecondsPerMinute +
+            secondsBig * NanosecondsPerSecond +
+            millisecondsBig * NanosecondsPerMillisecond +
+            microsecondsBig * NanosecondsPerMicrosecond +
+            nanosecondsBig;
+
+        // Per spec: abs(normalized nanoseconds) must not exceed max time duration.
+        if (BigInteger.Abs(totalNanoseconds) > MaxTimeDuration)
         {
             return false;
         }
 
         return true;
+    }
+
+    private static bool TryCreateDurationInteger(double value, out BigInteger integer)
+    {
+        integer = BigInteger.Zero;
+        if (double.IsNaN(value) || double.IsInfinity(value) || value != Math.Truncate(value))
+        {
+            return false;
+        }
+
+        try
+        {
+            integer = new BigInteger(value);
+            return true;
+        }
+        catch (OverflowException)
+        {
+            return false;
+        }
     }
 
     /// <summary>

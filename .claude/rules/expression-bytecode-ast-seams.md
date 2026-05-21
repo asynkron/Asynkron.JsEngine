@@ -49,6 +49,11 @@ fallback or cleanup.
    Treat catch-all buckets as high-risk/deferred until narrower typed buckets
    have been burned down, so one implementation slice does not mix unrelated
    semantic risks.
+12. When a source gate proves enum or symbol coverage across generated,
+    runtime, diagnostic, or printer surfaces, match exact language tokens rather
+    than substrings. For `ExpressionOpKind` coverage, require an
+    `ExpressionOpKind.<Name>` token boundary so a longer member such as
+    `LoadIdentifierCallTarget` cannot satisfy coverage for `LoadIdentifier`.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 
@@ -121,3 +126,10 @@ rank the broad `UnsupportedExpressionNode` catch-all, which could have made a
 future agent pick a mixed-risk implementation slice. Future backlog reports
 must classify and defer catch-all buckets until narrower diagnostics make the
 remaining work specific.
+
+Issue #1440 / PR #1449 added an allowlist-free `ExpressionOpKind` drift gate
+across runner dispatch, stack-depth analysis, and execution-plan printer
+formatting. Review found the first implementation used substring matching, so a
+longer enum member could hide missing coverage for a shorter enum member. Future
+source gates must encode the token shape they claim to prove, otherwise a
+guardrail can pass while the runtime or diagnostic surface has still drifted.

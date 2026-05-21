@@ -128,6 +128,14 @@ treat that owner lookup as context only: once the exact focused proof is green,
 do not patch strict equality, signed-zero, or fromIndex handling without a
 current failing fixture row.
 
+Issue #1065 repeated the fixture-exact fallback for `Statements_forAwaitOf`.
+The issue listed seven crashed `async-func-dstr-const-ary-ptrn-*` rows from the
+2026-05-19 Test262 runner summary. The build-stage method-group proof hit the
+local 60 second inactivity guard, but each listed fixture pattern passed when
+run directly on current `origin/main`. The durable lesson is the same: a broad
+generated group hang is proof friction, not source evidence, when the exact
+reported rows are green.
+
 Issue #879 repeated the same current-proof boundary for
 `TypedArray_prototype_indexOf_BigInt`: investigation still identified
 `TypedArrayBase.IndexOfInternal` and BigInt strict equality as the plausible
@@ -146,6 +154,15 @@ passed, including the previously crashing Annex B indirect-eval fixture. Future
 agents should repair the command shape before treating a focused Test262 proof
 as source failure, then stop without eval or harness changes when the exact
 project-file proof is green.
+
+Issue #1079 repeated the no-source-change boundary for
+`Temporal_ZonedDateTime_prototype_eraYear`. Investigation correctly identified
+`TemporalHelper` as the owner for the ZonedDateTime `eraYear` prototype getter,
+receiver branding, and shared era helpers, but the build-stage proof on
+2026-05-20 passed the issue-supplied method group on current `origin/main`.
+Future Temporal Test262 issues should treat owner-surface discovery as context:
+once the exact focused proof is green, do not add nearby accessor, branding, or
+harness changes without a current failing fixture row.
 
 Issue #1080 repeated the no-source-change closeout for
 `Temporal_ZonedDateTime_prototype_withCalendar`. The 2026-05-19 crash batch

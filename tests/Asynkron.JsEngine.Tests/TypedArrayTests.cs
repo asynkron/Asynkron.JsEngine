@@ -389,6 +389,54 @@ public sealed class TypedArrayTests(ITestOutputHelper output) : InternalTestBase
     }
 
     [Fact(Timeout = 2000)]
+    public async Task TypedArray_Slice_BigIntSpeciesToNumberTypedArray_ThrowsTypeError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                           let thrownName = "";
+                                           class WeirdBigInt extends BigInt64Array {
+                                             static get [Symbol.species]() { return Uint8Array; }
+                                           }
+
+                                           try {
+                                             new WeirdBigInt([1n, 2n, 3n]).slice(0, 2);
+                                           } catch (e) {
+                                             thrownName = e.constructor.name;
+                                           }
+
+                                           thrownName;
+
+                                           """);
+        Assert.Equal("TypeError", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_Slice_SpeciesGetterAbruptCompletion_Propagates()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                           let thrownName = "";
+                                           let message = "";
+                                           class WeirdBigInt extends BigInt64Array {
+                                             static get [Symbol.species]() { throw new RangeError("boom"); }
+                                           }
+
+                                           try {
+                                             new WeirdBigInt([1n, 2n, 3n]).slice(0, 2);
+                                           } catch (e) {
+                                             thrownName = e.constructor.name;
+                                             message = e.message;
+                                           }
+
+                                           thrownName + "|" + message;
+
+                                           """);
+        Assert.Equal("RangeError|boom", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task TypedArray_Set_FromTypedArray()
     {
         await using var engine = CreateEngine();

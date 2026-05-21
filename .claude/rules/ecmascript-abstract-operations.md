@@ -103,6 +103,16 @@ host-runtime shortcuts.
     `Promise.prototype.then` after its local capability helper used pair-level
     guards that drifted from the constructor helper and failed the focused
     Test262 `Promise_prototype_then` fixture.
+16c. For typed-array species-copy operations such as
+    `%TypedArray%.prototype.slice`, validate the species-created destination
+    after `TypedArraySpeciesCreate` has run, not before constructor/species
+    side effects. Reject Number/BigInt content-type mismatches before copying,
+    and re-check source and destination detached/out-of-bounds state at the
+    copy boundary so side effects become JavaScript errors instead of host
+    crashes. WHY: issue #1085 / PR #1319 fixed
+    `TypedArray_prototype_slice_BigInt` after the slice path trusted the
+    species-created result and let BigInt-to-Number copies fall through the
+    wrong storage path.
 17. For Intl built-ins that coerce call arguments through `ToNumber`, use the
     active evaluation context and propagate abrupt completions before later
     numeric validation such as finite-number checks. Raw `JsValue.AsNumber()`,
@@ -136,11 +146,12 @@ host-runtime shortcuts.
     `timeZoneName`; keep ZonedDateTime's time-zone-name default path separate.
 20. For Temporal `PlainDate.from` and `PlainDateTime.from` non-ISO property
     bags, preserve the calendar-visible `year`, `month` or `monthCode`, and
-    `day` fields after overflow handling. Use calendar-to-ISO conversion as a
-    validation projection only; do not store the converted ISO fields back into
-    the resulting object. Treat `era` and `eraYear` as calendar-dependent:
-    calendars without era support ignore them when `year` is explicit and still
-    require `year` when it is absent.
+    `day` behavior after overflow handling. For `PlainDateTime`, preserve that
+    behavior through the calendar-field projection helpers while keeping the
+    runtime date slots ISO-backed after calendar-to-ISO conversion; do not let
+    calendar-space fields leak into ISO-coordinate arithmetic. Treat `era` and
+    `eraYear` as calendar-dependent: calendars without era support ignore them
+    when `year` is explicit and still require `year` when it is absent.
 21. For Temporal `PlainDateTime.prototype.toLocaleString`, keep PlainDateTime
     as wall-clock component formatting even when a resolved `timeZone` option is
     supplied, but route hour output through the shared `Intl.DateTimeFormat`
@@ -481,13 +492,27 @@ Related ADR:
 Issue #837 / PR #1137 fixed `Temporal.PlainDateTime.from` after non-ISO
 calendar property bags reused the converted ISO date as the object's visible
 date fields. The durable lesson is that Temporal property-bag conversion can
-need two representations at once: source calendar fields remain observable on
-the Temporal object, while the converted ISO projection is only for range
-validation. Future `PlainDateTime.from` work should preserve calendar-visible
-fields, keep era handling calendar-dependent, and prove the focused
-`Name=Temporal_PlainDateTime_from` Test262 method group.
+need two representations at once: source calendar fields remain observable
+through the Temporal object's field projection helpers, while the converted ISO
+projection owns internal date storage and arithmetic. Future `PlainDateTime`
+property-bag work should preserve calendar-visible fields, keep era handling
+calendar-dependent, keep ISO-backed storage for the runtime date slots, and
+prove the focused `Name=Temporal_PlainDateTime_from` or owning operation
+Test262 method group.
 
 Related ADR: `docs/adrs/0048-keep-temporal-plaindatetime-calendar-fields-observable.md`.
+
+Issue #1074 / PR #1308 clarified that split for
+`Temporal.PlainDateTime.prototype.since`: the property-bag operand may be
+non-ISO and still needs ISO-backed internal coordinates before difference
+arithmetic runs. The same incident also pinned that `year: Infinity` is a
+`RangeError` only after ordinary JavaScript coercion has observed `valueOf`.
+Future PlainDateTime difference fixes should prove the focused
+`Name=Temporal_PlainDateTime_prototype_since` group plus a local regression
+covering both ISO-storage projection and observable Infinity coercion order.
+
+Related ADR:
+`docs/adrs/0083-keep-temporal-plaindatetime-property-bag-storage-iso-backed.md`.
 
 Issue #840 / PR #1160 fixed the same Temporal property-bag boundary for
 `Temporal.PlainDate.from`: Hebrew and other non-era calendars must not observe

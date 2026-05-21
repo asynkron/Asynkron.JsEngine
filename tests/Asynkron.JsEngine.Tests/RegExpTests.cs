@@ -61,6 +61,35 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 2000)]
+    public async Task AnchoredUnicodePropertyEscape_RepresentativeProperties_MatchByCodePoint()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       const arabic = "\u0600\u0627" + String.fromCodePoint(0x10E60, 0x1EE00);
+                                                       const alphabetic = "A\u03A9\u0905" + String.fromCodePoint(0x1D400);
+                                                       const emoji = String.fromCodePoint(0x1F600);
+                                                       [
+                                                         /^\p{Script_Extensions=Arabic}+$/u.exec(arabic)[0] === arabic,
+                                                         /^\P{Script_Extensions=Arabic}+$/u.test("A" + emoji),
+                                                         /^\p{White_Space}+$/u.test("\t \u00A0\u2028"),
+                                                         !/^\p{White_Space}+$/u.test("A"),
+                                                         /^\p{XID_Continue}+$/u.test("A0_\u0300"),
+                                                         !/^\p{XID_Continue}+$/u.test("A-"),
+                                                         /^\p{Alphabetic}+$/u.test(alphabetic),
+                                                         /^\P{Alphabetic}+$/u.test(emoji + "\uD800")
+                                                       ];
+
+                                           """);
+
+        var values = Assert.IsType<JsArray>(result);
+        foreach (var value in values.Items)
+        {
+            Assert.True(value.AsBoolean());
+        }
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task RegExp_Constructor_Basic()
     {
         await using var engine = CreateEngine();

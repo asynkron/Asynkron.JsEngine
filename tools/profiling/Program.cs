@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using Asynkron.JsEngine;
 
 // Harness: regExpUtils.js buildString + testPropertyEscapes
@@ -118,32 +119,145 @@ var sw = Stopwatch.StartNew();
 await engine.Evaluate(harness);
 Console.WriteLine($"Harness load:    {sw.ElapsedMilliseconds}ms");
 
-// Run a set of property escape tests: small, medium, and large
-string[] properties = [
-    "Script_Extensions=Arabic",
-    "Script=Latin",
-    "General_Category=Letter",
-    "Alphabetic",
-    "ID_Continue",
-    "Grapheme_Base",
-];
+sw.Restart();
+await engine.Evaluate("""new RegExp('^\\p{Any}+$', 'u').test("A");""");
+Console.WriteLine($"Unicode data warm-up: {sw.ElapsedMilliseconds}ms");
 
-foreach (var prop in properties)
+// Run representative property escape smoke tests: small/large scripts, binary
+// properties, and both positive and negated anchored forms.
+var propertyProfiles = new[]
 {
+    new PropertyProfile(
+        "Script=Latin",
+        [0x0041, 0x00C0, 0x0100],
+        [0x0627, 0x03A9, 0x1F600],
+        20_000),
+    new PropertyProfile(
+        "Script_Extensions=Arabic",
+        [0x0600, 0x0627, 0x10E60, 0x1EE00],
+        [0x0041, 0x05FF, 0x1F600],
+        20_000),
+    new PropertyProfile(
+        "White_Space",
+        [0x0009, 0x0020, 0x00A0, 0x2028],
+        [0x0041, 0x0030, 0x005F],
+        30_000),
+    new PropertyProfile(
+        "XID_Continue",
+        [0x0041, 0x0030, 0x005F, 0x0300],
+        [0x0020, 0x002D, 0x1F600],
+        20_000),
+    new PropertyProfile(
+        "Alphabetic",
+        [0x0041, 0x03A9, 0x0905, 0x1D400],
+        [0x0020, 0x0030, 0x1F600],
+        20_000),
+    new PropertyProfile(
+        "Grapheme_Base",
+        [0x0041, 0x0905, 0x1F600],
+        [0x0300, 0xFE0F],
+        20_000),
+};
+
+for (var i = 0; i < propertyProfiles.Length; i++)
+{
+    var profile = propertyProfiles[i];
     sw.Restart();
     try
     {
+        var positivePattern = $"^\\\\p{{{profile.PropertyExpression}}}+$";
+        var negativePattern = $"^\\\\P{{{profile.PropertyExpression}}}+$";
         var code = $$"""
-            var re = new RegExp('^\\p{{{prop}}}+$', 'u');
-            var neg = new RegExp('^\\P{{{prop}}}+$', 'u');
+            globalThis.__propertyProfileRegexes ??= [];
+            var re = new RegExp('{{positivePattern}}', 'u');
+            var neg = new RegExp('{{negativePattern}}', 'u');
+            globalThis.__propertyProfileRegexes[{{i.ToString(CultureInfo.InvariantCulture)}}] = [re, neg];
             "compiled";
             """;
         await engine.Evaluate(code);
-        Console.WriteLine($"  Compile {prop,-40} {sw.ElapsedMilliseconds}ms");
+        Console.WriteLine($"  Compile {profile.PropertyExpression,-40} {sw.ElapsedMilliseconds}ms");
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"  Compile {prop,-40} FAILED: {ex.Message}");
+        Console.WriteLine($"  Compile {profile.PropertyExpression,-40} FAILED: {ex.Message}");
+    }
+}
+
+const string sampleProfileHelpers = """
+function buildSampleString(codePoints, repetitions) {
+  let unit = String.fromCodePoint.apply(null, codePoints);
+  let result = "";
+  for (let i = 0; i < repetitions; i++) {
+    result += unit;
+  }
+  return result;
+}
+""";
+
+await engine.Evaluate(sampleProfileHelpers);
+
+for (var i = 0; i < propertyProfiles.Length; i++)
+{
+    var profile = propertyProfiles[i];
+    await BuildSampleProfileString(engine, sw, profile, i, negate: false);
+    await BuildSampleProfileString(engine, sw, profile, i, negate: true);
+    await RunSampleMatchProfile(engine, sw, profile, i, negate: false);
+    await RunSampleMatchProfile(engine, sw, profile, i, negate: true);
+}
+
+static async Task BuildSampleProfileString(
+    JsEngine engine,
+    Stopwatch sw,
+    PropertyProfile profile,
+    int profileIndex,
+    bool negate)
+{
+    var samples = negate ? profile.NonMatchSamples : profile.MatchSamples;
+    var label = negate ? "Build negated" : "Build positive";
+    var code = $$"""
+        globalThis.__propertyProfileSamples ??= [];
+        globalThis.__propertyProfileSamples[{{profileIndex.ToString(CultureInfo.InvariantCulture)}}] ??= [];
+        globalThis.__propertyProfileSamples[{{profileIndex.ToString(CultureInfo.InvariantCulture)}}][{{(negate ? "1" : "0")}}] =
+          buildSampleString(
+            [{{FormatCodePoints(samples)}}],
+            {{profile.Repetitions.ToString(CultureInfo.InvariantCulture)}});
+        globalThis.__propertyProfileSamples[{{profileIndex.ToString(CultureInfo.InvariantCulture)}}][{{(negate ? "1" : "0")}}].length;
+        """;
+
+    sw.Restart();
+    var result = await engine.Evaluate(code);
+    Console.WriteLine(
+        $"  {label,-15} {profile.PropertyExpression,-40} {sw.ElapsedMilliseconds}ms  length={result}");
+}
+
+static async Task RunSampleMatchProfile(
+    JsEngine engine,
+    Stopwatch sw,
+    PropertyProfile profile,
+    int profileIndex,
+    bool negate)
+{
+    var label = negate ? "Negated sample" : "Positive sample";
+    var code = $$"""
+        var sampleRe = globalThis.__propertyProfileRegexes[{{profileIndex.ToString(CultureInfo.InvariantCulture)}}][{{(negate ? "1" : "0")}}];
+        var sample = globalThis.__propertyProfileSamples[{{profileIndex.ToString(CultureInfo.InvariantCulture)}}][{{(negate ? "1" : "0")}}];
+        if (!sampleRe.test(sample)) {
+          throw new Error("sample did not match");
+        }
+        sample.length;
+        """;
+
+    sw.Restart();
+    try
+    {
+        var result = await engine.Evaluate(code);
+        Console.WriteLine(
+            $"  {label,-15} {profile.PropertyExpression,-40} {sw.ElapsedMilliseconds}ms  length={result}");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine(
+            $"  {label,-15} {profile.PropertyExpression,-40} {sw.ElapsedMilliseconds}ms  FAILED: {ex.Message}");
     }
 }
 
@@ -175,3 +289,16 @@ catch (Exception ex)
 }
 
 Console.WriteLine("\nDone.");
+
+static string FormatCodePoints(int[] codePoints)
+{
+    return string.Join(
+        ", ",
+        codePoints.Select(codePoint => "0x" + codePoint.ToString("X", CultureInfo.InvariantCulture)));
+}
+
+internal sealed record PropertyProfile(
+    string PropertyExpression,
+    int[] MatchSamples,
+    int[] NonMatchSamples,
+    int Repetitions);

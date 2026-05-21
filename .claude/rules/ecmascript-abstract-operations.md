@@ -636,6 +636,14 @@ accepting a calendar ID, and prove the focused
 `Name=Temporal_PlainMonthDay_prototype_equals` Test262 method group plus local
 coverage for accepted non-ISO constructor calendars.
 
+Issue #1341 / PR #1352 refined the same PlainMonthDay ISO-reference helper for
+non-ISO parsing. Future PlainMonthDay conversion from an ISO reference date must
+derive the source calendar year from that ISO date before overflow/reference
+normalization; reusing the ISO year as the calendar year can corrupt Hebrew and
+other non-ISO month-day results. When PlainMonthDay parsing grammar is touched,
+validate any date-time tail before truncation and prove
+`Name=Temporal_PlainMonthDay_from` in addition to the narrower local regression.
+
 Related ADR:
 `docs/adrs/0065-keep-temporal-plainmonthday-reference-normalization-shared.md`.
 
@@ -703,14 +711,19 @@ Related ADR:
 Issue #851 / PR #1178 fixed `Temporal.PlainYearMonth.prototype.equals` after
 full-date string conversion canonicalized the `islamicc` calendar alias and
 then recomputed the PlainYearMonth reference day through the canonical calendar.
-The durable lesson is that PlainYearMonth full-date strings already supply the
-ISO reference day used for equality; calendar annotation validation and alias
-canonicalization must not change that parsed reference-day domain. Property
-bags remain separate because their calendar-visible fields may require
-calendar-to-ISO conversion. Future PlainYearMonth equality or conversion work
-should prove the focused `Name=Temporal_PlainYearMonth_prototype_equals`
-Test262 method group, starting with the `canonicalize-calendar.js` fixture,
-and include local coverage for both string and property-bag calendar aliases.
+The durable lesson is that non-ISO PlainYearMonth full-date strings already
+supply the ISO reference day used for equality; calendar annotation validation
+and alias canonicalization must not change that parsed reference-day domain.
+Property bags remain separate because their calendar-visible fields may require
+calendar-to-ISO conversion. Issue #1341 / PR #1352 refined the ISO-calendar
+side of the same boundary: ISO PlainYearMonth full-date strings use the day for
+grammar validation but store reference day `1`, and partial-date string parsers
+must validate date-time tails before truncating them. Future PlainYearMonth
+equality or conversion work should prove the focused
+`Name=Temporal_PlainYearMonth_prototype_equals` Test262 method group, starting
+with the `canonicalize-calendar.js` fixture, and include local coverage for
+both string and property-bag calendar aliases; future PlainYearMonth parsing
+work should also prove `Name=Temporal_PlainYearMonth_from`.
 
 Related ADR:
 `docs/adrs/0062-keep-temporal-plainyearmonth-string-reference-day.md`.

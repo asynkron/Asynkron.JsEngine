@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.JsTypes;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -19,6 +20,44 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
         Assert.NotNull(zzzz);
         Assert.Equal(unknown, zzzz);
         return Task.CompletedTask;
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task AnchoredUnicodePropertyEscape_Any_MatchesFullCodePointString()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       const re = /^\p{Any}+$/u;
+                                                       [
+                                                         re.test("A" + String.fromCodePoint(0x1F600) + "\uD800"),
+                                                         re.test("")
+                                                       ];
+
+                                           """);
+
+        var values = Assert.IsType<JsArray>(result);
+        Assert.True(values.Items[0].AsBoolean());
+        Assert.False(values.Items[1].AsBoolean());
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task AnchoredUnicodePropertyEscape_NegatedAsciiHexDigit_MatchesByCodePoint()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       const re = /^\P{ASCII_Hex_Digit}+$/u;
+                                                       [
+                                                         re.test("G" + String.fromCodePoint(0x1F600)),
+                                                         re.test("F")
+                                                       ];
+
+                                           """);
+
+        var values = Assert.IsType<JsArray>(result);
+        Assert.True(values.Items[0].AsBoolean());
+        Assert.False(values.Items[1].AsBoolean());
     }
 
     [Fact(Timeout = 2000)]

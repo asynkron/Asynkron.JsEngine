@@ -3984,20 +3984,14 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowTypeError("toPlainDate requires a 'year' property", realm: realm);
             }
 
-            var yearNum = JsOps.ToNumber(yearValue);
-            if (double.IsInfinity(yearNum) || double.IsNaN(yearNum))
-            {
-                throw StandardLibrary.ThrowRangeError("year value must be finite", realm: realm);
-            }
-
-            var year = (int)yearNum;
+            var year = ToIntegerWithTruncation(yearValue, realm);
 
             // Constrain day to valid range for the target year/month
             var maxDay = IsoCalendarHelpers.DaysInMonth(year, md.Month);
             var day = Math.Min(md.Day, maxDay);
 
+            RejectISODate(year, md.Month, day, realm);
             var date = new JsTemporalPlainDate(year, md.Month, day, md.Calendar);
-            ValidatePlainDateRange(date, realm);
             return WrapPlainDate(date, realm, prototypes.PlainDatePrototype);
         });
 
@@ -4651,7 +4645,13 @@ public static class TemporalHelper
             throw StandardLibrary.ThrowRangeError("Value must be a finite number", realm: realm);
         }
 
-        return (int)Math.Truncate(number);
+        var integer = Math.Truncate(number);
+        if (integer < int.MinValue || integer > int.MaxValue)
+        {
+            throw StandardLibrary.ThrowRangeError("Value is out of supported integer range", realm: realm);
+        }
+
+        return (int)integer;
     }
 
     /// <summary>
@@ -5236,26 +5236,53 @@ public static class TemporalHelper
             return false;
         }
 
-        // 2. NormalizeTimeDuration: compute total nanoseconds from all time fields
-        // Use BigInteger to handle arbitrarily large values
-        var totalNanoseconds =
-            new BigInteger(days) * 86_400_000_000_000 +
-            new BigInteger(hours) * 3_600_000_000_000 +
-            new BigInteger(minutes) * 60_000_000_000 +
-            new BigInteger(seconds) * 1_000_000_000 +
-            new BigInteger(milliseconds) * 1_000_000 +
-            new BigInteger(microseconds) * 1_000 +
-            new BigInteger(nanoseconds);
+        if (!TryCreateDurationInteger(days, out var daysBig) ||
+            !TryCreateDurationInteger(hours, out var hoursBig) ||
+            !TryCreateDurationInteger(minutes, out var minutesBig) ||
+            !TryCreateDurationInteger(seconds, out var secondsBig) ||
+            !TryCreateDurationInteger(milliseconds, out var millisecondsBig) ||
+            !TryCreateDurationInteger(microseconds, out var microsecondsBig) ||
+            !TryCreateDurationInteger(nanoseconds, out var nanosecondsBig))
+        {
+            return false;
+        }
 
-        // Per spec: abs(normalizedSeconds) >= 2^53 → invalid
-        // In nanoseconds: abs(totalNanoseconds) >= 2^53 * 10^9
-        var maxTimeDuration = new BigInteger(9007199254740992) * 1_000_000_000;
-        if (BigInteger.Abs(totalNanoseconds) >= maxTimeDuration)
+        // 2. NormalizeTimeDuration: compute total nanoseconds from all time fields.
+        var totalNanoseconds =
+            daysBig * NanosecondsPerDay +
+            hoursBig * NanosecondsPerHour +
+            minutesBig * NanosecondsPerMinute +
+            secondsBig * NanosecondsPerSecond +
+            millisecondsBig * NanosecondsPerMillisecond +
+            microsecondsBig * NanosecondsPerMicrosecond +
+            nanosecondsBig;
+
+        // Per spec: abs(normalized nanoseconds) must not exceed max time duration.
+        if (BigInteger.Abs(totalNanoseconds) > MaxTimeDuration)
         {
             return false;
         }
 
         return true;
+    }
+
+    private static bool TryCreateDurationInteger(double value, out BigInteger integer)
+    {
+        integer = BigInteger.Zero;
+        if (double.IsNaN(value) || double.IsInfinity(value) || value != Math.Truncate(value))
+        {
+            return false;
+        }
+
+        try
+        {
+            integer = new BigInteger(value);
+            return true;
+        }
+        catch (OverflowException)
+        {
+            return false;
+        }
     }
 
     /// <summary>
@@ -11139,8 +11166,8 @@ public static class TemporalHelper
             throw StandardLibrary.ThrowRangeError(errorMessage, realm: realm);
         }
 
-        if (!TryGetCalendarMonthDayForIsoDate(calendar, new DateTime(referenceYear, isoMonth, isoDay),
-                out var calendarMonth, out var calendarDay, out var calendarMonthCode))
+        if (!TryGetCalendarDateForIsoDate(calendar, new DateTime(referenceYear, isoMonth, isoDay),
+                out var calendarYear, out var calendarMonth, out var calendarDay, out var calendarMonthCode))
         {
             throw StandardLibrary.ThrowRangeError(errorMessage, realm: realm);
         }
@@ -11148,7 +11175,7 @@ public static class TemporalHelper
         return ApplyOverflowToNonIsoMonthDay(
             calendarMonth,
             calendarDay,
-            referenceYear,
+            calendarYear,
             calendar,
             calendarMonthCode,
             true,
@@ -11513,6 +11540,12 @@ public static class TemporalHelper
     private static bool TryGetCalendarMonthDayForIsoDate(string calendar, DateTime isoDate, out int month, out int day,
         out string monthCode)
     {
+        return TryGetCalendarDateForIsoDate(calendar, isoDate, out _, out month, out day, out monthCode);
+    }
+
+    private static bool TryGetCalendarDateForIsoDate(string calendar, DateTime isoDate, out int year, out int month, out int day,
+        out string monthCode)
+    {
         switch (calendar)
         {
             case "iso8601":
@@ -11520,13 +11553,14 @@ public static class TemporalHelper
             case "buddhist":
             case "japanese":
             case "roc":
+                year = isoDate.Year;
                 month = isoDate.Month;
                 day = isoDate.Day;
                 monthCode = $"M{month:D2}";
                 return true;
         }
 
-        if (TryGetFixedCalendarMonthDayForIsoDate(calendar, isoDate, out month, out day, out monthCode))
+        if (TryGetFixedCalendarDateForIsoDate(calendar, isoDate, out year, out month, out day, out monthCode))
         {
             return true;
         }
@@ -11535,15 +11569,16 @@ public static class TemporalHelper
         {
             try
             {
-                var calendarYear = bclCalendar.GetYear(isoDate);
+                year = bclCalendar.GetYear(isoDate);
                 var calendarMonth = bclCalendar.GetMonth(isoDate);
                 day = bclCalendar.GetDayOfMonth(isoDate);
-                monthCode = BuildMonthCodeFromBclMonth(calendarMonth, GetLeapMonth(bclCalendar, calendarYear), bclCalendar);
+                monthCode = BuildMonthCodeFromBclMonth(calendarMonth, GetLeapMonth(bclCalendar, year), bclCalendar);
                 month = MonthCodeNumericValue(monthCode);
                 return true;
             }
             catch (ArgumentOutOfRangeException)
             {
+                year = 0;
                 month = 0;
                 day = 0;
                 monthCode = "";
@@ -11551,13 +11586,14 @@ public static class TemporalHelper
             }
         }
 
+        year = 0;
         month = 0;
         day = 0;
         monthCode = "";
         return false;
     }
 
-    private static bool TryGetFixedCalendarMonthDayForIsoDate(string calendar, DateTime isoDate, out int month,
+    private static bool TryGetFixedCalendarDateForIsoDate(string calendar, DateTime isoDate, out int year, out int month,
         out int day, out string monthCode)
     {
         if (string.Equals(calendar, "coptic", StringComparison.Ordinal) ||
@@ -11573,6 +11609,7 @@ public static class TemporalHelper
                 yearStart = new DateTime(previousYear, 9, previousYearStartDay);
             }
 
+            year = yearStart.Year - 283;
             var dayOffset = (isoDate - yearStart).Days;
             month = dayOffset / 30 + 1;
             day = dayOffset % 30 + 1;
@@ -11589,6 +11626,7 @@ public static class TemporalHelper
                 yearStart = new DateTime(previousYear, 3, DateTime.IsLeapYear(previousYear) ? 21 : 22);
             }
 
+            year = yearStart.Year - 78;
             var isLeapIndianYear = DateTime.IsLeapYear(yearStart.Year);
             var monthLengths = isLeapIndianYear
                 ? new[] { 31, 31, 31, 31, 31, 31, 30, 30, 30, 30, 30, 30 }
@@ -11606,6 +11644,7 @@ public static class TemporalHelper
             return true;
         }
 
+        year = 0;
         month = 0;
         day = 0;
         monthCode = "";
@@ -14227,7 +14266,14 @@ public static class TemporalHelper
             var tIdx = FindDateTimeSeparator(baseStr[startIdx..]);
             var hasTimePart = tIdx >= 0;
             if (hasTimePart)
-                baseStr = baseStr[..(tIdx + startIdx)];
+            {
+                tIdx += startIdx;
+                var afterT = baseStr[(tIdx + 1)..];
+                if (afterT.Length == 0)
+                    throw StandardLibrary.ThrowRangeError($"Invalid PlainYearMonth string: {str}", realm: realm);
+                ValidateDateTimeTimePart(afterT, realm);
+                baseStr = baseStr[..tIdx];
+            }
 
             // Try to parse as YYYY-MM (no day) first, then fall back to full YYYY-MM-DD
             var ymResult = TryParseYearMonth(baseStr, str, realm);
@@ -14255,7 +14301,8 @@ public static class TemporalHelper
             // Use ParseDatePartNoRangeCheck: day is discarded, only year+month range matters
             var (year, month, day) = ParseDatePartNoRangeCheck(baseStr, str, realm);
             RejectISOYearMonthRange(year, month, realm);
-            return new JsTemporalPlainYearMonth(year, month, calendar, day);
+            var referenceDay = string.Equals(calendar, "iso8601", StringComparison.Ordinal) ? 1 : day;
+            return new JsTemporalPlainYearMonth(year, month, calendar, referenceDay);
         }
 
         // 2. Non-string primitives → TypeError
@@ -14329,7 +14376,14 @@ public static class TemporalHelper
                 startIdx = 1;
             var tIdx = FindDateTimeSeparator(baseStr[startIdx..]);
             if (tIdx >= 0)
-                baseStr = baseStr[..(tIdx + startIdx)];
+            {
+                tIdx += startIdx;
+                var afterT = baseStr[(tIdx + 1)..];
+                if (afterT.Length == 0)
+                    throw StandardLibrary.ThrowRangeError($"Invalid PlainMonthDay string: {str}", realm: realm);
+                ValidateDateTimeTimePart(afterT, realm);
+                baseStr = baseStr[..tIdx];
+            }
 
             // Handle --MM-DD or --MMDD format (no year)
             if (baseStr.StartsWith("--", StringComparison.Ordinal))

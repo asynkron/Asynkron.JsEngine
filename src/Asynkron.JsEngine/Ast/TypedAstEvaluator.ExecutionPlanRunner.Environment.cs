@@ -158,6 +158,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             var generatorContext = _realmState.CreateContext(
                 ScopeKind.Function,
                 DetermineGeneratorScopeMode());
+            generatorContext.InGeneratorContext = _isGenerator;
             using var capturedPrivateScopes = !_capturedPrivateNameScopes.IsDefaultOrEmpty
                 ? generatorContext.EnterPrivateNameScopes(_capturedPrivateNameScopes)
                 : null;
@@ -397,10 +398,12 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 _context = _realmState.CreateContext(
                     ScopeKind.Function,
                     DetermineGeneratorScopeMode());
+                _context.InGeneratorContext = _isGenerator;
             }
             else
             {
                 _context.Clear();
+                _context.InGeneratorContext = _isGenerator;
                 // Ensure the scope frame reflects the function's strictness.
                 // The AST path may have popped the initial scope frame, or Clear()
                 // may have been called after previous use. Re-push to guarantee

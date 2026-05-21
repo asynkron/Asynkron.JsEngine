@@ -16,6 +16,7 @@ use_local_profiler=false
 profiler_ready=false
 engine_args=()
 profiler_args=()
+jsengine_scope="Asynkron.JsEngine"
 
 log() {
   printf '%s\n' "$*" >&2
@@ -93,6 +94,39 @@ run_profile() {
   else
     run_profiler "$@" -- "${runner_cmd[@]}" "$profile_key"
   fi
+}
+
+has_profiler_flag() {
+  local long_flag=$1
+  local short_flag=${2:-}
+  local arg=""
+  for arg in "${profiler_args[@]-}"; do
+    if [[ "$arg" == "$long_flag" || "$arg" == "$long_flag="* ]]; then
+      return 0
+    fi
+    if [[ -n "$short_flag" && ( "$arg" == "$short_flag" || "$arg" == "$short_flag="* ) ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+run_default_split_profile() {
+  local profile_key=$1
+  local cpu_args=("${profiler_args[@]-}")
+  local memory_args=("${profiler_args[@]-}")
+
+  if ! has_profiler_flag "--root"; then
+    cpu_args+=("--root" "$jsengine_scope")
+    memory_args+=("--root" "$jsengine_scope")
+  fi
+
+  if ! has_profiler_flag "--filter"; then
+    cpu_args+=("--filter" "$jsengine_scope")
+  fi
+
+  run_profile "$profile_key" --cpu "${cpu_args[@]}"
+  run_profile "$profile_key" --memory "${memory_args[@]}"
 }
 
 args=("$@")
@@ -193,7 +227,7 @@ fi
 if [[ "$profile_key" == "all" ]]; then
   build_runner
   ensure_profiler
-  python3 - <<'PY' "$script_dir/profile-manifest.json" "${runner_exe}" "${runner_dll}" --profiler-cmd "${profiler_cmd[@]}" --engine-args "${engine_args[@]}" --profiler-args "${profiler_args[@]}"
+  python3 - <<'PY' "$script_dir/profile-manifest.json" "${runner_exe}" "${runner_dll}" "$jsengine_scope" --profiler-cmd "${profiler_cmd[@]}" --engine-args "${engine_args[@]}" --profiler-args "${profiler_args[@]}"
 import json
 import subprocess
 import sys
@@ -202,7 +236,8 @@ from pathlib import Path
 manifest_path = sys.argv[1]
 runner_exe = Path(sys.argv[2])
 runner_dll = Path(sys.argv[3])
-raw_args = sys.argv[4:]
+jsengine_scope = sys.argv[4]
+raw_args = sys.argv[5:]
 engine_args = []
 profiler_args = []
 profiler_cmd = []
@@ -234,12 +269,38 @@ if not profiler_cmd:
     profiler_cmd = ["asynkron-profiler"]
 
 profiles = sorted(data.get("profiles", {}).keys())
+
+def has_flag(name: str) -> bool:
+    return any(arg == name or arg.startswith(name + "=") for arg in profiler_args)
+
+has_cpu = has_flag("--cpu") or has_flag("-c")
+has_memory = has_flag("--memory") or has_flag("-m")
+has_root = has_flag("--root")
+has_filter = has_flag("--filter")
+default_split = not has_cpu and not has_memory
+
 for key in profiles:
-    cmd = [*profiler_cmd, *profiler_args, "--", *runner_cmd, *engine_args, key]
-    subprocess.run(cmd, check=True, cwd=str(tools_dir))
+    if default_split:
+        cpu_args = [*profiler_args, "--cpu"]
+        memory_args = [*profiler_args, "--memory"]
+        if not has_root:
+            cpu_args.extend(["--root", jsengine_scope])
+            memory_args.extend(["--root", jsengine_scope])
+        if not has_filter:
+            cpu_args.extend(["--filter", jsengine_scope])
+        for mode_args in (cpu_args, memory_args):
+            cmd = [*profiler_cmd, *mode_args, "--", *runner_cmd, *engine_args, key]
+            subprocess.run(cmd, check=True, cwd=str(tools_dir))
+    else:
+        cmd = [*profiler_cmd, *profiler_args, "--", *runner_cmd, *engine_args, key]
+        subprocess.run(cmd, check=True, cwd=str(tools_dir))
 PY
   exit 0
 fi
 
 build_runner
-run_profile "$profile_key" "${profiler_args[@]}"
+if has_profiler_flag "--cpu" "-c" || has_profiler_flag "--memory" "-m"; then
+  run_profile "$profile_key" "${profiler_args[@]-}"
+else
+  run_default_split_profile "$profile_key"
+fi

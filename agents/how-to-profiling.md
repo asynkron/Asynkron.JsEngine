@@ -5,8 +5,8 @@ Use `./tools/profile` (builds ProfileRunner, runs asynkron-profiler, converts tr
 
 Examples:
 ```bash
-./tools/profile fib            # CPU + memory
-./tools/profile forloop        # CPU + memory
+./tools/profile fib            # separate CPU-only + memory-only passes, scoped to Asynkron.JsEngine
+./tools/profile forloop        # separate CPU-only + memory-only passes, scoped to Asynkron.JsEngine
 ./tools/profile all            # run all benchmarks
 ./tools/profile fib --cpu      # CPU only
 ./tools/profile fib --memory   # memory only
@@ -14,6 +14,12 @@ Examples:
 ./tools/profile fib --heap     # heap snapshot only
 ./tools/profile --compare      # Jint comparison benchmarks
 ```
+
+Default scoping contract:
+- If no explicit mode is provided, `./tools/profile <profile>` runs CPU and memory as two separate profiler invocations.
+- CPU defaults to `--root Asynkron.JsEngine --filter Asynkron.JsEngine`.
+- Memory defaults to `--root Asynkron.JsEngine`.
+- Explicit `--cpu`, `--memory`, `--root`, and `--filter` flags are preserved and are not overridden.
 
 Output example:
 ```

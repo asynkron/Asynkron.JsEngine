@@ -1,16 +1,26 @@
 # Remaining Test262 Gaps — 2026-03-19
 
 > [!NOTE]
-> The totals in this document are a historical snapshot from 2026-03-19.
+> The totals and category breakdowns in this document are a historical snapshot from 2026-03-19.
+> Do not use this file alone to pick current implementation work.
 > For current regression-session evidence, use:
 > - `tests/Asynkron.JsEngine.Tests.Test262/current-regressions.filter.txt` (master list)
 > - `tests/Asynkron.JsEngine.Tests.Test262/regression-packs/` (subsystem packs)
 > - `./tools/run-test262-regressions.sh --list` (list available packs)
 
+## Current Workflow (Source of Truth)
+
+1. Start from `tests/Asynkron.JsEngine.Tests.Test262/current-regressions.filter.txt` for the active owning failure list.
+2. Choose one focused slice from `tests/Asynkron.JsEngine.Tests.Test262/regression-packs/`.
+3. Run `./tools/run-test262-regressions.sh --list` to confirm available pack names before selecting a pack.
+4. Use the sections below only as historical context for why specific clusters were grouped.
+
 **Baseline: 89,127 passed / 92,975 total (95.9%)**
 **38 todo files, ~1,200 remaining test entries**
 
 ---
+
+## Historical Snapshot Breakdown (2026-03-19)
 
 ## 1. RegExp — .NET Regex Engine Limitations (~930 tests)
 

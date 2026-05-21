@@ -444,7 +444,13 @@ public static partial class GlobalHelper
 
         if (byteCount == 1)
         {
-            var decodedChar = (char)bytes[0];
+            var singleByte = bytes[0];
+            if (GetUtf8SequenceLength(singleByte, realm) != 1)
+            {
+                throw ThrowURIError("URI malformed", realm: realm);
+            }
+
+            var decodedChar = (char)singleByte;
             decoded = preserveReservedEscapes && IsDecodeUriReserved(decodedChar)
                 ? str
                 : decodedChar.ToString();

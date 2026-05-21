@@ -33,6 +33,9 @@ public sealed class GlobalUriTests(ITestOutputHelper output) : InternalTestBase(
         var result = await engine.Evaluate("""
             const inputs = [
                 '%',
+                '%80',
+                '%FF',
+                '%C2',
                 '%F0%90%80',
                 '%F0%90%80%41',
                 '%C0%80',
@@ -42,6 +45,26 @@ public sealed class GlobalUriTests(ITestOutputHelper output) : InternalTestBase(
             inputs.every(input => {
                 try {
                     decodeURIComponent(input);
+                    return false;
+                } catch (e) {
+                    return e instanceof URIError;
+                }
+            });
+            """);
+
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task DecodeURI_RejectsMalformedSingleByteUtf8LeadBytes()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            const inputs = ['%80', '%FF', '%C2'];
+            inputs.every(input => {
+                try {
+                    decodeURI(input);
                     return false;
                 } catch (e) {
                     return e instanceof URIError;

@@ -624,6 +624,7 @@ public sealed class EvaluationContext(
         CallDepth = 0;
         MaxCallDepth = 1000;
         IsThisInitialized = true;
+        InGeneratorContext = false;
         SourceReference = null;
     }
 

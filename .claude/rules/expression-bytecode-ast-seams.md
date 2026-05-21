@@ -71,6 +71,12 @@ fallback or cleanup.
     that the runner files have no obvious direct call; it does not prove that a
     dynamic entry point still reaches the IR/function pipeline under runtime
     execution.
+15. When renaming, removing, or splitting expression-program bridge APIs, search
+    both the primary IR/runtime files and the quarantined legacy AST evaluator
+    directory for stale bridge calls. Legacy dynamic boundaries may still be the
+    caller that routes AST-owned statements into lowered `ExpressionProgram`
+    execution; a stale call there can make `main` fail to compile even when the
+    normal runner path and focused AST-free tests look correct.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 
@@ -165,3 +171,12 @@ that indirect eval plus `Function` and `AsyncFunction` constructor execution
 lacked explicit `AssertNoAstEvaluation` tests. Future agents should turn
 classification claims for dynamic boundaries into executable proof coverage,
 not rely only on seam scans or adjacent direct-eval/with tests.
+
+Issue #1461 / PR #1462 repaired a `main is red` compile failure after
+`EvaluateCachedExpressionProgram` was removed but the legacy dynamic
+return-expression boundary still called it. The correct caller is
+`EvaluateDynamicExpressionProgram`, because this seam starts in quarantined AST
+statement evaluation but must execute the return expression through the dynamic
+expression-program bridge. Future bridge refactors need a whole-AST bridge-call
+search, including `src/Asynkron.JsEngine/Ast/Legacy`, before they claim the
+rename/removal is complete.

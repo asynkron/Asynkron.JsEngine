@@ -3633,6 +3633,37 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsWithScopedReturnExpressionExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                const scopeObj = { answer: 39, offset: 3 };
+                function readWithReturnExpression() {
+                    with (scopeObj) {
+                        return answer + offset;
+                    }
+                }
+                """);
+
+            var readWithReturnExpression = Assert.IsType<FunctionDeclaration>(program.Body[1]);
+            AssertPlanBuilds(readWithReturnExpression.Function);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("readWithReturnExpression");
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
     private JsValue InvokeGlobalFunction(string name, params JsValue[] args)
     {
         Assert.True(_engine.GlobalObject.TryGetProperty(name, out var callableValue),

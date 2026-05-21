@@ -26,6 +26,10 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   actual directory listing as the baseline signal. Treat doc/filesystem drift
   as the bounded slice; do not widen the run to also edit unrelated examples
   in the same file.
+- When a tooling/docs slice needs agents to discover available options, prefer
+  an explicit non-failing inventory command over making agents probe an invalid
+  argument just to see an error message. Keep the listing path backed by the
+  same computed source that validation uses.
 - When the slice touches ADR creation guidance, include the cheap duplicate
   prefix signal as evidence, but keep ADR ID allocation aligned with
   `.claude/rules/adr-allocation.md`: Faktorial learn or knowledge-artifact work
@@ -76,3 +80,9 @@ was already handling the README stale-link candidate
 (`docs/remaining-test262-gaps.md`). The durable lesson for #1324 was not to
 duplicate the README slice, but to add an explicit sibling-summary check so
 parallel recurring children choose different bounded slices.
+
+Issue #1325 / PR #1326 made `tools/run-test262-regressions.sh --list` exit
+successfully and print the same pack list used by invalid-pack validation.
+Before that, agents had to call an intentionally invalid pack name to discover
+available regression packs, which turned normal workflow discovery into a
+failing command and added avoidable noise to recurring maintenance evidence.

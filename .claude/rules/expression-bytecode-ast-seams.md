@@ -54,6 +54,14 @@ fallback or cleanup.
     than substrings. For `ExpressionOpKind` coverage, require an
     `ExpressionOpKind.<Name>` token boundary so a longer member such as
     `LoadIdentifierCallTarget` cannot satisfy coverage for `LoadIdentifier`.
+13. When expanding `ObjectExpression` bytecode support for static property
+    names, normalize syntax key nodes through ECMAScript property-key semantics
+    instead of diagnostic formatting. Identifier key nodes should use the
+    identifier symbol name; literal key nodes that carry a `JsValue` must route
+    through `JsOps.ToPropertyName(...)`, not `JsValue.ToString()` or broad
+    `object.ToString()` fallback. Keep computed-key shape validation separate
+    from static-key normalization, and prove both the new accepted shapes and
+    the still-invalid computed-key shape.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 
@@ -133,3 +141,10 @@ formatting. Review found the first implementation used substring matching, so a
 longer enum member could hide missing coverage for a shorter enum member. Future
 source gates must encode the token shape they claim to prove, otherwise a
 guardrail can pass while the runtime or diagnostic surface has still drifted.
+
+Issue #1442 / PR #1453 expanded static object literal key support for expression
+bytecode. Review caught that `LiteralExpression` key nodes carrying `JsValue`
+must use JavaScript property-name conversion, because diagnostic `ToString()`
+can leak string quotes or a BigInt `n` suffix into lowered property names. Future
+object-literal bytecode slices should keep parser-literal normalization, AST key
+node normalization, and computed-key validation as separate proof points.

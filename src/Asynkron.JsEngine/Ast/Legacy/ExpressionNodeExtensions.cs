@@ -397,7 +397,7 @@ public static partial class TypedAstEvaluator
     {
         // Most yield expressions should be lowered by GeneratorYieldLowerer and compiled to IR.
         // However, some yields (like those in destructuring default values) cannot be extracted
-            // and are evaluated via a legacy AST fallback wrapper around the containing for-of loop.
+        // and are evaluated via a legacy AST fallback wrapper around the containing for-of loop.
         // In this case, we signal a yield via the context so the caller can save state.
 
         if (expression.IsDelegated)

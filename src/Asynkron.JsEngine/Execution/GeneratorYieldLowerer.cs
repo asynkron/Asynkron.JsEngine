@@ -3160,8 +3160,8 @@ internal static class GeneratorYieldLowerer
             // Handle rest element if present
             if (objectBinding.RestElement is not null)
             {
-                // For rest element in objects, we need to collect remaining enumerable own properties
-                // This is complex - for now, return false to fall back to AST evaluation
+                // For rest element in objects, we need to collect remaining enumerable own properties.
+                // This lowering shape is not implemented yet, so keep the caller on its existing fallback path.
                 // TODO: Implement rest element lowering
                 return false;
             }

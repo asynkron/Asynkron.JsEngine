@@ -750,12 +750,12 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AwaitExpressionStatement_UsesAwaitInstruction()
+    public async Task AwaitExpressionStatement_UsesDedicatedAwaitInstruction()
     {
         await using var engine = CreateEngine();
 
         var program = engine.ParseProgram("""
-            async function testAwaitStatementInstruction() {
+            async function testAwaitExpressionStatement() {
                 await Promise.resolve(1);
                 return 7;
             }
@@ -764,7 +764,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         await engine.Evaluate(program);
         var result = await engine.EvaluateAndAwait("""
             let awaitStatementResult = undefined;
-            testAwaitStatementInstruction().then(value => awaitStatementResult = value);
+            testAwaitExpressionStatement().then(value => awaitStatementResult = value);
             awaitStatementResult;
             """);
         Assert.Equal(7.0, result);
@@ -1109,7 +1109,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 5000)]
-    public async Task SequenceExpression_ReusesDedicatedStatementInstructions()
+    public async Task SequenceExpression_ReusesDedicatedInstructionForms()
     {
         await using var engine = CreateEngine();
 
@@ -1200,7 +1200,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 5000)]
-    public async Task ConditionalExpression_ReusesBranchAndDedicatedStatementInstructions()
+    public async Task ConditionalExpression_ReusesBranchAndDedicatedInstructionForms()
     {
         await using var engine = CreateEngine();
 

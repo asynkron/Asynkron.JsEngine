@@ -643,7 +643,11 @@ public sealed partial class IteratorPrototype : JsPrototype
             throw StandardLibrary.ThrowTypeError("return is not a function", null, null);
         }
 
-        returnMethod.Invoke([], JsValue.FromObjectUnsafe(iterator));
+        var returnResult = returnMethod.Invoke([], JsValue.FromObjectUnsafe(iterator));
+        if (!returnResult.TryGetObjectLike(out _))
+        {
+            throw StandardLibrary.ThrowTypeError("Iterator.return() must return an object", null, null);
+        }
     }
 
     /// <summary>

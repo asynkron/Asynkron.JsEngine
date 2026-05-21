@@ -29,6 +29,34 @@ fallback or cleanup.
    `dynamic-but-lowered` eval/with/generated-function paths with the remaining
    module-body dispatch leak unless a current call site proves the same AST
    runtime behavior.
+8. When turning a source seam scan into an automated test, assert that the
+   expected source files were discovered before asserting zero forbidden calls.
+   A source gate that can pass with zero scanned files is not a guardrail.
+
+## Dynamic Boundary Classification (#1405 Retry)
+
+Use this boundary map when documenting or planning expression-bytecode vs AST
+work. Do not collapse these seams into one generic "AST fallback" bucket.
+
+1. Direct `eval`: dynamic-but-lowered. `EvalHostFunction` parses source, builds
+   eval environments, and executes through
+   `EvaluateProgram(..., ExecutionKind.Eval, ...)`.
+2. `with` statements: IR-only for supported shapes. `WithEmitter` lowers the
+   object expression into expression bytecode and emits
+   `EnterWithInstruction`/`LeaveWithInstruction`; dynamic lookup is handled by
+   runtime scope behavior, not AST expression walking.
+3. `Function` / `AsyncFunction` constructors: dynamic-but-lowered. Generated
+   source is parsed and executed through the normal program/function execution
+   pipeline.
+4. Normal/generated sync function bodies: IR runner path. Supported functions
+   execute cached `ExecutionPlan` via `ExecutionPlanRunner`; expected plan
+   failures throw instead of silently falling back to AST evaluation.
+5. Module body dispatch: AST-runtime leak / unclear migration target.
+   Non-import/export module statements still run through per-statement wrapper
+   execution in `JsEngine` and should be treated as the next migration slice.
+6. Expression payloads on inspected IR paths: bytecode-backed via
+   `ExpressionProgram` and `EvaluateExpressionProgram`, not raw AST expression
+   walking.
 
 ## Why
 
@@ -40,11 +68,17 @@ dynamic-only boundaries, and a profiling bridge. Future bytecode work needs
 that classification discipline so stale references do not create new mixed
 AST/IR fallback paths and real legacy boundaries remain visible follow-up work.
 
-Issue #1405 applied the same lesson to dynamic boundaries. Direct eval and
-Function constructors parse dynamic source and then lower through script or
-function IR; supported `with` execution is already lowered while deliberately
-using dynamic environment lookup instead of user slot fast paths. The durable
-next slice is module body execution, where non-import/export statements still
-pass through a per-statement wrapper rather than an explicit module-body
-plan/cache. Future agents need this split so eval/with work does not absorb the
-module-body migration or accidentally remove dynamic-scope safeguards.
+Issue #1405, retried by #1414, applied the same lesson to dynamic boundaries.
+Direct eval and Function constructors parse dynamic source and then lower
+through script or function IR; supported `with` execution is already lowered
+while deliberately using dynamic environment lookup instead of user slot fast
+paths. The durable next slice is module body execution, where non-import/export
+statements still pass through a per-statement wrapper rather than an explicit
+module-body plan/cache. Future agents need this split so eval/with work does not
+absorb the module-body migration or accidentally remove dynamic-scope
+safeguards.
+
+Issue #1408 added execution-plan diagnostics drift gates. Review found the
+runner seam source-gate test could pass vacuously if no
+`TypedAstEvaluator.ExecutionPlanRunner*.cs` files were found, so source-scan
+tests must prove discovery before they claim absence of forbidden AST seams.

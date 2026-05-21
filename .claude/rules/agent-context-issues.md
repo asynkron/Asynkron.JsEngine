@@ -82,3 +82,8 @@ build-stage reran that exact command and the timeout-shaped variant on the
 current worktree and both passed 3919 tests. No source change was warranted; the
 useful durable rule is to reprove main-health failures before patching and to
 close stale/transient reds with evidence instead of changing unrelated owners.
+Issue #1400 repeated the same pattern for `main is red: 391ce40`: the stored
+mainverify status pointed at `dotnet build Asynkron.JsEngine.sln`, but the
+build-stage reran that exact command on the current issue branch and it passed
+with no source diff. That incident confirms the rule covers build-health reds as
+well as test-health reds.

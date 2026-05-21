@@ -5,8 +5,6 @@ using Asynkron.JsEngine.Execution.Instructions;
 
 #endregion
 
-#pragma warning disable CS0618 // Obsolete AST evaluation methods are used intentionally here
-
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
@@ -69,15 +67,6 @@ public static partial class TypedAstEvaluator
         private static int ProfileHandleJump(JumpInstruction jumpInstruction)
         {
             return jumpInstruction.TargetIndex;
-        }
-
-        [MethodImpl(JsEngineConstants.Inlining)]
-        private static JsValue ProfileEvaluateStatement(
-                    StatementNode statement,
-                    JsEnvironment environment,
-                    EvaluationContext context)
-        {
-            return statement.EvaluateStatementJsValue(environment, context);
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]

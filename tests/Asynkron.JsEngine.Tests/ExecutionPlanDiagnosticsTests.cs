@@ -215,7 +215,7 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             var fullPath = Path.Combine(repositoryRoot.FullName, target.RelativePath);
             var sourceText = File.ReadAllText(fullPath);
             var missing = values
-                .Where(kind => !sourceText.Contains($"ExpressionOpKind.{kind}", StringComparison.Ordinal))
+                .Where(kind => !ContainsExpressionOpKindToken(sourceText, kind))
                 .OrderBy(kind => kind)
                 .ToArray();
             if (missing.Length == 0)
@@ -624,4 +624,10 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
     }
 
     private sealed record SourceGateTarget(string SurfaceName, string RelativePath);
+
+    private static bool ContainsExpressionOpKindToken(string sourceText, ExpressionOpKind kind)
+    {
+        var pattern = $@"\bExpressionOpKind\.{Regex.Escape(kind.ToString())}\b";
+        return Regex.IsMatch(sourceText, pattern, RegexOptions.CultureInvariant);
+    }
 }

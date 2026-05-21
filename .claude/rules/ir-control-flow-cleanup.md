@@ -40,6 +40,13 @@ scope cleanup chains.
    lexical scope id. Dynamic `with` frames have to be matched by their
    slot/frame identity so cleanup stops at the enclosing object environment
    instead of treating the no-lexical-scope case as unbounded cleanup.
+9. For `yield*` delegated return handling, keep generator delegates and
+   non-generator iterators split. Generator delegates must preserve pending
+   return completion across temporary cleanup yields (`done:false`), while
+   non-generator iterators only enter delegated return completion when
+   `return()` synchronously reports `done:true`. Awaited non-generator
+   `return()` results must resume delegation instead of immediately completing
+   the outer generator.
 
 ## Why
 
@@ -76,3 +83,12 @@ boundaries are not lexical ids only: when `with` is active, loop, switch, and
 labeled target emitters must capture a boundary that can identify the dynamic
 frame by slot identity and prove property lookup after the break still sees the
 enclosing object.
+
+Issue #1039 / PR #1278 fixed Test262 `Expressions_yield` after delegated
+`yield*` return handling collapsed different iterator-return shapes. Generator
+delegates can yield cleanup values while a return completion is still pending,
+but non-generator iterators with awaited `return()` results must keep
+delegating on resume unless `return()` synchronously completed with
+`done:true`. The durable rule is that delegated abrupt-completion state must
+preserve that split instead of treating every propagated return or throw as the
+same pending completion.

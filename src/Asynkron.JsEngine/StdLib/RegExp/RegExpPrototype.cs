@@ -529,6 +529,13 @@ public sealed partial class RegExpPrototype
         // Step 7: If flags contains "g", let global be true, else let global be false.
         var isGlobal = flags.Contains('g', StringComparison.Ordinal);
 
+        if (!functionalReplace &&
+            isGlobal &&
+            TryReplaceLegacyGlobalNonWhitespacePlus(thisValue, input, replaceStr, out var fastReplaceResult))
+        {
+            return new JsValue(fastReplaceResult);
+        }
+
         bool fullUnicode = false;
         if (isGlobal)
         {
@@ -658,6 +665,91 @@ public sealed partial class RegExpPrototype
         }
 
         return new JsValue(accumulatedResult.ToString());
+    }
+
+    private bool TryReplaceLegacyGlobalNonWhitespacePlus(
+        JsValue thisValue,
+        string input,
+        string replacement,
+        out string result)
+    {
+        result = string.Empty;
+        if (replacement.Contains('$', StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var regex = ResolveRegExpFromThisValue(thisValue);
+        if (regex is null ||
+            !string.Equals(regex.Pattern, @"\S+", StringComparison.Ordinal) ||
+            !string.Equals(regex.Flags, "g", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        SetProperty(thisValue, "lastIndex", new JsValue(0d));
+
+        StringBuilder? builder = null;
+        var sourcePosition = 0;
+        var lastMatchIndex = -1;
+        var lastMatchLength = 0;
+
+        for (var i = 0; i < input.Length; i++)
+        {
+            if (IsEcmaWhitespace(input[i]))
+            {
+                continue;
+            }
+
+            var end = i + 1;
+            while (end < input.Length && !IsEcmaWhitespace(input[end]))
+            {
+                end++;
+            }
+
+            builder ??= new StringBuilder(input.Length + replacement.Length);
+            builder.Append(input.AsSpan(sourcePosition, i - sourcePosition));
+            builder.Append(replacement);
+            sourcePosition = end;
+            lastMatchIndex = i;
+            lastMatchLength = end - i;
+            i = end - 1;
+        }
+
+        if (builder is null)
+        {
+            result = input;
+            return true;
+        }
+
+        builder.Append(input.AsSpan(sourcePosition));
+        result = builder.ToString();
+        Realm.UpdateRegExpStatics(input, lastMatchIndex, lastMatchLength);
+        return true;
+    }
+
+    private static bool IsEcmaWhitespace(char c)
+    {
+        switch (c)
+        {
+            case '\t':
+            case '\n':
+            case '\v':
+            case '\f':
+            case '\r':
+            case ' ':
+            case '\u00a0':
+            case '\u1680':
+            case '\u2028':
+            case '\u2029':
+            case '\u202f':
+            case '\u205f':
+            case '\u3000':
+            case '\ufeff':
+                return true;
+            default:
+                return c >= '\u2000' && c <= '\u200a';
+        }
     }
 
     [JsSymbolMethod("search", Length = 1d)]

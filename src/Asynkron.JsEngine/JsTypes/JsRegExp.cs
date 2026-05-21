@@ -207,7 +207,9 @@ public sealed class JsRegExp
         // identity escapes are frequently source-only and one-shot in Test262,
         // so those stay interpreted when first matched.
         var options = RegexOptions.CultureInvariant;
-        if (!canDeferInitialConstruction && _normalizedPattern.Length <= LargePatternThreshold)
+        if (!canDeferInitialConstruction &&
+            (_encodedFlags & FlagGlobal) == 0 &&
+            _normalizedPattern.Length <= LargePatternThreshold)
         {
             options |= RegexOptions.Compiled;
         }
@@ -231,6 +233,11 @@ public sealed class JsRegExp
         }
 
         if (canDeferInitialConstruction)
+        {
+            return;
+        }
+
+        if (IsLegacyGlobalNonWhitespacePlus())
         {
             return;
         }
@@ -325,6 +332,13 @@ public sealed class JsRegExp
             return false;
         }
 
+        if (TryMatchLegacyGlobalNonWhitespacePlus(input, startIndex, out var fastIndex, out var fastLength))
+        {
+            SetLastIndexStrict(fastIndex + fastLength);
+            RealmState.UpdateRegExpStatics(input, fastIndex, fastLength);
+            return true;
+        }
+
         var match = EnsureRegex().Match(input, startIndex);
 
         // Sticky: match must start exactly at startIndex.
@@ -394,6 +408,13 @@ public sealed class JsRegExp
             }
 
             return null;
+        }
+
+        if (TryMatchLegacyGlobalNonWhitespacePlus(input, startIndex, out var fastIndex, out var fastLength))
+        {
+            SetLastIndexStrict(fastIndex + fastLength);
+            RealmState.UpdateRegExpStatics(input, fastIndex, fastLength);
+            return CreateSimpleMatchArray(input, fastIndex, fastLength);
         }
 
         var match = EnsureRegex().Match(input, startIndex);
@@ -1304,6 +1325,47 @@ public sealed class JsRegExp
         return _compiledRegex ??= new Regex(CapLargeQuantifiers(_normalizedPattern), _regexOptions);
     }
 
+    private bool IsLegacyGlobalNonWhitespacePlus()
+    {
+        return _encodedFlags == FlagGlobal &&
+               Pattern.Length == 3 &&
+               Pattern[0] == '\\' &&
+               Pattern[1] == 'S' &&
+               Pattern[2] == '+';
+    }
+
+    private bool TryMatchLegacyGlobalNonWhitespacePlus(string input, int startIndex, out int index, out int length)
+    {
+        index = -1;
+        length = 0;
+
+        if (!IsLegacyGlobalNonWhitespacePlus())
+        {
+            return false;
+        }
+
+        for (var i = startIndex; i < input.Length; i++)
+        {
+            if (IsEcmaWhitespace(input[i]))
+            {
+                continue;
+            }
+
+            var end = i + 1;
+            while (end < input.Length && !IsEcmaWhitespace(input[end]))
+            {
+                end++;
+            }
+
+            index = i;
+            length = end - i;
+            return true;
+        }
+
+        SetLastIndexStrict(0);
+        return false;
+    }
+
     private static bool CanDeferInitialRegexConstruction(string pattern, byte encodedFlags)
     {
         // Keep defer narrow: only flagless literal-only legacy patterns are
@@ -1629,6 +1691,31 @@ public sealed class JsRegExp
                 Configurable = true
             });
         }
+
+        return result;
+    }
+
+    private JsArray CreateSimpleMatchArray(string input, int index, int length)
+    {
+        var result = new JsArray(RealmState);
+        result.Push(input.Substring(index, length));
+        result.DefineProperty("index",
+            new PropertyDescriptor
+            {
+                Value = (double)index, Writable = true, Enumerable = true, Configurable = true
+            });
+        result.DefineProperty("input",
+            new PropertyDescriptor
+            {
+                Value = new JsValue(input), Writable = true, Enumerable = true, Configurable = true
+            });
+        result.DefineProperty("groups", new PropertyDescriptor
+        {
+            Value = JsValue.Undefined,
+            Writable = true,
+            Enumerable = true,
+            Configurable = true
+        });
 
         return result;
     }
@@ -5244,6 +5331,30 @@ public sealed class JsRegExp
     private static bool IsLineTerminator(char c)
     {
         return c is '\n' or '\r' or '\u2028' or '\u2029';
+    }
+
+    private static bool IsEcmaWhitespace(char c)
+    {
+        switch (c)
+        {
+            case '\t':
+            case '\n':
+            case '\v':
+            case '\f':
+            case '\r':
+            case ' ':
+            case '\u00a0':
+            case '\u1680':
+            case '\u2028':
+            case '\u2029':
+            case '\u202f':
+            case '\u205f':
+            case '\u3000':
+            case '\ufeff':
+                return true;
+            default:
+                return c >= '\u2000' && c <= '\u200a';
+        }
     }
 
     private static bool IsControlLetter(char c)

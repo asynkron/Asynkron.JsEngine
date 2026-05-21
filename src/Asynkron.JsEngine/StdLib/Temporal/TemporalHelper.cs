@@ -2783,9 +2783,9 @@ public static class TemporalHelper
             new PropertyDescriptor { Value = "Temporal.ZonedDateTime", Writable = false, Enumerable = false, Configurable = true });
 
         // Prototype getters
-        AddPrototypeGetter(prototype, realm, "year", tv => new JsValue(GetZonedDateTime(tv).Year));
-        AddPrototypeGetter(prototype, realm, "month", tv => new JsValue(GetZonedDateTime(tv).Month));
-        AddPrototypeGetter(prototype, realm, "day", tv => new JsValue(GetZonedDateTime(tv).Day));
+        AddPrototypeGetter(prototype, realm, "year", tv => new JsValue(GetZonedDateTimeCalendarFields(GetZonedDateTime(tv), realm).Year));
+        AddPrototypeGetter(prototype, realm, "month", tv => new JsValue(GetZonedDateTimeCalendarFields(GetZonedDateTime(tv), realm).Month));
+        AddPrototypeGetter(prototype, realm, "day", tv => new JsValue(GetZonedDateTimeCalendarFields(GetZonedDateTime(tv), realm).Day));
         AddPrototypeGetter(prototype, realm, "hour", tv => new JsValue(GetZonedDateTime(tv).Hour));
         AddPrototypeGetter(prototype, realm, "minute", tv => new JsValue(GetZonedDateTime(tv).Minute));
         AddPrototypeGetter(prototype, realm, "second", tv => new JsValue(GetZonedDateTime(tv).Second));
@@ -2799,7 +2799,7 @@ public static class TemporalHelper
             return JsValue.FromObjectUnsafe(new JsBigInt(zdt.Instant.EpochNanoseconds));
         });
         AddPrototypeGetter(prototype, realm, "epochSeconds", tv => new JsValue((double)GetZonedDateTime(tv).EpochSeconds));
-        AddPrototypeGetter(prototype, realm, "monthCode", tv => new JsValue(GetZonedDateTime(tv).MonthCode));
+        AddPrototypeGetter(prototype, realm, "monthCode", tv => new JsValue(GetZonedDateTimeCalendarFields(GetZonedDateTime(tv), realm).MonthCode));
         AddPrototypeGetter(prototype, realm, "dayOfWeek", tv => new JsValue(GetZonedDateTime(tv).DayOfWeek));
         AddPrototypeGetter(prototype, realm, "dayOfYear", tv => new JsValue(GetZonedDateTime(tv).DayOfYear));
         AddPrototypeGetter(prototype, realm, "weekOfYear", tv => {
@@ -2821,12 +2821,14 @@ public static class TemporalHelper
         AddPrototypeGetter(prototype, realm, "era", tv =>
         {
             var zdt = GetZonedDateTime(tv);
-            return GetTemporalEra(zdt.Calendar, zdt.Year, zdt.Month, zdt.Day);
+            var fields = GetZonedDateTimeCalendarFields(zdt, realm);
+            return GetTemporalEra(zdt.Calendar, fields.Year, fields.Month, fields.Day);
         });
         AddPrototypeGetter(prototype, realm, "eraYear", tv =>
         {
             var zdt = GetZonedDateTime(tv);
-            return GetTemporalEraYear(zdt.Calendar, zdt.Year, zdt.Month, zdt.Day);
+            var fields = GetZonedDateTimeCalendarFields(zdt, realm);
+            return GetTemporalEraYear(zdt.Calendar, fields.Year, fields.Month, fields.Day);
         });
         AddPrototypeGetter(prototype, realm, "offsetNanoseconds", tv =>
         {
@@ -3089,19 +3091,21 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowTypeError("with() argument must have at least one datetime property", realm: realm);
             }
 
-            // Get local date-time using BigInteger arithmetic to handle extreme years
-            var localDt = GetLocalDateTime(zdt);
+            var calendar = CanonicalizeCalendarId(zdt.Calendar);
+            var localDateTime = GetLocalPlainDateTime(zdt, realm);
 
             // Merge fields with defaults and pre-validate before options processing
-            var year = partialYear ?? localDt.Year;
-            var month = ResolveISOMonth(partialMonth, partialMonthCode, localDt.Month, realm);
-            var day = partialDay ?? localDt.Day;
-            var hour = partialHour ?? localDt.Hour;
-            var minute = partialMinute ?? localDt.Minute;
-            var second = partialSecond ?? localDt.Second;
-            var millisecond = partialMillisecond ?? localDt.Millisecond;
-            var microsecond = partialMicrosecond ?? localDt.Microsecond;
-            var nanosecond = partialNanosecond ?? localDt.Nanosecond;
+            var calendarFields = GetPlainDateTimeCalendarFields(localDateTime);
+            var year = partialYear ?? calendarFields.Year;
+            var month = ResolvePlainDateTimeWithMonth(partialMonth, partialMonthCode, year, calendarFields.Month,
+                calendarFields.MonthCode, calendar, realm);
+            var day = partialDay ?? calendarFields.Day;
+            var hour = partialHour ?? localDateTime.Hour;
+            var minute = partialMinute ?? localDateTime.Minute;
+            var second = partialSecond ?? localDateTime.Second;
+            var millisecond = partialMillisecond ?? localDateTime.Millisecond;
+            var microsecond = partialMicrosecond ?? localDateTime.Microsecond;
+            var nanosecond = partialNanosecond ?? localDateTime.Nanosecond;
 
             // Pre-validate: reject fundamentally invalid values before options processing
             if (month < 1 || day < 1)
@@ -3127,7 +3131,10 @@ public static class TemporalHelper
 
             if (string.Equals(overflow, "constrain", StringComparison.Ordinal))
             {
-                (year, month, day) = ConstrainISODate(year, month, day);
+                if (string.Equals(calendar, "iso8601", StringComparison.Ordinal))
+                {
+                    (year, month, day) = ConstrainISODate(year, month, day);
+                }
                 hour = ConstrainTimeComponent(hour, 0, 23);
                 minute = ConstrainTimeComponent(minute, 0, 59);
                 second = ConstrainTimeComponent(second, 0, 59);
@@ -3137,32 +3144,53 @@ public static class TemporalHelper
             }
             else
             {
-                RejectISODate(year, month, day, realm);
+                if (string.Equals(calendar, "iso8601", StringComparison.Ordinal))
+                {
+                    RejectISODate(year, month, day, realm);
+                }
                 RejectISOTime(hour, minute, second, millisecond, microsecond, nanosecond, realm);
             }
+
+            var resolvedDateTime = CreatePlainDateTimeWithCalendarDate(year, month, day, hour, minute, second,
+                millisecond, microsecond, nanosecond, calendar, overflow, realm);
 
             // Use offset if provided and offset option is "use", otherwise use timezone
             if (partialOffset is not null && string.Equals(offsetOption, "use", StringComparison.Ordinal))
             {
                 var offsetNanos = ParseOffsetToNanos(partialOffset)!.Value;
-                var epochDays = IsoCalendarHelpers.DateToEpochDays(year, month, day);
-                var localEpochNanos = new System.Numerics.BigInteger(epochDays) * 86_400_000_000_000L
-                    + (long)hour * 3_600_000_000_000L
-                    + (long)minute * 60_000_000_000L
-                    + (long)second * 1_000_000_000L
-                    + (long)millisecond * 1_000_000L
-                    + (long)microsecond * 1_000L
-                    + nanosecond;
+                var localEpochNanos = ToEpochNanoseconds(resolvedDateTime);
                 var utcEpochNanos = localEpochNanos - offsetNanos;
                 if (utcEpochNanos < InstantMinEpochNanoseconds || utcEpochNanos > InstantMaxEpochNanoseconds)
                 {
                     throw StandardLibrary.ThrowRangeError("ZonedDateTime is out of representable range", realm: realm);
                 }
                 var newInstant = JsTemporalInstant.FromEpochNanoseconds(utcEpochNanos);
-                return WrapZonedDateTime(new JsTemporalZonedDateTime(newInstant, zdt.TimeZoneId, CanonicalizeCalendarId(zdt.Calendar)), realm, prototype);
+                return WrapZonedDateTime(new JsTemporalZonedDateTime(newInstant, zdt.TimeZoneId, calendar), realm, prototype);
             }
 
-            var newZdt = new JsTemporalZonedDateTime(year, month, day, hour, minute, second, millisecond, microsecond, nanosecond, zdt.TimeZoneId, CanonicalizeCalendarId(zdt.Calendar));
+            var resolvedInstant = ResolveWallTimeInstant(
+                resolvedDateTime.Year,
+                resolvedDateTime.Month,
+                resolvedDateTime.Day,
+                resolvedDateTime.Hour,
+                resolvedDateTime.Minute,
+                resolvedDateTime.Second,
+                resolvedDateTime.Millisecond,
+                resolvedDateTime.Microsecond,
+                resolvedDateTime.Nanosecond,
+                zdt.TimeZoneId,
+                disambiguation,
+                realm);
+            var newZdt = new JsTemporalZonedDateTime(resolvedInstant, zdt.TimeZoneId, calendar);
+            if (partialOffset is not null && string.Equals(offsetOption, "reject", StringComparison.Ordinal))
+            {
+                var offsetNanos = ParseOffsetToNanos(partialOffset)!.Value;
+                if (offsetNanos != newZdt.OffsetNanoseconds)
+                {
+                    throw StandardLibrary.ThrowRangeError("Offset does not match the time zone", realm: realm);
+                }
+            }
+
             var newEpochNs = newZdt.Instant.EpochNanoseconds;
             if (newEpochNs < InstantMinEpochNanoseconds || newEpochNs > InstantMaxEpochNanoseconds)
             {
@@ -3622,6 +3650,11 @@ public static class TemporalHelper
                 throw StandardLibrary.ThrowTypeError("with() argument must have both 'era' and 'eraYear'", realm: realm);
             }
 
+            if (partialMonth is < 1)
+            {
+                throw StandardLibrary.ThrowRangeError("Month value is out of range", realm: realm);
+            }
+
             var year = partialYear ??
                        (partialEra is not null
                            ? ResolveTemporalEraYear(ym.Calendar, partialEra, partialEraYear!.Value, realm)
@@ -4021,6 +4054,10 @@ public static class TemporalHelper
             if (string.Equals(calendar, "iso8601", StringComparison.Ordinal))
             {
                 md = new JsTemporalPlainMonthDay(month, day, calendar, refYear);
+            }
+            else if (UsesIsoReferenceDateForPlainMonthDay(calendar))
+            {
+                md = new JsTemporalPlainMonthDay(month, day, calendar, referenceYear, null, month, day);
             }
             else
             {
@@ -4791,6 +4828,13 @@ public static class TemporalHelper
         {
             return (dateTime.Year, dateTime.Month, dateTime.Day, dateTime.MonthCode);
         }
+    }
+
+    private static (int Year, int Month, int Day, string MonthCode) GetZonedDateTimeCalendarFields(
+        JsTemporalZonedDateTime zonedDateTime,
+        RealmState realm)
+    {
+        return GetPlainDateTimeCalendarFields(GetLocalPlainDateTime(zonedDateTime, realm));
     }
 
     private static int ResolvePlainDateTimeWithMonth(
@@ -7006,7 +7050,7 @@ public static class TemporalHelper
                 localDt,
                 settings,
                 isSince ? -overallSign : overallSign,
-                timeDiffNanos,
+                isSince ? -timeDiffNanos : timeDiffNanos,
                 realm);
 
             // Rounding to a date unit — round date part, include time fraction for week/day
@@ -7368,65 +7412,26 @@ public static class TemporalHelper
         JsTemporalZonedDateTime zonedDateTime,
         RealmState realm)
     {
-        if (zonedDateTime.FixedOffset.HasValue)
-        {
-            var offsetNanoseconds = new BigInteger(zonedDateTime.FixedOffset.Value.Ticks) * 100;
-            var localEpochNanoseconds = zonedDateTime.Instant.EpochNanoseconds + offsetNanoseconds;
-            if (localEpochNanoseconds < PlainDateTimeMinEpochNanoseconds ||
-                localEpochNanoseconds > PlainDateTimeMaxEpochNanoseconds)
-            {
-                throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
-            }
-
-            var fixedOffsetLocalDateTime = FromEpochNanoseconds(localEpochNanoseconds);
-            return new JsTemporalPlainDateTime(
-                fixedOffsetLocalDateTime.Year,
-                fixedOffsetLocalDateTime.Month,
-                fixedOffsetLocalDateTime.Day,
-                fixedOffsetLocalDateTime.Hour,
-                fixedOffsetLocalDateTime.Minute,
-                fixedOffsetLocalDateTime.Second,
-                fixedOffsetLocalDateTime.Millisecond,
-                fixedOffsetLocalDateTime.Microsecond,
-                fixedOffsetLocalDateTime.Nanosecond,
-                zonedDateTime.Calendar);
-        }
-
-        try
-        {
-            var utc = zonedDateTime.Instant.ToDateTimeOffset();
-            var offset = TemporalHistoricalTimeZoneOffsets.GetUtcOffset(
-                zonedDateTime.TimeZoneId,
-                zonedDateTime.TimeZone,
-                utc);
-            var localEpochNanoseconds = zonedDateTime.Instant.EpochNanoseconds + offset.Ticks * 100L;
-            if (localEpochNanoseconds < PlainDateTimeMinEpochNanoseconds ||
-                localEpochNanoseconds > PlainDateTimeMaxEpochNanoseconds)
-            {
-                throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
-            }
-
-            var localDateTime = FromEpochNanoseconds(localEpochNanoseconds);
-            return new JsTemporalPlainDateTime(
-                localDateTime.Year,
-                localDateTime.Month,
-                localDateTime.Day,
-                localDateTime.Hour,
-                localDateTime.Minute,
-                localDateTime.Second,
-                localDateTime.Millisecond,
-                localDateTime.Microsecond,
-                localDateTime.Nanosecond,
-                zonedDateTime.Calendar);
-        }
-        catch (ArgumentOutOfRangeException)
+        var offset = zonedDateTime.FixedOffset ?? GetIanaOffset(zonedDateTime);
+        var localEpochNanoseconds = zonedDateTime.Instant.EpochNanoseconds + new BigInteger(offset.Ticks) * 100;
+        if (localEpochNanoseconds < PlainDateTimeMinEpochNanoseconds ||
+            localEpochNanoseconds > PlainDateTimeMaxEpochNanoseconds)
         {
             throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
         }
-        catch (OverflowException)
-        {
-            throw StandardLibrary.ThrowRangeError("Temporal.ZonedDateTime is out of range", realm: realm);
-        }
+
+        var localDateTime = FromEpochNanoseconds(localEpochNanoseconds);
+        return new JsTemporalPlainDateTime(
+            localDateTime.Year,
+            localDateTime.Month,
+            localDateTime.Day,
+            localDateTime.Hour,
+            localDateTime.Minute,
+            localDateTime.Second,
+            localDateTime.Millisecond,
+            localDateTime.Microsecond,
+            localDateTime.Nanosecond,
+            zonedDateTime.Calendar);
     }
 
     /// <summary>
@@ -7475,30 +7480,6 @@ public static class TemporalHelper
         }
 
         return IsoCalendarHelpers.EpochDaysToDate((long)epochDaysBig);
-    }
-
-    /// <summary>
-    ///     Gets the full local date-time components of a ZonedDateTime using BigInteger arithmetic.
-    ///     Safe for extreme years outside the .NET DateTimeOffset range (1-9999).
-    /// </summary>
-    private static (int Year, int Month, int Day, int Hour, int Minute, int Second,
-        int Millisecond, int Microsecond, int Nanosecond) GetLocalDateTime(JsTemporalZonedDateTime zdt)
-    {
-        BigInteger localNanos;
-        if (zdt.FixedOffset.HasValue)
-        {
-            localNanos = zdt.Instant.EpochNanoseconds + zdt.FixedOffset.Value.Ticks * 100L;
-        }
-        else
-        {
-            localNanos = zdt.Instant.EpochNanoseconds + GetIanaOffset(zdt).Ticks * 100L;
-        }
-
-        var dayNumber = DivRemFloor(localNanos, new BigInteger(NanosecondsPerDay), out var remainder);
-        var (year, month, day) = IsoCalendarHelpers.EpochDaysToDate((long)dayNumber);
-        var time = CreatePlainTimeFromNanoseconds((long)remainder);
-        return (year, month, day, time.Hour, time.Minute, time.Second,
-            time.Millisecond, time.Microsecond, time.Nanosecond);
     }
 
     private static BigInteger GetStartOfDayInstant(
@@ -10755,7 +10736,11 @@ public static class TemporalHelper
         int month;
         if (hasMonthCode)
         {
-            month = ResolvePlainYearMonthMonthCode(calendar, year, monthCodeStr!, realm);
+            month = monthCodeStr!.Length == 4 &&
+                    monthCodeStr[3] == 'L' &&
+                    !IsValidLeapMonthCodeForYear(calendar, year, monthCodeStr)
+                ? MonthCodeNumericValue(monthCodeStr)
+                : ResolvePlainYearMonthMonthCode(calendar, year, monthCodeStr, realm);
             if (hasMonth)
             {
                 if (monthInt != month)
@@ -10880,6 +10865,14 @@ public static class TemporalHelper
     {
         return string.Equals(calendar, "gregory", StringComparison.Ordinal) ||
                string.Equals(calendar, "japanese", StringComparison.Ordinal);
+    }
+
+    private static bool UsesIsoReferenceDateForPlainMonthDay(string calendar)
+    {
+        return string.Equals(calendar, "gregory", StringComparison.Ordinal) ||
+               string.Equals(calendar, "buddhist", StringComparison.Ordinal) ||
+               string.Equals(calendar, "japanese", StringComparison.Ordinal) ||
+               string.Equals(calendar, "roc", StringComparison.Ordinal);
     }
 
     private static int ResolveTemporalEraYear(string calendar, string era, int eraYear, RealmState realm)
@@ -11337,6 +11330,18 @@ public static class TemporalHelper
 
     private static int GetTemporalPlainMonthDayDaysInReferenceIsoYear(string calendar, string monthCode, RealmState realm)
     {
+        if (string.Equals(calendar, "coptic", StringComparison.Ordinal) ||
+            string.Equals(calendar, "ethioaa", StringComparison.Ordinal) ||
+            string.Equals(calendar, "ethiopic", StringComparison.Ordinal))
+        {
+            return MonthCodeNumericValue(monthCode) == 13 ? 6 : 30;
+        }
+
+        if (string.Equals(calendar, "indian", StringComparison.Ordinal))
+        {
+            return MonthCodeNumericValue(monthCode) == 1 ? 31 : 30;
+        }
+
         if (string.Equals(calendar, "hebrew", StringComparison.Ordinal) &&
             string.Equals(monthCode, "M02", StringComparison.Ordinal))
         {
@@ -11363,8 +11368,6 @@ public static class TemporalHelper
 
         return calendar switch
         {
-            "coptic" or "ethioaa" or "ethiopic" => MonthCodeNumericValue(monthCode) == 13 ? 6 : 30,
-            "indian" => MonthCodeNumericValue(monthCode) == 1 ? 31 : 30,
             _ => throw StandardLibrary.ThrowRangeError($"Month {monthCode} is out of range for calendar {calendar}", realm: realm)
         };
     }

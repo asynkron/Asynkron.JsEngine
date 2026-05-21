@@ -337,8 +337,7 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
             return FormatYear() + $"-{Month:D2}-{ReferenceDay:D2}[u-ca={Calendar}]";
         }
 
-        var isoDate = ToIsoDateForCalendar();
-        return $"{isoDate:yyyy-MM-dd}[u-ca={Calendar}]";
+        return FormatYear() + $"-{Month:D2}-{ReferenceDay:D2}[u-ca={Calendar}]";
     }
 
     /// <summary>
@@ -358,61 +357,7 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
             return FormatYear() + $"-{Month:D2}-{ReferenceDay:D2}[{prefix}u-ca={Calendar}]";
         }
 
-        var isoDate = ToIsoDateForCalendar();
-        return $"{isoDate:yyyy-MM-dd}[{prefix}u-ca={Calendar}]";
-    }
-
-    private DateTime ToIsoDateForCalendar()
-    {
-        return ToGregorianDate(Calendar, Year, Month, ReferenceDay);
-    }
-
-    internal static DateTime ToGregorianDate(string calendar, int year, int month, int day)
-    {
-        if (string.Equals(calendar, "hebrew", StringComparison.Ordinal))
-        {
-            var hebrewCalendar = new HebrewCalendar();
-            var hebrewEra = hebrewCalendar.Eras[0];
-            return hebrewCalendar.ToDateTime(year, month, day, 0, 0, 0, 0, hebrewEra);
-        }
-
-        if (string.Equals(calendar, "chinese", StringComparison.Ordinal))
-        {
-            var chineseCalendar = new ChineseLunisolarCalendar();
-            var chineseEra = chineseCalendar.Eras[0];
-            return chineseCalendar.ToDateTime(year, month, day, 0, 0, 0, 0, chineseEra);
-        }
-
-        if (string.Equals(calendar, "dangi", StringComparison.Ordinal))
-        {
-            var dangiCalendar = new KoreanLunisolarCalendar();
-            var dangiEra = dangiCalendar.Eras[0];
-            return dangiCalendar.ToDateTime(year, month, day, 0, 0, 0, 0, dangiEra);
-        }
-
-        if (string.Equals(calendar, "islamic-civil", StringComparison.Ordinal) ||
-            string.Equals(calendar, "islamic-tbla", StringComparison.Ordinal))
-        {
-            var islamicCalendar = new HijriCalendar();
-            var islamicEra = islamicCalendar.Eras[0];
-            return islamicCalendar.ToDateTime(year, month, day, 0, 0, 0, 0, islamicEra);
-        }
-
-        if (string.Equals(calendar, "islamic-umalqura", StringComparison.Ordinal))
-        {
-            var islamicCalendar = new UmAlQuraCalendar();
-            var islamicEra = islamicCalendar.Eras[0];
-            return islamicCalendar.ToDateTime(year, month, day, 0, 0, 0, 0, islamicEra);
-        }
-
-        if (string.Equals(calendar, "persian", StringComparison.Ordinal))
-        {
-            var persianCalendar = new PersianCalendar();
-            var persianEra = persianCalendar.Eras[0];
-            return persianCalendar.ToDateTime(year, month, day, 0, 0, 0, 0, persianEra);
-        }
-
-        return new DateTime(year, month, day, new GregorianCalendar());
+        return FormatYear() + $"-{Month:D2}-{ReferenceDay:D2}[{prefix}u-ca={Calendar}]";
     }
 
     private string FormatYear()

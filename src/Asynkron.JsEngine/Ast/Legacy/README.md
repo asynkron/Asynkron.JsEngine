@@ -13,6 +13,7 @@ These evaluators are still used as a fallback in specific scenarios:
 - Direct `eval()` calls
 - Analysis and debugging tools
 - Test scaffolding
+- Dynamic statement/expression seams that intentionally stay in this quarantine
 
 ## Primary Execution Path
 
@@ -22,6 +23,17 @@ The modern execution path uses:
 3. **IR Execution** → `ExecutionPlanRunner` interprets the instruction sequence
 
 See `/agents/how-to-architecture.md` for detailed information about the execution model.
+
+## Boundary Classification
+
+- `EvaluateCachedExpressionProgram` is the dynamic-boundary bridge from quarantined
+  AST evaluation to lowered `ExpressionProgram` execution. It lowers once, caches
+  success/failure per node, and throws when lowering fails. It must not fall back
+  to raw AST expression evaluation on compile failure.
+- `EvaluateLoweredExpressionProgram` is allowed outside this directory only for
+  already-lowered expression-program payloads (for example computed class member
+  names and class field initializers). That path is lowered-program execution,
+  not a runtime AST fallback.
 
 ## Deprecation
 

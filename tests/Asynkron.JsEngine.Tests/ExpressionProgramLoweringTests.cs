@@ -385,6 +385,59 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public void ObjectExpression_StaticIdentifierKeyNode_IsLoweredToExpressionProgram()
+    {
+        var keyExpression = new IdentifierExpression(Source: null, Symbol.Intern("key"));
+        var expression = new ObjectExpression(
+            Source: null,
+            Members:
+            [
+                new ObjectMember(
+                    Source: null,
+                    Kind: ObjectMemberKind.Property,
+                    Key: keyExpression,
+                    Value: new LiteralExpression(null, 1d),
+                    Function: null,
+                    IsComputed: false,
+                    IsStatic: false,
+                    Parameter: null)
+            ],
+            HasCoverInitializedName: false);
+
+        var compiled = ExpressionProgramCompiler.TryCompile(expression, out var program, out var failureReason);
+
+        Assert.True(compiled, failureReason);
+        AssertProgramContains<DefineObjectPropertyExpressionOp>(program, op => op.PropertyName == "key");
+    }
+
+    [Fact]
+    public void ObjectExpression_ComputedStringKeyStillFailsWithInvalidComputedObjectKey()
+    {
+        var expression = new ObjectExpression(
+            Source: null,
+            Members:
+            [
+                new ObjectMember(
+                    Source: null,
+                    Kind: ObjectMemberKind.Property,
+                    Key: "key",
+                    Value: new LiteralExpression(null, 1d),
+                    Function: null,
+                    IsComputed: true,
+                    IsStatic: false,
+                    Parameter: null)
+            ],
+            HasCoverInitializedName: false);
+
+        var compiled = ExpressionProgramCompiler.TryCompile(expression, out _, out var failureReason);
+
+        Assert.False(compiled);
+        Assert.Equal("Computed object property names must use an expression key.", failureReason);
+        var classified = ExpressionProgramCompiler.ClassifyFailure(expression, failureReason);
+        Assert.Equal(ExpressionProgramFailureCode.InvalidComputedObjectKey, classified.Code);
+    }
+
+    [Fact]
     public async Task ExpressionStatement_AwaitedExpression_UsesSyntheticAwaitedTemp()
     {
         var plan = await GetFunctionPlan("""

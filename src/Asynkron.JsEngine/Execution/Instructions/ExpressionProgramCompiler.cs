@@ -2343,6 +2343,11 @@ internal static class ExpressionProgramCompiler
 
     private static bool TryGetStaticObjectPropertyName(object key, out string propertyName)
     {
+        if (TryNormalizeStaticObjectPropertyNameFromExpressionNode(key, out propertyName))
+        {
+            return true;
+        }
+
         switch (key)
         {
             case string value:
@@ -2366,6 +2371,23 @@ internal static class ExpressionProgramCompiler
             default:
                 propertyName = key.ToString() ?? string.Empty;
                 return key is not ExpressionNode;
+        }
+    }
+
+    private static bool TryNormalizeStaticObjectPropertyNameFromExpressionNode(
+        object key,
+        out string propertyName)
+    {
+        switch (key)
+        {
+            case IdentifierExpression identifier:
+                propertyName = identifier.Name.Name;
+                return true;
+            case LiteralExpression literal:
+                return TryGetStaticObjectPropertyName(literal.Value, out propertyName);
+            default:
+                propertyName = string.Empty;
+                return false;
         }
     }
 

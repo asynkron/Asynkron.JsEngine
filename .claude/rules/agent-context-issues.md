@@ -10,6 +10,14 @@ searches to specific existing paths, avoid broad `.faktorial/worktrees` scans
 unless the task explicitly requires that surface, and use targeted raw-log
 snippets with line caps when summaries are insufficient.
 
+For `main is red` or main-health repair issues, re-run the exact failing
+main-health command on the current worktree before changing source code. Treat
+the stored mainverify status as a trigger and evidence pointer, not as proof
+that the failure still reproduces after later branch movement or transient
+environment cleanup. If the exact command now passes and the worktree is clean,
+stop without inventing a nearby implementation patch and report the issue as
+stale or transient.
+
 ## Naming Convention
 
 - **GitHub issue work**: `AgentContext: issue/NNN` (e.g., `AgentContext: issue/465`)
@@ -67,3 +75,10 @@ output while agents gathered local issue context. The durable lesson is not to
 avoid evidence; it is to gather the same evidence through bounded helpers,
 small scoped commands, and capped snippets so telemetry stays useful and future
 reviewers can see the actual signal.
+
+Issue #1331 was a `main is red: 8b1273e` repair where Faktorial mainverify
+recorded `dotnet test tests/Asynkron.JsEngine.Tests` as failed, but the
+build-stage reran that exact command and the timeout-shaped variant on the
+current worktree and both passed 3919 tests. No source change was warranted; the
+useful durable rule is to reprove main-health failures before patching and to
+close stale/transient reds with evidence instead of changing unrelated owners.

@@ -335,7 +335,7 @@ public static partial class TypedAstEvaluator
 
                 if (iteratorResult.IsDelegatedCompletion)
                 {
-                    var isThrowCompletion = propagateThrow || iteratorResult.PropagateThrow;
+                    var isThrowCompletion = iteratorResult.PropagateThrow;
                     var pendingKind = isThrowCompletion ? AbruptKind.Throw : AbruptKind.Return;
                     var abruptValue = iteratorResult.Value;
 

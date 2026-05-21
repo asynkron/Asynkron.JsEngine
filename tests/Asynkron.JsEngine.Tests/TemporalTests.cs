@@ -426,6 +426,21 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
         Assert.Equal("object", result);
     }
 
+    [Fact]
+    public async Task Temporal_PlainMonthDay_ToPlainDate_OutOfRangeYear_ThrowsRangeError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            try {
+              new Temporal.PlainMonthDay(2, 29).toPlainDate({ year: 1e100 });
+              "no throw";
+            } catch (error) {
+              error.name;
+            }
+            """);
+        Assert.Equal("RangeError", result);
+    }
+
     // Tests for newly added prototype methods
 
     // PlainDate methods
@@ -578,6 +593,21 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
         Assert.Equal(6d, result);
     }
 
+    [Fact(Timeout = 10000)]
+    public async Task Temporal_PlainDateTime_Add_LargeMonths_ThrowsRangeErrorWithoutLongNormalizationLoop()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            try {
+              new Temporal.PlainDateTime(2024, 1, 1).add({ months: 4294967295 });
+              "no throw";
+            } catch (error) {
+              error.name;
+            }
+            """);
+        Assert.Equal("RangeError", result);
+    }
+
     [Fact]
     public async Task Temporal_PlainDateTime_Subtract()
     {
@@ -649,6 +679,21 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("Temporal.Duration.from({hours: 1, minutes: 30}).with({hours: 2}).hours");
         Assert.Equal(2d, result);
+    }
+
+    [Fact]
+    public async Task Temporal_Duration_From_OutOfRangeDays_ThrowsRangeError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            try {
+              Temporal.Duration.from({ days: 104249991375 });
+              "no throw";
+            } catch (error) {
+              error.name;
+            }
+            """);
+        Assert.Equal("RangeError", result);
     }
 
     [Fact]

@@ -290,6 +290,17 @@ internal static class GeneratorYieldLowerer
                     rewrittenStatement = doWhileStatement with { Body = rewrittenBody };
                     return true;
                 }
+                case ForEachStatement { Body: BlockStatement forEachBody } forEachStatement:
+                {
+                    var rewrittenBody = RewriteBlock(forEachBody);
+                    if (ReferenceEquals(rewrittenBody, forEachBody))
+                    {
+                        return false;
+                    }
+
+                    rewrittenStatement = forEachStatement with { Body = rewrittenBody };
+                    return true;
+                }
                 default:
                     return false;
             }

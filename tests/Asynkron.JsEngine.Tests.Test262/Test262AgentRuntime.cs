@@ -252,8 +252,7 @@ internal sealed class Test262AgentRuntime : IDisposable
 
             try
             {
-                engine.EvaluateSync(_source);
-                engine.DrainMicrotasks();
+                engine.Evaluate(_source).GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {

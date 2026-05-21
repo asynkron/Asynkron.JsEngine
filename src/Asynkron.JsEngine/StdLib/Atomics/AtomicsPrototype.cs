@@ -165,9 +165,7 @@ public sealed partial class AtomicsPrototype : JsPrototype
         var index = RequireAtomicIndex(typedArray, args.GetArgument(1));
 
         var expectedArg = args.GetArgument(2);
-        var expectedValue = typedArray.IsBigIntArray
-            ? (JsValue)ToBigInt(expectedArg, realmState: Realm)
-            : (JsValue)JsOps.ToNumber(expectedArg);
+        var expectedValue = CoerceWaitExpectedValue(typedArray, expectedArg);
 
         var timeoutArg = args.GetArgument(3);
         var timeout = double.PositiveInfinity;
@@ -253,9 +251,7 @@ public sealed partial class AtomicsPrototype : JsPrototype
         var index = RequireAtomicIndex(typedArray, args.GetArgument(1));
 
         var expectedArg = args.GetArgument(2);
-        var expectedValue = typedArray.IsBigIntArray
-            ? (JsValue)ToBigInt(expectedArg, realmState: Realm)
-            : (JsValue)JsOps.ToNumber(expectedArg);
+        var expectedValue = CoerceWaitExpectedValue(typedArray, expectedArg);
 
         var timeoutArg = args.GetArgument(3);
         var timeout = double.PositiveInfinity;
@@ -612,6 +608,16 @@ public sealed partial class AtomicsPrototype : JsPrototype
             JsBigUint64Array => new JsBigInt(new System.Numerics.BigInteger(ToBigUint64(value.Value))),
             _ => value
         };
+    }
+
+    private JsValue CoerceWaitExpectedValue(TypedArrayBase typedArray, JsValue value)
+    {
+        if (typedArray.IsBigIntArray)
+        {
+            return CoerceAtomicBigInt(typedArray, ToBigInt(value, realmState: Realm));
+        }
+
+        return JsNumericConversions.ToInt32(JsOps.ToNumber(value));
     }
 
     private static double CoerceAtomicNumber(TypedArrayBase typedArray, double value)

@@ -69,6 +69,12 @@ fallback or cleanup.
     continue to use `EvaluateLoweredExpressionProgram`; do not blur these
     surfaces under generic cached-helper naming or add raw AST expression
     fallback on compile failure.
+15. When renaming, removing, or splitting expression-program bridge APIs, search
+    both the primary IR/runtime files and the quarantined legacy AST evaluator
+    directory for stale bridge calls. Legacy dynamic boundaries may still be the
+    caller that routes AST-owned statements into lowered `ExpressionProgram`
+    execution; a stale call there can make `main` fail to compile even when the
+    normal runner path and focused AST-free tests look correct.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 
@@ -165,3 +171,12 @@ gate for approved dynamic call sites. Future AST-seam work should preserve that
 classification so dynamic bridge callers cannot drift into normal
 already-lowered expression-program execution, and already-lowered class or
 initializer payloads do not get mislabeled as legacy fallback.
+
+Issue #1461 / PR #1462 repaired a `main is red` compile failure after
+`EvaluateCachedExpressionProgram` was removed but the legacy dynamic
+return-expression boundary still called it. The correct caller is
+`EvaluateDynamicExpressionProgram`, because this seam starts in quarantined AST
+statement evaluation but must execute the return expression through the dynamic
+expression-program bridge. Future bridge refactors need a whole-AST bridge-call
+search, including `src/Asynkron.JsEngine/Ast/Legacy`, before they claim the
+rename/removal is complete.

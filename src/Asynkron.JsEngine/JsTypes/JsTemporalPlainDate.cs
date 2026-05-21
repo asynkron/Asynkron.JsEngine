@@ -192,20 +192,14 @@ public sealed class JsTemporalPlainDate(int year, int month, int day, string cal
     /// </summary>
     public JsTemporalPlainDate Add(JsTemporalDuration duration, string overflow = "constrain")
     {
-        // Add years and months
-        var newYear = Year + (long)duration.Years;
-        var newMonth = Month + (long)duration.Months;
+        var totalMonth = (long)Year * 12 + Month - 1 +
+                         (long)duration.Years * 12 + (long)duration.Months;
+        var newYear = FloorDivide(totalMonth, 12);
+        var newMonth = totalMonth - newYear * 12 + 1;
 
-        // Normalize months
-        while (newMonth > 12)
+        if (newYear is < int.MinValue or > int.MaxValue)
         {
-            newMonth -= 12;
-            newYear++;
-        }
-        while (newMonth < 1)
-        {
-            newMonth += 12;
-            newYear--;
+            throw new ArgumentOutOfRangeException(nameof(duration), "Resulting year is out of supported range");
         }
 
         var intYear = (int)newYear;
@@ -234,6 +228,13 @@ public sealed class JsTemporalPlainDate(int year, int month, int day, string cal
         // Convert back to calendar date
         var (resultYear, resultMonth, resultDay) = EpochDayToISODate(epochDay);
         return new JsTemporalPlainDate(resultYear, resultMonth, resultDay, Calendar);
+    }
+
+    private static long FloorDivide(long dividend, long divisor)
+    {
+        var quotient = dividend / divisor;
+        var remainder = dividend % divisor;
+        return remainder < 0 ? quotient - 1 : quotient;
     }
 
     /// <summary>

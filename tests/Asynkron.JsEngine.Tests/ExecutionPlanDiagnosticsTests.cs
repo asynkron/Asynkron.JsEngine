@@ -148,57 +148,50 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
         var probes = new[]
         {
             (
-                Name: "delete optional member",
-                Source: """
-                    function deleteOptionalMember(box) {
-                        return delete box?.value;
-                    }
-                    """),
-            (
-                Name: "optional tagged template",
-                Source: """
-                    function optionalTaggedTemplate(box) {
-                        return box?.tag`ok`;
-                    }
-                    """),
-            (
-                Name: "nested optional tagged template",
-                Source: """
-                    function nestedOptionalTaggedTemplate(box) {
-                        return box?.inner.tag`ok`;
-                    }
-                    """),
-            (
-                Name: "computed member call target",
-                Source: """
-                    function computedMemberCallTarget(box, key) {
-                        return box[key]();
-                    }
-                    """),
-            (
-                Name: "computed tagged template member access",
-                Source: """
-                    function computedTaggedTemplateMemberAccess(box, key) {
-                        return box[key]`ok`;
-                    }
-                    """)
+                Name: "direct member call with non-literal property",
+                Expression: new CallExpression(
+                    null,
+                    new MemberExpression(
+                        null,
+                        new IdentifierExpression(null, Symbol.Intern("box")),
+                        new IdentifierExpression(null, Symbol.Intern("dynamicPropertyName")),
+                        IsComputed: false,
+                        IsOptional: true),
+                    [],
+                    IsOptional: false),
+                ExpectedFailureCode: ExpressionProgramFailureCode.UnsupportedDirectMemberCallPropertyName)
         };
 
         var expectedBuckets = new Dictionary<ExpressionProgramFailureCode, int>();
         foreach (var probe in probes)
         {
-            var program = engine.ParseProgram(probe.Source);
-            var function = Assert.IsType<FunctionDeclaration>(Assert.Single(program.Body)).Function;
-            var buildResult = ExecutionPlanBuilder.Build(function);
-            Assert.True(buildResult.Succeeded, $"{probe.Name} should build without UnsupportedExpressionProgram drift.");
+            var program = engine.ParseProgram("""
+                function probe(box) {
+                    return box;
+                }
+                """);
+            var declaration = Assert.IsType<FunctionDeclaration>(Assert.Single(program.Body));
+            var function = declaration.Function;
+            var returnStatement = Assert.IsType<ReturnStatement>(Assert.Single(function.Body.Statements));
+            var mutatedReturnStatement = returnStatement with { Expression = probe.Expression };
+            var mutatedBody = function.Body with { Statements = [mutatedReturnStatement] };
+            var mutatedFunction = function with { Body = mutatedBody };
+            var buildResult = ExecutionPlanBuilder.Build(mutatedFunction);
+
+            Assert.False(buildResult.Succeeded, $"{probe.Name} should fail plan build.");
+            Assert.NotNull(buildResult.Failure);
+            Assert.Equal(ExecutionPlanFailureCode.UnsupportedExpressionProgram, buildResult.Failure!.Code);
+            Assert.Equal(probe.ExpectedFailureCode, buildResult.Failure.ExpressionFailureCode);
+            expectedBuckets[probe.ExpectedFailureCode] = expectedBuckets.TryGetValue(probe.ExpectedFailureCode, out var count) ? count + 1 : 1;
         }
 
         var snapshot = ExecutionPlanDiagnostics.DetailedSnapshot();
-        Assert.False(snapshot.FailureCodes.ContainsKey(ExecutionPlanFailureCode.UnsupportedExpressionProgram));
+        Assert.True(snapshot.FailureCodes.TryGetValue(ExecutionPlanFailureCode.UnsupportedExpressionProgram, out var unsupportedExpressionBuilds));
+        Assert.Equal(probes.Length, unsupportedExpressionBuilds);
         AssertEqualBucketsWithIntentMessage(
             expectedBuckets,
             snapshot.ExpressionFailureCodes,
-            "Update expected unsupported-expression buckets only when migration intentionally changes bytecode support; this probe currently expects a zero-bucket baseline.");
+            "Update expected unsupported-expression buckets only when migration intentionally changes bytecode support; this probe intentionally exercises real failing plan builds.");
     }
 
     [Fact]

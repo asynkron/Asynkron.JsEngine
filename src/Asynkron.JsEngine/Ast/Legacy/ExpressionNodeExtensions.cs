@@ -87,7 +87,7 @@ public static partial class TypedAstEvaluator
             return (null, null);
         }
 
-        var baseJsValue = EvaluateCachedExpressionProgram(
+        var baseJsValue = EvaluateDynamicExpressionProgram(
             extendsExpression,
             environment,
             context,
@@ -221,7 +221,7 @@ public static partial class TypedAstEvaluator
             // Explicit if statements generate less IL than switch expressions
             LiteralExpression literal => literal.Value,
             IdentifierExpression identifier => identifier.EvaluateIdentifier(environment, context),
-            BinaryExpression binary => EvaluateCachedExpressionProgram(
+            BinaryExpression binary => EvaluateDynamicExpressionProgram(
                 binary,
                 environment,
                 context,
@@ -245,7 +245,7 @@ public static partial class TypedAstEvaluator
         {
             AwaitExpression awaitExpression => awaitExpression.EvaluateAwait(environment, context),
             YieldExpression yieldExpression => yieldExpression.EvaluateYield(environment, context),
-            _ => EvaluateCachedExpressionProgram(expression, environment, context, failureLabel)
+            _ => EvaluateDynamicExpressionProgram(expression, environment, context, failureLabel)
         };
     }
 
@@ -1201,7 +1201,7 @@ public static partial class TypedAstEvaluator
             return context.ShouldStopEvaluation ? JsValue.Undefined : memberValue;
         }
 
-        var targetJs = EvaluateCachedExpressionProgram(
+        var targetJs = EvaluateDynamicExpressionProgram(
             expression.Target,
             environment,
             context,
@@ -1238,7 +1238,7 @@ public static partial class TypedAstEvaluator
         }
         else
         {
-            var propertyValueJs = EvaluateCachedExpressionProgram(
+            var propertyValueJs = EvaluateDynamicExpressionProgram(
                 expression.Property,
                 environment,
                 context,
@@ -1302,7 +1302,7 @@ public static partial class TypedAstEvaluator
             return (JsValue.Undefined, binding);
         }
 
-        var propertyValueJs = EvaluateCachedExpressionProgram(
+        var propertyValueJs = EvaluateDynamicExpressionProgram(
             expression.Property,
             environment,
             context,
@@ -1404,7 +1404,7 @@ public static partial class TypedAstEvaluator
                             result = typedFunc.InvokeWithContext([], JsValue.Undefined, context, JsValue.Undefined);
                             break;
                         case 1:
-                            var arg0 = EvaluateCachedExpressionProgram(
+                            var arg0 = EvaluateDynamicExpressionProgram(
                                 expression.Arguments[0].Expression,
                                 environment,
                                 context,
@@ -1421,7 +1421,7 @@ public static partial class TypedAstEvaluator
                                 : typedFunc.InvokeWithContext1(arg0, JsValue.Undefined, context);
                             break;
                         default: // 2
-                            var a0 = EvaluateCachedExpressionProgram(
+                            var a0 = EvaluateDynamicExpressionProgram(
                                 expression.Arguments[0].Expression,
                                 environment,
                                 context,
@@ -1432,7 +1432,7 @@ public static partial class TypedAstEvaluator
                                 return JsValue.Undefined;
                             }
 
-                            var a1 = EvaluateCachedExpressionProgram(
+                            var a1 = EvaluateDynamicExpressionProgram(
                                 expression.Arguments[1].Expression,
                                 environment,
                                 context,
@@ -1520,7 +1520,7 @@ public static partial class TypedAstEvaluator
                     break;
                 case 1:
                     {
-                        var v0 = EvaluateCachedExpressionProgram(
+                        var v0 = EvaluateDynamicExpressionProgram(
                             expression.Arguments[0].Expression,
                             environment,
                             context,
@@ -1540,7 +1540,7 @@ public static partial class TypedAstEvaluator
                     }
                 case 2:
                     {
-                        var v0 = EvaluateCachedExpressionProgram(
+                        var v0 = EvaluateDynamicExpressionProgram(
                             expression.Arguments[0].Expression,
                             environment,
                             context,
@@ -1551,7 +1551,7 @@ public static partial class TypedAstEvaluator
                             return JsValue.Undefined;
                         }
 
-                        var v1 = EvaluateCachedExpressionProgram(
+                        var v1 = EvaluateDynamicExpressionProgram(
                             expression.Arguments[1].Expression,
                             environment,
                             context,
@@ -1584,7 +1584,7 @@ public static partial class TypedAstEvaluator
 
                         for (var i = 0; i < argCount; i++)
                         {
-                            jsArgsArray[i] = EvaluateCachedExpressionProgram(
+                            jsArgsArray[i] = EvaluateDynamicExpressionProgram(
                                 expression.Arguments[i].Expression,
                                 environment,
                                 context,
@@ -1613,7 +1613,7 @@ public static partial class TypedAstEvaluator
             {
                 if (argument.IsSpread)
                 {
-                    var spreadValueJs = EvaluateCachedExpressionProgram(
+                    var spreadValueJs = EvaluateDynamicExpressionProgram(
                         argument.Expression,
                         environment,
                         context,
@@ -1649,7 +1649,7 @@ public static partial class TypedAstEvaluator
                     continue;
                 }
 
-                argsBuilder.Add(EvaluateCachedExpressionProgram(
+                argsBuilder.Add(EvaluateDynamicExpressionProgram(
                     argument.Expression,
                     environment,
                     context,
@@ -1699,7 +1699,7 @@ public static partial class TypedAstEvaluator
                     } && string.Equals(callLit.Value.AsString(), "call", StringComparison.Ordinal) &&
                     string.Equals(formatArgsLit.Value.AsString(), "formatArgs", StringComparison.Ordinal))
                 {
-                    var targetJs = EvaluateCachedExpressionProgram(
+                    var targetJs = EvaluateDynamicExpressionProgram(
                         inner.Target,
                         environment,
                         context,
@@ -2099,7 +2099,7 @@ public static partial class TypedAstEvaluator
         }
 
         // Evaluate the target (map or set instance) - safe because it's just an identifier lookup
-        var targetJs = EvaluateCachedExpressionProgram(
+        var targetJs = EvaluateDynamicExpressionProgram(
             member.Target,
             environment,
             context,
@@ -2193,7 +2193,7 @@ public static partial class TypedAstEvaluator
     private static JsValue FastMapSet(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
-        var key = EvaluateCachedExpressionProgram(
+        var key = EvaluateDynamicExpressionProgram(
             args[0].Expression,
             env,
             ctx,
@@ -2203,7 +2203,7 @@ public static partial class TypedAstEvaluator
             return JsValue.Undefined;
         }
 
-        var value = EvaluateCachedExpressionProgram(
+        var value = EvaluateDynamicExpressionProgram(
             args[1].Expression,
             env,
             ctx,
@@ -2221,7 +2221,7 @@ public static partial class TypedAstEvaluator
     private static JsValue FastMapGet(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
-        var key = EvaluateCachedExpressionProgram(
+        var key = EvaluateDynamicExpressionProgram(
             args[0].Expression,
             env,
             ctx,
@@ -2238,7 +2238,7 @@ public static partial class TypedAstEvaluator
     private static JsValue FastMapHas(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
-        var key = EvaluateCachedExpressionProgram(
+        var key = EvaluateDynamicExpressionProgram(
             args[0].Expression,
             env,
             ctx,
@@ -2255,7 +2255,7 @@ public static partial class TypedAstEvaluator
     private static JsValue FastMapDelete(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
-        var key = EvaluateCachedExpressionProgram(
+        var key = EvaluateDynamicExpressionProgram(
             args[0].Expression,
             env,
             ctx,
@@ -2281,7 +2281,7 @@ public static partial class TypedAstEvaluator
     private static JsValue FastSetAdd(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
-        var value = EvaluateCachedExpressionProgram(
+        var value = EvaluateDynamicExpressionProgram(
             args[0].Expression,
             env,
             ctx,
@@ -2299,7 +2299,7 @@ public static partial class TypedAstEvaluator
     private static JsValue FastSetHas(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
-        var value = EvaluateCachedExpressionProgram(
+        var value = EvaluateDynamicExpressionProgram(
             args[0].Expression,
             env,
             ctx,
@@ -2316,7 +2316,7 @@ public static partial class TypedAstEvaluator
     private static JsValue FastSetDelete(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env,
         EvaluationContext ctx)
     {
-        var value = EvaluateCachedExpressionProgram(
+        var value = EvaluateDynamicExpressionProgram(
             args[0].Expression,
             env,
             ctx,
@@ -2343,7 +2343,7 @@ public static partial class TypedAstEvaluator
         var thisArg = JsValue.Undefined;
         if (callArguments.Length > 0)
         {
-            thisArg = EvaluateCachedExpressionProgram(
+            thisArg = EvaluateDynamicExpressionProgram(
                 callArguments[0].Expression,
                 environment,
                 context,
@@ -2357,7 +2357,7 @@ public static partial class TypedAstEvaluator
         var argsBuilder = ImmutableArray.CreateBuilder<JsValue>();
         if (callArguments.Length > 1)
         {
-            var argsArrayJs = EvaluateCachedExpressionProgram(
+            var argsArrayJs = EvaluateDynamicExpressionProgram(
                 callArguments[1].Expression,
                 environment,
                 context,
@@ -2398,7 +2398,7 @@ public static partial class TypedAstEvaluator
 
         for (var i = 0; i < callArguments.Length; i++)
         {
-            var argValue = EvaluateCachedExpressionProgram(
+            var argValue = EvaluateDynamicExpressionProgram(
                 callArguments[i].Expression,
                 environment,
                 context,
@@ -2471,27 +2471,27 @@ public static partial class TypedAstEvaluator
                     environment,
                     context,
                     planSeed: FunctionLiteralDescriptor.Create(functionExpression).PlanSeed)),
-            DestructuringAssignmentExpression destructuringAssignment => EvaluateCachedExpressionProgram(
+            DestructuringAssignmentExpression destructuringAssignment => EvaluateDynamicExpressionProgram(
                 destructuringAssignment,
                 environment,
                 context,
                 "Dynamic destructuring assignment"),
-            PropertyAssignmentExpression propertyAssignment => EvaluateCachedExpressionProgram(
+            PropertyAssignmentExpression propertyAssignment => EvaluateDynamicExpressionProgram(
                 propertyAssignment,
                 environment,
                 context,
                 "Dynamic property assignment"),
-            IndexAssignmentExpression indexAssignment => EvaluateCachedExpressionProgram(
+            IndexAssignmentExpression indexAssignment => EvaluateDynamicExpressionProgram(
                 indexAssignment,
                 environment,
                 context,
                 "Dynamic index assignment"),
-            SequenceExpression sequence => EvaluateCachedExpressionProgram(
+            SequenceExpression sequence => EvaluateDynamicExpressionProgram(
                 sequence,
                 environment,
                 context,
                 "Dynamic sequence expression"),
-            NewExpression newExpression => EvaluateCachedExpressionProgram(
+            NewExpression newExpression => EvaluateDynamicExpressionProgram(
                 newExpression,
                 environment,
                 context,
@@ -2534,7 +2534,7 @@ public static partial class TypedAstEvaluator
         JsEnvironment environment,
         EvaluationContext context)
     {
-        var test = EvaluateCachedExpressionProgram(
+        var test = EvaluateDynamicExpressionProgram(
             expression.Test,
             environment,
             context,
@@ -2545,12 +2545,12 @@ public static partial class TypedAstEvaluator
         }
 
         return test.IsTruthy
-            ? EvaluateCachedExpressionProgram(
+            ? EvaluateDynamicExpressionProgram(
                 expression.Consequent,
                 environment,
                 context,
                 "Dynamic conditional consequent")
-            : EvaluateCachedExpressionProgram(
+            : EvaluateDynamicExpressionProgram(
                 expression.Alternate,
                 environment,
                 context,
@@ -2614,7 +2614,7 @@ public static partial class TypedAstEvaluator
         {
             if (element.IsSpread)
             {
-                var spreadValueJs = EvaluateCachedExpressionProgram(
+                var spreadValueJs = EvaluateDynamicExpressionProgram(
                     element.Expression!,
                     environment,
                     context,
@@ -2643,7 +2643,7 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                array.Push(EvaluateCachedExpressionProgram(
+                array.Push(EvaluateDynamicExpressionProgram(
                     element.Expression,
                     environment,
                     context,
@@ -2686,7 +2686,7 @@ public static partial class TypedAstEvaluator
 
                         var valueJs = member.Value is null
                             ? JsValue.Undefined
-                            : EvaluateCachedExpressionProgram(
+                            : EvaluateDynamicExpressionProgram(
                                 member.Value,
                                 environment,
                                 context,
@@ -2825,7 +2825,7 @@ public static partial class TypedAstEvaluator
 
                         var valueJs = member.Value is null
                             ? JsValue.Undefined
-                            : EvaluateCachedExpressionProgram(
+                            : EvaluateDynamicExpressionProgram(
                                 member.Value,
                                 environment,
                                 context,
@@ -2842,7 +2842,7 @@ public static partial class TypedAstEvaluator
                     }
                 case ObjectMemberKind.Spread:
                     {
-                        var spreadValueJs = EvaluateCachedExpressionProgram(
+                        var spreadValueJs = EvaluateDynamicExpressionProgram(
                             member.Value!,
                             environment,
                             context,
@@ -2934,7 +2934,7 @@ public static partial class TypedAstEvaluator
                 throw new InvalidOperationException("Computed property name must be an expression.");
             }
 
-            var keyValue = EvaluateCachedExpressionProgram(
+            var keyValue = EvaluateDynamicExpressionProgram(
                 keyExpression,
                 environment,
                 context,
@@ -2972,7 +2972,7 @@ public static partial class TypedAstEvaluator
             return expression.Operand.EvaluateDelete(environment, context) ? JsValue.True : JsValue.False;
         }
 
-        return EvaluateCachedExpressionProgram(
+        return EvaluateDynamicExpressionProgram(
             expression,
             environment,
             context,
@@ -2999,7 +2999,7 @@ public static partial class TypedAstEvaluator
                 continue;
             }
 
-            var valueJs = EvaluateCachedExpressionProgram(
+            var valueJs = EvaluateDynamicExpressionProgram(
                 part.Expression,
                 environment,
                 context,
@@ -3045,7 +3045,7 @@ public static partial class TypedAstEvaluator
         }
         else
         {
-            var stringsArrayValueJs = EvaluateCachedExpressionProgram(
+            var stringsArrayValueJs = EvaluateDynamicExpressionProgram(
                 expression.StringsArray,
                 environment,
                 context,
@@ -3060,7 +3060,7 @@ public static partial class TypedAstEvaluator
                 throw new InvalidOperationException("Tagged template strings array is invalid.");
             }
 
-            var rawStringsArrayValueJs = EvaluateCachedExpressionProgram(
+            var rawStringsArrayValueJs = EvaluateDynamicExpressionProgram(
                 expression.RawStringsArray,
                 environment,
                 context,
@@ -3084,7 +3084,7 @@ public static partial class TypedAstEvaluator
 
         foreach (var expr in expression.Expressions)
         {
-            arguments.Add(EvaluateCachedExpressionProgram(
+            arguments.Add(EvaluateDynamicExpressionProgram(
                 expr,
                 environment,
                 context,
@@ -3212,7 +3212,7 @@ public static partial class TypedAstEvaluator
                 }
             case MemberExpression member:
                 {
-                    var targetJs = EvaluateCachedExpressionProgram(
+                    var targetJs = EvaluateDynamicExpressionProgram(
                         member.Target,
                         environment,
                         context,
@@ -3237,7 +3237,7 @@ public static partial class TypedAstEvaluator
                     string propertyName;
                     if (member.IsComputed)
                     {
-                        var propertyJs = EvaluateCachedExpressionProgram(
+                        var propertyJs = EvaluateDynamicExpressionProgram(
                             member.Property,
                             environment,
                             context,
@@ -3260,7 +3260,7 @@ public static partial class TypedAstEvaluator
                             IdentifierExpression id => id.Name.Name,
                             LiteralExpression { Value.IsString: true } lit => lit.Value.AsString(),
                             _ => JsOps.GetRequiredPropertyName(
-                                EvaluateCachedExpressionProgram(
+                                EvaluateDynamicExpressionProgram(
                                     member.Property,
                                     environment,
                                     context,
@@ -3372,7 +3372,7 @@ public static partial class TypedAstEvaluator
                 }
             default:
                 {
-                    var directCallee = EvaluateCachedExpressionProgram(
+                    var directCallee = EvaluateDynamicExpressionProgram(
                         callee,
                         environment,
                         context,
@@ -3397,7 +3397,7 @@ public static partial class TypedAstEvaluator
                             context.RealmState);
                     }
 
-                    var targetJs = EvaluateCachedExpressionProgram(
+                    var targetJs = EvaluateDynamicExpressionProgram(
                         member.Target,
                         environment,
                         context,
@@ -3407,7 +3407,7 @@ public static partial class TypedAstEvaluator
                         return false;
                     }
 
-                    var propertyValueJs = EvaluateCachedExpressionProgram(
+                    var propertyValueJs = EvaluateDynamicExpressionProgram(
                         member.Property,
                         environment,
                         context,

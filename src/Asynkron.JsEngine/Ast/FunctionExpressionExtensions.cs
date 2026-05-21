@@ -161,7 +161,7 @@ public static partial class TypedAstEvaluator
                     return;
                 }
 
-                value = EvaluateCachedExpressionProgram(
+                value = EvaluateDynamicExpressionProgram(
                     parameter.DefaultValue,
                     environment,
                     context,

@@ -46,7 +46,7 @@ public static partial class TypedAstEvaluator
 
         var valueJs = declarator.Initializer is null
             ? JsValue.Undefined
-            : EvaluateCachedExpressionProgram(
+            : EvaluateDynamicExpressionProgram(
                 declarator.Initializer,
                 environment,
                 context,

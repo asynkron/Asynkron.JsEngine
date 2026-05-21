@@ -112,7 +112,7 @@ public static partial class TypedAstEvaluator
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static JsValue EvaluateIfJsValue(this IfStatement statement, JsEnvironment environment, EvaluationContext context)
     {
-        var test = EvaluateCachedExpressionProgram(
+        var test = EvaluateDynamicExpressionProgram(
             statement.Condition,
             environment,
             context,
@@ -218,7 +218,7 @@ public static partial class TypedAstEvaluator
         JsValue iterableJsValue;
         try
         {
-            iterableJsValue = EvaluateCachedExpressionProgram(
+            iterableJsValue = EvaluateDynamicExpressionProgram(
                 statement.Iterable,
                 iterableEnvironment,
                 context,
@@ -371,7 +371,7 @@ public static partial class TypedAstEvaluator
             statement.Target.CreateUninitializedLexicalBindings(iterableEnvironment, isConstDeclaration);
         }
 
-        var iterableJs = EvaluateCachedExpressionProgram(
+        var iterableJs = EvaluateDynamicExpressionProgram(
             statement.Iterable,
             iterableEnvironment,
             context,
@@ -512,7 +512,7 @@ public static partial class TypedAstEvaluator
     private static JsValue EvaluateThrowJsValue(this ThrowStatement statement, JsEnvironment environment,
         EvaluationContext context)
     {
-        var jsValue = EvaluateCachedExpressionProgram(
+        var jsValue = EvaluateDynamicExpressionProgram(
             statement.Expression,
             environment,
             context,
@@ -651,7 +651,7 @@ public static partial class TypedAstEvaluator
         EvaluationContext context,
         Symbol? targetLabel)
     {
-        var discriminantJs = EvaluateCachedExpressionProgram(
+        var discriminantJs = EvaluateDynamicExpressionProgram(
             statement.Discriminant,
             environment,
             context,
@@ -682,7 +682,7 @@ public static partial class TypedAstEvaluator
                 continue;
             }
 
-            var testJs = EvaluateCachedExpressionProgram(
+            var testJs = EvaluateDynamicExpressionProgram(
                 switchCase.Test,
                 switchEnv,
                 context,
@@ -964,7 +964,7 @@ public static partial class TypedAstEvaluator
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
     private static JsValue EvaluateWithJsValue(this WithStatement statement, JsEnvironment environment, EvaluationContext context)
     {
-        var objValueJs = EvaluateCachedExpressionProgram(
+        var objValueJs = EvaluateDynamicExpressionProgram(
             statement.Object,
             environment,
             context,
@@ -1019,7 +1019,7 @@ public static partial class TypedAstEvaluator
         // Hot path - explicit type checks for best inlining
         if (statement is ExpressionStatement expressionStatement)
         {
-            var result = EvaluateCachedExpressionProgram(
+            var result = EvaluateDynamicExpressionProgram(
                 expressionStatement.Expression,
                 environment,
                 context,

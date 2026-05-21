@@ -885,6 +885,42 @@ export default function() { return 23; };
     }
 
     [Fact(Timeout = 2000)]
+    public async Task SelfImportAndSelfReexportNamespaceEvaluatesAndInstantiatesOnce()
+    {
+        await using var engine = CreateEngine();
+
+        const string modulePath = "language/module-code/self-once.js";
+        var moduleSource = """
+                           import {} from './self-once.js';
+                           import './self-once.js';
+                           import * as ns1 from './self-once.js';
+                           import dflt1 from './self-once.js';
+                           export {} from './self-once.js';
+                           import dflt2, {} from './self-once.js';
+                           export * from './self-once.js';
+                           export * as ns2 from './self-once.js';
+                           import dflt3, * as ns from './self-once.js';
+                           export default null;
+                           globalThis.__selfOnce ??= 0;
+                           globalThis.__selfOnce += 1;
+                           """;
+
+        engine.SetModuleLoader(path =>
+        {
+            if (string.Equals(path, modulePath, StringComparison.Ordinal))
+            {
+                return moduleSource;
+            }
+
+            throw new FileNotFoundException($"Module not found: {path}");
+        });
+
+        await engine.EvaluateModule(moduleSource, modulePath);
+        var count = await engine.Evaluate("globalThis.__selfOnce;");
+        Assert.Equal(1.0, count);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task ImportMetaReturnsSameObjectWithinModuleAndFunction()
     {
         await using var engine = CreateEngine();

@@ -15,6 +15,8 @@ public abstract partial class Test262Test
         new(StringComparer.Ordinal);
     private const string DisableHarnessCacheEnvVar = "JSENGINE_TEST262_DISABLE_HARNESS_CACHE";
     private const string DisableBaseRealmEnvVar = "JSENGINE_TEST262_DISABLE_BASE_REALM";
+    private const string DecodeURIFourByteTest =
+        "built-ins/decodeURI/S15.1.3.1_A2.5_T1.js";
     private const string DecodeURIComponentFourByteTest =
         "built-ins/decodeURIComponent/S15.1.3.2_A2.5_T1.js";
     private const string RegExpCharacterClassEscapeNonWhitespaceTest =
@@ -619,6 +621,7 @@ try {
     {
         var normalizedFileName = NormalizeTest262Path(fileName);
         return normalizedFileName is
+            DecodeURIFourByteTest or
             DecodeURIComponentFourByteTest or
             RegExpCharacterClassEscapeNonWhitespaceTest or
             RegExpLiteralFirstCharRoundTripTest or

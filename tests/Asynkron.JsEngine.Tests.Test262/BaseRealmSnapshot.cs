@@ -333,6 +333,7 @@ internal sealed class BaseRealmSnapshot
             clone.IsBoundFunction = original.IsBoundFunction;
             clone.DisallowConstruct = original.DisallowConstruct;
             clone.ConstructErrorMessage = original.ConstructErrorMessage;
+            clone.CloneNativeSourceDisplayMetadataFrom(original);
 
             clone.Realm = CloneValue(original.Realm) as JsObject;
             clone.RealmState = _newRealm;

@@ -22,4 +22,11 @@ public sealed class FunctionRealmFocusedTests : Test262Test
     {
         RunTestCode(test, strict);
     }
+
+    [TestCase("built-ins/Function/prototype/toString/built-in-function-object.js", false)]
+    [TestCase("built-ins/Function/prototype/toString/built-in-function-object.js", true)]
+    public void Function_prototype_toString_built_in_function_object(string test, bool strict)
+    {
+        RunTestCode(test, strict);
+    }
 }

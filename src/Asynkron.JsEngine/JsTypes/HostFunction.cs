@@ -165,6 +165,12 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
         _nativeSourceDisplayName = TryBuildNativeSourceDisplayName(displayName);
     }
 
+    internal void CloneNativeSourceDisplayMetadataFrom(HostFunction original)
+    {
+        ArgumentNullException.ThrowIfNull(original);
+        _nativeSourceDisplayName = original._nativeSourceDisplayName;
+    }
+
     public void PreventExtensions()
     {
         Properties.PreventExtensions();

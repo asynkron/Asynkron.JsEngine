@@ -2706,6 +2706,34 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsDestructuringAssignmentDefaultExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            var program = _engine.ParseProgram("""
+                function pickAssignedDefault() {
+                    let x = 0;
+                    [x = 19] = [];
+                    return x;
+                }
+                """);
+
+            await _engine.Evaluate(program);
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var result = InvokeGlobalFunction("pickAssignedDefault");
+
+            Assert.Equal(19.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
     public async Task AssertNoAstEvaluation_Enabled_AllowsComputedObjectDestructuringExecution()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;

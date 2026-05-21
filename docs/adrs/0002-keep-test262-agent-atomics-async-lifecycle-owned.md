@@ -29,6 +29,17 @@ broadcast callback that returns an arbitrary thenable. Only internal
 every thenable is observable can turn a passing method group into a hung
 testhost, especially when worker threads remain blocked on the broadcast queue.
 
+Issue #1342 / PR #1361 reopened the same ownership boundary from two directions.
+`Atomics.wait` and `Atomics.waitAsync` compared expected values before applying
+the waitable typed array's element conversion, so wrapped Int32 and BigInt64
+expected values could take the wrong not-equal/timed-out path. The Test262
+agent runner also evaluated worker source synchronously and then drained
+microtasks once, which did not await async IIFE agent programs before report
+collection. The delivery kept both repairs in the Atomics/Test262-agent domain,
+then had to repair one quality-gate regression where nested-await lowering
+rewrote a `for await` loop body that contained no await and erased existing
+per-iteration slot stamping.
+
 ## Decision
 
 Treat Test262 agent Atomics fixes as lifecycle ownership work, not as isolated
@@ -50,7 +61,19 @@ class of failures:
    explicit completion signals so successful cases can release the testhost.
 5. Synchronize shared test captures when both host callbacks and scheduled
    event-loop work can write to them.
-6. Prove with the narrow crashing Test262 method group or exact listed files
+6. For `Atomics.wait` and `Atomics.waitAsync`, coerce the expected value through
+   the waitable typed array's element storage semantics before SameValue
+   comparison. The timeout/not-equal branch is observable, so raw `ToNumber` or
+   `ToBigInt` is not a sufficient proof for Int32 wrapping or BigInt64 wrapping.
+7. When Test262 agent source is async, await the evaluated program rather than
+   relying on one host microtask drain after synchronous evaluation. Agent
+   reports that are produced after an async IIFE resumes belong to the same
+   test case, not to teardown timing.
+8. Nested-await lowering must not rewrite `for await` loop bodies that contain
+   no await just because the surrounding statement is a `ForEachStatement`.
+   Preserve the existing slot-stamped body when the lowerer has no semantic work
+   to do inside that body.
+9. Prove with the narrow crashing Test262 method group or exact listed files
    first, then run the internal quality gate needed for the delivery branch.
 
 ## Consequences
@@ -61,7 +84,9 @@ class of failures:
   synchronization for shared host-side collections instead of depending on
   single-test timing.
 - Reviewers should treat unsynchronized capture lists, early waiter disposal,
-  unobservable thenable waits, and background worker teardown races as
-  first-class risks in this area.
-- This ADR is caused by issue #754 / PR #887 and issue #755 / PR #905, and
-  complements ADR 0001's separate quality-gate build/test contract.
+  unobservable thenable waits, wrong expected-value storage coercion, async
+  agent program drain gaps, and background worker teardown races as first-class
+  risks in this area.
+- This ADR is caused by issue #754 / PR #887, issue #755 / PR #905, and issue
+  #1342 / PR #1361, and complements ADR 0001's separate quality-gate build/test
+  contract.

@@ -29,12 +29,24 @@ dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~SomeTestN
 When a spawned maintenance-child issue asks for one bounded repository
 maintenance pass, keep the slice repo-local and reviewable:
 
+- Policy ownership: recurring-child policy and edge-case lessons live in
+  `.claude/rules/recurring-maintenance-child-runs.md`.
+- Operational ownership: this section owns the runnable checklist and `## Build
+  Update` template used in build-stage issue updates.
+- ADR allocation ownership: `.claude/rules/adr-allocation.md` owns ADR ID
+  reservation (`faktorial-api adr-next`) and duplicate-prefix guardrails.
+
 1. Choose exactly one docs, tooling, test-fixture, or workflow simplification
    slice. Do not add or change recurrence infrastructure; Faktorial owns the
    recurrence schedule.
 2. Capture a cheap baseline signal before editing. Prefer evidence such as
    `make -n quality`, a targeted `rg` check, `git diff --check`, or another
    narrow command tied directly to the chosen slice.
+   If `faktorial-api` helper commands are unavailable in the local agent
+   environment, use the bounded fallback command
+   `faktorial log-summary <issue-number> --root '<repo-root>'` and proceed
+   with local/embedded Faktorial context instead of treating missing helpers
+   or missing `gh` auth as blockers.
 3. If the slice adds a new ADR under `docs/adrs/`, reserve the ID with
    `faktorial-api adr-next` first and use the returned `adr_id`; if the lesson
    fits an existing durable document, update that file instead of creating a
@@ -139,5 +151,5 @@ dotnet run --project examples/NpmPackageDemo
 - This pack is intentionally Test262-only and excludes non-Test262 regressions such as `Asynkron.JsEngine.Tests.Array_indexOf_OnlyCallsHasPropertyOnPrototypeAfterLengthZeroed`.
 - Smaller subsystem packs live under `tests/Asynkron.JsEngine.Tests.Test262/regression-packs/`.
 - Available packs: `full`, `annexb`, `array-prototype`, `intl`, `language`, `proxy`, `regexp`, `temporal`.
-- List packs without failing: `./tools/run-test262-regressions.sh --list`.
+- List packs without failing (with per-pack regression counts): `./tools/run-test262-regressions.sh --list`.
 - Examples: `./tools/run-test262-regressions.sh temporal`, `./tools/run-test262-regressions.sh intl`, `./tools/run-test262-regressions.sh regexp`.

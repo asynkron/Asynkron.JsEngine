@@ -1,5 +1,12 @@
 # Remaining Test262 Gaps — 2026-03-19
 
+> [!NOTE]
+> The totals in this document are a historical snapshot from 2026-03-19.
+> For current regression-session evidence, use:
+> - `tests/Asynkron.JsEngine.Tests.Test262/current-regressions.filter.txt` (master list)
+> - `tests/Asynkron.JsEngine.Tests.Test262/regression-packs/` (subsystem packs)
+> - `./tools/run-test262-regressions.sh --list` (list available packs)
+
 **Baseline: 89,127 passed / 92,975 total (95.9%)**
 **38 todo files, ~1,200 remaining test entries**
 

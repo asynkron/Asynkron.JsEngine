@@ -120,6 +120,49 @@ public class RegressionTests
             Is.EqualTo(new[] { "running:1", "timed-out", "timed-out" }));
     }
 
+    [Test]
+    public async Task Test262AgentStartDrainsAsyncIife()
+    {
+        await using var engine = Test262Test.CreateTest262Engine(logger: null, debugMode: false, useSnapshot: false);
+        using var agentRuntime = new Test262AgentRuntime(
+            () => Test262Test.CreateTest262Engine(logger: null, debugMode: false, useSnapshot: false),
+            State.Sources);
+
+        engine.SetGlobalValue("$262", new JsObject
+        {
+            ["agent"] = agentRuntime.CreateMainAgentObject(),
+        });
+
+        var result = await engine.Evaluate(
+            """
+            $262.agent.start(`
+              (async () => {
+                const i32a = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT));
+                $262.agent.report("before");
+                $262.agent.report(await Atomics.waitAsync(i32a, 0, 0, 0).value);
+                $262.agent.leaving();
+              })();
+            `);
+
+            var getReport = $262.agent.getReport.bind($262.agent);
+            var reports = [];
+            for (var i = 0; i < 100 && reports.length < 2; i++) {
+              $262.agent.sleep(10);
+              var report = getReport();
+              if (report !== null) {
+                reports.push(report);
+              }
+            }
+
+            reports;
+            """);
+
+        var reports = result as JsArray ?? throw new AssertionException("Expected reports array");
+
+        Assert.That(reports.Items.Select(item => item.AsString()).ToArray(),
+            Is.EqualTo(new[] { "before", "timed-out" }));
+    }
+
     [TestCase("built-ins/decodeURIComponent/S15.1.3.2_A2.5_T1.js")]
     [TestCase("test/built-ins/decodeURIComponent/S15.1.3.2_A2.5_T1.js")]
     public void DecodeURIComponentFourByteFixture_UsesExtendedExecutionTimeout(string fileName)

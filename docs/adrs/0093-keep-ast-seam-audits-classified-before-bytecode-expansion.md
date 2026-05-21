@@ -1,0 +1,63 @@
+# ADR 0093: Keep AST seam audits classified before bytecode expansion
+
+## Status
+
+Accepted
+
+## Context
+
+Issue #1391 audited the current runtime AST seams before more expression
+bytecode expansion or compact statement-bytecode design work. The task was
+read-only because the risk was not a single implementation bug; it was planning
+future bytecode work from stale source references.
+
+The audit ran the requested seam searches:
+
+1. `rg "EvaluateExpression\(|ProfileEvaluateExpression\(" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner*`
+2. `rg "StatementInstruction|AST-evaluated|AstPayloadLeak|AstReentry" src/Asynkron.JsEngine`
+
+The first search had no direct runner-file hits. The second search found a mix
+of legacy AST-evaluation boundaries, dynamic or profiling-only seams, stale
+comments, and obsolete compatibility markers. In particular, `InstructionKind`
+no longer has a `Statement` member and no concrete `StatementInstruction` type
+was found, so many `StatementInstruction` references were not active runtime
+instruction evidence.
+
+The remaining real boundaries were the quarantined legacy expression and
+statement evaluators, dynamic-only operand/yield-resume support, and the
+profiling bridge that still invokes legacy statement evaluation. The highest
+risk was treating those intentional boundaries, stale comments, and enum
+compatibility markers as the same class of runtime AST re-entry.
+
+## Decision
+
+Before expanding expression bytecode or designing compact statement bytecode,
+classify AST-seam evidence by runtime meaning:
+
+1. direct calls from `TypedAstEvaluator.ExecutionPlanRunner*` to
+   `EvaluateExpression(` or `ProfileEvaluateExpression(` are active runner
+   seams and must be treated as bytecode/IR debt;
+2. legacy AST evaluators and dynamic-only operands are quarantined boundaries
+   unless the new work proves they are on the normal non-dynamic fast path;
+3. comments mentioning removed `StatementInstruction` behavior are cleanup
+   candidates, not proof that the instruction still exists;
+4. enum values such as `AstPayloadLeak` and `AstReentryDetected` remain
+   diagnostic or compatibility markers unless an active call site is found; and
+5. planning notes and implementation issues must record the exact search
+   commands and classification, so later bytecode work can start from the
+   baseline instead of repeating broad discovery.
+
+## Consequences
+
+- Future IR/bytecode agents should run the focused AST-seam scans before
+  claiming normal-path AST evaluation remains or has been removed.
+- New runtime fallbacks should not be justified by stale `StatementInstruction`
+  references. Prefer emitter/lowering normalization and deletion of mixed
+  AST/IR seams when semantics allow it.
+- Cleanup of stale comments is useful but should be separated from runtime
+  bytecode design unless the cleanup blocks a concrete implementation.
+- Profiling and legacy dynamic boundaries remain legitimate follow-up targets,
+  but they need their own issue with proof that the boundary is observable on a
+  hot or non-dynamic path.
+- This ADR is caused by issue #1391 and complements the root
+  `.claude/rules/expression-bytecode-ast-seams.md` rule.

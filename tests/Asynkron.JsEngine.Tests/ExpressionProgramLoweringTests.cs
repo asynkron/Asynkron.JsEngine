@@ -2345,6 +2345,33 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task DestructuringAssignmentExpressionStatement_ObjectDefault_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function assignValueOrDefault() {
+                let x = 0;
+                ({ value: x = 23 } = {});
+                return x;
+            }
+            """, "assignValueOrDefault");
+
+        var assignment = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
+        Assert.Null(assignment.Expression);
+        AssertProgramContains<ApplyBindingTargetExpressionOp>(
+            assignment.ExpressionProgram,
+            op => op.TargetProgram is ObjectBindingTargetProgram);
+        var applyBinding = Assert.Single(
+            assignment.ExpressionProgram.GetOps(ApplyBindingTargetExpressionOp.Kind),
+            op => op.TargetProgram is ObjectBindingTargetProgram);
+        var targetProgram = Assert.IsType<ObjectBindingTargetProgram>(applyBinding.TargetProgram);
+        var property = Assert.Single(targetProgram.Properties);
+        Assert.NotNull(property.DefaultProgram);
+        AssertProgramContains<LoadLiteralExpressionOp>(
+            property.DefaultProgram,
+            op => op.Value.IsNumber && op.Value.NumberValue == 23.0);
+    }
+
+    [Fact]
     public async Task ClassDefinition_ExtendsExpression_IsLoweredToExpressionProgramCache()
     {
         var cache = await GetClassDefinitionProgramCache("""

@@ -25,7 +25,14 @@ generator and prove the generated resolver behavior through focused tests.
    encoder problem. Compact astral surrogate-pair output by grouping high
    surrogates that share the same normalized low-surrogate class; do not mask
    the issue with broad Test262 timeouts or generated-data edits.
-7. Do not put normal lexer identifier classification on
+7. If exact generated property-escape fixtures of the form
+   `/^\p{...}+$/u` or `/^\P{...}+$/u` still pass too slowly after range data and
+   pattern encoding are correct, keep the repair as a narrow `JsRegExp`
+   runtime matcher. The matcher must stay `u`-only, non-global, non-sticky, and
+   exact-full-string; it must read by code point, preserve whole-input `exec`
+   and RegExp statics, and decline all mixed or capture-bearing patterns back to
+   the normal .NET regex bridge.
+8. Do not put normal lexer identifier classification on
    `UnicodePropertyData.Resolve(...)` or other RegExp Unicode-property resolver
    paths. Parser hot paths such as `UnicodeIdentifier` should classify
    ECMAScript `ID_Start` / `ID_Continue` directly, with explicit compatibility
@@ -59,3 +66,12 @@ heavy RegExp Unicode property dataset. Future agents should keep ECMAScript
 identifier classification lightweight and parser-owned, using direct Unicode
 category checks plus the small `Other_ID_*` compatibility set instead of
 coupling lexer hot paths to RegExp property escape infrastructure.
+
+Issue #1332 / PR #1346 exposed the match-time side of the same RegExp property
+escape performance boundary. Generated fixtures for `Alphabetic`, `Any`, and
+`ASCII_Hex_Digit` were semantically correct, but exact anchored full-string
+property escape checks still paid heavy .NET regex construction and matching
+cost. The durable lesson is to keep this as a narrow runtime matcher over the
+resolved Unicode ranges, not as a generated-data edit or a Test262 timeout
+exception. Review sent the delivery back until the representative strict and
+non-strict Test262 cases were below the explicit under-10s gate.

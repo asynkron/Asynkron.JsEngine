@@ -18,7 +18,8 @@ Current documentation is split between repository docs and the agent/operator pl
 - **[Architecture first-code snapshot](docs/architecture-first-code-2025-11-07.html)** - Earlier architecture artifact kept for historical comparison.
 
 ### Status and Decisions
-- **[Remaining Test262 gaps](docs/remaining-test262-gaps.md)** - Current standards-compliance gap tracking.
+- **[Current Test262 regression filters](tests/Asynkron.JsEngine.Tests.Test262/current-regressions.filter.txt)** - Active standards-compliance gap tracking and owning failure list.
+- **[Regression packs](tests/Asynkron.JsEngine.Tests.Test262/regression-packs/)** - Themed slices derived from the umbrella filter for bounded work.
 - **[Architecture decision records](docs/adrs/)** - Durable implementation decisions and quality-gate notes.
 - **[Agent playbooks](agents/)** - Contributor/operator rules for coding standards, build/test commands, profiling, debugging, and workflow.
 
@@ -32,7 +33,7 @@ Asynkron.JsEngine targets ECMAScript 262 with full language coverage and a stead
 
 ### Current Status
 - ECMAScript 262 language: 100% compliant; all language-focused Test262 cases pass.
-- Built-ins / standard library: ~50% compliant; about half of the ES built-ins are implemented on the attribute-driven generator model and the rest are being migrated. See `docs/remaining-test262-gaps.md` and the internal test suites for current evidence.
+- Built-ins / standard library: ~50% compliant; about half of the ES built-ins are implemented on the attribute-driven generator model and the rest are being migrated.
 
 ### Capabilities
 - Variables, functions, classes, objects, arrays
@@ -41,7 +42,7 @@ Asynkron.JsEngine targets ECMAScript 262 with full language coverage and a stead
 - Template literals, destructuring, spread/rest, operators, and control flow
 - Implemented built-ins include Object, Array/TypedArray/ArrayBuffer/SharedArrayBuffer/DataView, Promise, Math, Date, JSON, RegExp, Reflect, Console, Symbol, Map/Set/WeakMap/WeakSet, BigInt, and async iteration helpers. Standard library coverage is expanding as more types move onto the generated constructor/prototype surface.
 
-See the `tests/` tree and `docs/remaining-test262-gaps.md` for the most current implementation evidence.
+See the `tests/` tree, especially `tests/Asynkron.JsEngine.Tests.Test262/current-regressions.filter.txt` and `tests/Asynkron.JsEngine.Tests.Test262/regression-packs/`, for the most current implementation evidence.
 
 ---
 

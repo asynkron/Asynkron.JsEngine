@@ -51,6 +51,12 @@ values, and async module evaluation order separate.
     `"then"` non-observing. The probe must not force live export binding
     resolution, module evaluation, or TDZ reads, but real namespace internals
     must still preserve TDZ for actual exported names.
+14. Construct module namespace objects from exported names without eagerly
+    resolving every export binding. Namespace construction can instantiate the
+    module and collect names, but binding resolution belongs to namespace
+    lookup/descriptor observation. Self namespace re-exports such as
+    `export * as ns from "./self.js"` must not recursively demand the same
+    namespace before it has been cached.
 
 ## Why
 
@@ -96,3 +102,13 @@ lesson is that thenable detection is not a real namespace export observation:
 it must not call the binding resolver or TDZ guard, while direct namespace
 reads and namespace own-property internals must keep throwing for uninitialized
 exports.
+
+Issue #1376 / PR #1381 fixed Test262 `ModuleCode` self-import/self-re-export
+stack overflows in `eval-self-once.js` and `instn-once.js`. The durable lesson
+is that namespace creation is not itself an export read: eagerly resolving every
+export name during construction can recursively enter the same self namespace
+re-export before the namespace object is cached. Future namespace fixes must
+prove both self evaluation/instantiation idempotence and nearby star-export
+ambiguity behavior.
+
+Related ADR: `docs/adrs/0091-keep-module-namespace-construction-resolution-lazy.md`.

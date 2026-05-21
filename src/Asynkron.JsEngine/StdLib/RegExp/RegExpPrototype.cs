@@ -752,7 +752,7 @@ public sealed partial class RegExpPrototype
                 end++;
             }
 
-            if (sourcePosition == 0 && end == input.Length)
+            if (sourcePosition == 0 && i == 0 && end == input.Length)
             {
                 result = replacement;
                 Realm.UpdateRegExpStatics(input, i, end - i);

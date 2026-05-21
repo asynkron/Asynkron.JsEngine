@@ -324,6 +324,16 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 2000)]
+    public async Task String_Replace_GlobalNonWhitespace_PreservesLeadingWhitespace()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            " a".replace(/\S+/g, "X");
+        """);
+        Assert.Equal(" X", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task RegExp_GlobalFlag_Test_UpdatesLastIndex()
     {
         await using var engine = CreateEngine();

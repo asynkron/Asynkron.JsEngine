@@ -37,6 +37,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   an explicit non-failing inventory command over making agents probe an invalid
   argument just to see an error message. Keep the listing path backed by the
   same computed source that validation uses.
+- When `faktorial-api` helper commands are unavailable in a recurring child
+  agent environment, use bounded local Faktorial context such as
+  `faktorial log-summary <issue-number> --root '<repo-root>'` plus supplied
+  issue context instead of blocking on helper availability or missing `gh`
+  authentication.
 - When the slice touches ADR creation guidance, include the cheap duplicate
   prefix signal as evidence, but keep ADR ID allocation aligned with
   `.claude/rules/adr-allocation.md`, which is the allocator authority:
@@ -101,3 +106,10 @@ successfully and print the same pack list used by invalid-pack validation.
 Before that, agents had to call an intentionally invalid pack name to discover
 available regression packs, which turned normal workflow discovery into a
 failing command and added avoidable noise to recurring maintenance evidence.
+
+Issue #1365 / PR #1370 hardened the recurring-child operational playbook after
+the build agent found `faktorial-api` unavailable in its local environment. The
+durable lesson is that helper availability is not the unit of progress:
+recurring children should continue from supplied context and bounded
+`faktorial log-summary` evidence, while treating missing `gh` auth or missing
+optional helpers as an environment limitation rather than a source blocker.

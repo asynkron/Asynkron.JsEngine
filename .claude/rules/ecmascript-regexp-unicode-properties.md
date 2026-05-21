@@ -32,7 +32,14 @@ generator and prove the generated resolver behavior through focused tests.
    exact-full-string; it must read by code point, preserve whole-input `exec`
    and RegExp statics, and decline all mixed or capture-bearing patterns back to
    the normal .NET regex bridge.
-8. Do not put normal lexer identifier classification on
+8. Create the exact anchored property matcher before RegExp normalization and
+   .NET regex construction. If the matcher accepts the original ECMAScript
+   source and flags, return from construction without expanding property ranges
+   into `_normalizedPattern`, building capture metadata, or compiling a .NET
+   regex. Profile Unicode data warm-up, RegExp construction, sample string
+   construction, positive match, and negated match as separate phases so agents
+   do not confuse one-time resolver initialization with per-pattern cost.
+9. Do not put normal lexer identifier classification on
    `UnicodePropertyData.Resolve(...)` or other RegExp Unicode-property resolver
    paths. Parser hot paths such as `UnicodeIdentifier` should classify
    ECMAScript `ID_Start` / `ID_Continue` directly, with explicit compatibility
@@ -75,3 +82,11 @@ cost. The durable lesson is to keep this as a narrow runtime matcher over the
 resolved Unicode ranges, not as a generated-data edit or a Test262 timeout
 exception. Review sent the delivery back until the representative strict and
 non-strict Test262 cases were below the explicit under-10s gate.
+
+Issue #1377 / PR #1384 exposed the construction-order side of the anchored
+matcher boundary. The exact generated Test262 property-escape shape was already
+runtime-matchable, but creating the matcher after `NormalizePattern(...)` still
+paid expanded .NET regex construction cost for large property ranges. Future
+agents should recognize the narrow anchored matcher before normalization and
+measure warm-up, compile, sample-build, and positive/negated match phases
+separately before claiming a RegExp property-escape performance repair.

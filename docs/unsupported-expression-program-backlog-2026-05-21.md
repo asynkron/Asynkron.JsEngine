@@ -52,6 +52,7 @@ Current bucket set (`ExpressionProgramFailureCode`):
 - `NestedOptionalCall`: optional call lowering and short-circuit stack behavior need dedicated tests.
 
 ### High risk / defer
+- `UnsupportedExpressionNode`
 - `SuperCall`
 - `SuperMemberAccess`
 - `OptionalOrSuperMemberUpdate`
@@ -62,7 +63,7 @@ Current bucket set (`ExpressionProgramFailureCode`):
 - `OptionalTaggedTemplate`
 - `NestedOptionalTaggedTemplate`
 
-Rationale: `super` and optional-chain/tagged-template combinations couple to lexical home-object and short-circuit semantics, so they should remain in narrow, isolated slices with dedicated semantic proof.
+Rationale: `UnsupportedExpressionNode` is the broad catch-all classification when lowering/classification has no narrower mapped bucket, so it should stay deferred until narrower typed buckets are burned down to avoid mixing unrelated semantic risk into one implementation slice. `super` and optional-chain/tagged-template combinations also couple to lexical home-object and short-circuit semantics, so they should remain in narrow, isolated slices with dedicated semantic proof.
 
 ## Reproducibility
 Focused probe commands used for this baseline:

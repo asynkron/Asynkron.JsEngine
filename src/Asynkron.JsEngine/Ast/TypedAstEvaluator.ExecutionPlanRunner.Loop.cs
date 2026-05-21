@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 #endregion
 
-#pragma warning disable CS0618 // Obsolete AST evaluation methods are used intentionally here
+#pragma warning disable CS0618 // Compatibility overloads remain for dynamic/resume seams; not proof of direct runner AST fallback.
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -74,7 +74,7 @@ public static partial class TypedAstEvaluator
                 IteratorStateRef.ResumedWithEnvironment = wasStart ? null : environment;
                 context = EnsureEvaluationContext();
 
-                // If we're resuming from a yield that happened during legacy AST fallback
+                // If we're resuming from a yield captured through compatibility source-position tracking
                 // evaluation, handle based on the resume mode.
                 _realmState.Logger?.LogInformation(
                     "ExecutePlan resume check: wasStart={WasStart} mode={Mode} YieldStateRef.LastYieldSourceStart={Start}",

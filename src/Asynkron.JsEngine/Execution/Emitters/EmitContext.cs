@@ -43,7 +43,7 @@ internal sealed class EmitContext(
     /// <summary>
     /// Whether we're currently in a nested scope (e.g., per-iteration scope for for-of).
     /// When true, additional slot allocations won't work correctly because the slot count
-    /// was pre-computed. Used to fall back to AST walking for complex patterns.
+    /// was pre-computed. Used to classify plan-build failure for unsupported nested-scope allocation patterns; outer execution can then choose AST walking fallback.
     /// </summary>
     public bool IsInNestedScope => _scopeStack.Count > 0;
 

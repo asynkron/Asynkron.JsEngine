@@ -47,6 +47,10 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   `.claude/rules/adr-allocation.md`, which is the allocator authority:
   Faktorial learn or knowledge-artifact work must reserve IDs through the
   runtime allocator, not by guessing from a directory scan.
+- For persistent ADR/rule compaction children, verify overlap against the
+  current semantic home first and update that existing document when guidance
+  is already covered. Do not create duplicate ADRs, rules, or durable notes
+  for guidance that already has an owned home.
 
 ## Why
 

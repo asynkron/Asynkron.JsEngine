@@ -7,9 +7,20 @@ pack_dir="$repo_root/tests/Asynkron.JsEngine.Tests.Test262/regression-packs"
 pack_name="${1:-full}"
 available_packs="full $(cd "$pack_dir" && printf '%s ' *.filter.txt | sed 's/\.filter\.txt//g')"
 
+count_filters() {
+  local file="$1"
+  grep -Evc '^[[:space:]]*(#|$)' "$file"
+}
+
 case "$pack_name" in
   --list|-l|list)
-    echo "$available_packs"
+    printf 'full (%s entries)\n' "$(count_filters "$master_list")"
+    if [[ -d "$pack_dir" ]]; then
+      while IFS= read -r pack_file; do
+        pack_base="$(basename "$pack_file" .filter.txt)"
+        printf '%s (%s entries)\n' "$pack_base" "$(count_filters "$pack_file")"
+      done < <(find "$pack_dir" -maxdepth 1 -type f -name '*.filter.txt' | sort)
+    fi
     exit 0
     ;;
   full)

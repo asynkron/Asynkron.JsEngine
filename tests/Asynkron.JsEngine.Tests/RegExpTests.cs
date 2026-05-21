@@ -1229,6 +1229,25 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 5000)]
+    public async Task RegExp_AnchoredNonWordClassEscape_MatchesGeneratedRangeShape()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var input = "`:[]{}" + "\u0660" + String.fromCodePoint(0x10000) + "\uDC00";
+            [
+              /^\W+$/.test(input),
+              /^\W+$/u.test(input),
+              /^\W+$/v.test(input),
+              /^\W+$/.exec(input)[0] === input,
+              /^\W+$/.test(input + "A"),
+              /^\W+$/.test("")
+            ].join("|");
+        """);
+
+        Assert.Equal("true|true|true|true|false|false", result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task RegExp_UnicodeIgnoreCaseClass_UsesSimpleCaseFoldingPairs()
     {
         await using var engine = CreateEngine();

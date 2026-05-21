@@ -37,7 +37,13 @@ fallback or cleanup.
 9. When turning a source seam scan into an automated test, assert that the
    expected source files were discovered before asserting zero forbidden calls.
    A source gate that can pass with zero scanned files is not a guardrail.
-10. When reporting or planning `UnsupportedExpressionProgram` backlog work,
+10. When documenting or planning direct `ExpressionProgramCompiler` coverage,
+   start from `docs/expression-bytecode-coverage.md` and keep it complete for
+   every concrete `ExpressionNode`. New concrete expression nodes must be added
+   to the map with a status (`supported`, `shape-dependent`, `unsupported`, or
+   `not-compiled-directly`), the owning failure-code/compiler restriction where
+   applicable, and representative test evidence.
+11. When reporting or planning `UnsupportedExpressionProgram` backlog work,
    derive the bucket list from the current compiler/diagnostic surfaces and
    explicitly rank catch-all buckets such as `UnsupportedExpressionNode`.
    Treat catch-all buckets as high-risk/deferred until narrower typed buckets
@@ -100,6 +106,13 @@ runner comments and `CS0618` rationale can make compatibility/resume overloads
 look like active AST fallbacks, while actual outer fallback classification lives
 in `ExecutionPlanBuilder`, emitter diagnostics, and
 `ExpressionProgramCompileFailure` / `SetExpressionProgramFailure(...)`.
+
+Issue #1437 added `docs/expression-bytecode-coverage.md` and
+`ExpressionProgramCoverageMapTests.CoverageMap_ListsEveryConcreteExpressionNodeType`
+after the bytecode audit needed a durable handoff. The risk was future agents
+claiming coverage from spot checks while newly added `ExpressionNode` types
+silently escaped the map. The reflection guard keeps the map complete, while
+the map keeps support status and failure-code ownership explicit.
 
 Issue #1436 / PR #1443 added the first durable
 `UnsupportedExpressionProgram` backlog report for bytecode expansion. Review

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Tests;
@@ -217,5 +218,82 @@ public class IntlLocaleDebugTests
         Assert.DoesNotContain("THREW:", summary!, StringComparison.Ordinal);
         Assert.DoesNotContain(":undefined:", summary!, StringComparison.Ordinal);
         Assert.Contains("Collator:en-u-co-phonebk-nu-invalid:", summary!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetCanonicalLocales_CanonicalizesRepresentativeLanguageTags()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            Intl.getCanonicalLocales([
+              'iw-il',
+              'sgn-GR',
+              'cmn-hans-cn-u-ca-t-ca-x-t-u',
+              'en-a-not-assigned-x-private',
+              'de-1901'
+            ]).join('|');
+        ");
+
+        Assert.Equal(
+            "he-IL|sfb|zh-Hans-CN-t-ca-u-ca-x-t-u|en-a-not-assigned-x-private|de-1901",
+            result?.ToString());
+    }
+
+    [Fact]
+    public async Task LocaleCanonicalization_RejectsInvalidDuplicateTags()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            [
+              'en-u-ca-gregory-u-nu-latn',
+              'de-1901-1901',
+              'en-a-value-a-other',
+              'en-u',
+              'en-t-a0',
+              'en-x'
+            ].map(tag => {
+              let canonical;
+              try {
+                Intl.getCanonicalLocales(tag);
+                canonical = 'accepted';
+              } catch (error) {
+                canonical = error instanceof RangeError ? 'range' : error.name;
+              }
+
+              let locale;
+              try {
+                new Intl.Locale(tag);
+                locale = 'accepted';
+              } catch (error) {
+                locale = error instanceof RangeError ? 'range' : error.name;
+              }
+
+              return canonical + ':' + locale;
+            }).join('|');
+        ");
+
+        Assert.Equal(
+            "range:range|range:range|range:range|range:range|range:range|range:range",
+            result?.ToString());
+    }
+
+    [Fact(Timeout = 10000)]
+    public async Task GetCanonicalLocales_LongInvalidTagRejectsWithinTimeoutBudget()
+    {
+        var engine = new JsEngine();
+        var stopwatch = Stopwatch.StartNew();
+        var result = await engine.Evaluate(@"
+            const tag = 'en-' + 'a-'.repeat(5000) + 'a';
+            try {
+              Intl.getCanonicalLocales(tag);
+              'accepted';
+            } catch (error) {
+              error instanceof RangeError ? 'range' : error.name;
+            }
+        ");
+        stopwatch.Stop();
+
+        Assert.Equal("range", result?.ToString());
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(10), $"Elapsed: {stopwatch.Elapsed}");
     }
 }

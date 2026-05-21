@@ -1,7 +1,6 @@
 #region
 
 using System.Globalization;
-using System.Text.RegularExpressions;
 using Asynkron.JsEngine.Runtime;
 
 #endregion
@@ -60,14 +59,6 @@ internal static partial class IntlUtilities
     private static readonly RealmState CanonicalizationRealm = new() { Options = JsEngineOptions.Default };
     private static readonly Lazy<HashSet<string>> AvailableLocales = new(BuildAvailableLocales);
     private static readonly Lazy<string> DefaultLocale = new(DetermineDefaultLocale);
-
-    private static readonly Regex LanguageTagRegex = MyRegex();
-
-    private static readonly Regex DuplicateSingletonRegex = MyRegex1();
-
-    private static readonly Regex DuplicateVariantRegex = MyRegex2();
-
-    private static readonly Regex TransformKeyRegex = MyRegex3();
 
     static IntlUtilities()
     {
@@ -903,14 +894,304 @@ internal static partial class IntlUtilities
 
     private static bool IsStructurallyValidLanguageTag(string locale)
     {
-        if (!LanguageTagRegex.IsMatch(locale))
+        var subtags = locale.Split('-');
+        if (subtags.Length == 0)
         {
             return false;
         }
 
-        var privateSplit = locale.Split(["-x-"], StringSplitOptions.None);
-        var head = privateSplit[0];
-        return !DuplicateSingletonRegex.IsMatch(head) && !DuplicateVariantRegex.IsMatch(head);
+        var variants = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var singletons = new HashSet<char>();
+        var index = 0;
+        if (!TryParseUnicodeLanguageId(subtags, ref index, variants))
+        {
+            return false;
+        }
+
+        while (index < subtags.Length && !IsPrivateUseSingletonIgnoreCase(subtags[index]))
+        {
+            if (!IsSingleton(subtags[index]))
+            {
+                return false;
+            }
+
+            var singleton = char.ToLowerInvariant(subtags[index][0]);
+            if (!singletons.Add(singleton))
+            {
+                return false;
+            }
+
+            index++;
+            if (singleton == 'u')
+            {
+                if (!TryParseUnicodeExtension(subtags, ref index))
+                {
+                    return false;
+                }
+            }
+            else if (singleton == 't')
+            {
+                if (!TryParseTransformExtension(subtags, ref index, variants))
+                {
+                    return false;
+                }
+            }
+            else if (!TryParseGenericExtension(subtags, ref index))
+            {
+                return false;
+            }
+        }
+
+        if (index < subtags.Length)
+        {
+            index++;
+            if (index >= subtags.Length)
+            {
+                return false;
+            }
+
+            while (index < subtags.Length)
+            {
+                if (!IsAlphanumericSubtag(subtags[index], 1, 8))
+                {
+                    return false;
+                }
+
+                index++;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryParseUnicodeLanguageId(
+        IReadOnlyList<string> subtags,
+        ref int index,
+        ISet<string> variants)
+    {
+        if (index >= subtags.Count || !IsLanguageSubtag(subtags[index]))
+        {
+            return false;
+        }
+
+        index++;
+        if (index < subtags.Count && IsScriptSubtag(subtags[index]))
+        {
+            index++;
+        }
+
+        if (index < subtags.Count && IsRegionSubtag(subtags[index]))
+        {
+            index++;
+        }
+
+        while (index < subtags.Count && IsVariantSubtag(subtags[index]))
+        {
+            if (!variants.Add(subtags[index]))
+            {
+                return false;
+            }
+
+            index++;
+        }
+
+        return true;
+    }
+
+    private static bool TryParseUnicodeExtension(IReadOnlyList<string> subtags, ref int index)
+    {
+        var start = index;
+
+        while (index < subtags.Count && !IsSingleton(subtags[index]) && IsUnicodeAttribute(subtags[index]))
+        {
+            index++;
+        }
+
+        while (index < subtags.Count && !IsSingleton(subtags[index]))
+        {
+            if (!IsUnicodeKey(subtags[index]))
+            {
+                return false;
+            }
+
+            index++;
+            while (index < subtags.Count && !IsSingleton(subtags[index]))
+            {
+                if (!IsUnicodeTypeSubtag(subtags[index]))
+                {
+                    break;
+                }
+
+                index++;
+            }
+        }
+
+        return index > start;
+    }
+
+    private static bool TryParseTransformExtension(
+        IReadOnlyList<string> subtags,
+        ref int index,
+        ISet<string> variants)
+    {
+        var start = index;
+        if (index < subtags.Count && !IsSingleton(subtags[index]) && !IsTransformKey(subtags[index]))
+        {
+            if (!TryParseUnicodeLanguageId(subtags, ref index, variants))
+            {
+                return false;
+            }
+        }
+
+        while (index < subtags.Count && !IsSingleton(subtags[index]))
+        {
+            if (!IsTransformKey(subtags[index]))
+            {
+                return false;
+            }
+
+            index++;
+            var valueStart = index;
+            while (index < subtags.Count && !IsSingleton(subtags[index]) && IsUnicodeTypeSubtag(subtags[index]))
+            {
+                index++;
+            }
+
+            if (index == valueStart)
+            {
+                return false;
+            }
+        }
+
+        return index > start;
+    }
+
+    private static bool TryParseGenericExtension(IReadOnlyList<string> subtags, ref int index)
+    {
+        var start = index;
+        while (index < subtags.Count && !IsSingleton(subtags[index]))
+        {
+            if (!IsAlphanumericSubtag(subtags[index], 2, 8))
+            {
+                return false;
+            }
+
+            index++;
+        }
+
+        return index > start;
+    }
+
+    private static bool IsLanguageSubtag(string subtag)
+    {
+        return (subtag.Length is >= 2 and <= 3 || subtag.Length is >= 5 and <= 8) && IsAsciiLetters(subtag);
+    }
+
+    private static bool IsScriptSubtag(string subtag)
+    {
+        return subtag.Length == 4 && IsAsciiLetters(subtag);
+    }
+
+    private static bool IsRegionSubtag(string subtag)
+    {
+        return subtag.Length == 2 && IsAsciiLetters(subtag) ||
+               subtag.Length == 3 && IsAsciiDigits(subtag);
+    }
+
+    private static bool IsVariantSubtag(string subtag)
+    {
+        return subtag.Length is >= 5 and <= 8 && IsAsciiAlphanumeric(subtag) ||
+               subtag.Length == 4 && IsAsciiDigit(subtag[0]) && IsAsciiAlphanumeric(subtag);
+    }
+
+    private static bool IsSingleton(string subtag)
+    {
+        return subtag.Length == 1 && IsAsciiAlphanumeric(subtag[0]);
+    }
+
+    private static bool IsPrivateUseSingletonIgnoreCase(string subtag)
+    {
+        return subtag.Length == 1 && char.ToLowerInvariant(subtag[0]) == 'x';
+    }
+
+    private static bool IsUnicodeAttribute(string subtag)
+    {
+        return IsAlphanumericSubtag(subtag, 3, 8);
+    }
+
+    private static bool IsUnicodeKey(string subtag)
+    {
+        return subtag.Length == 2 && IsAsciiAlphanumeric(subtag[0]) && IsAsciiLetter(subtag[1]);
+    }
+
+    private static bool IsTransformKey(string subtag)
+    {
+        return subtag.Length == 2 && IsAsciiLetter(subtag[0]) && IsAsciiDigit(subtag[1]);
+    }
+
+    private static bool IsUnicodeTypeSubtag(string subtag)
+    {
+        return IsAlphanumericSubtag(subtag, 3, 8);
+    }
+
+    private static bool IsAlphanumericSubtag(string subtag, int minLength, int maxLength)
+    {
+        return subtag.Length >= minLength && subtag.Length <= maxLength && IsAsciiAlphanumeric(subtag);
+    }
+
+    private static bool IsAsciiLetters(string value)
+    {
+        foreach (var ch in value)
+        {
+            if (!IsAsciiLetter(ch))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsAsciiDigits(string value)
+    {
+        foreach (var ch in value)
+        {
+            if (!IsAsciiDigit(ch))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsAsciiAlphanumeric(string value)
+    {
+        foreach (var ch in value)
+        {
+            if (!IsAsciiAlphanumeric(ch))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsAsciiAlphanumeric(char ch)
+    {
+        return IsAsciiLetter(ch) || IsAsciiDigit(ch);
+    }
+
+    private static bool IsAsciiLetter(char ch)
+    {
+        var lower = char.ToLowerInvariant(ch);
+        return lower is >= 'a' and <= 'z';
+    }
+
+    private static bool IsAsciiDigit(char ch)
+    {
+        return ch is >= '0' and <= '9';
     }
 
     private static string CanonicalizeLanguageTag(string locale)
@@ -1103,7 +1384,7 @@ internal static partial class IntlUtilities
             else if (string.Equals(key, "t", StringComparison.Ordinal))
             {
                 var j = extensionStart + 1;
-                while (j < i && !TransformKeyRegex.IsMatch(subtags[j]))
+                while (j < i && !IsTransformKey(subtags[j]))
                 {
                     j++;
                 }
@@ -1872,13 +2153,4 @@ internal static partial class IntlUtilities
     {
         return numberingSystem is "arab" or "arabext" ? "\u066B" : ".";
     }
-
-    [GeneratedRegex(@"^(([a-z]{2,3}|[a-z]{5,8})(-([a-z]{4}))?(-([a-z]{2}|[0-9]{3}))?(-([a-z0-9]{5,8}|(?:[0-9][a-z0-9]{3})))*(-((u((-([a-z0-9][a-z](-[a-z0-9]{3,8})*))+|((-([a-z0-9]{3,8}))+(-([a-z0-9][a-z](-[a-z0-9]{3,8})*))*)))|(t((-(([a-z]{2,3}|[a-z]{5,8})(-([a-z]{4}))?(-([a-z]{2}|[0-9]{3}))?(-([a-z0-9]{5,8}|(?:[0-9][a-z0-9]{3})))*)(-([a-z][0-9](-[a-z0-9]{3,8})+))*)|(-([a-z][0-9](-[a-z0-9]{3,8})+))+))|(([0-9]|[a-sv-wy-z])(-[a-z0-9]{2,8})+)))*(-(x(-[a-z0-9]{1,8})+))?)$", RegexOptions.IgnoreCase | RegexOptions.Compiled, "sv-SE")]
-    private static partial Regex MyRegex();
-    [GeneratedRegex(@"-([0-9]|[a-wy-z])-(.*-)?\1(?![a-z0-9])", RegexOptions.IgnoreCase | RegexOptions.Compiled, "sv-SE")]
-    private static partial Regex MyRegex1();
-    [GeneratedRegex(@"([a-z0-9]{2,8}-)+([a-z0-9]{5,8}|(?:[0-9][a-z0-9]{3}))-([a-z0-9]{2,8}-)*\2(?![a-z0-9])", RegexOptions.IgnoreCase | RegexOptions.Compiled, "sv-SE")]
-    private static partial Regex MyRegex2();
-    [GeneratedRegex(@"^[a-z][0-9]$", RegexOptions.IgnoreCase | RegexOptions.Compiled, "sv-SE")]
-    private static partial Regex MyRegex3();
 }

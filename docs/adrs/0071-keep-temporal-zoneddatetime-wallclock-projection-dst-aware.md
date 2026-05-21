@@ -67,6 +67,13 @@ and treat every `BigInteger → DateTimeOffset` bridge as overflow-safe:
    equivalent `long`-tick cast) catches both
    `ArgumentOutOfRangeException` and `OverflowException`. .NET's range check
    does not subsume the cast's overflow.
+5. **Local field extraction stays on epoch arithmetic.** Prototype calendar
+   fields such as `year`, `month`, `day`, `monthCode`, `era`, and `eraYear`,
+   plus shared helpers such as `GetLocalPlainDateTime`, derive the local
+   components from epoch nanoseconds plus the selected offset with
+   `BigInteger` date decomposition. They must not require a successful
+   `DateTimeOffset` conversion for named time zones outside .NET's supported
+   year range.
 
 ## Consequences
 
@@ -79,6 +86,11 @@ and treat every `BigInteger → DateTimeOffset` bridge as overflow-safe:
   longer crash named-timezone wall-clock projection with a host
   `OverflowException`; the `BaseUtcOffset` approximation is acceptable far
   outside the IANA DST data window.
+- Pro: Extended-year named-timezone local fields remain available even when the
+  offset lookup must fall back to `BaseUtcOffset`; issue #1375 / PR #1387 fixed
+  a regression where `GetLocalPlainDateTime` still depended on
+  DateTimeOffset-only conversion after the offset bridge had been made
+  overflow-safe.
 - Con: `GetIanaOffset` adds one host call per local projection. Fixed-offset
   ZonedDateTimes still skip the helper through the existing `FixedOffset.HasValue`
   branch.
@@ -95,6 +107,10 @@ and treat every `BigInteger → DateTimeOffset` bridge as overflow-safe:
     constructs a ZonedDateTime with `1000000000000000000000n` epoch ns
     (~10²¹, within Temporal range) in `America/New_York` and asserts `.year`
     returns a number without throwing.
+- Issue #1375 / PR #1387 re-proved
+  `Temporal_ZonedDateTime_OutOfDotNetRange_NamedTimezone_DoesNotThrow` after
+  changing local field extraction to use `EpochNanosToComponents`, then reran
+  the focused Temporal Test262 cases removed from the regression filters.
 - Test262 filter removal: `built-ins/Temporal/ZonedDateTime/prototype/startOfDay/same-date-starts-twice.js`
   removed from `tests/Asynkron.JsEngine.Tests.Test262/current-regressions.filter.txt`.
 - Implementation diff is bounded to:

@@ -80,6 +80,15 @@ open-coding casts at individual call sites.
     composing either the final string or `formatRangeToParts` output. Do not let
     `formatRangeToParts` reintroduce generic `double` conversion or a separate
     endpoint formatter that loses decimal-string precision.
+15a. For `Intl.NumberFormat` mixed significant-digit and fraction-digit
+     precision (`roundingPriority: "morePrecision"` or `"lessPrecision"`),
+     normalize trailing zero scale before choosing or emitting the selected
+     quantity. The comparison is based on maximum-constraint rounding
+     magnitude, but the emitted fraction digits still need the minimum-digit
+     padding applied after insignificant trailing zeros have been stripped.
+     WHY: issue #1375 / PR #1387 fixed a `roundingPriority` Test262 case where
+     the significant-digit path kept stale scale and the fraction-digit path
+     padded before normalization, producing the wrong mixed-options output.
 16. For `Intl.DurationFormat` fractional unit output, combine seconds,
     milliseconds, microseconds, and nanoseconds as exact decimal quantities
     before formatting. Do not aggregate sub-second units through `double`
@@ -238,6 +247,12 @@ string helper so a range such as `"987654321987654321"` to
 should prove both focused Test262 method groups and a local regression that
 compares the joined parts with the formatted range when the same endpoint
 formatting should be observable.
+
+Issue #1375 / PR #1387 fixed an `Intl.NumberFormat` mixed precision regression
+after significant-digit and fraction-digit candidate quantities preserved
+trailing zero scale differently. The durable rule is that candidate selection
+uses the maximum rounding magnitudes, while final emission normalizes
+insignificant trailing zeros before minimum fraction padding is applied.
 
 Issue #1025 / PR #1097 fixed `Intl.DurationFormat.prototype.format` after
 fractional unit combination used binary `double` arithmetic for seconds,

@@ -23,6 +23,9 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
 - When multiple recurring-maintenance children are active, check active sibling
   child log summaries before choosing a slice so two children do not target the
   same narrow docs cleanup in parallel.
+- When sibling summaries influence slice selection, record that sibling check
+  explicitly in the child-run evidence (issue update) so review can confirm the
+  run stayed non-overlapping without reconstructing scheduler state.
 - When a docs slice enumerates filesystem contents (regression packs, demo
   directories, runsettings files, build targets), compare the doc against the
   actual directory listing as the baseline signal. Treat doc/filesystem drift
@@ -47,6 +50,10 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   `.claude/rules/adr-allocation.md`, which is the allocator authority:
   Faktorial learn or knowledge-artifact work must reserve IDs through the
   runtime allocator, not by guessing from a directory scan.
+- For persistent ADR/rule compaction children, verify overlap against the
+  current semantic home first and update that existing document when guidance
+  is already covered. Do not create duplicate ADRs, rules, or durable notes
+  for guidance that already has an owned home.
 
 ## Why
 

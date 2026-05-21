@@ -17,6 +17,13 @@ channel.
 4. Add focused semantic coverage for both sides of an encoded branch, not only
    a trace/printer assertion. For accessors, that means proving getter and
    setter descriptors behave correctly at runtime.
+5. Before starting compact-encoding work that claims allocation or storage
+   benefit, capture current-worktree evidence and keep storage size, runtime
+   allocations, and compile-time allocations separate. `./tools/profile forloop
+   --memory` is the minimum runtime signal; use representative lowering
+   diagnostics or tiny tooling-only diagnostics for operation counts,
+   `MaxStackDepth`, and constant-pool sizes. Do not choose expression-op
+   storage as the first compacting target unless the evidence points there.
 
 ## Why
 
@@ -26,3 +33,11 @@ Issue #758 / PR #890 fixed computed object literal setters after
 runtime descriptor creation interpreted the setter as a getter. Packed
 expression ops are intentionally compact, so future changes need an explicit
 writer/reader/consumer check to avoid another silent channel mismatch.
+
+Issue #1403 measured `ExpressionProgram` storage and allocation before compact
+encoding work. The current-worktree `forloop --memory` sample allocated 7.05 MB
+and was dominated by engine/bootstrap allocations, while representative
+lowering diagnostics only supplied operation/stack-shape context. That evidence
+did not justify expression-op compacting as the first optimization target and
+showed why compaction work must start with phase-separated measurements rather
+than a storage-shape assumption.

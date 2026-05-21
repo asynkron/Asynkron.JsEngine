@@ -59,4 +59,3 @@ For future `Temporal.PlainDateTime` property-bag and difference work:
 - Review should check both sides of the Temporal object model: visible
   calendar-field projection and internal ISO-coordinate arithmetic.
 - The caused-by incident is issue #1074 / PR #1308.
-

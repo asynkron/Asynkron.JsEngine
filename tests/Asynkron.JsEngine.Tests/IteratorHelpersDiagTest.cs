@@ -7,6 +7,54 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class IteratorHelpersDiagTest(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 5000)]
+    public async Task Take_ReturnForwardsToUnderlyingIteratorOnce()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            let returnCount = 0;
+
+            class TestIterator extends Iterator {
+              next() {
+                return { done: false, value: 1 };
+              }
+              return() {
+                ++returnCount;
+                return {};
+              }
+            }
+
+            let iterator = new TestIterator().take(1).take(1).take(1);
+            iterator.return();
+            iterator.return();
+            returnCount;
+        """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Take_ReturnValidatesUnderlyingReturnObject()
+    {
+        await using var engine = CreateEngine();
+
+        var ex = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
+            class TestIterator extends Iterator {
+              next() {
+                return { done: false, value: 1 };
+              }
+              return() {
+                return null;
+              }
+            }
+
+            new TestIterator().take(1).return();
+        """));
+
+        Assert.Contains("Iterator.return() must return an object", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task DiagnosticTest_MapForOf()
     {
         await using var engine = CreateEngine();

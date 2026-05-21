@@ -9,6 +9,30 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
+    public async Task AsyncGeneratorFunctionConstructor_SingleArgumentBodyYields()
+    {
+        await using var engine = CreateEngine();
+
+        await engine.Evaluate("""
+            let observed = [];
+            var AsyncGeneratorFunction = Object.getPrototypeOf(async function* () {}).constructor;
+
+            var g = AsyncGeneratorFunction('yield 1;');
+            var iter = g();
+
+            iter.next().then(function(result) {
+              observed.push(result.value + ':' + result.done);
+            });
+            iter.next().then(function(result) {
+              observed.push(String(result.value) + ':' + result.done);
+            });
+        """);
+
+        var result = await engine.Evaluate("observed.join('|');");
+        Assert.Equal("1:false|undefined:true", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task AsyncGenerator_ForAwaitCollectsSequence()
     {
         await using var engine = CreateEngine();

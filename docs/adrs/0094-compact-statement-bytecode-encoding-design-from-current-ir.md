@@ -106,6 +106,7 @@ storage readiness.
 | --- | --- | --- | --- |
 | Pure control flow | `Jump`, `Break`, `Continue`, `SetCompletionValue`, `BreakableExit` | Encode now | Scalar index/label metadata only; no semantic migration needed. |
 | Control flow with expression condition | `Branch` | Conditional / needs normalization | `ConditionProgram` is already expression-bytecode-backed, but statement compact encoding should reference expression IDs through the shared expression table. |
+| Terminal control flow with optional expression payloads | `Throw`, `Return` | Conditional / needs normalization | Both carry optional expression/await payloads (`ThrowProgram`/`ReturnProgram`, `AwaitStateKey`, `AwaitedProgram`) and should use shared expression-reference IDs plus normalized async-resume operand encoding. |
 | Direct expression statement | `EvaluateAndDiscard` | Conditional / needs normalization | Stable `ExpressionProgram` payload, but must be encoded as expression reference ID instead of in-record payload. |
 | Await expression statement | `AwaitAndDiscard` | Conditional / needs normalization | Uses `AwaitStateKey` + `AwaitedProgram`; expression ref part is stable, but async resume payload needs shared encode pattern. |
 | Slot fast paths | `IncrementSlot`, `AssignmentSlot`, `LogicalCompoundAssignmentSlot`, `CompoundAssignmentSlot` | Conditional / needs normalization | Mostly scalar/symbol operands plus optional `ExpressionProgram`/`AwaitedProgram`; encode is safe once optional expression fields are normalized to IDs. |

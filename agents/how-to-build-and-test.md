@@ -159,5 +159,11 @@ dotnet run --project examples/NpmPackageDemo
 - This pack is intentionally Test262-only and excludes non-Test262 regressions such as `Asynkron.JsEngine.Tests.Array_indexOf_OnlyCallsHasPropertyOnPrototypeAfterLengthZeroed`.
 - Smaller subsystem packs live under `tests/Asynkron.JsEngine.Tests.Test262/regression-packs/`.
 - Available packs: `full`, `annexb`, `array-prototype`, `intl`, `language`, `proxy`, `regexp`, `temporal`.
+- Named-pack inventory (`--list`) comes from those files in
+  `regression-packs/`; it is a static inventory of runnable pack names, not a
+  snapshot of current failures.
 - List packs without failing (with per-pack regression counts): `./tools/run-test262-regressions.sh --list`.
+- Entry counts shown by `--list` are line counts from each pack file (typically
+  one Test262 filter entry per line). Treat them as pack-size signals; they are
+  not pass/fail totals from a live run.
 - Examples: `./tools/run-test262-regressions.sh temporal`, `./tools/run-test262-regressions.sh intl`, `./tools/run-test262-regressions.sh regexp`.

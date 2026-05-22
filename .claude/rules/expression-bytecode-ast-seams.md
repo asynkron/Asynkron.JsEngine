@@ -271,6 +271,13 @@ names while documenting that `EvaluateExpressionProgram(` remains allowed,
 because it executes already-lowered expression bytecode instead of walking AST
 expressions.
 
+Issue #1511 / PR #1511 renamed the quarantined legacy helpers away from generic
+`EvaluateExpression` / `EvaluateExpressionSlow` wording and updated the source
+gates to match explicit raw evaluator names. The incident showed that helper
+names are part of the guardrail: generic names make seam scans and handoffs
+look like normal-path AST evaluation, while explicit legacy/dynamic/suspending
+names keep dynamic boundaries and bytecode execution separated.
+
 Issue #1479 refreshed the ADR 0093 seam baseline after review found the first
 evidence update did not name the current remaining owner surfaces. The incident
 shows that a clean runner scan is necessary but insufficient for handoff:

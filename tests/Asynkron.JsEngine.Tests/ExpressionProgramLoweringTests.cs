@@ -608,6 +608,23 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task SimpleVariableDeclaration_ObjectLiteral_ParserStaticStringNumberAndBigIntKeys_UseJavaScriptPropertyNames()
+    {
+        var plan = await GetFunctionPlan("""
+            function createObjectLiteralKeys() {
+                const value = { "label": 1, 7: 2, 12n: 3 };
+                return value;
+            }
+            """, "createObjectLiteralKeys");
+
+        var declaration = Assert.Single(plan.Instructions.OfType<SimpleVariableDeclarationInstruction>(), i => i.TargetSymbol.Name == "value");
+        Assert.NotNull(declaration.InitializerProgram);
+        AssertProgramContains<DefineObjectPropertyExpressionOp>(declaration.InitializerProgram!, op => op.PropertyName == "label");
+        AssertProgramContains<DefineObjectPropertyExpressionOp>(declaration.InitializerProgram!, op => op.PropertyName == "7");
+        AssertProgramContains<DefineObjectPropertyExpressionOp>(declaration.InitializerProgram!, op => op.PropertyName == "12");
+    }
+
+    [Fact]
     public void MemberExpression_StaticIdentifierPropertyNode_IsLoweredToNamedPropertyBytecode()
     {
         var expression = new MemberExpression(

@@ -37,8 +37,8 @@ Current bucket set (`ExpressionProgramFailureCode`):
 ## Ranked implementation backlog
 
 ### First slice (lower risk / normalization-friendly)
-- `UnsupportedStaticObjectPropertyName`: remaining object literal/property-name normalization edge cases after parser-literal + identifier/literal AST key coverage.
-- `InvalidComputedObjectKey`: narrow object key validation/classification seam.
+- `UnsupportedStaticObjectPropertyName`: residual unknown static AST key-node shapes after parser static string/number/bigint keys plus identifier/literal AST key normalization.
+- `InvalidComputedObjectKey`: narrow validation/classification seam for computed keys that are not `ExpressionNode` instances.
 - `UnsupportedDotAccessPropertyName`: literal property-name classifier gap.
 - `UnsupportedDirectMemberCallPropertyName`: direct member-call property-name classifier gap.
 - `UnsupportedTaggedTemplateMemberAccessName`: tagged-template member-access name classifier gap.

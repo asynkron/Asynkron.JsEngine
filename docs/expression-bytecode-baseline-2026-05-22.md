@@ -14,7 +14,7 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj --f
 ```
 
 Result:
-- Passed: 7
+- Passed: 11
 - Failed: 0
 - Skipped: 0
 
@@ -28,8 +28,8 @@ Result excerpt:
 - profile: `forloop`
 - programs: `7`
 - total_ops: `10`
-- packed_op_estimated_bytes: `120`
-- packed_op_shape: `flags=1`, `immediate0=4`, `immediate1=0`, `both_immediates=0`
+- encoded_op_estimated_bytes: `80`
+- packed_op_shape: `flags=1`, `immediate0=10`, `immediate1=1`, `both_immediates=1`
 - constants:
   - literals: `4`
   - strings: `0`
@@ -37,7 +37,7 @@ Result excerpt:
   - identifiers: `7`
   - spread_masks: `0`
 - optional_chain_shape:
-  - optional_ops: `1`
+  - optional_ops: `0`
   - short_circuit_ops: `0`
 - side_state_estimates:
   - max_stack_slots: `9`

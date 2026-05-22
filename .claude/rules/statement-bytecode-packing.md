@@ -29,6 +29,11 @@ decode bridge are explicit.
    not only printer-equivalent output. Slot metadata, flat-slot ids,
    declaration flags, await state keys, and expression/binding programs that
    affect the semantic view must round-trip or the family must stay unsupported.
+7. For optional compact payload fields, store explicit presence metadata instead
+   of inferring presence from sentinel values after packing into structs. A
+   default struct payload can contain zero-valued scope or slot ids that look
+   populated, so byte estimates and decoded records must branch on a real
+   `Has...` flag for optional metadata.
 
 ## Why
 
@@ -48,5 +53,14 @@ record payloads such as `AssignmentSlotInstruction` scope/slot metadata and
 `SimpleVariableDeclarationInstruction` flags. Future bridge expansions need
 record-level parity tests for supported families so the decoded diagnostic view
 remains a trustworthy stand-in for the current semantic instruction records.
+
+Issue #1562 / PR #1563 fixed a red-main regression in
+`StatementInstructionDiagnosticsCodec` where `EncodedStatementSidePayload` became
+a struct and its default zero-valued `ScopeId`/`FlatSlotId` made no-payload
+control-flow instructions look like they carried assignment metadata. The simple
+family compact estimate jumped from 64 to 96 bytes until the codec added an
+explicit assignment-metadata presence flag. Future optional payload fields need
+the same explicit presence bit so diagnostic storage estimates remain stable and
+do not confuse default values with meaningful metadata.
 
 Related ADR: `docs/adrs/0094-compact-statement-bytecode-encoding-design-from-current-ir.md`.

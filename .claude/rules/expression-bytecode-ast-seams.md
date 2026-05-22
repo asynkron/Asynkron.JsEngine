@@ -71,7 +71,14 @@ fallback or cleanup.
     that the runner files have no obvious direct call; it does not prove that a
     dynamic entry point still reaches the IR/function pipeline under runtime
     execution.
-15. When retiring dynamic operand AST seams, migrate one operand family at a
+15. Keep dynamic expression-program bridges explicitly named and source-gated.
+    Quarantined legacy or dynamic callers should route through
+    `EvaluateDynamicExpressionProgram`, which lowers/caches the dynamic
+    expression and throws on lowering failure. Already-lowered payloads should
+    continue to use `EvaluateLoweredExpressionProgram`; do not blur these
+    surfaces under generic cached-helper naming or add raw AST expression
+    fallback on compile failure.
+16. When retiring dynamic operand AST seams, migrate one operand family at a
     time through the dynamic `ExpressionProgram` bridge when the operand only
     needs a value. Dynamic return operands are the reference shape: evaluate
     the return expression with `EvaluateDynamicExpressionProgram(...)`, preserve
@@ -80,7 +87,7 @@ fallback or cleanup.
     suspending operands (`await`, `yield`), assignment/name-inference operands,
     and delete-default operands as separate slices until their evaluation order,
     resume, and side-effect semantics are proven.
-16. When renaming, removing, or splitting expression-program bridge APIs, search
+17. When renaming, removing, or splitting expression-program bridge APIs, search
     both the primary IR/runtime files and the quarantined legacy AST evaluator
     directory for stale bridge calls. Legacy dynamic boundaries may still be the
     caller that routes AST-owned statements into lowered `ExpressionProgram`
@@ -181,10 +188,19 @@ lacked explicit `AssertNoAstEvaluation` tests. Future agents should turn
 classification claims for dynamic boundaries into executable proof coverage,
 not rely only on seam scans or adjacent direct-eval/with tests.
 
+Issue #1446 / PR #1456 locked down the dynamic expression bridge after
+investigation found `EvaluateCachedExpressionProgram` was semantically a
+dynamic-boundary helper but named like a general cache path. The delivery
+renamed it to `EvaluateDynamicExpressionProgram`, kept unsupported lowering as
+an explicit throw instead of a raw AST expression fallback, and added a source
+gate for approved dynamic call sites. Future AST-seam work should preserve that
+classification so dynamic bridge callers cannot drift into normal
+already-lowered expression-program execution, and already-lowered class or
+initializer payloads do not get mislabeled as legacy fallback.
+
 Issue #1447 / PR #1457 converted the dynamic return-expression boundary from
-`EvaluateDynamicExpressionOperand(...)` to the existing cached expression-program
-path, which is now reached through the dynamic expression-program bridge. The
-important constraint is scope: a return operand only needs a `JsValue` before
+`EvaluateDynamicExpressionOperand(...)` to the dynamic expression-program bridge.
+The important constraint is scope: a return operand only needs a `JsValue` before
 setting the return completion, so it can be bytecode-backed without changing
 suspension or name-inference behavior. Future dynamic operand work should repeat
 that narrow proof shape instead of mixing return, await, yield, assignment, and

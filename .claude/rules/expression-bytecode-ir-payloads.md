@@ -56,11 +56,18 @@ payloads, prove the bytecode payload contract at the instruction level.
    analysis may read it, `LowerExpressionPayloads()` / validation must clear and
    reject any published instance that still carries it, and flat-slot mapping
    should stay separated from payload lowering.
-10. When adding or updating instruction-payload audit ledgers, verify every
+11. When adding or updating instruction-payload audit ledgers, verify every
     listed instruction member name against the current record definitions before
     committing. Do not use plausible historical names in classification tables:
     for example, the return compatibility shim is
     `ReturnInstruction.ReturnExpression`, not `ReturnInstruction.Expression`.
+12. When lowering awaited `if` conditions into synthetic awaited temporaries,
+    guard the rewrite by JavaScript evaluation order, not only by "contains
+    await". The guard must cover every expression shape the await rewriter can
+    traverse. In particular, inspect `NewExpression.Constructor` as well as
+    arguments, reject logical/nullish short-circuit shapes, and do not hoist
+    awaits from `ConditionalExpression` branches into a pre-branch temp because
+    that would eagerly evaluate branch-only work.
 
 ## Why
 
@@ -122,3 +129,12 @@ actual null compatibility shim is `ReturnInstruction.ReturnExpression`. Future
 payload ledgers must be checked against the concrete record members, not only
 the conceptual payload family, so the durable audit stays actionable when
 agents use it for follow-up lowering/removal work.
+
+Issue #1491 / PR #1501 lowered safe async `if` conditions into existing
+`SimpleVariableDeclarationInstruction.AwaitedProgram` plus bytecode-backed
+`BranchInstruction.ConditionProgram`. Review found that the safety guard must
+mirror the rewriter traversal exactly: missing `NewExpression.Constructor`
+would allow an unsafe short-circuit constructor hoist, and treating ternary
+branches as generally rewritable would break branch-only evaluation. Future
+branch-condition await work must prove direct and nested await branch payloads
+while preserving short-circuit and conditional-expression evaluation order.

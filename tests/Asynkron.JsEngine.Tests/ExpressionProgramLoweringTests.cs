@@ -376,6 +376,57 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task BranchInstruction_AwaitedCondition_UsesSyntheticAwaitedTemp()
+    {
+        var plan = await GetFunctionPlan("""
+            async function guard(valuePromise) {
+                if (await valuePromise) {
+                    return 1;
+                }
+                return 0;
+            }
+            """, "guard");
+
+        var tempInstruction = Assert.Single(
+            plan.Instructions.OfType<SimpleVariableDeclarationInstruction>(),
+            i => i.AwaitedProgram is not null && i.TargetSymbol.Name!.StartsWith("__yield_lower_", StringComparison.Ordinal));
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            tempInstruction.AwaitedProgram,
+            op => op.Name.Name == "valuePromise");
+
+        var branchInstruction = Assert.Single(plan.Instructions.OfType<BranchInstruction>());
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            branchInstruction.ConditionProgram,
+            op => op.Name.Name == tempInstruction.TargetSymbol.Name);
+    }
+
+    [Fact]
+    public async Task BranchInstruction_NestedAwaitedCondition_UsesSyntheticAwaitedTemp()
+    {
+        var plan = await GetFunctionPlan("""
+            async function guard(valuePromise) {
+                if ((await valuePromise).ready) {
+                    return 1;
+                }
+                return 0;
+            }
+            """, "guard");
+
+        var tempInstruction = Assert.Single(
+            plan.Instructions.OfType<SimpleVariableDeclarationInstruction>(),
+            i => i.AwaitedProgram is not null && i.TargetSymbol.Name!.StartsWith("__yield_lower_", StringComparison.Ordinal));
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            tempInstruction.AwaitedProgram,
+            op => op.Name.Name == "valuePromise");
+
+        var branchInstruction = Assert.Single(plan.Instructions.OfType<BranchInstruction>());
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            branchInstruction.ConditionProgram,
+            op => op.Name.Name == tempInstruction.TargetSymbol.Name);
+        AssertProgramContains<GetNamedPropertyExpressionOp>(branchInstruction.ConditionProgram, op => op.PropertyName == "ready");
+    }
+
+    [Fact]
     public async Task CompoundAssignmentSlotInstruction_SimpleIdentifierValue_IsLoweredToExpressionProgram()
     {
         var plan = await GetFunctionPlan("""

@@ -324,12 +324,45 @@ internal static class GeneratorYieldLowerer
                 ExpressionStatement expressionStatement => TryRewriteNestedAwaitExpressionStatement(expressionStatement,
                     isStrict,
                     out replacement),
+                IfStatement ifStatement => TryRewriteNestedAwaitIf(ifStatement, out replacement),
                 ReturnStatement returnStatement => TryRewriteNestedAwaitReturn(returnStatement, out replacement),
                 ThrowStatement throwStatement => TryRewriteNestedAwaitThrow(throwStatement, out replacement),
                 ForEachStatement forEachStatement => TryRewriteNestedAwaitForEach(forEachStatement, out replacement),
                 WithStatement withStatement => TryRewriteNestedAwaitWith(withStatement, out replacement),
                 _ => false
             };
+        }
+
+        private bool TryRewriteNestedAwaitIf(
+            IfStatement statement,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            replacement = default;
+
+            if (statement.Condition is AwaitExpression awaitExpression)
+            {
+                var awaitedTemp = CreateResumeIdentifier();
+                replacement =
+                [
+                    CreateTempDeclaration(statement.Source, awaitedTemp, awaitExpression),
+                    statement with
+                    {
+                        Condition = new IdentifierExpression(statement.Condition.Source, awaitedTemp.Name)
+                    }
+                ];
+                return true;
+            }
+
+            if (!TryRewriteExpressionWithNestedAwait(
+                    statement.Condition,
+                    out var prefixStatements,
+                    out var rewrittenCondition))
+            {
+                return false;
+            }
+
+            replacement = prefixStatements.Add(statement with { Condition = rewrittenCondition });
+            return true;
         }
 
         private bool TryRewriteNestedAwaitVariableDeclaration(

@@ -42,6 +42,10 @@ public sealed class ExpressionProgramCoverageMapTests
         Assert.True(
             missing.Length == 0,
             $"Coverage map is missing expression nodes: {string.Join(", ", missing)}");
+
+        Assert.Contains("## Source-Of-Truth Surfaces", mapText, StringComparison.Ordinal);
+        Assert.Contains("## ExpressionOpKind Capability Inventory", mapText, StringComparison.Ordinal);
+        Assert.Contains("## Expression Family And Risk Groups", mapText, StringComparison.Ordinal);
     }
 
     private static DirectoryInfo FindRepositoryRoot()

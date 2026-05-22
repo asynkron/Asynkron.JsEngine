@@ -603,12 +603,13 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
     {
         var targetSymbol = Symbol.Intern("slotTarget");
         var awaitState = Symbol.Intern("awaitState");
+        var sharedProgram = ExpressionProgram.Empty;
         var instructions = new ExecutionInstruction[]
         {
-            new EvaluateAndDiscardInstruction(1, ExpressionProgram.Empty, SuppressCompletionValue: true),
-            new AwaitAndDiscardInstruction(2, awaitState, ExpressionProgram.Empty, SuppressCompletionValue: true),
-            new ThrowInstruction(ExpressionProgram.Empty, awaitState, ExpressionProgram.Empty),
-            new ReturnInstruction(3, ExpressionProgram.Empty, awaitState, ExpressionProgram.Empty),
+            new EvaluateAndDiscardInstruction(1, sharedProgram, SuppressCompletionValue: true),
+            new AwaitAndDiscardInstruction(2, awaitState, sharedProgram, SuppressCompletionValue: true),
+            new ThrowInstruction(sharedProgram, awaitState, sharedProgram),
+            new ReturnInstruction(3, sharedProgram, awaitState, sharedProgram),
             new AssignmentSlotInstruction(
                 4,
                 targetSymbol,
@@ -627,15 +628,18 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
                 6,
                 VariableKind.Let,
                 new IdentifierBindingTargetProgram(targetSymbol),
-                InitializerProgram: ExpressionProgram.Empty)
+                InitializerProgram: sharedProgram)
         };
 
+        var expressionPrograms = new StatementDiagnosticsExpressionProgramTable();
         foreach (var instruction in instructions)
         {
-            Assert.True(StatementInstructionDiagnosticsCodec.TryEncode(instruction, out var encoded));
-            var decoded = StatementInstructionDiagnosticsCodec.Decode(encoded);
+            Assert.True(StatementInstructionDiagnosticsCodec.TryEncode(instruction, expressionPrograms, out var encoded));
+            var decoded = StatementInstructionDiagnosticsCodec.Decode(encoded, expressionPrograms);
             AssertEquivalentInstruction(instruction, decoded);
         }
+
+        Assert.Equal(1, expressionPrograms.Count);
     }
 
     [Fact]

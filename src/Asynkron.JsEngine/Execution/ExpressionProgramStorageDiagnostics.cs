@@ -266,6 +266,10 @@ internal static class ExpressionProgramStorageDiagnostics
                         AddProgram(forInInit.AwaitedProgram ?? forInInit.ObjectProgram!.Value);
                         break;
 
+                    case ArrayDestructuringInitInstruction arrayDestructuringInit:
+                        AddProgram(arrayDestructuringInit.SourceProgram);
+                        break;
+
                     case CompoundAssignmentSlotInstruction compoundAssign:
                         AddProgram(compoundAssign.AwaitedProgram ?? compoundAssign.RhsProgram!.Value);
                         break;

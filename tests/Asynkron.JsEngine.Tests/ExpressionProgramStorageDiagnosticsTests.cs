@@ -121,6 +121,36 @@ public sealed class ExpressionProgramStorageDiagnosticsTests : IAsyncLifetime
             "Expected static block expression bytecode to increase counted operation storage.");
     }
 
+    [Fact]
+    public async Task Collect_ForArrayDestructuringInitializer_CountsSourceProgramStorage()
+    {
+        var baselineProgram = _engine.ParseProgram("""
+            function baseline(source) {
+                return source;
+            }
+            """);
+        await _engine.Evaluate(baselineProgram);
+        var baselineSnapshot = ExpressionProgramStorageDiagnostics.Collect(baselineProgram);
+
+        var parsedProgram = _engine.ParseProgram("""
+            function destructure(source) {
+                const [first] = source;
+                return first;
+            }
+            """);
+        await _engine.Evaluate(parsedProgram);
+
+        var plan = GetFunctionPlan(parsedProgram, "destructure");
+        var initInstruction = Assert.Single(plan.Instructions.OfType<ArrayDestructuringInitInstruction>());
+        var sourceSnapshot = ExpressionProgramStorageDiagnostics.Collect(initInstruction.SourceProgram);
+        Assert.True(sourceSnapshot.OperationCount > 0, "Expected destructuring source expression program to contain operations.");
+
+        var snapshot = ExpressionProgramStorageDiagnostics.Collect(parsedProgram);
+        Assert.True(
+            snapshot.OperationCount >= baselineSnapshot.OperationCount + sourceSnapshot.OperationCount,
+            "Expected destructuring source program operations to be included in total storage diagnostics.");
+    }
+
     private static ExecutionPlan GetFunctionPlan(ProgramNode program, string functionName)
     {
         var function = Assert.IsType<FunctionDeclaration>(

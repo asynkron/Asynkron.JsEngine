@@ -1,7 +1,6 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
-using Asynkron.JsEngine.JsTypes;
 using System.Text;
 using System.Text.RegularExpressions;
 using Xunit.Abstractions;
@@ -139,7 +138,7 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             ("Expression bytecode only supports static literal object property names.", ExpressionProgramFailureCode.UnsupportedStaticObjectPropertyName),
             ("Computed object property names must use an expression key.", ExpressionProgramFailureCode.InvalidComputedObjectKey),
             ("Expression bytecode only supports literal property names for dot access.", ExpressionProgramFailureCode.UnsupportedDotAccessPropertyName),
-            ("Expression bytecode only supports static property names for direct member calls.", ExpressionProgramFailureCode.UnsupportedDirectMemberCallPropertyName),
+            ("Expression bytecode only supports literal property names for direct member calls.", ExpressionProgramFailureCode.UnsupportedDirectMemberCallPropertyName),
             ("Expression bytecode only supports literal property names for tagged template member access.", ExpressionProgramFailureCode.UnsupportedTaggedTemplateMemberAccessName),
             ("Expression bytecode does not yet support optional or super member call targets.", ExpressionProgramFailureCode.OptionalOrSuperMemberCallTarget),
             ("Expression bytecode does not yet support object member kind 'Spread'.", ExpressionProgramFailureCode.UnsupportedObjectMemberKind),
@@ -286,17 +285,13 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
         var probes = new[]
         {
             (
-                Name: "direct member call with non-static property",
+                Name: "direct member call with non-literal property",
                 Expression: new CallExpression(
                     null,
                     new MemberExpression(
                         null,
                         new IdentifierExpression(null, Symbol.Intern("box")),
-                        new BinaryExpression(
-                            null,
-                            BinaryOperator.Add,
-                            new LiteralExpression(null, (JsValue)"prefix"),
-                            new IdentifierExpression(null, Symbol.Intern("dynamicPropertyName"))),
+                        new IdentifierExpression(null, Symbol.Intern("dynamicPropertyName")),
                         IsComputed: false,
                         IsOptional: true),
                     [],

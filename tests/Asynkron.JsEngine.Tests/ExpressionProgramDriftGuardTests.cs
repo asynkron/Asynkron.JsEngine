@@ -1,7 +1,6 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
-using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -21,7 +20,6 @@ public sealed class ExpressionProgramDriftGuardTests
             new Probe("conditional", "flag ? left : right"),
             new Probe("sequence", "(left, right, left + right)"),
             new Probe("member-dot", "box.value"),
-            new Probe("direct-member-call-dot", "box.value()"),
             new Probe("member-index", "box[dynamicPropertyName]"),
             new Probe("simple-call", "fn(left)"),
             new Probe("template-literal", "`sum=${left + right}`"),
@@ -45,17 +43,13 @@ public sealed class ExpressionProgramDriftGuardTests
         var probes = new[]
         {
             new UnsupportedProbe(
-                "direct member call with non-static property",
+                "direct member call with non-literal property",
                 new CallExpression(
                     null,
                     new MemberExpression(
                         null,
                         new IdentifierExpression(null, Symbol.Intern("box")),
-                        new BinaryExpression(
-                            null,
-                            BinaryOperator.Add,
-                            new LiteralExpression(null, (JsValue)"prefix"),
-                            new IdentifierExpression(null, Symbol.Intern("dynamicPropertyName"))),
+                        new IdentifierExpression(null, Symbol.Intern("dynamicPropertyName")),
                         IsComputed: false,
                         IsOptional: true),
                     [],

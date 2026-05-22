@@ -86,6 +86,41 @@ public sealed class ExpressionProgramStorageDiagnosticsTests : IAsyncLifetime
         Assert.True(snapshot.OperationCount >= initializerSnapshot.OperationCount);
     }
 
+    [Fact]
+    public async Task Collect_ForClassStaticBlock_CountsStaticBlockProgramStorage()
+    {
+        var baselineProgram = _engine.ParseProgram("""
+            class CounterBaseline {
+                static value = 1;
+            }
+            """);
+        await _engine.Evaluate(baselineProgram);
+        var baselineSnapshot = ExpressionProgramStorageDiagnostics.Collect(baselineProgram);
+
+        var parsedProgram = _engine.ParseProgram("""
+            class Counter {
+                static value = 1;
+                static {
+                    this.value = this.value + 41;
+                }
+            }
+            """);
+
+        await _engine.Evaluate(parsedProgram);
+
+        var classDeclaration = Assert.IsType<ClassDeclaration>(Assert.Single(parsedProgram.Body));
+        var cache = ((IAstCacheable<ClassDefinitionProgramCache>)classDeclaration.Definition).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Class cache should build. Failure: {cache.FailureReason}");
+
+        var staticBlockPlan = Assert.Single(cache.Definition.StaticBlockPlans);
+        Assert.NotEmpty(staticBlockPlan.Instructions);
+
+        var snapshot = ExpressionProgramStorageDiagnostics.Collect(parsedProgram);
+        Assert.True(
+            snapshot.OperationCount > baselineSnapshot.OperationCount,
+            "Expected static block expression bytecode to increase counted operation storage.");
+    }
+
     private static ExecutionPlan GetFunctionPlan(ProgramNode program, string functionName)
     {
         var function = Assert.IsType<FunctionDeclaration>(

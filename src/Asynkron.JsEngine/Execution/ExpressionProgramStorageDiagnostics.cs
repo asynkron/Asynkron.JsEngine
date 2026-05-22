@@ -152,6 +152,10 @@ internal static class ExpressionProgramStorageDiagnostics
                 AddOptionalProgram(fieldInitializerProgram);
             }
 
+            foreach (var staticBlockPlan in cache.Definition.StaticBlockPlans)
+            {
+                VisitExecutionPlan(staticBlockPlan);
+            }
         }
 
         protected override void VisitFunctionDeclaration(FunctionDeclaration funcDecl)

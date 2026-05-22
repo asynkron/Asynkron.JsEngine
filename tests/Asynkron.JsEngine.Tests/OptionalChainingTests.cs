@@ -175,6 +175,40 @@ public sealed class OptionalChainingTests(ITestOutputHelper output) : InternalTe
     }
 
     [Fact(Timeout = 2000)]
+    public async Task OptionalChainingShortCircuit_DoesNotSkipUnrelatedBinaryOperand()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let obj = null;
+            let right = 0;
+            let total = obj?.nested?.value + (right += 3);
+            right === 3 && Number.isNaN(total);
+            """);
+
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task OptionalChaining_NestedOptionalCallAndPropertyStayShortCircuited()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let obj = {
+                child: null,
+                getChild() {
+                    return this.child;
+                }
+            };
+
+            let calls = 0;
+            let value = obj?.getChild?.()?.[(calls++, 'prop')]?.deep;
+            value === undefined && calls === 0;
+            """);
+
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task OptionalChainingWithUndefined()
     {
         await using var engine = CreateEngine();

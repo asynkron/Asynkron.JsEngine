@@ -1,6 +1,7 @@
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Ast;
+using System.Reflection;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -185,6 +186,28 @@ public sealed class ExpressionProgramStorageDiagnosticsTests : IAsyncLifetime
         Assert.True(
             snapshot.OperationCount > baselineSnapshot.OperationCount,
             "Expected catch binding target programs to increase total storage diagnostics.");
+    }
+
+    [Fact]
+    public void ExpressionRuntimeBuffers_KeepPackedFlagStorageWithoutByteOrBoolArrays()
+    {
+        var runnerType = typeof(TypedAstEvaluator)
+            .GetNestedType("ExecutionPlanRunner", BindingFlags.NonPublic);
+        Assert.NotNull(runnerType);
+
+        var fields = runnerType!.GetFields(BindingFlags.NonPublic | BindingFlags.Instance);
+        var expressionFlagField = Assert.Single(fields, field => field.Name == "_expressionFlagBuffer");
+        Assert.Equal(typeof(ulong[]), expressionFlagField.FieldType);
+
+        var hasExpressionBoolArray = fields.Any(field =>
+            field.Name.Contains("expression", StringComparison.OrdinalIgnoreCase) &&
+            field.FieldType == typeof(bool[]));
+        var hasExpressionByteArray = fields.Any(field =>
+            field.Name.Contains("expression", StringComparison.OrdinalIgnoreCase) &&
+            field.FieldType == typeof(byte[]));
+
+        Assert.False(hasExpressionBoolArray);
+        Assert.False(hasExpressionByteArray);
     }
 
     private static ExecutionPlan GetFunctionPlan(ProgramNode program, string functionName)

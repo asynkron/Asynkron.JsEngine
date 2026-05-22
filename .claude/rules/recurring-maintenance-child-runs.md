@@ -10,7 +10,7 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
 - Capture a cheap baseline signal before editing and the matching final signal
   after editing.
 - Use a compact issue-update evidence shape: `Baseline signal`, `Final signal`,
-  `Slice check`, and `Scope note`.
+  `Sibling check`, `Slice check`, and `Scope note`.
 - Policy ownership lives here; keep this file as the durable semantic home for
   recurring-child scope, sibling coordination, and lessons learned.
 - Prefer the copy/paste `## Build Update` template in

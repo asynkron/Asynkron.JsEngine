@@ -1,3 +1,4 @@
+using System.Globalization;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Ast;
 
@@ -37,6 +38,11 @@ internal readonly record struct EncodedStatementInstruction(
 /// </summary>
 internal static class StatementInstructionDiagnosticsCodec
 {
+    private const int AssignmentSlotSuppressCompletionBit = 1 << 0;
+    private const int AssignmentSlotAllowNameInferenceBit = 1 << 1;
+    private const int SimpleVariableAllowNameInferenceBit = 1 << 0;
+    private const int SimpleVariableIsScriptLevelBit = 1 << 1;
+
     public static bool IsSupportedKind(InstructionKind kind)
     {
         return kind is
@@ -179,9 +185,12 @@ internal static class StatementInstructionDiagnosticsCodec
                 encoded = new EncodedStatementInstruction(
                     StatementDiagnosticOpcode.AssignmentSlot,
                     assignmentSlot.Next,
-                    assignmentSlot.SuppressCompletionValue ? 1 : 0,
-                    assignmentSlot.AllowNameInference ? 1 : 0,
-                    null,
+                    GetAssignmentSlotFlags(assignmentSlot),
+                    assignmentSlot.SlotIndex,
+                    string.Concat(
+                        assignmentSlot.ScopeId.ToString(CultureInfo.InvariantCulture),
+                        "|",
+                        assignmentSlot.FlatSlotId.ToString(CultureInfo.InvariantCulture)),
                     assignmentSlot.ValueProgram,
                     assignmentSlot.AwaitedProgram,
                     assignmentSlot.AwaitStateKey,
@@ -193,7 +202,7 @@ internal static class StatementInstructionDiagnosticsCodec
                     StatementDiagnosticOpcode.SimpleVariableDeclaration,
                     simpleVariableDeclaration.Next,
                     (int)simpleVariableDeclaration.VarKind,
-                    simpleVariableDeclaration.IsScriptLevel ? 1 : 0,
+                    GetSimpleVariableDeclarationFlags(simpleVariableDeclaration),
                     null,
                     simpleVariableDeclaration.InitializerProgram,
                     simpleVariableDeclaration.AwaitedProgram,
@@ -253,8 +262,11 @@ internal static class StatementInstructionDiagnosticsCodec
                 ValueProgram: encoded.ExpressionProgram,
                 AwaitStateKey: encoded.Symbol,
                 AwaitedProgram: encoded.SecondaryExpressionProgram,
-                SuppressCompletionValue: encoded.Operand != 0,
-                AllowNameInference: encoded.Extra != 0),
+                SuppressCompletionValue: (encoded.Operand & AssignmentSlotSuppressCompletionBit) != 0,
+                AllowNameInference: (encoded.Operand & AssignmentSlotAllowNameInferenceBit) != 0,
+                ScopeId: ParseDelimitedIntOrDefault(encoded.SymbolName, 0, -1),
+                SlotIndex: encoded.Extra,
+                FlatSlotId: ParseDelimitedIntOrDefault(encoded.SymbolName, 1, -1)),
             StatementDiagnosticOpcode.SimpleVariableDeclaration => new SimpleVariableDeclarationInstruction(
                 encoded.NextOrTarget,
                 (VariableKind)encoded.Operand,
@@ -262,7 +274,8 @@ internal static class StatementInstructionDiagnosticsCodec
                 InitializerProgram: encoded.ExpressionProgram,
                 AwaitStateKey: encoded.Symbol,
                 AwaitedProgram: encoded.SecondaryExpressionProgram,
-                IsScriptLevel: encoded.Extra != 0),
+                AllowNameInference: (encoded.Extra & SimpleVariableAllowNameInferenceBit) != 0,
+                IsScriptLevel: (encoded.Extra & SimpleVariableIsScriptLevelBit) != 0),
             StatementDiagnosticOpcode.BindingVariableDeclaration => new BindingVariableDeclarationInstruction(
                 encoded.NextOrTarget,
                 (VariableKind)encoded.Operand,
@@ -272,5 +285,55 @@ internal static class StatementInstructionDiagnosticsCodec
                 AwaitedProgram: encoded.SecondaryExpressionProgram),
             _ => throw new ArgumentOutOfRangeException(nameof(encoded), encoded.Opcode, "Unsupported diagnostic opcode")
         };
+    }
+
+    private static int GetAssignmentSlotFlags(AssignmentSlotInstruction instruction)
+    {
+        var flags = 0;
+        if (instruction.SuppressCompletionValue)
+        {
+            flags |= AssignmentSlotSuppressCompletionBit;
+        }
+
+        if (instruction.AllowNameInference)
+        {
+            flags |= AssignmentSlotAllowNameInferenceBit;
+        }
+
+        return flags;
+    }
+
+    private static int GetSimpleVariableDeclarationFlags(SimpleVariableDeclarationInstruction instruction)
+    {
+        var flags = 0;
+        if (instruction.AllowNameInference)
+        {
+            flags |= SimpleVariableAllowNameInferenceBit;
+        }
+
+        if (instruction.IsScriptLevel)
+        {
+            flags |= SimpleVariableIsScriptLevelBit;
+        }
+
+        return flags;
+    }
+
+    private static int ParseDelimitedIntOrDefault(string? value, int partIndex, int defaultValue)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return defaultValue;
+        }
+
+        var parts = value.Split('|');
+        if (partIndex < 0 || partIndex >= parts.Length)
+        {
+            return defaultValue;
+        }
+
+        return int.TryParse(parts[partIndex], NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : defaultValue;
     }
 }

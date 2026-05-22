@@ -609,8 +609,20 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             new AwaitAndDiscardInstruction(2, awaitState, ExpressionProgram.Empty, SuppressCompletionValue: true),
             new ThrowInstruction(ExpressionProgram.Empty, awaitState, ExpressionProgram.Empty),
             new ReturnInstruction(3, ExpressionProgram.Empty, awaitState, ExpressionProgram.Empty),
-            new AssignmentSlotInstruction(4, targetSymbol, SuppressCompletionValue: true, AllowNameInference: false),
-            new SimpleVariableDeclarationInstruction(5, VariableKind.Const, targetSymbol, IsScriptLevel: true),
+            new AssignmentSlotInstruction(
+                4,
+                targetSymbol,
+                SuppressCompletionValue: true,
+                AllowNameInference: false,
+                ScopeId: 13,
+                SlotIndex: 7,
+                FlatSlotId: 23),
+            new SimpleVariableDeclarationInstruction(
+                5,
+                VariableKind.Const,
+                targetSymbol,
+                AllowNameInference: true,
+                IsScriptLevel: true),
             new BindingVariableDeclarationInstruction(
                 6,
                 VariableKind.Let,
@@ -622,9 +634,7 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
         {
             Assert.True(StatementInstructionDiagnosticsCodec.TryEncode(instruction, out var encoded));
             var decoded = StatementInstructionDiagnosticsCodec.Decode(encoded);
-            Assert.Equal(
-                ExecutionPlanDiagnostics.FormatInstruction(instruction),
-                ExecutionPlanDiagnostics.FormatInstruction(decoded));
+            AssertEquivalentInstruction(instruction, decoded);
         }
     }
 
@@ -816,5 +826,43 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
     {
         var pattern = $@"\bExpressionOpKind\.{Regex.Escape(kind.ToString())}\b";
         return Regex.IsMatch(sourceText, pattern, RegexOptions.CultureInvariant);
+    }
+
+    private static void AssertEquivalentInstruction(ExecutionInstruction expected, ExecutionInstruction actual)
+    {
+        Assert.Equal(expected.GetType(), actual.GetType());
+
+        switch (expected)
+        {
+            case AssignmentSlotInstruction expectedAssignment:
+                var actualAssignment = Assert.IsType<AssignmentSlotInstruction>(actual);
+                Assert.Equal(expectedAssignment.Next, actualAssignment.Next);
+                Assert.Equal(expectedAssignment.TargetSymbol, actualAssignment.TargetSymbol);
+                Assert.Equal(expectedAssignment.ValueProgram, actualAssignment.ValueProgram);
+                Assert.Equal(expectedAssignment.AwaitStateKey, actualAssignment.AwaitStateKey);
+                Assert.Equal(expectedAssignment.AwaitedProgram, actualAssignment.AwaitedProgram);
+                Assert.Equal(expectedAssignment.SuppressCompletionValue, actualAssignment.SuppressCompletionValue);
+                Assert.Equal(expectedAssignment.AllowNameInference, actualAssignment.AllowNameInference);
+                Assert.Equal(expectedAssignment.ScopeId, actualAssignment.ScopeId);
+                Assert.Equal(expectedAssignment.SlotIndex, actualAssignment.SlotIndex);
+                Assert.Equal(expectedAssignment.FlatSlotId, actualAssignment.FlatSlotId);
+                return;
+
+            case SimpleVariableDeclarationInstruction expectedDeclaration:
+                var actualDeclaration = Assert.IsType<SimpleVariableDeclarationInstruction>(actual);
+                Assert.Equal(expectedDeclaration.Next, actualDeclaration.Next);
+                Assert.Equal(expectedDeclaration.VarKind, actualDeclaration.VarKind);
+                Assert.Equal(expectedDeclaration.TargetSymbol, actualDeclaration.TargetSymbol);
+                Assert.Equal(expectedDeclaration.InitializerProgram, actualDeclaration.InitializerProgram);
+                Assert.Equal(expectedDeclaration.AwaitStateKey, actualDeclaration.AwaitStateKey);
+                Assert.Equal(expectedDeclaration.AwaitedProgram, actualDeclaration.AwaitedProgram);
+                Assert.Equal(expectedDeclaration.AllowNameInference, actualDeclaration.AllowNameInference);
+                Assert.Equal(expectedDeclaration.IsScriptLevel, actualDeclaration.IsScriptLevel);
+                return;
+        }
+
+        Assert.Equal(
+            ExecutionPlanDiagnostics.FormatInstruction(expected),
+            ExecutionPlanDiagnostics.FormatInstruction(actual));
     }
 }

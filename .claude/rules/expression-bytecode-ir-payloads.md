@@ -43,6 +43,12 @@ payloads, prove the bytecode payload contract at the instruction level.
    bytecode-backed `ReturnProgram` or `ThrowProgram`. Do not add
    `AwaitExpression` expression-bytecode ops or normalize direct awaits into
    synthetic temps just to make the tests uniform.
+9. When a migrated instruction's AST compatibility property becomes production
+   dead, delete the property instead of keeping a null-returning test hook.
+   Update tests to assert the positive bytecode contract instead: the intended
+   `InstructionKind`, non-empty `ExpressionProgram` or awaited program, and
+   absence of broad fallback instruction shapes where relevant. Do not re-add
+   an AST payload property only so tests can assert `null`.
 
 ## Why
 
@@ -79,3 +85,12 @@ through a synthetic `__yield_lower_...` temp before the terminal instruction
 uses ordinary expression bytecode. Future return/throw await work should keep
 those proof shapes paired so direct fast paths are not accidentally replaced by
 generic synthetic-temp normalization.
+
+Issue #1492 / PR #1502 removed the dead
+`EvaluateAndDiscardInstruction.Expression` compatibility property after the
+first two statement-lowering slices had already moved sequence and conditional
+expression statements onto dedicated IR instructions or expression bytecode.
+The lesson is that a null AST-property assertion stops being a guardrail once
+the production surface is dead. Future cleanup slices should preserve the live
+instruction handlers, remove dead AST-shaped properties, and make tests prove
+the bytecode payload and instruction-shape contract directly.

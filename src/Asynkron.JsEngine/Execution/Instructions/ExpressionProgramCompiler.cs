@@ -94,7 +94,7 @@ internal static class ExpressionProgramCompiler
                 => ExpressionProgramFailureCode.InvalidComputedObjectKey,
             "Expression bytecode only supports literal property names for dot access."
                 => ExpressionProgramFailureCode.UnsupportedDotAccessPropertyName,
-            "Expression bytecode only supports literal property names for direct member calls."
+            "Expression bytecode only supports static property names for direct member calls."
                 => ExpressionProgramFailureCode.UnsupportedDirectMemberCallPropertyName,
             "Expression bytecode only supports literal property names for tagged template member access."
                 => ExpressionProgramFailureCode.UnsupportedTaggedTemplateMemberAccessName,
@@ -601,14 +601,14 @@ internal static class ExpressionProgramCompiler
                 break;
 
             case MemberExpression { Target: SuperExpression, IsComputed: false } member:
-                if (member.Property is not LiteralExpression { Value.IsString: true } superPropertyLiteral)
+                if (!TryGetStaticDotAccessPropertyName(member.Property, out var superPropertyName))
                 {
-                    failureReason = "Expression bytecode only supports literal property names for direct member calls.";
+                    failureReason = "Expression bytecode only supports static property names for direct member calls.";
                     return false;
                 }
 
                 builder.Add(PackedExpressionOp.LoadNamedSuperCallTarget(
-                    builder.InternString(superPropertyLiteral.Value.AsString())));
+                    builder.InternString(superPropertyName)));
                 if (expression.IsOptional)
                 {
                     callNullishJumpIndex = builder.Count;
@@ -668,13 +668,12 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                if (member.Property is not LiteralExpression { Value.IsString: true } propertyLiteral)
+                if (!TryGetStaticDotAccessPropertyName(member.Property, out var propertyName))
                 {
-                    failureReason = "Expression bytecode only supports literal property names for direct member calls.";
+                    failureReason = "Expression bytecode only supports static property names for direct member calls.";
                     return false;
                 }
 
-                var propertyName = propertyLiteral.Value.AsString();
                 builder.Add(PackedExpressionOp.LoadNamedCallTarget(builder.InternString(propertyName)));
                 if (expression.IsOptional)
                 {

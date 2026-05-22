@@ -578,8 +578,8 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         var objectPool = new ExpressionProgramObjectPoolBuilder(program.ObjectConstants);
         var identifierPool = new ExpressionProgramIdentifierPoolBuilder(program.IdentifierConstants);
         var changed = false;
-        var builder = ImmutableArray.CreateBuilder<PackedExpressionOp>(program.Operations.Length);
-        foreach (var operation in program.Operations)
+        var builder = ImmutableArray.CreateBuilder<PackedExpressionOp>(program.OperationCount);
+        foreach (var operation in program.EnumerateOperations())
         {
             var rewritten = RewriteExpressionOp(operation, objectConstants, identifierConstants, objectPool, identifierPool);
             changed |= !operation.Equals(rewritten);
@@ -851,11 +851,14 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
 
     private static int TryGetFlatSlotId(ExpressionProgram program)
     {
-        if (program.Operations.Length == 1 &&
-            program.Operations[0].Kind == ExpressionOpKind.LoadIdentifier)
+        if (program.OperationCount == 1)
         {
-            var identifier = program.Operations[0].GetIdentifier(program.IdentifierConstants.AsSpan());
-            return identifier.FlatSlotId;
+            var operation = program.GetOperation(0);
+            if (operation.Kind == ExpressionOpKind.LoadIdentifier)
+            {
+                var identifier = operation.GetIdentifier(program.IdentifierConstants.AsSpan());
+                return identifier.FlatSlotId;
+            }
         }
 
         return -1;

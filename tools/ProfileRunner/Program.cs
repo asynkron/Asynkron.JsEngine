@@ -321,7 +321,7 @@ void PrintExpressionProgramStorage(string selectedProfileKey, ProgramNode progra
         $"  total_ops: {snapshot.OperationCount}"));
     Console.WriteLine(string.Create(
         CultureInfo.InvariantCulture,
-        $"  packed_op_estimated_bytes: {snapshot.EstimatedPackedOperationBytes}"));
+        $"  encoded_op_estimated_bytes: {snapshot.EstimatedEncodedOperationBytes}"));
     Console.WriteLine(string.Create(
         CultureInfo.InvariantCulture,
         $"  constants: literals={snapshot.LiteralConstantCount}, strings={snapshot.StringConstantCount}, objects={snapshot.ObjectConstantCount}, identifiers={snapshot.IdentifierConstantCount}, spread_masks={snapshot.SpreadMaskConstantCount}"));

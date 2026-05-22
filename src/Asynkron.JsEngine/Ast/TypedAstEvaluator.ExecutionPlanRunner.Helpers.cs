@@ -236,13 +236,12 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            var operations = program.Operations.AsSpan();
             var literalConstants = program.LiteralConstants.AsSpan();
             var stringConstants = program.StringConstants.AsSpan();
             var objectConstants = program.ObjectConstants.AsSpan();
             var identifierConstants = program.IdentifierConstants.AsSpan();
             var spreadMaskConstants = program.SpreadMaskConstants.AsSpan();
-            var operationCount = operations.Length;
+            var operationCount = program.OperationCount;
             var stackSize = Math.Max(program.MaxStackDepth, 1);
             AcquireExpressionBuffers(
                 stackSize,
@@ -261,7 +260,7 @@ public static partial class TypedAstEvaluator
             {
                 while ((uint)programCounter < (uint)operationCount)
                 {
-                    var operation = operations[programCounter];
+                    var operation = program.GetOperation(programCounter);
                     switch (operation.Kind)
                     {
                         case ExpressionOpKind.LoadLiteral:

@@ -62,7 +62,7 @@ public sealed class SlotStampingPlanTests : IAsyncLifetime
         Assert.Equal(0, iEntry.Value);
 
         var branch = planValue.Instructions.OfType<BranchInstruction>().First();
-        var leftId = branch.ConditionProgram.Operations[0].ToTestView(branch.ConditionProgram);
+        var leftId = branch.ConditionProgram.GetOperation(0).ToTestView(branch.ConditionProgram);
         Assert.Equal(ExpressionOpKind.LoadIdentifier, leftId.Kind);
 
         Assert.Equal(loopScope.ScopeId, leftId.ScopeId);

@@ -308,15 +308,19 @@ internal static class ExecutionPlanPrinter
             return "<empty>";
         }
 
-        return string.Join(
-            " ",
-            program.Operations.Select(op => FormatExpressionOp(
+        var formattedOperations = ImmutableArray.CreateBuilder<string>(program.OperationCount);
+        foreach (var op in program.EnumerateOperations())
+        {
+            formattedOperations.Add(FormatExpressionOp(
                 op,
                 program.LiteralConstants,
                 program.StringConstants,
                 program.ObjectConstants,
                 program.IdentifierConstants,
-                program.SpreadMaskConstants)));
+                program.SpreadMaskConstants));
+        }
+
+        return string.Join(" ", formattedOperations);
     }
 
     private static string FormatExpressionOp(

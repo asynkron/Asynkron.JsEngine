@@ -134,6 +134,13 @@ fallback or cleanup.
     not mask ordinary function, generator, or control-flow re-entry into legacy
     AST evaluation. Issue #1510 / PR #1512 added this pattern for direct `eval`
     plus an ordinary function and for `with` plus an ordinary generator.
+24. When expanding tagged-template bytecode support for static member targets,
+    normalize member property nodes by their syntax-owned static name at compile
+    time. Non-computed tagged-template member targets may expose the property as
+    either a string `LiteralExpression` or an `IdentifierExpression`; support
+    both without adding a runtime AST fallback. Keep computed, optional, and
+    super tagged-template validation separate, and prove the accepted member
+    shape with focused lowering plus runtime receiver tests.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 
@@ -214,6 +221,15 @@ compiler only accepted string literal property nodes. The durable lesson is to
 normalize static member property-name syntax at compile time, prove the new
 accepted shape with lowering coverage, and preserve computed-member validation
 as a separate unsupported/shape-dependent path.
+
+The plan-child issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-81dce20ea4`
+and PR #1553 applied the same static member-name normalization lesson to
+tagged-template member targets. The compiler gap was not a reason to add a
+runtime AST fallback: tagged-template lowering needed to accept both literal
+and identifier-shaped non-computed member names, preserve the existing
+computed/optional/super validation buckets, and prove receiver behavior through
+focused tests.
 
 Issue #1440 / PR #1449 added an allowlist-free `ExpressionOpKind` drift gate
 across runner dispatch, stack-depth analysis, and execution-plan printer

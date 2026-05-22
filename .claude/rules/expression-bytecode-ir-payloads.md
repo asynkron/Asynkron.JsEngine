@@ -35,6 +35,14 @@ payloads, prove the bytecode payload contract at the instruction level.
    kinds can look like ordinary control flow in family summaries, but their
    optional expression and await payloads require explicit expression-reference
    and async-resume normalization notes.
+8. For terminal return/throw await work, prove direct await and nested await as
+   separate payload contracts. Direct `return await value` and
+   `throw await value` should stay on the instruction `AwaitedProgram` path with
+   an `AwaitStateKey`; nested await inside a larger return/throw expression
+   should be normalized through a synthetic awaited temp and then finish with a
+   bytecode-backed `ReturnProgram` or `ThrowProgram`. Do not add
+   `AwaitExpression` expression-bytecode ops or normalize direct awaits into
+   synthetic temps just to make the tests uniform.
 
 ## Why
 
@@ -61,3 +69,13 @@ instructions are terminal control flow, but both also carry optional
 expression/await payload fields. Future compact statement-bytecode planning
 must prove enum coverage mechanically and classify payload shape, not only
 control-flow role.
+
+Issue #1485 / PR #1496 added focused lowering coverage for return/throw nested
+await paths after the first high-value `UnsupportedExpressionProgram` slice was
+selected from evaluation-order-safe statement contexts. The delivery found no
+runtime change was needed, but it made the payload contract explicit: direct
+await remains an awaited instruction payload, while nested await is rewritten
+through a synthetic `__yield_lower_...` temp before the terminal instruction
+uses ordinary expression bytecode. Future return/throw await work should keep
+those proof shapes paired so direct fast paths are not accidentally replaced by
+generic synthetic-temp normalization.

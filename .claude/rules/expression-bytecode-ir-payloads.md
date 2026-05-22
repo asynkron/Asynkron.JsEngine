@@ -29,6 +29,12 @@ payloads, prove the bytecode payload contract at the instruction level.
    the top-level initializer/source program. Computed object binding names,
    default values, and similar nested `BindingTargetProgram` payloads must be
    non-empty bytecode programs when the migrated shape depends on them.
+7. When producing statement-bytecode or IR payload classification tables from
+   `InstructionKind`, mechanically check the table against the current enum and
+   include terminal control-flow kinds such as `Throw` and `Return`. These
+   kinds can look like ordinary control flow in family summaries, but their
+   optional expression and await payloads require explicit expression-reference
+   and async-resume normalization notes.
 
 ## Why
 
@@ -48,3 +54,10 @@ variants, await-and-discard, and nested object binding target programs. The
 lesson is that a guardrail can be structurally correct but still too shallow if
 it checks only the top-level instruction payload and skips suspending variants
 or nested binding subprograms.
+
+Issue #1470 / PR #1472 refined ADR-0094 after review caught that the concrete
+statement-bytecode classification table omitted `Throw` and `Return`. Both
+instructions are terminal control flow, but both also carry optional
+expression/await payload fields. Future compact statement-bytecode planning
+must prove enum coverage mechanically and classify payload shape, not only
+control-flow role.

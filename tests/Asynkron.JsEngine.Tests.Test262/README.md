@@ -46,15 +46,18 @@ Filter files are plain text with one xUnit filter expression per line.
 
 ## Local Test262 Data Path
 
-If your local setup requires a custom Test262 checkout location, use one of the runsettings files in this project:
+The runsettings files in this project only select test classes and do not set
+the Test262 checkout path.
 
-- `tests/Asynkron.JsEngine.Tests.Test262/LanguageTests.runsettings`
-- `tests/Asynkron.JsEngine.Tests.Test262/BuiltInsTests.runsettings`
+To override where Test262 is loaded from, set:
+
+- `JSENGINE_TEST262_DIR=/absolute/path/to/test262`
 
 Example:
 
 ```bash
-rtk dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release \
+JSENGINE_TEST262_DIR=/path/to/test262 \
+  rtk dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release \
   --settings tests/Asynkron.JsEngine.Tests.Test262/LanguageTests.runsettings
 ```
 

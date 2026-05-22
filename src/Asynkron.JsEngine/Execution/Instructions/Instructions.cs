@@ -9,6 +9,33 @@ using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine.Execution.Instructions;
 
+// AST payload audit (issue #1489)
+//
+// Classification ledger for ExecutionInstruction-owned AST-bearing (or formerly AST-bearing)
+// surfaces. Keep this close to the record definitions so future lowerings can remove
+// deprecated compatibility shims intentionally instead of by accident.
+//
+// 1) Removed/removable by lowering (bytecode-backed, compatibility properties return null):
+//    - ThrowInstruction.Expression
+//    - EvaluateAndDiscardInstruction.Expression
+//    - AssignmentSlotInstruction.ValueExpression
+//    - LogicalCompoundAssignmentSlotInstruction.RhsExpression
+//    - CompoundAssignmentSlotInstruction.RhsExpression
+//    - SimpleVariableDeclarationInstruction.Initializer
+//    - BindingVariableDeclarationInstruction.Initializer
+//    - ReturnInstruction.ReturnExpression
+//    - ArrayDestructuringInitInstruction.SourceExpression
+//
+// 2) Analysis-only metadata (not runtime payload in published plans):
+//    - PushEnvironmentInstruction.SourceBlock
+//      Consumed by scope analysis/slot stamping, then cleared in ExecutionPlanBuilder before
+//      returning the published instruction stream.
+//
+// 3) Intentionally retained runtime metadata:
+//    - FunctionLiteralDescriptor.Function (+ PlanSeed) for closure/function literal semantics.
+//    - FunctionDeclarationDescriptor.Function (+ PlanSeed) for runtime declaration semantics.
+//    - ClassDeclarationDescriptor.ProgramCache for runtime class declaration semantics.
+//
 /// <summary>
 ///     Represents a throw statement in the generator.
 ///     Evaluates the expression and throws it as an exception.
@@ -38,10 +65,7 @@ internal sealed record EvaluateAndDiscardInstruction(
     int Next,
     ExpressionProgram ExpressionProgram,
     bool SuppressCompletionValue = false)
-    : ExecutionInstruction(InstructionKind.EvaluateAndDiscard, Next)
-{
-    public ExpressionNode? Expression => null;
-}
+    : ExecutionInstruction(InstructionKind.EvaluateAndDiscard, Next);
 
 /// <summary>
 ///     Evaluates an await expression statement and discards the result.

@@ -420,7 +420,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         {
             foreach (var fallback in fallbackInstructions)
             {
-                output.WriteLine($"Found EvaluateAndDiscardInstruction for: {fallback.Expression?.GetType().Name ?? "<lowered>"}");
+                output.WriteLine($"Found EvaluateAndDiscardInstruction with {fallback.ExpressionProgram.GetOps().Count()} ops");
             }
         }
 
@@ -697,8 +697,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         var hasAssignmentInstruction = cache.Plan.Instructions
             .Any(i => i.Kind == InstructionKind.AssignmentSlot);
         var hasAssignmentEvaluateAndDiscard = cache.Plan.Instructions
-            .OfType<EvaluateAndDiscardInstruction>()
-            .Any(i => i.Expression is AssignmentExpression { Target.Name: "total" });
+            .Any(i => i.Kind == InstructionKind.EvaluateAndDiscard);
 
         var planOutput = ExecutionPlanDiagnostics.PrintPlan(funcDecl.Function);
         output.WriteLine("=== IR for simple assignment expression ===");
@@ -779,8 +778,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         var hasAwaitInstruction = cache.Plan.Instructions
             .Any(i => i.Kind == InstructionKind.AwaitAndDiscard);
         var hasAwaitEvaluateAndDiscard = cache.Plan.Instructions
-            .OfType<EvaluateAndDiscardInstruction>()
-            .Any(i => i.Expression is AwaitExpression);
+            .Any(i => i.Kind == InstructionKind.EvaluateAndDiscard);
 
         Assert.True(hasAwaitInstruction,
             "Plain await expression statements should emit AwaitAndDiscardInstruction");
@@ -856,13 +854,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         var hasCompoundInstruction = cache.Plan.Instructions
             .Any(i => i.Kind == InstructionKind.CompoundAssignmentSlot);
         var hasCompoundEvaluateAndDiscard = cache.Plan.Instructions
-            .OfType<EvaluateAndDiscardInstruction>()
-            .Any(i => i.Expression is AssignmentExpression
-                {
-                    IsCompoundAssignment: true,
-                    Value: BinaryExpression { Operator: BinaryOperator.Add },
-                    Target.Name: "total"
-                });
+            .Any(i => i.Kind == InstructionKind.EvaluateAndDiscard);
 
         Assert.True(hasCompoundInstruction,
             "Simple arithmetic compound assignments should emit CompoundAssignmentSlotInstruction");
@@ -909,15 +901,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         var logicalInstructionCount = cache.Plan.Instructions
             .Count(i => i.Kind == InstructionKind.LogicalCompoundAssignmentSlot);
         var hasLogicalEvaluateAndDiscard = cache.Plan.Instructions
-            .OfType<EvaluateAndDiscardInstruction>()
-            .Any(i => i.Expression is AssignmentExpression
-                {
-                    IsCompoundAssignment: true,
-                    Value: BinaryExpression
-                    {
-                        Operator: BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr or BinaryOperator.NullishCoalescing
-                    }
-                });
+            .Any(i => i.Kind == InstructionKind.EvaluateAndDiscard);
 
         Assert.Equal(3, logicalInstructionCount);
         Assert.False(hasLogicalEvaluateAndDiscard,
@@ -1143,15 +1127,14 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
             .Any(i => i.Kind == InstructionKind.AssignmentSlot);
         var hasLogicalInstruction = cache.Plan.Instructions
             .Any(i => i.Kind == InstructionKind.LogicalCompoundAssignmentSlot);
-        var hasSequenceEvaluateAndDiscard = cache.Plan.Instructions
-            .OfType<EvaluateAndDiscardInstruction>()
-            .Any(i => i.Expression is SequenceExpression);
+        var hasEvaluateAndDiscardInstruction = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.EvaluateAndDiscard);
 
         Assert.True(hasAssignmentInstruction,
             "Sequence-expression left legs should reuse AssignmentSlotInstruction when available");
         Assert.True(hasLogicalInstruction,
             "Sequence-expression right legs should reuse LogicalCompoundAssignmentSlotInstruction when available");
-        Assert.False(hasSequenceEvaluateAndDiscard,
+        Assert.False(hasEvaluateAndDiscardInstruction,
             "Sequence expression statements should no longer stay on EvaluateAndDiscardInstruction");
     }
 
@@ -1187,15 +1170,14 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
             .Any(i => i.Kind == InstructionKind.AwaitAndDiscard);
         var hasAssignmentInstruction = cache.Plan.Instructions
             .Any(i => i.Kind == InstructionKind.AssignmentSlot);
-        var hasSequenceEvaluateAndDiscard = cache.Plan.Instructions
-            .OfType<EvaluateAndDiscardInstruction>()
-            .Any(i => i.Expression is SequenceExpression);
+        var hasEvaluateAndDiscardInstruction = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.EvaluateAndDiscard);
 
         Assert.True(hasAwaitInstruction,
             "Async sequence-expression left legs should reuse AwaitAndDiscardInstruction");
         Assert.True(hasAssignmentInstruction,
             "Async sequence-expression right legs should reuse AssignmentSlotInstruction");
-        Assert.False(hasSequenceEvaluateAndDiscard,
+        Assert.False(hasEvaluateAndDiscardInstruction,
             "Async sequence expression statements should no longer stay on EvaluateAndDiscardInstruction");
     }
 
@@ -1242,9 +1224,8 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
             .Any(i => i.Kind == InstructionKind.AssignmentSlot);
         var hasLogicalInstruction = cache.Plan.Instructions
             .Any(i => i.Kind == InstructionKind.LogicalCompoundAssignmentSlot);
-        var hasConditionalEvaluateAndDiscard = cache.Plan.Instructions
-            .OfType<EvaluateAndDiscardInstruction>()
-            .Any(i => i.Expression is ConditionalExpression);
+        var hasEvaluateAndDiscardInstruction = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.EvaluateAndDiscard);
 
         Assert.True(hasBranchInstruction,
             "Conditional expression statements should reuse BranchInstruction");
@@ -1252,7 +1233,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
             "Conditional consequent legs should reuse AssignmentSlotInstruction when available");
         Assert.True(hasLogicalInstruction,
             "Conditional alternate legs should reuse LogicalCompoundAssignmentSlotInstruction when available");
-        Assert.False(hasConditionalEvaluateAndDiscard,
+        Assert.False(hasEvaluateAndDiscardInstruction,
             "Conditional expression statements should no longer stay on EvaluateAndDiscardInstruction");
     }
 
@@ -1290,9 +1271,8 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
             .Any(i => i.Kind == InstructionKind.AwaitAndDiscard);
         var hasAssignmentInstruction = cache.Plan.Instructions
             .Any(i => i.Kind == InstructionKind.AssignmentSlot);
-        var hasConditionalEvaluateAndDiscard = cache.Plan.Instructions
-            .OfType<EvaluateAndDiscardInstruction>()
-            .Any(i => i.Expression is ConditionalExpression);
+        var hasEvaluateAndDiscardInstruction = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.EvaluateAndDiscard);
 
         Assert.True(hasBranchInstruction,
             "Async conditional expression statements should reuse BranchInstruction");
@@ -1300,7 +1280,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
             "Async conditional consequent legs should reuse AwaitAndDiscardInstruction");
         Assert.True(hasAssignmentInstruction,
             "Async conditional alternate legs should reuse AssignmentSlotInstruction");
-        Assert.False(hasConditionalEvaluateAndDiscard,
+        Assert.False(hasEvaluateAndDiscardInstruction,
             "Async conditional expression statements should no longer stay on EvaluateAndDiscardInstruction");
     }
 }

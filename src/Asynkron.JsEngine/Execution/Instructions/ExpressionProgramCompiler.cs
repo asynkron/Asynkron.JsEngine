@@ -1111,7 +1111,7 @@ internal static class ExpressionProgramCompiler
                 return false;
 
             case MemberExpression { Target: SuperExpression, IsComputed: false } member:
-                if (member.Property is not LiteralExpression { Value.IsString: true } superPropertyLiteral)
+                if (!TryGetStaticDotAccessPropertyName(member.Property, out var superPropertyName))
                 {
                     failureReason =
                         "Expression bytecode only supports literal property names for tagged template member access.";
@@ -1119,7 +1119,7 @@ internal static class ExpressionProgramCompiler
                 }
 
                 builder.Add(PackedExpressionOp.LoadNamedSuperCallTarget(
-                    builder.InternString(superPropertyLiteral.Value.AsString())));
+                    builder.InternString(superPropertyName)));
                 hasExplicitThis = true;
                 break;
 
@@ -1145,14 +1145,14 @@ internal static class ExpressionProgramCompiler
                     return false;
                 }
 
-                if (member.Property is not LiteralExpression { Value.IsString: true } propertyLiteral)
+                if (!TryGetStaticDotAccessPropertyName(member.Property, out var propertyName))
                 {
                     failureReason = "Expression bytecode only supports literal property names for tagged template member access.";
                     return false;
                 }
 
                 builder.Add(PackedExpressionOp.LoadNamedCallTarget(
-                    builder.InternString(propertyLiteral.Value.AsString())));
+                    builder.InternString(propertyName)));
                 hasExplicitThis = true;
                 break;
 

@@ -1936,14 +1936,14 @@ internal static class ExpressionProgramCompiler
         {
             if (!expression.IsComputed)
             {
-                if (expression.Property is not LiteralExpression { Value.IsString: true } propertyLiteral)
+                if (!TryGetStaticDotAccessPropertyName(expression.Property, out var propertyName))
                 {
                     failureReason = "Expression bytecode only supports literal property names for dot access.";
                     return false;
                 }
 
                 builder.Add(PackedExpressionOp.GetNamedSuperProperty(
-                    builder.InternString(propertyLiteral.Value.AsString())));
+                    builder.InternString(propertyName)));
                 failureReason = null;
                 return true;
             }
@@ -1959,9 +1959,10 @@ internal static class ExpressionProgramCompiler
             return true;
         }
 
-        if (expression is { IsComputed: false, Target: IdentifierExpression { Name.Name: "Symbol" }, Property: LiteralExpression { Value.IsString: true } symbolProp })
+        if (expression is { IsComputed: false, Target: IdentifierExpression { Name.Name: "Symbol" } } &&
+            TryGetStaticDotAccessPropertyName(expression.Property, out var symbolName))
         {
-            switch (symbolProp.Value.AsString())
+            switch (symbolName)
             {
                 case "iterator":
                     builder.Add(PackedExpressionOp.LoadLiteralConstant(builder.InternLiteral((JsValue)Symbols.Iterator)));
@@ -1987,14 +1988,14 @@ internal static class ExpressionProgramCompiler
 
         if (!expression.IsComputed)
         {
-            if (expression.Property is not LiteralExpression { Value.IsString: true } propertyLiteral)
+            if (!TryGetStaticDotAccessPropertyName(expression.Property, out var propertyName))
             {
                 failureReason = "Expression bytecode only supports literal property names for dot access.";
                 return false;
             }
 
             builder.Add(PackedExpressionOp.GetNamedProperty(
-                builder.InternString(propertyLiteral.Value.AsString()),
+                builder.InternString(propertyName),
                 IsOptional: expression.IsOptional,
                 ShortCircuitOnNullishTarget: shortCircuitOnNullishTarget));
             failureReason = null;
@@ -2388,6 +2389,22 @@ internal static class ExpressionProgramCompiler
                 return true;
             case LiteralExpression literal:
                 return TryGetStaticObjectPropertyName(literal.Value, out propertyName);
+            default:
+                propertyName = string.Empty;
+                return false;
+        }
+    }
+
+    private static bool TryGetStaticDotAccessPropertyName(ExpressionNode property, out string propertyName)
+    {
+        switch (property)
+        {
+            case LiteralExpression { Value.IsString: true } literal:
+                propertyName = literal.Value.AsString();
+                return true;
+            case IdentifierExpression identifier:
+                propertyName = identifier.Name.Name;
+                return true;
             default:
                 propertyName = string.Empty;
                 return false;

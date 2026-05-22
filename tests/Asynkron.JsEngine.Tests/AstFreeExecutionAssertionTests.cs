@@ -3423,6 +3423,44 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_DirectEvalSeam_DoesNotMaskOrdinaryNonDynamicFunctionExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = false;
+
+            var program = _engine.ParseProgram("""
+                function plainAdd(a, b) {
+                    return a + b;
+                }
+
+                function evalAdd() {
+                    return eval("40 + 2");
+                }
+                """);
+
+            await _engine.Evaluate(program);
+
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var ordinaryBeforeDynamic = InvokeGlobalFunction("plainAdd", JsValue.FromNumber(20), JsValue.FromNumber(22));
+            Assert.Equal(42.0, ordinaryBeforeDynamic.NumberValue);
+
+            var throughEval = InvokeGlobalFunction("evalAdd");
+            Assert.Equal(42.0, throughEval.NumberValue);
+
+            var ordinaryAfterDynamic = InvokeGlobalFunction("plainAdd", JsValue.FromNumber(30), JsValue.FromNumber(12));
+            Assert.Equal(42.0, ordinaryAfterDynamic.NumberValue);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
     public async Task AssertNoAstEvaluation_Enabled_AllowsIndirectEvalScriptExecution()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;
@@ -3657,6 +3695,54 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
 
             var result = InvokeGlobalFunction("readWithReturnExpression");
             Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_WithGeneratorSeam_DoesNotMaskOrdinaryGeneratorExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = false;
+
+            var program = _engine.ParseProgram("""
+                const scopeObj = { answer: 42 };
+
+                function* plainSequence() {
+                    yield 42;
+                }
+
+                function* withSequence() {
+                    with (scopeObj) {
+                        yield answer;
+                    }
+                }
+                """);
+
+            await _engine.Evaluate(program);
+
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var ordinaryGenerator = InvokeGenerator("plainSequence");
+            var ordinaryFirst = InvokeGeneratorMethod(ordinaryGenerator, "next");
+            Assert.Equal(42.0, GetRequiredProperty(ordinaryFirst, "value"));
+            Assert.False(GetRequiredProperty(ordinaryFirst, "done").IsTruthy);
+
+            var withGenerator = InvokeGenerator("withSequence");
+            var withFirst = InvokeGeneratorMethod(withGenerator, "next");
+            Assert.Equal(42.0, GetRequiredProperty(withFirst, "value"));
+            Assert.False(GetRequiredProperty(withFirst, "done").IsTruthy);
+
+            var ordinaryGeneratorAgain = InvokeGenerator("plainSequence");
+            var ordinaryAgainFirst = InvokeGeneratorMethod(ordinaryGeneratorAgain, "next");
+            Assert.Equal(42.0, GetRequiredProperty(ordinaryAgainFirst, "value"));
+            Assert.False(GetRequiredProperty(ordinaryAgainFirst, "done").IsTruthy);
         }
         finally
         {

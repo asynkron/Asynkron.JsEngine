@@ -285,3 +285,11 @@ the global failure-code bucket index still must include `UnsupportedDeleteTarget
 because it exists in the current compiler/classification/diagnostic surface.
 Future coverage-map edits need to validate row claims and global enum coverage
 separately so baseline documentation stays useful for bytecode planning.
+
+Issue #1509 refreshed the dynamic-boundary ownership map for eval, generated
+function constructors, `with`, async/generator invocation, and module-body
+execution. The focused seam/boundary scans stayed consistent with this rule:
+eval/Function/AsyncFunction and supported `with` paths are dynamic-but-lowered
+or IR-owned, while module-body per-statement dispatch in `JsEngine` remains the
+primary migration-debt surface. Future bytecode slices should keep those owners
+split instead of treating all dynamic entry points as one AST-fallback bucket.

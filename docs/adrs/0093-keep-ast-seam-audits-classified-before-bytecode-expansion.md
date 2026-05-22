@@ -253,3 +253,31 @@ The proof shape for similar slices is:
 
 This section is caused by issue #1487 / PR #1495 and complements the root
 `.claude/rules/expression-bytecode-ast-seams.md` rule.
+
+## Issue #1509 Dynamic Boundary Audit Refresh (2026-05-22)
+
+Issue #1509 reran the approved seam and boundary scans to refresh the
+classification for eval, generated-function constructors, `with`, async,
+generator, and module-body ownership without changing runtime behavior:
+
+- `rg "EvaluateExpression\(|ProfileEvaluateExpression\(" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner*`
+- `rg "ExecutionKind\.Eval|ParseAndExecuteDynamicFunction|EnterWith|LeaveWith|ExecuteModuleBody|AsyncModuleBodyRunner|EvaluateProgram\(" src/Asynkron.JsEngine`
+
+Observed boundary map:
+
+1. direct `eval` remains dynamic-but-lowered through
+   `EvalHostFunction` -> `EvaluateProgram(..., ExecutionKind.Eval, ...)`;
+2. `Function` / `AsyncFunction` constructors remain dynamic-but-lowered
+   generated-source paths (`ParseAndExecuteDynamicFunction(...)`);
+3. `with` remains IR-owned for supported shapes through
+   `WithEmitter` and runner `EnterWithInstruction`/`LeaveWithInstruction`
+   handlers;
+4. async and generator invocation paths are still `ExecutionPlanRunner`-owned
+   execution surfaces, not distinct raw AST runtime modes; and
+5. module body statement dispatch in `JsEngine.ExecuteModuleBody` /
+   `AsyncModuleBodyRunner` remains the primary migration-debt surface because
+   non-import/export statements still execute through per-statement wrapper
+   dispatch.
+
+Build-stage scope for #1509 is documentation evidence refresh only. No runtime
+or source-gate code changed in this issue.

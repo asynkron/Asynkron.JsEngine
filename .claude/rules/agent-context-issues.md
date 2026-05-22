@@ -87,3 +87,9 @@ mainverify status pointed at `dotnet build Asynkron.JsEngine.sln`, but the
 build-stage reran that exact command on the current issue branch and it passed
 with no source diff. That incident confirms the rule covers build-health reds as
 well as test-health reds.
+Issue #1568 repeated the test-health variant for `main is red: c08723b`: the
+stored mainverify status pointed at `dotnet test tests/Asynkron.JsEngine.Tests`,
+but the build-stage reran the exact command on the current issue branch and it
+passed 4021 tests with a clean worktree. That incident confirms agents should
+continue stopping on proven stale/transient reds instead of inventing a nearby
+implementation patch just because the trigger was p0.

@@ -10,8 +10,7 @@ namespace Asynkron.JsEngine.Tests;
 [Category(TestCategories.Debugging)]
 public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : InternalTestBase(output)
 {
-    private static readonly Regex EvaluateExpressionPattern = new(@"EvaluateExpression\(", RegexOptions.Compiled);
-    private static readonly Regex ProfileEvaluateExpressionPattern = new(@"ProfileEvaluateExpression\(", RegexOptions.Compiled);
+    private static readonly Regex AstExpressionEvaluatorPattern = new(@"\b(?:EvaluateExpression|EvaluateExpressionSlow|ProfileEvaluateExpression)\s*\(", RegexOptions.Compiled);
 
     [Fact]
     public void FunctionPlanCache_Reads_DoNotInflateBuildCounters()
@@ -181,14 +180,14 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
                 var relativePath = Path.GetRelativePath(repositoryRoot.FullName, file).Replace('\\', '/');
                 return File.ReadAllLines(file)
                     .Select((line, index) => new { line, index })
-                    .Where(entry => EvaluateExpressionPattern.IsMatch(entry.line) || ProfileEvaluateExpressionPattern.IsMatch(entry.line))
+                    .Where(entry => AstExpressionEvaluatorPattern.IsMatch(entry.line))
                     .Select(entry => $"{relativePath}:{entry.index + 1}:{entry.line.Trim()}");
             })
             .ToArray();
 
         Assert.True(
             matches.Length == 0,
-            "ExecutionPlanRunner AST expression seams detected:\n" + string.Join('\n', matches));
+            "ExecutionPlanRunner AST expression seams detected (raw evaluators only; EvaluateExpressionProgram is allowed):\n" + string.Join('\n', matches));
     }
 
     [Fact]

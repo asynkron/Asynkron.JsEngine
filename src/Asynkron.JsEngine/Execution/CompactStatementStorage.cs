@@ -177,10 +177,10 @@ internal sealed class CompactStatementStorage
             }
 
             supportedClassifications.TryAdd(classification.Kind, classification);
-            opcodeStream.Add(encoded.Opcode);
-            nextOrTargetOperands.Add(encoded.NextOrTarget);
-            operandTable.Add(encoded.Operand);
-            extraOperandTable.Add(encoded.Extra);
+            opcodeStream.Add(encoded.Header.Opcode);
+            nextOrTargetOperands.Add(encoded.Header.NextOrTarget);
+            operandTable.Add(encoded.Header.Operand);
+            extraOperandTable.Add(encoded.Header.Extra);
             instructionReferences.Add(new CompactStatementStorageInstructionReferences(
                 PrimaryExpressionIndex: AddReference(expressionRefs, encoded.Payload.PrimaryExpressionProgram),
                 SecondaryExpressionIndex: AddReference(expressionRefs, encoded.Payload.SecondaryExpressionProgram),
@@ -211,7 +211,7 @@ internal sealed class CompactStatementStorage
             deferredClassifications.Values.OrderBy(static classification => classification.Kind).ToImmutableArray());
     }
 
-    public static bool TryEncodeSupportedInstruction(ExecutionInstruction instruction, out EncodedStatementInstruction encoded)
+    public static bool TryEncodeSupportedInstruction(ExecutionInstruction instruction, out CompactStatementInstruction encoded)
     {
         encoded = default;
         if (!CompactStatementInstructionTaxonomy.IsSupported(instruction.Kind))
@@ -254,15 +254,16 @@ internal sealed class CompactStatementStorage
         return references[index];
     }
 
-    private EncodedStatementInstruction ToEncodedInstruction(int index)
+    private CompactStatementInstruction ToEncodedInstruction(int index)
     {
         var references = _instructionReferences[index];
-        return new EncodedStatementInstruction(
-            Opcode: OpcodeStream[index],
-            NextOrTarget: NextOrTargetOperands[index],
-            Operand: OperandTable[index],
-            Extra: ExtraOperandTable[index],
-            Payload: new EncodedStatementSidePayload(
+        return new CompactStatementInstruction(
+            Header: new CompactStatementHeader(
+                OpcodeStream[index],
+                NextOrTargetOperands[index],
+                OperandTable[index],
+                ExtraOperandTable[index]),
+            Payload: new CompactStatementPayload(
                 PrimaryExpressionProgram: GetReference(ReferenceTables.ExpressionPrograms, references.PrimaryExpressionIndex),
                 SecondaryExpressionProgram: GetReference(ReferenceTables.ExpressionPrograms, references.SecondaryExpressionIndex),
                 PrimarySymbol: GetReference(ReferenceTables.Symbols, references.PrimarySymbolIndex),

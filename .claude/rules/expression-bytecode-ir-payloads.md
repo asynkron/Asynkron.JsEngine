@@ -49,6 +49,13 @@ payloads, prove the bytecode payload contract at the instruction level.
    `InstructionKind`, non-empty `ExpressionProgram` or awaited program, and
    absence of broad fallback instruction shapes where relevant. Do not re-add
    an AST payload property only so tests can assert `null`.
+10. For statement-level AST payload retirement, keep analysis-only AST references
+   available until their owner analysis pass has consumed them, then retire them
+   in the plan-lowering validation hook before publishing `ExecutionPlan`.
+   `PushEnvironmentInstruction.SourceBlock` is the reference shape: slot
+   analysis may read it, `LowerExpressionPayloads()` / validation must clear and
+   reject any published instance that still carries it, and flat-slot mapping
+   should stay separated from payload lowering.
 
 ## Why
 
@@ -94,3 +101,11 @@ The lesson is that a null AST-property assertion stops being a guardrail once
 the production surface is dead. Future cleanup slices should preserve the live
 instruction handlers, remove dead AST-shaped properties, and make tests prove
 the bytecode payload and instruction-shape contract directly.
+
+Issue #1490 / PR #1499 moved `PushEnvironmentInstruction.SourceBlock` retirement
+from an ad hoc final-plan publication loop into the plan-lowering hook and added
+validation that rejects a published `PushEnvironment` retaining `SourceBlock`.
+The lesson is that statement AST payload retirement should have one invariant
+point after required analysis has run. Future slices should not clear
+analysis-owned payloads at emission time or hide the cleanup in unrelated
+mapping/publication loops.

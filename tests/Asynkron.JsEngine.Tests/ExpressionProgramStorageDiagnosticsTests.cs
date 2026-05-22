@@ -1,5 +1,6 @@
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.Ast;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -60,5 +61,38 @@ public sealed class ExpressionProgramStorageDiagnosticsTests : IAsyncLifetime
         var emptyDepth = Assert.Single(emptySnapshot.MaxStackDepthHistogram);
         Assert.Equal(0, emptyDepth.Key);
         Assert.Equal(1, emptyDepth.Value);
+    }
+
+    [Fact]
+    public async Task Collect_ForSimpleDeclarationInitializer_CountsInitializerProgramStorage()
+    {
+        var parsedProgram = _engine.ParseProgram("""
+            function declareSimple(value) {
+                let next = value + 1;
+                return next;
+            }
+            """);
+
+        await _engine.Evaluate(parsedProgram);
+        var plan = GetFunctionPlan(parsedProgram, "declareSimple");
+
+        var declaration = Assert.Single(plan.Instructions.OfType<SimpleVariableDeclarationInstruction>(), i => i.TargetSymbol.Name == "next");
+        Assert.Null(declaration.AwaitedProgram);
+        var initializerProgram = Assert.NotNull(declaration.InitializerProgram);
+        var initializerSnapshot = ExpressionProgramStorageDiagnostics.Collect(initializerProgram);
+        Assert.True(initializerSnapshot.OperationCount > 0);
+
+        var snapshot = ExpressionProgramStorageDiagnostics.Collect(parsedProgram);
+        Assert.True(snapshot.OperationCount >= initializerSnapshot.OperationCount);
+    }
+
+    private static ExecutionPlan GetFunctionPlan(ProgramNode program, string functionName)
+    {
+        var function = Assert.IsType<FunctionDeclaration>(
+            program.Body.Single(statement => statement is FunctionDeclaration declaration && declaration.Name.Name == functionName));
+
+        var cache = ((IAstCacheable<ExecutionPlanCache>)function.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Plan should build. Failure: {cache.FailureReason}");
+        return Assert.IsType<ExecutionPlan>(cache.Plan);
     }
 }

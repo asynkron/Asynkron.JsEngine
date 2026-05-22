@@ -232,12 +232,26 @@ internal static class ExpressionProgramStorageDiagnostics
                         AddProgram(branch.ConditionProgram);
                         break;
 
-                    case SimpleVariableDeclarationInstruction { InitializerProgram: not null or _, AwaitedProgram: not null } varDecl:
-                        AddProgram(varDecl.AwaitedProgram ?? varDecl.InitializerProgram!.Value);
+                    case SimpleVariableDeclarationInstruction varDecl:
+                        if (varDecl.AwaitedProgram is { } awaitedDeclarationProgram)
+                        {
+                            AddProgram(awaitedDeclarationProgram);
+                        }
+                        else
+                        {
+                            AddOptionalProgram(varDecl.InitializerProgram);
+                        }
                         break;
 
-                    case BindingVariableDeclarationInstruction { InitializerProgram: not null or _, AwaitedProgram: not null } bindingDecl:
-                        AddProgram(bindingDecl.AwaitedProgram ?? bindingDecl.InitializerProgram!.Value);
+                    case BindingVariableDeclarationInstruction bindingDecl:
+                        if (bindingDecl.AwaitedProgram is { } awaitedBindingProgram)
+                        {
+                            AddProgram(awaitedBindingProgram);
+                        }
+                        else
+                        {
+                            AddOptionalProgram(bindingDecl.InitializerProgram);
+                        }
                         break;
 
                     case IteratorInitInstruction iterInit:

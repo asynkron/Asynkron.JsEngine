@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 
@@ -86,6 +87,9 @@ internal enum ExpressionOpKind : byte
 
 internal readonly record struct ExpressionProgram
 {
+    private readonly ImmutableArray<EncodedExpressionOp> _operations;
+    private readonly ImmutableArray<ExpressionProgramSecondOperand> _secondOperands;
+
     public ExpressionProgram(
         ImmutableArray<PackedExpressionOp> operations,
         ImmutableArray<JsValue> literalConstants = default,
@@ -94,7 +98,7 @@ internal readonly record struct ExpressionProgram
         ImmutableArray<IdentifierOperand> identifierConstants = default,
         ImmutableArray<ImmutableArray<int>> spreadMaskConstants = default)
     {
-        Operations = operations;
+        _operations = EncodeOperations(operations, out _secondOperands);
         LiteralConstants = literalConstants.IsDefault ? ImmutableArray<JsValue>.Empty : literalConstants;
         StringConstants = stringConstants.IsDefault ? ImmutableArray<string>.Empty : stringConstants;
         ObjectConstants = objectConstants.IsDefault ? ImmutableArray<object>.Empty : objectConstants;
@@ -104,8 +108,6 @@ internal readonly record struct ExpressionProgram
     }
 
     public static ExpressionProgram Empty { get; } = new(ImmutableArray<PackedExpressionOp>.Empty);
-
-    public ImmutableArray<PackedExpressionOp> Operations { get; init; }
 
     public ImmutableArray<JsValue> LiteralConstants { get; init; }
 
@@ -119,9 +121,91 @@ internal readonly record struct ExpressionProgram
 
     public int MaxStackDepth { get; init; }
 
-    public bool IsEmpty => Operations.IsDefaultOrEmpty || Operations.Length == 0;
+    public int OperationCount => _operations.IsDefault ? 0 : _operations.Length;
 
-    public override string ToString() => $"{Operations.Length} ops, stack {MaxStackDepth}";
+    public long EstimatedEncodedOperationBytes =>
+        (long)OperationCount * Unsafe.SizeOf<EncodedExpressionOp>() +
+        (long)(_secondOperands.IsDefault ? 0 : _secondOperands.Length) *
+        Unsafe.SizeOf<ExpressionProgramSecondOperand>();
+
+    public bool IsEmpty => OperationCount == 0;
+
+    public PackedExpressionOp GetOperation(int index)
+    {
+        var encoded = _operations[index];
+        return PackedExpressionOp.FromEncoded(
+            encoded.Opcode,
+            encoded.FirstOperand,
+            GetSecondOperand(index));
+    }
+
+    public ExpressionProgramOperationEnumerable EnumerateOperations() => new(this);
+
+    public override string ToString() => $"{OperationCount} ops, stack {MaxStackDepth}";
+
+    private static ImmutableArray<EncodedExpressionOp> EncodeOperations(
+        ImmutableArray<PackedExpressionOp> operations,
+        out ImmutableArray<ExpressionProgramSecondOperand> secondOperands)
+    {
+        if (operations.IsDefaultOrEmpty)
+        {
+            secondOperands = ImmutableArray<ExpressionProgramSecondOperand>.Empty;
+            return ImmutableArray<EncodedExpressionOp>.Empty;
+        }
+
+        var encodedOperations = ImmutableArray.CreateBuilder<EncodedExpressionOp>(operations.Length);
+        ImmutableArray<ExpressionProgramSecondOperand>.Builder? secondOperandBuilder = null;
+        for (var i = 0; i < operations.Length; i++)
+        {
+            var operation = operations[i];
+            encodedOperations.Add(new EncodedExpressionOp(
+                operation.EncodedOpcode,
+                operation.FirstOperand));
+
+            if (operation.SecondOperand != 0)
+            {
+                secondOperandBuilder ??= ImmutableArray.CreateBuilder<ExpressionProgramSecondOperand>();
+                secondOperandBuilder.Add(new ExpressionProgramSecondOperand(i, operation.SecondOperand));
+            }
+        }
+
+        secondOperands = secondOperandBuilder is null
+            ? ImmutableArray<ExpressionProgramSecondOperand>.Empty
+            : secondOperandBuilder.ToImmutable();
+
+        return encodedOperations.MoveToImmutable();
+    }
+
+    private int GetSecondOperand(int operationIndex)
+    {
+        if (_secondOperands.IsDefaultOrEmpty)
+        {
+            return 0;
+        }
+
+        var low = 0;
+        var high = _secondOperands.Length - 1;
+        while (low <= high)
+        {
+            var middle = low + ((high - low) >> 1);
+            var entry = _secondOperands[middle];
+            if (entry.OperationIndex == operationIndex)
+            {
+                return entry.Operand;
+            }
+
+            if (entry.OperationIndex < operationIndex)
+            {
+                low = middle + 1;
+            }
+            else
+            {
+                high = middle - 1;
+            }
+        }
+
+        return 0;
+    }
 
     private static int ComputeMaxStackDepth(ImmutableArray<PackedExpressionOp> operations)
     {
@@ -225,6 +309,50 @@ internal readonly record struct ExpressionProgram
             _ => throw new NotSupportedException(
                 $"Expression stack analysis does not support '{operation.Kind}'.")
         };
+    }
+}
+
+internal readonly record struct EncodedExpressionOp(ushort Opcode, int FirstOperand);
+
+internal readonly record struct ExpressionProgramSecondOperand(int OperationIndex, int Operand);
+
+internal readonly struct ExpressionProgramOperationEnumerable
+{
+    private readonly ExpressionProgram _program;
+
+    public ExpressionProgramOperationEnumerable(ExpressionProgram program)
+    {
+        _program = program;
+    }
+
+    public Enumerator GetEnumerator() => new(_program);
+
+    public struct Enumerator
+    {
+        private readonly ExpressionProgram _program;
+        private int _index;
+
+        internal Enumerator(ExpressionProgram program)
+        {
+            _program = program;
+            _index = -1;
+            Current = default;
+        }
+
+        public PackedExpressionOp Current { get; private set; }
+
+        public bool MoveNext()
+        {
+            var nextIndex = _index + 1;
+            if (nextIndex >= _program.OperationCount)
+            {
+                return false;
+            }
+
+            _index = nextIndex;
+            Current = _program.GetOperation(nextIndex);
+            return true;
+        }
     }
 }
 
@@ -369,6 +497,12 @@ internal readonly struct PackedExpressionOp
     public bool ReplaceWithUndefined => (Flags & Flag1) != 0;
 
     public int SpreadMaskConstantIndex => _int1 - 1;
+
+    internal ushort EncodedOpcode => _opcode;
+
+    internal int FirstOperand => _int0;
+
+    internal int SecondOperand => _int1;
 
     public string GetString(ReadOnlySpan<string> stringConstants)
     {
@@ -769,5 +903,14 @@ internal readonly struct PackedExpressionOp
     public PackedExpressionOp WithObjectConstant(int objectConstantIndex)
     {
         return new PackedExpressionOp(Kind, _int0, objectConstantIndex, Flags);
+    }
+
+    internal static PackedExpressionOp FromEncoded(ushort opcode, int int0, int int1)
+    {
+        return new PackedExpressionOp(
+            (ExpressionOpKind)(opcode & 0xFF),
+            int0,
+            int1,
+            (byte)(opcode >> FlagShift));
     }
 }

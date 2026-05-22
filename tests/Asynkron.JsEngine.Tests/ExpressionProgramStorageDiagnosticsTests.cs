@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Ast;
@@ -39,8 +41,25 @@ public sealed class ExpressionProgramStorageDiagnosticsTests : IAsyncLifetime
 
         Assert.True(snapshot.ProgramCount > 0, "Expected at least one lowered expression program.");
         Assert.True(snapshot.OperationCount > 0, "Expected lowered expression operations.");
-        Assert.True(snapshot.EstimatedPackedOperationBytes > 0, "Expected non-zero estimated PackedExpressionOp storage.");
+        Assert.True(snapshot.EstimatedEncodedOperationBytes > 0, "Expected non-zero estimated encoded operation storage.");
         Assert.NotEmpty(snapshot.MaxStackDepthHistogram);
+    }
+
+    [Fact]
+    public void Collect_ForSingleOperandProgram_ReportsCompactEncodedOperationBytes()
+    {
+        var program = new ExpressionProgram(ImmutableArray.Create(
+            PackedExpressionOp.LoadThis,
+            PackedExpressionOp.UnaryLogicalNot));
+
+        var snapshot = ExpressionProgramStorageDiagnostics.Collect(program);
+        var legacyPackedBytes = snapshot.OperationCount * Unsafe.SizeOf<PackedExpressionOp>();
+
+        Assert.Equal(2, snapshot.OperationCount);
+        Assert.Equal(program.EstimatedEncodedOperationBytes, snapshot.EstimatedEncodedOperationBytes);
+        Assert.True(
+            snapshot.EstimatedEncodedOperationBytes < legacyPackedBytes,
+            "Expected encoded owner storage to be smaller than the decoded PackedExpressionOp view.");
     }
 
     [Fact]
@@ -49,7 +68,7 @@ public sealed class ExpressionProgramStorageDiagnosticsTests : IAsyncLifetime
         var defaultSnapshot = ExpressionProgramStorageDiagnostics.Collect(default(ExpressionProgram));
         Assert.Equal(1, defaultSnapshot.ProgramCount);
         Assert.Equal(0, defaultSnapshot.OperationCount);
-        Assert.Equal(0, defaultSnapshot.EstimatedPackedOperationBytes);
+        Assert.Equal(0, defaultSnapshot.EstimatedEncodedOperationBytes);
         var defaultDepth = Assert.Single(defaultSnapshot.MaxStackDepthHistogram);
         Assert.Equal(0, defaultDepth.Key);
         Assert.Equal(1, defaultDepth.Value);
@@ -57,7 +76,7 @@ public sealed class ExpressionProgramStorageDiagnosticsTests : IAsyncLifetime
         var emptySnapshot = ExpressionProgramStorageDiagnostics.Collect(ExpressionProgram.Empty);
         Assert.Equal(1, emptySnapshot.ProgramCount);
         Assert.Equal(0, emptySnapshot.OperationCount);
-        Assert.Equal(0, emptySnapshot.EstimatedPackedOperationBytes);
+        Assert.Equal(0, emptySnapshot.EstimatedEncodedOperationBytes);
         var emptyDepth = Assert.Single(emptySnapshot.MaxStackDepthHistogram);
         Assert.Equal(0, emptyDepth.Key);
         Assert.Equal(1, emptyDepth.Value);

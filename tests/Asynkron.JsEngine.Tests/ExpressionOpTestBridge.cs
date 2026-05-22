@@ -67,7 +67,7 @@ internal static class ExpressionOpTestBridge
 
     public static IEnumerable<ExpressionOpView> GetOps(this ExpressionProgram program)
     {
-        foreach (var operation in program.Operations)
+        foreach (var operation in program.EnumerateOperations())
         {
             yield return new ExpressionOpView(operation, program);
         }
@@ -75,7 +75,7 @@ internal static class ExpressionOpTestBridge
 
     public static IEnumerable<ExpressionOpView> GetOps(this ExpressionProgram program, ExpressionOpKind kind)
     {
-        foreach (var operation in program.Operations)
+        foreach (var operation in program.EnumerateOperations())
         {
             if (operation.Kind == kind)
             {

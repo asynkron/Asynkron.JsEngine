@@ -22,9 +22,13 @@ internal static class ExpressionProgramCompiler
                 program.SpreadMaskConstants);
         }
 
-        var builder = ImmutableArray.CreateBuilder<PackedExpressionOp>(program.Operations.Length + 1);
+        var builder = ImmutableArray.CreateBuilder<PackedExpressionOp>(program.OperationCount + 1);
         builder.Add(PackedExpressionOp.EnsureSuperReference);
-        builder.AddRange(program.Operations);
+        foreach (var operation in program.EnumerateOperations())
+        {
+            builder.Add(operation);
+        }
+
         return new ExpressionProgram(
             builder.MoveToImmutable(),
             program.LiteralConstants,

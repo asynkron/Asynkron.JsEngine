@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution.Instructions;
 
@@ -28,6 +27,7 @@ internal static class ExpressionProgramStorageDiagnostics
         private readonly Dictionary<int, int> _maxStackDepthHistogram = [];
         private long _programCount;
         private long _operationCount;
+        private long _estimatedEncodedOperationBytes;
         private long _literalConstantCount;
         private long _stringConstantCount;
         private long _objectConstantCount;
@@ -51,7 +51,8 @@ internal static class ExpressionProgramStorageDiagnostics
         public void AddProgram(ExpressionProgram program)
         {
             _programCount++;
-            _operationCount += GetLength(program.Operations);
+            _operationCount += program.OperationCount;
+            _estimatedEncodedOperationBytes += program.EstimatedEncodedOperationBytes;
             _literalConstantCount += GetLength(program.LiteralConstants);
             _stringConstantCount += GetLength(program.StringConstants);
             _objectConstantCount += GetLength(program.ObjectConstants);
@@ -74,7 +75,7 @@ internal static class ExpressionProgramStorageDiagnostics
             }
 
             var objectConstants = program.ObjectConstants.AsSpan();
-            foreach (var op in program.Operations)
+            foreach (var op in program.EnumerateOperations())
             {
                 switch (op.Kind)
                 {
@@ -95,7 +96,6 @@ internal static class ExpressionProgramStorageDiagnostics
 
         public ExpressionProgramStorageSnapshot Build()
         {
-            var estimatedPackedBytes = _operationCount * Unsafe.SizeOf<PackedExpressionOp>();
             var maxStackDepthHistogram = _maxStackDepthHistogram
                 .OrderBy(static pair => pair.Key)
                 .ToImmutableArray();
@@ -103,7 +103,7 @@ internal static class ExpressionProgramStorageDiagnostics
             return new ExpressionProgramStorageSnapshot(
                 ProgramCount: _programCount,
                 OperationCount: _operationCount,
-                EstimatedPackedOperationBytes: estimatedPackedBytes,
+                EstimatedEncodedOperationBytes: _estimatedEncodedOperationBytes,
                 LiteralConstantCount: _literalConstantCount,
                 StringConstantCount: _stringConstantCount,
                 ObjectConstantCount: _objectConstantCount,
@@ -353,7 +353,7 @@ internal static class ExpressionProgramStorageDiagnostics
 internal sealed record ExpressionProgramStorageSnapshot(
     long ProgramCount,
     long OperationCount,
-    long EstimatedPackedOperationBytes,
+    long EstimatedEncodedOperationBytes,
     long LiteralConstantCount,
     long StringConstantCount,
     long ObjectConstantCount,

@@ -384,7 +384,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
 
         var objectConstants = program.ObjectConstants.AsSpan();
         var identifierConstants = program.IdentifierConstants.AsSpan();
-        foreach (var op in program.Operations)
+        foreach (var op in program.EnumerateOperations())
         {
             switch (op.Kind)
             {

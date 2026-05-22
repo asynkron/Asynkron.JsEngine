@@ -46,6 +46,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   comments, then `faktorial log-summary <issue-number> --root '<repo-root>'`
   for compact stage/log evidence instead of blocking on helper availability or
   missing `gh` authentication.
+- Treat unsupported `faktorial log-summary` argument/subcommand errors as the
+  same helper-unavailable case: continue from supplied Source Context and
+  reachable dashboard/API evidence instead of blocking; do not run bare
+  `faktorial` as a discovery step in bounded child runs because it can start
+  the daemon.
 - When older completed sibling issue logs are no longer available via
   `faktorial log-summary`, treat the failed lookup itself as baseline evidence
   and continue from durable in-repo artifacts (for example ADRs and owned rule

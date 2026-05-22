@@ -493,6 +493,22 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public void MemberExpression_StaticIdentifierPropertyNode_IsLoweredToNamedPropertyBytecode()
+    {
+        var expression = new MemberExpression(
+            Source: null,
+            Target: new IdentifierExpression(Source: null, Symbol.Intern("box")),
+            Property: new IdentifierExpression(Source: null, Symbol.Intern("value")),
+            IsComputed: false,
+            IsOptional: false);
+
+        var compiled = ExpressionProgramCompiler.TryCompile(expression, out var program, out var failureReason);
+
+        Assert.True(compiled, failureReason);
+        AssertProgramContains<GetNamedPropertyExpressionOp>(program, op => op.PropertyName == "value");
+    }
+
+    [Fact]
     public async Task ExpressionStatement_AwaitedExpression_UsesSyntheticAwaitedTemp()
     {
         var plan = await GetFunctionPlan("""

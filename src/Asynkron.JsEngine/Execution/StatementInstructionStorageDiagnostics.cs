@@ -120,8 +120,8 @@ internal static class StatementInstructionStorageDiagnostics
         }
 
         private static long GetCompactEncodedByteEstimate(ExecutionInstruction instruction) =>
-            StatementInstructionDiagnosticsCodec.TryEncode(instruction, out _)
-                ? 16L
+            StatementInstructionDiagnosticsCodec.TryEncode(instruction, out var encoded)
+                ? encoded.EstimatedCompactByteSize
                 : -1L;
 
         private void VisitFunction(FunctionExpression function)

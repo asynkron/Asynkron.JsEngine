@@ -639,6 +639,31 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void StatementInstructionDiagnosticCodec_UsesTypedPayload_ForAssignmentScopeMetadata()
+    {
+        var instruction = new AssignmentSlotInstruction(
+            Next: 4,
+            TargetSymbol: Symbol.Intern("slotTarget"),
+            SuppressCompletionValue: true,
+            AllowNameInference: false,
+            ScopeId: 13,
+            SlotIndex: 7,
+            FlatSlotId: 23);
+
+        Assert.True(StatementInstructionDiagnosticsCodec.TryEncode(instruction, out var encoded));
+        Assert.Equal(EncodedStatementOpcode.AssignmentSlot, encoded.Opcode);
+        Assert.Equal(13, encoded.Payload.ScopeId);
+        Assert.Equal(23, encoded.Payload.FlatSlotId);
+        Assert.Equal(7, encoded.Extra);
+        Assert.Equal(32, encoded.EstimatedCompactByteSize);
+
+        var decoded = Assert.IsType<AssignmentSlotInstruction>(StatementInstructionDiagnosticsCodec.Decode(encoded));
+        Assert.Equal(13, decoded.ScopeId);
+        Assert.Equal(7, decoded.SlotIndex);
+        Assert.Equal(23, decoded.FlatSlotId);
+    }
+
+    [Fact]
     public void StatementInstructionDiagnosticCodec_InstructionKindClassification_IsExplicitAndDriftGated()
     {
         var expectedSupported = new HashSet<InstructionKind>

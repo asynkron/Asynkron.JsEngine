@@ -2111,6 +2111,66 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ReturnInstruction_TaggedTemplateKeywordMemberName_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function tagWithKeyword(box) {
+                return box.default`x`;
+            }
+            """, "tagWithKeyword");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<LoadNamedCallTargetExpressionOp>(instruction.ReturnProgram, op => op.PropertyName == "default");
+        AssertProgramContains<CallExpressionOp>(instruction.ReturnProgram, op => op.ArgumentCount == 1 && op.HasExplicitThis);
+    }
+
+    [Fact]
+    public async Task ReturnInstruction_TaggedTemplatePrivateLookingMemberName_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function tagWithPrivateLookingName(box) {
+                return box._tag`x`;
+            }
+            """, "tagWithPrivateLookingName");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<LoadNamedCallTargetExpressionOp>(instruction.ReturnProgram, op => op.PropertyName == "_tag");
+        AssertProgramContains<CallExpressionOp>(instruction.ReturnProgram, op => op.ArgumentCount == 1 && op.HasExplicitThis);
+    }
+
+    [Fact]
+    public async Task ReturnInstruction_TaggedTemplateStaticMemberName_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function tagWithStatic(box) {
+                return box.static`x`;
+            }
+            """, "tagWithStatic");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<LoadNamedCallTargetExpressionOp>(instruction.ReturnProgram, op => op.PropertyName == "static");
+        AssertProgramContains<CallExpressionOp>(instruction.ReturnProgram, op => op.ArgumentCount == 1 && op.HasExplicitThis);
+    }
+
+    [Fact]
+    public async Task ReturnInstruction_ComputedTaggedTemplateMember_IsLoweredToComputedCallTarget()
+    {
+        var plan = await GetFunctionPlan("""
+            function tagComputed(box, key) {
+                return box[key]`x`;
+            }
+            """, "tagComputed");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<LoadComputedCallTargetExpressionOp>(instruction.ReturnProgram);
+        AssertProgramContains<CallExpressionOp>(instruction.ReturnProgram, op => op.ArgumentCount == 1 && op.HasExplicitThis);
+    }
+
+    [Fact]
     public async Task ReturnInstruction_NestedOptionalTaggedTemplateTarget_IsLoweredToExpressionProgram()
     {
         var plan = await GetFunctionPlan("""
@@ -2124,6 +2184,31 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         AssertProgramContains<JumpIfShortCircuitedExpressionOp>(instruction.ReturnProgram);
         AssertProgramContains<LoadNamedCallTargetExpressionOp>(instruction.ReturnProgram, op => op.PropertyName == "tag");
         AssertProgramContains<LoadTemplateObjectExpressionOp>(instruction.ReturnProgram);
+        AssertProgramContains<CallExpressionOp>(instruction.ReturnProgram, op => op.ArgumentCount == 1 && op.HasExplicitThis);
+    }
+
+    [Fact]
+    public async Task ClassMethod_SuperKeywordMemberTaggedTemplate_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetClassMethodPlan("""
+            class Base {
+                default(strings) {
+                    return strings[0];
+                }
+            }
+
+            class Derived extends Base {
+                method() {
+                    return super.default`x`;
+                }
+            }
+            """, "Derived", "method");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<LoadNamedSuperCallTargetExpressionOp>(
+            instruction.ReturnProgram,
+            op => op.PropertyName == "default");
         AssertProgramContains<CallExpressionOp>(instruction.ReturnProgram, op => op.ArgumentCount == 1 && op.HasExplicitThis);
     }
 

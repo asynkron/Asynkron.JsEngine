@@ -271,6 +271,30 @@ semantic records for measurement, drift gates, and tests, but runtime execution
 still uses the record-backed `ExecutionPlan` until a later owner-backed compact
 storage issue proves full parity and profiling impact.
 
+### 7.3 Issue #1579 owner-backed expression reference checkpoint
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-de2be93552`
+/ PR #1579 moved the statement storage diagnostic estimate closer to the ADR's
+plan-level expression-reference model without changing runtime storage. The
+accepted slice added a shared `StatementDiagnosticsExpressionProgramTable`,
+encoded supported expression-bearing statement payloads as expression-program
+reference ids, and reported owner-backed storage counters such as fixed encoded
+bytes, operand-table entries, expression-reference counts, and the expression
+program reference-table count.
+
+This is still diagnostic-only evidence. It proves that repeated statement
+payloads can be measured through owner-backed expression references, while
+runtime execution remains on `ExecutionInstruction` records and
+`ExpressionProgram` remains the owner of expression operation storage.
+
+The compatibility overloads on `StatementInstructionDiagnosticsCodec` remain
+intentional: tests and existing diagnostic callers that do not pass a shared
+reference table still need embedded expression programs to round-trip. Future
+statement-bytecode work should keep both contracts explicit: shared-table
+encoding for plan-level storage estimates, and compatibility embedding only for
+diagnostic bridges that lack the table context.
+
 ### 8. Staged migration
 
 1. Introduce compact storage schema in `ExecutionPlan` behind an internal

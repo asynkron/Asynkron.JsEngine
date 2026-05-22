@@ -23,12 +23,17 @@ decode bridge are explicit.
 5. Keep expression payloads referenced through `ExpressionProgram` owner APIs.
    Statement bytecode should reference expression-program IDs or owner-backed
    handles, not inline expression operations or depend on expression backing
-   arrays.
+   arrays. For diagnostic storage estimates, count shared expression-program
+   reference-table entries separately from statement fixed-header and operand
+   table bytes.
 6. When expanding diagnostic encode/decode support, prove decoded
    `ExecutionInstruction` record equivalence for every supported payload field,
    not only printer-equivalent output. Slot metadata, flat-slot ids,
    declaration flags, await state keys, and expression/binding programs that
    affect the semantic view must round-trip or the family must stay unsupported.
+   If the shared plan-level expression table is unavailable, compatibility
+   overloads must keep embedded expression programs so existing diagnostic
+   encode/decode callers do not silently decode empty payloads.
 7. For optional compact payload fields, store explicit presence metadata instead
    of inferring presence from sentinel values after packing into structs. A
    default struct payload can contain zero-valued scope or slot ids that look
@@ -62,5 +67,16 @@ family compact estimate jumped from 64 to 96 bytes until the codec added an
 explicit assignment-metadata presence flag. Future optional payload fields need
 the same explicit presence bit so diagnostic storage estimates remain stable and
 do not confuse default values with meaningful metadata.
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-de2be93552`
+/ PR #1579 extended `StatementInstructionStorageDiagnostics` with owner-backed
+encoded-byte counters and a shared expression-program reference table. The
+lesson is that statement storage estimates should measure expression payloads
+as references owned by a plan-level table, not as duplicated embedded programs
+or decoded expression operation arrays. The same slice also had to keep
+compatibility overloads embedding expression programs for callers without the
+shared table; without that bridge, diagnostic round-trips can look structurally
+encoded while decoding semantically empty expression payloads.
 
 Related ADR: `docs/adrs/0094-compact-statement-bytecode-encoding-design-from-current-ir.md`.

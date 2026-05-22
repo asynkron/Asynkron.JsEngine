@@ -14,6 +14,7 @@ This page indexes the agent playbooks. MUST READ AND UNDERSTAND ALL OF THESE bef
 - [Development rules (thread safety, compliance, timeouts)](agents/how-to-development-rules.md)
 - [Workflow and GitHub issue logging](agents/how-to-workflow-and-issues.md) — GitHub issues are the persistent working memory; use Faktorial Source Context/API when supplied, otherwise use the `gh` CLI patterns there to view/create/comment/patch and log progress.
 - [Git worktree workflow](agents/how-to-worktrees.md)
+- [How to deduplicate "almost duplicate" code](agents/how-to-deduplicate-code.md)
 
 ## JsValue and Performance Patterns
 - [JsValue usage and evaluator overload pattern](agents/how-to-jsvalue-usage.md)

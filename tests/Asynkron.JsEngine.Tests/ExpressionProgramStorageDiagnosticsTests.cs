@@ -43,6 +43,15 @@ public sealed class ExpressionProgramStorageDiagnosticsTests : IAsyncLifetime
         Assert.True(snapshot.ProgramCount > 0, "Expected at least one lowered expression program.");
         Assert.True(snapshot.OperationCount > 0, "Expected lowered expression operations.");
         Assert.True(snapshot.EstimatedEncodedOperationBytes > 0, "Expected non-zero estimated encoded operation storage.");
+        Assert.NotEmpty(snapshot.OperationKindHistogram);
+        Assert.True(snapshot.OperationsWithImmediate0Count >= 0);
+        Assert.True(snapshot.OperationsWithImmediate1Count >= 0);
+        Assert.True(snapshot.OperationsWithBothImmediatesCount >= 0);
+        Assert.True(snapshot.OperationsWithFlagsCount >= 0);
+        Assert.True(snapshot.EstimatedMaxStackSlotCount > 0);
+        Assert.True(snapshot.EstimatedMaxStackValueBytes > 0);
+        Assert.True(snapshot.EstimatedMaxStackFlagWordCount > 0);
+        Assert.True(snapshot.EstimatedMaxStackFlagBytes > 0);
         Assert.NotEmpty(snapshot.MaxStackDepthHistogram);
     }
 
@@ -70,6 +79,17 @@ public sealed class ExpressionProgramStorageDiagnosticsTests : IAsyncLifetime
         Assert.Equal(1, defaultSnapshot.ProgramCount);
         Assert.Equal(0, defaultSnapshot.OperationCount);
         Assert.Equal(0, defaultSnapshot.EstimatedEncodedOperationBytes);
+        Assert.Equal(0, defaultSnapshot.OptionalOperationCount);
+        Assert.Equal(0, defaultSnapshot.ShortCircuitOperationCount);
+        Assert.Equal(0, defaultSnapshot.OperationsWithFlagsCount);
+        Assert.Equal(0, defaultSnapshot.OperationsWithImmediate0Count);
+        Assert.Equal(0, defaultSnapshot.OperationsWithImmediate1Count);
+        Assert.Equal(0, defaultSnapshot.OperationsWithBothImmediatesCount);
+        Assert.Equal(0, defaultSnapshot.EstimatedMaxStackSlotCount);
+        Assert.Equal(0, defaultSnapshot.EstimatedMaxStackValueBytes);
+        Assert.Equal(0, defaultSnapshot.EstimatedMaxStackFlagWordCount);
+        Assert.Equal(0, defaultSnapshot.EstimatedMaxStackFlagBytes);
+        Assert.Empty(defaultSnapshot.OperationKindHistogram);
         var defaultDepth = Assert.Single(defaultSnapshot.MaxStackDepthHistogram);
         Assert.Equal(0, defaultDepth.Key);
         Assert.Equal(1, defaultDepth.Value);
@@ -78,9 +98,40 @@ public sealed class ExpressionProgramStorageDiagnosticsTests : IAsyncLifetime
         Assert.Equal(1, emptySnapshot.ProgramCount);
         Assert.Equal(0, emptySnapshot.OperationCount);
         Assert.Equal(0, emptySnapshot.EstimatedEncodedOperationBytes);
+        Assert.Equal(0, emptySnapshot.OptionalOperationCount);
+        Assert.Equal(0, emptySnapshot.ShortCircuitOperationCount);
+        Assert.Equal(0, emptySnapshot.OperationsWithFlagsCount);
+        Assert.Equal(0, emptySnapshot.OperationsWithImmediate0Count);
+        Assert.Equal(0, emptySnapshot.OperationsWithImmediate1Count);
+        Assert.Equal(0, emptySnapshot.OperationsWithBothImmediatesCount);
+        Assert.Equal(0, emptySnapshot.EstimatedMaxStackSlotCount);
+        Assert.Equal(0, emptySnapshot.EstimatedMaxStackValueBytes);
+        Assert.Equal(0, emptySnapshot.EstimatedMaxStackFlagWordCount);
+        Assert.Equal(0, emptySnapshot.EstimatedMaxStackFlagBytes);
+        Assert.Empty(emptySnapshot.OperationKindHistogram);
         var emptyDepth = Assert.Single(emptySnapshot.MaxStackDepthHistogram);
         Assert.Equal(0, emptyDepth.Key);
         Assert.Equal(1, emptyDepth.Value);
+    }
+
+    [Fact]
+    public async Task Collect_ForOptionalChain_ReportsOptionalAndShortCircuitShape()
+    {
+        var parsedProgram = _engine.ParseProgram("""
+            function maybeGet(value) {
+                return value?.child?.name;
+            }
+            maybeGet({ child: { name: "ok" } });
+            """);
+
+        await _engine.Evaluate(parsedProgram);
+        var snapshot = ExpressionProgramStorageDiagnostics.Collect(parsedProgram);
+
+        Assert.True(snapshot.OptionalOperationCount > 0, "Expected optional-chain operations.");
+        Assert.True(snapshot.ShortCircuitOperationCount > 0, "Expected short-circuit operations.");
+        Assert.Contains(
+            snapshot.OperationKindHistogram,
+            entry => entry.Key is ExpressionOpKind.GetNamedProperty or ExpressionOpKind.GetComputedProperty);
     }
 
     [Fact]

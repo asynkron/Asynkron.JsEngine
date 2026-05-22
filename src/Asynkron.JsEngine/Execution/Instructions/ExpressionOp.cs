@@ -457,6 +457,7 @@ internal readonly struct PackedExpressionOp
     public string RegexFlags => JsRegExp.DecodeFlags(Flags);
 
     public byte EncodedRegexFlags => Flags;
+    public byte EncodedFlags => Flags;
 
     public int Depth => _int0;
 
@@ -497,6 +498,8 @@ internal readonly struct PackedExpressionOp
     public bool ReplaceWithUndefined => (Flags & Flag1) != 0;
 
     public int SpreadMaskConstantIndex => _int1 - 1;
+    public bool HasImmediate0 => _int0 != 0;
+    public bool HasImmediate1 => _int1 != 0;
 
     internal ushort EncodedOpcode => _opcode;
 

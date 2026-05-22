@@ -7,8 +7,10 @@ fallback or cleanup.
 ## Rules
 
 1. Start from the focused runner seam scan:
-   `rg "EvaluateExpression\\(|ProfileEvaluateExpression\\(" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner*`.
-   Treat direct hits there as active runtime debt.
+   `rg "EvaluateExpression\\(|EvaluateExpressionSlow\\(|ProfileEvaluateExpression\\(" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner*`.
+   Treat direct raw-evaluator hits there as active runtime debt. Do not count
+   `EvaluateExpressionProgram(` as a raw AST evaluator; that is the lowered
+   expression bytecode execution path.
 2. Search historical seam markers with
    `rg "StatementInstruction|AST-evaluated|AstPayloadLeak|AstReentry" src/Asynkron.JsEngine`,
    but classify each hit before acting on it.
@@ -93,10 +95,15 @@ fallback or cleanup.
     caller that routes AST-owned statements into lowered `ExpressionProgram`
     execution; a stale call there can make `main` fail to compile even when the
     normal runner path and focused AST-free tests look correct.
-17. For `UnsupportedExpressionProgram` backlog issues, prove the selected bucket
+18. For `UnsupportedExpressionProgram` backlog issues, prove the selected bucket
     on the current worktree before patching. If focused compiler/lowering tests
     plus the AST-seam scan already satisfy the issue intent, direct-close it
     with concise evidence instead of adding nearby speculative code churn.
+19. Source-gate tests for runner AST expression seams must match every raw AST
+    evaluator entry point by explicit name: `EvaluateExpression(`,
+    `EvaluateExpressionSlow(`, and `ProfileEvaluateExpression(`. The regex must
+    not accidentally match `EvaluateExpressionProgram(`, because bytecode
+    execution through `ExpressionProgram` is the intended non-dynamic fast path.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 
@@ -224,3 +231,11 @@ Issue #1395 direct-closed an optional-tagged-template
 bucket was already implemented and AST-free in focused checks. Future backlog
 burn-down slices should repeat that proof-first/direct-close behavior instead
 of treating adjacent unsupported buckets as automatic patch prompts.
+
+Issue #1482 / PR #1480 strengthened the ExecutionPlanRunner AST-seam source gate
+after the old guard matched `EvaluateExpression(` and
+`ProfileEvaluateExpression(` but did not explicitly cover
+`EvaluateExpressionSlow(`. The fix consolidated the guard around raw evaluator
+names while documenting that `EvaluateExpressionProgram(` remains allowed,
+because it executes already-lowered expression bytecode instead of walking AST
+expressions.

@@ -1,8 +1,6 @@
 using System.Collections.Immutable;
-using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution.Instructions;
-using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Execution;
 
@@ -27,10 +25,13 @@ internal static class StatementInstructionStorageDiagnostics
         private readonly HashSet<FunctionExpression> _visitedFunctions = new(ReferenceEqualityComparer<FunctionExpression>.Instance);
         private readonly HashSet<ClassDefinition> _visitedClassDefinitions = new(ReferenceEqualityComparer<ClassDefinition>.Instance);
         private readonly Dictionary<InstructionKind, long> _instructionKindHistogram = [];
-        private readonly Dictionary<InstructionKind, long> _unsupportedInstructionKindHistogram = [];
+        private readonly Dictionary<InstructionKind, long> _supportedKindHistogram = [];
+        private readonly Dictionary<InstructionKind, long> _unsupportedKindHistogram = [];
+        private long _planCount;
         private long _instructionCount;
-        private long _encodedInstructionCount;
-        private long _encodedInstructionBytes;
+        private long _supportedInstructionCount;
+        private long _unsupportedInstructionCount;
+        private long _estimatedCompactEncodedBytes;
 
         public void VisitProgram(ProgramNode program)
         {
@@ -48,47 +49,24 @@ internal static class StatementInstructionStorageDiagnostics
 
         public void VisitExecutionPlan(ExecutionPlan plan)
         {
+            _planCount++;
             foreach (var instruction in plan.Instructions)
             {
-                _instructionCount++;
-                Increment(_instructionKindHistogram, instruction.Kind);
-
-                if (StatementInstructionStorageCodec.TryEncode(instruction, out var encoded))
-                {
-                    _encodedInstructionCount++;
-                    _encodedInstructionBytes += Unsafe.SizeOf<EncodedStatementInstruction>();
-                    var decoded = StatementInstructionStorageCodec.Decode(encoded);
-
-                    if (decoded != instruction)
-                    {
-                        throw new InvalidOperationException("Statement instruction diagnostic codec round-trip mismatch.");
-                    }
-                }
-                else
-                {
-                    Increment(_unsupportedInstructionKindHistogram, instruction.Kind);
-                }
+                Observe(instruction);
             }
         }
 
         public StatementInstructionStorageSnapshot Build()
         {
-            var instructionKindHistogram = _instructionKindHistogram
-                .OrderByDescending(static pair => pair.Value)
-                .ThenBy(static pair => pair.Key)
-                .ToImmutableArray();
-            var unsupportedInstructionKindHistogram = _unsupportedInstructionKindHistogram
-                .OrderByDescending(static pair => pair.Value)
-                .ThenBy(static pair => pair.Key)
-                .ToImmutableArray();
-
             return new StatementInstructionStorageSnapshot(
+                PlanCount: _planCount,
                 InstructionCount: _instructionCount,
-                EncodedInstructionCount: _encodedInstructionCount,
-                UnsupportedInstructionCount: _instructionCount - _encodedInstructionCount,
-                EncodedInstructionBytes: _encodedInstructionBytes,
-                InstructionKindHistogram: instructionKindHistogram,
-                UnsupportedInstructionKindHistogram: unsupportedInstructionKindHistogram);
+                SupportedInstructionCount: _supportedInstructionCount,
+                UnsupportedInstructionCount: _unsupportedInstructionCount,
+                EstimatedCompactEncodedBytes: _estimatedCompactEncodedBytes,
+                InstructionKindHistogram: Sort(_instructionKindHistogram),
+                SupportedInstructionKindHistogram: Sort(_supportedKindHistogram),
+                UnsupportedInstructionKindHistogram: Sort(_unsupportedKindHistogram));
         }
 
         protected override void VisitFunctionDeclaration(FunctionDeclaration funcDecl)
@@ -115,32 +93,12 @@ internal static class StatementInstructionStorageDiagnostics
             base.VisitClassExpression(classExpression);
         }
 
-        private void VisitFunction(FunctionExpression function)
+        private static ImmutableArray<KeyValuePair<InstructionKind, long>> Sort(Dictionary<InstructionKind, long> values)
         {
-            if (!_visitedFunctions.Add(function))
-            {
-                return;
-            }
-
-            var cache = ((IAstCacheable<ExecutionPlanCache>)function).GetOrCreateCache();
-            if (cache.Succeeded && cache.Plan is { } plan)
-            {
-                VisitExecutionPlan(plan);
-            }
-        }
-
-        private void VisitClassDefinition(ClassDefinition definition)
-        {
-            if (!_visitedClassDefinitions.Add(definition))
-            {
-                return;
-            }
-
-            var cache = ((IAstCacheable<ClassDefinitionProgramCache>)definition).GetOrCreateCache();
-            foreach (var staticBlockPlan in cache.Definition.StaticBlockPlans)
-            {
-                VisitExecutionPlan(staticBlockPlan);
-            }
+            return values
+                .OrderByDescending(static pair => pair.Value)
+                .ThenBy(static pair => pair.Key)
+                .ToImmutableArray();
         }
 
         private static void Increment(Dictionary<InstructionKind, long> histogram, InstructionKind kind)
@@ -154,129 +112,84 @@ internal static class StatementInstructionStorageDiagnostics
                 histogram[kind] = 1;
             }
         }
+
+        private static long GetCompactEncodedByteEstimate(ExecutionInstruction instruction)
+        {
+            return instruction switch
+            {
+                JumpInstruction => 5L,
+                SetCompletionValueInstruction => 5L,
+                BreakInstruction => 9L,
+                ContinueInstruction => 9L,
+                BreakableExitInstruction => 5L,
+                EndFinallyInstruction => 5L,
+                LeaveTryInstruction => 5L,
+                PopEnvironmentInstruction => 10L,
+                _ => -1L
+            };
+        }
+
+        private void VisitFunction(FunctionExpression function)
+        {
+            if (!_visitedFunctions.Add(function))
+            {
+                return;
+            }
+
+            var cache = ((IAstCacheable<ExecutionPlanCache>)function).GetOrCreateCache();
+            if (cache.Succeeded && cache.Plan is { } plan)
+            {
+                VisitExecutionPlan(plan);
+            }
+
+            Visit(function);
+        }
+
+        private void VisitClassDefinition(ClassDefinition definition)
+        {
+            if (!_visitedClassDefinitions.Add(definition))
+            {
+                return;
+            }
+
+            var cache = ((IAstCacheable<ClassDefinitionProgramCache>)definition).GetOrCreateCache();
+            if (!cache.Succeeded)
+            {
+                return;
+            }
+
+            foreach (var staticBlockPlan in cache.Definition.StaticBlockPlans)
+            {
+                VisitExecutionPlan(staticBlockPlan);
+            }
+        }
+
+        private void Observe(ExecutionInstruction instruction)
+        {
+            _instructionCount++;
+            Increment(_instructionKindHistogram, instruction.Kind);
+
+            var estimate = GetCompactEncodedByteEstimate(instruction);
+            if (estimate >= 0)
+            {
+                _supportedInstructionCount++;
+                _estimatedCompactEncodedBytes += estimate;
+                Increment(_supportedKindHistogram, instruction.Kind);
+                return;
+            }
+
+            _unsupportedInstructionCount++;
+            Increment(_unsupportedKindHistogram, instruction.Kind);
+        }
     }
 }
-
-internal static class StatementInstructionStorageCodec
-{
-    public static bool IsSupportedKind(InstructionKind kind)
-    {
-        return kind switch
-        {
-            InstructionKind.EvaluateAndDiscard => true,
-            InstructionKind.AwaitAndDiscard => true,
-            InstructionKind.AssignmentSlot => true,
-            InstructionKind.LogicalCompoundAssignmentSlot => true,
-            InstructionKind.CompoundAssignmentSlot => true,
-            InstructionKind.SimpleVariableDeclaration => true,
-            InstructionKind.BindingVariableDeclaration => true,
-            InstructionKind.Return => true,
-            InstructionKind.Throw => true,
-            InstructionKind.Yield => true,
-            InstructionKind.YieldStar => true,
-            InstructionKind.Jump => true,
-            InstructionKind.Branch => true,
-            InstructionKind.IteratorInit => true,
-            InstructionKind.ForInInit => true,
-            InstructionKind.EnterWith => true,
-            InstructionKind.ArrayDestructuringInit => true,
-            _ => false
-        };
-    }
-
-    public static bool TryEncode(ExecutionInstruction instruction, out EncodedStatementInstruction encoded)
-    {
-        encoded = instruction switch
-        {
-            EvaluateAndDiscardInstruction => new EncodedStatementInstruction(instruction.Kind, instruction.Next, 0, instruction),
-            AwaitAndDiscardInstruction => new EncodedStatementInstruction(instruction.Kind, instruction.Next, 0, instruction),
-            AssignmentSlotInstruction assign => new EncodedStatementInstruction(
-                instruction.Kind,
-                instruction.Next,
-                ToFlags(assign.AwaitedProgram is not null, assign.SuppressCompletionValue),
-                instruction),
-            LogicalCompoundAssignmentSlotInstruction logical => new EncodedStatementInstruction(
-                instruction.Kind,
-                instruction.Next,
-                ToFlags(logical.AwaitedProgram is not null, logical.SuppressCompletionValue),
-                instruction),
-            CompoundAssignmentSlotInstruction compound => new EncodedStatementInstruction(
-                instruction.Kind,
-                instruction.Next,
-                ToFlags(compound.AwaitedProgram is not null, compound.SuppressCompletionValue),
-                instruction),
-            SimpleVariableDeclarationInstruction simple => new EncodedStatementInstruction(
-                instruction.Kind,
-                instruction.Next,
-                ToFlags((simple.AwaitedProgram ?? simple.InitializerProgram) is not null, simple.IsScriptLevel),
-                instruction),
-            BindingVariableDeclarationInstruction binding => new EncodedStatementInstruction(
-                instruction.Kind,
-                instruction.Next,
-                ToFlags((binding.AwaitedProgram ?? binding.InitializerProgram) is not null, false),
-                instruction),
-            ReturnInstruction ret => new EncodedStatementInstruction(
-                instruction.Kind,
-                instruction.Next,
-                ToFlags(ret.AwaitedProgram is not null, ret.ReturnProgram is not null),
-                instruction),
-            ThrowInstruction thr => new EncodedStatementInstruction(
-                instruction.Kind,
-                instruction.Next,
-                ToFlags(thr.AwaitedProgram is not null, thr.ThrowProgram is not null),
-                instruction),
-            YieldInstruction yld => new EncodedStatementInstruction(
-                instruction.Kind,
-                instruction.Next,
-                ToFlags(yld.AwaitedProgram is not null, yld.YieldProgram is not null),
-                instruction),
-            YieldStarInstruction yldStar => new EncodedStatementInstruction(
-                instruction.Kind,
-                instruction.Next,
-                ToFlags(yldStar.AwaitedProgram is not null, yldStar.IterableProgram is not null),
-                instruction),
-            JumpInstruction => new EncodedStatementInstruction(instruction.Kind, instruction.Next, 0, instruction),
-            BranchInstruction => new EncodedStatementInstruction(instruction.Kind, instruction.Next, 0, instruction),
-            IteratorInitInstruction iteratorInit => new EncodedStatementInstruction(
-                instruction.Kind,
-                instruction.Next,
-                ToFlags(iteratorInit.AwaitedProgram is not null, iteratorInit.IterableProgram is not null),
-                instruction),
-            ForInInitInstruction forInInit => new EncodedStatementInstruction(
-                instruction.Kind,
-                instruction.Next,
-                ToFlags(forInInit.AwaitedProgram is not null, forInInit.ObjectProgram is not null),
-                instruction),
-            EnterWithInstruction enterWith => new EncodedStatementInstruction(
-                instruction.Kind,
-                instruction.Next,
-                ToFlags(enterWith.AwaitedProgram is not null, enterWith.ObjectProgram is not null),
-                instruction),
-            ArrayDestructuringInitInstruction => new EncodedStatementInstruction(instruction.Kind, instruction.Next, 0, instruction),
-            _ => default
-        };
-
-        return encoded != default;
-    }
-
-    public static ExecutionInstruction Decode(EncodedStatementInstruction encoded)
-    {
-        return encoded.Instruction
-            ?? throw new InvalidOperationException("Cannot decode default encoded instruction.");
-    }
-
-    private static byte ToFlags(bool flag0, bool flag1)
-    {
-        return (byte)((flag0 ? 0b0000_0001 : 0) | (flag1 ? 0b0000_0010 : 0));
-    }
-}
-
-internal readonly record struct EncodedStatementInstruction(InstructionKind Kind, int Next, byte Flags, ExecutionInstruction? Instruction);
 
 internal sealed record StatementInstructionStorageSnapshot(
+    long PlanCount,
     long InstructionCount,
-    long EncodedInstructionCount,
+    long SupportedInstructionCount,
     long UnsupportedInstructionCount,
-    long EncodedInstructionBytes,
+    long EstimatedCompactEncodedBytes,
     ImmutableArray<KeyValuePair<InstructionKind, long>> InstructionKindHistogram,
+    ImmutableArray<KeyValuePair<InstructionKind, long>> SupportedInstructionKindHistogram,
     ImmutableArray<KeyValuePair<InstructionKind, long>> UnsupportedInstructionKindHistogram);

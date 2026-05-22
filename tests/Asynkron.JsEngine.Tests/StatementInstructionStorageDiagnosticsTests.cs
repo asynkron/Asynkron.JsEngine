@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
@@ -5,6 +6,7 @@ using Asynkron.JsEngine.Execution.Instructions;
 namespace Asynkron.JsEngine.Tests;
 
 [Category(TestCategories.ScopeAnalysis)]
+[Category(TestCategories.Performance)]
 [Trait("Category", "IrLowering")]
 public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
 {
@@ -22,164 +24,80 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Collect_ForRepresentativeProgram_ReportsEncodedAndUnsupportedInstructionFamilies()
+    public async Task Collect_ForRepresentativeLoweredProgram_ReportsHistogramAndCompactEstimate()
     {
         var parsedProgram = _engine.ParseProgram("""
-            function sample(value) {
-                let next = value + 1;
-                if (next > 2) {
-                    next += 1;
-                }
-
-                return next;
-            }
-
-            sample(1);
-            """);
-
-        await _engine.Evaluate(parsedProgram);
-        var snapshot = StatementInstructionStorageDiagnostics.Collect(parsedProgram);
-
-        Assert.True(snapshot.InstructionCount > 0);
-        Assert.True(snapshot.EncodedInstructionCount > 0);
-        Assert.True(snapshot.UnsupportedInstructionCount >= 0);
-        Assert.Equal(snapshot.InstructionCount, snapshot.EncodedInstructionCount + snapshot.UnsupportedInstructionCount);
-        Assert.True(snapshot.EncodedInstructionBytes > 0);
-        Assert.NotEmpty(snapshot.InstructionKindHistogram);
-        Assert.NotEmpty(snapshot.UnsupportedInstructionKindHistogram);
-    }
-
-    [Fact]
-    public async Task Collect_ForSimpleDeclarationPlan_UsesSupportedSubsetOnly()
-    {
-        var parsedProgram = _engine.ParseProgram("""
-            function declareSimple(value) {
-                let next = value + 1;
-                return next;
-            }
-            """);
-
-        await _engine.Evaluate(parsedProgram);
-        var plan = GetFunctionPlan(parsedProgram, "declareSimple");
-        var snapshot = StatementInstructionStorageDiagnostics.Collect(plan);
-
-        Assert.True(snapshot.InstructionCount > 0);
-        Assert.Equal(snapshot.InstructionCount, snapshot.EncodedInstructionCount);
-        Assert.Equal(0, snapshot.UnsupportedInstructionCount);
-        Assert.Empty(snapshot.UnsupportedInstructionKindHistogram);
-    }
-
-    [Fact]
-    public async Task Collect_ForForOfLoop_AccountsUnsupportedInstructionKinds()
-    {
-        var parsedProgram = _engine.ParseProgram("""
-            function sum(items) {
+            function walk(limit) {
                 let total = 0;
-                for (const item of items) {
-                    total += item;
+                for (let i = 0; i < limit; i++) {
+                    if (i > 5) break;
+                    total = total + i;
                 }
                 return total;
             }
-            """);
 
+            walk(8);
+            """);
         await _engine.Evaluate(parsedProgram);
+
         var snapshot = StatementInstructionStorageDiagnostics.Collect(parsedProgram);
 
+        Assert.True(snapshot.PlanCount > 0);
+        Assert.True(snapshot.InstructionCount > 0);
+        Assert.True(snapshot.SupportedInstructionCount > 0);
         Assert.True(snapshot.UnsupportedInstructionCount > 0);
-        Assert.Contains(snapshot.UnsupportedInstructionKindHistogram, pair => pair.Key == InstructionKind.IteratorMoveNext);
-        Assert.Contains(snapshot.UnsupportedInstructionKindHistogram, pair => pair.Key == InstructionKind.IteratorClose);
+        Assert.True(snapshot.EstimatedCompactEncodedBytes > 0);
+        Assert.NotEmpty(snapshot.InstructionKindHistogram);
+        Assert.NotEmpty(snapshot.SupportedInstructionKindHistogram);
+        Assert.NotEmpty(snapshot.UnsupportedInstructionKindHistogram);
+        Assert.Contains(
+            snapshot.SupportedInstructionKindHistogram,
+            entry => entry.Key is InstructionKind.SetCompletionValue or InstructionKind.Break or InstructionKind.BreakableExit);
+        Assert.Contains(snapshot.UnsupportedInstructionKindHistogram, entry => entry.Key == InstructionKind.EvaluateAndDiscard);
     }
 
     [Fact]
-    public void Codec_ForSupportedInstruction_RoundTripsKindNextAndFlags()
+    public void Collect_ForManuallyConstructedSimpleFamilyPlan_MatchesExpectedEncodedByteEstimate()
     {
         var instructions = new ExecutionInstruction[]
         {
-            new EvaluateAndDiscardInstruction(Next: 1, ExpressionProgram.Empty),
-            new AwaitAndDiscardInstruction(Next: 2, AwaitStateKey: Symbol.Intern("awaitState"), AwaitedProgram: ExpressionProgram.Empty),
-            new AssignmentSlotInstruction(Next: 3, TargetSymbol: Symbol.Intern("value"), ValueProgram: ExpressionProgram.Empty, SuppressCompletionValue: true),
-            new LogicalCompoundAssignmentSlotInstruction(Next: 4, TargetSymbol: Symbol.Intern("lhs"), Operator: BinaryOperator.LogicalOr, RhsProgram: ExpressionProgram.Empty),
-            new CompoundAssignmentSlotInstruction(Next: 5, TargetSymbol: Symbol.Intern("counter"), Operator: BinaryOperator.Add, RhsProgram: ExpressionProgram.Empty),
-            new SimpleVariableDeclarationInstruction(Next: 6, VarKind: VariableKind.Let, TargetSymbol: Symbol.Intern("declared"), InitializerProgram: ExpressionProgram.Empty),
-            new BindingVariableDeclarationInstruction(Next: 7, VarKind: VariableKind.Const, TargetProgram: new IdentifierBindingTargetProgram(Symbol.Intern("bound")), InitializerProgram: ExpressionProgram.Empty),
-            new ReturnInstruction(Next: 8, ReturnProgram: ExpressionProgram.Empty),
-            new ThrowInstruction(ThrowProgram: ExpressionProgram.Empty),
-            new YieldInstruction(Next: 9, YieldProgram: ExpressionProgram.Empty),
-            new YieldStarInstruction(Next: 10, IterableProgram: ExpressionProgram.Empty),
-            new JumpInstruction(TargetIndex: 11),
-            new BranchInstruction(ConsequentIndex: 12, AlternateIndex: 13, ConditionProgram: ExpressionProgram.Empty),
-            new IteratorInitInstruction(IteratorDriverKind.Sync, IteratorSlot: Symbol.Intern("iterator"), IteratorSlotIndex: -1, Next: 14, IterableProgram: ExpressionProgram.Empty),
-            new ForInInitInstruction(StateSlot: Symbol.Intern("state"), StateSlotIndex: -1, ValueSlot: Symbol.Intern("valueSlot"), ValueSlotIndex: -1, Next: 15, ObjectProgram: ExpressionProgram.Empty),
-            new EnterWithInstruction(WithScopeSlot: Symbol.Intern("withScope"), Next: 16, ObjectProgram: ExpressionProgram.Empty),
-            new ArrayDestructuringInitInstruction(IteratorSlot: Symbol.Intern("arrayIterator"), IteratorSlotIndex: -1, Next: 17, SourceProgram: ExpressionProgram.Empty)
+            new JumpInstruction(4),
+            new SetCompletionValueInstruction(2),
+            new BreakInstruction(9, 2),
+            new ContinueInstruction(12, 2),
+            new PopEnvironmentInstruction(ScopeId: 5, AllowPooling: true, Next: 3),
+            new LeaveTryInstruction(6),
+            new EndFinallyInstruction(7)
         };
 
-        foreach (var instruction in instructions)
-        {
-            Assert.True(StatementInstructionStorageCodec.TryEncode(instruction, out var encoded));
-            Assert.Equal(instruction.Kind, encoded.Kind);
-            Assert.Equal(instruction.Next, encoded.Next);
-            var decoded = StatementInstructionStorageCodec.Decode(encoded);
-            Assert.Equal(instruction, decoded);
-        }
+        var plan = new ExecutionPlan(instructions.ToImmutableArray(), EntryPoint: 0);
+        var snapshot = StatementInstructionStorageDiagnostics.Collect(plan);
+
+        Assert.Equal(1, snapshot.PlanCount);
+        Assert.Equal(instructions.Length, snapshot.InstructionCount);
+        Assert.Equal(instructions.Length, snapshot.SupportedInstructionCount);
+        Assert.Equal(0, snapshot.UnsupportedInstructionCount);
+        Assert.Equal(48, snapshot.EstimatedCompactEncodedBytes);
     }
 
     [Fact]
-    public void Codec_ForUnsupportedInstruction_ReturnsFalse()
+    public async Task Collect_PreservesExecutionPlanInstructionRuntimeShape()
     {
-        var instruction = new IteratorMoveNextInstruction(
-            IteratorDriverKind.Sync,
-            IteratorSlot: Symbol.Intern("iterator"),
-            ValueSlot: Symbol.Intern("value"),
-            IteratorSlotIndex: -1,
-            ValueSlotIndex: -1,
-            BreakIndex: 9,
-            Next: 10);
-        Assert.False(StatementInstructionStorageCodec.TryEncode(instruction, out _));
-    }
+        var parsedProgram = _engine.ParseProgram("""
+            function sample(value) {
+                return value + 1;
+            }
+            """);
+        await _engine.Evaluate(parsedProgram);
+        var declaration = Assert.IsType<FunctionDeclaration>(Assert.Single(parsedProgram.Body));
+        var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Function).GetOrCreateCache();
+        var plan = Assert.IsType<ExecutionPlan>(cache.Plan);
+        var baselineInstructionCount = plan.Instructions.Length;
 
-    [Fact]
-    public void Codec_InstructionKindSupportClassification_IsSourceGated()
-    {
-        var expectedSupportedKinds = new HashSet<InstructionKind>
-        {
-            InstructionKind.Throw,
-            InstructionKind.EvaluateAndDiscard,
-            InstructionKind.AwaitAndDiscard,
-            InstructionKind.AssignmentSlot,
-            InstructionKind.LogicalCompoundAssignmentSlot,
-            InstructionKind.SimpleVariableDeclaration,
-            InstructionKind.BindingVariableDeclaration,
-            InstructionKind.Yield,
-            InstructionKind.YieldStar,
-            InstructionKind.Jump,
-            InstructionKind.Branch,
-            InstructionKind.Return,
-            InstructionKind.EnterWith,
-            InstructionKind.CompoundAssignmentSlot,
-            InstructionKind.ForInInit,
-            InstructionKind.IteratorInit,
-            InstructionKind.ArrayDestructuringInit
-        };
+        _ = StatementInstructionStorageDiagnostics.Collect(parsedProgram);
 
-        var allKinds = Enum.GetValues<InstructionKind>();
-        foreach (var kind in allKinds)
-        {
-            Assert.Equal(expectedSupportedKinds.Contains(kind), StatementInstructionStorageCodec.IsSupportedKind(kind));
-        }
-    }
-
-    private static ExecutionPlan GetFunctionPlan(ProgramNode program, string name)
-    {
-        var function = program
-            .Body
-            .OfType<FunctionDeclaration>()
-            .Select(static declaration => declaration.Function)
-            .Single(functionExpression => functionExpression.Name?.Name == name);
-
-        var cache = ((IAstCacheable<ExecutionPlanCache>)function).GetOrCreateCache();
-        Assert.True(cache.Succeeded, $"Expected execution plan build to succeed. Failure: {cache.FailureReason}");
-        Assert.NotNull(cache.Plan);
-        return cache.Plan!;
+        var planAfter = Assert.IsType<ExecutionPlan>(cache.Plan);
+        Assert.Same(plan, planAfter);
+        Assert.Equal(baselineInstructionCount, planAfter.Instructions.Length);
     }
 }

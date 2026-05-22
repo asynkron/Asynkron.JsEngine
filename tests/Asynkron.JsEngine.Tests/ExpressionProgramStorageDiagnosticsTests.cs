@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Ast;
+using System.Collections.Immutable;
 using System.Reflection;
 
 namespace Asynkron.JsEngine.Tests;
@@ -112,6 +113,36 @@ public sealed class ExpressionProgramStorageDiagnosticsTests : IAsyncLifetime
         var emptyDepth = Assert.Single(emptySnapshot.MaxStackDepthHistogram);
         Assert.Equal(0, emptyDepth.Key);
         Assert.Equal(1, emptyDepth.Value);
+    }
+
+    [Fact]
+    public void Collect_ForCallWithCallSpecificFlags_DoesNotCountOptionalOrShortCircuit()
+    {
+        var program = new ExpressionProgram(
+            ImmutableArray.Create(
+                PackedExpressionOp.Call(ArgumentCount: 1, HasExplicitThis: true, IsDirectEval: true)));
+
+        var snapshot = ExpressionProgramStorageDiagnostics.Collect(program);
+
+        Assert.Equal(0, snapshot.OptionalOperationCount);
+        Assert.Equal(0, snapshot.ShortCircuitOperationCount);
+    }
+
+    [Fact]
+    public void Collect_ForZeroValuedImmediates_StillCountsImmediateShape()
+    {
+        var program = new ExpressionProgram(
+            ImmutableArray.Create(
+                PackedExpressionOp.LoadLiteralConstant(0),
+                PackedExpressionOp.Jump(0),
+                PackedExpressionOp.Call(ArgumentCount: 0, SpreadMaskConstantIndex: -1)));
+
+        var snapshot = ExpressionProgramStorageDiagnostics.Collect(program);
+
+        Assert.Equal(3, snapshot.OperationCount);
+        Assert.Equal(3, snapshot.OperationsWithImmediate0Count);
+        Assert.Equal(1, snapshot.OperationsWithImmediate1Count);
+        Assert.Equal(1, snapshot.OperationsWithBothImmediatesCount);
     }
 
     [Fact]

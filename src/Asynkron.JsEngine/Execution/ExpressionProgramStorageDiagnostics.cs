@@ -431,8 +431,6 @@ internal static class ExpressionProgramStorageDiagnostics
                 ExpressionOpKind.GetComputedProperty => op.IsOptional,
                 ExpressionOpKind.GetNamedSuperProperty => op.IsOptional,
                 ExpressionOpKind.GetComputedSuperProperty => op.IsOptional,
-                ExpressionOpKind.Call => op.IsOptional,
-                ExpressionOpKind.Construct => op.IsOptional,
                 _ => false
             };
         }
@@ -445,8 +443,6 @@ internal static class ExpressionProgramStorageDiagnostics
                 ExpressionOpKind.GetComputedProperty => op.ShortCircuitOnNullishTarget,
                 ExpressionOpKind.GetNamedSuperProperty => op.ShortCircuitOnNullishTarget,
                 ExpressionOpKind.GetComputedSuperProperty => op.ShortCircuitOnNullishTarget,
-                ExpressionOpKind.Call => op.ShortCircuitOnNullishTarget,
-                ExpressionOpKind.Construct => op.ShortCircuitOnNullishTarget,
                 ExpressionOpKind.JumpIfShortCircuited => true,
                 _ => false
             };

@@ -498,8 +498,57 @@ internal readonly struct PackedExpressionOp
     public bool ReplaceWithUndefined => (Flags & Flag1) != 0;
 
     public int SpreadMaskConstantIndex => _int1 - 1;
-    public bool HasImmediate0 => _int0 != 0;
-    public bool HasImmediate1 => _int1 != 0;
+    public bool HasImmediate0 => Kind switch
+    {
+        ExpressionOpKind.LoadLiteral => true,
+        ExpressionOpKind.LoadRegexLiteral => true,
+        ExpressionOpKind.LoadIdentifier => true,
+        ExpressionOpKind.LoadIdentifierCallTarget => true,
+        ExpressionOpKind.ResolveIdentifierReference => true,
+        ExpressionOpKind.StoreResolvedIdentifier => true,
+        ExpressionOpKind.StoreIdentifier => true,
+        ExpressionOpKind.LoadNamedCallTarget => true,
+        ExpressionOpKind.LoadNamedSuperCallTarget => true,
+        ExpressionOpKind.RequireObjectCoercible => true,
+        ExpressionOpKind.DefineObjectProperty => true,
+        ExpressionOpKind.DefineObjectMethod => true,
+        ExpressionOpKind.DefineObjectAccessor => true,
+        ExpressionOpKind.GetNamedProperty => true,
+        ExpressionOpKind.GetNamedSuperProperty => true,
+        ExpressionOpKind.SetNamedProperty => true,
+        ExpressionOpKind.SetNamedSuperProperty => true,
+        ExpressionOpKind.UpdateIdentifier => true,
+        ExpressionOpKind.UpdateNamedProperty => true,
+        ExpressionOpKind.UpdateNamedSuperProperty => true,
+        ExpressionOpKind.TypeOfIdentifier => true,
+        ExpressionOpKind.DeleteIdentifier => true,
+        ExpressionOpKind.DeleteNamedProperty => true,
+        ExpressionOpKind.Binary => true,
+        ExpressionOpKind.PrivateFieldIn => true,
+        ExpressionOpKind.ThrowReferenceError => true,
+        ExpressionOpKind.Jump => true,
+        ExpressionOpKind.JumpIfNullish => true,
+        ExpressionOpKind.JumpIfShortCircuited => true,
+        ExpressionOpKind.JumpIfTrue => true,
+        ExpressionOpKind.JumpIfFalse => true,
+        ExpressionOpKind.JumpIfNotNullish => true,
+        ExpressionOpKind.SuperConstruct => true,
+        ExpressionOpKind.Call => true,
+        ExpressionOpKind.Construct => true,
+        _ => false
+    };
+
+    public bool HasImmediate1 => Kind switch
+    {
+        ExpressionOpKind.LoadFunctionLiteral => true,
+        ExpressionOpKind.LoadClassLiteral => true,
+        ExpressionOpKind.LoadTemplateObject => true,
+        ExpressionOpKind.ApplyBindingTarget => true,
+        ExpressionOpKind.SuperConstruct => true,
+        ExpressionOpKind.Call => true,
+        ExpressionOpKind.Construct => true,
+        _ => false
+    };
 
     internal ushort EncodedOpcode => _opcode;
 

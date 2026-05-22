@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text.Json;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Execution;
 using Jint;
 using Microsoft.Extensions.Logging;
 
@@ -11,6 +12,7 @@ using Microsoft.Extensions.Logging;
 
 const string listCommand = "list";
 var engineKind = EngineKind.Asynkron;
+var reportExpressionProgramStorage = false;
 var positionalArgs = new List<string>();
 
 for (var i = 0; i < args.Length; i++)
@@ -55,6 +57,12 @@ for (var i = 0; i < args.Length; i++)
         }
 
         i++;
+        continue;
+    }
+
+    if (string.Equals(arg, "--expression-program-storage", StringComparison.OrdinalIgnoreCase))
+    {
+        reportExpressionProgramStorage = true;
         continue;
     }
 
@@ -143,6 +151,10 @@ async Task RunWithSharedEnginesAsync(
 {
     await using var engine = CreateEngine(traceRealm);
     var parsed = engine.ParseProgram(source);
+    if (reportExpressionProgramStorage)
+    {
+        PrintExpressionProgramStorage(profileKey, parsed);
+    }
 
     for (var i = 0; i < warmup; i++)
     {
@@ -175,6 +187,10 @@ async Task RunWithFreshEnginesAsync(
     await using (var setupEngine = CreateEngine(traceRealm))
     {
         parsed = setupEngine.ParseProgram(source);
+        if (reportExpressionProgramStorage)
+        {
+            PrintExpressionProgramStorage(profileKey, parsed);
+        }
     }
 
     for (var i = 0; i < warmup; i++)
@@ -288,6 +304,41 @@ void PrintCompletion(ProfileDefinition profile, long elapsedMs, int runsForAvera
     var elapsedText = elapsedMs.ToString(CultureInfo.InvariantCulture);
     var avgText = avgMs.ToString("F2", CultureInfo.InvariantCulture);
     Console.WriteLine($"Done in {elapsedText}ms (avg {avgText}ms per iteration)");
+}
+
+void PrintExpressionProgramStorage(string selectedProfileKey, ProgramNode program)
+{
+    var snapshot = ExpressionProgramStorageDiagnostics.Collect(program);
+    Console.WriteLine("ExpressionProgram storage diagnostics:");
+    Console.WriteLine(string.Create(
+        CultureInfo.InvariantCulture,
+        $"  profile: {selectedProfileKey}"));
+    Console.WriteLine(string.Create(
+        CultureInfo.InvariantCulture,
+        $"  programs: {snapshot.ProgramCount}"));
+    Console.WriteLine(string.Create(
+        CultureInfo.InvariantCulture,
+        $"  total_ops: {snapshot.OperationCount}"));
+    Console.WriteLine(string.Create(
+        CultureInfo.InvariantCulture,
+        $"  packed_op_estimated_bytes: {snapshot.EstimatedPackedOperationBytes}"));
+    Console.WriteLine(string.Create(
+        CultureInfo.InvariantCulture,
+        $"  constants: literals={snapshot.LiteralConstantCount}, strings={snapshot.StringConstantCount}, objects={snapshot.ObjectConstantCount}, identifiers={snapshot.IdentifierConstantCount}, spread_masks={snapshot.SpreadMaskConstantCount}"));
+
+    if (snapshot.MaxStackDepthHistogram.IsDefaultOrEmpty)
+    {
+        Console.WriteLine("  max_stack_depth_histogram: (empty)");
+        return;
+    }
+
+    Console.WriteLine("  max_stack_depth_histogram:");
+    foreach (var (depth, count) in snapshot.MaxStackDepthHistogram)
+    {
+        Console.WriteLine(string.Create(
+            CultureInfo.InvariantCulture,
+            $"    depth={depth}: {count}"));
+    }
 }
 
 JsEngine CreateEngine(bool traceRealm)

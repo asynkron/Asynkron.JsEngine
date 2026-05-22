@@ -177,6 +177,57 @@ public sealed class TaggedTemplateTests(ITestOutputHelper output) : InternalTest
         Assert.Equal("Count: 42!", result);
     }
 
+    [Fact(Timeout = 2000)]
+    public async Task TaggedTemplate_AsMethodCall_KeywordPropertyPreservesThisBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let box = {
+                value: 7,
+                default(strings, value) {
+                    return this.value + value;
+                }
+            };
+
+            box.default`Count: ${35}`;
+            """);
+        Assert.Equal(42d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TaggedTemplate_AsMethodCall_PrivateLookingPropertyPreservesThisBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let box = {
+                value: 20,
+                _tag(strings, value) {
+                    return this.value + value;
+                }
+            };
+
+            box._tag`Count: ${22}`;
+            """);
+        Assert.Equal(42d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TaggedTemplate_AsMethodCall_StaticPropertyPreservesThisBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let box = {
+                value: 30,
+                static(strings, value) {
+                    return this.value + value;
+                }
+            };
+
+            box.static`Count: ${12}`;
+            """);
+        Assert.Equal(42d, result);
+    }
+
     // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.
     // The feature is implemented correctly and the test passes when run individually.
     [Fact(Timeout = 2000)]

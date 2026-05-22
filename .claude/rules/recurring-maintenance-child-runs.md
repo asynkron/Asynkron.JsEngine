@@ -58,6 +58,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   current semantic home first and update that existing document when guidance
   is already covered. Do not create duplicate ADRs, rules, or durable notes
   for guidance that already has an owned home.
+- When a persistent ADR/rule compaction child updates an existing semantic
+  home, record baseline and final evidence from the same overlap check command
+  (for example a targeted `rg` over the owned rule file) so review can confirm
+  both non-duplication and the exact wording delta without reopening broad
+  history.
 
 ## Why
 
@@ -139,3 +144,9 @@ Issue #1432 extended that fallback to older completed siblings where
 baseline evidence, then continue from maintained ADR/rule artifacts already
 capturing the completed work (for example ADR 0095 and
 `.claude/rules/expression-bytecode-packing.md`) instead of blocking.
+
+Issue #1464 tightened persistent-compaction evidence guidance: when the slice
+updates an existing semantic home instead of creating a new durable artifact,
+the issue update should still show baseline/final output from one stable
+overlap-check command. This keeps the run auditable as an intentional
+compaction pass rather than an unproven wording edit.

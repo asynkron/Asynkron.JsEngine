@@ -622,8 +622,9 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
         {
             Assert.True(StatementInstructionDiagnosticsCodec.TryEncode(instruction, out var encoded));
             var decoded = StatementInstructionDiagnosticsCodec.Decode(encoded);
-            Assert.Equal(instruction.Kind, decoded.Kind);
-            Assert.Equal(instruction.Next, decoded.Next);
+            Assert.Equal(
+                ExecutionPlanDiagnostics.FormatInstruction(instruction),
+                ExecutionPlanDiagnostics.FormatInstruction(decoded));
         }
     }
 

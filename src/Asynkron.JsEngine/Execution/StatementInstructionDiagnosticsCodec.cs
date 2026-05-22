@@ -24,7 +24,12 @@ internal readonly record struct EncodedStatementInstruction(
     int NextOrTarget,
     int Operand,
     int Extra,
-    string? SymbolName);
+    string? SymbolName,
+    ExpressionProgram? ExpressionProgram,
+    ExpressionProgram? SecondaryExpressionProgram,
+    Symbol? Symbol,
+    Symbol? SecondarySymbol,
+    BindingTargetProgram? BindingTargetProgram);
 
 /// <summary>
 /// Diagnostic-only codec for a small, stable subset of statement instructions.
@@ -59,6 +64,11 @@ internal static class StatementInstructionDiagnosticsCodec
                     jump.TargetIndex,
                     0,
                     0,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
                     null);
                 return true;
             case BreakInstruction @break:
@@ -67,6 +77,11 @@ internal static class StatementInstructionDiagnosticsCodec
                     @break.TargetIndex,
                     @break.TargetScopeId,
                     0,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
                     null);
                 return true;
             case ContinueInstruction @continue:
@@ -75,6 +90,11 @@ internal static class StatementInstructionDiagnosticsCodec
                     @continue.TargetIndex,
                     @continue.TargetScopeId,
                     0,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
                     null);
                 return true;
             case SetCompletionValueInstruction setCompletion:
@@ -83,6 +103,11 @@ internal static class StatementInstructionDiagnosticsCodec
                     setCompletion.Next,
                     0,
                     0,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
                     null);
                 return true;
             case BreakableExitInstruction breakableExit:
@@ -91,6 +116,11 @@ internal static class StatementInstructionDiagnosticsCodec
                     breakableExit.Next,
                     0,
                     0,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
                     null);
                 return true;
             case EvaluateAndDiscardInstruction evaluateAndDiscard:
@@ -99,6 +129,11 @@ internal static class StatementInstructionDiagnosticsCodec
                     evaluateAndDiscard.Next,
                     evaluateAndDiscard.SuppressCompletionValue ? 1 : 0,
                     0,
+                    null,
+                    evaluateAndDiscard.ExpressionProgram,
+                    null,
+                    null,
+                    null,
                     null);
                 return true;
             case AwaitAndDiscardInstruction awaitAndDiscard:
@@ -107,23 +142,38 @@ internal static class StatementInstructionDiagnosticsCodec
                     awaitAndDiscard.Next,
                     awaitAndDiscard.SuppressCompletionValue ? 1 : 0,
                     0,
-                    awaitAndDiscard.AwaitStateKey.Name);
+                    null,
+                    awaitAndDiscard.AwaitedProgram,
+                    null,
+                    awaitAndDiscard.AwaitStateKey,
+                    null,
+                    null);
                 return true;
             case ThrowInstruction throwInstruction:
                 encoded = new EncodedStatementInstruction(
                     StatementDiagnosticOpcode.Throw,
                     -1,
-                    throwInstruction.ThrowProgram is null ? 0 : 1,
-                    throwInstruction.AwaitedProgram is null ? 0 : 1,
-                    throwInstruction.AwaitStateKey?.Name);
+                    0,
+                    0,
+                    null,
+                    throwInstruction.ThrowProgram,
+                    throwInstruction.AwaitedProgram,
+                    throwInstruction.AwaitStateKey,
+                    null,
+                    null);
                 return true;
             case ReturnInstruction returnInstruction:
                 encoded = new EncodedStatementInstruction(
                     StatementDiagnosticOpcode.Return,
                     returnInstruction.Next,
-                    returnInstruction.ReturnProgram is null ? 0 : 1,
-                    returnInstruction.AwaitedProgram is null ? 0 : 1,
-                    returnInstruction.AwaitStateKey?.Name);
+                    0,
+                    0,
+                    null,
+                    returnInstruction.ReturnProgram,
+                    returnInstruction.AwaitedProgram,
+                    returnInstruction.AwaitStateKey,
+                    null,
+                    null);
                 return true;
             case AssignmentSlotInstruction assignmentSlot:
                 encoded = new EncodedStatementInstruction(
@@ -131,7 +181,12 @@ internal static class StatementInstructionDiagnosticsCodec
                     assignmentSlot.Next,
                     assignmentSlot.SuppressCompletionValue ? 1 : 0,
                     assignmentSlot.AllowNameInference ? 1 : 0,
-                    assignmentSlot.TargetSymbol.Name);
+                    null,
+                    assignmentSlot.ValueProgram,
+                    assignmentSlot.AwaitedProgram,
+                    assignmentSlot.AwaitStateKey,
+                    assignmentSlot.TargetSymbol,
+                    null);
                 return true;
             case SimpleVariableDeclarationInstruction simpleVariableDeclaration:
                 encoded = new EncodedStatementInstruction(
@@ -139,15 +194,25 @@ internal static class StatementInstructionDiagnosticsCodec
                     simpleVariableDeclaration.Next,
                     (int)simpleVariableDeclaration.VarKind,
                     simpleVariableDeclaration.IsScriptLevel ? 1 : 0,
-                    simpleVariableDeclaration.TargetSymbol.Name);
+                    null,
+                    simpleVariableDeclaration.InitializerProgram,
+                    simpleVariableDeclaration.AwaitedProgram,
+                    simpleVariableDeclaration.AwaitStateKey,
+                    simpleVariableDeclaration.TargetSymbol,
+                    null);
                 return true;
             case BindingVariableDeclarationInstruction bindingVariableDeclaration:
                 encoded = new EncodedStatementInstruction(
                     StatementDiagnosticOpcode.BindingVariableDeclaration,
                     bindingVariableDeclaration.Next,
                     (int)bindingVariableDeclaration.VarKind,
-                    bindingVariableDeclaration.InitializerProgram is null ? 0 : 1,
-                    null);
+                    0,
+                    null,
+                    bindingVariableDeclaration.InitializerProgram,
+                    bindingVariableDeclaration.AwaitedProgram,
+                    bindingVariableDeclaration.AwaitStateKey,
+                    null,
+                    bindingVariableDeclaration.TargetProgram);
                 return true;
             default:
                 encoded = default;
@@ -166,46 +231,45 @@ internal static class StatementInstructionDiagnosticsCodec
             StatementDiagnosticOpcode.BreakableExit => new BreakableExitInstruction(encoded.NextOrTarget),
             StatementDiagnosticOpcode.EvaluateAndDiscard => new EvaluateAndDiscardInstruction(
                 encoded.NextOrTarget,
-                ExpressionProgram.Empty,
+                encoded.ExpressionProgram ?? ExpressionProgram.Empty,
                 SuppressCompletionValue: encoded.Operand != 0),
             StatementDiagnosticOpcode.AwaitAndDiscard => new AwaitAndDiscardInstruction(
                 encoded.NextOrTarget,
-                Symbol.Intern(encoded.SymbolName ?? "__await_state"),
-                ExpressionProgram.Empty,
+                encoded.Symbol ?? Symbol.Intern(encoded.SymbolName ?? "__await_state"),
+                encoded.ExpressionProgram ?? ExpressionProgram.Empty,
                 SuppressCompletionValue: encoded.Operand != 0),
             StatementDiagnosticOpcode.Throw => new ThrowInstruction(
-                encoded.Operand != 0 ? ExpressionProgram.Empty : null,
-                encoded.SymbolName is null ? null : Symbol.Intern(encoded.SymbolName),
-                encoded.Extra != 0 ? ExpressionProgram.Empty : null),
+                encoded.ExpressionProgram,
+                encoded.Symbol,
+                encoded.SecondaryExpressionProgram),
             StatementDiagnosticOpcode.Return => new ReturnInstruction(
                 encoded.NextOrTarget,
-                encoded.Operand != 0 ? ExpressionProgram.Empty : null,
-                encoded.SymbolName is null ? null : Symbol.Intern(encoded.SymbolName),
-                encoded.Extra != 0 ? ExpressionProgram.Empty : null),
+                encoded.ExpressionProgram,
+                encoded.Symbol,
+                encoded.SecondaryExpressionProgram),
             StatementDiagnosticOpcode.AssignmentSlot => new AssignmentSlotInstruction(
                 encoded.NextOrTarget,
-                Symbol.Intern(encoded.SymbolName ?? "__assignment_target"),
-                ValueProgram: null,
-                AwaitStateKey: null,
-                AwaitedProgram: null,
+                encoded.SecondarySymbol ?? Symbol.Intern(encoded.SymbolName ?? "__assignment_target"),
+                ValueProgram: encoded.ExpressionProgram,
+                AwaitStateKey: encoded.Symbol,
+                AwaitedProgram: encoded.SecondaryExpressionProgram,
                 SuppressCompletionValue: encoded.Operand != 0,
                 AllowNameInference: encoded.Extra != 0),
             StatementDiagnosticOpcode.SimpleVariableDeclaration => new SimpleVariableDeclarationInstruction(
                 encoded.NextOrTarget,
                 (VariableKind)encoded.Operand,
-                Symbol.Intern(encoded.SymbolName ?? "__declaration_target"),
-                InitializerProgram: null,
-                AwaitStateKey: null,
-                AwaitedProgram: null,
-                AllowNameInference: false,
+                encoded.SecondarySymbol ?? Symbol.Intern(encoded.SymbolName ?? "__declaration_target"),
+                InitializerProgram: encoded.ExpressionProgram,
+                AwaitStateKey: encoded.Symbol,
+                AwaitedProgram: encoded.SecondaryExpressionProgram,
                 IsScriptLevel: encoded.Extra != 0),
             StatementDiagnosticOpcode.BindingVariableDeclaration => new BindingVariableDeclarationInstruction(
                 encoded.NextOrTarget,
                 (VariableKind)encoded.Operand,
-                new IdentifierBindingTargetProgram(Symbol.Intern("__binding_target")),
-                InitializerProgram: encoded.Extra != 0 ? ExpressionProgram.Empty : null,
-                AwaitStateKey: null,
-                AwaitedProgram: null),
+                encoded.BindingTargetProgram ?? new IdentifierBindingTargetProgram(Symbol.Intern("__binding_target")),
+                InitializerProgram: encoded.ExpressionProgram,
+                AwaitStateKey: encoded.Symbol,
+                AwaitedProgram: encoded.SecondaryExpressionProgram),
             _ => throw new ArgumentOutOfRangeException(nameof(encoded), encoded.Opcode, "Unsupported diagnostic opcode")
         };
     }

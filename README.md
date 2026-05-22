@@ -102,6 +102,12 @@ make quality
 the internal test suite without rebuilding. It intentionally excludes the
 Test262 project from the default quality gate.
 
+For bounded Test262 follow-up work, list available regression packs with
+`rtk ./tools/run-test262-regressions.sh --list`, then run one named pack such
+as `rtk ./tools/run-test262-regressions.sh temporal`. For the full runner
+contract and filter-file modes, see
+[`tests/Asynkron.JsEngine.Tests.Test262/README.md`](tests/Asynkron.JsEngine.Tests.Test262/README.md).
+
 For ad hoc local checks, keep the build-before-test flow from
 [`agents/how-to-build-and-test.md`](agents/how-to-build-and-test.md):
 

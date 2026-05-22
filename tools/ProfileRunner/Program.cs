@@ -324,7 +324,31 @@ void PrintExpressionProgramStorage(string selectedProfileKey, ProgramNode progra
         $"  encoded_op_estimated_bytes: {snapshot.EstimatedEncodedOperationBytes}"));
     Console.WriteLine(string.Create(
         CultureInfo.InvariantCulture,
+        $"  packed_op_shape: flags={snapshot.OperationsWithFlagsCount}, immediate0={snapshot.OperationsWithImmediate0Count}, immediate1={snapshot.OperationsWithImmediate1Count}, both_immediates={snapshot.OperationsWithBothImmediatesCount}"));
+    Console.WriteLine(string.Create(
+        CultureInfo.InvariantCulture,
         $"  constants: literals={snapshot.LiteralConstantCount}, strings={snapshot.StringConstantCount}, objects={snapshot.ObjectConstantCount}, identifiers={snapshot.IdentifierConstantCount}, spread_masks={snapshot.SpreadMaskConstantCount}"));
+    Console.WriteLine(string.Create(
+        CultureInfo.InvariantCulture,
+        $"  optional_chain_shape: optional_ops={snapshot.OptionalOperationCount}, short_circuit_ops={snapshot.ShortCircuitOperationCount}"));
+    Console.WriteLine(string.Create(
+        CultureInfo.InvariantCulture,
+        $"  side_state_estimates: max_stack_slots={snapshot.EstimatedMaxStackSlotCount}, stack_value_bytes={snapshot.EstimatedMaxStackValueBytes}, stack_flag_words={snapshot.EstimatedMaxStackFlagWordCount}, stack_flag_bytes={snapshot.EstimatedMaxStackFlagBytes}"));
+
+    if (snapshot.OperationKindHistogram.IsDefaultOrEmpty)
+    {
+        Console.WriteLine("  op_kind_histogram: (empty)");
+    }
+    else
+    {
+        Console.WriteLine("  op_kind_histogram:");
+        foreach (var (kind, count) in snapshot.OperationKindHistogram)
+        {
+            Console.WriteLine(string.Create(
+                CultureInfo.InvariantCulture,
+                $"    {kind}: {count}"));
+        }
+    }
 
     if (snapshot.MaxStackDepthHistogram.IsDefaultOrEmpty)
     {

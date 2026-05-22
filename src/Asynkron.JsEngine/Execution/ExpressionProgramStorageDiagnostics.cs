@@ -1,6 +1,8 @@
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Execution;
 
@@ -25,6 +27,7 @@ internal static class ExpressionProgramStorageDiagnostics
         private readonly HashSet<FunctionExpression> _visitedFunctions = new(ReferenceEqualityComparer<FunctionExpression>.Instance);
         private readonly HashSet<ClassDefinition> _visitedClassDefinitions = new(ReferenceEqualityComparer<ClassDefinition>.Instance);
         private readonly Dictionary<int, int> _maxStackDepthHistogram = [];
+        private readonly Dictionary<ExpressionOpKind, long> _operationKindHistogram = [];
         private long _programCount;
         private long _operationCount;
         private long _estimatedEncodedOperationBytes;
@@ -33,6 +36,14 @@ internal static class ExpressionProgramStorageDiagnostics
         private long _objectConstantCount;
         private long _identifierConstantCount;
         private long _spreadMaskConstantCount;
+        private long _opsWithFlagsCount;
+        private long _opsWithImmediate0Count;
+        private long _opsWithImmediate1Count;
+        private long _opsWithBothImmediatesCount;
+        private long _optionalOperationCount;
+        private long _shortCircuitOperationCount;
+        private long _estimatedMaxStackSlotCount;
+        private long _estimatedMaxStackFlagWordCount;
 
         public void VisitProgram(ProgramNode program)
         {
@@ -60,6 +71,8 @@ internal static class ExpressionProgramStorageDiagnostics
             _spreadMaskConstantCount += GetLength(program.SpreadMaskConstants);
 
             var stackDepth = program.MaxStackDepth;
+            _estimatedMaxStackSlotCount += stackDepth;
+            _estimatedMaxStackFlagWordCount += GetFlagWordCount(stackDepth);
             if (_maxStackDepthHistogram.TryGetValue(stackDepth, out var count))
             {
                 _maxStackDepthHistogram[stackDepth] = count + 1;
@@ -77,6 +90,47 @@ internal static class ExpressionProgramStorageDiagnostics
             var objectConstants = program.ObjectConstants.AsSpan();
             foreach (var op in program.EnumerateOperations())
             {
+                if (_operationKindHistogram.TryGetValue(op.Kind, out var opKindCount))
+                {
+                    _operationKindHistogram[op.Kind] = opKindCount + 1;
+                }
+                else
+                {
+                    _operationKindHistogram[op.Kind] = 1;
+                }
+
+                var hasImmediate0 = op.HasImmediate0;
+                var hasImmediate1 = op.HasImmediate1;
+                if (hasImmediate0)
+                {
+                    _opsWithImmediate0Count++;
+                }
+
+                if (hasImmediate1)
+                {
+                    _opsWithImmediate1Count++;
+                }
+
+                if (hasImmediate0 && hasImmediate1)
+                {
+                    _opsWithBothImmediatesCount++;
+                }
+
+                if (op.EncodedFlags != 0)
+                {
+                    _opsWithFlagsCount++;
+                }
+
+                if (IsOptionalOperation(op))
+                {
+                    _optionalOperationCount++;
+                }
+
+                if (IsShortCircuitOperation(op))
+                {
+                    _shortCircuitOperationCount++;
+                }
+
                 switch (op.Kind)
                 {
                     case ExpressionOpKind.ApplyBindingTarget:
@@ -96,8 +150,14 @@ internal static class ExpressionProgramStorageDiagnostics
 
         public ExpressionProgramStorageSnapshot Build()
         {
+            var estimatedStackValueBytes = _estimatedMaxStackSlotCount * Unsafe.SizeOf<JsValue>();
+            var estimatedStackFlagBytes = _estimatedMaxStackFlagWordCount * sizeof(ulong);
             var maxStackDepthHistogram = _maxStackDepthHistogram
                 .OrderBy(static pair => pair.Key)
+                .ToImmutableArray();
+            var operationKindHistogram = _operationKindHistogram
+                .OrderByDescending(static pair => pair.Value)
+                .ThenBy(static pair => pair.Key)
                 .ToImmutableArray();
 
             return new ExpressionProgramStorageSnapshot(
@@ -109,7 +169,18 @@ internal static class ExpressionProgramStorageDiagnostics
                 ObjectConstantCount: _objectConstantCount,
                 IdentifierConstantCount: _identifierConstantCount,
                 SpreadMaskConstantCount: _spreadMaskConstantCount,
-                MaxStackDepthHistogram: maxStackDepthHistogram);
+                MaxStackDepthHistogram: maxStackDepthHistogram,
+                OperationKindHistogram: operationKindHistogram,
+                OperationsWithFlagsCount: _opsWithFlagsCount,
+                OperationsWithImmediate0Count: _opsWithImmediate0Count,
+                OperationsWithImmediate1Count: _opsWithImmediate1Count,
+                OperationsWithBothImmediatesCount: _opsWithBothImmediatesCount,
+                OptionalOperationCount: _optionalOperationCount,
+                ShortCircuitOperationCount: _shortCircuitOperationCount,
+                EstimatedMaxStackSlotCount: _estimatedMaxStackSlotCount,
+                EstimatedMaxStackValueBytes: estimatedStackValueBytes,
+                EstimatedMaxStackFlagWordCount: _estimatedMaxStackFlagWordCount,
+                EstimatedMaxStackFlagBytes: estimatedStackFlagBytes);
         }
 
         private void VisitFunction(FunctionExpression function)
@@ -347,6 +418,36 @@ internal static class ExpressionProgramStorageDiagnostics
         {
             return items.IsDefault ? 0 : items.Length;
         }
+
+        private static long GetFlagWordCount(int maxStackDepth)
+        {
+            return (maxStackDepth + 63L) / 64L;
+        }
+
+        private static bool IsOptionalOperation(PackedExpressionOp op)
+        {
+            return op.Kind switch
+            {
+                ExpressionOpKind.GetNamedProperty => op.IsOptional,
+                ExpressionOpKind.GetComputedProperty => op.IsOptional,
+                ExpressionOpKind.GetNamedSuperProperty => op.IsOptional,
+                ExpressionOpKind.GetComputedSuperProperty => op.IsOptional,
+                _ => false
+            };
+        }
+
+        private static bool IsShortCircuitOperation(PackedExpressionOp op)
+        {
+            return op.Kind switch
+            {
+                ExpressionOpKind.GetNamedProperty => op.ShortCircuitOnNullishTarget,
+                ExpressionOpKind.GetComputedProperty => op.ShortCircuitOnNullishTarget,
+                ExpressionOpKind.GetNamedSuperProperty => op.ShortCircuitOnNullishTarget,
+                ExpressionOpKind.GetComputedSuperProperty => op.ShortCircuitOnNullishTarget,
+                ExpressionOpKind.JumpIfShortCircuited => true,
+                _ => false
+            };
+        }
     }
 }
 
@@ -359,4 +460,15 @@ internal sealed record ExpressionProgramStorageSnapshot(
     long ObjectConstantCount,
     long IdentifierConstantCount,
     long SpreadMaskConstantCount,
-    ImmutableArray<KeyValuePair<int, int>> MaxStackDepthHistogram);
+    ImmutableArray<KeyValuePair<int, int>> MaxStackDepthHistogram,
+    ImmutableArray<KeyValuePair<ExpressionOpKind, long>> OperationKindHistogram,
+    long OperationsWithFlagsCount,
+    long OperationsWithImmediate0Count,
+    long OperationsWithImmediate1Count,
+    long OperationsWithBothImmediatesCount,
+    long OptionalOperationCount,
+    long ShortCircuitOperationCount,
+    long EstimatedMaxStackSlotCount,
+    long EstimatedMaxStackValueBytes,
+    long EstimatedMaxStackFlagWordCount,
+    long EstimatedMaxStackFlagBytes);

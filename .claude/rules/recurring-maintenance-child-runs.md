@@ -41,10 +41,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   argument just to see an error message. Keep the listing path backed by the
   same computed source that validation uses.
 - When `faktorial-api` helper commands are unavailable in a recurring child
-  agent environment, use bounded local Faktorial context such as
-  `faktorial log-summary <issue-number> --root '<repo-root>'` plus supplied
-  issue context instead of blocking on helper availability or missing `gh`
-  authentication.
+  agent environment, use bounded local Faktorial context: run
+  `faktorial issue <issue-number> --root '<repo-root>'` for full issue body and
+  comments, then `faktorial log-summary <issue-number> --root '<repo-root>'`
+  for compact stage/log evidence instead of blocking on helper availability or
+  missing `gh` authentication.
 - When older completed sibling issue logs are no longer available via
   `faktorial log-summary`, treat the failed lookup itself as baseline evidence
   and continue from durable in-repo artifacts (for example ADRs and owned rule
@@ -137,6 +138,14 @@ durable lesson is that helper availability is not the unit of progress:
 recurring children should continue from supplied context and bounded
 `faktorial log-summary` evidence, while treating missing `gh` auth or missing
 optional helpers as an environment limitation rather than a source blocker.
+
+Issue #1484 / PR #1487 tightened that fallback after another recurring child
+needed full issue context, not only compact log evidence, while `faktorial-api`
+was unavailable. Future recurring-child agents should pair
+`faktorial issue <issue-number> --root '<repo-root>'` for body/comments with
+`faktorial log-summary <issue-number> --root '<repo-root>'` for compact runtime
+history before treating helper availability or missing source-host credentials
+as blockers.
 
 Issue #1432 extended that fallback to older completed siblings where
 `faktorial log-summary` no longer has compact history (for example #1403 or

@@ -76,6 +76,7 @@ Current `ExpressionProgramFailureCode` values used by classification and diagnos
 - `UnsupportedExpressionNode`
 - `UnsupportedUnaryOperator`
 - `UnsupportedUpdateTarget`
+- `UnsupportedDeleteTarget`
 - `SuperCall`
 - `NestedOptionalCall`
 - `UnsupportedCompoundAssignmentShape`

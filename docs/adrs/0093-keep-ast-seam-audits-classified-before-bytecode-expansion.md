@@ -217,7 +217,7 @@ Observed classification stayed unchanged:
    remaining boundary owner surfaces are explicitly:
    - runner await-state handling in `EvaluateAwaitInGenerator(...)`;
    - the dynamic expression-program bridge in
-     `EvaluateDynamicExpressionProgram(...)`; and
+    `EvaluateDynamicExpressionProgram(...)`; and
    - legacy await/yield operand evaluation in
      `Ast/Legacy/ExpressionNodeExtensions.cs`;
 3. remaining AST-boundary text inside runner-adjacent files continues to be
@@ -226,3 +226,30 @@ Observed classification stayed unchanged:
 
 Build-stage scope for #1479 is evidence refresh only. No runtime behavior,
 seam ownership, or dynamic-bridge boundaries were changed by this issue.
+
+## Issue #1487 Static Dot-Access Name Normalization (2026-05-22)
+
+Issue #1487 / PR #1495 selected the current third high-value expression-bytecode
+bucket after rerunning the coverage-map guard: `UnsupportedDotAccessPropertyName`.
+The implementation found that non-computed `MemberExpression` property nodes
+can be static-name syntax even when they are represented as
+`IdentifierExpression` rather than the parser's usual string
+`LiteralExpression` shape.
+
+The decision is to keep this as compile-time syntax normalization, not a runtime
+fallback. Static dot-access bytecode lowering should accept both string literal
+property nodes and identifier property nodes, normalize them to the property
+name used by the named-property bytecode operation, and leave computed-member
+validation on its existing separate path.
+
+The proof shape for similar slices is:
+
+1. rerun the coverage-map/backlog guard before choosing the bucket;
+2. add the smallest compiler normalization for the selected static-name shape;
+3. prove the accepted AST property-node shape with a focused lowering test;
+4. keep computed-member and unsupported property-name diagnostics separate; and
+5. rerun the runner AST-seam scan and memory-profile gate required for
+   expression bytecode work.
+
+This section is caused by issue #1487 / PR #1495 and complements the root
+`.claude/rules/expression-bytecode-ast-seams.md` rule.

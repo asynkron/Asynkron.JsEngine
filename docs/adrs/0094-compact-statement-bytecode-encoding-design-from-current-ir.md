@@ -93,6 +93,36 @@ Defer families where payload shape is still moving or object-heavy.
 - Any active IR seam currently being normalized in related issues (#1393,
   #1394, #1396).
 
+### 6.1 Concrete `InstructionKind` classification (current repo state)
+
+This table is the build-stage classification source for statement compact
+bytecode readiness. It classifies all current `InstructionKind` values from
+`InstructionKind.cs` using operand payload shapes in `Instructions.cs`.
+Expression payload ownership stays in the expression map documented in
+`docs/expression-bytecode-coverage.md`; this ADR only classifies statement-side
+storage readiness.
+
+| Family | `InstructionKind` values | Status | Why |
+| --- | --- | --- | --- |
+| Pure control flow | `Jump`, `Break`, `Continue`, `SetCompletionValue`, `BreakableExit` | Encode now | Scalar index/label metadata only; no semantic migration needed. |
+| Control flow with expression condition | `Branch` | Conditional / needs normalization | `ConditionProgram` is already expression-bytecode-backed, but statement compact encoding should reference expression IDs through the shared expression table. |
+| Terminal control flow with optional expression payloads | `Throw`, `Return` | Conditional / needs normalization | Both carry optional expression/await payloads (`ThrowProgram`/`ReturnProgram`, `AwaitStateKey`, `AwaitedProgram`) and should use shared expression-reference IDs plus normalized async-resume operand encoding. |
+| Direct expression statement | `EvaluateAndDiscard` | Conditional / needs normalization | Stable `ExpressionProgram` payload, but must be encoded as expression reference ID instead of in-record payload. |
+| Await expression statement | `AwaitAndDiscard` | Conditional / needs normalization | Uses `AwaitStateKey` + `AwaitedProgram`; expression ref part is stable, but async resume payload needs shared encode pattern. |
+| Slot fast paths | `IncrementSlot`, `AssignmentSlot`, `LogicalCompoundAssignmentSlot`, `CompoundAssignmentSlot` | Conditional / needs normalization | Mostly scalar/symbol operands plus optional `ExpressionProgram`/`AwaitedProgram`; encode is safe once optional expression fields are normalized to IDs. |
+| Declarations with descriptor payloads | `FunctionDeclaration`, `ClassDeclaration` | Defer | Carry descriptor/program-cache payloads that are object-heavy and should be table-normalized before compact storage migration. |
+| Variable declarations | `SimpleVariableDeclaration`, `BindingVariableDeclaration` | Conditional / needs normalization | `SimpleVariableDeclaration` is close (symbol + optional expression), but `BindingVariableDeclaration` carries `BindingTargetProgram` object payload; keep together until binding payload encoding is finalized. |
+| Environment transitions | `PushEnvironment`, `PopEnvironment`, `BreakableEnter` | Defer | `PushEnvironment` currently carries multiple collection/object payloads (`SlotMap`, lexical/flat-slot metadata, optional source block). Needs operand-table normalization first. |
+| Yield/resume | `Yield`, `YieldStar`, `StoreResumeValue` | Defer | Suspension/resume semantics rely on mixed payloads (`AwaitStateKey`, optional awaited/iterable programs, state/result symbols); avoid mixing storage migration with semantic seam work. |
+| Try/catch/finally | `EnterTry`, `EnterCatch`, `LeaveTry`, `EndFinally` | Defer | Handler/finally range metadata plus binding/catch-program payloads are still semantically dense; keep deferred until unwind/catch payload normalization is explicit. |
+| Iteration drivers (`for..of`) | `IteratorInit`, `IteratorMoveNext`, `IteratorClose` | Defer | Iterator state payload includes TDZ bindings, optional awaited/source references, and iterator driver semantics; still object-heavy. |
+| Iteration drivers (`for..in`) | `ForInInit`, `ForInMoveNext` | Defer | Similar to `for..of`: mixed state payloads (`SourceReference`, TDZ metadata, optional await/expression programs) need normalization first. |
+| `with` boundaries | `EnterWith`, `LeaveWith` | Defer | `EnterWith` includes dynamic object-source and optional awaited/object program payloads; defer until dynamic-boundary encoding strategy is locked. |
+| Array destructuring helpers | `ArrayDestructuringInit`, `ArrayDestructuringElement`, `ArrayDestructuringRest`, `ArrayDestructuringClose` | Defer | Iterator/destructuring state instructions are still an active semantic family with specialized binding behavior; keep out of first storage-only migration wave. |
+
+Guardrail: this classification is storage-planning only. It does not authorize
+runtime behavior changes or new AST/IR fallback seams.
+
 ### 7. Debug/printer/test bridge requirements
 
 Maintain today’s inspectability throughout migration.

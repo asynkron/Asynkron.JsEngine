@@ -70,6 +70,71 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ReturnInstruction_AwaitedIdentifier_UsesAwaitedProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            async function returnAwaited(valuePromise) {
+                return await valuePromise;
+            }
+            """, "returnAwaited");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.AwaitedProgram is not null);
+        Assert.Null(instruction.ReturnExpression);
+        Assert.NotNull(instruction.AwaitStateKey);
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            instruction.AwaitedProgram,
+            op => op.Name.Name == "valuePromise");
+    }
+
+    [Fact]
+    public async Task ReturnInstruction_NestedAwaitExpression_UsesSyntheticAwaitedTemp()
+    {
+        var plan = await GetFunctionPlan("""
+            async function returnNestedAwait(valuePromise) {
+                return (await valuePromise) + 1;
+            }
+            """, "returnNestedAwait");
+
+        var tempInstruction = Assert.Single(
+            plan.Instructions.OfType<SimpleVariableDeclarationInstruction>(),
+            i => i.AwaitedProgram is not null && i.TargetSymbol.Name!.StartsWith("__yield_lower_", StringComparison.Ordinal));
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            tempInstruction.AwaitedProgram,
+            op => op.Name.Name == "valuePromise");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
+        Assert.Null(instruction.ReturnExpression);
+        AssertProgramContains<BinaryExpressionOp>(instruction.ReturnProgram, op => op.Operator == BinaryOperator.Add);
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            instruction.ReturnProgram,
+            op => op.Name.Name!.StartsWith("__yield_lower_", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ThrowInstruction_NestedAwaitExpression_UsesSyntheticAwaitedTemp()
+    {
+        var plan = await GetFunctionPlan("""
+            async function throwNestedAwait(valuePromise) {
+                throw (await valuePromise) + 1;
+            }
+            """, "throwNestedAwait");
+
+        var tempInstruction = Assert.Single(
+            plan.Instructions.OfType<SimpleVariableDeclarationInstruction>(),
+            i => i.AwaitedProgram is not null && i.TargetSymbol.Name!.StartsWith("__yield_lower_", StringComparison.Ordinal));
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            tempInstruction.AwaitedProgram,
+            op => op.Name.Name == "valuePromise");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<ThrowInstruction>(), i => i.ThrowProgram is not null);
+        Assert.Null(instruction.Expression);
+        AssertProgramContains<BinaryExpressionOp>(instruction.ThrowProgram, op => op.Operator == BinaryOperator.Add);
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            instruction.ThrowProgram,
+            op => op.Name.Name!.StartsWith("__yield_lower_", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task SimpleVariableDeclaration_SimpleInitializer_IsLoweredToExpressionProgram()
     {
         var plan = await GetFunctionPlan("""
@@ -506,6 +571,52 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
 
         Assert.True(compiled, failureReason);
         AssertProgramContains<GetNamedPropertyExpressionOp>(program, op => op.PropertyName == "value");
+    }
+
+    [Fact]
+    public async Task SimpleVariableDeclaration_ObjectSpreadLiteral_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function clone(source) {
+                const copy = { ...source };
+                return copy;
+            }
+            """, "clone");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<SimpleVariableDeclarationInstruction>(), i => i.TargetSymbol.Name == "copy");
+        Assert.Null(instruction.Initializer);
+        AssertProgramContains<CreateObjectExpressionOp>(instruction.InitializerProgram);
+        AssertProgramContains<ObjectSpreadExpressionOp>(instruction.InitializerProgram);
+    }
+
+    [Fact]
+    public async Task ObjectSpreadLiteral_SpreadOnlyShape_MatchesJavaScriptBehavior()
+    {
+        var result = await _engine.Evaluate("""
+            function readTotal(source) {
+                const copy = { ...source };
+                return copy.a + copy.b;
+            }
+
+            readTotal({ a: 2, b: 3 });
+            """);
+
+        Assert.Equal(5.0, result);
+    }
+
+    [Fact]
+    public async Task ObjectSpreadLiteral_SpreadOverwriteOrdering_MatchesJavaScriptBehavior()
+    {
+        var result = await _engine.Evaluate("""
+            function readValue(source) {
+                const copy = { ...source, value: 7 };
+                return copy.value;
+            }
+
+            readValue({ value: 2 });
+            """);
+
+        Assert.Equal(7.0, result);
     }
 
     [Fact]

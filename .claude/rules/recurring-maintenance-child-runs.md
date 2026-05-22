@@ -64,6 +64,10 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   (for example a targeted `rg` over the owned rule file) so review can confirm
   both non-duplication and the exact wording delta without reopening broad
   history.
+- Keep recurring-child progress updates plain and bounded while work is in
+  flight. Reserve machine-readable structured schema output for the final build
+  result only; avoid emitting final-response-shaped interim status messages
+  that can be misclassified as failed stage outcomes in issue logs.
 
 ## Why
 
@@ -159,3 +163,9 @@ updates an existing semantic home instead of creating a new durable artifact,
 the issue update should still show baseline/final output from one stable
 overlap-check command. This keeps the run auditable as an intentional
 compaction pass rather than an unproven wording edit.
+
+Issue #1534 added an output-boundary lesson from recurring-child runtime
+evidence: when interim progress messages mimic final structured responses, the
+issue log can record false `success=false` stage events before implementation
+completes. The durable policy is to keep interim updates plain and bounded, and
+emit structured schema output only for the actual final build response.

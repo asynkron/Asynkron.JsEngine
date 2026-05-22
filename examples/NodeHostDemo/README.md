@@ -145,6 +145,18 @@ resolver and runs the framework code unchanged. The host still only supplies
 the native edges: package resolution, `http`, `querystring`, and enough
 request/response behavior for Polka's router.
 
+## Dependency drift note
+
+The demo intentionally stays on the Express 4 line for now. Current npm
+metadata reports `express@5.2.1` on the `latest` tag, but `express@4.22.2` on
+the `latest-4` tag; moving to Express 5 should be a dedicated compatibility
+pass because it can change framework routing and middleware behavior.
+
+Polka is current on its stable npm tag: `polka@0.5.2` is both the installed
+range target and `latest`. The `next` tag currently points at
+`1.0.0-next.28`, so this demo should not move to Polka 1.x without an explicit
+pre-release compatibility pass.
+
 Future scripts can grow this folder step by step without changing the core
 engine: add more host modules, more request/response behavior, and eventually
 small packages that expect common Node globals.

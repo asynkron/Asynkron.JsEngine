@@ -13,6 +13,12 @@ unless the issue explicitly asks for a major migration.
 - Do not fold major-version migrations into a routine dependency sweep just
   because `latest` reports one. Major upgrades need their own issue, migration
   notes, and behavior-specific proof.
+- For npm dependencies, inspect the package dist-tags before deciding that
+  `latest` is an actionable update. If the installed major is current on a
+  maintenance tag such as `latest-4`, treat a newer `latest` major as deferred
+  compatibility work; if a package only advertises a prerelease channel such as
+  `next`, do not move to that channel in a routine sweep without an explicit
+  pre-release compatibility issue.
 - Record the baseline and final dependency signals in the issue context:
   `outdated`, `audit`, installed versions, and the project build or demo proof
   that owns the dependency.
@@ -32,3 +38,10 @@ Issue #1299 / PR #1305 updated `Microsoft.Extensions.Logging.Abstractions` from
 project together. Keeping the repeated .NET package pin aligned avoided a
 partial dependency state where only one project saw the compatible patch update
 while sibling projects continued to carry the older package.
+
+Issue #1532 / PR #1536 documented the same NodeHostDemo drift after npm
+metadata showed `express@5.2.1` on `latest`, `express@4.22.2` on `latest-4`,
+and `polka@1.0.0-next.28` only on `next`. The useful maintenance outcome was
+recording that Express 5 and Polka 1.x need dedicated compatibility passes,
+while `package.json` and `package-lock.json` stayed unchanged because there was
+no stable compatible update to apply.

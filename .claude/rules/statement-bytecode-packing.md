@@ -24,6 +24,11 @@ decode bridge are explicit.
    Statement bytecode should reference expression-program IDs or owner-backed
    handles, not inline expression operations or depend on expression backing
    arrays.
+6. When expanding diagnostic encode/decode support, prove decoded
+   `ExecutionInstruction` record equivalence for every supported payload field,
+   not only printer-equivalent output. Slot metadata, flat-slot ids,
+   declaration flags, await state keys, and expression/binding programs that
+   affect the semantic view must round-trip or the family must stay unsupported.
 
 ## Why
 
@@ -35,5 +40,13 @@ stable families only. It explicitly avoided compact runtime interpreter routing.
 Future agents need this guardrail so statement-bytecode packing does not skip
 the measurement gate, hide unsupported families inside optimistic estimates, or
 mix storage-format work with semantic runner changes.
+
+Issue #1518 / PR #1527 expanded the diagnostic codec from scalar control-flow
+families into expression-program-backed statement families. Review found that
+printer-equivalent output was too weak for AC-2 because it could miss supported
+record payloads such as `AssignmentSlotInstruction` scope/slot metadata and
+`SimpleVariableDeclarationInstruction` flags. Future bridge expansions need
+record-level parity tests for supported families so the decoded diagnostic view
+remains a trustworthy stand-in for the current semantic instruction records.
 
 Related ADR: `docs/adrs/0094-compact-statement-bytecode-encoding-design-from-current-ir.md`.

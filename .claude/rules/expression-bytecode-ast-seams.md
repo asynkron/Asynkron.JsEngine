@@ -71,7 +71,16 @@ fallback or cleanup.
     that the runner files have no obvious direct call; it does not prove that a
     dynamic entry point still reaches the IR/function pipeline under runtime
     execution.
-15. When renaming, removing, or splitting expression-program bridge APIs, search
+15. When retiring dynamic operand AST seams, migrate one operand family at a
+    time through the dynamic `ExpressionProgram` bridge when the operand only
+    needs a value. Dynamic return operands are the reference shape: evaluate
+    the return expression with `EvaluateDynamicExpressionProgram(...)`, preserve
+    precise unsupported-bytecode failures, and prove the path with a focused
+    DEBUG `EvaluationContext.AssertNoAstEvaluation` regression. Keep
+    suspending operands (`await`, `yield`), assignment/name-inference operands,
+    and delete-default operands as separate slices until their evaluation order,
+    resume, and side-effect semantics are proven.
+16. When renaming, removing, or splitting expression-program bridge APIs, search
     both the primary IR/runtime files and the quarantined legacy AST evaluator
     directory for stale bridge calls. Legacy dynamic boundaries may still be the
     caller that routes AST-owned statements into lowered `ExpressionProgram`
@@ -171,6 +180,15 @@ that indirect eval plus `Function` and `AsyncFunction` constructor execution
 lacked explicit `AssertNoAstEvaluation` tests. Future agents should turn
 classification claims for dynamic boundaries into executable proof coverage,
 not rely only on seam scans or adjacent direct-eval/with tests.
+
+Issue #1447 / PR #1457 converted the dynamic return-expression boundary from
+`EvaluateDynamicExpressionOperand(...)` to the existing cached expression-program
+path, which is now reached through the dynamic expression-program bridge. The
+important constraint is scope: a return operand only needs a `JsValue` before
+setting the return completion, so it can be bytecode-backed without changing
+suspension or name-inference behavior. Future dynamic operand work should repeat
+that narrow proof shape instead of mixing return, await, yield, assignment, and
+delete semantics in one migration.
 
 Issue #1461 / PR #1462 repaired a `main is red` compile failure after
 `EvaluateCachedExpressionProgram` was removed but the legacy dynamic

@@ -381,17 +381,18 @@ internal static class GeneratorYieldLowerer
                 BinaryExpression binaryExpression => ContainsLogicalOrNullishShortCircuit(binaryExpression.Left) ||
                                                      ContainsLogicalOrNullishShortCircuit(binaryExpression.Right),
                 UnaryExpression unaryExpression => ContainsLogicalOrNullishShortCircuit(unaryExpression.Operand),
-                ConditionalExpression conditionalExpression =>
-                    ContainsLogicalOrNullishShortCircuit(conditionalExpression.Test) ||
-                    ContainsLogicalOrNullishShortCircuit(conditionalExpression.Consequent) ||
-                    ContainsLogicalOrNullishShortCircuit(conditionalExpression.Alternate),
+                // Rewriting awaits inside conditional branches would eagerly hoist
+                // both branch awaits, which breaks branch-only evaluation semantics.
+                ConditionalExpression => true,
                 MemberExpression memberExpression =>
                     ContainsLogicalOrNullishShortCircuit(memberExpression.Target) ||
                     ContainsLogicalOrNullishShortCircuit(memberExpression.Property),
                 CallExpression callExpression =>
                     ContainsLogicalOrNullishShortCircuit(callExpression.Callee) ||
                     ContainsLogicalOrNullishShortCircuit(callExpression.Arguments),
-                NewExpression newExpression => ContainsLogicalOrNullishShortCircuit(newExpression.Arguments),
+                NewExpression newExpression =>
+                    ContainsLogicalOrNullishShortCircuit(newExpression.Constructor) ||
+                    ContainsLogicalOrNullishShortCircuit(newExpression.Arguments),
                 AwaitExpression awaitExpression => ContainsLogicalOrNullishShortCircuit(awaitExpression.Expression),
                 SequenceExpression sequenceExpression =>
                     ContainsLogicalOrNullishShortCircuit(sequenceExpression.Left) ||

@@ -51,7 +51,7 @@ This map tracks how concrete `ExpressionNode` types relate to current expression
 | --- | --- | --- | --- |
 | `ArrayExpression` | `shape-dependent` | `TryCompileArrayExpression`; nested unsupported operands bubble classified nested failures | `ExpressionProgramLoweringTests` array/object assignment and declaration cases |
 | `AssignmentExpression` | `shape-dependent` | `TryCompileAssignmentExpression`; `UnsupportedCompoundAssignmentShape`, `UnsupportedExpressionNode` | `ExpressionProgramLoweringTests.AssignmentSlotInstruction_*` |
-| `CallExpression` | `shape-dependent` | `TryCompileCallExpression`; `UnsupportedDirectMemberCallPropertyName`, `OptionalOrSuperMemberCallTarget`, `NestedOptionalCall`, `SuperCall` | `ExecutionPlanDiagnosticsTests.ExpressionFailureBuckets_TrackExpectedCodes` |
+| `CallExpression` | `shape-dependent` | `TryCompileCallExpression`; `UnsupportedDirectMemberCallPropertyName`, `OptionalOrSuperMemberCallTarget`, `NestedOptionalCall` | `ExecutionPlanDiagnosticsTests.ExpressionFailureBuckets_TrackExpectedCodes` |
 | `DestructuringAssignmentExpression` | `shape-dependent` | `TryCompileDestructuringAssignmentExpression`; unsupported source/target subshapes classify through nested failure path | `Issue400And722ExpressionBytecodeTraceabilityTests.RepresentativeInstructions_UseExpressionProgramsInsteadOfAstPayloads` |
 | `IndexAssignmentExpression` | `shape-dependent` | `TryCompileIndexAssignmentExpression`; `OptionalOrSuperIndexAssignment` | `ExecutionPlanDiagnosticsTests.ExpressionFailureBuckets_TrackExpectedCodes` |
 | `MemberExpression` | `shape-dependent` | `TryCompileMemberExpression`; `UnsupportedDotAccessPropertyName`, `SuperMemberAccess` | `ExecutionPlanDiagnosticsTests.ExpressionFailureBuckets_TrackExpectedCodes` |

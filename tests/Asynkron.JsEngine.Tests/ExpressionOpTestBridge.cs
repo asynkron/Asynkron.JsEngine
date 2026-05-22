@@ -225,6 +225,7 @@ internal sealed class LoadIdentifierExpressionOp : IExpressionOpMarker { public 
 internal sealed class LoadIdentifierCallTargetExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.LoadIdentifierCallTarget; }
 internal sealed class LoadImportMetaExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.LoadImportMeta; }
 internal sealed class LoadLiteralExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.LoadLiteral; }
+internal sealed class LoadComputedCallTargetExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.LoadComputedCallTarget; }
 internal sealed class LoadNamedCallTargetExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.LoadNamedCallTarget; }
 internal sealed class LoadNamedSuperCallTargetExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.LoadNamedSuperCallTarget; }
 internal sealed class ObjectSpreadExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.ObjectSpread; }

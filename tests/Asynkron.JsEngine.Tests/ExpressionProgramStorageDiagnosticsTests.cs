@@ -151,6 +151,42 @@ public sealed class ExpressionProgramStorageDiagnosticsTests : IAsyncLifetime
             "Expected destructuring source program operations to be included in total storage diagnostics.");
     }
 
+    [Fact]
+    public async Task Collect_ForCatchDestructuringBindingTarget_CountsBindingProgramsStorage()
+    {
+        var baselineProgram = _engine.ParseProgram("""
+            function catchBindingBaseline(source) {
+                try {
+                    throw source;
+                } catch (error) {
+                    return 1;
+                }
+            }
+            """);
+        await _engine.Evaluate(baselineProgram);
+        var baselineSnapshot = ExpressionProgramStorageDiagnostics.Collect(baselineProgram);
+
+        var parsedProgram = _engine.ParseProgram("""
+            function catchBinding(source) {
+                try {
+                    throw source;
+                } catch ({ [source.key]: value = source.fallback }) {
+                    return value;
+                }
+            }
+            """);
+        await _engine.Evaluate(parsedProgram);
+
+        var plan = GetFunctionPlan(parsedProgram, "catchBinding");
+        var enterCatch = Assert.Single(plan.Instructions.OfType<EnterCatchInstruction>());
+        Assert.NotNull(enterCatch.CatchBindingProgram);
+
+        var snapshot = ExpressionProgramStorageDiagnostics.Collect(parsedProgram);
+        Assert.True(
+            snapshot.OperationCount > baselineSnapshot.OperationCount,
+            "Expected catch binding target programs to increase total storage diagnostics.");
+    }
+
     private static ExecutionPlan GetFunctionPlan(ProgramNode program, string functionName)
     {
         var function = Assert.IsType<FunctionDeclaration>(

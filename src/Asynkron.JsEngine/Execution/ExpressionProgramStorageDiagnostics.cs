@@ -270,6 +270,10 @@ internal static class ExpressionProgramStorageDiagnostics
                         AddProgram(arrayDestructuringInit.SourceProgram);
                         break;
 
+                    case EnterCatchInstruction { CatchBindingProgram: not null } enterCatch:
+                        VisitBindingTargetProgram(enterCatch.CatchBindingProgram);
+                        break;
+
                     case CompoundAssignmentSlotInstruction compoundAssign:
                         AddProgram(compoundAssign.AwaitedProgram ?? compoundAssign.RhsProgram!.Value);
                         break;

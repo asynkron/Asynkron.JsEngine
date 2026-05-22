@@ -68,6 +68,11 @@ payloads, prove the bytecode payload contract at the instruction level.
     arguments, reject logical/nullish short-circuit shapes, and do not hoist
     awaits from `ConditionalExpression` branches into a pre-branch temp because
     that would eagerly evaluate branch-only work.
+13. When adding negative tests for nested-await normalization boundaries, assert
+    the preserved unsafe sub-shape rather than "no rewrite anywhere". A wrapper
+    may still be validly lowered while the logical/nullish short-circuit,
+    assignment-family value, or destructuring-default expression that owns the
+    evaluation-order risk remains unnormalized.
 
 ## Why
 
@@ -138,3 +143,11 @@ would allow an unsafe short-circuit constructor hoist, and treating ternary
 branches as generally rewritable would break branch-only evaluation. Future
 branch-condition await work must prove direct and nested await branch payloads
 while preserving short-circuit and conditional-expression evaluation order.
+
+Issue #1512 / PR #1513 added focused negative coverage for the high-risk
+normalization boundaries from the await-lowering handoff: nullish short-circuit
+conditions, index-assignment values containing logical short-circuit await, and
+destructuring assignment defaults containing logical short-circuit await. The
+lesson is that these are evaluation-order guard tests, not broad "disable all
+lowering" tests. Future coverage should prove the specific unsafe nested shape
+survives while still allowing safe surrounding wrapper lowering.

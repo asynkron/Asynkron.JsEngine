@@ -432,7 +432,6 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         Assert.NotNull(declaration.InitializerProgram);
 
         var expressionStatement = Assert.Single(cache.Plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
-        Assert.Null(expressionStatement.Expression);
         AssertProgramContains<LoadIdentifierExpressionOp>(
             expressionStatement.ExpressionProgram,
             op => op.Name.Name == "value");
@@ -933,7 +932,6 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             """, "Derived");
 
         var instruction = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
-        Assert.Null(instruction.Expression);
         AssertProgramContains<SuperConstructExpressionOp>(instruction.ExpressionProgram, op => op.ArgumentCount == 1);
         AssertProgramContains<BinaryExpressionOp>(instruction.ExpressionProgram, op => op.Operator == BinaryOperator.Add);
     }
@@ -956,7 +954,6 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             """, "Derived");
 
         var instruction = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
-        Assert.Null(instruction.Expression);
         var operations = instruction.ExpressionProgram.GetOps().ToArray();
         var loadSuperCallTargetIndex = Array.FindIndex(operations, op => op.Kind == ExpressionOpKind.LoadNamedSuperCallTarget);
         var innerCallIndex = Array.FindIndex(operations, op => op.Kind == ExpressionOpKind.Call);
@@ -981,7 +978,6 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             """, "Derived");
 
         var instruction = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
-        Assert.Null(instruction.Expression);
         var operations = instruction.ExpressionProgram.GetOps().ToArray();
         var ensureIndex = Array.FindIndex(operations, op => op.Kind == ExpressionOpKind.EnsureSuperReference);
         var innerSuperConstructIndex = Array.FindIndex(operations, op => op.Kind == ExpressionOpKind.SuperConstruct);
@@ -1006,7 +1002,6 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             """, "Derived");
 
         var instruction = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
-        Assert.Null(instruction.Expression);
         var operations = instruction.ExpressionProgram.GetOps().ToArray();
         var ensureIndex = Array.FindIndex(operations, op => op.Kind == ExpressionOpKind.EnsureSuperReference);
         var innerSuperConstructIndex = Array.FindIndex(operations, op => op.Kind == ExpressionOpKind.SuperConstruct);
@@ -2020,7 +2015,6 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         Assert.NotNull(cache.Plan);
 
         var expressionStatement = Assert.Single(cache.Plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
-        Assert.Null(expressionStatement.Expression);
         AssertProgramContains<LoadTemplateObjectExpressionOp>(expressionStatement.ExpressionProgram);
         AssertProgramContains<CallExpressionOp>(
             expressionStatement.ExpressionProgram,
@@ -2547,7 +2541,6 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             """, "assignFirst");
 
         var assignment = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
-        Assert.Null(assignment.Expression);
         AssertProgramContains<ApplyBindingTargetExpressionOp>(
             assignment.ExpressionProgram,
             op => op.TargetProgram is ArrayBindingTargetProgram);
@@ -2565,7 +2558,6 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             """, "assignFirstOrDefault");
 
         var assignment = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
-        Assert.Null(assignment.Expression);
         AssertProgramContains<ApplyBindingTargetExpressionOp>(
             assignment.ExpressionProgram,
             op => op.TargetProgram is ArrayBindingTargetProgram);
@@ -2592,7 +2584,6 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             """, "assignValueOrDefault");
 
         var assignment = Assert.Single(plan.Instructions.OfType<EvaluateAndDiscardInstruction>());
-        Assert.Null(assignment.Expression);
         AssertProgramContains<ApplyBindingTargetExpressionOp>(
             assignment.ExpressionProgram,
             op => op.TargetProgram is ObjectBindingTargetProgram);

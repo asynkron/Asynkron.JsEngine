@@ -67,7 +67,6 @@ public sealed class Issue400And722ExpressionBytecodeTraceabilityTests : IAsyncLi
             }
             """, "proofExpressionStatement");
         var evaluateAndDiscardInstruction = Assert.Single(expressionStatementPlan.Instructions.OfType<EvaluateAndDiscardInstruction>());
-        Assert.Null(evaluateAndDiscardInstruction.Expression);
         Assert.False(evaluateAndDiscardInstruction.ExpressionProgram.IsEmpty);
 
         var declarationPlan = await GetFunctionPlan("""

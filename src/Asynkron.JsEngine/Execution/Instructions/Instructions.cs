@@ -38,10 +38,7 @@ internal sealed record EvaluateAndDiscardInstruction(
     int Next,
     ExpressionProgram ExpressionProgram,
     bool SuppressCompletionValue = false)
-    : ExecutionInstruction(InstructionKind.EvaluateAndDiscard, Next)
-{
-    public ExpressionNode? Expression => null;
-}
+    : ExecutionInstruction(InstructionKind.EvaluateAndDiscard, Next);
 
 /// <summary>
 ///     Evaluates an await expression statement and discards the result.

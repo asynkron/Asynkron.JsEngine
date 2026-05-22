@@ -624,6 +624,27 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public void CallExpression_StaticIdentifierPropertyNode_IsLoweredToNamedCallTargetWithExplicitThis()
+    {
+        var expression = new CallExpression(
+            Source: null,
+            Callee: new MemberExpression(
+                Source: null,
+                Target: new IdentifierExpression(Source: null, Symbol.Intern("box")),
+                Property: new IdentifierExpression(Source: null, Symbol.Intern("read")),
+                IsComputed: false,
+                IsOptional: false),
+            Arguments: [],
+            IsOptional: false);
+
+        var compiled = ExpressionProgramCompiler.TryCompile(expression, out var program, out var failureReason);
+
+        Assert.True(compiled, failureReason);
+        AssertProgramContains<LoadNamedCallTargetExpressionOp>(program, op => op.PropertyName == "read");
+        AssertProgramContains<CallExpressionOp>(program, op => op.ArgumentCount == 0 && op.HasExplicitThis);
+    }
+
+    [Fact]
     public async Task SimpleVariableDeclaration_ObjectSpreadLiteral_IsLoweredToExpressionProgram()
     {
         var plan = await GetFunctionPlan("""

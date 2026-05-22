@@ -43,15 +43,18 @@ public sealed class ExpressionProgramDriftGuardTests
         var probes = new[]
         {
             new UnsupportedProbe(
-                "direct member call with non-literal property",
+                "direct member call with non-dot-access property expression",
                 new CallExpression(
                     null,
                     new MemberExpression(
                         null,
                         new IdentifierExpression(null, Symbol.Intern("box")),
-                        new IdentifierExpression(null, Symbol.Intern("dynamicPropertyName")),
+                        new SequenceExpression(
+                            null,
+                            new IdentifierExpression(null, Symbol.Intern("left")),
+                            new IdentifierExpression(null, Symbol.Intern("right"))),
                         IsComputed: false,
-                        IsOptional: true),
+                        IsOptional: false),
                     [],
                     IsOptional: false),
                 ExpressionProgramFailureCode.UnsupportedDirectMemberCallPropertyName)
@@ -66,6 +69,28 @@ public sealed class ExpressionProgramDriftGuardTests
             Assert.Equal(ExecutionPlanFailureCode.UnsupportedExpressionProgram, buildResult.Failure!.Code);
             Assert.Equal(probe.ExpectedFailureCode, buildResult.Failure.ExpressionFailureCode);
         }
+    }
+
+    [Fact]
+    public void DirectMemberCall_StaticIdentifierPropertyNode_IsSupported()
+    {
+        var expression = new CallExpression(
+            null,
+            new MemberExpression(
+                null,
+                new IdentifierExpression(null, Symbol.Intern("box")),
+                new IdentifierExpression(null, Symbol.Intern("read")),
+                IsComputed: false,
+                IsOptional: false),
+            [],
+            IsOptional: false);
+
+        var buildResult = BuildProbeResult(expression);
+
+        Assert.True(
+            buildResult.Succeeded,
+            $"Static identifier direct member call regressed. FailureCode={buildResult.Failure?.Code}, " +
+            $"ExpressionFailureCode={buildResult.Failure?.ExpressionFailureCode}, Detail={buildResult.FailureReason}");
     }
 
     private static ExecutionPlanBuildResult BuildProbeResult(string expressionSource)

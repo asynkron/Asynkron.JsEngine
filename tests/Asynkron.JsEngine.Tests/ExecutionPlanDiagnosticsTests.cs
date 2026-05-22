@@ -138,7 +138,7 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             ("Expression bytecode only supports static literal object property names.", ExpressionProgramFailureCode.UnsupportedStaticObjectPropertyName),
             ("Computed object property names must use an expression key.", ExpressionProgramFailureCode.InvalidComputedObjectKey),
             ("Expression bytecode only supports literal property names for dot access.", ExpressionProgramFailureCode.UnsupportedDotAccessPropertyName),
-            ("Expression bytecode only supports literal property names for direct member calls.", ExpressionProgramFailureCode.UnsupportedDirectMemberCallPropertyName),
+            ("Expression bytecode only supports static dot-access property names for direct member calls.", ExpressionProgramFailureCode.UnsupportedDirectMemberCallPropertyName),
             ("Expression bytecode only supports literal property names for tagged template member access.", ExpressionProgramFailureCode.UnsupportedTaggedTemplateMemberAccessName),
             ("Expression bytecode does not yet support optional or super member call targets.", ExpressionProgramFailureCode.OptionalOrSuperMemberCallTarget),
             ("Expression bytecode does not yet support object member kind 'Spread'.", ExpressionProgramFailureCode.UnsupportedObjectMemberKind),
@@ -285,15 +285,18 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
         var probes = new[]
         {
             (
-                Name: "direct member call with non-literal property",
+                Name: "direct member call with non-dot-access property expression",
                 Expression: new CallExpression(
                     null,
                     new MemberExpression(
                         null,
                         new IdentifierExpression(null, Symbol.Intern("box")),
-                        new IdentifierExpression(null, Symbol.Intern("dynamicPropertyName")),
+                        new SequenceExpression(
+                            null,
+                            new IdentifierExpression(null, Symbol.Intern("left")),
+                            new IdentifierExpression(null, Symbol.Intern("right"))),
                         IsComputed: false,
-                        IsOptional: true),
+                        IsOptional: false),
                     [],
                     IsOptional: false),
                 ExpectedFailureCode: ExpressionProgramFailureCode.UnsupportedDirectMemberCallPropertyName)

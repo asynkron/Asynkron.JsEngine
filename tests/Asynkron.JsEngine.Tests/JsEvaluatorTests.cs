@@ -691,6 +691,28 @@ public sealed class JsEvaluatorTests(ITestOutputHelper output) : InternalTestBas
     }
 
     [Fact(Timeout = 2000)]
+    public async Task DirectMemberCallPreservesReceiverThisBinding()
+    {
+        await using var engine = CreateEngine();
+        var source = """
+
+                     let box = {
+                         value: 9,
+                         read: function() {
+                             return this.value;
+                         }
+                     };
+
+                     box.read();
+
+                     """;
+
+        var result = await engine.Evaluate(source);
+
+        Assert.Equal(9d, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task ClassDeclarationSupportsConstructorsAndMethods()
     {
         await using var engine = CreateEngine();

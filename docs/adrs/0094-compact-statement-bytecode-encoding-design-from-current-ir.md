@@ -112,7 +112,7 @@ storage readiness.
 | Slot fast paths | `IncrementSlot`, `AssignmentSlot`, `LogicalCompoundAssignmentSlot`, `CompoundAssignmentSlot` | Conditional / needs normalization | Mostly scalar/symbol operands plus optional `ExpressionProgram`/`AwaitedProgram`; encode is safe once optional expression fields are normalized to IDs. |
 | Declarations with descriptor payloads | `FunctionDeclaration`, `ClassDeclaration` | Defer | Carry descriptor/program-cache payloads that are object-heavy and should be table-normalized before compact storage migration. |
 | Variable declarations | `SimpleVariableDeclaration`, `BindingVariableDeclaration` | Conditional / needs normalization | `SimpleVariableDeclaration` is close (symbol + optional expression), but `BindingVariableDeclaration` carries `BindingTargetProgram` object payload; keep together until binding payload encoding is finalized. |
-| Environment transitions | `PushEnvironment`, `PopEnvironment`, `BreakableEnter` | Defer | `PushEnvironment` currently carries multiple collection/object payloads (`SlotMap`, lexical/flat-slot metadata, optional source block). Needs operand-table normalization first. |
+| Environment transitions | `PushEnvironment`, `PopEnvironment`, `BreakableEnter` | Defer | `PushEnvironment` still carries multiple collection/object payloads (`SlotMap`, lexical/flat-slot metadata), but the transitional `SourceBlock` payload must be retired before the plan is published. Needs operand-table normalization first. |
 | Yield/resume | `Yield`, `YieldStar`, `StoreResumeValue` | Defer | Suspension/resume semantics rely on mixed payloads (`AwaitStateKey`, optional awaited/iterable programs, state/result symbols); avoid mixing storage migration with semantic seam work. |
 | Try/catch/finally | `EnterTry`, `EnterCatch`, `LeaveTry`, `EndFinally` | Defer | Handler/finally range metadata plus binding/catch-program payloads are still semantically dense; keep deferred until unwind/catch payload normalization is explicit. |
 | Iteration drivers (`for..of`) | `IteratorInit`, `IteratorMoveNext`, `IteratorClose` | Defer | Iterator state payload includes TDZ bindings, optional awaited/source references, and iterator driver semantics; still object-heavy. |
@@ -138,6 +138,24 @@ runtime expansion. Do not add an `AwaitExpression` expression op or rewrite
 direct await into synthetic temps only to match the nested-await shape. Future
 compact statement-bytecode work should preserve both payload forms and encode
 their async-resume metadata explicitly.
+
+### 6.3 PushEnvironment source-block retirement
+
+Issue #1490 / PR #1499 refined the environment-transition payload
+classification without moving `PushEnvironment` into the encode-now set.
+`PushEnvironmentInstruction.SourceBlock` is an analysis-only AST payload: slot
+assignment and identifier collection may read it before publication, but the
+returned `ExecutionPlan.Instructions` must not retain it.
+
+Keep the retirement in the plan-lowering hook after slot analysis, not as an
+ad hoc final publication scrub and not at emission time. The invariant belongs
+near `LowerExpressionPayloads()` / `ValidateLoweredPayloads()` so future
+statement-payload work has one enforcement point for AST payload retirement.
+Flat-slot mapping should remain a separate pass from payload lowering.
+
+This does not make environment transitions compact-encoding ready by itself.
+`PushEnvironment` still needs operand-table normalization for slot maps,
+lexical names, and flat-slot metadata before it can leave the deferred family.
 
 ### 7. Debug/printer/test bridge requirements
 

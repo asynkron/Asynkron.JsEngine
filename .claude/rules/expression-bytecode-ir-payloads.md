@@ -43,6 +43,13 @@ payloads, prove the bytecode payload contract at the instruction level.
    bytecode-backed `ReturnProgram` or `ThrowProgram`. Do not add
    `AwaitExpression` expression-bytecode ops or normalize direct awaits into
    synthetic temps just to make the tests uniform.
+9. For statement-level AST payload retirement, keep analysis-only AST references
+   available until their owner analysis pass has consumed them, then retire them
+   in the plan-lowering validation hook before publishing `ExecutionPlan`.
+   `PushEnvironmentInstruction.SourceBlock` is the reference shape: slot
+   analysis may read it, `LowerExpressionPayloads()` / validation must clear and
+   reject any published instance that still carries it, and flat-slot mapping
+   should stay separated from payload lowering.
 
 ## Why
 
@@ -79,3 +86,11 @@ through a synthetic `__yield_lower_...` temp before the terminal instruction
 uses ordinary expression bytecode. Future return/throw await work should keep
 those proof shapes paired so direct fast paths are not accidentally replaced by
 generic synthetic-temp normalization.
+
+Issue #1490 / PR #1499 moved `PushEnvironmentInstruction.SourceBlock` retirement
+from an ad hoc final-plan publication loop into the plan-lowering hook and added
+validation that rejects a published `PushEnvironment` retaining `SourceBlock`.
+The lesson is that statement AST payload retirement should have one invariant
+point after required analysis has run. Future slices should not clear
+analysis-owned payloads at emission time or hide the cleanup in unrelated
+mapping/publication loops.

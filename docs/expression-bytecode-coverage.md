@@ -59,7 +59,7 @@ This map tracks how concrete `ExpressionNode` types relate to current expression
 | `ObjectExpression` | `shape-dependent` | `TryCompileObjectExpression`; `UnsupportedObjectMemberKind`, `UnsupportedStaticObjectPropertyName`, `InvalidComputedObjectKey` | `ExpressionProgramLoweringTests.ObjectExpression_StaticIdentifierKeyNode_IsLoweredToExpressionProgram` |
 | `PropertyAssignmentExpression` | `shape-dependent` | `TryCompilePropertyAssignmentExpression`; `OptionalOrSuperPropertyAssignment` | `ExecutionPlanDiagnosticsTests.ExpressionFailureBuckets_TrackExpectedCodes` |
 | `TaggedTemplateExpression` | `shape-dependent` | `TryCompileTaggedTemplateExpression`; `SuperTaggedTemplate`, `OptionalTaggedTemplate`, `NestedOptionalTaggedTemplate`, `UnsupportedTaggedTemplateMemberAccessName` | `ExecutionPlanDiagnosticsTests.ExpressionFailureBuckets_TrackExpectedCodes` |
-| `UnaryExpression` | `shape-dependent` | `TryCompileUnaryExpression`; `UnsupportedUnaryOperator`, `UnsupportedDeleteTarget` | `ExecutionPlanDiagnosticsTests.ExpressionFailureBuckets_TrackExpectedCodes` |
+| `UnaryExpression` | `shape-dependent` | `TryCompileUnaryExpression`; `UnsupportedUnaryOperator` (optional-member `delete` currently returns an unclassified detail string) | `ExecutionPlanDiagnosticsTests.ExpressionFailureBuckets_TrackExpectedCodes` |
 
 ### Unsupported Or Lowering-Rerouted Families
 | Expression node | Status | Current routing/classification reason | Representative tests |
@@ -74,7 +74,6 @@ This map tracks how concrete `ExpressionNode` types relate to current expression
 ## Failure-Code Bucket Index
 Current `ExpressionProgramFailureCode` values used by classification and diagnostics include:
 - `UnsupportedExpressionNode`
-- `UnsupportedDeleteTarget`
 - `UnsupportedUnaryOperator`
 - `UnsupportedUpdateTarget`
 - `SuperCall`

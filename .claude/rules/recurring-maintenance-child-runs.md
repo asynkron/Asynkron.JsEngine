@@ -40,6 +40,9 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   an explicit non-failing inventory command over making agents probe an invalid
   argument just to see an error message. Keep the listing path backed by the
   same computed source that validation uses.
+- When documenting runner inventory output, state whether it is a static list
+  or a live failure snapshot, and define what any displayed counts measure
+  before agents use those counts for maintenance scoping.
 - When `faktorial-api` helper commands are unavailable in a recurring child
   agent environment, use bounded local Faktorial context: run
   `faktorial issue <issue-number> --root '<repo-root>'` for full issue body and
@@ -135,6 +138,13 @@ successfully and print the same pack list used by invalid-pack validation.
 Before that, agents had to call an intentionally invalid pack name to discover
 available regression packs, which turned normal workflow discovery into a
 failing command and added avoidable noise to recurring maintenance evidence.
+
+Issue #1549 / PR #1558 tightened that same runner-inventory documentation: the
+Test262 `--list` output is a static inventory of runnable regression-pack files,
+not a live failure snapshot, and the displayed counts are non-empty,
+non-comment filter entries. Future runner docs should define inventory
+freshness and count semantics up front so agents do not misread pack size as
+current pass/fail evidence or widen a docs slice into a Test262 run.
 
 Issue #1365 / PR #1370 hardened the recurring-child operational playbook after
 the build agent found `faktorial-api` unavailable in its local environment. The

@@ -205,6 +205,20 @@ Maintain today’s inspectability throughout migration.
 - A temporary encode-decode parity check should compare decoded compact output
   to legacy record output for the same plan.
 
+### 7.1 Issue #1519 diagnostic parity bridge checkpoint
+
+Issue #1519 / PR #1525 implemented the first diagnostic-only encode/decode
+bridge for the encode-now pure control-flow families:
+`Jump`, `Break`, `Continue`, `SetCompletionValue`, and `BreakableExit`.
+
+This is intentionally not runtime compact storage yet. The accepted shape is a
+small `StatementInstructionDiagnosticsCodec` that encodes only stable scalar
+operands, decodes back to the existing `ExecutionInstruction` semantic view, and
+proves parity by comparing `ExecutionPlanDiagnostics.FormatInstruction(...)`
+output for the legacy and decoded instructions. Future bridge expansions should
+keep this decoded-view parity contract until record-backed storage can be
+removed with broader diagnostics and profiling proof.
+
 ### 8. Staged migration
 
 1. Introduce compact storage schema in `ExecutionPlan` behind an internal

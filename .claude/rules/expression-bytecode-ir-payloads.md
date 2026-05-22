@@ -73,6 +73,12 @@ payloads, prove the bytecode payload contract at the instruction level.
     may still be validly lowered while the logical/nullish short-circuit,
     assignment-family value, or destructuring-default expression that owns the
     evaluation-order risk remains unnormalized.
+14. When introducing or extending statement-instruction encode/decode bridges,
+    keep the first bridge diagnostic-only and limited to ADR-0094 encode-now
+    scalar families unless a separate issue proves a broader payload table.
+    Decode back to the existing `ExecutionInstruction` semantic view and prove
+    parity through the same diagnostics/printer formatting surface reviewers
+    already use. Do not treat a diagnostic codec as runtime compact storage.
 
 ## Why
 
@@ -151,3 +157,12 @@ destructuring assignment defaults containing logical short-circuit await. The
 lesson is that these are evaluation-order guard tests, not broad "disable all
 lowering" tests. Future coverage should prove the specific unsafe nested shape
 survives while still allowing safe surrounding wrapper lowering.
+
+Issue #1519 / PR #1525 added the first statement-instruction diagnostic parity
+codec for `Jump`, `Break`, `Continue`, `SetCompletionValue`, and
+`BreakableExit`. The important lesson is scope control: stable scalar
+control-flow families can prove encode/decode shape through decoded diagnostic
+format parity, but that does not authorize runtime storage migration or
+object-heavy instruction families. Keep the bridge small, decoded-view based,
+and tied back to ADR 0094 until a later storage issue proves broader payload
+normalization.

@@ -212,7 +212,7 @@ public static partial class TypedAstEvaluator
 
     [MethodImpl(JsEngineConstants.Inlining)]
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
-    private static JsValue EvaluateExpression(this ExpressionNode expression, JsEnvironment environment,
+    private static JsValue EvaluateLegacyAstExpression(this ExpressionNode expression, JsEnvironment environment,
         EvaluationContext context)
     {
         context.RecordAstEvaluation(expression);
@@ -229,13 +229,13 @@ public static partial class TypedAstEvaluator
             AssignmentExpression assignment => assignment.EvaluateAssignment(environment, context),
             UnaryExpression unary => unary.EvaluateUnary(environment, context),
             CallExpression call => call.EvaluateCall(environment, context),
-            _ => expression.EvaluateExpressionSlow(environment, context)
+            _ => expression.EvaluateLegacyAstExpressionSlow(environment, context)
         };
     }
 
     [MethodImpl(JsEngineConstants.Inlining)]
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
-    private static JsValue EvaluateDynamicExpressionOperand(
+    private static JsValue EvaluateDynamicOrSuspendingExpressionOperand(
         this ExpressionNode expression,
         JsEnvironment environment,
         EvaluationContext context,
@@ -276,7 +276,7 @@ public static partial class TypedAstEvaluator
                 context);
         }
 
-        var awaitedValue = expression.Expression.EvaluateDynamicExpressionOperand(
+        var awaitedValue = expression.Expression.EvaluateDynamicOrSuspendingExpressionOperand(
             environment,
             context,
             "Dynamic await operand");
@@ -426,7 +426,7 @@ public static partial class TypedAstEvaluator
         var yieldedValue = JsValue.Undefined;
         if (expression.Expression is not null)
         {
-            yieldedValue = expression.Expression.EvaluateDynamicExpressionOperand(
+            yieldedValue = expression.Expression.EvaluateDynamicOrSuspendingExpressionOperand(
                 environment,
                 context,
                 "Dynamic yield operand");
@@ -715,7 +715,7 @@ public static partial class TypedAstEvaluator
             ? context.EnterFunctionNameHint(assignment!.Target)
             : null;
 
-        var jsValue = rhs.EvaluateDynamicExpressionOperand(
+        var jsValue = rhs.EvaluateDynamicOrSuspendingExpressionOperand(
             environment,
             context,
             "Dynamic assignment right-hand side");
@@ -2437,7 +2437,7 @@ public static partial class TypedAstEvaluator
     /// </summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     [Obsolete("This AST evaluation method is quarantined. Prefer IR execution via ExecutionPlanRunner.")]
-    private static JsValue EvaluateExpressionSlow(this ExpressionNode expression, JsEnvironment environment,
+    private static JsValue EvaluateLegacyAstExpressionSlow(this ExpressionNode expression, JsEnvironment environment,
         EvaluationContext context)
     {
         // Second tier of common expressions
@@ -3436,7 +3436,7 @@ public static partial class TypedAstEvaluator
                     return outcome is DeleteBindingResult.Deleted or DeleteBindingResult.NotFound;
                 }
             default:
-                _ = operand.EvaluateDynamicExpressionOperand(
+                _ = operand.EvaluateDynamicOrSuspendingExpressionOperand(
                     environment,
                     context,
                     "Dynamic delete operand");

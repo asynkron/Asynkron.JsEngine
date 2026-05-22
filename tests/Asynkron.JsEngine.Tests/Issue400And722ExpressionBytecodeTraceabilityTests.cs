@@ -12,7 +12,7 @@ namespace Asynkron.JsEngine.Tests;
 [Trait("Issue", "722")]
 public sealed class Issue400And722ExpressionBytecodeTraceabilityTests : IAsyncLifetime
 {
-    private static readonly Regex EvaluateExpressionPattern = new(@"EvaluateExpression\(", RegexOptions.Compiled);
+    private static readonly Regex EvaluateExpressionPattern = new(@"EvaluateLegacyAstExpression\(", RegexOptions.Compiled);
 
     private JsEngine _engine = null!;
 
@@ -284,7 +284,7 @@ public sealed class Issue400And722ExpressionBytecodeTraceabilityTests : IAsyncLi
 
         var match = Assert.Single(matches);
         Assert.StartsWith("src/Asynkron.JsEngine/Ast/Legacy/ExpressionNodeExtensions.cs:", match, StringComparison.Ordinal);
-        Assert.Contains("private static JsValue EvaluateExpression", match, StringComparison.Ordinal);
+        Assert.Contains("private static JsValue EvaluateLegacyAstExpression", match, StringComparison.Ordinal);
     }
 
     private async Task<ExecutionPlan> GetFunctionPlan(string source, string functionName)

@@ -7,7 +7,7 @@ fallback or cleanup.
 ## Rules
 
 1. Start from the focused runner seam scan:
-   `rg "EvaluateExpression\\(|EvaluateExpressionSlow\\(|ProfileEvaluateExpression\\(" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner*`.
+   `rg "EvaluateLegacyAstExpression\\(|EvaluateLegacyAstExpressionSlow\\(|ProfileEvaluateExpression\\(" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner*`.
    Treat direct raw-evaluator hits there as active runtime debt. Do not count
    `EvaluateExpressionProgram(` as a raw AST evaluator; that is the lowered
    expression bytecode execution path.
@@ -100,8 +100,8 @@ fallback or cleanup.
     plus the AST-seam scan already satisfy the issue intent, direct-close it
     with concise evidence instead of adding nearby speculative code churn.
 19. Source-gate tests for runner AST expression seams must match every raw AST
-    evaluator entry point by explicit name: `EvaluateExpression(`,
-    `EvaluateExpressionSlow(`, and `ProfileEvaluateExpression(`. The regex must
+    evaluator entry point by explicit name: `EvaluateLegacyAstExpression(`,
+    `EvaluateLegacyAstExpressionSlow(`, and `ProfileEvaluateExpression(`. The regex must
     not accidentally match `EvaluateExpressionProgram(`, because bytecode
     execution through `ExpressionProgram` is the intended non-dynamic fast path.
 20. When refreshing an AST-seam baseline without changing runtime code, record
@@ -156,7 +156,7 @@ work. Do not collapse these seams into one generic "AST fallback" bucket.
 ## Why
 
 Issue #1391 audited AST runtime seams before bytecode expansion. The audit found
-no direct `EvaluateExpression(` or `ProfileEvaluateExpression(` hits in
+no direct `EvaluateLegacyAstExpression(` or `ProfileEvaluateExpression(` hits in
 `TypedAstEvaluator.ExecutionPlanRunner*`, while broader searches found stale
 `StatementInstruction` comments, diagnostic enum values, legacy evaluators,
 dynamic-only boundaries, and a profiling bridge. Future bytecode work needs
@@ -241,7 +241,7 @@ already-lowered expression-program execution, and already-lowered class or
 initializer payloads do not get mislabeled as legacy fallback.
 
 Issue #1447 / PR #1457 converted the dynamic return-expression boundary from
-`EvaluateDynamicExpressionOperand(...)` to the dynamic expression-program bridge.
+`EvaluateDynamicOrSuspendingExpressionOperand(...)` to the dynamic expression-program bridge.
 The important constraint is scope: a return operand only needs a `JsValue` before
 setting the return completion, so it can be bytecode-backed without changing
 suspension or name-inference behavior. Future dynamic operand work should repeat
@@ -264,9 +264,9 @@ burn-down slices should repeat that proof-first/direct-close behavior instead
 of treating adjacent unsupported buckets as automatic patch prompts.
 
 Issue #1482 / PR #1480 strengthened the ExecutionPlanRunner AST-seam source gate
-after the old guard matched `EvaluateExpression(` and
+after the old guard matched `EvaluateLegacyAstExpression(` and
 `ProfileEvaluateExpression(` but did not explicitly cover
-`EvaluateExpressionSlow(`. The fix consolidated the guard around raw evaluator
+`EvaluateLegacyAstExpressionSlow(`. The fix consolidated the guard around raw evaluator
 names while documenting that `EvaluateExpressionProgram(` remains allowed,
 because it executes already-lowered expression bytecode instead of walking AST
 expressions.

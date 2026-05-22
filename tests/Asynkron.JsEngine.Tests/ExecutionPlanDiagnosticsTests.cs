@@ -10,7 +10,7 @@ namespace Asynkron.JsEngine.Tests;
 [Category(TestCategories.Debugging)]
 public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : InternalTestBase(output)
 {
-    private static readonly Regex AstExpressionEvaluatorPattern = new(@"\b(?:EvaluateExpression|EvaluateExpressionSlow|ProfileEvaluateExpression)\s*\(", RegexOptions.Compiled);
+    private static readonly Regex AstExpressionEvaluatorPattern = new(@"\b(?:EvaluateLegacyAstExpression|EvaluateLegacyAstExpressionSlow|ProfileEvaluateExpression)\s*\(", RegexOptions.Compiled);
 
     [Fact]
     public void FunctionPlanCache_Reads_DoNotInflateBuildCounters()

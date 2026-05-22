@@ -39,6 +39,14 @@ channel.
    tests for nested optional-chain propagation and a source or reflection guard
    that proves expression runtime fields did not reintroduce unpacked bool/byte
    arrays.
+8. Keep compact `ExpressionProgram` operation storage owner-owned. Future
+   runtime, diagnostics, printers, collectors, rewriters, test bridges, and
+   tooling should use `ExpressionProgram.OperationCount`,
+   `ExpressionProgram.GetOperation(...)`, or
+   `ExpressionProgram.EnumerateOperations()` instead of direct backing-array
+   assumptions. When changing the encoded operation storage, update the decoded
+   `PackedExpressionOp` view, allocation-stable runner access, printable
+   diagnostics, and `EstimatedEncodedOperationBytes` accounting together.
 
 ## Why
 
@@ -71,3 +79,13 @@ added focused guards instead of rewriting the runner. The lesson is that
 runtime side-state has the same packing contract as operation metadata: future
 agents should preserve packed binary storage, prove nested short-circuit
 semantics, and guard against quietly restoring per-slot bool/byte arrays.
+
+Issue #1514 / PR #1521 implemented compact `ExpressionProgram` operation
+storage behind the runtime owner after ADR 0095 required measurement-led
+compaction. The accepted shape kept `PackedExpressionOp` as the decoded
+semantic view, moved consumers to owner APIs, preserved printer/test readability,
+and kept the `forloop --memory` proof allocation-stable at 7.05 MB. The lesson
+is that operation compaction belongs inside `ExpressionProgram`, while all
+runtime and diagnostic callers should decode through that owner boundary rather
+than learning the encoded arrays directly. Related ADR:
+`docs/adrs/0097-keep-expression-program-operation-storage-owner-encoded.md`.

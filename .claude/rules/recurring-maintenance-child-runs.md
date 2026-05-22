@@ -128,13 +128,16 @@ was already handling the README stale-link candidate
 duplicate the README slice, but to add an explicit sibling-summary check so
 parallel recurring children choose different bounded slices.
 
-Issue #1323 / PR #1327 was the stale-link slice itself: README still pointed
-operators at deleted `docs/remaining-test262-gaps.md`, while the maintained
-Test262 evidence lived in
+Issue #1323 / PR #1327 was the stale-link slice itself: at that time README
+still pointed operators at missing `docs/remaining-test262-gaps.md`, while the
+maintained Test262 evidence lived in
 `tests/Asynkron.JsEngine.Tests.Test262/current-regressions.filter.txt` and
 `tests/Asynkron.JsEngine.Tests.Test262/regression-packs/`. The durable lesson
 is to prove the missing target before editing and then point docs at the active
-evidence source, not to recreate an obsolete tracking document.
+evidence source, not to recreate an obsolete tracking document. If
+`docs/remaining-test262-gaps.md` exists again, treat it as historical snapshot
+context only and keep current regression-session evidence anchored to the
+active filter file, regression packs, runner `--list`, and Test262 README.
 
 Issue #1325 / PR #1326 made `tools/run-test262-regressions.sh --list` exit
 successfully and print the same pack list used by invalid-pack validation.

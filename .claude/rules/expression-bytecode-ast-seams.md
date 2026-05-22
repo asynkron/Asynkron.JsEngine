@@ -118,6 +118,15 @@ fallback or cleanup.
     even when no current per-node row should claim that compiler path directly;
     do not "fix" a row-level overclaim by dropping the enum value from the
     global index.
+22. When expanding static dot-access member-expression bytecode support,
+    normalize the property node by its syntax-owned static name. Non-computed
+    `MemberExpression` property nodes may be represented as either string
+    `LiteralExpression` or `IdentifierExpression`; support both in the compiler
+    normalization path and keep computed-member validation separate. Do not add
+    a runtime AST fallback to cover a static-name shape gap. Include a focused
+    lowering test for the accepted property-node shape, especially when the gap
+    was found through diagnostic/backlog surfaces rather than ordinary parser
+    output.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 
@@ -190,6 +199,14 @@ rank the broad `UnsupportedExpressionNode` catch-all, which could have made a
 future agent pick a mixed-risk implementation slice. Future backlog reports
 must classify and defer catch-all buckets until narrower diagnostics make the
 remaining work specific.
+
+Issue #1487 / PR #1495 burned down the current third high-value expression
+bucket, `UnsupportedDotAccessPropertyName`. The friction was that static
+dot-access property nodes could be identifier-shaped even though the expression
+compiler only accepted string literal property nodes. The durable lesson is to
+normalize static member property-name syntax at compile time, prove the new
+accepted shape with lowering coverage, and preserve computed-member validation
+as a separate unsupported/shape-dependent path.
 
 Issue #1440 / PR #1449 added an allowlist-free `ExpressionOpKind` drift gate
 across runner dispatch, stack-depth analysis, and execution-plan printer

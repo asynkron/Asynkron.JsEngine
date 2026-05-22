@@ -4,20 +4,25 @@ This document describes the unusual and complex aspects of the Asynkron.JsEngine
 
 ## Execution Model Overview
 
-The engine has two execution paths:
+The default execution path is:
 
-1. **AST Walking** - Direct recursive evaluation of the AST tree (sync functions with `with`/`eval`)
-2. **IR Execution** - Lowered intermediate representation with a program counter (all other cases)
+1. Parse into typed AST
+2. Analyze/lower to execution IR
+3. Execute lowered statements plus expression bytecode payloads
+
+AST walking still exists, but it is an explicit seam for dynamic/legacy/unsupported
+cases rather than the normal path.
 
 ```
 JavaScript Source
        |
-   [Parser] -> AST
+   [Parser] -> Typed AST
        |
-   +-------------------------------------+
-   |  IR-first: try ExecutionPlanBuilder |
-   |  Fallback: AST Walking              |
-   +-------------------------------------+
+   [ExecutionPlanBuilder + Emitters]
+       |
+   Statement IR + ExpressionProgram payloads
+       |
+   [ExecutionPlanRunner]
        |
    JsValue result
 ```
@@ -57,11 +62,12 @@ internal static TCache GetOrCreate<TCache>(ref TCache? field, Func<TCache> facto
 - `ProgramNode` - caches script-level plans
 - Various statement nodes - cache scope analysis
 
-### AST Walking Evaluation
+### AST Walking Evaluation (Quarantined Seams)
 
 **Files:** `Ast/*Extensions.cs`
 
-Functions with `with` statements or direct `eval` use recursive evaluation. Each AST node type has extension methods:
+Recursive AST evaluation is retained for explicit seams where lowering is not the
+intended runtime contract. Each AST node type has extension methods:
 
 ```csharp
 // Example: BlockStatementExtensions.cs
@@ -192,6 +198,7 @@ The interpreter for IR. Maintains:
 - `_instructions` - the instruction array
 - `_flatSlots` - O(1) variable storage
 - Environment stack
+- Expression bytecode execution for `ExpressionProgram` payloads
 
 **Execution loop:**
 ```csharp
@@ -218,12 +225,14 @@ while (running)
 
 **File:** `Ast/TypedAstEvaluator.SyncFunctionInvoker.cs`
 
-Uses IR execution by default. Falls back to AST walking for `with`/`eval`.
+Uses IR execution by default. Dynamic features are first treated as
+dynamic-but-lowered when supported by lowering; AST walking remains for explicit
+legacy/unsupported seams.
 
 ```
 SyncFunctionInvoker.Invoke()
-  -> Try IR: ExecutionPlanRunner
-  -> Fallback: EvaluateBody() [AST walking]
+  -> Default: ExecutionPlanRunner (statement IR + expression bytecode)
+  -> Explicit seam only: EvaluateBody() [AST walking]
 ```
 
 ### Generators (Deep Dive)

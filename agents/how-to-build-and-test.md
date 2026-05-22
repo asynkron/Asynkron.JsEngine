@@ -52,6 +52,11 @@ maintenance pass, keep the slice repo-local and reviewable:
    `faktorial log-summary <issue-number> --root '<repo-root>'` for compact
    stage/log evidence. Proceed with local/embedded Faktorial context instead
    of treating missing helpers or missing `gh` auth as blockers.
+   If those compact commands are unavailable and dashboard/API summary
+   endpoints are unreachable, fall back to bounded timestamped issue logs
+   (`.faktorial/logs/ghNNNN*.log`) with tight structural `rg` patterns and
+   line-capped snippets; see
+   `.claude/rules/recurring-maintenance-child-runs.md` for policy details.
 3. If the slice adds a new ADR under `docs/adrs/`, reserve the ID with
    `faktorial-api adr-next` first and use the returned `adr_id`; if the lesson
    fits an existing durable document, update that file instead of creating a

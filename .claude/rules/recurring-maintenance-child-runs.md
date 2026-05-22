@@ -46,6 +46,13 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   comments, then `faktorial log-summary <issue-number> --root '<repo-root>'`
   for compact stage/log evidence instead of blocking on helper availability or
   missing `gh` authentication.
+- When compact Faktorial context commands and dashboard/API summary endpoints
+  are both unavailable, use bounded timestamped raw issue logs as fallback
+  evidence: search only `.faktorial/logs/ghNNNN*.log` for structural markers
+  such as `[worker] reply:`, `[scheduler] transition`, `[verify]`, or
+  `## Investigation`, and keep snippets line-capped so the child run stays
+  reviewable and does not widen into broad log dumps or external source-host
+  reads.
 - When older completed sibling issue logs are no longer available via
   `faktorial log-summary`, treat the failed lookup itself as baseline evidence
   and continue from durable in-repo artifacts (for example ADRs and owned rule

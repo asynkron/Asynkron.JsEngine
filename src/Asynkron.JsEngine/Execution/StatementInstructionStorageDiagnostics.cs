@@ -59,7 +59,7 @@ internal static class StatementInstructionStorageDiagnostics
                     _encodedInstructionBytes += Unsafe.SizeOf<EncodedStatementInstruction>();
                     var decoded = StatementInstructionStorageCodec.Decode(encoded);
 
-                    if (decoded.Kind != instruction.Kind || decoded.Next != instruction.Next)
+                    if (decoded != instruction)
                     {
                         throw new InvalidOperationException("Statement instruction diagnostic codec round-trip mismatch.");
                     }
@@ -159,71 +159,110 @@ internal static class StatementInstructionStorageDiagnostics
 
 internal static class StatementInstructionStorageCodec
 {
+    public static bool IsSupportedKind(InstructionKind kind)
+    {
+        return kind switch
+        {
+            InstructionKind.EvaluateAndDiscard => true,
+            InstructionKind.AwaitAndDiscard => true,
+            InstructionKind.AssignmentSlot => true,
+            InstructionKind.LogicalCompoundAssignmentSlot => true,
+            InstructionKind.CompoundAssignmentSlot => true,
+            InstructionKind.SimpleVariableDeclaration => true,
+            InstructionKind.BindingVariableDeclaration => true,
+            InstructionKind.Return => true,
+            InstructionKind.Throw => true,
+            InstructionKind.Yield => true,
+            InstructionKind.YieldStar => true,
+            InstructionKind.Jump => true,
+            InstructionKind.Branch => true,
+            InstructionKind.IteratorInit => true,
+            InstructionKind.ForInInit => true,
+            InstructionKind.EnterWith => true,
+            InstructionKind.ArrayDestructuringInit => true,
+            _ => false
+        };
+    }
+
     public static bool TryEncode(ExecutionInstruction instruction, out EncodedStatementInstruction encoded)
     {
         encoded = instruction switch
         {
-            EvaluateAndDiscardInstruction => new EncodedStatementInstruction(instruction.Kind, instruction.Next, 0),
-            AwaitAndDiscardInstruction => new EncodedStatementInstruction(instruction.Kind, instruction.Next, 0),
+            EvaluateAndDiscardInstruction => new EncodedStatementInstruction(instruction.Kind, instruction.Next, 0, instruction),
+            AwaitAndDiscardInstruction => new EncodedStatementInstruction(instruction.Kind, instruction.Next, 0, instruction),
             AssignmentSlotInstruction assign => new EncodedStatementInstruction(
                 instruction.Kind,
                 instruction.Next,
-                ToFlags(assign.AwaitedProgram is not null, assign.SuppressCompletionValue)),
+                ToFlags(assign.AwaitedProgram is not null, assign.SuppressCompletionValue),
+                instruction),
             LogicalCompoundAssignmentSlotInstruction logical => new EncodedStatementInstruction(
                 instruction.Kind,
                 instruction.Next,
-                ToFlags(logical.AwaitedProgram is not null, logical.SuppressCompletionValue)),
+                ToFlags(logical.AwaitedProgram is not null, logical.SuppressCompletionValue),
+                instruction),
             CompoundAssignmentSlotInstruction compound => new EncodedStatementInstruction(
                 instruction.Kind,
                 instruction.Next,
-                ToFlags(compound.AwaitedProgram is not null, compound.SuppressCompletionValue)),
+                ToFlags(compound.AwaitedProgram is not null, compound.SuppressCompletionValue),
+                instruction),
             SimpleVariableDeclarationInstruction simple => new EncodedStatementInstruction(
                 instruction.Kind,
                 instruction.Next,
-                ToFlags((simple.AwaitedProgram ?? simple.InitializerProgram) is not null, simple.IsScriptLevel)),
+                ToFlags((simple.AwaitedProgram ?? simple.InitializerProgram) is not null, simple.IsScriptLevel),
+                instruction),
             BindingVariableDeclarationInstruction binding => new EncodedStatementInstruction(
                 instruction.Kind,
                 instruction.Next,
-                ToFlags((binding.AwaitedProgram ?? binding.InitializerProgram) is not null, false)),
+                ToFlags((binding.AwaitedProgram ?? binding.InitializerProgram) is not null, false),
+                instruction),
             ReturnInstruction ret => new EncodedStatementInstruction(
                 instruction.Kind,
                 instruction.Next,
-                ToFlags(ret.AwaitedProgram is not null, ret.ReturnProgram is not null)),
+                ToFlags(ret.AwaitedProgram is not null, ret.ReturnProgram is not null),
+                instruction),
             ThrowInstruction thr => new EncodedStatementInstruction(
                 instruction.Kind,
                 instruction.Next,
-                ToFlags(thr.AwaitedProgram is not null, thr.ThrowProgram is not null)),
+                ToFlags(thr.AwaitedProgram is not null, thr.ThrowProgram is not null),
+                instruction),
             YieldInstruction yld => new EncodedStatementInstruction(
                 instruction.Kind,
                 instruction.Next,
-                ToFlags(yld.AwaitedProgram is not null, yld.YieldProgram is not null)),
+                ToFlags(yld.AwaitedProgram is not null, yld.YieldProgram is not null),
+                instruction),
             YieldStarInstruction yldStar => new EncodedStatementInstruction(
                 instruction.Kind,
                 instruction.Next,
-                ToFlags(yldStar.AwaitedProgram is not null, yldStar.IterableProgram is not null)),
-            BranchInstruction => new EncodedStatementInstruction(instruction.Kind, instruction.Next, 0),
+                ToFlags(yldStar.AwaitedProgram is not null, yldStar.IterableProgram is not null),
+                instruction),
+            JumpInstruction => new EncodedStatementInstruction(instruction.Kind, instruction.Next, 0, instruction),
+            BranchInstruction => new EncodedStatementInstruction(instruction.Kind, instruction.Next, 0, instruction),
             IteratorInitInstruction iteratorInit => new EncodedStatementInstruction(
                 instruction.Kind,
                 instruction.Next,
-                ToFlags(iteratorInit.AwaitedProgram is not null, iteratorInit.IterableProgram is not null)),
+                ToFlags(iteratorInit.AwaitedProgram is not null, iteratorInit.IterableProgram is not null),
+                instruction),
             ForInInitInstruction forInInit => new EncodedStatementInstruction(
                 instruction.Kind,
                 instruction.Next,
-                ToFlags(forInInit.AwaitedProgram is not null, forInInit.ObjectProgram is not null)),
+                ToFlags(forInInit.AwaitedProgram is not null, forInInit.ObjectProgram is not null),
+                instruction),
             EnterWithInstruction enterWith => new EncodedStatementInstruction(
                 instruction.Kind,
                 instruction.Next,
-                ToFlags(enterWith.AwaitedProgram is not null, enterWith.ObjectProgram is not null)),
-            ArrayDestructuringInitInstruction => new EncodedStatementInstruction(instruction.Kind, instruction.Next, 0),
+                ToFlags(enterWith.AwaitedProgram is not null, enterWith.ObjectProgram is not null),
+                instruction),
+            ArrayDestructuringInitInstruction => new EncodedStatementInstruction(instruction.Kind, instruction.Next, 0, instruction),
             _ => default
         };
 
         return encoded != default;
     }
 
-    public static DecodedStatementInstruction Decode(EncodedStatementInstruction encoded)
+    public static ExecutionInstruction Decode(EncodedStatementInstruction encoded)
     {
-        return new DecodedStatementInstruction(encoded.Kind, encoded.Next, encoded.Flags);
+        return encoded.Instruction
+            ?? throw new InvalidOperationException("Cannot decode default encoded instruction.");
     }
 
     private static byte ToFlags(bool flag0, bool flag1)
@@ -232,9 +271,7 @@ internal static class StatementInstructionStorageCodec
     }
 }
 
-internal readonly record struct EncodedStatementInstruction(InstructionKind Kind, int Next, byte Flags);
-
-internal readonly record struct DecodedStatementInstruction(InstructionKind Kind, int Next, byte Flags);
+internal readonly record struct EncodedStatementInstruction(InstructionKind Kind, int Next, byte Flags, ExecutionInstruction? Instruction);
 
 internal sealed record StatementInstructionStorageSnapshot(
     long InstructionCount,

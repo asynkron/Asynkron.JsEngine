@@ -598,6 +598,97 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
         }
     }
 
+    [Fact]
+    public void StatementInstructionDiagnosticCodec_RoundTrips_ExpressionProgramBackedFamilies()
+    {
+        var targetSymbol = Symbol.Intern("slotTarget");
+        var awaitState = Symbol.Intern("awaitState");
+        var instructions = new ExecutionInstruction[]
+        {
+            new EvaluateAndDiscardInstruction(1, ExpressionProgram.Empty, SuppressCompletionValue: true),
+            new AwaitAndDiscardInstruction(2, awaitState, ExpressionProgram.Empty, SuppressCompletionValue: true),
+            new ThrowInstruction(ExpressionProgram.Empty, awaitState, ExpressionProgram.Empty),
+            new ReturnInstruction(3, ExpressionProgram.Empty, awaitState, ExpressionProgram.Empty),
+            new AssignmentSlotInstruction(4, targetSymbol, SuppressCompletionValue: true, AllowNameInference: false),
+            new SimpleVariableDeclarationInstruction(5, VariableKind.Const, targetSymbol, IsScriptLevel: true),
+            new BindingVariableDeclarationInstruction(
+                6,
+                VariableKind.Let,
+                new IdentifierBindingTargetProgram(targetSymbol),
+                InitializerProgram: ExpressionProgram.Empty)
+        };
+
+        foreach (var instruction in instructions)
+        {
+            Assert.True(StatementInstructionDiagnosticsCodec.TryEncode(instruction, out var encoded));
+            var decoded = StatementInstructionDiagnosticsCodec.Decode(encoded);
+            Assert.Equal(instruction.Kind, decoded.Kind);
+            Assert.Equal(instruction.Next, decoded.Next);
+        }
+    }
+
+    [Fact]
+    public void StatementInstructionDiagnosticCodec_InstructionKindClassification_IsExplicitAndDriftGated()
+    {
+        var expectedSupported = new HashSet<InstructionKind>
+        {
+            InstructionKind.Jump,
+            InstructionKind.Break,
+            InstructionKind.Continue,
+            InstructionKind.SetCompletionValue,
+            InstructionKind.BreakableExit,
+            InstructionKind.EvaluateAndDiscard,
+            InstructionKind.AwaitAndDiscard,
+            InstructionKind.Throw,
+            InstructionKind.Return,
+            InstructionKind.AssignmentSlot,
+            InstructionKind.SimpleVariableDeclaration,
+            InstructionKind.BindingVariableDeclaration
+        };
+
+        var expectedUnsupported = new HashSet<InstructionKind>
+        {
+            InstructionKind.IncrementSlot,
+            InstructionKind.LogicalCompoundAssignmentSlot,
+            InstructionKind.FunctionDeclaration,
+            InstructionKind.ClassDeclaration,
+            InstructionKind.PushEnvironment,
+            InstructionKind.PopEnvironment,
+            InstructionKind.Yield,
+            InstructionKind.YieldStar,
+            InstructionKind.StoreResumeValue,
+            InstructionKind.EnterTry,
+            InstructionKind.EnterCatch,
+            InstructionKind.LeaveTry,
+            InstructionKind.BreakableEnter,
+            InstructionKind.EndFinally,
+            InstructionKind.IteratorInit,
+            InstructionKind.IteratorMoveNext,
+            InstructionKind.IteratorClose,
+            InstructionKind.Branch,
+            InstructionKind.EnterWith,
+            InstructionKind.LeaveWith,
+            InstructionKind.CompoundAssignmentSlot,
+            InstructionKind.ForInInit,
+            InstructionKind.ForInMoveNext,
+            InstructionKind.ArrayDestructuringInit,
+            InstructionKind.ArrayDestructuringElement,
+            InstructionKind.ArrayDestructuringRest,
+            InstructionKind.ArrayDestructuringClose
+        };
+
+        var allKinds = Enum.GetValues<InstructionKind>().ToHashSet();
+        Assert.True(expectedSupported.IsSubsetOf(allKinds));
+        Assert.True(expectedUnsupported.IsSubsetOf(allKinds));
+        expectedSupported.UnionWith(expectedUnsupported);
+        Assert.Equal(allKinds, expectedSupported);
+        Assert.All(
+            allKinds,
+            kind => Assert.Equal(
+                !expectedUnsupported.Contains(kind),
+                StatementInstructionDiagnosticsCodec.IsSupportedKind(kind)));
+    }
+
     private static void AssertScriptPlanBuilds(ProgramNode program, string description)
     {
         var cache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();

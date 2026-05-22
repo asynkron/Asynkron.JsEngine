@@ -28,6 +28,14 @@ checks separate.
    should cover with-resolved receivers, direct eval through `with`, method-arrow
    `super`, derived-constructor-arrow `super()` / `new.target`, and class-field
    initializer direct eval. The owning Test262 method group should pass.
+7. When expanding direct member-call bytecode support for static dot-access
+   targets, normalize the member name at compile time and keep receiver binding
+   proof separate from property-name proof. A call target such as `obj.method()`
+   must preserve JavaScript `this` binding after the static-name shape is
+   accepted; do not satisfy `UnsupportedDirectMemberCallPropertyName` by falling
+   back to AST evaluation or by only proving non-call member access. Include
+   focused lowering coverage and runtime receiver/`this` regression coverage for
+   the accepted non-computed member shape.
 
 ## Why
 
@@ -43,3 +51,13 @@ Direct eval inside arrows and class-field initializer contexts still needs the
 caller lexical `super` / `new.target` state; categorical arrow or no-method-frame
 rejections reject valid ECMAScript contexts and miss the real home-object /
 derived-constructor eligibility check.
+
+The plan-child issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-b08421d0b0`
+and PR #1552 expanded direct member-call bytecode support for
+`UnsupportedDirectMemberCallPropertyName`. The property-name gap was the same
+literal-vs-identifier static-name normalization trap as ordinary member access,
+but direct calls add a receiver hazard: accepting `obj.method()` must still
+preserve `obj` as `this`. Future direct-call slices need both lowering proof and
+runtime receiver proof, not a runtime AST fallback or only ordinary member-access
+coverage.

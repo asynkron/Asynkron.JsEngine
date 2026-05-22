@@ -53,7 +53,7 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
         Assert.Contains(
             snapshot.SupportedInstructionKindHistogram,
             entry => entry.Key is InstructionKind.SetCompletionValue or InstructionKind.Break or InstructionKind.BreakableExit);
-        Assert.Contains(snapshot.UnsupportedInstructionKindHistogram, entry => entry.Key == InstructionKind.EvaluateAndDiscard);
+        Assert.Contains(snapshot.UnsupportedInstructionKindHistogram, entry => entry.Key == InstructionKind.PushEnvironment);
     }
 
     [Fact]
@@ -75,9 +75,9 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
 
         Assert.Equal(1, snapshot.PlanCount);
         Assert.Equal(instructions.Length, snapshot.InstructionCount);
-        Assert.Equal(instructions.Length, snapshot.SupportedInstructionCount);
-        Assert.Equal(0, snapshot.UnsupportedInstructionCount);
-        Assert.Equal(48, snapshot.EstimatedCompactEncodedBytes);
+        Assert.Equal(4, snapshot.SupportedInstructionCount);
+        Assert.Equal(3, snapshot.UnsupportedInstructionCount);
+        Assert.Equal(64, snapshot.EstimatedCompactEncodedBytes);
     }
 
     [Fact]
@@ -99,5 +99,37 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
         var planAfter = Assert.IsType<ExecutionPlan>(cache.Plan);
         Assert.Same(plan, planAfter);
         Assert.Equal(baselineInstructionCount, planAfter.Instructions.Length);
+    }
+
+    [Fact]
+    public async Task Collect_FromFunctionPlan_TraversesNestedDeclarationPlans()
+    {
+        var parsedProgram = _engine.ParseProgram("""
+            function outer() {
+                function inner() {
+                    return 1;
+                }
+
+                class Local {
+                    method() {
+                        return inner();
+                    }
+                }
+
+                return inner();
+            }
+            """);
+        await _engine.Evaluate(parsedProgram);
+
+        var outerDeclaration = Assert.IsType<FunctionDeclaration>(Assert.Single(parsedProgram.Body));
+        var outerCache = ((IAstCacheable<ExecutionPlanCache>)outerDeclaration.Function).GetOrCreateCache();
+        var outerPlan = Assert.IsType<ExecutionPlan>(outerCache.Plan);
+
+        var fromPlan = StatementInstructionStorageDiagnostics.Collect(outerPlan);
+
+        Assert.True(fromPlan.PlanCount >= 3);
+        Assert.Contains(fromPlan.InstructionKindHistogram, entry => entry.Key == InstructionKind.FunctionDeclaration);
+        Assert.Contains(fromPlan.InstructionKindHistogram, entry => entry.Key == InstructionKind.ClassDeclaration);
+        Assert.Contains(fromPlan.InstructionKindHistogram, entry => entry.Key == InstructionKind.Return);
     }
 }

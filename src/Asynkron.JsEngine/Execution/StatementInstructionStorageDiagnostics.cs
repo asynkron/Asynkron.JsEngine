@@ -22,6 +22,7 @@ internal static class StatementInstructionStorageDiagnostics
 
     private sealed class Collector : AstVisitor
     {
+        private readonly HashSet<ExecutionPlan> _visitedPlans = new(ReferenceEqualityComparer<ExecutionPlan>.Instance);
         private readonly HashSet<FunctionExpression> _visitedFunctions = new(ReferenceEqualityComparer<FunctionExpression>.Instance);
         private readonly HashSet<ClassDefinition> _visitedClassDefinitions = new(ReferenceEqualityComparer<ClassDefinition>.Instance);
         private readonly Dictionary<InstructionKind, long> _instructionKindHistogram = [];
@@ -49,6 +50,11 @@ internal static class StatementInstructionStorageDiagnostics
 
         public void VisitExecutionPlan(ExecutionPlan plan)
         {
+            if (!_visitedPlans.Add(plan))
+            {
+                return;
+            }
+
             _planCount++;
             foreach (var instruction in plan.Instructions)
             {
@@ -113,21 +119,10 @@ internal static class StatementInstructionStorageDiagnostics
             }
         }
 
-        private static long GetCompactEncodedByteEstimate(ExecutionInstruction instruction)
-        {
-            return instruction switch
-            {
-                JumpInstruction => 5L,
-                SetCompletionValueInstruction => 5L,
-                BreakInstruction => 9L,
-                ContinueInstruction => 9L,
-                BreakableExitInstruction => 5L,
-                EndFinallyInstruction => 5L,
-                LeaveTryInstruction => 5L,
-                PopEnvironmentInstruction => 10L,
-                _ => -1L
-            };
-        }
+        private static long GetCompactEncodedByteEstimate(ExecutionInstruction instruction) =>
+            StatementInstructionDiagnosticsCodec.TryEncode(instruction, out _)
+                ? 16L
+                : -1L;
 
         private void VisitFunction(FunctionExpression function)
         {
@@ -168,6 +163,7 @@ internal static class StatementInstructionStorageDiagnostics
         {
             _instructionCount++;
             Increment(_instructionKindHistogram, instruction.Kind);
+            VisitNestedPlans(instruction);
 
             var estimate = GetCompactEncodedByteEstimate(instruction);
             if (estimate >= 0)
@@ -180,6 +176,50 @@ internal static class StatementInstructionStorageDiagnostics
 
             _unsupportedInstructionCount++;
             Increment(_unsupportedKindHistogram, instruction.Kind);
+        }
+
+        private void VisitNestedPlans(ExecutionInstruction instruction)
+        {
+            switch (instruction)
+            {
+                case FunctionDeclarationInstruction { Descriptor: { } descriptor }:
+                    if (descriptor.PlanSeed.Succeeded && descriptor.PlanSeed.Plan is { } functionPlan)
+                    {
+                        VisitExecutionPlan(functionPlan);
+                    }
+
+                    break;
+                case ClassDeclarationInstruction classDeclaration:
+                    VisitClassDeclarationDescriptor(classDeclaration.Descriptor);
+                    break;
+            }
+        }
+
+        private void VisitClassDeclarationDescriptor(ClassDeclarationDescriptor descriptor)
+        {
+            if (!descriptor.ProgramCache.Succeeded)
+            {
+                return;
+            }
+
+            var definition = descriptor.ProgramCache.Definition;
+            if (definition.Constructor.PlanSeed.Succeeded && definition.Constructor.PlanSeed.Plan is { } constructorPlan)
+            {
+                VisitExecutionPlan(constructorPlan);
+            }
+
+            foreach (var member in definition.Members)
+            {
+                if (member.Callable.PlanSeed.Succeeded && member.Callable.PlanSeed.Plan is { } memberPlan)
+                {
+                    VisitExecutionPlan(memberPlan);
+                }
+            }
+
+            foreach (var staticBlockPlan in definition.StaticBlockPlans)
+            {
+                VisitExecutionPlan(staticBlockPlan);
+            }
         }
     }
 }

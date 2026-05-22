@@ -48,6 +48,12 @@ Focused source-gate proof run (current worktree):
 - `rtk dotnet test tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj --filter "FullyQualifiedName~ExecutionPlanDiagnosticsTests.ExpressionProgramFailureClassification_CoversCurrentBacklogBuckets|FullyQualifiedName~ExecutionPlanDiagnosticsTests.DetailedSnapshot_UnsupportedExpressionProgramBuckets_MatchRepresentativeProbe"`
   - Result: passed (`2` tests)
 
+Build-stage refresh (issue `#1545`, 2026-05-22):
+- `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExecutionPlanDiagnosticsTests.ExpressionProgramFailureClassification_CoversCurrentBacklogBuckets|FullyQualifiedName~ExecutionPlanDiagnosticsTests.DetailedSnapshot_UnsupportedExpressionProgramBuckets_MatchRepresentativeProbe"`
+  - Result: passed (`2` tests, `2.1 s`)
+- Recommendation check: static/literal property-name normalization remains the safest next slice.
+- Deferred high-risk groups remain out of scope for this issue: optional-chain/super interaction buckets, update-target and compound-assignment ordering-sensitive buckets, delete-target semantics, and broad `UnsupportedExpressionNode` burn-down.
+
 ## Performance and storage deltas
 
 Baseline reference:

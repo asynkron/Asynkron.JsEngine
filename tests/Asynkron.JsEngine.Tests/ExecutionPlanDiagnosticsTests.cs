@@ -571,10 +571,7 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
         {
             Assert.True(StatementInstructionDiagnosticsCodec.TryEncode(instruction, out var encoded));
             var decoded = StatementInstructionDiagnosticsCodec.Decode(encoded);
-
-            Assert.Equal(
-                ExecutionPlanDiagnostics.FormatInstruction(instruction),
-                ExecutionPlanDiagnostics.FormatInstruction(decoded));
+            AssertEquivalentInstruction(instruction, decoded);
         }
     }
 
@@ -591,10 +588,7 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
         {
             Assert.True(StatementInstructionDiagnosticsCodec.TryEncode(instruction, out var encoded));
             var decoded = StatementInstructionDiagnosticsCodec.Decode(encoded);
-
-            Assert.Equal(
-                ExecutionPlanDiagnostics.FormatInstruction(instruction),
-                ExecutionPlanDiagnostics.FormatInstruction(decoded));
+            AssertEquivalentInstruction(instruction, decoded);
         }
     }
 
@@ -887,6 +881,46 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
                 Assert.Equal(expectedDeclaration.AwaitedProgram, actualDeclaration.AwaitedProgram);
                 Assert.Equal(expectedDeclaration.AllowNameInference, actualDeclaration.AllowNameInference);
                 Assert.Equal(expectedDeclaration.IsScriptLevel, actualDeclaration.IsScriptLevel);
+                return;
+
+            case BindingVariableDeclarationInstruction expectedBindingDeclaration:
+                var actualBindingDeclaration = Assert.IsType<BindingVariableDeclarationInstruction>(actual);
+                Assert.Equal(expectedBindingDeclaration.Next, actualBindingDeclaration.Next);
+                Assert.Equal(expectedBindingDeclaration.VarKind, actualBindingDeclaration.VarKind);
+                Assert.Equal(expectedBindingDeclaration.TargetProgram, actualBindingDeclaration.TargetProgram);
+                Assert.Equal(expectedBindingDeclaration.InitializerProgram, actualBindingDeclaration.InitializerProgram);
+                Assert.Equal(expectedBindingDeclaration.AwaitStateKey, actualBindingDeclaration.AwaitStateKey);
+                Assert.Equal(expectedBindingDeclaration.AwaitedProgram, actualBindingDeclaration.AwaitedProgram);
+                return;
+
+            case EvaluateAndDiscardInstruction expectedEvaluateAndDiscard:
+                var actualEvaluateAndDiscard = Assert.IsType<EvaluateAndDiscardInstruction>(actual);
+                Assert.Equal(expectedEvaluateAndDiscard.Next, actualEvaluateAndDiscard.Next);
+                Assert.Equal(expectedEvaluateAndDiscard.ExpressionProgram, actualEvaluateAndDiscard.ExpressionProgram);
+                Assert.Equal(expectedEvaluateAndDiscard.SuppressCompletionValue, actualEvaluateAndDiscard.SuppressCompletionValue);
+                return;
+
+            case AwaitAndDiscardInstruction expectedAwaitAndDiscard:
+                var actualAwaitAndDiscard = Assert.IsType<AwaitAndDiscardInstruction>(actual);
+                Assert.Equal(expectedAwaitAndDiscard.Next, actualAwaitAndDiscard.Next);
+                Assert.Equal(expectedAwaitAndDiscard.AwaitStateKey, actualAwaitAndDiscard.AwaitStateKey);
+                Assert.Equal(expectedAwaitAndDiscard.AwaitedProgram, actualAwaitAndDiscard.AwaitedProgram);
+                Assert.Equal(expectedAwaitAndDiscard.SuppressCompletionValue, actualAwaitAndDiscard.SuppressCompletionValue);
+                return;
+
+            case ThrowInstruction expectedThrow:
+                var actualThrow = Assert.IsType<ThrowInstruction>(actual);
+                Assert.Equal(expectedThrow.ThrowProgram, actualThrow.ThrowProgram);
+                Assert.Equal(expectedThrow.AwaitStateKey, actualThrow.AwaitStateKey);
+                Assert.Equal(expectedThrow.AwaitedProgram, actualThrow.AwaitedProgram);
+                return;
+
+            case ReturnInstruction expectedReturn:
+                var actualReturn = Assert.IsType<ReturnInstruction>(actual);
+                Assert.Equal(expectedReturn.Next, actualReturn.Next);
+                Assert.Equal(expectedReturn.ReturnProgram, actualReturn.ReturnProgram);
+                Assert.Equal(expectedReturn.AwaitStateKey, actualReturn.AwaitStateKey);
+                Assert.Equal(expectedReturn.AwaitedProgram, actualReturn.AwaitedProgram);
                 return;
         }
 

@@ -45,13 +45,7 @@ maintenance pass, keep the slice repo-local and reviewable:
 2. Capture a cheap baseline signal before editing. Prefer evidence such as
    `make -n quality`, a targeted `rg` check, `git diff --check`, or another
    narrow command tied directly to the chosen slice.
-   If `faktorial-api` helper commands are unavailable in the local agent
-   environment, use bounded Faktorial CLI fallbacks:
-   `faktorial issue <issue-number> --root '<repo-root>'` for full issue body
-   and comments, plus
-   `faktorial log-summary <issue-number> --root '<repo-root>'` for compact
-   stage/log evidence. Proceed with local/embedded Faktorial context instead
-   of treating missing helpers or missing `gh` auth as blockers.
+   For issue details, comments, prior stage output, and logs, use supplied Faktorial Source Context first. If more evidence is needed, use the Faktorial HTTP API compact log summary endpoint (`/api/logs/<issue>/summary`) as the bounded fallback, then use narrow searches over `.faktorial/logs/ghNNNN.log` only when the summary is insufficient. Do not run the host `faktorial` daemon binary for issue/log/state reads from an agent. Treat missing `gh` auth as an environment detail, not a blocker.
 3. If the slice adds a new ADR under `docs/adrs/`, reserve the ID with
    `faktorial-api adr-next` first and use the returned `adr_id`; if the lesson
    fits an existing durable document, update that file instead of creating a

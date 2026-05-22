@@ -43,16 +43,19 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
 - When documenting runner inventory output, state whether it is a static list
   or a live failure snapshot, and define what any displayed counts measure
   before agents use those counts for maintenance scoping.
-- When `faktorial-api` helper commands are unavailable in a recurring child
-  agent environment, use bounded local Faktorial context: run
-  `faktorial issue <issue-number> --root '<repo-root>'` for full issue body and
-  comments, then `faktorial log-summary <issue-number> --root '<repo-root>'`
-  for compact stage/log evidence instead of blocking on helper availability or
-  missing `gh` authentication.
-- When older completed sibling issue logs are no longer available via
-  `faktorial log-summary`, treat the failed lookup itself as baseline evidence
-  and continue from durable in-repo artifacts (for example ADRs and owned rule
-  documents) rather than blocking or widening into external source-host reads.
+- When gathering issue details, comments, stage output, or logs in a recurring
+  child agent environment, use supplied Faktorial Source Context first. If more
+  evidence is needed, use the Faktorial HTTP API, starting with the compact
+  `/api/logs/<issue>/summary` endpoint. Use narrow, line-capped searches over
+  `.faktorial/logs/ghNNNN.log` only when the summary is insufficient.
+- Do not run the host `faktorial` daemon binary for issue, log, or state reads
+  from an agent. Treat older guidance that recommends `faktorial issue` or
+  `faktorial log-summary` as stale for agent runtime context gathering.
+- When older completed sibling issue logs are no longer available through the
+  supplied context or HTTP summary path, treat the failed lookup itself as
+  baseline evidence and continue from durable in-repo artifacts (for example
+  ADRs and owned rule documents) rather than blocking or widening into external
+  source-host reads.
 - When the slice touches ADR creation guidance, include the cheap duplicate
   prefix signal as evidence, but keep ADR ID allocation aligned with
   `.claude/rules/adr-allocation.md`, which is the allocator authority:
@@ -149,20 +152,18 @@ current pass/fail evidence or widen a docs slice into a Test262 run.
 Issue #1365 / PR #1370 hardened the recurring-child operational playbook after
 the build agent found `faktorial-api` unavailable in its local environment. The
 durable lesson is that helper availability is not the unit of progress:
-recurring children should continue from supplied context and bounded
-`faktorial log-summary` evidence, while treating missing `gh` auth or missing
-optional helpers as an environment limitation rather than a source blocker.
+recurring children should continue from supplied context and bounded local
+runtime evidence, while treating missing `gh` auth or missing optional helpers
+as an environment limitation rather than a source blocker.
 
 Issue #1484 / PR #1487 tightened that fallback after another recurring child
 needed full issue context, not only compact log evidence, while `faktorial-api`
-was unavailable. Future recurring-child agents should pair
-`faktorial issue <issue-number> --root '<repo-root>'` for body/comments with
-`faktorial log-summary <issue-number> --root '<repo-root>'` for compact runtime
-history before treating helper availability or missing source-host credentials
-as blockers.
+was unavailable. That incident established the need for both body/comment
+context and compact runtime history before treating helper availability or
+missing source-host credentials as blockers.
 
-Issue #1432 extended that fallback to older completed siblings where
-`faktorial log-summary` no longer has compact history (for example #1403 or
+Issue #1432 extended that fallback to older completed siblings where the
+then-used compact summary helper no longer had history (for example #1403 or
 #1365). The durable lesson is to record the unavailable summary attempt as
 baseline evidence, then continue from maintained ADR/rule artifacts already
 capturing the completed work (for example ADR 0095 and
@@ -175,6 +176,12 @@ enough structural stage evidence to continue. The durable lesson is to use
 bounded `.faktorial/logs/ghNNNN*.log` searches as the last local fallback,
 searching only structural markers and keeping snippets line-capped, rather
 than blocking or widening into broad log dumps or external source-host reads.
+
+Issue #1572 / PR #1574 superseded the old host-binary fallback in the runnable
+checklist. Running the host `faktorial` binary from an agent can start or
+interfere with the daemon instead of acting as a bounded context helper, so
+future recurring-child agents must prefer supplied Source Context, then the
+HTTP API, then tightly scoped raw-log snippets.
 
 Issue #1464 tightened persistent-compaction evidence guidance: when the slice
 updates an existing semantic home instead of creating a new durable artifact,

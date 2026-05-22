@@ -45,3 +45,11 @@ and `polka@1.0.0-next.28` only on `next`. The useful maintenance outcome was
 recording that Express 5 and Polka 1.x need dedicated compatibility passes,
 while `package.json` and `package-lock.json` stayed unchanged because there was
 no stable compatible update to apply.
+
+Issue #1571 / PR #1576 applied the same bounded-slice rule to .NET test
+infrastructure. The main test project moved `Microsoft.NET.Test.Sdk` from
+`18.0.1` to `18.5.1`, while `coverlet.collector 6.0.4 -> 10.0.1` stayed
+deferred because it was a separate major collector migration. Future .NET
+dependency sweeps should keep compatible test SDK updates scoped to their
+owning test project and leave unrelated major test tooling migrations for a
+dedicated issue.

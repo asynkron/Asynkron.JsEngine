@@ -539,6 +539,65 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
         }
     }
 
+    [Fact]
+    public void StatementInstructionDiagnosticCodec_RoundTrips_EncodeNow_ControlFlowFamilies_FromPlan()
+    {
+        var pipeline = AstTestHelpers.ParseAndAnalyze("""
+            function sample(flag) {
+                while (true) {
+                    if (flag) {
+                        break;
+                    }
+
+                    continue;
+                }
+            }
+            """);
+        var sample = Assert.IsType<FunctionDeclaration>(pipeline.Analyzed.Body[0]).Function;
+        var cache = ((IAstCacheable<ExecutionPlanCache>)sample).GetOrCreateCache();
+        Assert.True(cache.Succeeded, cache.FailureReason);
+        Assert.NotNull(cache.Plan);
+
+        var supportedInstructions = cache.Plan!.Instructions
+            .Where(instruction => StatementInstructionDiagnosticsCodec.TryEncode(instruction, out _))
+            .ToArray();
+
+        Assert.NotEmpty(supportedInstructions);
+        Assert.Contains(supportedInstructions, instruction => instruction is BreakInstruction);
+        Assert.Contains(supportedInstructions, instruction => instruction is ContinueInstruction);
+        Assert.Contains(supportedInstructions, instruction => instruction is BreakableExitInstruction);
+
+        foreach (var instruction in supportedInstructions)
+        {
+            Assert.True(StatementInstructionDiagnosticsCodec.TryEncode(instruction, out var encoded));
+            var decoded = StatementInstructionDiagnosticsCodec.Decode(encoded);
+
+            Assert.Equal(
+                ExecutionPlanDiagnostics.FormatInstruction(instruction),
+                ExecutionPlanDiagnostics.FormatInstruction(decoded));
+        }
+    }
+
+    [Fact]
+    public void StatementInstructionDiagnosticCodec_RoundTrips_SetCompletionValue_Family()
+    {
+        var instructions = new ExecutionInstruction[]
+        {
+            new SetCompletionValueInstruction(7),
+            new JumpInstruction(9)
+        };
+
+        foreach (var instruction in instructions)
+        {
+            Assert.True(StatementInstructionDiagnosticsCodec.TryEncode(instruction, out var encoded));
+            var decoded = StatementInstructionDiagnosticsCodec.Decode(encoded);
+
+            Assert.Equal(
+                ExecutionPlanDiagnostics.FormatInstruction(instruction),
+                ExecutionPlanDiagnostics.FormatInstruction(decoded));
+        }
+    }
+
     private static void AssertScriptPlanBuilds(ProgramNode program, string description)
     {
         var cache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();

@@ -46,8 +46,10 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
 - When gathering issue details, comments, stage output, or logs in a recurring
   child agent environment, use supplied Faktorial Source Context first. If more
   evidence is needed, use the Faktorial HTTP API, starting with the compact
-  `/api/logs/<issue>/summary` endpoint. Use narrow, line-capped searches over
-  `.faktorial/logs/ghNNNN.log` only when the summary is insufficient.
+  `/api/logs/<issue>/summary` endpoint and `/api/issues/<issue>` for full
+  body/comment context. Use narrow, line-capped searches over
+  `.faktorial/logs/ghNNNN.log` only when the summary and issue endpoints are
+  insufficient.
 - Do not run the host `faktorial` daemon binary for issue, log, or state reads
   from an agent. Treat older guidance that recommends `faktorial issue` or
   `faktorial log-summary` as stale for agent runtime context gathering.
@@ -150,23 +152,24 @@ freshness and count semantics up front so agents do not misread pack size as
 current pass/fail evidence or widen a docs slice into a Test262 run.
 
 Issue #1365 / PR #1370 hardened the recurring-child operational playbook after
-the build agent found `faktorial-api` unavailable in its local environment. The
-durable lesson is that helper availability is not the unit of progress:
-recurring children should continue from supplied context and bounded local
-runtime evidence, while treating missing `gh` auth or missing optional helpers
-as an environment limitation rather than a source blocker.
+the build agent found helper gaps in its local environment. The durable lesson
+is that helper availability is not the unit of progress: recurring children
+should continue from supplied context and bounded local runtime evidence, while
+treating missing source-host credentials or optional helper commands as an
+environment limitation rather than a source blocker.
 
 Issue #1484 / PR #1487 tightened that fallback after another recurring child
-needed full issue context, not only compact log evidence, while `faktorial-api`
-was unavailable. That incident established the need for both body/comment
-context and compact runtime history before treating helper availability or
-missing source-host credentials as blockers.
+needed full issue context, not only compact log evidence, while helper access
+was limited. Future recurring-child agents should pair supplied Source Context
+with bounded Faktorial HTTP API reads (`/api/issues/ghNNNN` for body/comments
+plus `/api/logs/ghNNNN/summary` for compact runtime history) before treating
+helper availability or missing source-host credentials as blockers.
 
-Issue #1432 extended that fallback to older completed siblings where the
-then-used compact summary helper no longer had history (for example #1403 or
-#1365). The durable lesson is to record the unavailable summary attempt as
-baseline evidence, then continue from maintained ADR/rule artifacts already
-capturing the completed work (for example ADR 0095 and
+Issue #1432 extended that fallback to older completed siblings where compact
+summary data was unavailable (for example #1403 or #1365). The durable lesson
+is to record the unavailable summary attempt as baseline evidence, then
+continue from maintained ADR/rule artifacts already capturing the completed
+work (for example ADR 0095 and
 `.claude/rules/expression-bytecode-packing.md`) instead of blocking.
 
 Issue #1548 closed the remaining context-retrieval gap for recurring-child

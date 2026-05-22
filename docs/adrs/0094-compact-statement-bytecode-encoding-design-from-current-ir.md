@@ -244,6 +244,33 @@ output for the legacy and decoded instructions. Future bridge expansions should
 keep this decoded-view parity contract until record-backed storage can be
 removed with broader diagnostics and profiling proof.
 
+### 7.2 Issue #1518 supported-payload parity checkpoint
+
+Issue #1518 / PR #1527 expanded the diagnostic-only bridge into
+expression-program-backed statement families while keeping
+`ExecutionPlanRunner` on the existing `ExecutionInstruction` records. The
+accepted slice added codec support and storage accounting for representative
+stable families such as `EvaluateAndDiscard`, `AwaitAndDiscard`, `Throw`,
+`Return`, `AssignmentSlot`, `SimpleVariableDeclaration`, and binding/declaration
+forms, while unsupported families still remain explicitly reported.
+
+The review checkpoint tightened the parity contract: supported decode must
+reconstruct an equivalent semantic instruction record, not only an equivalent
+printer line. The codec therefore has to carry every supported field that can
+affect the decoded instruction view, including slot scope/index/flat-slot
+metadata, declaration flags such as name inference and script-level status,
+await-state metadata, and expression or binding payload references owned by the
+existing program types. If a payload cannot be represented without guessing or
+pulling descriptor-heavy runtime objects into the diagnostic format, keep that
+family unsupported and visible in diagnostics until a later normalization slice
+owns the payload table.
+
+This checkpoint does not promote the diagnostic bytecode to runtime storage.
+It keeps the migration path staged: diagnostics may decode to the current
+semantic records for measurement, drift gates, and tests, but runtime execution
+still uses the record-backed `ExecutionPlan` until a later owner-backed compact
+storage issue proves full parity and profiling impact.
+
 ### 8. Staged migration
 
 1. Introduce compact storage schema in `ExecutionPlan` behind an internal

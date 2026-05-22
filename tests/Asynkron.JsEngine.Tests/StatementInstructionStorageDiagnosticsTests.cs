@@ -46,14 +46,24 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
         Assert.True(snapshot.InstructionCount > 0);
         Assert.True(snapshot.SupportedInstructionCount > 0);
         Assert.True(snapshot.UnsupportedInstructionCount > 0);
+        Assert.True(snapshot.OwnerBackedEncodedBytes > 0);
+        Assert.True(snapshot.OperandTableEntryCount > 0);
+        Assert.True(snapshot.ExtraOperandTableEntryCount >= 0);
+        Assert.True(snapshot.ExpressionReferenceCount >= 0);
+        Assert.True(snapshot.SecondaryExpressionReferenceCount >= 0);
+        Assert.True(snapshot.SymbolOperandCount >= 0);
+        Assert.True(snapshot.BindingTargetOperandCount >= 0);
+        Assert.True(snapshot.ExpressionProgramReferenceTableCount >= 0);
         Assert.True(snapshot.EstimatedCompactEncodedBytes > 0);
         Assert.NotEmpty(snapshot.InstructionKindHistogram);
         Assert.NotEmpty(snapshot.SupportedInstructionKindHistogram);
         Assert.NotEmpty(snapshot.UnsupportedInstructionKindHistogram);
+        Assert.NotEmpty(snapshot.UnsupportedFamilyReasonHistogram);
         Assert.Contains(
             snapshot.SupportedInstructionKindHistogram,
             entry => entry.Key is InstructionKind.SetCompletionValue or InstructionKind.Break or InstructionKind.BreakableExit);
         Assert.Contains(snapshot.UnsupportedInstructionKindHistogram, entry => entry.Key == InstructionKind.PushEnvironment);
+        Assert.Contains(snapshot.UnsupportedFamilyReasonHistogram, entry => entry.Key == "declaration-and-scope");
     }
 
     [Fact]
@@ -77,7 +87,17 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
         Assert.Equal(instructions.Length, snapshot.InstructionCount);
         Assert.Equal(4, snapshot.SupportedInstructionCount);
         Assert.Equal(3, snapshot.UnsupportedInstructionCount);
+        Assert.Equal(64, snapshot.OwnerBackedEncodedBytes);
+        Assert.Equal(4, snapshot.OperandTableEntryCount);
+        Assert.Equal(0, snapshot.ExtraOperandTableEntryCount);
+        Assert.Equal(0, snapshot.ExpressionReferenceCount);
+        Assert.Equal(0, snapshot.SecondaryExpressionReferenceCount);
+        Assert.Equal(0, snapshot.SymbolOperandCount);
+        Assert.Equal(0, snapshot.BindingTargetOperandCount);
+        Assert.Equal(0, snapshot.ExpressionProgramReferenceTableCount);
         Assert.Equal(64, snapshot.EstimatedCompactEncodedBytes);
+        Assert.Contains(snapshot.UnsupportedFamilyReasonHistogram, entry => entry.Key == "declaration-and-scope" && entry.Value == 1);
+        Assert.Contains(snapshot.UnsupportedFamilyReasonHistogram, entry => entry.Key == "suspend-and-exception-flow" && entry.Value == 2);
     }
 
     [Fact]
@@ -131,5 +151,24 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
         Assert.Contains(fromPlan.InstructionKindHistogram, entry => entry.Key == InstructionKind.FunctionDeclaration);
         Assert.Contains(fromPlan.InstructionKindHistogram, entry => entry.Key == InstructionKind.ClassDeclaration);
         Assert.Contains(fromPlan.InstructionKindHistogram, entry => entry.Key == InstructionKind.Return);
+    }
+
+    [Fact]
+    public void Collect_ReusedExpressionPrograms_UsesStableReferenceTableIds()
+    {
+        var sharedProgram = ExpressionProgram.Empty;
+        var instructions = new ExecutionInstruction[]
+        {
+            new EvaluateAndDiscardInstruction(1, sharedProgram, SuppressCompletionValue: false),
+            new AwaitAndDiscardInstruction(2, Symbol.Intern("await"), sharedProgram, SuppressCompletionValue: false),
+            new ReturnInstruction(3, sharedProgram, Symbol.Intern("await"), sharedProgram)
+        };
+
+        var plan = new ExecutionPlan(instructions.ToImmutableArray(), EntryPoint: 0);
+        var snapshot = StatementInstructionStorageDiagnostics.Collect(plan);
+
+        Assert.Equal(1, snapshot.ExpressionProgramReferenceTableCount);
+        Assert.True(snapshot.ExpressionReferenceCount >= 3);
+        Assert.True(snapshot.SecondaryExpressionReferenceCount >= 1);
     }
 }

@@ -28,10 +28,19 @@ internal static class StatementInstructionStorageDiagnostics
         private readonly Dictionary<InstructionKind, long> _instructionKindHistogram = [];
         private readonly Dictionary<InstructionKind, long> _supportedKindHistogram = [];
         private readonly Dictionary<InstructionKind, long> _unsupportedKindHistogram = [];
+        private readonly Dictionary<string, long> _unsupportedReasonHistogram = [];
+        private readonly StatementDiagnosticsExpressionProgramTable _expressionPrograms = new();
         private long _planCount;
         private long _instructionCount;
         private long _supportedInstructionCount;
         private long _unsupportedInstructionCount;
+        private long _ownerBackedEncodedBytes;
+        private long _operandTableEntryCount;
+        private long _extraOperandTableEntryCount;
+        private long _expressionReferenceCount;
+        private long _secondaryExpressionReferenceCount;
+        private long _symbolOperandCount;
+        private long _bindingTargetOperandCount;
         private long _estimatedCompactEncodedBytes;
 
         public void VisitProgram(ProgramNode program)
@@ -69,10 +78,19 @@ internal static class StatementInstructionStorageDiagnostics
                 InstructionCount: _instructionCount,
                 SupportedInstructionCount: _supportedInstructionCount,
                 UnsupportedInstructionCount: _unsupportedInstructionCount,
+                OwnerBackedEncodedBytes: _ownerBackedEncodedBytes,
+                OperandTableEntryCount: _operandTableEntryCount,
+                ExtraOperandTableEntryCount: _extraOperandTableEntryCount,
+                ExpressionReferenceCount: _expressionReferenceCount,
+                SecondaryExpressionReferenceCount: _secondaryExpressionReferenceCount,
+                SymbolOperandCount: _symbolOperandCount,
+                BindingTargetOperandCount: _bindingTargetOperandCount,
+                ExpressionProgramReferenceTableCount: _expressionPrograms.Count,
                 EstimatedCompactEncodedBytes: _estimatedCompactEncodedBytes,
                 InstructionKindHistogram: Sort(_instructionKindHistogram),
                 SupportedInstructionKindHistogram: Sort(_supportedKindHistogram),
-                UnsupportedInstructionKindHistogram: Sort(_unsupportedKindHistogram));
+                UnsupportedInstructionKindHistogram: Sort(_unsupportedKindHistogram),
+                UnsupportedFamilyReasonHistogram: Sort(_unsupportedReasonHistogram));
         }
 
         protected override void VisitFunctionDeclaration(FunctionDeclaration funcDecl)
@@ -107,6 +125,14 @@ internal static class StatementInstructionStorageDiagnostics
                 .ToImmutableArray();
         }
 
+        private static ImmutableArray<KeyValuePair<string, long>> Sort(Dictionary<string, long> values)
+        {
+            return values
+                .OrderByDescending(static pair => pair.Value)
+                .ThenBy(static pair => pair.Key, StringComparer.Ordinal)
+                .ToImmutableArray();
+        }
+
         private static void Increment(Dictionary<InstructionKind, long> histogram, InstructionKind kind)
         {
             if (histogram.TryGetValue(kind, out var count))
@@ -119,10 +145,17 @@ internal static class StatementInstructionStorageDiagnostics
             }
         }
 
-        private static long GetCompactEncodedByteEstimate(ExecutionInstruction instruction) =>
-            StatementInstructionDiagnosticsCodec.TryEncode(instruction, out var encoded)
-                ? encoded.EstimatedCompactByteSize
-                : -1L;
+        private static void Increment(Dictionary<string, long> histogram, string key)
+        {
+            if (histogram.TryGetValue(key, out var count))
+            {
+                histogram[key] = count + 1;
+            }
+            else
+            {
+                histogram[key] = 1;
+            }
+        }
 
         private void VisitFunction(FunctionExpression function)
         {
@@ -165,17 +198,86 @@ internal static class StatementInstructionStorageDiagnostics
             Increment(_instructionKindHistogram, instruction.Kind);
             VisitNestedPlans(instruction);
 
-            var estimate = GetCompactEncodedByteEstimate(instruction);
-            if (estimate >= 0)
+            if (StatementInstructionDiagnosticsCodec.TryEncode(instruction, _expressionPrograms, out var encoded))
             {
                 _supportedInstructionCount++;
-                _estimatedCompactEncodedBytes += estimate;
+                _ownerBackedEncodedBytes += EncodedStatementInstruction.FixedHeaderByteSize;
+                _operandTableEntryCount++;
+                _extraOperandTableEntryCount += encoded.Payload.EstimatedCompactByteSize / 8;
+                if (encoded.Payload.PrimaryExpressionProgramReferenceId >= 0)
+                {
+                    _expressionReferenceCount++;
+                }
+
+                if (encoded.Payload.SecondaryExpressionProgramReferenceId >= 0)
+                {
+                    _secondaryExpressionReferenceCount++;
+                }
+
+                if (encoded.Payload.PrimarySymbol is not null)
+                {
+                    _symbolOperandCount++;
+                }
+
+                if (encoded.Payload.SecondarySymbol is not null)
+                {
+                    _symbolOperandCount++;
+                }
+
+                if (encoded.Payload.BindingTargetProgram is not null)
+                {
+                    _bindingTargetOperandCount++;
+                }
+
+                _estimatedCompactEncodedBytes += encoded.EstimatedCompactByteSize;
                 Increment(_supportedKindHistogram, instruction.Kind);
                 return;
             }
 
             _unsupportedInstructionCount++;
             Increment(_unsupportedKindHistogram, instruction.Kind);
+            Increment(_unsupportedReasonHistogram, ClassifyUnsupportedReason(instruction.Kind));
+        }
+
+        private static string ClassifyUnsupportedReason(InstructionKind kind)
+        {
+            return kind switch
+            {
+                InstructionKind.FunctionDeclaration or
+                InstructionKind.ClassDeclaration or
+                InstructionKind.PushEnvironment or
+                InstructionKind.PopEnvironment => "declaration-and-scope",
+
+                InstructionKind.EnterTry or
+                InstructionKind.EnterCatch or
+                InstructionKind.LeaveTry or
+                InstructionKind.BreakableEnter or
+                InstructionKind.EndFinally or
+                InstructionKind.Yield or
+                InstructionKind.YieldStar or
+                InstructionKind.StoreResumeValue => "suspend-and-exception-flow",
+
+                InstructionKind.IteratorInit or
+                InstructionKind.IteratorMoveNext or
+                InstructionKind.IteratorClose or
+                InstructionKind.ForInInit or
+                InstructionKind.ForInMoveNext => "iterator-and-enumeration",
+
+                InstructionKind.Branch => "branch-control",
+
+                InstructionKind.EnterWith or
+                InstructionKind.LeaveWith or
+                InstructionKind.ArrayDestructuringInit or
+                InstructionKind.ArrayDestructuringElement or
+                InstructionKind.ArrayDestructuringRest or
+                InstructionKind.ArrayDestructuringClose => "with-and-destructuring",
+
+                InstructionKind.IncrementSlot or
+                InstructionKind.LogicalCompoundAssignmentSlot or
+                InstructionKind.CompoundAssignmentSlot => "assignment-and-mutation",
+
+                _ => "runtime-metadata-or-other"
+            };
         }
 
         private void VisitNestedPlans(ExecutionInstruction instruction)
@@ -229,7 +331,16 @@ internal sealed record StatementInstructionStorageSnapshot(
     long InstructionCount,
     long SupportedInstructionCount,
     long UnsupportedInstructionCount,
+    long OwnerBackedEncodedBytes,
+    long OperandTableEntryCount,
+    long ExtraOperandTableEntryCount,
+    long ExpressionReferenceCount,
+    long SecondaryExpressionReferenceCount,
+    long SymbolOperandCount,
+    long BindingTargetOperandCount,
+    int ExpressionProgramReferenceTableCount,
     long EstimatedCompactEncodedBytes,
     ImmutableArray<KeyValuePair<InstructionKind, long>> InstructionKindHistogram,
     ImmutableArray<KeyValuePair<InstructionKind, long>> SupportedInstructionKindHistogram,
-    ImmutableArray<KeyValuePair<InstructionKind, long>> UnsupportedInstructionKindHistogram);
+    ImmutableArray<KeyValuePair<InstructionKind, long>> UnsupportedInstructionKindHistogram,
+    ImmutableArray<KeyValuePair<string, long>> UnsupportedFamilyReasonHistogram);

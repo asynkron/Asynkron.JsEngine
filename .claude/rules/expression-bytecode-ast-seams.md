@@ -112,6 +112,12 @@ fallback or cleanup.
     evaluation in `Ast/Legacy/ExpressionNodeExtensions.cs`. Future refreshes
     should update that owner list when it changes so downstream bytecode work
     starts from the right ownership boundary.
+21. When expanding `docs/expression-bytecode-coverage.md`, keep the per-node
+    family rows and the global `ExpressionProgramFailureCode` bucket index as
+    separate source-of-truth surfaces. A bucket can belong in the global index
+    even when no current per-node row should claim that compiler path directly;
+    do not "fix" a row-level overclaim by dropping the enum value from the
+    global index.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 
@@ -253,3 +259,12 @@ evidence update did not name the current remaining owner surfaces. The incident
 shows that a clean runner scan is necessary but insufficient for handoff:
 without owner names, future bytecode agents can still lose track of which
 quarantined boundaries remain intentional follow-up surfaces.
+
+Issue #1480 / PR #1485 expanded the ExpressionProgram coverage map from node
+presence into grouped family/risk/source-of-truth documentation. Review found
+two distinct fidelity traps: `UnaryExpression` should not claim
+`UnsupportedDeleteTarget` as a direct `TryCompileUnaryExpression` bucket, but
+the global failure-code bucket index still must include `UnsupportedDeleteTarget`
+because it exists in the current compiler/classification/diagnostic surface.
+Future coverage-map edits need to validate row claims and global enum coverage
+separately so baseline documentation stays useful for bytecode planning.

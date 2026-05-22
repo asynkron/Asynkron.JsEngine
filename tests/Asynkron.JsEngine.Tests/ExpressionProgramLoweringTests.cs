@@ -493,6 +493,52 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task SimpleVariableDeclaration_ObjectSpreadLiteral_IsLoweredToExpressionProgram()
+    {
+        var plan = await GetFunctionPlan("""
+            function clone(source) {
+                const copy = { ...source };
+                return copy;
+            }
+            """, "clone");
+
+        var instruction = Assert.Single(plan.Instructions.OfType<SimpleVariableDeclarationInstruction>(), i => i.TargetSymbol.Name == "copy");
+        Assert.Null(instruction.Initializer);
+        AssertProgramContains<CreateObjectExpressionOp>(instruction.InitializerProgram);
+        AssertProgramContains<ObjectSpreadExpressionOp>(instruction.InitializerProgram);
+    }
+
+    [Fact]
+    public async Task ObjectSpreadLiteral_SpreadOnlyShape_MatchesJavaScriptBehavior()
+    {
+        var result = await _engine.Evaluate("""
+            function readTotal(source) {
+                const copy = { ...source };
+                return copy.a + copy.b;
+            }
+
+            readTotal({ a: 2, b: 3 });
+            """);
+
+        Assert.Equal(5.0, result);
+    }
+
+    [Fact]
+    public async Task ObjectSpreadLiteral_SpreadOverwriteOrdering_MatchesJavaScriptBehavior()
+    {
+        var result = await _engine.Evaluate("""
+            function readValue(source) {
+                const copy = { ...source, value: 7 };
+                return copy.value;
+            }
+
+            readValue({ value: 2 });
+            """);
+
+        Assert.Equal(7.0, result);
+    }
+
+    [Fact]
     public async Task ExpressionStatement_AwaitedExpression_UsesSyntheticAwaitedTemp()
     {
         var plan = await GetFunctionPlan("""

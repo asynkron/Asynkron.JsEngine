@@ -24,6 +24,14 @@ channel.
    diagnostics or tiny tooling-only diagnostics for operation counts,
    `MaxStackDepth`, and constant-pool sizes. Do not choose expression-op
    storage as the first compacting target unless the evidence points there.
+6. When adding or extending `ExpressionProgram` storage diagnostics, treat the
+   diagnostic walker as a coverage surface. Include every expression-program
+   carrier that can hide below a top-level plan: nested function/class literals,
+   class static block execution plans, destructuring source programs, catch
+   binding target programs, and recursive binding-target subprograms. Add
+   focused regression coverage for each newly discovered carrier, because a
+   measurement tool that undercounts nested bytecode can steer later compaction
+   work toward the wrong owner.
 
 ## Why
 
@@ -41,3 +49,11 @@ lowering diagnostics only supplied operation/stack-shape context. That evidence
 did not justify expression-op compacting as the first optimization target and
 showed why compaction work must start with phase-separated measurements rather
 than a storage-shape assumption.
+
+Issue #1468 / PR #1473 added `ExpressionProgramStorageDiagnostics` as the
+bounded storage measurement slice for future compaction decisions. Review then
+caught missing traversal for class static block execution plans and catch
+binding target programs. The lesson is that diagnostic completeness is part of
+the measurement contract: if the walker skips nested execution plans or binding
+subprograms, the storage numbers can look precise while excluding real bytecode
+payloads.

@@ -47,16 +47,24 @@ Filter files are plain text with one xUnit filter expression per line.
 ## Local Test262 Data Path
 
 The runsettings files in this project only select test classes and do not set
-the Test262 checkout path.
+the Test262 checkout path. `Test262SuiteDiskCache` controls loading and cache behavior.
 
-To override where Test262 is loaded from, set:
+Disk-cache environment variables:
 
-- `JSENGINE_TEST262_DIR=/absolute/path/to/test262`
+- `JSENGINE_TEST262_DISK_CACHE` - enable/disable local disk cache (enabled by default).
+  Set `0`, `false`, or `off` to disable disk cache and always fetch from GitHub.
+- `JSENGINE_TEST262_DISK_CACHE_DIR` - optional base directory for extracted suites.
+  The effective suite folder is `<base>/<sha>`.
+
+Default cache location when `JSENGINE_TEST262_DISK_CACHE_DIR` is not set:
+
+- `~/.asynkron/jsengine/test262/<sha>`
 
 Example:
 
 ```bash
-JSENGINE_TEST262_DIR=/path/to/test262 \
+JSENGINE_TEST262_DISK_CACHE=1 \
+JSENGINE_TEST262_DISK_CACHE_DIR=/tmp/jsengine-test262-cache \
   rtk dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release \
   --settings tests/Asynkron.JsEngine.Tests.Test262/LanguageTests.runsettings
 ```

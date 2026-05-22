@@ -188,6 +188,43 @@ public sealed class GeneratorYieldLowererTests(ITestOutputHelper output) : Inter
     }
 
     [Fact]
+    public void Lowerer_DoesNotRewriteAsyncIfLogicalShortCircuitAwaitCondition()
+    {
+        var condition = new BinaryExpression(
+            null,
+            BinaryOperator.LogicalAnd,
+            new IdentifierExpression(null, Symbol.Intern("left")),
+            new AwaitExpression(null, new IdentifierExpression(null, Symbol.Intern("rightPromise"))));
+
+        var ifStatement = new IfStatement(
+            null,
+            condition,
+            new ExpressionStatement(null, new LiteralExpression(null, 1)),
+            null);
+
+        var function = new FunctionExpression(
+            null,
+            Symbol.Intern("asyncFn"),
+            ImmutableArray<FunctionParameter>.Empty,
+            new BlockStatement(null, [ifStatement], false),
+            true,
+            false);
+
+        var loweredResult = GeneratorYieldLowerer.TryLowerToGeneratorFriendlyAst(function, out var lowered, out var reason);
+
+        Assert.True(loweredResult);
+        Assert.Null(reason);
+
+        var statements = lowered.Body.Statements;
+        Assert.Single(statements);
+
+        var loweredIf = Assert.IsType<IfStatement>(statements[0]);
+        var loweredCondition = Assert.IsType<BinaryExpression>(loweredIf.Condition);
+        Assert.IsType<IdentifierExpression>(loweredCondition.Left);
+        Assert.IsType<AwaitExpression>(loweredCondition.Right);
+    }
+
+    [Fact]
     public void Lowerer_DoesNotRewriteNestedFunctionYields()
     {
         var innerReturn = new ReturnStatement(null,

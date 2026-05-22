@@ -353,6 +353,11 @@ internal static class GeneratorYieldLowerer
                 return true;
             }
 
+            if (ContainsLogicalOrNullishShortCircuit(statement.Condition))
+            {
+                return false;
+            }
+
             if (!TryRewriteExpressionWithNestedAwait(
                     statement.Condition,
                     out var prefixStatements,
@@ -363,6 +368,51 @@ internal static class GeneratorYieldLowerer
 
             replacement = prefixStatements.Add(statement with { Condition = rewrittenCondition });
             return true;
+        }
+
+        private static bool ContainsLogicalOrNullishShortCircuit(ExpressionNode expression)
+        {
+            return expression switch
+            {
+                BinaryExpression binaryExpression
+                    when binaryExpression.Operator is BinaryOperator.LogicalAnd
+                        or BinaryOperator.LogicalOr
+                        or BinaryOperator.NullishCoalescing => true,
+                BinaryExpression binaryExpression => ContainsLogicalOrNullishShortCircuit(binaryExpression.Left) ||
+                                                     ContainsLogicalOrNullishShortCircuit(binaryExpression.Right),
+                UnaryExpression unaryExpression => ContainsLogicalOrNullishShortCircuit(unaryExpression.Operand),
+                ConditionalExpression conditionalExpression =>
+                    ContainsLogicalOrNullishShortCircuit(conditionalExpression.Test) ||
+                    ContainsLogicalOrNullishShortCircuit(conditionalExpression.Consequent) ||
+                    ContainsLogicalOrNullishShortCircuit(conditionalExpression.Alternate),
+                MemberExpression memberExpression =>
+                    ContainsLogicalOrNullishShortCircuit(memberExpression.Target) ||
+                    ContainsLogicalOrNullishShortCircuit(memberExpression.Property),
+                CallExpression callExpression =>
+                    ContainsLogicalOrNullishShortCircuit(callExpression.Callee) ||
+                    ContainsLogicalOrNullishShortCircuit(callExpression.Arguments),
+                NewExpression newExpression => ContainsLogicalOrNullishShortCircuit(newExpression.Arguments),
+                AwaitExpression awaitExpression => ContainsLogicalOrNullishShortCircuit(awaitExpression.Expression),
+                SequenceExpression sequenceExpression =>
+                    ContainsLogicalOrNullishShortCircuit(sequenceExpression.Left) ||
+                    ContainsLogicalOrNullishShortCircuit(sequenceExpression.Right),
+                AssignmentExpression assignmentExpression =>
+                    ContainsLogicalOrNullishShortCircuit(assignmentExpression.Value),
+                _ => false
+            };
+        }
+
+        private static bool ContainsLogicalOrNullishShortCircuit(ImmutableArray<CallArgument> arguments)
+        {
+            foreach (var argument in arguments)
+            {
+                if (ContainsLogicalOrNullishShortCircuit(argument.Expression))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private bool TryRewriteNestedAwaitVariableDeclaration(

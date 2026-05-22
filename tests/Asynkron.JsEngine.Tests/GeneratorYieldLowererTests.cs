@@ -225,6 +225,44 @@ public sealed class GeneratorYieldLowererTests(ITestOutputHelper output) : Inter
     }
 
     [Fact]
+    public void Lowerer_DoesNotRewriteAsyncIfNullishShortCircuitAwaitCondition()
+    {
+        var condition = new BinaryExpression(
+            null,
+            BinaryOperator.NullishCoalescing,
+            new IdentifierExpression(null, Symbol.Intern("left")),
+            new AwaitExpression(null, new IdentifierExpression(null, Symbol.Intern("rightPromise"))));
+
+        var ifStatement = new IfStatement(
+            null,
+            condition,
+            new ExpressionStatement(null, new LiteralExpression(null, 1)),
+            null);
+
+        var function = new FunctionExpression(
+            null,
+            Symbol.Intern("asyncFn"),
+            ImmutableArray<FunctionParameter>.Empty,
+            new BlockStatement(null, [ifStatement], false),
+            true,
+            false);
+
+        var loweredResult = GeneratorYieldLowerer.TryLowerToGeneratorFriendlyAst(function, out var lowered, out var reason);
+
+        Assert.True(loweredResult);
+        Assert.Null(reason);
+
+        var statements = lowered.Body.Statements;
+        Assert.Single(statements);
+
+        var loweredIf = Assert.IsType<IfStatement>(statements[0]);
+        var loweredCondition = Assert.IsType<BinaryExpression>(loweredIf.Condition);
+        Assert.Equal(BinaryOperator.NullishCoalescing, loweredCondition.Operator);
+        Assert.IsType<IdentifierExpression>(loweredCondition.Left);
+        Assert.IsType<AwaitExpression>(loweredCondition.Right);
+    }
+
+    [Fact]
     public void Lowerer_DoesNotRewriteAsyncIfNestedLogicalShortCircuitAwaitInCallArgument()
     {
         var nestedCondition = new BinaryExpression(
@@ -383,6 +421,48 @@ public sealed class GeneratorYieldLowererTests(ITestOutputHelper output) : Inter
 
         var loweredIf = Assert.IsType<IfStatement>(statements[0]);
         var loweredAssignment = Assert.IsType<PropertyAssignmentExpression>(loweredIf.Condition);
+        var loweredNestedCondition = Assert.IsType<BinaryExpression>(loweredAssignment.Value);
+        Assert.IsType<IdentifierExpression>(loweredNestedCondition.Left);
+        Assert.IsType<AwaitExpression>(loweredNestedCondition.Right);
+    }
+
+    [Fact]
+    public void Lowerer_DoesNotRewriteAsyncIfLogicalShortCircuitAwaitInIndexAssignmentValue()
+    {
+        var nestedCondition = new BinaryExpression(
+            null,
+            BinaryOperator.LogicalAnd,
+            new IdentifierExpression(null, Symbol.Intern("left")),
+            new AwaitExpression(null, new IdentifierExpression(null, Symbol.Intern("rightPromise"))));
+
+        var condition = new IndexAssignmentExpression(
+            null,
+            new IdentifierExpression(null, Symbol.Intern("obj")),
+            new IdentifierExpression(null, Symbol.Intern("key")),
+            nestedCondition,
+            IsCompoundAssignment: false);
+
+        var ifStatement = new IfStatement(
+            null,
+            condition,
+            new ExpressionStatement(null, new LiteralExpression(null, 1)),
+            null);
+
+        var function = new FunctionExpression(
+            null,
+            Symbol.Intern("asyncFn"),
+            ImmutableArray<FunctionParameter>.Empty,
+            new BlockStatement(null, [ifStatement], false),
+            true,
+            false);
+
+        var loweredResult = GeneratorYieldLowerer.TryLowerToGeneratorFriendlyAst(function, out var lowered, out var reason);
+
+        Assert.True(loweredResult);
+        Assert.Null(reason);
+
+        var loweredIf = Assert.IsType<IfStatement>(Assert.Single(lowered.Body.Statements));
+        var loweredAssignment = Assert.IsType<IndexAssignmentExpression>(loweredIf.Condition);
         var loweredNestedCondition = Assert.IsType<BinaryExpression>(loweredAssignment.Value);
         Assert.IsType<IdentifierExpression>(loweredNestedCondition.Left);
         Assert.IsType<AwaitExpression>(loweredNestedCondition.Right);
@@ -847,5 +927,49 @@ public sealed class GeneratorYieldLowererTests(ITestOutputHelper output) : Inter
             static node => node is DestructuringAssignmentExpression);
         Assert.Contains(lowered.Body.Statements, static statement => statement is VariableDeclaration);
         Assert.Contains(lowered.Body.Statements, static statement => statement is TryStatement);
+    }
+
+    [Fact]
+    public void Lowerer_DoesNotRewriteAsyncDestructuringDefaultWithNestedShortCircuitAwait()
+    {
+        var destructuring = new DestructuringAssignmentExpression(
+            null,
+            new ArrayBinding(
+                null,
+                [
+                    new ArrayBindingElement(
+                        null,
+                        new IdentifierBinding(null, Symbol.Intern("value")),
+                        new BinaryExpression(
+                            null,
+                            BinaryOperator.LogicalAnd,
+                            new IdentifierExpression(null, Symbol.Intern("guard")),
+                            new AwaitExpression(null, new IdentifierExpression(null, Symbol.Intern("fallbackPromise")))))
+                ],
+                null),
+            new IdentifierExpression(null, Symbol.Intern("source")));
+
+        var function = new FunctionExpression(
+            null,
+            Symbol.Intern("asyncFn"),
+            ImmutableArray<FunctionParameter>.Empty,
+            new BlockStatement(null, [new ExpressionStatement(null, destructuring)], false),
+            true,
+            false);
+
+        var loweredResult = GeneratorYieldLowerer.TryLowerToGeneratorFriendlyAst(function, out var lowered, out var reason);
+
+        Assert.True(loweredResult);
+        Assert.Null(reason);
+
+        var loweredStatement = Assert.IsType<ExpressionStatement>(Assert.Single(lowered.Body.Statements));
+        var loweredDestructuring = Assert.IsType<DestructuringAssignmentExpression>(loweredStatement.Expression);
+        var loweredBinding = Assert.IsType<ArrayBinding>(loweredDestructuring.Target);
+        var loweredElement = Assert.Single(loweredBinding.Elements);
+        var loweredDefault = Assert.IsType<BinaryExpression>(Assert.IsType<ArrayBindingElement>(loweredElement).DefaultValue);
+
+        Assert.Equal(BinaryOperator.LogicalAnd, loweredDefault.Operator);
+        Assert.IsType<IdentifierExpression>(loweredDefault.Left);
+        Assert.IsType<AwaitExpression>(loweredDefault.Right);
     }
 }

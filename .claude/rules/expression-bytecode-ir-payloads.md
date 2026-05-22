@@ -50,6 +50,11 @@ payloads, prove the bytecode payload contract at the instruction level.
    analysis may read it, `LowerExpressionPayloads()` / validation must clear and
    reject any published instance that still carries it, and flat-slot mapping
    should stay separated from payload lowering.
+10. When adding or updating instruction-payload audit ledgers, verify every
+    listed instruction member name against the current record definitions before
+    committing. Do not use plausible historical names in classification tables:
+    for example, the return compatibility shim is
+    `ReturnInstruction.ReturnExpression`, not `ReturnInstruction.Expression`.
 
 ## Why
 
@@ -94,3 +99,11 @@ The lesson is that statement AST payload retirement should have one invariant
 point after required analysis has run. Future slices should not clear
 analysis-owned payloads at emission time or hide the cleanup in unrelated
 mapping/publication loops.
+
+Issue #1489 / PR #1500 added an `ExecutionInstruction` AST-payload
+classification ledger in `Instructions.cs`. Review found one ledger entry used
+the plausible but wrong historical name `ReturnInstruction.Expression`; the
+actual null compatibility shim is `ReturnInstruction.ReturnExpression`. Future
+payload ledgers must be checked against the concrete record members, not only
+the conceptual payload family, so the durable audit stays actionable when
+agents use it for follow-up lowering/removal work.

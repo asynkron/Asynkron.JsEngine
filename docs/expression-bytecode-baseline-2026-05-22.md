@@ -75,7 +75,7 @@ Result excerpt:
   - `RuntimeTypeCache`: `106.22 KB`
   - `BreakableFrame[]`: `104.14 KB`
 
-## Issue #1516 Re-run (2026-05-22)
+## Historical Issue #1516 Re-run (2026-05-22)
 
 Commands rerun on branch `agent-go/issue-1516` in `.faktorial/worktrees/1516`:
 
@@ -85,7 +85,8 @@ rtk dotnet run --project tools/ProfileRunner/ProfileRunner.csproj -c Release -- 
 rtk ./tools/profile forloop --memory
 ```
 
-Comparison vs Part 1 baseline:
+Comparison vs the then-current Part 1 baseline before issue #1513 expanded the
+storage diagnostics:
 - Proof pack: unchanged (`Passed=6, Failed=0, Skipped=0`).
 - Storage diagnostics: unchanged (`programs=7`, `total_ops=10`, `packed_op_estimated_bytes=120`, constants and stack-depth histogram match baseline exactly).
 - Memory total allocated: unchanged (`7.05 MB`).

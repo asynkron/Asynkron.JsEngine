@@ -281,3 +281,27 @@ Observed boundary map:
 
 Build-stage scope for #1509 is documentation evidence refresh only. No runtime
 or source-gate code changed in this issue.
+
+## Issue #1510 Dynamic Seam Quarantine Proofs (2026-05-22)
+
+Issue #1510 / PR #1512 turned the dynamic-boundary classification into
+paired runtime guard coverage in
+`tests/Asynkron.JsEngine.Tests/AstFreeExecutionAssertionTests.cs`. The delivery
+added DEBUG-only `EvaluationContext.AssertNoAstEvaluation` tests for:
+
+1. direct `eval` beside an ordinary non-dynamic function call before and after
+   the dynamic execution; and
+2. a `with` generator beside an ordinary generator before and after the dynamic
+   execution.
+
+The decision is to prove quarantined dynamic seams without weakening the
+ordinary non-dynamic guard. Dynamic-only execution may stay explicitly allowed
+when it routes through the approved lowered/IR-owned boundary, but that must not
+be used as evidence that neighboring ordinary functions, generators, or control
+paths can re-enter legacy AST evaluation silently.
+
+Future AST-seam tests should keep this paired shape when a dynamic seam and an
+ordinary fast path share the same fixture: run the ordinary path under
+`AssertNoAstEvaluation`, run the intentional dynamic seam, then run the ordinary
+path again. This catches both pre-existing ordinary AST re-entry and guard-state
+or cache drift caused by exercising the dynamic boundary.

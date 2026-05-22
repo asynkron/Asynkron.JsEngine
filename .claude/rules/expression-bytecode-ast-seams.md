@@ -127,6 +127,13 @@ fallback or cleanup.
     lowering test for the accepted property-node shape, especially when the gap
     was found through diagnostic/backlog surfaces rather than ordinary parser
     output.
+23. When adding `EvaluationContext.AssertNoAstEvaluation` coverage for an
+    intentional dynamic seam, pair it with an ordinary non-dynamic execution path
+    in the same fixture. Exercise the ordinary path before the dynamic seam and
+    again afterward so the test proves the seam remains quarantined and does
+    not mask ordinary function, generator, or control-flow re-entry into legacy
+    AST evaluation. Issue #1510 / PR #1512 added this pattern for direct `eval`
+    plus an ordinary function and for `with` plus an ordinary generator.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 
@@ -300,3 +307,11 @@ eval/Function/AsyncFunction and supported `with` paths are dynamic-but-lowered
 or IR-owned, while module-body per-statement dispatch in `JsEngine` remains the
 primary migration-debt surface. Future bytecode slices should keep those owners
 split instead of treating all dynamic entry points as one AST-fallback bucket.
+
+Issue #1510 / PR #1512 added paired AST-free runtime proofs for dynamic seam
+quarantine. Direct `eval` and `with` generator seams were intentionally allowed
+under `EvaluationContext.AssertNoAstEvaluation`, but each test also ran the
+ordinary non-dynamic path before and after the dynamic seam. The durable lesson
+is that dynamic-boundary approval is not enough by itself: tests must prove the
+ordinary path still fails loudly if it regresses to legacy AST evaluation and
+that exercising the dynamic seam does not hide later ordinary-path re-entry.

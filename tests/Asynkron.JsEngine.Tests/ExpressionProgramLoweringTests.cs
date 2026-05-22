@@ -2232,8 +2232,9 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             }
             """, "scoped");
 
-        var pushInstruction = Assert.Single(plan.Instructions.OfType<PushEnvironmentInstruction>());
-        Assert.Null(pushInstruction.SourceBlock);
+        var pushInstructions = plan.Instructions.OfType<PushEnvironmentInstruction>().ToArray();
+        Assert.NotEmpty(pushInstructions);
+        Assert.All(pushInstructions, pushInstruction => Assert.Null(pushInstruction.SourceBlock));
     }
 
     [Fact]

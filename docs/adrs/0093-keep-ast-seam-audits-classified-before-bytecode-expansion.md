@@ -198,3 +198,25 @@ The proof shape for future similar slices is:
 
 This section is caused by issue #1447 / PR #1457 and complements the root
 `.claude/rules/expression-bytecode-ast-seams.md` rule.
+
+## Issue #1479 Seam Baseline Refresh (2026-05-22)
+
+Issue #1479 reran the approved runner seam scan to keep the ADR baseline fresh
+before any new bytecode-expansion slices:
+
+- `rg "EvaluateExpression\(|ProfileEvaluateExpression\(" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner*`
+
+Observed classification stayed unchanged:
+
+1. there are still no direct `EvaluateExpression(` or
+   `ProfileEvaluateExpression(` call sites inside
+   `TypedAstEvaluator.ExecutionPlanRunner*`;
+2. expression-program fallback ownership remains outside the runner in
+   planning/lowering classification (`ExpressionProgramCompileFailure` and
+   related `SetExpressionProgramFailure(...)` wiring);
+3. remaining AST-boundary text inside runner-adjacent files continues to be
+   compatibility/comment hygiene unless a concrete runtime call site is
+   identified.
+
+Build-stage scope for #1479 is evidence refresh only. No runtime behavior,
+seam ownership, or dynamic-bridge boundaries were changed by this issue.

@@ -23,7 +23,7 @@ namespace Asynkron.JsEngine.Execution.Instructions;
 //    - CompoundAssignmentSlotInstruction.RhsExpression
 //    - SimpleVariableDeclarationInstruction.Initializer
 //    - BindingVariableDeclarationInstruction.Initializer
-//    - ReturnInstruction.Expression
+//    - ReturnInstruction.ReturnExpression
 //    - ArrayDestructuringInitInstruction.SourceExpression
 //
 // 2) Analysis-only metadata (not runtime payload in published plans):

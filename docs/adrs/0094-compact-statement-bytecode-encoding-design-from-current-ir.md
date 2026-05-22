@@ -182,6 +182,18 @@ where applicable. It should not add branch-time raw AST evaluation or an
 `AwaitExpression` expression opcode to cover condition shapes that belong in a
 lowering-time evaluation-order proof.
 
+### 6.5 Issue #1517 classification confirmation snapshot
+
+Issue #1517 rechecked this ADR classification against current repo sources:
+`InstructionKind.cs` (enum surface) and `Instructions.cs` (payload ownership
+and normalization seams). The encode-now, conditional, and deferred family
+boundaries in section 6.1 remain current with no instruction-family re-buckets
+required for this issue.
+
+This issue stays evidence-only for statement compact-bytecode planning. It does
+not authorize runtime/lowering changes, expression-op changes, new AST fallback
+seams, or statement storage implementation.
+
 ### 7. Debug/printer/test bridge requirements
 
 Maintain today’s inspectability throughout migration.

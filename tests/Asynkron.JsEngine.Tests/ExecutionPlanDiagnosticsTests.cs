@@ -1,6 +1,8 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.JsTypes;
+using System.Collections.Immutable;
 using System.Text;
 using System.Text.RegularExpressions;
 using Xunit.Abstractions;
@@ -597,7 +599,10 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
     {
         var targetSymbol = Symbol.Intern("slotTarget");
         var awaitState = Symbol.Intern("awaitState");
-        var sharedProgram = ExpressionProgram.Empty;
+        var sharedProgram = new ExpressionProgram(
+            ImmutableArray.Create(
+                PackedExpressionOp.LoadLiteralConstant(0)),
+            literalConstants: ImmutableArray.Create(JsValue.FromDouble(123)));
         var instructions = new ExecutionInstruction[]
         {
             new EvaluateAndDiscardInstruction(1, sharedProgram, SuppressCompletionValue: true),
@@ -634,6 +639,22 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
         }
 
         Assert.Equal(1, expressionPrograms.Count);
+    }
+
+    [Fact]
+    public void StatementInstructionDiagnosticCodec_CompatibilityOverloads_PreserveExpressionPrograms()
+    {
+        var program = new ExpressionProgram(
+            ImmutableArray.Create(
+                PackedExpressionOp.LoadLiteralConstant(0)),
+            literalConstants: ImmutableArray.Create(JsValue.FromDouble(123)));
+        var instruction = new ReturnInstruction(3, program, Symbol.Intern("awaitState"), program);
+
+        Assert.True(StatementInstructionDiagnosticsCodec.TryEncode(instruction, out var encoded));
+        var decoded = Assert.IsType<ReturnInstruction>(StatementInstructionDiagnosticsCodec.Decode(encoded));
+
+        Assert.Equal(program, decoded.ReturnProgram);
+        Assert.Equal(program, decoded.AwaitedProgram);
     }
 
     [Fact]

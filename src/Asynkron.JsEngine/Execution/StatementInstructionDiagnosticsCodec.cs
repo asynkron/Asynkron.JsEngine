@@ -34,6 +34,8 @@ internal readonly record struct EncodedStatementInstruction(
 internal readonly record struct EncodedStatementSidePayload(
     int PrimaryExpressionProgramReferenceId = -1,
     int SecondaryExpressionProgramReferenceId = -1,
+    ExpressionProgram? PrimaryExpressionProgram = null,
+    ExpressionProgram? SecondaryExpressionProgram = null,
     Symbol? PrimarySymbol = null,
     Symbol? SecondarySymbol = null,
     BindingTargetProgram? BindingTargetProgram = null,
@@ -45,8 +47,8 @@ internal readonly record struct EncodedStatementSidePayload(
     private const int AssignmentMetadataByteSize = 8;
 
     public long EstimatedCompactByteSize =>
-        (PrimaryExpressionProgramReferenceId < 0 ? 0 : ReferencePayloadByteSize) +
-        (SecondaryExpressionProgramReferenceId < 0 ? 0 : ReferencePayloadByteSize) +
+        ((PrimaryExpressionProgramReferenceId < 0 && !PrimaryExpressionProgram.HasValue) ? 0 : ReferencePayloadByteSize) +
+        ((SecondaryExpressionProgramReferenceId < 0 && !SecondaryExpressionProgram.HasValue) ? 0 : ReferencePayloadByteSize) +
         (PrimarySymbol is null ? 0 : ReferencePayloadByteSize) +
         (SecondarySymbol is null ? 0 : ReferencePayloadByteSize) +
         (BindingTargetProgram is null ? 0 : ReferencePayloadByteSize) +
@@ -252,7 +254,65 @@ internal static class StatementInstructionDiagnosticsCodec
 
     public static bool TryEncode(ExecutionInstruction instruction, out EncodedStatementInstruction encoded)
     {
-        return TryEncode(instruction, new StatementDiagnosticsExpressionProgramTable(), out encoded);
+        if (!TryEncode(instruction, new StatementDiagnosticsExpressionProgramTable(), out encoded))
+        {
+            return false;
+        }
+
+        encoded = instruction switch
+        {
+            EvaluateAndDiscardInstruction evaluateAndDiscard => encoded with
+            {
+                Payload = encoded.Payload with { PrimaryExpressionProgram = evaluateAndDiscard.ExpressionProgram }
+            },
+            AwaitAndDiscardInstruction awaitAndDiscard => encoded with
+            {
+                Payload = encoded.Payload with { PrimaryExpressionProgram = awaitAndDiscard.AwaitedProgram }
+            },
+            ThrowInstruction throwInstruction => encoded with
+            {
+                Payload = encoded.Payload with
+                {
+                    PrimaryExpressionProgram = throwInstruction.ThrowProgram,
+                    SecondaryExpressionProgram = throwInstruction.AwaitedProgram
+                }
+            },
+            ReturnInstruction returnInstruction => encoded with
+            {
+                Payload = encoded.Payload with
+                {
+                    PrimaryExpressionProgram = returnInstruction.ReturnProgram,
+                    SecondaryExpressionProgram = returnInstruction.AwaitedProgram
+                }
+            },
+            AssignmentSlotInstruction assignmentSlot => encoded with
+            {
+                Payload = encoded.Payload with
+                {
+                    PrimaryExpressionProgram = assignmentSlot.ValueProgram,
+                    SecondaryExpressionProgram = assignmentSlot.AwaitedProgram
+                }
+            },
+            SimpleVariableDeclarationInstruction simpleVariable => encoded with
+            {
+                Payload = encoded.Payload with
+                {
+                    PrimaryExpressionProgram = simpleVariable.InitializerProgram,
+                    SecondaryExpressionProgram = simpleVariable.AwaitedProgram
+                }
+            },
+            BindingVariableDeclarationInstruction bindingVariable => encoded with
+            {
+                Payload = encoded.Payload with
+                {
+                    PrimaryExpressionProgram = bindingVariable.InitializerProgram,
+                    SecondaryExpressionProgram = bindingVariable.AwaitedProgram
+                }
+            },
+            _ => encoded
+        };
+
+        return true;
     }
 
     public static ExecutionInstruction Decode(
@@ -268,28 +328,28 @@ internal static class StatementInstructionDiagnosticsCodec
             EncodedStatementOpcode.BreakableExit => new BreakableExitInstruction(encoded.NextOrTarget),
             EncodedStatementOpcode.EvaluateAndDiscard => new EvaluateAndDiscardInstruction(
                 encoded.NextOrTarget,
-                expressionPrograms.Resolve(encoded.Payload.PrimaryExpressionProgramReferenceId) ?? ExpressionProgram.Empty,
+                ResolveExpressionProgram(encoded.Payload.PrimaryExpressionProgramReferenceId, encoded.Payload.PrimaryExpressionProgram, expressionPrograms) ?? ExpressionProgram.Empty,
                 SuppressCompletionValue: encoded.Operand != 0),
             EncodedStatementOpcode.AwaitAndDiscard => new AwaitAndDiscardInstruction(
                 encoded.NextOrTarget,
                 encoded.Payload.PrimarySymbol ?? Symbol.Intern("__await_state"),
-                expressionPrograms.Resolve(encoded.Payload.PrimaryExpressionProgramReferenceId) ?? ExpressionProgram.Empty,
+                ResolveExpressionProgram(encoded.Payload.PrimaryExpressionProgramReferenceId, encoded.Payload.PrimaryExpressionProgram, expressionPrograms) ?? ExpressionProgram.Empty,
                 SuppressCompletionValue: encoded.Operand != 0),
             EncodedStatementOpcode.Throw => new ThrowInstruction(
-                expressionPrograms.Resolve(encoded.Payload.PrimaryExpressionProgramReferenceId),
+                ResolveExpressionProgram(encoded.Payload.PrimaryExpressionProgramReferenceId, encoded.Payload.PrimaryExpressionProgram, expressionPrograms),
                 encoded.Payload.PrimarySymbol,
-                expressionPrograms.Resolve(encoded.Payload.SecondaryExpressionProgramReferenceId)),
+                ResolveExpressionProgram(encoded.Payload.SecondaryExpressionProgramReferenceId, encoded.Payload.SecondaryExpressionProgram, expressionPrograms)),
             EncodedStatementOpcode.Return => new ReturnInstruction(
                 encoded.NextOrTarget,
-                expressionPrograms.Resolve(encoded.Payload.PrimaryExpressionProgramReferenceId),
+                ResolveExpressionProgram(encoded.Payload.PrimaryExpressionProgramReferenceId, encoded.Payload.PrimaryExpressionProgram, expressionPrograms),
                 encoded.Payload.PrimarySymbol,
-                expressionPrograms.Resolve(encoded.Payload.SecondaryExpressionProgramReferenceId)),
+                ResolveExpressionProgram(encoded.Payload.SecondaryExpressionProgramReferenceId, encoded.Payload.SecondaryExpressionProgram, expressionPrograms)),
             EncodedStatementOpcode.AssignmentSlot => new AssignmentSlotInstruction(
                 encoded.NextOrTarget,
                 encoded.Payload.SecondarySymbol ?? Symbol.Intern("__assignment_target"),
-                ValueProgram: expressionPrograms.Resolve(encoded.Payload.PrimaryExpressionProgramReferenceId),
+                ValueProgram: ResolveExpressionProgram(encoded.Payload.PrimaryExpressionProgramReferenceId, encoded.Payload.PrimaryExpressionProgram, expressionPrograms),
                 AwaitStateKey: encoded.Payload.PrimarySymbol,
-                AwaitedProgram: expressionPrograms.Resolve(encoded.Payload.SecondaryExpressionProgramReferenceId),
+                AwaitedProgram: ResolveExpressionProgram(encoded.Payload.SecondaryExpressionProgramReferenceId, encoded.Payload.SecondaryExpressionProgram, expressionPrograms),
                 SuppressCompletionValue: (encoded.Operand & AssignmentSlotSuppressCompletionBit) != 0,
                 AllowNameInference: (encoded.Operand & AssignmentSlotAllowNameInferenceBit) != 0,
                 ScopeId: encoded.Payload.HasAssignmentMetadata ? encoded.Payload.ScopeId : -1,
@@ -299,18 +359,18 @@ internal static class StatementInstructionDiagnosticsCodec
                 encoded.NextOrTarget,
                 (VariableKind)encoded.Operand,
                 encoded.Payload.SecondarySymbol ?? Symbol.Intern("__declaration_target"),
-                InitializerProgram: expressionPrograms.Resolve(encoded.Payload.PrimaryExpressionProgramReferenceId),
+                InitializerProgram: ResolveExpressionProgram(encoded.Payload.PrimaryExpressionProgramReferenceId, encoded.Payload.PrimaryExpressionProgram, expressionPrograms),
                 AwaitStateKey: encoded.Payload.PrimarySymbol,
-                AwaitedProgram: expressionPrograms.Resolve(encoded.Payload.SecondaryExpressionProgramReferenceId),
+                AwaitedProgram: ResolveExpressionProgram(encoded.Payload.SecondaryExpressionProgramReferenceId, encoded.Payload.SecondaryExpressionProgram, expressionPrograms),
                 AllowNameInference: (encoded.Extra & SimpleVariableAllowNameInferenceBit) != 0,
                 IsScriptLevel: (encoded.Extra & SimpleVariableIsScriptLevelBit) != 0),
             EncodedStatementOpcode.BindingVariableDeclaration => new BindingVariableDeclarationInstruction(
                 encoded.NextOrTarget,
                 (VariableKind)encoded.Operand,
                 encoded.Payload.BindingTargetProgram ?? new IdentifierBindingTargetProgram(Symbol.Intern("__binding_target")),
-                InitializerProgram: expressionPrograms.Resolve(encoded.Payload.PrimaryExpressionProgramReferenceId),
+                InitializerProgram: ResolveExpressionProgram(encoded.Payload.PrimaryExpressionProgramReferenceId, encoded.Payload.PrimaryExpressionProgram, expressionPrograms),
                 AwaitStateKey: encoded.Payload.PrimarySymbol,
-                AwaitedProgram: expressionPrograms.Resolve(encoded.Payload.SecondaryExpressionProgramReferenceId)),
+                AwaitedProgram: ResolveExpressionProgram(encoded.Payload.SecondaryExpressionProgramReferenceId, encoded.Payload.SecondaryExpressionProgram, expressionPrograms)),
             _ => throw new ArgumentOutOfRangeException(nameof(encoded), encoded.Opcode, "Unsupported diagnostic opcode")
         };
     }
@@ -352,4 +412,11 @@ internal static class StatementInstructionDiagnosticsCodec
         return flags;
     }
 
+    private static ExpressionProgram? ResolveExpressionProgram(
+        int id,
+        ExpressionProgram? embeddedProgram,
+        StatementDiagnosticsExpressionProgramTable expressionPrograms)
+    {
+        return expressionPrograms.Resolve(id) ?? embeddedProgram;
+    }
 }

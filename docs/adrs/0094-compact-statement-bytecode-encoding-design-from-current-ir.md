@@ -123,6 +123,22 @@ storage readiness.
 Guardrail: this classification is storage-planning only. It does not authorize
 runtime behavior changes or new AST/IR fallback seams.
 
+### 6.2 Return/throw await payload proof shape
+
+Issue #1485 / PR #1496 refined the terminal control-flow payload classification
+for return/throw await forms. Direct `return await value` and
+`throw await value` remain on the dedicated instruction `AwaitedProgram` +
+`AwaitStateKey` path. Nested await inside a larger terminal expression, such as
+`return (await value) + 1` or `throw (await value) + 1`, should be lowered into a
+synthetic awaited temp and then emitted as an ordinary bytecode-backed
+`ReturnProgram` or `ThrowProgram` that reads that temp.
+
+This is a statement-lowering normalization rule, not an expression-bytecode
+runtime expansion. Do not add an `AwaitExpression` expression op or rewrite
+direct await into synthetic temps only to match the nested-await shape. Future
+compact statement-bytecode work should preserve both payload forms and encode
+their async-resume metadata explicitly.
+
 ### 7. Debug/printer/test bridge requirements
 
 Maintain today’s inspectability throughout migration.

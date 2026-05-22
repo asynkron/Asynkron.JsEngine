@@ -104,6 +104,14 @@ fallback or cleanup.
     `EvaluateExpressionSlow(`, and `ProfileEvaluateExpression(`. The regex must
     not accidentally match `EvaluateExpressionProgram(`, because bytecode
     execution through `ExpressionProgram` is the intended non-dynamic fast path.
+20. When refreshing an AST-seam baseline without changing runtime code, record
+    the current remaining owner surfaces, not just the clean runner scan result.
+    For issue #1479, the required owner surfaces were runner await-state
+    handling via `EvaluateAwaitInGenerator(...)`, the dynamic bridge via
+    `EvaluateDynamicExpressionProgram(...)`, and legacy await/yield operand
+    evaluation in `Ast/Legacy/ExpressionNodeExtensions.cs`. Future refreshes
+    should update that owner list when it changes so downstream bytecode work
+    starts from the right ownership boundary.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 
@@ -239,3 +247,9 @@ after the old guard matched `EvaluateExpression(` and
 names while documenting that `EvaluateExpressionProgram(` remains allowed,
 because it executes already-lowered expression bytecode instead of walking AST
 expressions.
+
+Issue #1479 refreshed the ADR 0093 seam baseline after review found the first
+evidence update did not name the current remaining owner surfaces. The incident
+shows that a clean runner scan is necessary but insufficient for handoff:
+without owner names, future bytecode agents can still lose track of which
+quarantined boundaries remain intentional follow-up surfaces.

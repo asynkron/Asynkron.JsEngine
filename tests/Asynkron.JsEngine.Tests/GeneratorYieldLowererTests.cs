@@ -188,6 +188,207 @@ public sealed class GeneratorYieldLowererTests(ITestOutputHelper output) : Inter
     }
 
     [Fact]
+    public void Lowerer_DoesNotRewriteAsyncIfLogicalShortCircuitAwaitCondition()
+    {
+        var condition = new BinaryExpression(
+            null,
+            BinaryOperator.LogicalAnd,
+            new IdentifierExpression(null, Symbol.Intern("left")),
+            new AwaitExpression(null, new IdentifierExpression(null, Symbol.Intern("rightPromise"))));
+
+        var ifStatement = new IfStatement(
+            null,
+            condition,
+            new ExpressionStatement(null, new LiteralExpression(null, 1)),
+            null);
+
+        var function = new FunctionExpression(
+            null,
+            Symbol.Intern("asyncFn"),
+            ImmutableArray<FunctionParameter>.Empty,
+            new BlockStatement(null, [ifStatement], false),
+            true,
+            false);
+
+        var loweredResult = GeneratorYieldLowerer.TryLowerToGeneratorFriendlyAst(function, out var lowered, out var reason);
+
+        Assert.True(loweredResult);
+        Assert.Null(reason);
+
+        var statements = lowered.Body.Statements;
+        Assert.Single(statements);
+
+        var loweredIf = Assert.IsType<IfStatement>(statements[0]);
+        var loweredCondition = Assert.IsType<BinaryExpression>(loweredIf.Condition);
+        Assert.IsType<IdentifierExpression>(loweredCondition.Left);
+        Assert.IsType<AwaitExpression>(loweredCondition.Right);
+    }
+
+    [Fact]
+    public void Lowerer_DoesNotRewriteAsyncIfNestedLogicalShortCircuitAwaitInCallArgument()
+    {
+        var nestedCondition = new BinaryExpression(
+            null,
+            BinaryOperator.LogicalAnd,
+            new IdentifierExpression(null, Symbol.Intern("left")),
+            new AwaitExpression(null, new IdentifierExpression(null, Symbol.Intern("rightPromise"))));
+
+        var condition = new CallExpression(
+            null,
+            new IdentifierExpression(null, Symbol.Intern("foo")),
+            [new CallArgument(null, nestedCondition, false)],
+            false);
+
+        var ifStatement = new IfStatement(
+            null,
+            condition,
+            new ExpressionStatement(null, new LiteralExpression(null, 1)),
+            null);
+
+        var function = new FunctionExpression(
+            null,
+            Symbol.Intern("asyncFn"),
+            ImmutableArray<FunctionParameter>.Empty,
+            new BlockStatement(null, [ifStatement], false),
+            true,
+            false);
+
+        var loweredResult = GeneratorYieldLowerer.TryLowerToGeneratorFriendlyAst(function, out var lowered, out var reason);
+
+        Assert.True(loweredResult);
+        Assert.Null(reason);
+
+        var statements = lowered.Body.Statements;
+        Assert.Single(statements);
+
+        var loweredIf = Assert.IsType<IfStatement>(statements[0]);
+        var loweredCall = Assert.IsType<CallExpression>(loweredIf.Condition);
+        var loweredNestedCondition = Assert.IsType<BinaryExpression>(Assert.Single(loweredCall.Arguments).Expression);
+        Assert.IsType<IdentifierExpression>(loweredNestedCondition.Left);
+        Assert.IsType<AwaitExpression>(loweredNestedCondition.Right);
+    }
+
+    [Fact]
+    public void Lowerer_DoesNotRewriteAsyncIfNestedLogicalShortCircuitAwaitInNewConstructor()
+    {
+        var nestedConstructor = new BinaryExpression(
+            null,
+            BinaryOperator.LogicalAnd,
+            new IdentifierExpression(null, Symbol.Intern("leftCtor")),
+            new AwaitExpression(null, new IdentifierExpression(null, Symbol.Intern("rightCtorPromise"))));
+
+        var condition = new NewExpression(
+            null,
+            nestedConstructor,
+            ImmutableArray<CallArgument>.Empty);
+
+        var ifStatement = new IfStatement(
+            null,
+            condition,
+            new ExpressionStatement(null, new LiteralExpression(null, 1)),
+            null);
+
+        var function = new FunctionExpression(
+            null,
+            Symbol.Intern("asyncFn"),
+            ImmutableArray<FunctionParameter>.Empty,
+            new BlockStatement(null, [ifStatement], false),
+            true,
+            false);
+
+        var loweredResult = GeneratorYieldLowerer.TryLowerToGeneratorFriendlyAst(function, out var lowered, out var reason);
+
+        Assert.True(loweredResult);
+        Assert.Null(reason);
+
+        var loweredIf = Assert.IsType<IfStatement>(Assert.Single(lowered.Body.Statements));
+        var loweredNew = Assert.IsType<NewExpression>(loweredIf.Condition);
+        var loweredCtor = Assert.IsType<BinaryExpression>(loweredNew.Constructor);
+        Assert.IsType<IdentifierExpression>(loweredCtor.Left);
+        Assert.IsType<AwaitExpression>(loweredCtor.Right);
+    }
+
+    [Fact]
+    public void Lowerer_DoesNotRewriteAsyncIfNestedAwaitInsideConditionalBranch()
+    {
+        var condition = new ConditionalExpression(
+            null,
+            new IdentifierExpression(null, Symbol.Intern("predicate")),
+            new AwaitExpression(null, new IdentifierExpression(null, Symbol.Intern("leftPromise"))),
+            new AwaitExpression(null, new IdentifierExpression(null, Symbol.Intern("rightPromise"))));
+
+        var ifStatement = new IfStatement(
+            null,
+            condition,
+            new ExpressionStatement(null, new LiteralExpression(null, 1)),
+            null);
+
+        var function = new FunctionExpression(
+            null,
+            Symbol.Intern("asyncFn"),
+            ImmutableArray<FunctionParameter>.Empty,
+            new BlockStatement(null, [ifStatement], false),
+            true,
+            false);
+
+        var loweredResult = GeneratorYieldLowerer.TryLowerToGeneratorFriendlyAst(function, out var lowered, out var reason);
+
+        Assert.True(loweredResult);
+        Assert.Null(reason);
+
+        var loweredIf = Assert.IsType<IfStatement>(Assert.Single(lowered.Body.Statements));
+        var loweredConditional = Assert.IsType<ConditionalExpression>(loweredIf.Condition);
+        Assert.IsType<AwaitExpression>(loweredConditional.Consequent);
+        Assert.IsType<AwaitExpression>(loweredConditional.Alternate);
+    }
+
+    [Fact]
+    public void Lowerer_DoesNotRewriteAsyncIfLogicalShortCircuitAwaitInPropertyAssignmentValue()
+    {
+        var nestedCondition = new BinaryExpression(
+            null,
+            BinaryOperator.LogicalAnd,
+            new IdentifierExpression(null, Symbol.Intern("left")),
+            new AwaitExpression(null, new IdentifierExpression(null, Symbol.Intern("rightPromise"))));
+
+        var condition = new PropertyAssignmentExpression(
+            null,
+            new IdentifierExpression(null, Symbol.Intern("obj")),
+            new IdentifierExpression(null, Symbol.Intern("x")),
+            nestedCondition,
+            IsComputed: false,
+            IsCompoundAssignment: false);
+
+        var ifStatement = new IfStatement(
+            null,
+            condition,
+            new ExpressionStatement(null, new LiteralExpression(null, 1)),
+            null);
+
+        var function = new FunctionExpression(
+            null,
+            Symbol.Intern("asyncFn"),
+            ImmutableArray<FunctionParameter>.Empty,
+            new BlockStatement(null, [ifStatement], false),
+            true,
+            false);
+
+        var loweredResult = GeneratorYieldLowerer.TryLowerToGeneratorFriendlyAst(function, out var lowered, out var reason);
+
+        Assert.True(loweredResult);
+        Assert.Null(reason);
+
+        var statements = lowered.Body.Statements;
+        Assert.Single(statements);
+
+        var loweredIf = Assert.IsType<IfStatement>(statements[0]);
+        var loweredAssignment = Assert.IsType<PropertyAssignmentExpression>(loweredIf.Condition);
+        var loweredNestedCondition = Assert.IsType<BinaryExpression>(loweredAssignment.Value);
+        Assert.IsType<IdentifierExpression>(loweredNestedCondition.Left);
+        Assert.IsType<AwaitExpression>(loweredNestedCondition.Right);
+    }
+
+    [Fact]
     public void Lowerer_DoesNotRewriteNestedFunctionYields()
     {
         var innerReturn = new ReturnStatement(null,

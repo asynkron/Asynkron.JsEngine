@@ -324,12 +324,176 @@ internal static class GeneratorYieldLowerer
                 ExpressionStatement expressionStatement => TryRewriteNestedAwaitExpressionStatement(expressionStatement,
                     isStrict,
                     out replacement),
+                IfStatement ifStatement => TryRewriteNestedAwaitIf(ifStatement, out replacement),
                 ReturnStatement returnStatement => TryRewriteNestedAwaitReturn(returnStatement, out replacement),
                 ThrowStatement throwStatement => TryRewriteNestedAwaitThrow(throwStatement, out replacement),
                 ForEachStatement forEachStatement => TryRewriteNestedAwaitForEach(forEachStatement, out replacement),
                 WithStatement withStatement => TryRewriteNestedAwaitWith(withStatement, out replacement),
                 _ => false
             };
+        }
+
+        private bool TryRewriteNestedAwaitIf(
+            IfStatement statement,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            replacement = default;
+
+            if (statement.Condition is AwaitExpression awaitExpression)
+            {
+                var awaitedTemp = CreateResumeIdentifier();
+                replacement =
+                [
+                    CreateTempDeclaration(statement.Source, awaitedTemp, awaitExpression),
+                    statement with
+                    {
+                        Condition = new IdentifierExpression(statement.Condition.Source, awaitedTemp.Name)
+                    }
+                ];
+                return true;
+            }
+
+            if (ContainsLogicalOrNullishShortCircuit(statement.Condition))
+            {
+                return false;
+            }
+
+            if (!TryRewriteExpressionWithNestedAwait(
+                    statement.Condition,
+                    out var prefixStatements,
+                    out var rewrittenCondition))
+            {
+                return false;
+            }
+
+            replacement = prefixStatements.Add(statement with { Condition = rewrittenCondition });
+            return true;
+        }
+
+        private static bool ContainsLogicalOrNullishShortCircuit(ExpressionNode expression)
+        {
+            return expression switch
+            {
+                BinaryExpression binaryExpression
+                    when binaryExpression.Operator is BinaryOperator.LogicalAnd
+                        or BinaryOperator.LogicalOr
+                        or BinaryOperator.NullishCoalescing => true,
+                BinaryExpression binaryExpression => ContainsLogicalOrNullishShortCircuit(binaryExpression.Left) ||
+                                                     ContainsLogicalOrNullishShortCircuit(binaryExpression.Right),
+                UnaryExpression unaryExpression => ContainsLogicalOrNullishShortCircuit(unaryExpression.Operand),
+                // Rewriting awaits inside conditional branches would eagerly hoist
+                // both branch awaits, which breaks branch-only evaluation semantics.
+                ConditionalExpression => true,
+                MemberExpression memberExpression =>
+                    ContainsLogicalOrNullishShortCircuit(memberExpression.Target) ||
+                    ContainsLogicalOrNullishShortCircuit(memberExpression.Property),
+                CallExpression callExpression =>
+                    ContainsLogicalOrNullishShortCircuit(callExpression.Callee) ||
+                    ContainsLogicalOrNullishShortCircuit(callExpression.Arguments),
+                NewExpression newExpression =>
+                    ContainsLogicalOrNullishShortCircuit(newExpression.Constructor) ||
+                    ContainsLogicalOrNullishShortCircuit(newExpression.Arguments),
+                AwaitExpression awaitExpression => ContainsLogicalOrNullishShortCircuit(awaitExpression.Expression),
+                SequenceExpression sequenceExpression =>
+                    ContainsLogicalOrNullishShortCircuit(sequenceExpression.Left) ||
+                    ContainsLogicalOrNullishShortCircuit(sequenceExpression.Right),
+                AssignmentExpression assignmentExpression =>
+                    ContainsLogicalOrNullishShortCircuit(assignmentExpression.Value),
+                PropertyAssignmentExpression propertyAssignmentExpression =>
+                    ContainsLogicalOrNullishShortCircuit(propertyAssignmentExpression.Target) ||
+                    ContainsLogicalOrNullishShortCircuit(propertyAssignmentExpression.Property) ||
+                    ContainsLogicalOrNullishShortCircuit(propertyAssignmentExpression.Value),
+                IndexAssignmentExpression indexAssignmentExpression =>
+                    ContainsLogicalOrNullishShortCircuit(indexAssignmentExpression.Target) ||
+                    ContainsLogicalOrNullishShortCircuit(indexAssignmentExpression.Index) ||
+                    ContainsLogicalOrNullishShortCircuit(indexAssignmentExpression.Value),
+                ArrayExpression arrayExpression =>
+                    ContainsLogicalOrNullishShortCircuit(arrayExpression.Elements),
+                ObjectExpression objectExpression =>
+                    ContainsLogicalOrNullishShortCircuit(objectExpression.Members),
+                TemplateLiteralExpression templateLiteralExpression =>
+                    ContainsLogicalOrNullishShortCircuit(templateLiteralExpression.Parts),
+                TaggedTemplateExpression taggedTemplateExpression =>
+                    ContainsLogicalOrNullishShortCircuit(taggedTemplateExpression.Tag) ||
+                    ContainsLogicalOrNullishShortCircuit(taggedTemplateExpression.StringsArray) ||
+                    ContainsLogicalOrNullishShortCircuit(taggedTemplateExpression.RawStringsArray) ||
+                    ContainsLogicalOrNullishShortCircuit(taggedTemplateExpression.Expressions),
+                _ => false
+            };
+        }
+
+        private static bool ContainsLogicalOrNullishShortCircuit(ImmutableArray<CallArgument> arguments)
+        {
+            foreach (var argument in arguments)
+            {
+                if (ContainsLogicalOrNullishShortCircuit(argument.Expression))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool ContainsLogicalOrNullishShortCircuit(ImmutableArray<ArrayElement> elements)
+        {
+            foreach (var element in elements)
+            {
+                if (element.Expression is not null &&
+                    ContainsLogicalOrNullishShortCircuit(element.Expression))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool ContainsLogicalOrNullishShortCircuit(ImmutableArray<ObjectMember> members)
+        {
+            foreach (var member in members)
+            {
+                if (member is { IsComputed: true, Key: ExpressionNode keyExpression } &&
+                    ContainsLogicalOrNullishShortCircuit(keyExpression))
+                {
+                    return true;
+                }
+
+                if (member.Value is not null &&
+                    ContainsLogicalOrNullishShortCircuit(member.Value))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool ContainsLogicalOrNullishShortCircuit(ImmutableArray<TemplatePart> parts)
+        {
+            foreach (var part in parts)
+            {
+                if (part.Expression is not null &&
+                    ContainsLogicalOrNullishShortCircuit(part.Expression))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool ContainsLogicalOrNullishShortCircuit(ImmutableArray<ExpressionNode> expressions)
+        {
+            foreach (var expression in expressions)
+            {
+                if (ContainsLogicalOrNullishShortCircuit(expression))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private bool TryRewriteNestedAwaitVariableDeclaration(

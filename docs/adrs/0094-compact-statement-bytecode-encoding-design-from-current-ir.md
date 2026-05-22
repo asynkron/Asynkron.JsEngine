@@ -194,6 +194,31 @@ This issue stays evidence-only for statement compact-bytecode planning. It does
 not authorize runtime/lowering changes, expression-op changes, new AST fallback
 seams, or statement storage implementation.
 
+### 6.6 Diagnostic-only statement storage measurement gate
+
+Issue #1520 / PR #1526 added the first statement-instruction storage diagnostic
+surface for this staged migration. The accepted slice intentionally did not add
+compact runtime routing or dual instruction storage. It added
+`StatementInstructionStorageDiagnostics` and focused tests that collect:
+
+1. total execution-plan and instruction counts;
+2. a full `InstructionKind` histogram;
+3. supported and unsupported compact-estimate histograms; and
+4. estimated encoded bytes only for explicitly supported stable families.
+
+The initial supported diagnostic-estimate set is deliberately narrow:
+`Jump`, `SetCompletionValue`, `Break`, `Continue`, `BreakableExit`,
+`EndFinally`, `LeaveTry`, and `PopEnvironment`. Every other instruction kind
+stays visible in the unsupported histogram instead of being folded into an
+optimistic storage estimate.
+
+This measurement gate must remain diagnostic-only until a later implementation
+slice introduces an owner boundary for compact statement storage and a parity
+decode bridge. Future compact statement-bytecode work should extend this
+diagnostic surface before moving a family from unsupported to encoded runtime
+storage, so storage estimates, migration readiness, and runtime behavior do not
+drift apart.
+
 ### 7. Debug/printer/test bridge requirements
 
 Maintain today’s inspectability throughout migration.

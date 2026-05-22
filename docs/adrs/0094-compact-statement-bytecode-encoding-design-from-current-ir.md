@@ -157,6 +157,31 @@ This does not make environment transitions compact-encoding ready by itself.
 `PushEnvironment` still needs operand-table normalization for slot maps,
 lexical names, and flat-slot metadata before it can leave the deferred family.
 
+### 6.4 Branch-condition await lowering proof shape
+
+Issue #1491 / PR #1501 refined the control-flow-with-expression-condition
+classification for async `if` conditions. A safe awaited branch condition is not
+a new expression-bytecode opcode. It is a statement-lowering normalization:
+evaluate the awaited condition into a synthetic `SimpleVariableDeclaration`
+awaited temp, then let `BranchInstruction.ConditionProgram` read that temp
+through ordinary expression bytecode.
+
+Direct `if (await value)` and nested shapes such as
+`if ((await value).ready)` should be proven as separate payload contracts. The
+direct and nested forms share the same published IR shape, but the lowerer must
+not flatten every expression that contains an await. The safety guard has to
+match the await rewriter traversal and preserve JavaScript evaluation order:
+short-circuit logical/nullish forms are not safe for eager hoisting,
+`NewExpression.Constructor` must be checked alongside arguments, and
+`ConditionalExpression` branches must stay branch-only unless a future slice
+proves an equivalent rewrite for that exact shape.
+
+Future compact statement-bytecode work should therefore encode the existing
+branch payload shape as expression-program references plus async-resume metadata
+where applicable. It should not add branch-time raw AST evaluation or an
+`AwaitExpression` expression opcode to cover condition shapes that belong in a
+lowering-time evaluation-order proof.
+
 ### 7. Debug/printer/test bridge requirements
 
 Maintain today’s inspectability throughout migration.

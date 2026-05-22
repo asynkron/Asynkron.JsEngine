@@ -398,6 +398,25 @@ internal static class GeneratorYieldLowerer
                     ContainsLogicalOrNullishShortCircuit(sequenceExpression.Right),
                 AssignmentExpression assignmentExpression =>
                     ContainsLogicalOrNullishShortCircuit(assignmentExpression.Value),
+                PropertyAssignmentExpression propertyAssignmentExpression =>
+                    ContainsLogicalOrNullishShortCircuit(propertyAssignmentExpression.Target) ||
+                    ContainsLogicalOrNullishShortCircuit(propertyAssignmentExpression.Property) ||
+                    ContainsLogicalOrNullishShortCircuit(propertyAssignmentExpression.Value),
+                IndexAssignmentExpression indexAssignmentExpression =>
+                    ContainsLogicalOrNullishShortCircuit(indexAssignmentExpression.Target) ||
+                    ContainsLogicalOrNullishShortCircuit(indexAssignmentExpression.Index) ||
+                    ContainsLogicalOrNullishShortCircuit(indexAssignmentExpression.Value),
+                ArrayExpression arrayExpression =>
+                    ContainsLogicalOrNullishShortCircuit(arrayExpression.Elements),
+                ObjectExpression objectExpression =>
+                    ContainsLogicalOrNullishShortCircuit(objectExpression.Members),
+                TemplateLiteralExpression templateLiteralExpression =>
+                    ContainsLogicalOrNullishShortCircuit(templateLiteralExpression.Parts),
+                TaggedTemplateExpression taggedTemplateExpression =>
+                    ContainsLogicalOrNullishShortCircuit(taggedTemplateExpression.Tag) ||
+                    ContainsLogicalOrNullishShortCircuit(taggedTemplateExpression.StringsArray) ||
+                    ContainsLogicalOrNullishShortCircuit(taggedTemplateExpression.RawStringsArray) ||
+                    ContainsLogicalOrNullishShortCircuit(taggedTemplateExpression.Expressions),
                 _ => false
             };
         }
@@ -407,6 +426,67 @@ internal static class GeneratorYieldLowerer
             foreach (var argument in arguments)
             {
                 if (ContainsLogicalOrNullishShortCircuit(argument.Expression))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool ContainsLogicalOrNullishShortCircuit(ImmutableArray<ArrayElement> elements)
+        {
+            foreach (var element in elements)
+            {
+                if (element.Expression is not null &&
+                    ContainsLogicalOrNullishShortCircuit(element.Expression))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool ContainsLogicalOrNullishShortCircuit(ImmutableArray<ObjectMember> members)
+        {
+            foreach (var member in members)
+            {
+                if (member is { IsComputed: true, Key: ExpressionNode keyExpression } &&
+                    ContainsLogicalOrNullishShortCircuit(keyExpression))
+                {
+                    return true;
+                }
+
+                if (member.Value is not null &&
+                    ContainsLogicalOrNullishShortCircuit(member.Value))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool ContainsLogicalOrNullishShortCircuit(ImmutableArray<TemplatePart> parts)
+        {
+            foreach (var part in parts)
+            {
+                if (part.Expression is not null &&
+                    ContainsLogicalOrNullishShortCircuit(part.Expression))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool ContainsLogicalOrNullishShortCircuit(ImmutableArray<ExpressionNode> expressions)
+        {
+            foreach (var expression in expressions)
+            {
+                if (ContainsLogicalOrNullishShortCircuit(expression))
                 {
                     return true;
                 }

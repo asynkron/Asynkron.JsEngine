@@ -213,7 +213,13 @@ Observed classification stayed unchanged:
    `TypedAstEvaluator.ExecutionPlanRunner*`;
 2. expression-program fallback ownership remains outside the runner in
    planning/lowering classification (`ExpressionProgramCompileFailure` and
-   related `SetExpressionProgramFailure(...)` wiring);
+   related `SetExpressionProgramFailure(...)` wiring), while the current
+   remaining boundary owner surfaces are explicitly:
+   - runner await-state handling in `EvaluateAwaitInGenerator(...)`;
+   - the dynamic expression-program bridge in
+     `EvaluateDynamicExpressionProgram(...)`; and
+   - legacy await/yield operand evaluation in
+     `Ast/Legacy/ExpressionNodeExtensions.cs`;
 3. remaining AST-boundary text inside runner-adjacent files continues to be
    compatibility/comment hygiene unless a concrete runtime call site is
    identified.

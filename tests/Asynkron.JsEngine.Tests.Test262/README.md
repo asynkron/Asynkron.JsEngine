@@ -24,6 +24,13 @@ List available packs:
 rtk ./tools/run-test262-regressions.sh --list
 ```
 
+`--list` inventory is sourced from files in:
+
+- `tests/Asynkron.JsEngine.Tests.Test262/regression-packs/`
+
+It reports a static list of runnable pack names from that directory, not a
+live failure snapshot.
+
 Run a named pack:
 
 ```bash
@@ -35,6 +42,8 @@ Named packs are resolved from:
 - `tests/Asynkron.JsEngine.Tests.Test262/regression-packs/<name>.filter.txt`
 
 You can also pass an explicit path to a `.txt` filter file.
+Per-pack `(<n> entries)` counts shown by `--list` include only non-empty,
+non-comment lines from each pack file.
 
 ## Filter File Format
 

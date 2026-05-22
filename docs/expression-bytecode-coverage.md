@@ -21,14 +21,12 @@ This map tracks how concrete `ExpressionNode` types relate to current expression
 ## ExpressionOpKind Capability Inventory
 | Capability group | ExpressionOpKind values |
 | --- | --- |
-| Loads and references | `LoadLiteralConstant`, `LoadRegexLiteral`, `LoadIdentifier`, `LoadThis`, `LoadImportMeta`, `LoadNewTarget`, `LoadFunctionLiteral`, `LoadClassLiteral` |
-| Object and array construction | `CreateArray`, `CreateObject`, `ArrayPush`, `ObjectSetDataProperty`, `ObjectSetComputedDataProperty`, `ObjectSetAccessor` |
-| Member and index access | `LoadProperty`, `LoadComputedProperty`, `StoreProperty`, `StoreComputedProperty`, `DeleteProperty`, `DeleteComputedProperty` |
-| Optional-chain-aware access | `LoadOptionalProperty`, `LoadOptionalComputedProperty`, `CallOptional`, `MemberCallOptional`, `BeginOptionalChainSegment`, `EndOptionalChainSegment`, `SkipOptionalChainSegment` |
-| Calls and construction | `Call`, `MemberCall`, `Construct`, `ConstructMember` |
-| Operators and transforms | `Unary`, `Binary`, `PrivateFieldIn`, `ToPropertyKey`, `DuplicateTop`, `Pop` |
-| Control flow and stack branching | `Jump`, `JumpIfTrue`, `JumpIfFalse`, `JumpIfNullOrUndefined` |
-| Template and string assembly | `BuildTemplateString` |
+| Loads and identifier references | `LoadLiteral`, `LoadRegexLiteral`, `LoadFunctionLiteral`, `LoadClassLiteral`, `LoadIdentifier`, `LoadIdentifierCallTarget`, `ResolveIdentifierReference`, `LoadResolvedIdentifierValue`, `PopResolvedIdentifierReference`, `StoreResolvedIdentifier`, `LoadTemplateObject`, `StoreIdentifier`, `ApplyBindingTarget`, `LoadThis`, `LoadNewTarget`, `LoadImportMeta` |
+| Call target resolution and super setup | `LoadNamedCallTarget`, `LoadComputedCallTarget`, `LoadNamedSuperCallTarget`, `LoadComputedSuperCallTarget`, `EnsureSuperReference` |
+| Array/object construction and property definitions | `CreateArray`, `ArrayPush`, `ArrayPushHole`, `ArraySpread`, `CreateObject`, `RequireObjectCoercible`, `ResolvePropertyKey`, `DefineObjectProperty`, `DefineComputedObjectProperty`, `DefineObjectMethod`, `DefineComputedObjectMethod`, `DefineObjectAccessor`, `DefineComputedObjectAccessor`, `ObjectSpread` |
+| Property get/set/update/delete operations | `GetNamedProperty`, `GetComputedProperty`, `GetNamedSuperProperty`, `GetComputedSuperProperty`, `SetNamedProperty`, `SetComputedProperty`, `SetNamedSuperProperty`, `SetComputedSuperProperty`, `UpdateIdentifier`, `UpdateNamedProperty`, `UpdateComputedProperty`, `UpdateNamedSuperProperty`, `UpdateComputedSuperProperty`, `DeleteIdentifier`, `DeleteNamedProperty`, `DeleteComputedProperty` |
+| Unary, binary, and conversion operations | `TypeOf`, `TypeOfIdentifier`, `UnaryPlus`, `UnaryMinus`, `UnaryBitwiseNot`, `UnaryVoid`, `ToString`, `UnaryLogicalNot`, `Binary`, `PrivateFieldIn` |
+| Control flow, stack mechanics, and invocation | `DuplicateTop`, `DuplicateTopTwo`, `SwapTopTwo`, `RotateTopThreeRight`, `Pop`, `Jump`, `JumpIfNullish`, `JumpIfShortCircuited`, `JumpIfTrue`, `JumpIfFalse`, `JumpIfNotNullish`, `SuperConstruct`, `Call`, `Construct`, `ThrowReferenceError` |
 
 ## Expression Family And Risk Groups
 
@@ -41,7 +39,7 @@ This map tracks how concrete `ExpressionNode` types relate to current expression
 | `FunctionExpression` | `supported` | `LoadFunctionLiteral` | `Issue400And722ExpressionBytecodeTraceabilityTests.ConstantPools_RecordLiteralStringObjectAndIdentifierEntries` |
 | `IdentifierExpression` | `supported` | `LoadIdentifier` | `ExpressionProgramLoweringTests.ThrowInstruction_AwaitedIdentifier_UsesAwaitedProgram` |
 | `ImportMetaExpression` | `supported` | `LoadImportMeta` | `ExecutionPlanDiagnosticsTests` import-meta diagnostics coverage |
-| `LiteralExpression` | `supported` | `LoadLiteralConstant` | `Issue400And722ExpressionBytecodeTraceabilityTests.ConstantPools_RecordLiteralStringObjectAndIdentifierEntries` |
+| `LiteralExpression` | `supported` | `LoadLiteral` | `Issue400And722ExpressionBytecodeTraceabilityTests.ConstantPools_RecordLiteralStringObjectAndIdentifierEntries` |
 | `NewTargetExpression` | `supported` | `LoadNewTarget` | `ExecutionPlanDiagnosticsTests` new.target coverage |
 | `RegexLiteralExpression` | `supported` | `LoadRegexLiteral` | `ExpressionProgramLoweringTests` literal/return program checks |
 | `SequenceExpression` | `supported` | `TryCompileSequenceExpression` | `ExpressionProgramLoweringTests` sequence and evaluation-order checks |

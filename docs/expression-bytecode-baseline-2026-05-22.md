@@ -59,6 +59,27 @@ Result excerpt:
   - `RuntimeTypeCache`: `106.22 KB`
   - `BreakableFrame[]`: `104.14 KB`
 
+## Issue #1516 Re-run (2026-05-22)
+
+Commands rerun on branch `agent-go/issue-1516` in `.faktorial/worktrees/1516`:
+
+```bash
+rtk dotnet test tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj --filter "FullyQualifiedName~ExpressionProgramStorageDiagnosticsTests"
+rtk dotnet run --project tools/ProfileRunner/ProfileRunner.csproj -c Release -- forloop --expression-program-storage
+rtk ./tools/profile forloop --memory
+```
+
+Comparison vs Part 1 baseline:
+- Proof pack: unchanged (`Passed=6, Failed=0, Skipped=0`).
+- Storage diagnostics: unchanged (`programs=7`, `total_ops=10`, `packed_op_estimated_bytes=120`, constants and stack-depth histogram match baseline exactly).
+- Memory total allocated: unchanged (`7.05 MB`).
+- Runtime/timing visible from diagnostics run: `Done in 4682ms (avg 234.10ms per iteration)`.
+- Top sampled allocation owners: shape stable with small sampled variance (`String` sampled at `1.12 MB` in this rerun vs `1.02 MB` baseline; `BreakableFrame[]` dropped from top list; `Byte`/`JsHostHandler`/`HybridDictionary<JsValue>`/`JsObjectState` appeared near ~`104 KB` each).
+
+Interpretation:
+- AC-1 through AC-5 are satisfied.
+- Current numbers are stable relative to the Part 1 baseline; no regression signal in proof pack, storage footprint metrics, or total allocated memory.
+
 ## Notes
 
 - These measurements are baseline evidence from this worktree, not optimization claims.

@@ -163,6 +163,14 @@ baseline evidence, then continue from maintained ADR/rule artifacts already
 capturing the completed work (for example ADR 0095 and
 `.claude/rules/expression-bytecode-packing.md`) instead of blocking.
 
+Issue #1548 closed the remaining context-retrieval gap for recurring-child
+agents: compact helpers and dashboard/API summary endpoints can both be
+unavailable in a local run, while the timestamped raw issue log still contains
+enough structural stage evidence to continue. The durable lesson is to use
+bounded `.faktorial/logs/ghNNNN*.log` searches as the last local fallback,
+searching only structural markers and keeping snippets line-capped, rather
+than blocking or widening into broad log dumps or external source-host reads.
+
 Issue #1464 tightened persistent-compaction evidence guidance: when the slice
 updates an existing semantic home instead of creating a new durable artifact,
 the issue update should still show baseline/final output from one stable

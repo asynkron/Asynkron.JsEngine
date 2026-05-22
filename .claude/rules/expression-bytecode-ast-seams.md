@@ -93,6 +93,10 @@ fallback or cleanup.
     caller that routes AST-owned statements into lowered `ExpressionProgram`
     execution; a stale call there can make `main` fail to compile even when the
     normal runner path and focused AST-free tests look correct.
+17. For `UnsupportedExpressionProgram` backlog issues, prove the selected bucket
+    on the current worktree before patching. If focused compiler/lowering tests
+    plus the AST-seam scan already satisfy the issue intent, direct-close it
+    with concise evidence instead of adding nearby speculative code churn.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 
@@ -214,3 +218,9 @@ statement evaluation but must execute the return expression through the dynamic
 expression-program bridge. Future bridge refactors need a whole-AST bridge-call
 search, including `src/Asynkron.JsEngine/Ast/Legacy`, before they claim the
 rename/removal is complete.
+
+Issue #1395 direct-closed an optional-tagged-template
+`UnsupportedExpressionProgram` bucket after current-worktree proof showed the
+bucket was already implemented and AST-free in focused checks. Future backlog
+burn-down slices should repeat that proof-first/direct-close behavior instead
+of treating adjacent unsupported buckets as automatic patch prompts.

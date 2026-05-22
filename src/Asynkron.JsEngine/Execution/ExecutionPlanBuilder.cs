@@ -194,8 +194,62 @@ internal sealed partial class ExecutionPlanBuilder
         var flatSlotCount = rewriter?.FlatSlotCount ?? 0;
         var flatSlotMappings = rewriter?.BuildFlatSlotMappings();
 
-        // Post-process: stamp FlatSlotMappings on PushEnvironmentInstructions for O(1) access at runtime
+        // Post-process: stamp FlatSlotMappings on PushEnvironmentInstructions for O(1) access at runtime.
         // Also clear stale mappings when flat slots are not used (instructions can be reused across builds).
+        ApplyFlatSlotMappings(flatSlotMappings);
+
+        plan = new ExecutionPlan(
+            [.. Instructions],
+            entryIndex,
+            _slotSymbols.Count,
+            slotSymbols,
+            rootSlotCount,
+            rootSlotMap,
+            rootLexicalBindings,
+            _lexicalBindings.ToImmutableDictionary(kv => kv.Key, kv => kv.Value,
+                EqualityComparer<int>.Default),
+            RootScopeId: mappedRootScopeId,
+            layoutId,
+            flatSlotCount,
+            flatSlotMappings);
+        return true;
+    }
+
+    private bool LowerExpressionPayloads()
+    {
+        LowerStatementPayloads();
+        return ValidateLoweredPayloads();
+
+        void LowerStatementPayloads()
+        {
+            for (var i = 0; i < Instructions.Count; i++)
+            {
+                if (Instructions[i] is not PushEnvironmentInstruction { SourceBlock: not null } push)
+                {
+                    continue;
+                }
+
+                Instructions[i] = push with { SourceBlock = null };
+            }
+        }
+
+        bool ValidateLoweredPayloads()
+        {
+            for (var i = 0; i < Instructions.Count; i++)
+            {
+                if (Instructions[i] is PushEnvironmentInstruction { SourceBlock: not null })
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+    }
+
+    private void ApplyFlatSlotMappings(
+        ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>>? flatSlotMappings)
+    {
         for (var i = 0; i < Instructions.Count; i++)
         {
             if (Instructions[i] is not PushEnvironmentInstruction push)
@@ -217,42 +271,10 @@ internal sealed partial class ExecutionPlanBuilder
                 changed = true;
             }
 
-            if (updatedPush.SourceBlock is not null)
-            {
-                updatedPush = updatedPush with { SourceBlock = null };
-                changed = true;
-            }
-
             if (changed)
             {
                 Instructions[i] = updatedPush;
             }
-        }
-
-        plan = new ExecutionPlan(
-            [.. Instructions],
-            entryIndex,
-            _slotSymbols.Count,
-            slotSymbols,
-            rootSlotCount,
-            rootSlotMap,
-            rootLexicalBindings,
-            _lexicalBindings.ToImmutableDictionary(kv => kv.Key, kv => kv.Value,
-                EqualityComparer<int>.Default),
-            RootScopeId: mappedRootScopeId,
-            layoutId,
-            flatSlotCount,
-            flatSlotMappings);
-        return true;
-    }
-
-    private bool LowerExpressionPayloads()
-    {
-        return ValidateLoweredPayloads();
-
-        bool ValidateLoweredPayloads()
-        {
-            return true;
         }
     }
 

@@ -38,7 +38,8 @@ internal readonly record struct EncodedStatementSidePayload(
     Symbol? SecondarySymbol = null,
     BindingTargetProgram? BindingTargetProgram = null,
     int ScopeId = -1,
-    int FlatSlotId = -1)
+    int FlatSlotId = -1,
+    bool HasAssignmentMetadata = false)
 {
     private const int ReferencePayloadByteSize = 8;
     private const int AssignmentMetadataByteSize = 8;
@@ -49,7 +50,7 @@ internal readonly record struct EncodedStatementSidePayload(
         (PrimarySymbol is null ? 0 : ReferencePayloadByteSize) +
         (SecondarySymbol is null ? 0 : ReferencePayloadByteSize) +
         (BindingTargetProgram is null ? 0 : ReferencePayloadByteSize) +
-        ((ScopeId >= 0 || FlatSlotId >= 0) ? AssignmentMetadataByteSize : 0);
+        (HasAssignmentMetadata ? AssignmentMetadataByteSize : 0);
 }
 
 /// <summary>
@@ -177,7 +178,8 @@ internal static class StatementInstructionDiagnosticsCodec
                         PrimarySymbol: assignmentSlot.AwaitStateKey,
                         SecondarySymbol: assignmentSlot.TargetSymbol,
                         ScopeId: assignmentSlot.ScopeId,
-                        FlatSlotId: assignmentSlot.FlatSlotId));
+                        FlatSlotId: assignmentSlot.FlatSlotId,
+                        HasAssignmentMetadata: true));
                 return true;
             case SimpleVariableDeclarationInstruction simpleVariableDeclaration:
                 encoded = new EncodedStatementInstruction(
@@ -244,9 +246,9 @@ internal static class StatementInstructionDiagnosticsCodec
                 AwaitedProgram: encoded.Payload.SecondaryExpressionProgram,
                 SuppressCompletionValue: (encoded.Operand & AssignmentSlotSuppressCompletionBit) != 0,
                 AllowNameInference: (encoded.Operand & AssignmentSlotAllowNameInferenceBit) != 0,
-                ScopeId: encoded.Payload.ScopeId,
+                ScopeId: encoded.Payload.HasAssignmentMetadata ? encoded.Payload.ScopeId : -1,
                 SlotIndex: encoded.Extra,
-                FlatSlotId: encoded.Payload.FlatSlotId),
+                FlatSlotId: encoded.Payload.HasAssignmentMetadata ? encoded.Payload.FlatSlotId : -1),
             EncodedStatementOpcode.SimpleVariableDeclaration => new SimpleVariableDeclarationInstruction(
                 encoded.NextOrTarget,
                 (VariableKind)encoded.Operand,

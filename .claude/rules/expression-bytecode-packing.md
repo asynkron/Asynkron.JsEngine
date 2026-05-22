@@ -32,6 +32,13 @@ channel.
    focused regression coverage for each newly discovered carrier, because a
    measurement tool that undercounts nested bytecode can steer later compaction
    work toward the wrong owner.
+7. Keep expression-runtime side-state packed when the state is binary. Optional
+   chain short-circuit metadata belongs in the packed `ExpressionFlagStack` /
+   `_expressionFlagBuffer` path, not in parallel per-stack-slot `bool[]` or
+   `byte[]` buffers. When touching this owner surface, include focused semantic
+   tests for nested optional-chain propagation and a source or reflection guard
+   that proves expression runtime fields did not reintroduce unpacked bool/byte
+   arrays.
 
 ## Why
 
@@ -57,3 +64,10 @@ binding target programs. The lesson is that diagnostic completeness is part of
 the measurement contract: if the walker skips nested execution plans or binding
 subprograms, the storage numbers can look precise while excluding real bytecode
 payloads.
+
+Issue #1515 / PR #1518 confirmed that optional-chain runtime side-state was
+already represented through the packed `ulong[]` expression flag buffer, then
+added focused guards instead of rewriting the runner. The lesson is that
+runtime side-state has the same packing contract as operation metadata: future
+agents should preserve packed binary storage, prove nested short-circuit
+semantics, and guard against quietly restoring per-slot bool/byte arrays.

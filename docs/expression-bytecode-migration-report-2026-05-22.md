@@ -67,13 +67,16 @@ Refreshed storage diagnostics (current worktree):
 
 Refreshed allocation baseline (current worktree):
 - Command: `rtk ./tools/profile forloop --memory`
-  - `total allocated = 7.05 MB`
-  - top sampled owners remain led by `JsValue[]`, `String`, `PropertyDescriptor`
+  - `total allocated = 6.98 MB`
+  - top sampled owners remain led by `JsValue[]`, `String`, `Entry<JsValue>[]`, `JsObject`, `PropertyDescriptor`
 
 Delta summary vs same-day baseline doc:
 - Storage footprint metrics are stable and materially unchanged in shape.
-- Total allocated memory remains `7.05 MB`.
+- Total allocated memory is `6.98 MB` vs `7.05 MB` in the same-day baseline (`-0.07 MB`, sampled variance).
 - No regression signal in this focused proof loop.
+
+Backlog/failure bucket delta signal:
+- Focused diagnostics tests for representative unsupported/backlog buckets passed unchanged; no new failure-bucket movement was observed in this evidence-only refresh.
 
 ## Next safe bytecode expansion slice (single recommendation)
 
@@ -100,7 +103,7 @@ Deferred high-risk groups (explicitly not in this slice):
 - Storage diagnostics test: passed (`ExpressionProgramStorageDiagnosticsTests`)
 - Unsupported/source-gate diagnostics tests: passed (2 targeted `ExecutionPlanDiagnosticsTests`)
 - AST seam scan: no `EvaluateExpression` / `ProfileEvaluateExpression` matches in runner files
-- Profiling command: `./tools/profile forloop --memory` succeeded with `7.05 MB` total allocated
+- Profiling command: `./tools/profile forloop --memory` succeeded with `6.98 MB` total allocated
 
 ## Notes
 - This issue intentionally delivers documentation/evidence synthesis only; it does not implement new bytecode support.

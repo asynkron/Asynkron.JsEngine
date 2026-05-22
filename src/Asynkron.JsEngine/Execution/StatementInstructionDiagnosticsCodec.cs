@@ -32,6 +32,8 @@ internal readonly record struct EncodedStatementInstruction(
 }
 
 internal readonly record struct EncodedStatementSidePayload(
+    int PrimaryExpressionProgramReferenceId = -1,
+    int SecondaryExpressionProgramReferenceId = -1,
     ExpressionProgram? PrimaryExpressionProgram = null,
     ExpressionProgram? SecondaryExpressionProgram = null,
     Symbol? PrimarySymbol = null,
@@ -45,12 +47,48 @@ internal readonly record struct EncodedStatementSidePayload(
     private const int AssignmentMetadataByteSize = 8;
 
     public long EstimatedCompactByteSize =>
-        (PrimaryExpressionProgram is null ? 0 : ReferencePayloadByteSize) +
-        (SecondaryExpressionProgram is null ? 0 : ReferencePayloadByteSize) +
+        ((PrimaryExpressionProgramReferenceId < 0 && !PrimaryExpressionProgram.HasValue) ? 0 : ReferencePayloadByteSize) +
+        ((SecondaryExpressionProgramReferenceId < 0 && !SecondaryExpressionProgram.HasValue) ? 0 : ReferencePayloadByteSize) +
         (PrimarySymbol is null ? 0 : ReferencePayloadByteSize) +
         (SecondarySymbol is null ? 0 : ReferencePayloadByteSize) +
         (BindingTargetProgram is null ? 0 : ReferencePayloadByteSize) +
         (HasAssignmentMetadata ? AssignmentMetadataByteSize : 0);
+}
+
+internal sealed class StatementDiagnosticsExpressionProgramTable
+{
+    private readonly Dictionary<ExpressionProgram, int> _indices = [];
+    private readonly List<ExpressionProgram> _programs = [];
+
+    public int Count => _programs.Count;
+
+    public int GetOrAdd(ExpressionProgram? program)
+    {
+        if (!program.HasValue)
+        {
+            return -1;
+        }
+
+        return GetOrAdd(program.Value);
+    }
+
+    public int GetOrAdd(ExpressionProgram program)
+    {
+        if (_indices.TryGetValue(program, out var existing))
+        {
+            return existing;
+        }
+
+        var created = _programs.Count;
+        _programs.Add(program);
+        _indices.Add(program, created);
+        return created;
+    }
+
+    public ExpressionProgram? Resolve(int id)
+    {
+        return id >= 0 && id < _programs.Count ? _programs[id] : null;
+    }
 }
 
 /// <summary>
@@ -81,7 +119,10 @@ internal static class StatementInstructionDiagnosticsCodec
             InstructionKind.BindingVariableDeclaration;
     }
 
-    public static bool TryEncode(ExecutionInstruction instruction, out EncodedStatementInstruction encoded)
+    public static bool TryEncode(
+        ExecutionInstruction instruction,
+        StatementDiagnosticsExpressionProgramTable expressionPrograms,
+        out EncodedStatementInstruction encoded)
     {
         switch (instruction)
         {
@@ -91,7 +132,7 @@ internal static class StatementInstructionDiagnosticsCodec
                     jump.TargetIndex,
                     0,
                     0,
-                    default);
+                    new EncodedStatementSidePayload(-1, -1));
                 return true;
             case BreakInstruction @break:
                 encoded = new EncodedStatementInstruction(
@@ -99,7 +140,7 @@ internal static class StatementInstructionDiagnosticsCodec
                     @break.TargetIndex,
                     @break.TargetScopeId,
                     0,
-                    default);
+                    new EncodedStatementSidePayload(-1, -1));
                 return true;
             case ContinueInstruction @continue:
                 encoded = new EncodedStatementInstruction(
@@ -107,7 +148,7 @@ internal static class StatementInstructionDiagnosticsCodec
                     @continue.TargetIndex,
                     @continue.TargetScopeId,
                     0,
-                    default);
+                    new EncodedStatementSidePayload(-1, -1));
                 return true;
             case SetCompletionValueInstruction setCompletion:
                 encoded = new EncodedStatementInstruction(
@@ -115,7 +156,7 @@ internal static class StatementInstructionDiagnosticsCodec
                     setCompletion.Next,
                     0,
                     0,
-                    default);
+                    new EncodedStatementSidePayload(-1, -1));
                 return true;
             case BreakableExitInstruction breakableExit:
                 encoded = new EncodedStatementInstruction(
@@ -123,7 +164,7 @@ internal static class StatementInstructionDiagnosticsCodec
                     breakableExit.Next,
                     0,
                     0,
-                    default);
+                    new EncodedStatementSidePayload(-1, -1));
                 return true;
             case EvaluateAndDiscardInstruction evaluateAndDiscard:
                 encoded = new EncodedStatementInstruction(
@@ -132,7 +173,7 @@ internal static class StatementInstructionDiagnosticsCodec
                     evaluateAndDiscard.SuppressCompletionValue ? 1 : 0,
                     0,
                     new EncodedStatementSidePayload(
-                        PrimaryExpressionProgram: evaluateAndDiscard.ExpressionProgram));
+                        PrimaryExpressionProgramReferenceId: expressionPrograms.GetOrAdd(evaluateAndDiscard.ExpressionProgram)));
                 return true;
             case AwaitAndDiscardInstruction awaitAndDiscard:
                 encoded = new EncodedStatementInstruction(
@@ -141,7 +182,7 @@ internal static class StatementInstructionDiagnosticsCodec
                     awaitAndDiscard.SuppressCompletionValue ? 1 : 0,
                     0,
                     new EncodedStatementSidePayload(
-                        PrimaryExpressionProgram: awaitAndDiscard.AwaitedProgram,
+                        PrimaryExpressionProgramReferenceId: expressionPrograms.GetOrAdd(awaitAndDiscard.AwaitedProgram),
                         PrimarySymbol: awaitAndDiscard.AwaitStateKey));
                 return true;
             case ThrowInstruction throwInstruction:
@@ -151,8 +192,8 @@ internal static class StatementInstructionDiagnosticsCodec
                     0,
                     0,
                     new EncodedStatementSidePayload(
-                        PrimaryExpressionProgram: throwInstruction.ThrowProgram,
-                        SecondaryExpressionProgram: throwInstruction.AwaitedProgram,
+                        PrimaryExpressionProgramReferenceId: expressionPrograms.GetOrAdd(throwInstruction.ThrowProgram),
+                        SecondaryExpressionProgramReferenceId: expressionPrograms.GetOrAdd(throwInstruction.AwaitedProgram),
                         PrimarySymbol: throwInstruction.AwaitStateKey));
                 return true;
             case ReturnInstruction returnInstruction:
@@ -162,8 +203,8 @@ internal static class StatementInstructionDiagnosticsCodec
                     0,
                     0,
                     new EncodedStatementSidePayload(
-                        PrimaryExpressionProgram: returnInstruction.ReturnProgram,
-                        SecondaryExpressionProgram: returnInstruction.AwaitedProgram,
+                        PrimaryExpressionProgramReferenceId: expressionPrograms.GetOrAdd(returnInstruction.ReturnProgram),
+                        SecondaryExpressionProgramReferenceId: expressionPrograms.GetOrAdd(returnInstruction.AwaitedProgram),
                         PrimarySymbol: returnInstruction.AwaitStateKey));
                 return true;
             case AssignmentSlotInstruction assignmentSlot:
@@ -173,8 +214,8 @@ internal static class StatementInstructionDiagnosticsCodec
                     GetAssignmentSlotFlags(assignmentSlot),
                     assignmentSlot.SlotIndex,
                     new EncodedStatementSidePayload(
-                        PrimaryExpressionProgram: assignmentSlot.ValueProgram,
-                        SecondaryExpressionProgram: assignmentSlot.AwaitedProgram,
+                        PrimaryExpressionProgramReferenceId: expressionPrograms.GetOrAdd(assignmentSlot.ValueProgram),
+                        SecondaryExpressionProgramReferenceId: expressionPrograms.GetOrAdd(assignmentSlot.AwaitedProgram),
                         PrimarySymbol: assignmentSlot.AwaitStateKey,
                         SecondarySymbol: assignmentSlot.TargetSymbol,
                         ScopeId: assignmentSlot.ScopeId,
@@ -188,8 +229,8 @@ internal static class StatementInstructionDiagnosticsCodec
                     (int)simpleVariableDeclaration.VarKind,
                     GetSimpleVariableDeclarationFlags(simpleVariableDeclaration),
                     new EncodedStatementSidePayload(
-                        PrimaryExpressionProgram: simpleVariableDeclaration.InitializerProgram,
-                        SecondaryExpressionProgram: simpleVariableDeclaration.AwaitedProgram,
+                        PrimaryExpressionProgramReferenceId: expressionPrograms.GetOrAdd(simpleVariableDeclaration.InitializerProgram),
+                        SecondaryExpressionProgramReferenceId: expressionPrograms.GetOrAdd(simpleVariableDeclaration.AwaitedProgram),
                         PrimarySymbol: simpleVariableDeclaration.AwaitStateKey,
                         SecondarySymbol: simpleVariableDeclaration.TargetSymbol));
                 return true;
@@ -200,8 +241,8 @@ internal static class StatementInstructionDiagnosticsCodec
                     (int)bindingVariableDeclaration.VarKind,
                     0,
                     new EncodedStatementSidePayload(
-                        PrimaryExpressionProgram: bindingVariableDeclaration.InitializerProgram,
-                        SecondaryExpressionProgram: bindingVariableDeclaration.AwaitedProgram,
+                        PrimaryExpressionProgramReferenceId: expressionPrograms.GetOrAdd(bindingVariableDeclaration.InitializerProgram),
+                        SecondaryExpressionProgramReferenceId: expressionPrograms.GetOrAdd(bindingVariableDeclaration.AwaitedProgram),
                         PrimarySymbol: bindingVariableDeclaration.AwaitStateKey,
                         BindingTargetProgram: bindingVariableDeclaration.TargetProgram));
                 return true;
@@ -211,7 +252,72 @@ internal static class StatementInstructionDiagnosticsCodec
         }
     }
 
-    public static ExecutionInstruction Decode(EncodedStatementInstruction encoded)
+    public static bool TryEncode(ExecutionInstruction instruction, out EncodedStatementInstruction encoded)
+    {
+        if (!TryEncode(instruction, new StatementDiagnosticsExpressionProgramTable(), out encoded))
+        {
+            return false;
+        }
+
+        encoded = instruction switch
+        {
+            EvaluateAndDiscardInstruction evaluateAndDiscard => encoded with
+            {
+                Payload = encoded.Payload with { PrimaryExpressionProgram = evaluateAndDiscard.ExpressionProgram }
+            },
+            AwaitAndDiscardInstruction awaitAndDiscard => encoded with
+            {
+                Payload = encoded.Payload with { PrimaryExpressionProgram = awaitAndDiscard.AwaitedProgram }
+            },
+            ThrowInstruction throwInstruction => encoded with
+            {
+                Payload = encoded.Payload with
+                {
+                    PrimaryExpressionProgram = throwInstruction.ThrowProgram,
+                    SecondaryExpressionProgram = throwInstruction.AwaitedProgram
+                }
+            },
+            ReturnInstruction returnInstruction => encoded with
+            {
+                Payload = encoded.Payload with
+                {
+                    PrimaryExpressionProgram = returnInstruction.ReturnProgram,
+                    SecondaryExpressionProgram = returnInstruction.AwaitedProgram
+                }
+            },
+            AssignmentSlotInstruction assignmentSlot => encoded with
+            {
+                Payload = encoded.Payload with
+                {
+                    PrimaryExpressionProgram = assignmentSlot.ValueProgram,
+                    SecondaryExpressionProgram = assignmentSlot.AwaitedProgram
+                }
+            },
+            SimpleVariableDeclarationInstruction simpleVariable => encoded with
+            {
+                Payload = encoded.Payload with
+                {
+                    PrimaryExpressionProgram = simpleVariable.InitializerProgram,
+                    SecondaryExpressionProgram = simpleVariable.AwaitedProgram
+                }
+            },
+            BindingVariableDeclarationInstruction bindingVariable => encoded with
+            {
+                Payload = encoded.Payload with
+                {
+                    PrimaryExpressionProgram = bindingVariable.InitializerProgram,
+                    SecondaryExpressionProgram = bindingVariable.AwaitedProgram
+                }
+            },
+            _ => encoded
+        };
+
+        return true;
+    }
+
+    public static ExecutionInstruction Decode(
+        EncodedStatementInstruction encoded,
+        StatementDiagnosticsExpressionProgramTable expressionPrograms)
     {
         return encoded.Opcode switch
         {
@@ -222,28 +328,28 @@ internal static class StatementInstructionDiagnosticsCodec
             EncodedStatementOpcode.BreakableExit => new BreakableExitInstruction(encoded.NextOrTarget),
             EncodedStatementOpcode.EvaluateAndDiscard => new EvaluateAndDiscardInstruction(
                 encoded.NextOrTarget,
-                encoded.Payload.PrimaryExpressionProgram ?? ExpressionProgram.Empty,
+                ResolveExpressionProgram(encoded.Payload.PrimaryExpressionProgramReferenceId, encoded.Payload.PrimaryExpressionProgram, expressionPrograms) ?? ExpressionProgram.Empty,
                 SuppressCompletionValue: encoded.Operand != 0),
             EncodedStatementOpcode.AwaitAndDiscard => new AwaitAndDiscardInstruction(
                 encoded.NextOrTarget,
                 encoded.Payload.PrimarySymbol ?? Symbol.Intern("__await_state"),
-                encoded.Payload.PrimaryExpressionProgram ?? ExpressionProgram.Empty,
+                ResolveExpressionProgram(encoded.Payload.PrimaryExpressionProgramReferenceId, encoded.Payload.PrimaryExpressionProgram, expressionPrograms) ?? ExpressionProgram.Empty,
                 SuppressCompletionValue: encoded.Operand != 0),
             EncodedStatementOpcode.Throw => new ThrowInstruction(
-                encoded.Payload.PrimaryExpressionProgram,
+                ResolveExpressionProgram(encoded.Payload.PrimaryExpressionProgramReferenceId, encoded.Payload.PrimaryExpressionProgram, expressionPrograms),
                 encoded.Payload.PrimarySymbol,
-                encoded.Payload.SecondaryExpressionProgram),
+                ResolveExpressionProgram(encoded.Payload.SecondaryExpressionProgramReferenceId, encoded.Payload.SecondaryExpressionProgram, expressionPrograms)),
             EncodedStatementOpcode.Return => new ReturnInstruction(
                 encoded.NextOrTarget,
-                encoded.Payload.PrimaryExpressionProgram,
+                ResolveExpressionProgram(encoded.Payload.PrimaryExpressionProgramReferenceId, encoded.Payload.PrimaryExpressionProgram, expressionPrograms),
                 encoded.Payload.PrimarySymbol,
-                encoded.Payload.SecondaryExpressionProgram),
+                ResolveExpressionProgram(encoded.Payload.SecondaryExpressionProgramReferenceId, encoded.Payload.SecondaryExpressionProgram, expressionPrograms)),
             EncodedStatementOpcode.AssignmentSlot => new AssignmentSlotInstruction(
                 encoded.NextOrTarget,
                 encoded.Payload.SecondarySymbol ?? Symbol.Intern("__assignment_target"),
-                ValueProgram: encoded.Payload.PrimaryExpressionProgram,
+                ValueProgram: ResolveExpressionProgram(encoded.Payload.PrimaryExpressionProgramReferenceId, encoded.Payload.PrimaryExpressionProgram, expressionPrograms),
                 AwaitStateKey: encoded.Payload.PrimarySymbol,
-                AwaitedProgram: encoded.Payload.SecondaryExpressionProgram,
+                AwaitedProgram: ResolveExpressionProgram(encoded.Payload.SecondaryExpressionProgramReferenceId, encoded.Payload.SecondaryExpressionProgram, expressionPrograms),
                 SuppressCompletionValue: (encoded.Operand & AssignmentSlotSuppressCompletionBit) != 0,
                 AllowNameInference: (encoded.Operand & AssignmentSlotAllowNameInferenceBit) != 0,
                 ScopeId: encoded.Payload.HasAssignmentMetadata ? encoded.Payload.ScopeId : -1,
@@ -253,20 +359,25 @@ internal static class StatementInstructionDiagnosticsCodec
                 encoded.NextOrTarget,
                 (VariableKind)encoded.Operand,
                 encoded.Payload.SecondarySymbol ?? Symbol.Intern("__declaration_target"),
-                InitializerProgram: encoded.Payload.PrimaryExpressionProgram,
+                InitializerProgram: ResolveExpressionProgram(encoded.Payload.PrimaryExpressionProgramReferenceId, encoded.Payload.PrimaryExpressionProgram, expressionPrograms),
                 AwaitStateKey: encoded.Payload.PrimarySymbol,
-                AwaitedProgram: encoded.Payload.SecondaryExpressionProgram,
+                AwaitedProgram: ResolveExpressionProgram(encoded.Payload.SecondaryExpressionProgramReferenceId, encoded.Payload.SecondaryExpressionProgram, expressionPrograms),
                 AllowNameInference: (encoded.Extra & SimpleVariableAllowNameInferenceBit) != 0,
                 IsScriptLevel: (encoded.Extra & SimpleVariableIsScriptLevelBit) != 0),
             EncodedStatementOpcode.BindingVariableDeclaration => new BindingVariableDeclarationInstruction(
                 encoded.NextOrTarget,
                 (VariableKind)encoded.Operand,
                 encoded.Payload.BindingTargetProgram ?? new IdentifierBindingTargetProgram(Symbol.Intern("__binding_target")),
-                InitializerProgram: encoded.Payload.PrimaryExpressionProgram,
+                InitializerProgram: ResolveExpressionProgram(encoded.Payload.PrimaryExpressionProgramReferenceId, encoded.Payload.PrimaryExpressionProgram, expressionPrograms),
                 AwaitStateKey: encoded.Payload.PrimarySymbol,
-                AwaitedProgram: encoded.Payload.SecondaryExpressionProgram),
+                AwaitedProgram: ResolveExpressionProgram(encoded.Payload.SecondaryExpressionProgramReferenceId, encoded.Payload.SecondaryExpressionProgram, expressionPrograms)),
             _ => throw new ArgumentOutOfRangeException(nameof(encoded), encoded.Opcode, "Unsupported diagnostic opcode")
         };
+    }
+
+    public static ExecutionInstruction Decode(EncodedStatementInstruction encoded)
+    {
+        return Decode(encoded, new StatementDiagnosticsExpressionProgramTable());
     }
 
     private static int GetAssignmentSlotFlags(AssignmentSlotInstruction instruction)
@@ -301,4 +412,11 @@ internal static class StatementInstructionDiagnosticsCodec
         return flags;
     }
 
+    private static ExpressionProgram? ResolveExpressionProgram(
+        int id,
+        ExpressionProgram? embeddedProgram,
+        StatementDiagnosticsExpressionProgramTable expressionPrograms)
+    {
+        return expressionPrograms.Resolve(id) ?? embeddedProgram;
+    }
 }

@@ -479,6 +479,26 @@ Guardrail:
   not authorize runtime compact storage routing, lowering rewrites, or new
   AST/IR fallback seams.
 
+### 7.9 Issue #1605 expression-reference storage checkpoint
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-62870b23dd`
+/ PR #1605 moved `EvaluateAndDiscard` and `AwaitAndDiscard` compact statement
+storage from embedded per-instruction expression payloads to shared expression
+program reference IDs. The accepted slice kept runtime execution record-backed,
+but made the compact owner boundary responsible for inserting expression
+programs once, reusing stable IDs for repeated programs, encoding those IDs in
+statement payloads, and decoding the semantic view through the shared
+expression table.
+
+Future expression-backed statement families should follow the same owner-backed
+shape: encode statement payloads as expression-program references, keep the
+plan-level expression table deduplicated, and prove `DecodeSemanticView()`
+round-trips the affected `ExecutionInstruction` records through that table.
+Compatibility embedding may remain only for diagnostic codec callers without a
+shared table context; compact owner storage should not reintroduce embedded
+expression payloads.
+
 ### 8. Staged migration
 
 1. Introduce compact storage schema in `ExecutionPlan` behind an internal

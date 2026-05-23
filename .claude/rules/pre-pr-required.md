@@ -6,14 +6,14 @@
 
 ### 1. Roslynator Fix
 ```bash
-roslynator fix src/Asynkron.JsEngine
-dotnet build src/Asynkron.JsEngine
+rtk roslynator fix src/Asynkron.JsEngine
+rtk dotnet build src/Asynkron.JsEngine
 ```
 If build fails, fix issues and rerun roslynator.
 
 ### 2. Run Full Internal Unit Tests
 ```bash
-dotnet test tests/Asynkron.JsEngine.Tests
+rtk dotnet test tests/Asynkron.JsEngine.Tests
 ```
 - Rerun flaky tests to confirm
 - Fix broken tests before proceeding
@@ -21,17 +21,26 @@ dotnet test tests/Asynkron.JsEngine.Tests
 
 ### 3. Check for Code Duplication
 ```bash
-quickdup --path src/Asynkron.JsEngine --ext .cs --select 0..20 --min 2 --exclude ".g."
+rtk quickdup --path src/Asynkron.JsEngine --ext .cs --select 0..20 --min 2 --exclude ".g."
 ```
 If new duplications found: refactor, then restart from step 1.
 
 ### 4. Format Code
 ```bash
-dotnet format src/Asynkron.JsEngine
+rtk dotnet format src/Asynkron.JsEngine
 ```
 
 ### 5. Create PR
 Only after ALL checks pass.
+
+### Canonical Local Gate
+```bash
+rtk make quality
+```
+Use this as the canonical internal build/test gate during local verification.
+It does **not** replace the mandatory pre-PR checklist above (Roslynator, full
+internal tests, QuickDup, and `dotnet format`); complete those steps before PR
+creation.
 
 ## Rules
 

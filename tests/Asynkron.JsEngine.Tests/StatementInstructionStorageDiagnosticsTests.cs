@@ -151,7 +151,7 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Build_PopulatesPureControlFlowCompactSidecar_WithoutMutatingInstructionRuntimeShape()
+    public async Task Build_CreatesPureControlFlowCompactSidecarLazily_WithoutMutatingInstructionRuntimeShape()
     {
         var parsedProgram = _engine.ParseProgram("""
             function sample(limit) {
@@ -169,8 +169,8 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
         var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Function).GetOrCreateCache();
         var plan = Assert.IsType<ExecutionPlan>(cache.Plan);
         var baselineInstructions = plan.Instructions;
-        Assert.NotNull(plan.CompactStatementStorageBoundary);
-        var sidecar = plan.CompactStatementStorageBoundary!;
+        Assert.Null(plan.CompactStatementStorageBoundary);
+        var sidecar = plan.CreateCompactStatementStorageBoundary();
         var decodedSidecar = sidecar.Storage.DecodeSemanticView();
         var expectedPureControlFlowInstructions = baselineInstructions
             .Where(static instruction =>

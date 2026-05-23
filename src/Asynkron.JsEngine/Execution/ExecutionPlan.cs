@@ -51,7 +51,9 @@ internal sealed record ExecutionPlan(
         ScopeLexicalBindings ?? ImmutableDictionary<int, ImmutableHashSet<Symbol>>.Empty;
 
     public CompactStatementStorageBoundary CreateCompactStatementStorageBoundary() =>
-        CompactStatementStorageBoundary ?? CompactStatementStorage.CreateBoundary(Instructions);
+        CompactStatementStorageBoundary ?? CompactStatementStorage.CreateBoundary(
+            Instructions,
+            CompactStatementBoundaryMode.PureControlFlow);
 
     public CompactStatementStorageBoundary CreateDiagnosticCompactStatementStorageBoundary() =>
         CompactStatementStorage.CreateBoundary(Instructions, CompactStatementBoundaryMode.DiagnosticCoverage);

@@ -764,15 +764,15 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             InstructionKind.AssignmentSlot,
             InstructionKind.SimpleVariableDeclaration,
             InstructionKind.BindingVariableDeclaration,
-            InstructionKind.StoreResumeValue
+            InstructionKind.StoreResumeValue,
+            InstructionKind.FunctionDeclaration,
+            InstructionKind.ClassDeclaration
         };
 
         var expectedUnsupported = new HashSet<InstructionKind>
         {
             InstructionKind.IncrementSlot,
             InstructionKind.LogicalCompoundAssignmentSlot,
-            InstructionKind.FunctionDeclaration,
-            InstructionKind.ClassDeclaration,
             InstructionKind.PushEnvironment,
             InstructionKind.PopEnvironment,
             InstructionKind.Yield,

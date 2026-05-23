@@ -45,6 +45,15 @@ decode bridge are explicit.
    tables, decode parity, diagnostics, and storage accounting together. Keep
    deferred families explicit in `CompactStatementStorageBoundary` instead of
    letting unsupported instructions disappear from estimates.
+9. Keep the diagnostics codec shape owner-compatible even while its class name
+   remains diagnostic. Encoded statement data should be `CompactStatementHeader`
+   plus typed `CompactStatementPayload` references or table ids, not
+   diagnostic-only delimiter strings or overloaded catch-all fields. The codec
+   may keep compatibility overloads that embed references for direct
+   encode/decode tests, but owner-boundary callers should flow through shared
+   reference tables and runtime execution must still route through decoded
+   `ExecutionInstruction` views until a dedicated runtime-routing slice changes
+   that contract.
 
 ## Why
 
@@ -95,5 +104,15 @@ still leaves `ExecutionPlan.Instructions` as the runtime source of truth.
 Future work must not treat the boundary as a hidden runtime migration, and must
 preserve deferred-family visibility so storage estimates and migration scope
 remain honest.
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-7db25b1c7e`
+/ PR #1566 replaced the diagnostics-only statement encoding record with an
+owner-compatible compact header/payload shape while preserving decoded
+`ExecutionInstruction` runtime execution. The lesson is that diagnostics can
+lead the migration only if their encoded data already has the shape a storage
+owner can persist: fixed scalar header fields, typed side payload references,
+shared expression-program ids for owner-boundary callers, and direct
+encode/decode compatibility only as a bridge for tests and diagnostics.
 
 Related ADR: `docs/adrs/0094-compact-statement-bytecode-encoding-design-from-current-ir.md`.

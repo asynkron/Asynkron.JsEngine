@@ -34,6 +34,16 @@
       "show_progress": false,
       "show_timing": false
     },
+    "ir-arithmetic": {
+      "name": "IrArithmeticProfile",
+      "description": "Arithmetic loop with var bindings - profiler-friendly IR expression dispatch",
+      "script": "ir-arithmetic.js",
+      "mode": "sync",
+      "iterations": 20,
+      "warmup": 1,
+      "show_progress": true,
+      "show_timing": true
+    },
     "whileloop": {
       "name": "WhileLoopProfile",
       "description": "While loop with 100K iterations",

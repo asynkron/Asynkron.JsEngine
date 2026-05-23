@@ -683,6 +683,24 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void StatementInstructionDiagnosticCodec_StoreResumeValue_RoundTripsWithAndWithoutTargetSymbol()
+    {
+        var withTarget = new StoreResumeValueInstruction(Next: 12, TargetSymbol: Symbol.Intern("resume_target"));
+        Assert.True(StatementInstructionDiagnosticsCodec.TryEncode(withTarget, out var withTargetEncoded));
+        Assert.Equal(EncodedStatementOpcode.StoreResumeValue, withTargetEncoded.Header.Opcode);
+        Assert.Equal(Symbol.Intern("resume_target"), withTargetEncoded.Payload.PrimarySymbol);
+        var withTargetDecoded = Assert.IsType<StoreResumeValueInstruction>(StatementInstructionDiagnosticsCodec.Decode(withTargetEncoded));
+        Assert.Equal(withTarget, withTargetDecoded);
+
+        var withoutTarget = new StoreResumeValueInstruction(Next: 17, TargetSymbol: null);
+        Assert.True(StatementInstructionDiagnosticsCodec.TryEncode(withoutTarget, out var withoutTargetEncoded));
+        Assert.Equal(EncodedStatementOpcode.StoreResumeValue, withoutTargetEncoded.Header.Opcode);
+        Assert.Null(withoutTargetEncoded.Payload.PrimarySymbol);
+        var withoutTargetDecoded = Assert.IsType<StoreResumeValueInstruction>(StatementInstructionDiagnosticsCodec.Decode(withoutTargetEncoded));
+        Assert.Equal(withoutTarget, withoutTargetDecoded);
+    }
+
+    [Fact]
     public void StatementInstructionDiagnosticCodec_InstructionKindClassification_IsExplicitAndDriftGated()
     {
         var expectedSupported = new HashSet<InstructionKind>
@@ -698,7 +716,8 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             InstructionKind.Return,
             InstructionKind.AssignmentSlot,
             InstructionKind.SimpleVariableDeclaration,
-            InstructionKind.BindingVariableDeclaration
+            InstructionKind.BindingVariableDeclaration,
+            InstructionKind.StoreResumeValue
         };
 
         var expectedUnsupported = new HashSet<InstructionKind>
@@ -711,7 +730,6 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             InstructionKind.PopEnvironment,
             InstructionKind.Yield,
             InstructionKind.YieldStar,
-            InstructionKind.StoreResumeValue,
             InstructionKind.EnterTry,
             InstructionKind.EnterCatch,
             InstructionKind.LeaveTry,

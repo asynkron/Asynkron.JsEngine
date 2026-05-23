@@ -257,8 +257,7 @@ internal static class StatementInstructionStorageDiagnostics
                 InstructionKind.BreakableEnter or
                 InstructionKind.EndFinally or
                 InstructionKind.Yield or
-                InstructionKind.YieldStar or
-                InstructionKind.StoreResumeValue => "suspend-and-exception-flow",
+                InstructionKind.YieldStar => "suspend-and-exception-flow",
 
                 InstructionKind.IteratorInit or
                 InstructionKind.IteratorMoveNext or

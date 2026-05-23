@@ -445,6 +445,30 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
     }
 
     [Fact]
+    public void CompactStatementStorageBoundary_StoreResumeValue_UsesSymbolReferenceAndRoundTripsSemanticView()
+    {
+        var instruction = new StoreResumeValueInstruction(Next: 11, TargetSymbol: Symbol.Intern("resume_target"));
+        var boundary = CompactStatementStorage.CreateBoundary(new ExecutionInstruction[] { instruction });
+        var decoded = boundary.Storage.DecodeSemanticView();
+
+        Assert.Single(decoded);
+        Assert.Equal(instruction, Assert.IsType<StoreResumeValueInstruction>(decoded[0]));
+        Assert.Contains(
+            boundary.SupportedKindClassifications,
+            entry => entry.Kind == InstructionKind.StoreResumeValue &&
+                     entry.PayloadGroup == CompactStatementPayloadGroup.ResumeValueWithTarget &&
+                     entry.IsSupported);
+        Assert.Equal(1, boundary.Storage.ReferenceTables.Symbols.Length);
+        Assert.Equal(Symbol.Intern("resume_target"), boundary.Storage.ReferenceTables.Symbols[0]);
+
+        var snapshot = StatementInstructionStorageDiagnostics.Collect(
+            new ExecutionPlan(ImmutableArray.Create<ExecutionInstruction>(instruction), EntryPoint: 0));
+        Assert.Equal(1, snapshot.SupportedInstructionCount);
+        Assert.Equal(0, snapshot.UnsupportedInstructionCount);
+        Assert.Equal(1, snapshot.SymbolOperandCount);
+    }
+
+    [Fact]
     public void CompactStatementStorageBoundary_StoresExpressionProgramsAsReferencesOutsideOpcodeStream()
     {
         var expressionProgram = ExpressionProgram.Empty;

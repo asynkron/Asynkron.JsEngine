@@ -46,7 +46,7 @@ maintenance pass, keep the slice repo-local and reviewable:
    slice. Do not add or change recurrence infrastructure; Faktorial owns the
    recurrence schedule.
 2. Capture a cheap baseline signal before editing. Prefer evidence such as
-   `make -n quality`, a targeted `rg` check, `git diff --check`, or another
+   `rtk make -n quality`, a targeted `rg` check, `git diff --check`, or another
    narrow command tied directly to the chosen slice.
    For issue details, comments, prior stage output, and logs, use supplied Faktorial Source Context first. If more evidence is needed, use the Faktorial HTTP API compact log summary endpoint (`/api/logs/<issue>/summary`) as the bounded fallback, then use narrow searches over `.faktorial/logs/ghNNNN.log` only when the summary is insufficient. Do not run the host `faktorial` daemon binary for issue/log/state reads from an agent. Treat missing `gh` auth as an environment detail, not a blocker.
 3. If the slice adds a new ADR under `docs/adrs/`, reserve the ID with

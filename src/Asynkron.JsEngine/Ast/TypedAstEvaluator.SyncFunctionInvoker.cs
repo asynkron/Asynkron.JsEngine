@@ -2120,14 +2120,14 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             if (_activationSlots is { } activationSlots)
             {
                 functionEnvironment.ScopeId = activationSlots.ScopeId;
-                functionEnvironment.InitializeSlotsWithCapacity(activationSlots.SlotCount, _activationMinimumCapacity);
+                functionEnvironment.InitializeSlotsWithCapacity(GetNonNegativeSlotCount(activationSlots.SlotCount), _activationMinimumCapacity);
                 functionEnvironment.SetSlotNames(activationSlots.SlotNames);
             }
             else
             {
                 functionEnvironment.ScopeId = _functionScopeId;
                 functionEnvironment.SetSlotMap(_function.SlotMap);
-                functionEnvironment.InitializeSlotsWithCapacity(_function.SlotCount, _activationMinimumCapacity);
+                functionEnvironment.InitializeSlotsWithCapacity(GetNonNegativeSlotCount(_function.SlotCount), _activationMinimumCapacity);
             }
 
             JsValue boundThisValue;
@@ -2152,7 +2152,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         [MethodImpl(JsEngineConstants.Inlining)]
         private int ComputeActivationMinimumCapacity()
         {
-            var baseSlots = _activationSlots?.SlotCount ?? _function.SlotCount;
+            var baseSlots = GetNonNegativeSlotCount(_activationSlots?.SlotCount ?? _function.SlotCount);
             var extras = 1; // Symbol.This is always defined in the invocation environment.
 
             if (IsArrowFunction)
@@ -2175,6 +2175,12 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
             return baseSlots + extras;
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static int GetNonNegativeSlotCount(int slotCount)
+        {
+            return slotCount > 0 ? slotCount : 0;
         }
 
         /// <summary>
@@ -2295,7 +2301,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             if (_activationSlots is { } activationSlots)
             {
                 reuseEnvironment.ScopeId = activationSlots.ScopeId;
-                    reuseEnvironment.InitializeSlotsWithCapacity(activationSlots.SlotCount, _activationMinimumCapacity);
+                reuseEnvironment.InitializeSlotsWithCapacity(GetNonNegativeSlotCount(activationSlots.SlotCount), _activationMinimumCapacity);
                 reuseEnvironment.SetSlotNames(activationSlots.SlotNames);
             }
             else

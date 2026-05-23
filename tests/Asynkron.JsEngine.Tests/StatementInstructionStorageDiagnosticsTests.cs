@@ -122,6 +122,38 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Build_PopulatesPureControlFlowCompactSidecar_WithoutMutatingInstructionRuntimeShape()
+    {
+        var parsedProgram = _engine.ParseProgram("""
+            function sample(limit) {
+                let total = 0;
+                if (limit > 1) {
+                    total = total + limit;
+                } else {
+                    total = total + 1;
+                }
+                return total;
+            }
+            """);
+        await _engine.Evaluate(parsedProgram);
+        var declaration = Assert.IsType<FunctionDeclaration>(Assert.Single(parsedProgram.Body));
+        var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Function).GetOrCreateCache();
+        var plan = Assert.IsType<ExecutionPlan>(cache.Plan);
+        var baselineInstructions = plan.Instructions;
+
+        Assert.NotNull(plan.CompactStatementStorageBoundary);
+        Assert.All(
+            plan.CompactStatementStorageBoundary!.SupportedKindClassifications,
+            entry => Assert.True(
+                entry.PayloadGroup is CompactStatementPayloadGroup.ControlFlowNoPayload or
+                    CompactStatementPayloadGroup.CompletionControl));
+        Assert.DoesNotContain(
+            plan.CompactStatementStorageBoundary.SupportedKindClassifications,
+            entry => entry.Kind == InstructionKind.Return);
+        Assert.Equal(baselineInstructions, plan.Instructions);
+    }
+
+    [Fact]
     public async Task Collect_FromFunctionPlan_TraversesNestedDeclarationPlans()
     {
         var parsedProgram = _engine.ParseProgram("""

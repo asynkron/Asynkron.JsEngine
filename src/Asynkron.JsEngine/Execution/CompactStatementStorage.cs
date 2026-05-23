@@ -111,6 +111,12 @@ internal sealed record CompactStatementStorageBoundary(
     ImmutableArray<CompactStatementKindClassification> SupportedKindClassifications,
     ImmutableArray<CompactStatementKindClassification> DeferredKindClassifications);
 
+internal enum CompactStatementBoundaryMode
+{
+    DiagnosticCoverage,
+    PureControlFlow
+}
+
 internal sealed class CompactStatementStorage
 {
     private readonly ImmutableArray<CompactStatementStorageInstructionReferences> _instructionReferences;
@@ -147,7 +153,9 @@ internal sealed class CompactStatementStorage
 
     public int InstructionCount => OpcodeStream.Length;
 
-    public static CompactStatementStorageBoundary CreateBoundary(IReadOnlyList<ExecutionInstruction> instructions)
+    public static CompactStatementStorageBoundary CreateBoundary(
+        IReadOnlyList<ExecutionInstruction> instructions,
+        CompactStatementBoundaryMode mode = CompactStatementBoundaryMode.DiagnosticCoverage)
     {
         var opcodeStream = ImmutableArray.CreateBuilder<EncodedStatementOpcode>();
         var nextOrTargetOperands = ImmutableArray.CreateBuilder<int>();
@@ -164,6 +172,12 @@ internal sealed class CompactStatementStorage
         foreach (var instruction in instructions)
         {
             var classification = CompactStatementInstructionTaxonomy.Classify(instruction.Kind);
+            if (!IsClassificationIncluded(classification, mode))
+            {
+                deferredClassifications.TryAdd(classification.Kind, classification with { IsSupported = false });
+                continue;
+            }
+
             if (!classification.IsSupported)
             {
                 deferredClassifications.TryAdd(classification.Kind, classification);
@@ -209,6 +223,20 @@ internal sealed class CompactStatementStorage
             storage,
             supportedClassifications.Values.OrderBy(static classification => classification.Kind).ToImmutableArray(),
             deferredClassifications.Values.OrderBy(static classification => classification.Kind).ToImmutableArray());
+    }
+
+    private static bool IsClassificationIncluded(
+        CompactStatementKindClassification classification,
+        CompactStatementBoundaryMode mode)
+    {
+        return mode switch
+        {
+            CompactStatementBoundaryMode.DiagnosticCoverage => true,
+            CompactStatementBoundaryMode.PureControlFlow => classification.PayloadGroup is
+                CompactStatementPayloadGroup.ControlFlowNoPayload or
+                CompactStatementPayloadGroup.CompletionControl,
+            _ => true
+        };
     }
 
     public static bool TryEncodeSupportedInstruction(ExecutionInstruction instruction, out CompactStatementInstruction encoded)

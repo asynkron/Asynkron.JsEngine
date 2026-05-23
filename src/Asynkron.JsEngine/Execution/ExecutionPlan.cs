@@ -38,7 +38,8 @@ internal sealed record ExecutionPlan(
     int RootScopeId = 0,
     int LayoutId = 0,
     int FlatSlotCount = 0,
-    ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>>? FlatSlotMappings = null)
+    ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>>? FlatSlotMappings = null,
+    CompactStatementStorageBoundary? CompactStatementStorageBoundary = null)
 {
     public ImmutableDictionary<Symbol, int> SafeRootSlotMap =>
         RootSlotMap ?? ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance);
@@ -50,5 +51,5 @@ internal sealed record ExecutionPlan(
         ScopeLexicalBindings ?? ImmutableDictionary<int, ImmutableHashSet<Symbol>>.Empty;
 
     public CompactStatementStorageBoundary CreateCompactStatementStorageBoundary() =>
-        CompactStatementStorage.CreateBoundary(Instructions);
+        CompactStatementStorageBoundary ?? CompactStatementStorage.CreateBoundary(Instructions);
 }

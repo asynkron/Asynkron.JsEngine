@@ -119,6 +119,12 @@ decode bridge are explicit.
     `SourceBlock` as an analysis-only payload that must be retired before
     published plans, and keep `ExecutionPlanRunner` record-backed until a
     separate runtime-routing slice proves the full environment operand model.
+20. Keep broad runtime routing and record-backed instruction removal behind
+    deferred-payload normalization while the live statement-storage profile
+    still reports unsupported families. A migration report or diagnostic count
+    can recommend the next slice, but it should not become a runtime flip until
+    the unsupported-family histogram, decode parity tests, runner AST seam scan,
+    and forloop memory profile all support that specific routing change.
 
 ## Why
 
@@ -292,4 +298,16 @@ checkpoint, not a runtime migration: `SourceBlock` retirement stays governed by
 the plan-publication invariant, `PopEnvironment` and `BreakableEnter` remain
 deferred, and the runner continues to execute the record-backed semantic view.
 
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-cfc3b74783`
+/ PR #1625 produced the final 2026-05-23 migration decision report for the
+current statement-bytecode plan. The refreshed forloop diagnostics reported
+`supported=12` and `unsupported=6`, with unsupported assignment/mutation,
+declaration/scope, branch/control, and suspend/exception-flow families still in
+the hot path. The durable lesson is that another deferred-payload normalization
+wave is safer than broad runtime compact routing or record-backed storage
+removal. Use diagnostic support counts as readiness evidence, not as permission
+to switch `ExecutionPlanRunner` off the record-backed instruction view.
+
 Related ADR: `docs/adrs/0094-compact-statement-bytecode-encoding-design-from-current-ir.md`.
+Related ADR: `docs/adrs/0098-keep-statement-runtime-routing-behind-deferred-payload-normalization.md`.

@@ -375,7 +375,7 @@ profiling evidence. Do not treat the existence of
 `CreateCompactStatementStorageBoundary()` as permission to bypass
 record-backed runtime execution.
 
-### 7.5 Issue #1595 compact-owner diagnostic/printer route checkpoint
+### 7.6 Issue #1595 compact-owner diagnostic/printer route checkpoint
 
 Issue
 `planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-322b73d626`
@@ -392,6 +392,32 @@ tests toward owner-boundary decode paths first, while keeping
 view until a dedicated runtime-routing slice changes that contract.
 Unsupported and deferred families must remain visible in compact-boundary
 metadata instead of being hidden behind a partial decoded semantic view.
+
+### 7.7 Issue #1593 sidecar-boundary coverage checkpoint
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-2385af5d32`
+/ PR #1593 added the first plan-owned compact statement storage sidecar for the
+pure control-flow route-readiness slice. `ExecutionPlan` now carries an optional
+`CompactStatementStorageBoundary` built during plan publication, while
+`ExecutionPlan.Instructions` remains the runtime source of truth.
+
+The review repair split two boundary intents that must stay separate:
+
+1. `CreateCompactStatementStorageBoundary()` may return the cached
+   pure-control-flow sidecar because that sidecar represents the first
+   owner-backed route-readiness slice.
+2. `CreateDiagnosticCompactStatementStorageBoundary()` must always rebuild from
+   the full instruction list with `DiagnosticCoverage` so diagnostic storage
+   estimates still include every codec-supported family, such as `Return`, even
+   when the plan has a narrower pure-control-flow sidecar.
+
+Future statement storage work must therefore name the boundary mode it needs.
+Route-readiness, printer, and parity work may use the cached sidecar when the
+slice intentionally targets a narrower family. Coverage and measurement work
+must use the diagnostic boundary from the full semantic instruction list so
+diagnostic evidence does not regress as runtime-storage seams become narrower
+and more publishable.
 
 ### 8. Staged migration
 

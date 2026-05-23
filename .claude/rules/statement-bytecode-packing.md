@@ -65,6 +65,17 @@ decode bridge are explicit.
     not lower to a direct instance of the kind, add a minimal synthetic
     `ExecutionPlan` probe for that kind instead of relying only on membership in
     an expected-kind set.
+12. For forloop statement-storage measurement, use the ProfileRunner
+    `--statement-instruction-storage` flag to capture storage diagnostics before
+    comparing profiler allocation samples. Treat small `./tools/profile forloop
+    --memory` differences as sampling context unless the same slice changes
+    runtime storage and proves a real allocation delta.
+13. Keep route-readiness sidecars separate from diagnostic coverage boundaries.
+    A cached `ExecutionPlan` compact sidecar may intentionally cover only the
+    family being prepared for runtime routing, such as pure control flow.
+    Storage diagnostics must request an explicit diagnostic boundary rebuilt
+    from the full semantic instruction list so codec-supported families outside
+    the sidecar still appear in coverage and byte estimates.
 
 ## Why
 
@@ -143,5 +154,23 @@ comparison path. The fix added a minimal synthetic `ExecutionPlan` with a direct
 `JumpInstruction` so the same decode-parity assertion covers the claimed kind.
 Future parity expansion should prove both family presence and branch execution,
 especially for IR kinds whose source-level lowering is context-dependent.
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-a9b9306ab8`
+/ PR #1594 wired `StatementInstructionStorageDiagnostics` into ProfileRunner via
+`--statement-instruction-storage` and recorded the forloop memory sample as
+neutral, not an optimization win. Future compact statement-storage work should
+keep storage diagnostics and runtime allocation profiling as separate evidence
+channels so a tooling-only diagnostic slice does not overclaim CPU or memory
+impact.
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-2385af5d32`
+/ PR #1593 introduced a plan-owned pure-control-flow sidecar, then review caught
+that diagnostics had started reusing that narrower cached boundary. The repair
+added an explicit diagnostic-coverage boundary so `Return` and other
+codec-supported non-sidecar families remain counted. Future agents need this
+boundary split because narrowing a publishable runtime-storage sidecar must not
+silently narrow the measurement surface that guides later migration slices.
 
 Related ADR: `docs/adrs/0094-compact-statement-bytecode-encoding-design-from-current-ir.md`.

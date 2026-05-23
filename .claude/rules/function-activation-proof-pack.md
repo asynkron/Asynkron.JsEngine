@@ -22,6 +22,12 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
 4. Do not replace this narrow internal proof with Test262-only evidence. Test262
    can widen confidence after the focused pack passes, but the named pack is the
    fast regression gate for this subsystem.
+5. When optimizing lazy `arguments` creation, prove the observable-binding split
+   explicitly: ordinary body `arguments`, parameter-default `arguments`, direct
+   eval in the body, direct eval in parameter defaults, nested-arrow
+   `arguments`, and nested-arrow direct eval. Arrow functions inherit the
+   enclosing activation's `arguments`; nested non-arrow functions are the
+   boundary.
 
 ## Why
 
@@ -33,3 +39,13 @@ and mapped `arguments`, non-simple parameters, direct eval, `with`, mode
 differences, and resumable functions can regress independently. Future
 activation-overhead work needs one explicit, cheap proof gate before broader
 quality or Test262 runs.
+
+Issue
+`planitem-planmanual1779530433702731000-reduce-function-call-activation-overhead-p-3c8725f1f9`
+and PR #1637 showed the lazy-arguments trap directly: an optimization that only
+looks for syntactic `arguments` in the immediate body misses direct eval and
+nested arrows, both of which can observe the enclosing function's binding. The
+durable rule is to prove the observable-binding decision, not just allocation
+avoidance.
+
+Related ADR: `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`.

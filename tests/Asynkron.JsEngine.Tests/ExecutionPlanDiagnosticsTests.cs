@@ -766,6 +766,7 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             InstructionKind.BindingVariableDeclaration,
             InstructionKind.StoreResumeValue,
             InstructionKind.FunctionDeclaration,
+            InstructionKind.PushEnvironment,
             InstructionKind.ClassDeclaration
         };
 
@@ -773,7 +774,6 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
         {
             InstructionKind.IncrementSlot,
             InstructionKind.LogicalCompoundAssignmentSlot,
-            InstructionKind.PushEnvironment,
             InstructionKind.PopEnvironment,
             InstructionKind.Yield,
             InstructionKind.YieldStar,

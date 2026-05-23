@@ -60,6 +60,8 @@ public static partial class TypedAstEvaluator
         private readonly int _activationMinimumCapacity;
         private readonly int _functionScopeId;
         private readonly ActivationSlotShape? _activationSlots;
+        private readonly bool _hasSimpleReturnParameterBinaryFastPath;
+        private readonly SimpleReturnParameterBinaryExpression _simpleReturnParameterBinaryFastPath;
 
         private readonly bool _wasAsyncFunction;
         private readonly FunctionExecutionPlanSeed _planSeed;
@@ -303,6 +305,12 @@ public static partial class TypedAstEvaluator
                                                 !_hasCapturedActivationInClosure &&
                                                 _lexicalThisEnvironment is null &&
                                                 !ContainsInnerFunctionExpression(function);
+            if (planSeed.Plan is { SimpleReturnParameterBinary: { } parameterBinary } plan &&
+                CanUseSimpleIrActivationPlanShape(plan))
+            {
+                _hasSimpleReturnParameterBinaryFastPath = true;
+                _simpleReturnParameterBinaryFastPath = parameterBinary;
+            }
         }
 
         public bool IsAsyncFunction { get; }
@@ -671,7 +679,80 @@ public static partial class TypedAstEvaluator
             JsValue thisValue,
             EvaluationContext callingContext)
         {
+            if (TryInvokePrecomputedSimpleNumberParameterBinary2(arg0, arg1, out var fastResult))
+            {
+                return fastResult;
+            }
+
             return InvokeWithContextSlow(new TwoValueArgs(arg0, arg1), thisValue, callingContext, JsValue.Undefined);
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private bool TryInvokePrecomputedSimpleNumberParameterBinary2(
+            JsValue arg0,
+            JsValue arg1,
+            out JsValue result)
+        {
+            result = JsValue.Undefined;
+            if (!_hasSimpleReturnParameterBinaryFastPath ||
+                !_canUseSimpleIrActivationFastBase ||
+                !arg0.IsNumber ||
+                !arg1.IsNumber ||
+                IsClassConstructor ||
+                IsArrowFunction ||
+                IsAsyncLike ||
+                _function.IsGenerator ||
+                _function.IsDefaultDerivedConstructor ||
+                _lexicalThisEnvironment is not null ||
+                _homeObject is not null ||
+                PrivateNameScope is not null ||
+                !_capturedPrivateNameScopes.IsDefaultOrEmpty ||
+                _superConstructor is not null ||
+                _superPrototype is not null ||
+                !_instanceFields.IsDefaultOrEmpty ||
+                !TryGetSimpleNumberArgument(arg0, arg1, _simpleReturnParameterBinaryFastPath.LeftParameterIndex,
+                    out var left) ||
+                !TryGetSimpleNumberArgument(arg0, arg1, _simpleReturnParameterBinaryFastPath.RightParameterIndex,
+                    out var right))
+            {
+                return false;
+            }
+
+            RealmState.Logger?.LogInformation(
+                "simple-ir-parameter-number-binary-fast-path func={Function}",
+                _function.Name?.Name ?? "<anonymous>");
+
+            result = _simpleReturnParameterBinaryFastPath.Operator switch
+            {
+                BinaryOperator.Add => JsValue.FromDouble(left + right),
+                BinaryOperator.Subtract => JsValue.FromDouble(left - right),
+                BinaryOperator.Multiply => JsValue.FromDouble(left * right),
+                _ => JsValue.FromDouble(left / right)
+            };
+            return true;
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static bool TryGetSimpleNumberArgument(
+            JsValue arg0,
+            JsValue arg1,
+            int index,
+            out double value)
+        {
+            switch (index)
+            {
+                case 0 when arg0.IsNumber:
+                    value = arg0.NumberValue;
+                    return true;
+
+                case 1 when arg1.IsNumber:
+                    value = arg1.NumberValue;
+                    return true;
+
+                default:
+                    value = 0.0;
+                    return false;
+            }
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -1794,17 +1875,17 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 return false;
             }
 
-            if (plan.ActivationSlots is not { } activationSlots ||
-                activationSlots.ScopeId != plan.RootScopeId ||
-                activationSlots.LayoutId != plan.LayoutId ||
-                !plan.HasOnlyRootFlatSlotMappings ||
-                activationSlots.ParameterSlotIndices.IsDefault ||
-                activationSlots.ParameterSlotIndices.Length != _parameterNames.Length)
-            {
-                return false;
-            }
+            return CanUseSimpleIrActivationPlanShape(plan);
+        }
 
-            return true;
+        private bool CanUseSimpleIrActivationPlanShape(ExecutionPlan plan)
+        {
+            return plan.ActivationSlots is { } activationSlots &&
+                   activationSlots.ScopeId == plan.RootScopeId &&
+                   activationSlots.LayoutId == plan.LayoutId &&
+                   plan.HasOnlyRootFlatSlotMappings &&
+                   !activationSlots.ParameterSlotIndices.IsDefault &&
+                   activationSlots.ParameterSlotIndices.Length == _parameterNames.Length;
         }
 
         private static bool HasCapturedActivationInClosure(JsEnvironment closure)

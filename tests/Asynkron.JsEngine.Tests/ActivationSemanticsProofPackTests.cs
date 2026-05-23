@@ -11,6 +11,7 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     private const string SimpleIrActivationFastPathLog = "simple-ir-activation-fast-path";
+    private const string SimpleIrParameterNumberBinaryFastPathLog = "simple-ir-parameter-number-binary-fast-path";
     private const string SimpleIrParameterBinaryFastPathLog = "simple-ir-parameter-binary-fast-path";
     private const string SimpleIrReturnFastPathLog = "simple-ir-return-fast-path";
 
@@ -37,7 +38,7 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     }
 
     [Fact(Timeout = 5000)]
-    public async Task SimpleReturnFunction_UsesIrReturnFastPath()
+    public async Task SimpleReturnFunction_NumberArgumentsUseCallerBinaryFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -51,6 +52,39 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
         Assert.Equal(42d, result);
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrParameterNumberBinaryFastPathLog, StringComparison.Ordinal));
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrParameterBinaryFastPathLog, StringComparison.Ordinal));
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrReturnFastPathLog, StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task SimpleReturnFunction_NonNumberArgumentsStayOnIrReturnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let hits = 0;
+            const box = {
+                valueOf() {
+                    hits++;
+                    return 20;
+                }
+            };
+
+            function add(a, b) {
+                return a + b;
+            }
+
+            String(add(box, 22)) + ":" + String(hits);
+            """);
+
+        Assert.Equal("42:1", result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrParameterNumberBinaryFastPathLog, StringComparison.Ordinal));
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrParameterBinaryFastPathLog, StringComparison.Ordinal));
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),

@@ -9,6 +9,7 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - The engine has a clear fast-path direction: typed AST parse/analyze, lowered statement IR, and expression payloads compiled into `ExpressionProgram` bytecode.
 - Expression bytecode coverage and failure-code taxonomy are documented and test-linked (`docs/expression-bytecode-coverage.md`).
 - Recent migration reporting keeps runtime/storage boundaries explicit and avoids overclaiming execution-path changes (`docs/expression-bytecode-migration-report-2026-05-23.md`).
+- Activation-slot ownership and observable arguments binding seams are now documented as plan-owned/runtime-consumed boundaries (`docs/adrs/0099-keep-function-activation-slot-shape-plan-owned.md`, `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`).
 
 ### What Works Worse
 - Statement execution still relies on record-backed `ExecutionPlan.Instructions`; compact statement storage is diagnostics-oriented rather than runtime-active today.
@@ -35,6 +36,9 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 ## Evidence Surfaces
 - Current migration direction and runtime/storage boundary: `docs/expression-bytecode-migration-report-2026-05-23.md`
 - Expression bytecode capability and failure taxonomy: `docs/expression-bytecode-coverage.md`
+- Activation boundary decisions for call setup and arguments behavior:
+  - `docs/adrs/0099-keep-function-activation-slot-shape-plan-owned.md`
+  - `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`
 - Historical Test262 gap inventory (not a current pass/fail baseline): `docs/remaining-test262-gaps.md`
 - Active diagnostics/runtime implementation surfaces:
   - `src/Asynkron.JsEngine/Execution/StatementInstructionStorageDiagnostics.cs`

@@ -238,6 +238,10 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
         Assert.Contains(fromPlan.InstructionKindHistogram, entry => entry.Key == InstructionKind.FunctionDeclaration);
         Assert.Contains(fromPlan.InstructionKindHistogram, entry => entry.Key == InstructionKind.ClassDeclaration);
         Assert.Contains(fromPlan.InstructionKindHistogram, entry => entry.Key == InstructionKind.Return);
+        Assert.Contains(fromPlan.SupportedInstructionKindHistogram, entry => entry.Key == InstructionKind.FunctionDeclaration);
+        Assert.Contains(fromPlan.SupportedInstructionKindHistogram, entry => entry.Key == InstructionKind.ClassDeclaration);
+        Assert.DoesNotContain(fromPlan.UnsupportedInstructionKindHistogram, entry => entry.Key == InstructionKind.FunctionDeclaration);
+        Assert.DoesNotContain(fromPlan.UnsupportedInstructionKindHistogram, entry => entry.Key == InstructionKind.ClassDeclaration);
     }
 
     [Fact]
@@ -370,19 +374,46 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
 
         var expressionPrograms = new StatementDiagnosticsExpressionProgramTable();
         var bindingTargets = new StatementDiagnosticsBindingTargetProgramTable();
-        Assert.True(StatementInstructionDiagnosticsCodec.TryEncode(instruction, expressionPrograms, bindingTargets, out var encoded));
+        Assert.True(
+            StatementInstructionDiagnosticsCodec.TryEncode(
+                instruction,
+                expressionPrograms,
+                bindingTargets,
+                new StatementDiagnosticsFunctionDeclarationDescriptorTable(),
+                new StatementDiagnosticsClassDeclarationDescriptorTable(),
+                out var encoded));
 
         Assert.True(encoded.Payload.BindingTargetProgramReferenceId >= 0);
         Assert.Equal(1, bindingTargets.Count);
 
         var decoded = Assert.IsType<BindingVariableDeclarationInstruction>(
-            StatementInstructionDiagnosticsCodec.Decode(encoded, expressionPrograms, bindingTargets));
+            StatementInstructionDiagnosticsCodec.Decode(
+                encoded,
+                expressionPrograms,
+                bindingTargets,
+                new StatementDiagnosticsFunctionDeclarationDescriptorTable(),
+                new StatementDiagnosticsClassDeclarationDescriptorTable()));
         Assert.Equal(instruction.TargetProgram, decoded.TargetProgram);
 
         var plan = new ExecutionPlan(ImmutableArray.Create<ExecutionInstruction>(instruction), EntryPoint: 0);
         var snapshot = StatementInstructionStorageDiagnostics.Collect(plan);
         Assert.Equal(1, snapshot.BindingTargetOperandCount);
         Assert.Equal(1, snapshot.BindingTargetProgramReferenceTableCount);
+    }
+
+    [Fact]
+    public void FunctionDeclaration_DiagnosticsEncoding_AllowsNullDescriptorHoistedNoOpShape()
+    {
+        var instruction = new FunctionDeclarationInstruction(Next: 3, Descriptor: null);
+        Assert.True(StatementInstructionDiagnosticsCodec.TryEncode(instruction, out var encoded));
+
+        Assert.Equal(EncodedStatementOpcode.FunctionDeclaration, encoded.Header.Opcode);
+        Assert.Equal(-1, encoded.Payload.FunctionDeclarationDescriptorReferenceId);
+        Assert.Null(encoded.Payload.FunctionDeclarationDescriptor);
+
+        var decoded = Assert.IsType<FunctionDeclarationInstruction>(StatementInstructionDiagnosticsCodec.Decode(encoded));
+        Assert.Equal(instruction.Next, decoded.Next);
+        Assert.Null(decoded.Descriptor);
     }
 
     [Fact]

@@ -3,14 +3,17 @@
 ## Standard Commands
 ```bash
 # Restore dependencies
-dotnet restore
+rtk dotnet restore
 
 # Build everything
-dotnet build
+rtk dotnet build
 
 # Main test suite
-dotnet test tests/Asynkron.JsEngine.Tests
+rtk dotnet test tests/Asynkron.JsEngine.Tests
 ```
+When running shell commands in this repo via Codex/Faktorial runtime, prefix
+them with `rtk` (see `/Users/rogerjohansson/.codex/RTK.md`).
+
 Do not use `--no-build` for ad hoc test runs; keep code compiled with latest
 changes.
 
@@ -21,7 +24,7 @@ single build-and-test `test-internal` run.
 
 ## Narrow Test Runs
 ```bash
-dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~SomeTestName"
+rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~SomeTestName"
 ```
 
 ## Recurring Maintenance Child Runs
@@ -93,13 +96,13 @@ only.
 
 Run the full LanguageTests class (43,000+ tests):
 ```bash
-dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release \
+rtk dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release \
   --settings tests/Asynkron.JsEngine.Tests.Test262/LanguageTests.runsettings
 ```
 
 Run the BuiltInsTests class:
 ```bash
-dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release \
+rtk dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release \
   --settings tests/Asynkron.JsEngine.Tests.Test262/BuiltInsTests.runsettings
 ```
 
@@ -107,7 +110,7 @@ dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release \
 
 List available tests to find exact names:
 ```bash
-dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --list-tests 2>&1 | grep -i "SomePattern"
+rtk dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --list-tests 2>&1 | grep -i "SomePattern"
 ```
 
 **Filter syntax:**
@@ -118,46 +121,46 @@ dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --list-tests 2>&1 |
 
 Run a single parameterized test by method + path:
 ```bash
-dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release \
+rtk dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release \
   --filter "FullyQualifiedName~FunctionCode&FullyQualifiedName~block-decl-onlystrict"
 ```
 
 Run multiple specific tests with OR:
 ```bash
-dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release \
+rtk dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release \
   --filter "FullyQualifiedName~FunctionCode&(FullyQualifiedName~block-decl-onlystrict|FullyQualifiedName~switch-case-decl-onlystrict|FullyQualifiedName~switch-dflt-decl-onlystrict)"
 ```
 
 Run all tests for a specific method:
 ```bash
-dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release \
+rtk dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release \
   --filter "Name=FunctionCode"
 ```
 
 Run tests matching a pattern (e.g., all strict-mode-only tests):
 ```bash
-dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release \
+rtk dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release \
   --filter "FullyQualifiedName~FunctionCode&FullyQualifiedName~onlystrict"
 ```
 
 ## Demos
 ```bash
-dotnet run --project examples/Demo
-dotnet run --project examples/PromiseDemo
-dotnet run --project examples/NpmPackageDemo
+rtk dotnet run --project examples/Demo
+rtk dotnet run --project examples/PromiseDemo
+rtk dotnet run --project examples/NpmPackageDemo
 ```
 
 ## Test262 regression session
 - Source list: `tests/Asynkron.JsEngine.Tests.Test262/current-regressions.filter.txt`
-- Runner: `./tools/run-test262-regressions.sh`
+- Runner: `rtk ./tools/run-test262-regressions.sh`
 - This pack is intentionally Test262-only and excludes non-Test262 regressions such as `Asynkron.JsEngine.Tests.Array_indexOf_OnlyCallsHasPropertyOnPrototypeAfterLengthZeroed`.
 - Smaller subsystem packs live under `tests/Asynkron.JsEngine.Tests.Test262/regression-packs/`.
 - Available packs: `full`, `annexb`, `array-prototype`, `intl`, `language`, `proxy`, `regexp`, `temporal`.
 - Named-pack inventory (`--list`) comes from those files in
   `regression-packs/`; it is a static inventory of runnable pack names, not a
   snapshot of current failures.
-- List packs without failing (with per-pack regression counts): `./tools/run-test262-regressions.sh --list`.
+- List packs without failing (with per-pack regression counts): `rtk ./tools/run-test262-regressions.sh --list`.
 - Entry counts shown by `--list` are line counts from each pack file (typically
   one Test262 filter entry per line). Treat them as pack-size signals; they are
   not pass/fail totals from a live run.
-- Examples: `./tools/run-test262-regressions.sh temporal`, `./tools/run-test262-regressions.sh intl`, `./tools/run-test262-regressions.sh regexp`.
+- Examples: `rtk ./tools/run-test262-regressions.sh temporal`, `rtk ./tools/run-test262-regressions.sh intl`, `rtk ./tools/run-test262-regressions.sh regexp`.

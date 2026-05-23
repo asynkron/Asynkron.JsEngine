@@ -83,7 +83,14 @@ decode bridge are explicit.
     Storage diagnostics must request an explicit diagnostic boundary rebuilt
     from the full semantic instruction list so codec-supported families outside
     the sidecar still appear in coverage and byte estimates.
-15. Treat `BindingTargetProgram` reference tables as a diagnostic checkpoint,
+15. Treat historical ADR-supported family lists as snapshots, not current
+    support contracts. Before calling a supported-vs-unsupported delta a
+    regression, re-check the current `CompactStatementInstructionTaxonomy`,
+    `StatementInstructionDiagnosticsCodec`, and the live
+    `--statement-instruction-storage` output. Owner-seam refactors can move
+    kinds between supported and unsupported diagnostic buckets without changing
+    runtime execution.
+16. Treat `BindingTargetProgram` reference tables as a diagnostic checkpoint,
     not as proof that `BindingVariableDeclaration` is runtime compact-storage
     ready. A binding-target table may preserve the current semantic object graph
     for diagnostics and parity tests, but runtime storage work still needs an
@@ -206,6 +213,17 @@ four distinct `ExpressionProgram` instances and asserted
 is that owner-backed reference-table tests must fail when value/awaited or
 initializer/awaited references are swapped; repeated empty payloads can make
 mis-indexed storage look correct.
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-9c07ab2dcb`
+/ PR #1607 refreshed the forloop statement-storage diagnostics and found that
+the current supported snapshot no longer matched ADR 0094 section 6.6's original
+narrow measurement-gate family list: `PopEnvironment`, `LeaveTry`, and
+`EndFinally` were no longer supported in that rerun. The lesson is that section
+6.6 is historical evidence, while current support/defer behavior is owned by
+the taxonomy and diagnostics codec. Future agents should record this as
+checkpoint drift from owner-seam refactors unless the current diagnostic proof
+or runtime path shows a real behavior change.
 
 Issue
 `planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-d12c4380f1`

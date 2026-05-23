@@ -525,6 +525,24 @@ nested expression reference ownership, semantic decode parity for object/array
 destructuring shapes, diagnostics accounting, and profiling evidence before
 record-backed instruction storage can be retired for this family.
 
+### 7.11 Issue #1617 StoreResumeValue diagnostic checkpoint
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-76034c375c`
+/ PR #1617 promoted `StoreResumeValueInstruction` into compact statement
+diagnostic storage while keeping the broader yield/resume family staged.
+`StoreResumeValue` carries only `Next` plus an optional `TargetSymbol`, so it can
+use the existing compact header and symbol reference table without normalizing
+the heavier `Yield` and `YieldStar` suspension payloads.
+
+This is a classification refinement, not a runtime-routing change. Future
+yield/resume-family work should split simple scalar or symbol-only members from
+object-heavy suspension instructions when the payload proof supports it. The
+supported member must still round-trip through the owner boundary, update the
+taxonomy and diagnostics codec together, and leave `Yield` / `YieldStar`
+explicitly deferred until their awaited/iterable/state payloads have their own
+compact representation and parity proof.
+
 ### 8. Staged migration
 
 1. Introduce compact storage schema in `ExecutionPlan` behind an internal

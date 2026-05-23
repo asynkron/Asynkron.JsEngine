@@ -23,6 +23,23 @@ public static partial class TypedAstEvaluator
     }
 
     /// <summary>
+    /// Invokes a callable with two arguments and returns the result as JsValue.
+    /// This overload avoids array allocation for common binary helper calls.
+    /// </summary>
+    [MethodImpl(JsEngineConstants.Inlining)]
+    private static JsValue InvokeCallableTwoArgs(
+        IJsCallable callable,
+        JsValue arg0,
+        JsValue arg1,
+        JsValue thisValue,
+        EvaluationContext? callingContext,
+        JsEnvironment? callingEnvironment = null)
+    {
+        var args = new TwoValueArgs(arg0, arg1);
+        return InvokeCallableJsValueGeneric(callable, args, thisValue, callingContext, callingEnvironment);
+    }
+
+    /// <summary>
     /// Invokes a callable with a single argument and returns the result as JsValue.
     /// This overload avoids array allocation for the common single-argument case.
     /// </summary>

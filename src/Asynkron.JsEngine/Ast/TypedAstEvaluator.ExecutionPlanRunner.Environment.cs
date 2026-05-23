@@ -338,33 +338,35 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
         private JsEnvironment EnsureExecutionEnvironment()
         {
-            if (_executionEnvironment is not null)
+            if (_executionEnvironment is null)
             {
-                return _executionEnvironment;
+                _executionEnvironment = CreateExecutionEnvironment();
             }
 
-            _executionEnvironment = CreateExecutionEnvironment();
             LogRootScopeIdOnce();
+            EnsureFlatSlotsInitialized(_executionEnvironment);
+            return _executionEnvironment;
+        }
 
+        private void EnsureFlatSlotsInitialized(JsEnvironment executionEnvironment)
+        {
             // Initialize and populate flat slots for the root scope and closure chain
             if (_plan is null || _plan.FlatSlotCount <= 0 || _flatSlots is not null)
             {
-                return _executionEnvironment;
+                return;
             }
 
             _flatSlots = new JsVariable[_plan.FlatSlotCount];
             AssertFlatSlotsInitialized();
-            PopulateFlatSlotsForScope(_plan.RootScopeId, _executionEnvironment);
+            PopulateFlatSlotsForScope(_plan.RootScopeId, executionEnvironment);
 
             // Walk closure chain to populate flat slots for captured variables
-            var closureEnv = _executionEnvironment.Enclosing;
+            var closureEnv = executionEnvironment.Enclosing;
             while (closureEnv is not null)
             {
                 PopulateFlatSlotsForScope(closureEnv.ScopeId, closureEnv);
                 closureEnv = closureEnv.Enclosing;
             }
-
-            return _executionEnvironment;
         }
 
         internal JsEnvironment GetOrCreateExecutionEnvironmentForInternalUse()

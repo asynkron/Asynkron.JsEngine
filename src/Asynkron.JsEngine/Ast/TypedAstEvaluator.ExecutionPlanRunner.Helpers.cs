@@ -2499,6 +2499,16 @@ public static partial class TypedAstEvaluator
                                 environment);
                             break;
 
+                        case 2:
+                            result = InvokeCallableTwoArgs(
+                                callable,
+                                stack[calleeIndex + 1],
+                                stack[calleeIndex + 2],
+                                thisValue,
+                                context,
+                                environment);
+                            break;
+
                         default:
                             var arguments = MaterializeProgramArguments(
                                 call.ArgumentCount,

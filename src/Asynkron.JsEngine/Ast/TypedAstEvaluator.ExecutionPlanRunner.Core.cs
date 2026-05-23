@@ -37,7 +37,8 @@ public static partial class TypedAstEvaluator
             EvaluationContext? evaluationContext = null,
             RealmState? derivedClassErrorRealm = null,
             ExecutionPlan? planOverride = null,
-            ExecutionPlanBuildFailure? planFailureOverride = null)
+            ExecutionPlanBuildFailure? planFailureOverride = null,
+            JsEnvironment? executionEnvironmentOverride = null)
         {
             _function = function;
             _closure = closure;
@@ -55,6 +56,7 @@ public static partial class TypedAstEvaluator
             _superConstructor = superConstructor;
             _superPrototype = superPrototype;
             _context = evaluationContext;
+            _executionEnvironment = executionEnvironmentOverride;
             _isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
             _isAsync = function.IsAsync;
             _isGenerator = function.IsGenerator;

@@ -43,6 +43,7 @@ public static partial class TypedAstEvaluator
         private readonly string _functionDescription;
         private readonly bool _hasFunctionNameEnvironment;
         private readonly bool _hasParameterExpressions;
+        private readonly bool _hasCapturedActivationInClosure;
         private readonly bool _isStrict;
         private readonly Dictionary<Symbol, bool> _lexicalDeclarationKinds;
         private readonly ImmutableArray<Symbol> _lexicalTemplate;
@@ -65,6 +66,7 @@ public static partial class TypedAstEvaluator
         // Precomputed fast path eligibility - combines all conditions except newTarget.IsUndefined
         // Updated when setters are called that could invalidate fast path
         private bool _canUseFastPathBase;
+        private bool _canUseSimpleIrActivationFastBase;
         private ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
         private IJsObjectLike? _homeObject;
         private ImmutableArray<ResolvedClassField> _instanceFields = ImmutableArray<ResolvedClassField>.Empty;
@@ -116,6 +118,7 @@ public static partial class TypedAstEvaluator
             var hasHoistableDeclarations = ((IAstCacheable<HoistableDeclarationsPlan>)function.Body)
                 .GetOrCreateCache()
                 .HasHoistableDeclarations;
+            var hasFunctionDeclarations = hoistPlan.HasFunctionDeclarations;
             _hasParameterExpressions = _function.HasParameterExpressions();
             // Allow identifier caching only if the function body has no with/eval AND
             // the closure chain has no with environments (functions defined inside with blocks
@@ -123,6 +126,7 @@ public static partial class TypedAstEvaluator
             _allowIdentifierCache = AllowsIdentifierCaching(_function) && !closure.HasWithObjectInChain();
             _usesArguments = !IsArrowFunction && UsesArgumentsIdentifier(_function);
             _needsArgumentsBinding = !IsArrowFunction && NeedsArgumentsBinding(_function);
+            _hasCapturedActivationInClosure = HasCapturedActivationInClosure(closure);
             _functionScopeId = ResolveFunctionScopeId(function);
 
             // Detect simple functions for fast-path invocation
@@ -286,6 +290,17 @@ public static partial class TypedAstEvaluator
             // lookup via scope chain will fail. By forcing parent to IR, we ensure consistent scope IDs.
             _canUseFastPathBase = isSimpleFunction && _lexicalThisEnvironment is null &&
                                   !ContainsInnerFunctionExpression(function);
+            _canUseSimpleIrActivationFastBase = canUseFastPathForStrictness &&
+                                                !function.IsAsync &&
+                                                !_wasAsyncFunction &&
+                                                !_hasParameterExpressions &&
+                                                hoistPlan.LexicalTemplate.Length == 0 &&
+                                                !hasFunctionDeclarations &&
+                                                _allowIdentifierCache &&
+                                                hasSimpleParams &&
+                                                !_hasCapturedActivationInClosure &&
+                                                _lexicalThisEnvironment is null &&
+                                                !ContainsInnerFunctionExpression(function);
         }
 
         public bool IsAsyncFunction { get; }
@@ -614,7 +629,7 @@ public static partial class TypedAstEvaluator
             JsValue thisValue,
             EvaluationContext callingContext)
         {
-            return InvokeWithContextSlow([arg0], thisValue, callingContext, JsValue.Undefined);
+            return InvokeWithContextSlow(new SingleValueArgs(arg0), thisValue, callingContext, JsValue.Undefined);
         }
 
         /// <summary>
@@ -630,7 +645,7 @@ public static partial class TypedAstEvaluator
         {
             _ = reuseEnvironment;
 
-            return InvokeWithContextSlow([arg0], thisValue, callingContext, JsValue.Undefined);
+            return InvokeWithContextSlow(new SingleValueArgs(arg0), thisValue, callingContext, JsValue.Undefined);
         }
 
         /// <summary>
@@ -643,7 +658,7 @@ public static partial class TypedAstEvaluator
             JsValue thisValue,
             EvaluationContext callingContext)
         {
-            return InvokeWithContextSlow([arg0, arg1], thisValue, callingContext, JsValue.Undefined);
+            return InvokeWithContextSlow(new TwoValueArgs(arg0, arg1), thisValue, callingContext, JsValue.Undefined);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -781,6 +796,18 @@ public static partial class TypedAstEvaluator
                     plan?.GetHashCode() ?? -1);
                 if (plan is not null)
                 {
+                    if (TryInvokeSimpleIrActivationFast(
+                            arguments,
+                            thisValue,
+                            callingContext,
+                            newTarget,
+                            plan,
+                            context,
+                            out var fastResult))
+                    {
+                        return fastResult;
+                    }
+
                     // For arrow functions, use lexically captured this and new.target
                     var effectiveThisValue = thisValue;
                     var effectiveNewTarget = newTarget;
@@ -1586,6 +1613,198 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
         }
 
+        private bool TryInvokeSimpleIrActivationFast(
+            IReadOnlyList<JsValue> arguments,
+            JsValue thisValue,
+            EvaluationContext? callingContext,
+            JsValue newTarget,
+            ExecutionPlan plan,
+            EvaluationContext context,
+            out JsValue result)
+        {
+            result = JsValue.Undefined;
+            if (!CanUseSimpleIrActivationFastPath(plan, newTarget))
+            {
+                return false;
+            }
+
+            try
+            {
+                context.MarkThisInitialized();
+                var executionEnvironment = CreateSimpleIrActivationEnvironment(arguments, thisValue, plan);
+                RealmState.Logger?.LogInformation(
+                    "simple-ir-activation-fast-path func={Function} argc={ArgumentCount}",
+                    _function.Name?.Name ?? "<anonymous>",
+                    arguments.Count);
+
+                var runner = new ExecutionPlanRunner(
+                    _function,
+                    _closure,
+                    arguments,
+                    thisValue,
+                    this,
+                    RealmState,
+                    _isStrict,
+                    _hasFunctionNameEnvironment,
+                    _homeObject,
+                    PrivateNameScope,
+                    _capturedPrivateNameScopes,
+                    newTarget,
+                    _lexicalThisEnvironment,
+                    _superConstructor,
+                    _superPrototype,
+                    context,
+                    planOverride: plan,
+                    planFailureOverride: _planSeed.Failure,
+                    executionEnvironmentOverride: executionEnvironment);
+
+                result = runner.RunSync();
+                return true;
+            }
+            catch (ThrowSignal signal) when (callingContext is not null)
+            {
+                callingContext.SetThrow(signal.ThrownValue);
+                result = signal.ThrownValue;
+                return true;
+            }
+            finally
+            {
+                RealmState.ReturnContext(context);
+            }
+        }
+
+        private bool CanUseSimpleIrActivationFastPath(ExecutionPlan plan, JsValue newTarget)
+        {
+            if (!_canUseSimpleIrActivationFastBase ||
+                !newTarget.IsUndefined ||
+                IsClassConstructor ||
+                IsArrowFunction ||
+                IsAsyncLike ||
+                _function.IsGenerator ||
+                _function.IsDefaultDerivedConstructor ||
+                _hasParameterExpressions ||
+                _usesArguments ||
+                _needsArgumentsBinding ||
+                _hasCapturedActivationInClosure ||
+                !_allowIdentifierCache ||
+                _lexicalThisEnvironment is not null ||
+                _homeObject is not null ||
+                PrivateNameScope is not null ||
+                !_capturedPrivateNameScopes.IsDefaultOrEmpty ||
+                _superConstructor is not null ||
+                _superPrototype is not null ||
+                !_instanceFields.IsDefaultOrEmpty)
+            {
+                return false;
+            }
+
+            if (plan.ActivationSlots is not { } activationSlots ||
+                activationSlots.ScopeId != plan.RootScopeId ||
+                activationSlots.LayoutId != plan.LayoutId ||
+                !HasOnlyRootFlatSlotMappings(plan, activationSlots.ScopeId))
+            {
+                return false;
+            }
+
+            for (var i = 0; i < _parameterNames.Length; i++)
+            {
+                if (!activationSlots.SlotMap.ContainsKey(_parameterNames[i]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool HasOnlyRootFlatSlotMappings(ExecutionPlan plan, int rootScopeId)
+        {
+            if (plan.FlatSlotMappings is null || plan.FlatSlotMappings.Count == 0)
+            {
+                return true;
+            }
+
+            foreach (var scopeId in plan.FlatSlotMappings.Keys)
+            {
+                if (scopeId != rootScopeId)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool HasCapturedActivationInClosure(JsEnvironment closure)
+        {
+            var current = closure;
+            while (current is not null)
+            {
+                if (current.IsBodyEnvironment ||
+                    current.IsFunctionScope && !current.IsGlobalFunctionScope)
+                {
+                    return true;
+                }
+
+                current = current.Enclosing;
+            }
+
+            return false;
+        }
+
+        private JsEnvironment CreateSimpleIrActivationEnvironment(
+            IReadOnlyList<JsValue> arguments,
+            JsValue thisValue,
+            ExecutionPlan plan)
+        {
+            var functionEnvironment = JsEnvironment.CreateInstance(_closure, true, _isStrict, _function.Source,
+                _functionDescription);
+            var executionEnvironment = JsEnvironment.CreateInstance(functionEnvironment, false, _isStrict,
+                _function.Source, _functionDescription, isBodyEnvironment: true);
+
+            var activationSlots = plan.ActivationSlots!;
+            var rootLexicals = plan.SafeRootLexicalBindings;
+            if (rootLexicals.Count == 0 &&
+                plan.SafeScopeLexicalBindings.TryGetValue(activationSlots.ScopeId, out var scopeLexicals))
+            {
+                rootLexicals = scopeLexicals;
+            }
+
+            executionEnvironment.ResetSlotLayoutForPlan(
+                activationSlots.SlotCount,
+                activationSlots.SlotMap,
+                rootLexicals,
+                plan.SlotSymbols,
+                activationSlots.LayoutId,
+                activationSlots.ScopeId);
+
+            var boundThis = _isStrict ? thisValue : CoerceThisValueForNonStrict(thisValue);
+            functionEnvironment._thisValue = boundThis;
+            functionEnvironment._hasThisValue = true;
+
+            if (!_hasFunctionNameEnvironment && _function.Name is { } functionName)
+            {
+                functionEnvironment.DefineJsValue(functionName, _cachedJsValue, true,
+                    isLexicalBinding: true, blocksFunctionScopeOverride: true);
+            }
+
+            BindSimpleIrActivationParameters(arguments, executionEnvironment, activationSlots);
+            return executionEnvironment;
+        }
+
+        private void BindSimpleIrActivationParameters(
+            IReadOnlyList<JsValue> arguments,
+            JsEnvironment executionEnvironment,
+            ActivationSlotShape activationSlots)
+        {
+            for (var i = 0; i < _parameterNames.Length; i++)
+            {
+                var parameterName = _parameterNames[i];
+                var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                executionEnvironment.SetSlotDirect(activationSlots.SlotMap[parameterName], value);
+            }
+        }
+
         private static HashSet<Symbol> RentSymbolSet()
         {
             return SymbolSetPool.Rent();
@@ -1630,6 +1849,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             if (scope is not null)
             {
                 _canUseFastPathBase = false;
+                _canUseSimpleIrActivationFastBase = false;
             }
         }
 
@@ -1639,6 +1859,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             if (!scopes.IsDefaultOrEmpty)
             {
                 _canUseFastPathBase = false;
+                _canUseSimpleIrActivationFastBase = false;
             }
         }
 
@@ -1649,6 +1870,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             if (superConstructor is not null || superPrototype is not null)
             {
                 _canUseFastPathBase = false;
+                _canUseSimpleIrActivationFastBase = false;
             }
         }
 
@@ -1656,6 +1878,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         {
             _homeObject = homeObject;
             _canUseFastPathBase = false;
+            _canUseSimpleIrActivationFastBase = false;
         }
 
         public void DisableConstruction()
@@ -1680,6 +1903,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             IsClassConstructor = true;
             _isDerivedClassConstructor = isDerived;
             _canUseFastPathBase = false;
+            _canUseSimpleIrActivationFastBase = false;
         }
 
         internal void SetInstanceFields(ImmutableArray<ResolvedClassField> fields)

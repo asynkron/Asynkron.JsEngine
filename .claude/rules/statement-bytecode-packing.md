@@ -309,5 +309,24 @@ wave is safer than broad runtime compact routing or record-backed storage
 removal. Use diagnostic support counts as readiness evidence, not as permission
 to switch `ExecutionPlanRunner` off the record-backed instruction view.
 
+## Plan Consolidation Note
+
+Parent follow-on plan: `planmanual1779454308935867000` ("push bytecode from
+diagnostics toward runtime storage").
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-b232307d99`
+closed stale standalone bytecode planning tasks that were already covered by
+completed plan children or by the parent follow-on plan. The lesson is that
+statement-bytecode packing now has a plan-owned migration track; new planning
+work should be created as children of that parent or under the exact owning
+child slice, not as parallel standalone bytecode planning issues for the same
+owner surface.
+
+When an older standalone planning issue overlaps a checkpoint documented in
+this rule, mark it superseded by the parent follow-on plan or by the exact plan
+child that already owns the slice. Avoid opening new duplicate tracker issues
+for the same migration step.
+
 Related ADR: `docs/adrs/0094-compact-statement-bytecode-encoding-design-from-current-ir.md`.
 Related ADR: `docs/adrs/0098-keep-statement-runtime-routing-behind-deferred-payload-normalization.md`.

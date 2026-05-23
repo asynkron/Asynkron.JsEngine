@@ -111,13 +111,32 @@ has_profiler_flag() {
   return 1
 }
 
+default_cpu_root_for_profile() {
+  local profile_key=$1
+  case "$profile_key" in
+    bytecode)
+      printf '%s\n' "EvaluateExpressionProgram"
+      ;;
+    activation-*)
+      printf '%s\n' "InvokeWithContextSlow"
+      ;;
+    functioncalls|functioncalls-lite|forloop|ir-arithmetic|whileloop|objectcreation|arrayops|stringops|closures|recursion|propertyaccess|classdef|destructuring|spread|mapset|jsonops|regex|simplearithmetic)
+      printf '%s\n' "ExecuteInstructionLoop"
+      ;;
+  esac
+}
+
 run_default_split_profile() {
   local profile_key=$1
   local cpu_args=("${profiler_args[@]}")
   local memory_args=("${profiler_args[@]}")
+  local cpu_root
+  cpu_root=$(default_cpu_root_for_profile "$profile_key")
 
   if ! has_profiler_flag "--root"; then
-    cpu_args+=("--root" "$jsengine_scope")
+    if [[ -n "$cpu_root" ]]; then
+      cpu_args+=("--root" "$cpu_root")
+    fi
     memory_args+=("--root" "$jsengine_scope")
   fi
 
@@ -133,13 +152,21 @@ run_mode_profile_with_scope_defaults() {
   local profile_key=$1
   local scoped_args=("${profiler_args[@]}")
   local cpu_requested=false
+  local cpu_root
+  cpu_root=$(default_cpu_root_for_profile "$profile_key")
 
   if has_profiler_flag "--cpu" "-c"; then
     cpu_requested=true
   fi
 
   if ! has_profiler_flag "--root"; then
-    scoped_args+=("--root" "$jsengine_scope")
+    if [[ "$cpu_requested" == true ]]; then
+      if [[ -n "$cpu_root" ]]; then
+        scoped_args+=("--root" "$cpu_root")
+      fi
+    else
+      scoped_args+=("--root" "$jsengine_scope")
+    fi
   fi
 
   if [[ "$cpu_requested" == true ]] && ! has_profiler_flag "--filter"; then
@@ -303,12 +330,42 @@ has_root = has_flag("--root")
 has_filter = has_flag("--filter")
 default_split = not has_cpu and not has_memory
 
+def default_cpu_root_for_profile(profile_key: str) -> str:
+    if profile_key == "bytecode":
+        return "EvaluateExpressionProgram"
+    if profile_key.startswith("activation-"):
+        return "InvokeWithContextSlow"
+    if profile_key in {
+        "functioncalls",
+        "functioncalls-lite",
+        "forloop",
+        "ir-arithmetic",
+        "whileloop",
+        "objectcreation",
+        "arrayops",
+        "stringops",
+        "closures",
+        "recursion",
+        "propertyaccess",
+        "classdef",
+        "destructuring",
+        "spread",
+        "mapset",
+        "jsonops",
+        "regex",
+        "simplearithmetic",
+    }:
+        return "ExecuteInstructionLoop"
+    return ""
+
 for key in profiles:
     if default_split:
         cpu_args = [*profiler_args, "--cpu"]
         memory_args = [*profiler_args, "--memory"]
         if not has_root:
-            cpu_args.extend(["--root", jsengine_scope])
+            cpu_root = default_cpu_root_for_profile(key)
+            if cpu_root:
+                cpu_args.extend(["--root", cpu_root])
             memory_args.extend(["--root", jsengine_scope])
         if not has_filter:
             cpu_args.extend(["--filter", jsengine_scope])
@@ -318,7 +375,12 @@ for key in profiles:
     else:
         scoped_args = [*profiler_args]
         if not has_root:
-            scoped_args.extend(["--root", jsengine_scope])
+            if has_cpu:
+                cpu_root = default_cpu_root_for_profile(key)
+                if cpu_root:
+                    scoped_args.extend(["--root", cpu_root])
+            else:
+                scoped_args.extend(["--root", jsengine_scope])
         if has_cpu and not has_filter:
             scoped_args.extend(["--filter", jsengine_scope])
         cmd = [*profiler_cmd, *scoped_args, "--", *runner_cmd, *engine_args, key]

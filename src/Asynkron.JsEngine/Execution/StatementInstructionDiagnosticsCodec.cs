@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Ast;
 
@@ -19,7 +20,8 @@ internal enum EncodedStatementOpcode : byte
     BindingVariableDeclaration = 12,
     StoreResumeValue = 13,
     FunctionDeclaration = 14,
-    ClassDeclaration = 15
+    ClassDeclaration = 15,
+    PushEnvironment = 16
 }
 
 internal readonly record struct CompactStatementInstruction(
@@ -55,7 +57,9 @@ internal readonly record struct CompactStatementPayload(
     ClassDeclarationDescriptor? ClassDeclarationDescriptor = null,
     int ScopeId = -1,
     int FlatSlotId = -1,
-    bool HasAssignmentMetadata = false)
+    bool HasAssignmentMetadata = false,
+    int PushEnvironmentPayloadReferenceId = -1,
+    CompactPushEnvironmentPayload? PushEnvironmentPayload = null)
 {
     public static CompactStatementPayload Empty => new(
         PrimaryExpressionProgramReferenceId: -1,
@@ -73,8 +77,17 @@ internal readonly record struct CompactStatementPayload(
         ((ClassDeclarationDescriptorReferenceId < 0 && ClassDeclarationDescriptor is null) ? 0 : ReferencePayloadByteSize) +
         (PrimarySymbol is null ? 0 : ReferencePayloadByteSize) +
         (SecondarySymbol is null ? 0 : ReferencePayloadByteSize) +
-        (HasAssignmentMetadata ? AssignmentMetadataByteSize : 0);
+        (HasAssignmentMetadata ? AssignmentMetadataByteSize : 0) +
+        ((PushEnvironmentPayloadReferenceId < 0 && PushEnvironmentPayload is null) ? 0 : ReferencePayloadByteSize);
 }
+
+internal sealed record CompactPushEnvironmentPayload(
+    ImmutableArray<Symbol> PerIterationBindings,
+    ImmutableDictionary<Symbol, int> SlotMap,
+    bool AllowPooling,
+    ImmutableHashSet<Symbol> LexicalBindings,
+    ImmutableArray<(int SlotIndex, int FlatSlotId)> FlatSlotMappings,
+    ImmutableArray<(Symbol Name, int SlotIndex)> SlotNames);
 
 internal sealed class StatementDiagnosticsExpressionProgramTable
 {
@@ -233,6 +246,7 @@ internal static class StatementInstructionDiagnosticsCodec
             InstructionKind.BindingVariableDeclaration or
             InstructionKind.StoreResumeValue or
             InstructionKind.FunctionDeclaration or
+            InstructionKind.PushEnvironment or
             InstructionKind.ClassDeclaration;
     }
 
@@ -330,6 +344,23 @@ internal static class StatementInstructionDiagnosticsCodec
                         BindingTargetProgramReferenceId: bindingTargets.GetOrAdd(bindingVariableDeclaration.TargetProgram),
                         PrimarySymbol: bindingVariableDeclaration.AwaitStateKey,
                         BindingTargetProgram: bindingVariableDeclaration.TargetProgram));
+                return true;
+            case PushEnvironmentInstruction pushEnvironment:
+                var pushEnvironmentPayload = new CompactPushEnvironmentPayload(
+                    pushEnvironment.PerIterationBindings,
+                    pushEnvironment.SlotMap,
+                    pushEnvironment.AllowPooling,
+                    pushEnvironment.LexicalBindings ?? ImmutableHashSet<Symbol>.Empty,
+                    pushEnvironment.FlatSlotMappings,
+                    pushEnvironment.SlotNames);
+                encoded = new CompactStatementInstruction(
+                    new CompactStatementHeader(
+                        EncodedStatementOpcode.PushEnvironment,
+                        pushEnvironment.Next,
+                        pushEnvironment.ScopeId,
+                        pushEnvironment.SlotCount),
+                    new CompactStatementPayload(
+                        PushEnvironmentPayload: pushEnvironmentPayload));
                 return true;
             case StoreResumeValueInstruction storeResumeValue:
                 encoded = new CompactStatementInstruction(
@@ -434,6 +465,19 @@ internal static class StatementInstructionDiagnosticsCodec
                     SecondaryExpressionProgram = bindingVariable.AwaitedProgram
                 }
             },
+            PushEnvironmentInstruction pushEnvironment => encoded with
+            {
+                Payload = encoded.Payload with
+                {
+                    PushEnvironmentPayload = new CompactPushEnvironmentPayload(
+                        pushEnvironment.PerIterationBindings,
+                        pushEnvironment.SlotMap,
+                        pushEnvironment.AllowPooling,
+                        pushEnvironment.LexicalBindings ?? ImmutableHashSet<Symbol>.Empty,
+                        pushEnvironment.FlatSlotMappings,
+                        pushEnvironment.SlotNames)
+                }
+            },
             _ => encoded
         };
 
@@ -501,6 +545,7 @@ internal static class StatementInstructionDiagnosticsCodec
                 InitializerProgram: ResolveExpressionProgram(encoded.Payload.PrimaryExpressionProgramReferenceId, encoded.Payload.PrimaryExpressionProgram, expressionPrograms),
                 AwaitStateKey: encoded.Payload.PrimarySymbol,
                 AwaitedProgram: ResolveExpressionProgram(encoded.Payload.SecondaryExpressionProgramReferenceId, encoded.Payload.SecondaryExpressionProgram, expressionPrograms)),
+            EncodedStatementOpcode.PushEnvironment => DecodePushEnvironmentInstruction(encoded.Payload, header),
             EncodedStatementOpcode.StoreResumeValue => new StoreResumeValueInstruction(
                 header.NextOrTarget,
                 encoded.Payload.PrimarySymbol),
@@ -626,5 +671,28 @@ internal static class StatementInstructionDiagnosticsCodec
         StatementDiagnosticsClassDeclarationDescriptorTable classDeclarationDescriptors)
     {
         return classDeclarationDescriptors.Resolve(id) ?? embeddedDescriptor;
+    }
+
+    private static PushEnvironmentInstruction DecodePushEnvironmentInstruction(
+        CompactStatementPayload payload,
+        CompactStatementHeader header)
+    {
+        var pushPayload = payload.PushEnvironmentPayload ?? new CompactPushEnvironmentPayload(
+            ImmutableArray<Symbol>.Empty,
+            ImmutableDictionary<Symbol, int>.Empty,
+            AllowPooling: false,
+            ImmutableHashSet<Symbol>.Empty,
+            ImmutableArray<(int SlotIndex, int FlatSlotId)>.Empty,
+            ImmutableArray<(Symbol Name, int SlotIndex)>.Empty);
+        return new PushEnvironmentInstruction(
+            Next: header.NextOrTarget,
+            PerIterationBindings: pushPayload.PerIterationBindings,
+            ScopeId: header.Operand,
+            SlotCount: header.Extra,
+            SlotMap: pushPayload.SlotMap,
+            AllowPooling: pushPayload.AllowPooling,
+            LexicalBindings: pushPayload.LexicalBindings,
+            FlatSlotMappings: pushPayload.FlatSlotMappings,
+            SlotNames: pushPayload.SlotNames);
     }
 }

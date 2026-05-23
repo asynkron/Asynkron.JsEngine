@@ -37,7 +37,10 @@ Only after ALL checks pass.
 ```bash
 rtk make quality
 ```
-Use this gate as the normal local verification path before PR creation.
+Use this as the canonical internal build/test gate during local verification.
+It does **not** replace the mandatory pre-PR checklist above (Roslynator, full
+internal tests, QuickDup, and `dotnet format`); complete those steps before PR
+creation.
 
 ## Rules
 

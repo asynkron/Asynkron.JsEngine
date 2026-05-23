@@ -744,6 +744,23 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
                 StatementInstructionDiagnosticsCodec.IsSupportedKind(kind)));
     }
 
+    [Fact]
+    public void PrintCompactStatementSemanticView_ForPureControlFlowPlan_MatchesInstructionPrinterOutput()
+    {
+        var instructions = new ExecutionInstruction[]
+        {
+            new JumpInstruction(4),
+            new BreakInstruction(8, 2),
+            new ContinueInstruction(10, 2)
+        };
+        var plan = new ExecutionPlan(instructions.ToImmutableArray(), EntryPoint: 1);
+
+        var expected = ExecutionPlanPrinter.Print(plan.Instructions, plan.EntryPoint);
+        var actual = ExecutionPlanDiagnostics.PrintCompactStatementSemanticView(plan);
+
+        Assert.Equal(expected, actual);
+    }
+
     private static void AssertScriptPlanBuilds(ProgramNode program, string description)
     {
         var cache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();

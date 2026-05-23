@@ -421,6 +421,84 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
     }
 
     [Fact]
+    public void CompactStatementStorageBoundary_AssignmentSlotAndSimpleVariableDeclaration_PreserveSemanticOperandsAndReferencePayloads()
+    {
+        var assignmentValueProgram = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.LoadThis));
+        var assignmentAwaitedProgram = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.LoadNewTarget));
+        var declarationInitializerProgram = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.LoadImportMeta));
+        var declarationAwaitedProgram = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.LoadResolvedIdentifierValue));
+        var assignmentTarget = Symbol.Intern("target");
+        var assignmentAwaitState = Symbol.Intern("assignment-await");
+        var declarationTarget = Symbol.Intern("decl");
+        var declarationAwaitState = Symbol.Intern("declaration-await");
+        var instructions = new ExecutionInstruction[]
+        {
+            new AssignmentSlotInstruction(
+                Next: 5,
+                TargetSymbol: assignmentTarget,
+                ValueProgram: assignmentValueProgram,
+                AwaitStateKey: assignmentAwaitState,
+                AwaitedProgram: assignmentAwaitedProgram,
+                SuppressCompletionValue: true,
+                AllowNameInference: false,
+                ScopeId: 17,
+                SlotIndex: 9,
+                FlatSlotId: 31),
+            new SimpleVariableDeclarationInstruction(
+                Next: 7,
+                VarKind: VariableKind.Const,
+                TargetSymbol: declarationTarget,
+                InitializerProgram: declarationInitializerProgram,
+                AwaitStateKey: declarationAwaitState,
+                AwaitedProgram: declarationAwaitedProgram,
+                AllowNameInference: true,
+                IsScriptLevel: true)
+        };
+
+        var boundary = CompactStatementStorage.CreateBoundary(instructions);
+        var storage = boundary.Storage;
+        var decoded = storage.DecodeSemanticView();
+
+        Assert.Equal(2, storage.InstructionCount);
+        Assert.Equal(4, storage.ReferenceTables.ExpressionPrograms.Length);
+        Assert.Equal(4, storage.ReferenceTables.Symbols.Length);
+        Assert.Equal(assignmentValueProgram, storage.ReferenceTables.ExpressionPrograms[0]);
+        Assert.Equal(assignmentAwaitedProgram, storage.ReferenceTables.ExpressionPrograms[1]);
+        Assert.Equal(declarationInitializerProgram, storage.ReferenceTables.ExpressionPrograms[2]);
+        Assert.Equal(declarationAwaitedProgram, storage.ReferenceTables.ExpressionPrograms[3]);
+        Assert.Equal(EncodedStatementOpcode.AssignmentSlot, storage.OpcodeStream[0]);
+        Assert.Equal(EncodedStatementOpcode.SimpleVariableDeclaration, storage.OpcodeStream[1]);
+        Assert.Equal(9, storage.ExtraOperandTable[0]);
+        Assert.Equal((int)VariableKind.Const, storage.OperandTable[1]);
+        Assert.Contains(boundary.SupportedKindClassifications, entry => entry.Kind == InstructionKind.AssignmentSlot);
+        Assert.Contains(boundary.SupportedKindClassifications, entry => entry.Kind == InstructionKind.SimpleVariableDeclaration);
+
+        var decodedAssignment = Assert.IsType<AssignmentSlotInstruction>(decoded[0]);
+        Assert.Equal(assignmentTarget, decodedAssignment.TargetSymbol);
+        Assert.Equal(assignmentAwaitState, decodedAssignment.AwaitStateKey);
+        Assert.Equal(assignmentValueProgram, decodedAssignment.ValueProgram);
+        Assert.Equal(assignmentAwaitedProgram, decodedAssignment.AwaitedProgram);
+        Assert.True(decodedAssignment.SuppressCompletionValue);
+        Assert.False(decodedAssignment.AllowNameInference);
+        Assert.Equal(17, decodedAssignment.ScopeId);
+        Assert.Equal(9, decodedAssignment.SlotIndex);
+        Assert.Equal(31, decodedAssignment.FlatSlotId);
+
+        var decodedDeclaration = Assert.IsType<SimpleVariableDeclarationInstruction>(decoded[1]);
+        Assert.Equal(VariableKind.Const, decodedDeclaration.VarKind);
+        Assert.Equal(declarationTarget, decodedDeclaration.TargetSymbol);
+        Assert.Equal(declarationAwaitState, decodedDeclaration.AwaitStateKey);
+        Assert.Equal(declarationInitializerProgram, decodedDeclaration.InitializerProgram);
+        Assert.Equal(declarationAwaitedProgram, decodedDeclaration.AwaitedProgram);
+        Assert.True(decodedDeclaration.AllowNameInference);
+        Assert.True(decodedDeclaration.IsScriptLevel);
+    }
+
+    [Fact]
     public async Task CompactStatementStorageBoundary_FromScriptPlan_PreservesControlFlowSemanticParity()
     {
         var scriptCases = new[]

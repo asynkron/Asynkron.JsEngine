@@ -17,23 +17,23 @@ Isolate feature work from the main working directory; allows parallel branches a
 
 ## Create a Worktree
 ```bash
-git worktree add ../Asynkron.JsEngine-<feature> -b feature/<branch-name>
+rtk git worktree add ../Asynkron.JsEngine-<feature> -b feature/<branch-name>
 # example:
-git worktree add ../Asynkron.JsEngine-typing -b feature/type-narrowing
+rtk git worktree add ../Asynkron.JsEngine-typing -b feature/type-narrowing
 ```
 
 ## Work in the Worktree
 1. Make changes in the new directory.
-2. Build/test: `dotnet build && dotnet test tests/Asynkron.JsEngine.Tests`.
+2. Build/test: `rtk make quality` (canonical local quality gate, internal tests only).
 3. Commit changes.
-4. Push and open PR: `git push -u origin feature/<branch-name> && gh pr create`.
-5. Merge: `gh pr merge <pr-number> --squash`.
+4. Push and open PR: `rtk git push -u origin feature/<branch-name> && rtk gh pr create`.
+5. Merge: `rtk gh pr merge <pr-number> --squash`.
 
 ## Cleanup After Merge
 ```bash
-git pull origin main
-git worktree remove ../Asynkron.JsEngine-<feature> --force
-git branch -D feature/<branch-name>
+rtk git pull origin main
+rtk git worktree remove ../Asynkron.JsEngine-<feature> --force
+rtk git branch -D feature/<branch-name>
 ```
 
 ## Naming Suggestions
@@ -46,7 +46,7 @@ When launching a background coder agent for a big task:
 
 1. **First create the worktree:**
    ```bash
-   git worktree add ../Asynkron.JsEngine-fix-420 -b feature/fix-strict-mode-scoping
+   rtk git worktree add ../Asynkron.JsEngine-fix-420 -b feature/fix-strict-mode-scoping
    ```
 
 2. **Tell the agent to work in that directory** in your prompt:
@@ -57,7 +57,7 @@ When launching a background coder agent for a big task:
 
 3. **After agent completes**, review and merge the PR:
    ```bash
-   gh pr merge --squash
+   rtk gh pr merge --squash
    ```
 
 4. **Evaluate agent findings and act on them:**
@@ -72,9 +72,9 @@ When launching a background coder agent for a big task:
 
 5. **Cleanup:**
    ```bash
-   git pull origin main
-   git worktree remove ../Asynkron.JsEngine-fix-420 --force
-   git branch -D feature/fix-strict-mode-scoping
+   rtk git pull origin main
+   rtk git worktree remove ../Asynkron.JsEngine-fix-420 --force
+   rtk git branch -D feature/fix-strict-mode-scoping
    ```
 
 This workflow ensures all big changes go through PR review.
@@ -82,7 +82,7 @@ This workflow ensures all big changes go through PR review.
 ## Quick Minimal Template (old flow)
 If you need a very quick setup, you can also:
 1. Ask for the task ($TASK) and extract a short name ($NAME).
-2. `git worktree add ../jsengine-$NAME -b jsengine-$NAME`
+2. `rtk git worktree add ../jsengine-$NAME -b jsengine-$NAME`
 3. `cd ../jsengine-$NAME`
 4. Create `todo.md` with:
    ```

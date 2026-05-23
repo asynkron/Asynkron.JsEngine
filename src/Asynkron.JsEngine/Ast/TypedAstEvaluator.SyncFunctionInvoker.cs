@@ -57,6 +57,7 @@ public static partial class TypedAstEvaluator
         private readonly HashSet<Symbol> _topLevelLexicalNames;
         private readonly bool _usesArguments;
         private readonly bool _needsArgumentsBinding;
+        private readonly int _activationMinimumCapacity;
         private readonly int _functionScopeId;
         private readonly ActivationSlotShape? _activationSlots;
 
@@ -128,6 +129,7 @@ public static partial class TypedAstEvaluator
             _needsArgumentsBinding = !IsArrowFunction && NeedsArgumentsBinding(_function);
             _hasCapturedActivationInClosure = HasCapturedActivationInClosure(closure);
             _functionScopeId = ResolveFunctionScopeId(function);
+            _activationMinimumCapacity = ComputeActivationMinimumCapacity();
 
             // Detect simple functions for fast-path invocation
             // A simple function has: no async, no defaults, no destructuring, no body lexicals, no hoisting needed
@@ -2336,10 +2338,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 {
                     var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
                     slots[i].Value = value;
-                    if (_function.HasClosures)
-                    {
-                        env.DefineParameterFast(_parameterNames[i], value);
-                    }
                 }
             }
             else
@@ -2357,20 +2355,18 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             if (_activationSlots is { } activationSlots)
             {
                 functionEnvironment.ScopeId = activationSlots.ScopeId;
-                if (activationSlots.SlotCount > 0)
-                {
-                    functionEnvironment.InitializeSlots(activationSlots.SlotCount);
-                    functionEnvironment.SetSlotNames(activationSlots.SlotNames);
-                }
+                functionEnvironment.InitializeSlotsWithCapacity(
+                    GetNonNegativeSlotCount(activationSlots.SlotCount),
+                    _activationMinimumCapacity);
+                functionEnvironment.SetSlotNames(activationSlots.SlotNames);
             }
             else
             {
                 functionEnvironment.ScopeId = _functionScopeId;
                 functionEnvironment.SetSlotMap(_function.SlotMap);
-                if (_function.SlotCount > 0)
-                {
-                    functionEnvironment.InitializeSlots(_function.SlotCount);
-                }
+                functionEnvironment.InitializeSlotsWithCapacity(
+                    GetNonNegativeSlotCount(_function.SlotCount),
+                    _activationMinimumCapacity);
             }
 
             JsValue boundThisValue;
@@ -2389,7 +2385,31 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
             functionEnvironment._thisValue = boundThisValue;
             functionEnvironment._hasThisValue = true;
-            functionEnvironment.DefineJsValue(Symbol.This, boundThisValue);
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static int GetNonNegativeSlotCount(int slotCount)
+        {
+            return slotCount > 0 ? slotCount : 0;
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private int ComputeActivationMinimumCapacity()
+        {
+            var baseSlots = GetNonNegativeSlotCount(_activationSlots?.SlotCount ?? _function.SlotCount);
+            var extras = 0; // 'this' uses dedicated _thisValue/_hasThisValue storage in this fast invocation path.
+
+            if ((_argumentsObjectNeeded && _needsArgumentsBinding) || _usesArguments)
+            {
+                extras += 1; // Symbol.Arguments
+            }
+
+            if (!IsArrowFunction && _function.Name is not null && !_hasFunctionNameEnvironment)
+            {
+                extras += 1; // Named function expression body binding.
+            }
+
+            return baseSlots + extras;
         }
 
         /// <summary>
@@ -2464,19 +2484,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             if (slots is not null && functionEnvironment._slotCount > 0 && _parameterNames.Length > 0)
             {
                 slots[0].Value = arg0;
-                if (_function.HasClosures)
-                {
-                    functionEnvironment.DefineParameterFast(_parameterNames[0], arg0);
-                }
 
                 // Bind remaining parameters to undefined (when function has more params than args)
                 for (var i = 1; i < _parameterNames.Length; i++)
                 {
                     slots[i].Value = JsValue.Undefined;
-                    if (_function.HasClosures)
-                    {
-                        functionEnvironment.DefineParameterFast(_parameterNames[i], JsValue.Undefined);
-                    }
                 }
             }
             else if (_parameterNames.Length > 0)
@@ -2510,18 +2522,18 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             if (_activationSlots is { } activationSlots)
             {
                 reuseEnvironment.ScopeId = activationSlots.ScopeId;
-                if (activationSlots.SlotCount > 0)
-                {
-                    reuseEnvironment.InitializeSlots(activationSlots.SlotCount);
-                    reuseEnvironment.SetSlotNames(activationSlots.SlotNames);
-                }
+                reuseEnvironment.InitializeSlotsWithCapacity(
+                    GetNonNegativeSlotCount(activationSlots.SlotCount),
+                    _activationMinimumCapacity);
+                reuseEnvironment.SetSlotNames(activationSlots.SlotNames);
             }
             else
             {
                 reuseEnvironment.ScopeId = _function.ScopeId;
                 reuseEnvironment.SetSlotMap(_function.SlotMap);
-                // Skip InitializeSlots - for simple functions we only have parameters (no local vars),
-                // and we're about to set the parameter slot directly below. This avoids the Array.Fill.
+                reuseEnvironment.InitializeSlotsWithCapacity(
+                    GetNonNegativeSlotCount(_function.SlotCount),
+                    _activationMinimumCapacity);
             }
 
             // Bind this
@@ -2547,19 +2559,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             if (slots is not null && reuseEnvironment._slotCount > 0 && _parameterNames.Length > 0)
             {
                 slots[0].Value = arg0;
-                if (_function.HasClosures)
-                {
-                    reuseEnvironment.DefineParameterFast(_parameterNames[0], arg0);
-                }
 
                 // Bind remaining parameters to undefined (when function has more params than args)
                 for (var i = 1; i < _parameterNames.Length; i++)
                 {
                     slots[i].Value = JsValue.Undefined;
-                    if (_function.HasClosures)
-                    {
-                        reuseEnvironment.DefineParameterFast(_parameterNames[i], JsValue.Undefined);
-                    }
                 }
             }
             else if (_parameterNames.Length > 0)

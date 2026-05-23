@@ -3781,22 +3781,41 @@ public sealed class JsEnvironment : IRentable
     [MethodImpl(JsEngineConstants.Inlining)]
     internal void InitializeSlots(int slotCount)
     {
+        InitializeSlotsWithCapacity(slotCount, slotCount);
+    }
+
+    /// <summary>
+    /// Initializes slot storage for this environment with a logical slot count and minimum backing capacity.
+    /// _slotCount stays logical; minimumCapacity is only used to avoid growth during known activation appends.
+    /// </summary>
+    [MethodImpl(JsEngineConstants.Inlining)]
+    internal void InitializeSlotsWithCapacity(int slotCount, int minimumCapacity)
+    {
         _slotCount = slotCount;
-        if (slotCount <= 0)
+        if (minimumCapacity < slotCount)
+        {
+            minimumCapacity = slotCount;
+        }
+
+        if (minimumCapacity <= 0)
         {
             return;
         }
 
         // Reuse existing array if it's big enough, otherwise rent from pool
-        if (_slots is null || _slots.Length < slotCount)
+        if (_slots is null || _slots.Length < minimumCapacity)
         {
             // Return old array to pool before getting new one
             JsSlotArrayPool.Return(_slots);
-            _slots = JsSlotArrayPool.Rent(slotCount);
+            _slots = JsSlotArrayPool.Rent(minimumCapacity);
         }
 
-        // Clear all slots (set to empty)
-        Array.Clear(_slots, 0, slotCount);
+        // Clear logical slots; appended bindings are written through DefineSlot.
+        if (slotCount > 0)
+        {
+            Array.Clear(_slots, 0, slotCount);
+        }
+
         RegisterScopeEnvironment(this);
     }
 

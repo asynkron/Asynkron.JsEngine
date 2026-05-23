@@ -16,7 +16,8 @@ internal enum EncodedStatementOpcode : byte
     Return = 9,
     AssignmentSlot = 10,
     SimpleVariableDeclaration = 11,
-    BindingVariableDeclaration = 12
+    BindingVariableDeclaration = 12,
+    StoreResumeValue = 13
 }
 
 internal readonly record struct CompactStatementInstruction(
@@ -159,7 +160,8 @@ internal static class StatementInstructionDiagnosticsCodec
             InstructionKind.Return or
             InstructionKind.AssignmentSlot or
             InstructionKind.SimpleVariableDeclaration or
-            InstructionKind.BindingVariableDeclaration;
+            InstructionKind.BindingVariableDeclaration or
+            InstructionKind.StoreResumeValue;
     }
 
     public static bool TryEncode(
@@ -254,6 +256,12 @@ internal static class StatementInstructionDiagnosticsCodec
                         BindingTargetProgramReferenceId: bindingTargets.GetOrAdd(bindingVariableDeclaration.TargetProgram),
                         PrimarySymbol: bindingVariableDeclaration.AwaitStateKey,
                         BindingTargetProgram: bindingVariableDeclaration.TargetProgram));
+                return true;
+            case StoreResumeValueInstruction storeResumeValue:
+                encoded = new CompactStatementInstruction(
+                    new CompactStatementHeader(EncodedStatementOpcode.StoreResumeValue, storeResumeValue.Next, 0, 0),
+                    new CompactStatementPayload(
+                        PrimarySymbol: storeResumeValue.TargetSymbol));
                 return true;
             default:
                 encoded = default;
@@ -399,6 +407,9 @@ internal static class StatementInstructionDiagnosticsCodec
                 InitializerProgram: ResolveExpressionProgram(encoded.Payload.PrimaryExpressionProgramReferenceId, encoded.Payload.PrimaryExpressionProgram, expressionPrograms),
                 AwaitStateKey: encoded.Payload.PrimarySymbol,
                 AwaitedProgram: ResolveExpressionProgram(encoded.Payload.SecondaryExpressionProgramReferenceId, encoded.Payload.SecondaryExpressionProgram, expressionPrograms)),
+            EncodedStatementOpcode.StoreResumeValue => new StoreResumeValueInstruction(
+                header.NextOrTarget,
+                encoded.Payload.PrimarySymbol),
             _ => throw new ArgumentOutOfRangeException(nameof(encoded), header.Opcode, "Unsupported diagnostic opcode")
         };
     }

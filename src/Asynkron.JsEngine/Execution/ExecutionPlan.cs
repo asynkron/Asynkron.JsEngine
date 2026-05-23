@@ -48,4 +48,7 @@ internal sealed record ExecutionPlan(
 
     public ImmutableDictionary<int, ImmutableHashSet<Symbol>> SafeScopeLexicalBindings =>
         ScopeLexicalBindings ?? ImmutableDictionary<int, ImmutableHashSet<Symbol>>.Empty;
+
+    public CompactStatementStorageBoundary CreateCompactStatementStorageBoundary() =>
+        CompactStatementStorage.CreateBoundary(Instructions);
 }

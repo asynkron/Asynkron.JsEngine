@@ -171,4 +171,60 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
         Assert.True(snapshot.ExpressionReferenceCount >= 3);
         Assert.True(snapshot.SecondaryExpressionReferenceCount >= 1);
     }
+
+    [Fact]
+    public void CompactStatementStorageBoundary_ForMixedInstructionKinds_SeparatesSupportedAndDeferredFamilies()
+    {
+        var instructions = new ExecutionInstruction[]
+        {
+            new JumpInstruction(4),
+            new ReturnInstruction(8, ReturnProgram: ExpressionProgram.Empty),
+            new PopEnvironmentInstruction(ScopeId: 2, AllowPooling: false, Next: 9),
+            new BranchInstruction(ConditionProgram: ExpressionProgram.Empty, ConsequentIndex: 3, AlternateIndex: 5)
+        };
+
+        var boundary = CompactStatementStorage.CreateBoundary(instructions);
+
+        Assert.Equal(2, boundary.Storage.InstructionCount);
+        Assert.Equal(2, boundary.Storage.DecodeSemanticView().Length);
+        Assert.Contains(
+            boundary.SupportedKindClassifications,
+            entry => entry.Kind == InstructionKind.Jump &&
+                     entry.PayloadGroup == CompactStatementPayloadGroup.ControlFlowNoPayload &&
+                     entry.IsSupported);
+        Assert.Contains(
+            boundary.SupportedKindClassifications,
+            entry => entry.Kind == InstructionKind.Return &&
+                     entry.PayloadGroup == CompactStatementPayloadGroup.CompletionValueWithOptionalAwait &&
+                     entry.IsSupported);
+        Assert.Contains(
+            boundary.DeferredKindClassifications,
+            entry => entry.Kind == InstructionKind.PopEnvironment &&
+                     entry.PayloadGroup == CompactStatementPayloadGroup.DeferredDeclarationAndScope &&
+                     !entry.IsSupported);
+        Assert.Contains(
+            boundary.DeferredKindClassifications,
+            entry => entry.Kind == InstructionKind.Branch &&
+                     entry.PayloadGroup == CompactStatementPayloadGroup.DeferredBranching &&
+                     !entry.IsSupported);
+    }
+
+    [Fact]
+    public void CompactStatementStorageBoundary_StoresExpressionProgramsAsReferencesOutsideOpcodeStream()
+    {
+        var expressionProgram = ExpressionProgram.Empty;
+        var instructions = new ExecutionInstruction[]
+        {
+            new EvaluateAndDiscardInstruction(1, expressionProgram),
+            new ReturnInstruction(2, ReturnProgram: expressionProgram)
+        };
+
+        var boundary = CompactStatementStorage.CreateBoundary(instructions);
+        var storage = boundary.Storage;
+
+        Assert.Equal(2, storage.InstructionCount);
+        Assert.Equal(2, storage.OpcodeStream.Length);
+        Assert.Equal(2, storage.ReferenceTables.ExpressionPrograms.Length);
+        Assert.All(storage.ReferenceTables.ExpressionPrograms, program => Assert.Equal(expressionProgram, program));
+    }
 }

@@ -53,3 +53,10 @@ deferred because it was a separate major collector migration. Future .NET
 dependency sweeps should keep compatible test SDK updates scoped to their
 owning test project and leave unrelated major test tooling migrations for a
 dedicated issue.
+
+Issue #1584 / PR #1587 completed that compatible Test SDK alignment for the
+Test262 project after the main internal tests already used `18.5.1`. Future
+test-infrastructure sweeps should check sibling test project files for the same
+package before declaring a dependency slice complete, while still keeping the
+slice to the compatible package and avoiding unrelated Test262 or collector
+migrations.

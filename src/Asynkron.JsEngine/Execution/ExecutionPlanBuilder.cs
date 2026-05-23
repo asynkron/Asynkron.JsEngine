@@ -524,6 +524,7 @@ internal sealed partial class ExecutionPlanBuilder
             plan.LayoutId,
             plan.FlatSlotCount,
             plan.FlatSlotMappings,
+            plan.ActivationSlots,
             plan.CompactStatementStorageBoundary);
 
         // Update the cached plan on the FunctionExpression

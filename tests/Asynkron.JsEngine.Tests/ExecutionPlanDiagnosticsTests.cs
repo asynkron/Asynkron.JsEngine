@@ -542,6 +542,74 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public async Task SyncSmokeProbe_DynamicWithEvalAndGeneratorSeams_DoNotFailPlanBuild()
+    {
+        await using var engine = CreateEngine();
+
+        var cases = new (string Name, string Source, Action<ProgramNode> AssertBuilds)[]
+        {
+            (
+                "with object and direct eval bridge",
+                """
+                function withEval(scope) {
+                    var local = 1;
+                    with (scope) {
+                        eval("local = value + 1");
+                    }
+
+                    return local;
+                }
+                """,
+                program =>
+                {
+                    AssertScriptPlanBuilds(program, "with object and direct eval bridge");
+                    AssertFunctionPlanBuilds(program, "withEval");
+                }),
+            (
+                "generator yielding with object expression",
+                """
+                function* withYield(scopeObj) {
+                    with (yield scopeObj) {
+                        yield answer;
+                    }
+                }
+                """,
+                program =>
+                {
+                    AssertScriptPlanBuilds(program, "generator yielding with object expression");
+                    AssertFunctionPlanBuilds(program, "withYield");
+                }),
+            (
+                "async generator delegated awaited iterable",
+                """
+                async function* relay(values) {
+                    yield* await values;
+                }
+                """,
+                program =>
+                {
+                    AssertScriptPlanBuilds(program, "async generator delegated awaited iterable");
+                    AssertFunctionPlanBuilds(program, "relay");
+                })
+        };
+
+        foreach (var testCase in cases)
+        {
+            var program = engine.ParseProgram(testCase.Source);
+            try
+            {
+                await engine.Evaluate(program);
+            }
+            catch
+            {
+                // The smoke probe cares about plan build, not runtime completion.
+            }
+
+            testCase.AssertBuilds(program);
+        }
+    }
+
+    [Fact]
     public void StatementInstructionDiagnosticCodec_RoundTrips_EncodeNow_ControlFlowFamilies_FromPlan()
     {
         var pipeline = AstTestHelpers.ParseAndAnalyze("""

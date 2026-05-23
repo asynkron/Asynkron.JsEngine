@@ -419,6 +419,66 @@ must use the diagnostic boundary from the full semantic instruction list so
 diagnostic evidence does not regress as runtime-storage seams become narrower
 and more publishable.
 
+### 7.8 Issue #planmanual...9c07ab2dcb diagnostics refresh checkpoint
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-9c07ab2dcb`
+refreshes the statement-storage evidence from the current worktree without
+changing runtime execution or expanding compact runtime routing.
+
+Current-worktree rerun evidence:
+
+- Focused proof pack:
+  `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~StatementInstructionStorageDiagnosticsTests"`
+  - Passed: `11`
+  - Failed: `0`
+- Statement storage diagnostics:
+  `rtk dotnet run --project tools/ProfileRunner/ProfileRunner.csproj -c Release -- forloop --statement-instruction-storage`
+  - plans: `2`
+  - instructions: `18`
+  - supported: `8`
+  - unsupported: `10`
+  - owner-backed encoded bytes: `128`
+  - estimated compact encoded bytes: `184`
+  - operand table entries: `8`
+  - extra operand table entries: `7`
+  - expression references: `primary=5`, `secondary=0`, `table_count=5`
+  - symbols/bindings: `symbol_operands=2`, `binding_target_operands=0`
+  - unsupported-family reasons:
+    - `declaration-and-scope`: `6`
+    - `assignment-and-mutation`: `2`
+    - `branch-control`: `1`
+    - `suspend-and-exception-flow`: `1`
+- Allocation snapshot:
+  `rtk ./tools/profile forloop --memory`
+  - total allocated: `7.09 MB`
+
+Current supported instruction kinds in this diagnostic snapshot are:
+`Return`, `EvaluateAndDiscard`, `SimpleVariableDeclaration`, and
+`BreakableExit`. Current unsupported kinds in the same snapshot are:
+`PushEnvironment`, `PopEnvironment`, `IncrementSlot`, `FunctionDeclaration`,
+`BreakableEnter`, `Branch`, and `CompoundAssignmentSlot`.
+
+Historical delta note:
+
+- Section 6.6 records the original narrow measurement-gate family list from
+  issue #1520 (`Jump`, `SetCompletionValue`, `Break`, `Continue`,
+  `BreakableExit`, `EndFinally`, `LeaveTry`, `PopEnvironment`).
+- Current support/defer behavior is now owned by
+  `CompactStatementInstructionTaxonomy` plus
+  `StatementInstructionDiagnosticsCodec`, and therefore the current rerun no
+  longer treats `PopEnvironment`, `LeaveTry`, or `EndFinally` as supported in
+  this profile snapshot.
+- This is expected checkpoint drift from owner-seam refactors, not a runtime
+  storage migration.
+
+Guardrail:
+
+- This checkpoint is diagnostic-only evidence. `ExecutionPlanRunner` remains on
+  the published `ExecutionPlan.Instructions` semantic view and this issue does
+  not authorize runtime compact storage routing, lowering rewrites, or new
+  AST/IR fallback seams.
+
 ### 8. Staged migration
 
 1. Introduce compact storage schema in `ExecutionPlan` behind an internal

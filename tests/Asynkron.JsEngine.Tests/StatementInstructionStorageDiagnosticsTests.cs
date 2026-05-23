@@ -263,11 +263,25 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
                 value = value + 1;
             }
             value;
+            """,
+            """
+            label: {
+                break label;
+            }
+            """,
+            """
+            switch (1) {
+                case 1:
+                    break;
+                default:
+                    break;
+            }
             """
         };
 
         var expectedFamilyKinds = new HashSet<InstructionKind>
         {
+            InstructionKind.Jump,
             InstructionKind.Break,
             InstructionKind.Continue,
             InstructionKind.SetCompletionValue,
@@ -302,6 +316,17 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
                 seenFamilyKinds.Add(expectedSupported[i].Kind);
             }
         }
+
+        // Keep Jump covered in semantic parity even when script lowering emits loop-specific
+        // control-flow instructions instead of a direct Jump for this script corpus.
+        var jumpPlan = new ExecutionPlan(ImmutableArray.Create<ExecutionInstruction>(new JumpInstruction(1)), EntryPoint: 0);
+        var jumpBoundary = jumpPlan.CreateCompactStatementStorageBoundary();
+        var jumpExpected = Assert.Single(jumpPlan.Instructions.Where(instruction =>
+            instruction.Kind == InstructionKind.Jump &&
+            CompactStatementStorage.TryEncodeSupportedInstruction(instruction, out _)));
+        var jumpActual = Assert.Single(jumpBoundary.Storage.DecodeSemanticView().Where(instruction => instruction.Kind == InstructionKind.Jump));
+        AssertEquivalentSupportedInstruction(jumpExpected, jumpActual);
+        seenFamilyKinds.Add(InstructionKind.Jump);
 
         Assert.True(
             expectedFamilyKinds.IsSubsetOf(seenFamilyKinds),

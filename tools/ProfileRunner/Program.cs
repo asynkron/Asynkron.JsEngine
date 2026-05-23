@@ -1,9 +1,12 @@
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.JsTypes;
 using Jint;
 using Microsoft.Extensions.Logging;
 
@@ -84,6 +87,13 @@ var manifest = LoadManifest(manifestPath);
 if (string.Equals(profileKey, listCommand, StringComparison.OrdinalIgnoreCase))
 {
     PrintProfiles(manifest);
+    return;
+}
+
+if (string.Equals(profileKey, "bytecode", StringComparison.OrdinalIgnoreCase))
+{
+    RunBytecodeProfile();
+    await Task.Delay(500);
     return;
 }
 
@@ -302,6 +312,134 @@ void RunWithFreshJintEngines(
 void EvaluateJint(Engine engine, string source)
 {
     _ = engine.Evaluate(source).ToObject();
+}
+
+void RunBytecodeProfile()
+{
+    using var engine = CreateEngine(traceRealm: false);
+    var environment = engine.GlobalEnvironment;
+    var context = engine.RealmState.CreateContext(pushScope: false);
+    var cases = CreateBytecodeCases();
+
+    Console.WriteLine("BytecodeProfile");
+    foreach (var profileCase in cases)
+    {
+        Console.WriteLine(string.Create(
+            CultureInfo.InvariantCulture,
+            $"  {profileCase.Name}: ops={profileCase.Program.OperationCount}, stack={profileCase.Program.MaxStackDepth}, iterations={profileCase.Iterations}"));
+    }
+
+    var checksum = 0d;
+    foreach (var profileCase in cases)
+    {
+        checksum += RunBytecodeCase(profileCase, environment, context);
+    }
+
+    Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"Bytecode checksum: {checksum:F2}"));
+}
+
+double RunBytecodeCase(
+    BytecodeProfileCase profileCase,
+    JsEnvironment environment,
+    EvaluationContext context)
+{
+    var sw = Stopwatch.StartNew();
+    var checksum = TypedAstEvaluator.ProfileEvaluateLoweredExpressionProgramLoop(
+        profileCase.Program,
+        environment,
+        context,
+        profileCase.Iterations,
+        profileCase.ExpectsNumericResult);
+    sw.Stop();
+    Console.WriteLine(string.Create(
+        CultureInfo.InvariantCulture,
+        $"  {profileCase.Name}: {sw.ElapsedMilliseconds}ms"));
+    return checksum;
+}
+
+static IReadOnlyList<BytecodeProfileCase> CreateBytecodeCases()
+{
+    return
+    [
+        new BytecodeProfileCase(
+            "literal-add",
+            CreateLiteralAddProgram(),
+            Iterations: 2_000_000),
+        new BytecodeProfileCase(
+            "wide-arithmetic-64",
+            CreateWideArithmeticProgram(64),
+            Iterations: 300_000),
+        new BytecodeProfileCase(
+            "object-property-read",
+            CreateObjectPropertyProgram(),
+            Iterations: 800_000),
+        new BytecodeProfileCase(
+            "array-construction",
+            CreateArrayConstructionProgram(8),
+            Iterations: 500_000,
+            ExpectsNumericResult: false)
+    ];
+}
+
+static ExpressionProgram CreateLiteralAddProgram()
+{
+    return new ExpressionProgram(
+        ImmutableArray.Create(
+            PackedExpressionOp.LoadLiteralConstant(0),
+            PackedExpressionOp.LoadLiteralConstant(1),
+            PackedExpressionOp.Binary(BinaryOperator.Add)),
+        literalConstants: ImmutableArray.Create(
+            JsValue.FromDouble(40),
+            JsValue.FromDouble(2)));
+}
+
+static ExpressionProgram CreateWideArithmeticProgram(int terms)
+{
+    var operations = ImmutableArray.CreateBuilder<PackedExpressionOp>(checked(terms * 2 - 1));
+    var literals = ImmutableArray.CreateBuilder<JsValue>(terms);
+
+    operations.Add(PackedExpressionOp.LoadLiteralConstant(0));
+    literals.Add(JsValue.FromDouble(1));
+    for (var i = 1; i < terms; i++)
+    {
+        operations.Add(PackedExpressionOp.LoadLiteralConstant(i));
+        operations.Add(PackedExpressionOp.Binary(i % 3 == 0 ? BinaryOperator.Multiply : BinaryOperator.Add));
+        literals.Add(JsValue.FromDouble(i + 1));
+    }
+
+    return new ExpressionProgram(
+        operations.MoveToImmutable(),
+        literalConstants: literals.MoveToImmutable());
+}
+
+static ExpressionProgram CreateObjectPropertyProgram()
+{
+    return new ExpressionProgram(
+        ImmutableArray.Create(
+            PackedExpressionOp.CreateObject,
+            PackedExpressionOp.LoadLiteralConstant(0),
+            PackedExpressionOp.DefineObjectProperty(0),
+            PackedExpressionOp.GetNamedProperty(0)),
+        literalConstants: ImmutableArray.Create(JsValue.FromDouble(123)),
+        stringConstants: ImmutableArray.Create("value"));
+}
+
+static ExpressionProgram CreateArrayConstructionProgram(int itemCount)
+{
+    var operations = ImmutableArray.CreateBuilder<PackedExpressionOp>(checked(itemCount * 2 + 1));
+    var literals = ImmutableArray.CreateBuilder<JsValue>(itemCount);
+
+    operations.Add(PackedExpressionOp.CreateArray);
+    for (var i = 0; i < itemCount; i++)
+    {
+        operations.Add(PackedExpressionOp.LoadLiteralConstant(i));
+        operations.Add(PackedExpressionOp.ArrayPush);
+        literals.Add(JsValue.FromDouble(i));
+    }
+
+    return new ExpressionProgram(
+        operations.MoveToImmutable(),
+        literalConstants: literals.MoveToImmutable());
 }
 
 void PrintCompletion(ProfileDefinition profile, long elapsedMs, int runsForAverage)
@@ -616,6 +754,12 @@ enum EngineKind
     Asynkron,
     Jint
 }
+
+readonly record struct BytecodeProfileCase(
+    string Name,
+    ExpressionProgram Program,
+    int Iterations,
+    bool ExpectsNumericResult = true);
 
 sealed class ConsoleLogger(string name) : ILogger
 {

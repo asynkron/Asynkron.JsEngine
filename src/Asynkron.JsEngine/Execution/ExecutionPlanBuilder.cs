@@ -211,8 +211,7 @@ internal sealed partial class ExecutionPlanBuilder
             RootScopeId: mappedRootScopeId,
             layoutId,
             flatSlotCount,
-            flatSlotMappings,
-            CompactStatementStorage.CreateBoundary(Instructions, CompactStatementBoundaryMode.PureControlFlow));
+            flatSlotMappings);
         return true;
     }
 

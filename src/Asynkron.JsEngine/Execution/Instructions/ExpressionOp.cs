@@ -88,7 +88,7 @@ internal enum ExpressionOpKind : byte
 internal readonly record struct ExpressionProgram
 {
     private readonly ImmutableArray<EncodedExpressionOp> _operations;
-    private readonly ImmutableArray<ExpressionProgramSecondOperand> _secondOperands;
+    private readonly ImmutableArray<int> _secondOperands;
 
     public ExpressionProgram(
         ImmutableArray<PackedExpressionOp> operations,
@@ -126,10 +126,11 @@ internal readonly record struct ExpressionProgram
     public long EstimatedEncodedOperationBytes =>
         (long)OperationCount * Unsafe.SizeOf<EncodedExpressionOp>() +
         (long)(_secondOperands.IsDefault ? 0 : _secondOperands.Length) *
-        Unsafe.SizeOf<ExpressionProgramSecondOperand>();
+        sizeof(int);
 
     public bool IsEmpty => OperationCount == 0;
 
+    [MethodImpl(JsEngineConstants.Inlining)]
     public PackedExpressionOp GetOperation(int index)
     {
         var encoded = _operations[index];
@@ -145,16 +146,16 @@ internal readonly record struct ExpressionProgram
 
     private static ImmutableArray<EncodedExpressionOp> EncodeOperations(
         ImmutableArray<PackedExpressionOp> operations,
-        out ImmutableArray<ExpressionProgramSecondOperand> secondOperands)
+        out ImmutableArray<int> secondOperands)
     {
         if (operations.IsDefaultOrEmpty)
         {
-            secondOperands = ImmutableArray<ExpressionProgramSecondOperand>.Empty;
+            secondOperands = ImmutableArray<int>.Empty;
             return ImmutableArray<EncodedExpressionOp>.Empty;
         }
 
         var encodedOperations = ImmutableArray.CreateBuilder<EncodedExpressionOp>(operations.Length);
-        ImmutableArray<ExpressionProgramSecondOperand>.Builder? secondOperandBuilder = null;
+        ImmutableArray<int>.Builder? secondOperandBuilder = null;
         for (var i = 0; i < operations.Length; i++)
         {
             var operation = operations[i];
@@ -162,20 +163,30 @@ internal readonly record struct ExpressionProgram
                 operation.EncodedOpcode,
                 operation.FirstOperand));
 
-            if (operation.SecondOperand != 0)
+            if (secondOperandBuilder is not null)
             {
-                secondOperandBuilder ??= ImmutableArray.CreateBuilder<ExpressionProgramSecondOperand>();
-                secondOperandBuilder.Add(new ExpressionProgramSecondOperand(i, operation.SecondOperand));
+                secondOperandBuilder.Add(operation.SecondOperand);
+            }
+            else if (operation.SecondOperand != 0)
+            {
+                secondOperandBuilder = ImmutableArray.CreateBuilder<int>(operations.Length);
+                for (var previous = 0; previous < i; previous++)
+                {
+                    secondOperandBuilder.Add(0);
+                }
+
+                secondOperandBuilder.Add(operation.SecondOperand);
             }
         }
 
         secondOperands = secondOperandBuilder is null
-            ? ImmutableArray<ExpressionProgramSecondOperand>.Empty
+            ? ImmutableArray<int>.Empty
             : secondOperandBuilder.ToImmutable();
 
         return encodedOperations.MoveToImmutable();
     }
 
+    [MethodImpl(JsEngineConstants.Inlining)]
     private int GetSecondOperand(int operationIndex)
     {
         if (_secondOperands.IsDefaultOrEmpty)
@@ -183,28 +194,7 @@ internal readonly record struct ExpressionProgram
             return 0;
         }
 
-        var low = 0;
-        var high = _secondOperands.Length - 1;
-        while (low <= high)
-        {
-            var middle = low + ((high - low) >> 1);
-            var entry = _secondOperands[middle];
-            if (entry.OperationIndex == operationIndex)
-            {
-                return entry.Operand;
-            }
-
-            if (entry.OperationIndex < operationIndex)
-            {
-                low = middle + 1;
-            }
-            else
-            {
-                high = middle - 1;
-            }
-        }
-
-        return 0;
+        return _secondOperands[operationIndex];
     }
 
     private static int ComputeMaxStackDepth(ImmutableArray<PackedExpressionOp> operations)
@@ -313,8 +303,6 @@ internal readonly record struct ExpressionProgram
 }
 
 internal readonly record struct EncodedExpressionOp(ushort Opcode, int FirstOperand);
-
-internal readonly record struct ExpressionProgramSecondOperand(int OperationIndex, int Operand);
 
 internal readonly struct ExpressionProgramOperationEnumerable
 {

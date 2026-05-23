@@ -56,7 +56,6 @@ public static partial class TypedAstEvaluator
         private readonly HashSet<Symbol> _topLevelLexicalNames;
         private readonly bool _usesArguments;
         private readonly bool _needsArgumentsBinding;
-        private readonly int _activationMinimumCapacity;
         private readonly int _functionScopeId;
         private readonly ActivationSlotShape? _activationSlots;
 
@@ -125,7 +124,6 @@ public static partial class TypedAstEvaluator
             _usesArguments = !IsArrowFunction && UsesArgumentsIdentifier(_function);
             _needsArgumentsBinding = !IsArrowFunction && NeedsArgumentsBinding(_function);
             _functionScopeId = ResolveFunctionScopeId(function);
-            _activationMinimumCapacity = ComputeActivationMinimumCapacity();
 
             // Detect simple functions for fast-path invocation
             // A simple function has: no async, no defaults, no destructuring, no body lexicals, no hoisting needed
@@ -2120,14 +2118,14 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             if (_activationSlots is { } activationSlots)
             {
                 functionEnvironment.ScopeId = activationSlots.ScopeId;
-                functionEnvironment.InitializeSlotsWithCapacity(GetNonNegativeSlotCount(activationSlots.SlotCount), _activationMinimumCapacity);
+                functionEnvironment.InitializeSlots(GetNonNegativeSlotCount(activationSlots.SlotCount));
                 functionEnvironment.SetSlotNames(activationSlots.SlotNames);
             }
             else
             {
                 functionEnvironment.ScopeId = _functionScopeId;
                 functionEnvironment.SetSlotMap(_function.SlotMap);
-                functionEnvironment.InitializeSlotsWithCapacity(GetNonNegativeSlotCount(_function.SlotCount), _activationMinimumCapacity);
+                functionEnvironment.InitializeSlots(GetNonNegativeSlotCount(_function.SlotCount));
             }
 
             JsValue boundThisValue;
@@ -2146,29 +2144,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
             functionEnvironment._thisValue = boundThisValue;
             functionEnvironment._hasThisValue = true;
-        }
-
-        [MethodImpl(JsEngineConstants.Inlining)]
-        private int ComputeActivationMinimumCapacity()
-        {
-            var baseSlots = GetNonNegativeSlotCount(_activationSlots?.SlotCount ?? _function.SlotCount);
-            var extras = 0; // 'this' uses dedicated _thisValue/_hasThisValue fast storage.
-            // Keep this reserve aligned to the simple/reuse fast invocation path only.
-            // Non-fast bindings such as NewTarget/ActiveFunction/Super/LexicalThisEnvironment
-            // are initialized in the general invocation environment setup and should not
-            // inflate the fast-path rented slot arrays.
-
-            if ((_argumentsObjectNeeded && _needsArgumentsBinding) || _usesArguments)
-            {
-                extras += 1; // Symbol.Arguments
-            }
-
-            if (!IsArrowFunction && _function.Name is not null && !_hasFunctionNameEnvironment)
-            {
-                extras += 1; // Named function expression body binding.
-            }
-
-            return baseSlots + extras;
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]
@@ -2295,16 +2270,14 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             if (_activationSlots is { } activationSlots)
             {
                 reuseEnvironment.ScopeId = activationSlots.ScopeId;
-                reuseEnvironment.InitializeSlotsWithCapacity(GetNonNegativeSlotCount(activationSlots.SlotCount), _activationMinimumCapacity);
+                reuseEnvironment.InitializeSlots(GetNonNegativeSlotCount(activationSlots.SlotCount));
                 reuseEnvironment.SetSlotNames(activationSlots.SlotNames);
             }
             else
             {
                 reuseEnvironment.ScopeId = _function.ScopeId;
                 reuseEnvironment.SetSlotMap(_function.SlotMap);
-                // Ensure backing capacity also covers activation appends (NewTarget/ActiveFunction/Super/etc.)
-                // so repeated calls do not trigger GrowSlots allocations in this reuse path.
-                reuseEnvironment.InitializeSlotsWithCapacity(GetNonNegativeSlotCount(_function.SlotCount), _activationMinimumCapacity);
+                reuseEnvironment.InitializeSlots(GetNonNegativeSlotCount(_function.SlotCount));
             }
 
             // Bind this

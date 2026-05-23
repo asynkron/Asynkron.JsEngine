@@ -58,24 +58,35 @@ Console.WriteLine($"   Execution order: {string.Join(" -> ", executionOrder)}\n"
 // Example 4: Async tasks with delays
 Console.WriteLine("4. Async tasks with delays:");
 var asyncCounter = 0;
+var asyncTaskOneDone = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+var asyncTaskTwoDone = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-engine.ScheduleTask(async () =>
+engine.ScheduleTask(() =>
 {
     Console.WriteLine("   Starting async task 1...");
-    await Task.Delay(50);
-    asyncCounter++;
-    Console.WriteLine($"   Async task 1 completed (counter: {asyncCounter})");
+    _ = Task.Run(async () =>
+    {
+        await Task.Delay(50);
+        asyncCounter++;
+        Console.WriteLine($"   Async task 1 completed (counter: {asyncCounter})");
+        asyncTaskOneDone.SetResult();
+    });
 });
 
-engine.ScheduleTask(async () =>
+engine.ScheduleTask(() =>
 {
     Console.WriteLine("   Starting async task 2...");
-    await Task.Delay(100);
-    asyncCounter++;
-    Console.WriteLine($"   Async task 2 completed (counter: {asyncCounter})");
+    _ = Task.Run(async () =>
+    {
+        await Task.Delay(100);
+        asyncCounter++;
+        Console.WriteLine($"   Async task 2 completed (counter: {asyncCounter})");
+        asyncTaskTwoDone.SetResult();
+    });
 });
 
 await engine.Evaluate("let z = 200;");
+await Task.WhenAll(asyncTaskOneDone.Task, asyncTaskTwoDone.Task);
 Console.WriteLine($"   All async tasks completed. Final counter: {asyncCounter}\n");
 
 // Example 5: Integration with host functions

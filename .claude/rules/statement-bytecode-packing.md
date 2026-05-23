@@ -60,6 +60,11 @@ decode bridge are explicit.
     against the original `ExecutionInstruction` records. Do not treat a printer
     or diagnostics bridge as permission to change `ExecutionPlanRunner` or to
     hide unsupported/deferred families behind a partial decoded view.
+11. When parity coverage claims a supported `InstructionKind`, make the test
+    exercise that kind's comparison branch. If representative source scripts do
+    not lower to a direct instance of the kind, add a minimal synthetic
+    `ExecutionPlan` probe for that kind instead of relying only on membership in
+    an expected-kind set.
 
 ## Why
 
@@ -128,5 +133,15 @@ owner decode bridge. The lesson is that diagnostics and printers should migrate
 toward the owner boundary before runtime routing, with focused parity tests for
 decoded semantic output and an explicit guard that `ExecutionPlanRunner` still
 uses the published instruction records until a separate runtime-routing slice.
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-40259a2274`
+/ PR #1596 added script-plan compact parity coverage for control-flow-heavy
+plans, then review found that `Jump` could be listed as an expected supported
+family without the script corpus actually exercising the `JumpInstruction`
+comparison path. The fix added a minimal synthetic `ExecutionPlan` with a direct
+`JumpInstruction` so the same decode-parity assertion covers the claimed kind.
+Future parity expansion should prove both family presence and branch execution,
+especially for IR kinds whose source-level lowering is context-dependent.
 
 Related ADR: `docs/adrs/0094-compact-statement-bytecode-encoding-design-from-current-ir.md`.

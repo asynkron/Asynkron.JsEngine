@@ -375,7 +375,7 @@ profiling evidence. Do not treat the existence of
 `CreateCompactStatementStorageBoundary()` as permission to bypass
 record-backed runtime execution.
 
-### 7.5 Issue #1595 compact-owner diagnostic/printer route checkpoint
+### 7.6 Issue #1595 compact-owner diagnostic/printer route checkpoint
 
 Issue
 `planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-322b73d626`

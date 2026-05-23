@@ -211,7 +211,8 @@ internal sealed partial class ExecutionPlanBuilder
             RootScopeId: mappedRootScopeId,
             layoutId,
             flatSlotCount,
-            flatSlotMappings);
+            flatSlotMappings,
+            CompactStatementStorage.CreateBoundary(Instructions, CompactStatementBoundaryMode.PureControlFlow));
         return true;
     }
 
@@ -501,7 +502,8 @@ internal sealed partial class ExecutionPlanBuilder
             plan.RootScopeId,
             plan.LayoutId,
             plan.FlatSlotCount,
-            plan.FlatSlotMappings);
+            plan.FlatSlotMappings,
+            plan.CompactStatementStorageBoundary);
 
         // Update the cached plan on the FunctionExpression
         UpdateCachedExecutionPlan(funcExpr, stampedPlan);

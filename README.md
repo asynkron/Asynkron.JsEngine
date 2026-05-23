@@ -53,7 +53,7 @@ Console application demos are included in the `examples` folder:
 ### Main Demo
 ```bash
 cd examples/Demo
-dotnet run
+rtk dotnet run
 ```
 
 The main demo showcases basic features including variables, functions, closures, objects, arrays, control flow, operators, and standard library usage.
@@ -61,7 +61,7 @@ The main demo showcases basic features including variables, functions, closures,
 ### Promise and Timer Demo
 ```bash
 cd examples/PromiseDemo
-dotnet run
+rtk dotnet run
 ```
 
 Demonstrates setTimeout, setInterval, Promise creation, chaining, error handling, and event queue processing.
@@ -69,7 +69,7 @@ Demonstrates setTimeout, setInterval, Promise creation, chaining, error handling
 ### Event Queue Demo
 ```bash
 cd examples/EventQueueDemo
-dotnet run
+rtk dotnet run
 ```
 
 Shows host-scheduled task execution, nested scheduling, and async task queue draining through `JsEngine.ScheduleTask(...)`.
@@ -77,14 +77,14 @@ Shows host-scheduled task execution, nested scheduling, and async task queue dra
 ### NPM Package Compatibility Demo
 ```bash
 cd examples/NpmPackageDemo
-dotnet run
+rtk dotnet run
 ```
 
 Shows that the engine can run pure JavaScript npm packages without Node.js dependencies.
 
 ### Node Host Demo
 ```bash
-dotnet run --project examples/NodeHostDemo
+rtk dotnet run --project examples/NodeHostDemo
 ```
 
 Runs the Node-shaped host sample that exposes a small `require(...)` module surface and can execute progressively larger CommonJS apps (including real npm frameworks) via the scripts documented in `examples/NodeHostDemo/README.md`.
@@ -95,7 +95,7 @@ Runs the Node-shaped host sample that exposes a small `require(...)` module surf
 
 ```bash
 # Canonical local quality gate
-make quality
+rtk make quality
 ```
 
 `make quality` runs `git diff --check`, builds the internal projects, then runs
@@ -112,9 +112,9 @@ For ad hoc local checks, keep the build-before-test flow from
 [`agents/how-to-build-and-test.md`](agents/how-to-build-and-test.md):
 
 ```bash
-dotnet build
-dotnet test tests/Asynkron.JsEngine.Tests
-dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~SomeTestName"
+rtk dotnet build
+rtk dotnet test tests/Asynkron.JsEngine.Tests
+rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~SomeTestName"
 ```
 
 Recurring documentation-maintenance child runs should execute one bounded

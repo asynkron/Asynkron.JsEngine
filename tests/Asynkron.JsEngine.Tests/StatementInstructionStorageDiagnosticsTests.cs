@@ -210,6 +210,28 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
     }
 
     [Fact]
+    public void CompactStatementStorageBoundary_DecodeSemanticView_ForPureControlFlow_PreservesFormatting()
+    {
+        var instructions = new ExecutionInstruction[]
+        {
+            new JumpInstruction(4),
+            new BreakInstruction(8, 2),
+            new ContinueInstruction(10, 2)
+        };
+
+        var boundary = CompactStatementStorage.CreateBoundary(instructions);
+        var decoded = boundary.Storage.DecodeSemanticView();
+
+        Assert.Equal(instructions.Length, decoded.Length);
+        for (var i = 0; i < instructions.Length; i++)
+        {
+            Assert.Equal(
+                ExecutionPlanDiagnostics.FormatInstruction(instructions[i]),
+                ExecutionPlanDiagnostics.FormatInstruction(decoded[i]));
+        }
+    }
+
+    [Fact]
     public void CompactStatementStorageBoundary_StoresExpressionProgramsAsReferencesOutsideOpcodeStream()
     {
         var expressionProgram = ExpressionProgram.Empty;

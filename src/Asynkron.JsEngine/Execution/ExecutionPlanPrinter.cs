@@ -40,6 +40,11 @@ internal static class ExecutionPlanPrinter
         return sb.ToString();
     }
 
+    public static string Print(CompactStatementStorageBoundary boundary, int entryIndex = 0)
+    {
+        return Print(boundary.Storage.DecodeSemanticView(), entryIndex);
+    }
+
     /// <summary>
     /// Prints a single instruction during execution trace with environment depth indentation.
     /// Only compiled when TRACE_IR_EXECUTION is defined.

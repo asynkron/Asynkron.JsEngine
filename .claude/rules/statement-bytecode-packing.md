@@ -54,6 +54,12 @@ decode bridge are explicit.
    reference tables and runtime execution must still route through decoded
    `ExecutionInstruction` views until a dedicated runtime-routing slice changes
    that contract.
+10. Route diagnostic and printer consumers through the compact owner boundary
+    when a supported statement family is ready for owner-backed semantic views.
+    Decode via `CompactStatementStorage.DecodeSemanticView()` and prove parity
+    against the original `ExecutionInstruction` records. Do not treat a printer
+    or diagnostics bridge as permission to change `ExecutionPlanRunner` or to
+    hide unsupported/deferred families behind a partial decoded view.
 
 ## Why
 
@@ -114,5 +120,13 @@ lead the migration only if their encoded data already has the shape a storage
 owner can persist: fixed scalar header fields, typed side payload references,
 shared expression-program ids for owner-boundary callers, and direct
 encode/decode compatibility only as a bridge for tests and diagnostics.
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-322b73d626`
+/ PR #1595 routed pure control-flow diagnostic printing through the compact
+owner decode bridge. The lesson is that diagnostics and printers should migrate
+toward the owner boundary before runtime routing, with focused parity tests for
+decoded semantic output and an explicit guard that `ExecutionPlanRunner` still
+uses the published instruction records until a separate runtime-routing slice.
 
 Related ADR: `docs/adrs/0094-compact-statement-bytecode-encoding-design-from-current-ir.md`.

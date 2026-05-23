@@ -327,6 +327,24 @@ profiling evidence. Do not treat the existence of
 `CreateCompactStatementStorageBoundary()` as permission to bypass
 record-backed runtime execution.
 
+### 7.5 Issue #1595 compact-owner diagnostic/printer route checkpoint
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-322b73d626`
+/ PR #1595 routed pure control-flow diagnostic printing through
+`CompactStatementStorage.DecodeSemanticView()` by adding a printer path for
+`CompactStatementStorageBoundary`. The accepted slice proved `Jump`, `Break`,
+and `Continue` formatting parity between the original `ExecutionInstruction`
+records and the decoded compact-owner semantic view.
+
+This is a diagnostics and printer migration checkpoint, not a runtime storage
+migration. Future statement storage work should move readable diagnostics and
+tests toward owner-boundary decode paths first, while keeping
+`ExecutionPlanRunner` on the published `ExecutionPlan.Instructions` semantic
+view until a dedicated runtime-routing slice changes that contract.
+Unsupported and deferred families must remain visible in compact-boundary
+metadata instead of being hidden behind a partial decoded semantic view.
+
 ### 8. Staged migration
 
 1. Introduce compact storage schema in `ExecutionPlan` behind an internal

@@ -2146,14 +2146,13 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
             functionEnvironment._thisValue = boundThisValue;
             functionEnvironment._hasThisValue = true;
-            functionEnvironment.DefineJsValue(Symbol.This, boundThisValue);
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]
         private int ComputeActivationMinimumCapacity()
         {
             var baseSlots = GetNonNegativeSlotCount(_activationSlots?.SlotCount ?? _function.SlotCount);
-            var extras = 1; // Symbol.This is always defined in the invocation environment.
+            var extras = 0; // 'this' uses dedicated _thisValue/_hasThisValue fast storage.
 
             if (IsArrowFunction)
             {

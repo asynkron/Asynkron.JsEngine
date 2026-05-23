@@ -106,6 +106,56 @@
       "show_timing": true,
       "fresh_engine_per_iteration": true
     },
+    "activation-noargs": {
+      "name": "ActivationNoArgsProfile",
+      "description": "No-argument function call activation loop",
+      "script": "activation-noargs.js",
+      "mode": "sync",
+      "iterations": 20,
+      "warmup": 1,
+      "show_progress": true,
+      "show_timing": true
+    },
+    "activation-params": {
+      "name": "ActivationParamsProfile",
+      "description": "Parameterized function call activation loop",
+      "script": "activation-params.js",
+      "mode": "sync",
+      "iterations": 20,
+      "warmup": 1,
+      "show_progress": true,
+      "show_timing": true
+    },
+    "activation-arguments": {
+      "name": "ActivationArgumentsProfile",
+      "description": "Function calls that read arguments objects",
+      "script": "activation-arguments.js",
+      "mode": "sync",
+      "iterations": 20,
+      "warmup": 1,
+      "show_progress": true,
+      "show_timing": true
+    },
+    "activation-closures": {
+      "name": "ActivationClosuresProfile",
+      "description": "Nested closure activation loop",
+      "script": "activation-closures.js",
+      "mode": "sync",
+      "iterations": 20,
+      "warmup": 1,
+      "show_progress": true,
+      "show_timing": true
+    },
+    "activation-evalscope": {
+      "name": "ActivationEvalScopeProfile",
+      "description": "Eval-sensitive function calls with dynamic scope access",
+      "script": "activation-evalscope.js",
+      "mode": "sync",
+      "iterations": 10,
+      "warmup": 1,
+      "show_progress": true,
+      "show_timing": true
+    },
     "closures": {
       "name": "ClosuresProfile",
       "description": "Closure creation and invocation",

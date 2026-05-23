@@ -1,7 +1,8 @@
 # Async Runtime Tests
 
-When an async test is not specifically testing timer scheduling, use the
-repository's tracked async helpers instead of raw `setTimeout` timers.
+When an async test or runnable demo is not specifically testing timer
+scheduling, make async completion explicit so the proof is about the runtime
+behavior under test instead of incidental host scheduling.
 
 ## Rules
 
@@ -15,6 +16,10 @@ repository's tracked async helpers instead of raw `setTimeout` timers.
 4. Run the narrow async test or async test class with the repository timeout
    arguments before handing the branch to the quality gate:
    `xUnit.MaxParallelThreads=1 -timeout 20000`.
+5. Do not pass `async` lambdas to host APIs that accept `Action`, such as
+   `JsEngine.ScheduleTask(Action)`. Start background work explicitly, capture
+   completion with `TaskCompletionSource` or another tracked task, and await
+   that completion before printing or asserting final state.
 
 ## Why
 
@@ -26,3 +31,9 @@ using three raw `setTimeout` timers made the delivery fragile for the wrong
 reason. The follow-up repair switched the test to
 `AsyncTestHelpers.RegisterDelayHelper` while preserving the Promise.all
 ordering assertion.
+
+Issue #1627 / PR #1631 fixed `EventQueueDemo` after scheduled async work was
+started through callbacks accepted as `Action`. The demo could print its final
+completion line before the delayed background work finished, which made the
+example claim success early. Future async demos and tests should track the host
+work they start and wait for it before reporting final state.

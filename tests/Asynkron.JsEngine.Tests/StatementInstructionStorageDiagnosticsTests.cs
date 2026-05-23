@@ -140,16 +140,42 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
         var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Function).GetOrCreateCache();
         var plan = Assert.IsType<ExecutionPlan>(cache.Plan);
         var baselineInstructions = plan.Instructions;
-
         Assert.NotNull(plan.CompactStatementStorageBoundary);
+        var sidecar = plan.CompactStatementStorageBoundary!;
+        var decodedSidecar = sidecar.Storage.DecodeSemanticView();
+        var expectedPureControlFlowInstructions = baselineInstructions
+            .Where(static instruction =>
+            {
+                var classification = CompactStatementInstructionTaxonomy.Classify(instruction.Kind);
+                return classification.PayloadGroup is CompactStatementPayloadGroup.ControlFlowNoPayload or
+                    CompactStatementPayloadGroup.CompletionControl;
+            })
+            .ToImmutableArray();
+
         Assert.All(
-            plan.CompactStatementStorageBoundary!.SupportedKindClassifications,
+            sidecar.SupportedKindClassifications,
             entry => Assert.True(
                 entry.PayloadGroup is CompactStatementPayloadGroup.ControlFlowNoPayload or
                     CompactStatementPayloadGroup.CompletionControl));
         Assert.DoesNotContain(
-            plan.CompactStatementStorageBoundary.SupportedKindClassifications,
+            sidecar.SupportedKindClassifications,
             entry => entry.Kind == InstructionKind.Return);
+        Assert.Contains(
+            sidecar.DeferredKindClassifications,
+            entry => entry.Kind == InstructionKind.Return &&
+                     entry.PayloadGroup == CompactStatementPayloadGroup.CompletionValueWithOptionalAwait &&
+                     !entry.IsSupported);
+        Assert.Equal(expectedPureControlFlowInstructions.Length, decodedSidecar.Length);
+        for (var i = 0; i < decodedSidecar.Length; i++)
+        {
+            Assert.True(
+                StatementInstructionDiagnosticsCodec.TryEncode(expectedPureControlFlowInstructions[i], out var expectedEncoded),
+                $"Failed to encode expected instruction at index {i}: {expectedPureControlFlowInstructions[i].Kind}");
+            Assert.True(
+                StatementInstructionDiagnosticsCodec.TryEncode(decodedSidecar[i], out var decodedEncoded),
+                $"Failed to encode decoded instruction at index {i}: {decodedSidecar[i].Kind}");
+            Assert.Equal(expectedEncoded, decodedEncoded);
+        }
         Assert.Equal(baselineInstructions, plan.Instructions);
     }
 

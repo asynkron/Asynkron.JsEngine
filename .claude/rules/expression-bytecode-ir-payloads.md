@@ -79,6 +79,14 @@ payloads, prove the bytecode payload contract at the instruction level.
     Decode back to the existing `ExecutionInstruction` semantic view and prove
     parity through the same diagnostics/printer formatting surface reviewers
     already use. Do not treat a diagnostic codec as runtime compact storage.
+15. When a diagnostics guardrail covers intentional dynamic or suspending seams,
+    assert the positive instruction and bytecode-payload shape, not only that
+    the plan builds. For `with`, inspect `EnterWithInstruction.ObjectProgram`
+    and its lowered object operand; for direct `eval`, inspect the
+    bytecode-backed call op and direct-eval metadata; for `yield* await`, keep
+    the awaited operand on `YieldStarInstruction.AwaitedProgram` and assert
+    `IterableProgram` stays null. Smoke tests that only prove cache success can
+    pass while the seam drifts back toward mixed AST/IR execution.
 
 ## Why
 
@@ -166,3 +174,13 @@ format parity, but that does not authorize runtime storage migration or
 object-heavy instruction families. Keep the bridge small, decoded-view based,
 and tied back to ADR 0094 until a later storage issue proves broader payload
 normalization.
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-e4ec8e3a8c`
+and PR #1615 replaced a weak dynamic seam smoke probe with instruction-shape
+assertions for `with` plus direct `eval`, `with (yield scopeObj)`, and
+`yield* await values`. The lesson is that dynamic-boundary quarantine tests
+must prove the intended bytecode/IR carrier, because plan-build success alone
+cannot detect a regression from `EnterWithInstruction` object programs,
+direct-eval call ops, or awaited `YieldStarInstruction` payloads back to an
+AST-seam-shaped execution path.

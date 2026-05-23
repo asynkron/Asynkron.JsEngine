@@ -2,6 +2,7 @@
 
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Linq;
 using System.Reflection;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
@@ -191,6 +192,7 @@ internal sealed partial class ExecutionPlanBuilder
             : ImmutableHashSet<Symbol>.Empty.WithComparer(ReferenceEqualityComparer<Symbol>.Instance);
         var slotSymbols = _slotSymbols.ToImmutableArray();
         var layoutId = ComputeLayoutId(rootSlotCount, rootSlotMap, slotSymbols);
+        var activationSlots = BuildActivationSlotShape(mappedRootScopeId, rootSlotCount, layoutId, rootSlotMap);
         var flatSlotCount = rewriter?.FlatSlotCount ?? 0;
         var flatSlotMappings = rewriter?.BuildFlatSlotMappings();
 
@@ -211,8 +213,33 @@ internal sealed partial class ExecutionPlanBuilder
             RootScopeId: mappedRootScopeId,
             layoutId,
             flatSlotCount,
-            flatSlotMappings);
+            flatSlotMappings,
+            activationSlots);
         return true;
+    }
+
+    private static ActivationSlotShape BuildActivationSlotShape(
+        int rootScopeId,
+        int rootSlotCount,
+        int layoutId,
+        ImmutableDictionary<Symbol, int> rootSlotMap)
+    {
+        if (rootSlotMap.IsEmpty)
+        {
+            return new ActivationSlotShape(
+                rootScopeId,
+                rootSlotCount,
+                layoutId,
+                ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance),
+                ImmutableArray<(Symbol Name, int SlotIndex)>.Empty);
+        }
+
+        var slotNames = rootSlotMap
+            .Select(static pair => (Name: pair.Key, SlotIndex: pair.Value))
+            .OrderBy(static pair => pair.SlotIndex)
+            .ToImmutableArray();
+
+        return new ActivationSlotShape(rootScopeId, rootSlotCount, layoutId, rootSlotMap, slotNames);
     }
 
     private bool LowerExpressionPayloads()
@@ -502,6 +529,7 @@ internal sealed partial class ExecutionPlanBuilder
             plan.LayoutId,
             plan.FlatSlotCount,
             plan.FlatSlotMappings,
+            plan.ActivationSlots,
             plan.CompactStatementStorageBoundary);
 
         // Update the cached plan on the FunctionExpression

@@ -106,34 +106,28 @@ public static partial class TypedAstEvaluator
             // Plan slots get indices 0, 1, 2... and hoisted lexical bindings get subsequent indices.
             // This enables O(1) slot-based access instead of dictionary lookups.
             // Use the plan's RootScopeId for all execution plan slots.
-            if (_plan is { SlotCount: > 0, SlotSymbols.IsDefaultOrEmpty: false })
+            if (_plan?.ActivationSlots is { } activationSlots)
             {
-                // Ensure we allocate enough slots to cover:
-                // - Internal plan slots (SlotSymbols.Length)
-                // - Root slot map entries (indices can be sparse)
-                // - Explicit RootSlotCount from analysis (if present)
-                var rootSlotMap = _plan.SafeRootSlotMap;
-                var mapMax = rootSlotMap.Count > 0 ? rootSlotMap.Values.Max() + 1 : 0;
-                var requiredSlots = Math.Max(Math.Max(_plan.RootSlotCount, _plan.SlotSymbols.Length), mapMax);
-                if (requiredSlots == 0)
+                var requiredSlots = activationSlots.SlotCount;
+                if (requiredSlots <= 0 && activationSlots.SlotNames.Length > 0)
                 {
-                    requiredSlots = _plan.SlotCount;
+                    requiredSlots = activationSlots.SlotNames[^1].SlotIndex + 1;
                 }
 
                 var scopeLexicals = _plan.SafeScopeLexicalBindings;
                 var rootLexicals = _plan.SafeRootLexicalBindings;
-                if (rootLexicals.Count == 0 && scopeLexicals.TryGetValue(_plan.RootScopeId, out var fromRoot))
+                if (rootLexicals.Count == 0 && scopeLexicals.TryGetValue(activationSlots.ScopeId, out var fromRoot))
                 {
                     rootLexicals = fromRoot;
                 }
 
                 executionEnvironment.ResetSlotLayoutForPlan(
                     requiredSlots,
-                    rootSlotMap,
+                    activationSlots.SlotMap,
                     rootLexicals,
                     _plan.SlotSymbols,
-                    _plan.LayoutId,
-                    _plan.RootScopeId);
+                    activationSlots.LayoutId,
+                    activationSlots.ScopeId);
             }
 
             // ES2024 9.2.12 FunctionDeclarationInstantiation step 34-35:

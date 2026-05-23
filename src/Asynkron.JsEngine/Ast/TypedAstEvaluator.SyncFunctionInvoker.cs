@@ -56,6 +56,7 @@ public static partial class TypedAstEvaluator
         private readonly HashSet<Symbol> _topLevelLexicalNames;
         private readonly bool _usesArguments;
         private readonly int _functionScopeId;
+        private readonly ActivationSlotShape? _activationSlots;
 
         private readonly bool _wasAsyncFunction;
         private readonly FunctionExecutionPlanSeed _planSeed;
@@ -108,6 +109,7 @@ public static partial class TypedAstEvaluator
             IsArrowFunction = function.IsArrow;
             _isConstructorEnabled = isConstructorFunction;
             _planSeed = planSeed;
+            _activationSlots = planSeed.Plan?.ActivationSlots;
             var hoistPlan = ((IAstCacheable<HoistPlan>)function.Body).GetOrCreateCache();
             var bodyLexicalNames = hoistPlan.LexicalNames;
             var hasHoistableDeclarations = ((IAstCacheable<HoistableDeclarationsPlan>)function.Body)
@@ -2111,11 +2113,23 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
         private void InitializeFunctionEnvironmentForThis(JsEnvironment functionEnvironment, JsValue thisValue)
         {
-            functionEnvironment.ScopeId = _functionScopeId;
-            functionEnvironment.SetSlotMap(_function.SlotMap);
-            if (_function.SlotCount > 0)
+            if (_activationSlots is { } activationSlots)
             {
-                functionEnvironment.InitializeSlots(_function.SlotCount);
+                functionEnvironment.ScopeId = activationSlots.ScopeId;
+                if (activationSlots.SlotCount > 0)
+                {
+                    functionEnvironment.InitializeSlots(activationSlots.SlotCount);
+                    functionEnvironment.SetSlotNames(activationSlots.SlotNames);
+                }
+            }
+            else
+            {
+                functionEnvironment.ScopeId = _functionScopeId;
+                functionEnvironment.SetSlotMap(_function.SlotMap);
+                if (_function.SlotCount > 0)
+                {
+                    functionEnvironment.InitializeSlots(_function.SlotCount);
+                }
             }
 
             JsValue boundThisValue;
@@ -2252,10 +2266,22 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             // Reuse the provided environment instead of renting a new one
             // Use ResetForReuse which keeps the slots array to avoid allocation
             reuseEnvironment.ResetForReuse(_closure, true, _isStrict, _function.Source, _functionDescription);
-            reuseEnvironment.ScopeId = _function.ScopeId;
-            reuseEnvironment.SetSlotMap(_function.SlotMap);
-            // Skip InitializeSlots - for simple functions we only have parameters (no local vars),
-            // and we're about to set the parameter slot directly below. This avoids the Array.Fill.
+            if (_activationSlots is { } activationSlots)
+            {
+                reuseEnvironment.ScopeId = activationSlots.ScopeId;
+                if (activationSlots.SlotCount > 0)
+                {
+                    reuseEnvironment.InitializeSlots(activationSlots.SlotCount);
+                    reuseEnvironment.SetSlotNames(activationSlots.SlotNames);
+                }
+            }
+            else
+            {
+                reuseEnvironment.ScopeId = _function.ScopeId;
+                reuseEnvironment.SetSlotMap(_function.SlotMap);
+                // Skip InitializeSlots - for simple functions we only have parameters (no local vars),
+                // and we're about to set the parameter slot directly below. This avoids the Array.Fill.
+            }
 
             // Bind this
             JsValue boundThisValue;

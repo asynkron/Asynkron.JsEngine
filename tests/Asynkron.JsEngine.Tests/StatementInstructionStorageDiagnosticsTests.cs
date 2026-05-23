@@ -55,6 +55,7 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
         Assert.True(snapshot.SymbolOperandCount >= 0);
         Assert.True(snapshot.BindingTargetOperandCount >= 0);
         Assert.True(snapshot.ExpressionProgramReferenceTableCount >= 0);
+        Assert.True(snapshot.BindingTargetProgramReferenceTableCount >= 0);
         Assert.True(snapshot.EstimatedCompactEncodedBytes > 0);
         Assert.NotEmpty(snapshot.InstructionKindHistogram);
         Assert.NotEmpty(snapshot.SupportedInstructionKindHistogram);
@@ -96,6 +97,7 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
         Assert.Equal(0, snapshot.SymbolOperandCount);
         Assert.Equal(0, snapshot.BindingTargetOperandCount);
         Assert.Equal(0, snapshot.ExpressionProgramReferenceTableCount);
+        Assert.Equal(0, snapshot.BindingTargetProgramReferenceTableCount);
         Assert.Equal(64, snapshot.EstimatedCompactEncodedBytes);
         Assert.Contains(snapshot.UnsupportedFamilyReasonHistogram, entry => entry.Key == "declaration-and-scope" && entry.Value == 1);
         Assert.Contains(snapshot.UnsupportedFamilyReasonHistogram, entry => entry.Key == "suspend-and-exception-flow" && entry.Value == 2);
@@ -343,6 +345,47 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
     }
 
     [Fact]
+    public void BindingVariableDeclaration_DiagnosticsEncoding_UsesBindingTargetReferenceTableAndRoundTripsNestedShape()
+    {
+        var bindingTarget = new ObjectBindingTargetProgram(
+            ImmutableArray.Create(
+                new ObjectBindingPropertyProgram(
+                    Name: "plain",
+                    Target: new IdentifierBindingTargetProgram(Symbol.Intern("plain")),
+                    DefaultProgram: ExpressionProgram.Empty),
+                new ObjectBindingPropertyProgram(
+                    Name: "computed",
+                    Target: new IdentifierBindingTargetProgram(Symbol.Intern("value")),
+                    DefaultProgram: ExpressionProgram.Empty,
+                    NameProgram: ExpressionProgram.Empty)),
+            RestElement: new IdentifierBindingTargetProgram(Symbol.Intern("rest")));
+
+        var instruction = new BindingVariableDeclarationInstruction(
+            Next: 4,
+            VarKind: VariableKind.Let,
+            TargetProgram: bindingTarget,
+            InitializerProgram: ExpressionProgram.Empty,
+            AwaitStateKey: Symbol.Intern("await_state"),
+            AwaitedProgram: ExpressionProgram.Empty);
+
+        var expressionPrograms = new StatementDiagnosticsExpressionProgramTable();
+        var bindingTargets = new StatementDiagnosticsBindingTargetProgramTable();
+        Assert.True(StatementInstructionDiagnosticsCodec.TryEncode(instruction, expressionPrograms, bindingTargets, out var encoded));
+
+        Assert.True(encoded.Payload.BindingTargetProgramReferenceId >= 0);
+        Assert.Equal(1, bindingTargets.Count);
+
+        var decoded = Assert.IsType<BindingVariableDeclarationInstruction>(
+            StatementInstructionDiagnosticsCodec.Decode(encoded, expressionPrograms, bindingTargets));
+        Assert.Equal(instruction.TargetProgram, decoded.TargetProgram);
+
+        var plan = new ExecutionPlan(ImmutableArray.Create<ExecutionInstruction>(instruction), EntryPoint: 0);
+        var snapshot = StatementInstructionStorageDiagnostics.Collect(plan);
+        Assert.Equal(1, snapshot.BindingTargetOperandCount);
+        Assert.Equal(1, snapshot.BindingTargetProgramReferenceTableCount);
+    }
+
+    [Fact]
     public void CompactStatementStorageBoundary_ForMixedInstructionKinds_SeparatesSupportedAndDeferredFamilies()
     {
         var instructions = new ExecutionInstruction[]
@@ -418,6 +461,84 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
         Assert.Equal(2, storage.OpcodeStream.Length);
         Assert.Equal(1, storage.ReferenceTables.ExpressionPrograms.Length);
         Assert.All(storage.ReferenceTables.ExpressionPrograms, program => Assert.Equal(expressionProgram, program));
+    }
+
+    [Fact]
+    public void CompactStatementStorageBoundary_AssignmentSlotAndSimpleVariableDeclaration_PreserveSemanticOperandsAndReferencePayloads()
+    {
+        var assignmentValueProgram = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.LoadThis));
+        var assignmentAwaitedProgram = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.LoadNewTarget));
+        var declarationInitializerProgram = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.LoadImportMeta));
+        var declarationAwaitedProgram = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.LoadResolvedIdentifierValue));
+        var assignmentTarget = Symbol.Intern("target");
+        var assignmentAwaitState = Symbol.Intern("assignment-await");
+        var declarationTarget = Symbol.Intern("decl");
+        var declarationAwaitState = Symbol.Intern("declaration-await");
+        var instructions = new ExecutionInstruction[]
+        {
+            new AssignmentSlotInstruction(
+                Next: 5,
+                TargetSymbol: assignmentTarget,
+                ValueProgram: assignmentValueProgram,
+                AwaitStateKey: assignmentAwaitState,
+                AwaitedProgram: assignmentAwaitedProgram,
+                SuppressCompletionValue: true,
+                AllowNameInference: false,
+                ScopeId: 17,
+                SlotIndex: 9,
+                FlatSlotId: 31),
+            new SimpleVariableDeclarationInstruction(
+                Next: 7,
+                VarKind: VariableKind.Const,
+                TargetSymbol: declarationTarget,
+                InitializerProgram: declarationInitializerProgram,
+                AwaitStateKey: declarationAwaitState,
+                AwaitedProgram: declarationAwaitedProgram,
+                AllowNameInference: true,
+                IsScriptLevel: true)
+        };
+
+        var boundary = CompactStatementStorage.CreateBoundary(instructions);
+        var storage = boundary.Storage;
+        var decoded = storage.DecodeSemanticView();
+
+        Assert.Equal(2, storage.InstructionCount);
+        Assert.Equal(4, storage.ReferenceTables.ExpressionPrograms.Length);
+        Assert.Equal(4, storage.ReferenceTables.Symbols.Length);
+        Assert.Equal(assignmentValueProgram, storage.ReferenceTables.ExpressionPrograms[0]);
+        Assert.Equal(assignmentAwaitedProgram, storage.ReferenceTables.ExpressionPrograms[1]);
+        Assert.Equal(declarationInitializerProgram, storage.ReferenceTables.ExpressionPrograms[2]);
+        Assert.Equal(declarationAwaitedProgram, storage.ReferenceTables.ExpressionPrograms[3]);
+        Assert.Equal(EncodedStatementOpcode.AssignmentSlot, storage.OpcodeStream[0]);
+        Assert.Equal(EncodedStatementOpcode.SimpleVariableDeclaration, storage.OpcodeStream[1]);
+        Assert.Equal(9, storage.ExtraOperandTable[0]);
+        Assert.Equal((int)VariableKind.Const, storage.OperandTable[1]);
+        Assert.Contains(boundary.SupportedKindClassifications, entry => entry.Kind == InstructionKind.AssignmentSlot);
+        Assert.Contains(boundary.SupportedKindClassifications, entry => entry.Kind == InstructionKind.SimpleVariableDeclaration);
+
+        var decodedAssignment = Assert.IsType<AssignmentSlotInstruction>(decoded[0]);
+        Assert.Equal(assignmentTarget, decodedAssignment.TargetSymbol);
+        Assert.Equal(assignmentAwaitState, decodedAssignment.AwaitStateKey);
+        Assert.Equal(assignmentValueProgram, decodedAssignment.ValueProgram);
+        Assert.Equal(assignmentAwaitedProgram, decodedAssignment.AwaitedProgram);
+        Assert.True(decodedAssignment.SuppressCompletionValue);
+        Assert.False(decodedAssignment.AllowNameInference);
+        Assert.Equal(17, decodedAssignment.ScopeId);
+        Assert.Equal(9, decodedAssignment.SlotIndex);
+        Assert.Equal(31, decodedAssignment.FlatSlotId);
+
+        var decodedDeclaration = Assert.IsType<SimpleVariableDeclarationInstruction>(decoded[1]);
+        Assert.Equal(VariableKind.Const, decodedDeclaration.VarKind);
+        Assert.Equal(declarationTarget, decodedDeclaration.TargetSymbol);
+        Assert.Equal(declarationAwaitState, decodedDeclaration.AwaitStateKey);
+        Assert.Equal(declarationInitializerProgram, decodedDeclaration.InitializerProgram);
+        Assert.Equal(declarationAwaitedProgram, decodedDeclaration.AwaitedProgram);
+        Assert.True(decodedDeclaration.AllowNameInference);
+        Assert.True(decodedDeclaration.IsScriptLevel);
     }
 
     [Fact]

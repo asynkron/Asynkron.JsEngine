@@ -40,6 +40,7 @@ internal readonly record struct CompactStatementHeader(
 internal readonly record struct CompactStatementPayload(
     int PrimaryExpressionProgramReferenceId = -1,
     int SecondaryExpressionProgramReferenceId = -1,
+    int BindingTargetProgramReferenceId = -1,
     ExpressionProgram? PrimaryExpressionProgram = null,
     ExpressionProgram? SecondaryExpressionProgram = null,
     Symbol? PrimarySymbol = null,
@@ -51,7 +52,8 @@ internal readonly record struct CompactStatementPayload(
 {
     public static CompactStatementPayload Empty => new(
         PrimaryExpressionProgramReferenceId: -1,
-        SecondaryExpressionProgramReferenceId: -1);
+        SecondaryExpressionProgramReferenceId: -1,
+        BindingTargetProgramReferenceId: -1);
 
     private const int ReferencePayloadByteSize = 8;
     private const int AssignmentMetadataByteSize = 8;
@@ -59,9 +61,9 @@ internal readonly record struct CompactStatementPayload(
     public long EstimatedCompactByteSize =>
         ((PrimaryExpressionProgramReferenceId < 0 && !PrimaryExpressionProgram.HasValue) ? 0 : ReferencePayloadByteSize) +
         ((SecondaryExpressionProgramReferenceId < 0 && !SecondaryExpressionProgram.HasValue) ? 0 : ReferencePayloadByteSize) +
+        ((BindingTargetProgramReferenceId < 0 && BindingTargetProgram is null) ? 0 : ReferencePayloadByteSize) +
         (PrimarySymbol is null ? 0 : ReferencePayloadByteSize) +
         (SecondarySymbol is null ? 0 : ReferencePayloadByteSize) +
-        (BindingTargetProgram is null ? 0 : ReferencePayloadByteSize) +
         (HasAssignmentMetadata ? AssignmentMetadataByteSize : 0);
 }
 
@@ -101,6 +103,37 @@ internal sealed class StatementDiagnosticsExpressionProgramTable
     }
 }
 
+internal sealed class StatementDiagnosticsBindingTargetProgramTable
+{
+    private readonly Dictionary<BindingTargetProgram, int> _indices = [];
+    private readonly List<BindingTargetProgram> _programs = [];
+
+    public int Count => _programs.Count;
+
+    public int GetOrAdd(BindingTargetProgram? program)
+    {
+        if (program is null)
+        {
+            return -1;
+        }
+
+        if (_indices.TryGetValue(program, out var existing))
+        {
+            return existing;
+        }
+
+        var created = _programs.Count;
+        _programs.Add(program);
+        _indices.Add(program, created);
+        return created;
+    }
+
+    public BindingTargetProgram? Resolve(int id)
+    {
+        return id >= 0 && id < _programs.Count ? _programs[id] : null;
+    }
+}
+
 /// <summary>
 /// Diagnostic-only codec for a small, stable subset of statement instructions.
 /// This is intentionally scoped to parity testing and does not alter runtime execution.
@@ -132,6 +165,7 @@ internal static class StatementInstructionDiagnosticsCodec
     public static bool TryEncode(
         ExecutionInstruction instruction,
         StatementDiagnosticsExpressionProgramTable expressionPrograms,
+        StatementDiagnosticsBindingTargetProgramTable bindingTargets,
         out CompactStatementInstruction encoded)
     {
         switch (instruction)
@@ -217,6 +251,7 @@ internal static class StatementInstructionDiagnosticsCodec
                     new CompactStatementPayload(
                         PrimaryExpressionProgramReferenceId: expressionPrograms.GetOrAdd(bindingVariableDeclaration.InitializerProgram),
                         SecondaryExpressionProgramReferenceId: expressionPrograms.GetOrAdd(bindingVariableDeclaration.AwaitedProgram),
+                        BindingTargetProgramReferenceId: bindingTargets.GetOrAdd(bindingVariableDeclaration.TargetProgram),
                         PrimarySymbol: bindingVariableDeclaration.AwaitStateKey,
                         BindingTargetProgram: bindingVariableDeclaration.TargetProgram));
                 return true;
@@ -226,9 +261,25 @@ internal static class StatementInstructionDiagnosticsCodec
         }
     }
 
+    public static bool TryEncode(
+        ExecutionInstruction instruction,
+        StatementDiagnosticsExpressionProgramTable expressionPrograms,
+        out CompactStatementInstruction encoded)
+    {
+        return TryEncode(
+            instruction,
+            expressionPrograms,
+            new StatementDiagnosticsBindingTargetProgramTable(),
+            out encoded);
+    }
+
     public static bool TryEncode(ExecutionInstruction instruction, out CompactStatementInstruction encoded)
     {
-        if (!TryEncode(instruction, new StatementDiagnosticsExpressionProgramTable(), out encoded))
+        if (!TryEncode(
+            instruction,
+            new StatementDiagnosticsExpressionProgramTable(),
+            new StatementDiagnosticsBindingTargetProgramTable(),
+            out encoded))
         {
             return false;
         }
@@ -291,7 +342,8 @@ internal static class StatementInstructionDiagnosticsCodec
 
     public static ExecutionInstruction Decode(
         CompactStatementInstruction encoded,
-        StatementDiagnosticsExpressionProgramTable expressionPrograms)
+        StatementDiagnosticsExpressionProgramTable expressionPrograms,
+        StatementDiagnosticsBindingTargetProgramTable bindingTargets)
     {
         var header = encoded.Header;
         return header.Opcode switch
@@ -342,7 +394,8 @@ internal static class StatementInstructionDiagnosticsCodec
             EncodedStatementOpcode.BindingVariableDeclaration => new BindingVariableDeclarationInstruction(
                 header.NextOrTarget,
                 (VariableKind)header.Operand,
-                encoded.Payload.BindingTargetProgram ?? new IdentifierBindingTargetProgram(Symbol.Intern("__binding_target")),
+                ResolveBindingTargetProgram(encoded.Payload.BindingTargetProgramReferenceId, encoded.Payload.BindingTargetProgram, bindingTargets) ??
+                    new IdentifierBindingTargetProgram(Symbol.Intern("__binding_target")),
                 InitializerProgram: ResolveExpressionProgram(encoded.Payload.PrimaryExpressionProgramReferenceId, encoded.Payload.PrimaryExpressionProgram, expressionPrograms),
                 AwaitStateKey: encoded.Payload.PrimarySymbol,
                 AwaitedProgram: ResolveExpressionProgram(encoded.Payload.SecondaryExpressionProgramReferenceId, encoded.Payload.SecondaryExpressionProgram, expressionPrograms)),
@@ -350,9 +403,19 @@ internal static class StatementInstructionDiagnosticsCodec
         };
     }
 
+    public static ExecutionInstruction Decode(
+        CompactStatementInstruction encoded,
+        StatementDiagnosticsExpressionProgramTable expressionPrograms)
+    {
+        return Decode(encoded, expressionPrograms, new StatementDiagnosticsBindingTargetProgramTable());
+    }
+
     public static ExecutionInstruction Decode(CompactStatementInstruction encoded)
     {
-        return Decode(encoded, new StatementDiagnosticsExpressionProgramTable());
+        return Decode(
+            encoded,
+            new StatementDiagnosticsExpressionProgramTable(),
+            new StatementDiagnosticsBindingTargetProgramTable());
     }
 
     public static ExecutionInstruction Decode(
@@ -414,5 +477,13 @@ internal static class StatementInstructionDiagnosticsCodec
         IReadOnlyList<ExpressionProgram?> expressionPrograms)
     {
         return id >= 0 && id < expressionPrograms.Count ? expressionPrograms[id] ?? embeddedProgram : embeddedProgram;
+    }
+
+    private static BindingTargetProgram? ResolveBindingTargetProgram(
+        int id,
+        BindingTargetProgram? embeddedProgram,
+        StatementDiagnosticsBindingTargetProgramTable bindingTargets)
+    {
+        return bindingTargets.Resolve(id) ?? embeddedProgram;
     }
 }

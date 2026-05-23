@@ -34,18 +34,25 @@ decode bridge are explicit.
    If the shared plan-level expression table is unavailable, compatibility
    overloads must keep embedded expression programs so existing diagnostic
    encode/decode callers do not silently decode empty payloads.
-7. For optional compact payload fields, store explicit presence metadata instead
+7. When proving expression-program reference-table storage for statement
+   families with multiple payload slots, use distinct non-empty
+   `ExpressionProgram` instances for each semantic slot and assert the expected
+   table entry by index. Reusing `ExpressionProgram.Empty` for every slot proves
+   only that "some empty payload" survived; it does not catch swapped value vs
+   awaited references, initializer vs awaited references, or off-by-one table
+   IDs.
+8. For optional compact payload fields, store explicit presence metadata instead
    of inferring presence from sentinel values after packing into structs. A
    default struct payload can contain zero-valued scope or slot ids that look
    populated, so byte estimates and decoded records must branch on a real
    `Has...` flag for optional metadata.
-8. Treat `CompactStatementStorage` as the owner seam for statement compact
+9. Treat `CompactStatementStorage` as the owner seam for statement compact
    storage, but not as runtime routing by default. When adding a supported
    family, update `CompactStatementInstructionTaxonomy`, the owner reference
    tables, decode parity, diagnostics, and storage accounting together. Keep
    deferred families explicit in `CompactStatementStorageBoundary` instead of
    letting unsupported instructions disappear from estimates.
-9. Keep the diagnostics codec shape owner-compatible even while its class name
+10. Keep the diagnostics codec shape owner-compatible even while its class name
    remains diagnostic. Encoded statement data should be `CompactStatementHeader`
    plus typed `CompactStatementPayload` references or table ids, not
    diagnostic-only delimiter strings or overloaded catch-all fields. The codec
@@ -54,29 +61,29 @@ decode bridge are explicit.
    reference tables and runtime execution must still route through decoded
    `ExecutionInstruction` views until a dedicated runtime-routing slice changes
    that contract.
-10. Route diagnostic and printer consumers through the compact owner boundary
+11. Route diagnostic and printer consumers through the compact owner boundary
     when a supported statement family is ready for owner-backed semantic views.
     Decode via `CompactStatementStorage.DecodeSemanticView()` and prove parity
     against the original `ExecutionInstruction` records. Do not treat a printer
     or diagnostics bridge as permission to change `ExecutionPlanRunner` or to
     hide unsupported/deferred families behind a partial decoded view.
-11. When parity coverage claims a supported `InstructionKind`, make the test
+12. When parity coverage claims a supported `InstructionKind`, make the test
     exercise that kind's comparison branch. If representative source scripts do
     not lower to a direct instance of the kind, add a minimal synthetic
     `ExecutionPlan` probe for that kind instead of relying only on membership in
     an expected-kind set.
-12. For forloop statement-storage measurement, use the ProfileRunner
+13. For forloop statement-storage measurement, use the ProfileRunner
     `--statement-instruction-storage` flag to capture storage diagnostics before
     comparing profiler allocation samples. Treat small `./tools/profile forloop
     --memory` differences as sampling context unless the same slice changes
     runtime storage and proves a real allocation delta.
-13. Keep route-readiness sidecars separate from diagnostic coverage boundaries.
+14. Keep route-readiness sidecars separate from diagnostic coverage boundaries.
     A cached `ExecutionPlan` compact sidecar may intentionally cover only the
     family being prepared for runtime routing, such as pure control flow.
     Storage diagnostics must request an explicit diagnostic boundary rebuilt
     from the full semantic instruction list so codec-supported families outside
     the sidecar still appear in coverage and byte estimates.
-14. Treat historical ADR-supported family lists as snapshots, not current
+15. Treat historical ADR-supported family lists as snapshots, not current
     support contracts. Before calling a supported-vs-unsupported delta a
     regression, re-check the current `CompactStatementInstructionTaxonomy`,
     `StatementInstructionDiagnosticsCodec`, and the live
@@ -179,6 +186,27 @@ added an explicit diagnostic-coverage boundary so `Return` and other
 codec-supported non-sidecar families remain counted. Future agents need this
 boundary split because narrowing a publishable runtime-storage sidecar must not
 silently narrow the measurement surface that guides later migration slices.
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-62870b23dd`
+/ PR #1605 moved `EvaluateAndDiscard` and `AwaitAndDiscard` compact statement
+storage to shared expression-program reference IDs instead of embedded
+per-instruction expression payloads. The lesson is that owner-backed compact
+storage must deduplicate expression programs in the plan-level table, encode
+stable IDs in statement payloads, and decode semantic views through that table.
+Compatibility embedding belongs only in direct diagnostic codec bridges that do
+not have shared-table context.
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-29225cef6f`
+/ PR #1604 added compact storage boundary coverage for `AssignmentSlot` and
+`SimpleVariableDeclaration`, then review found the first proof reused
+`ExpressionProgram.Empty` for all four expression payload slots. The repair used
+four distinct `ExpressionProgram` instances and asserted
+`ReferenceTables.ExpressionPrograms[0..3]` by semantic slot. The durable lesson
+is that owner-backed reference-table tests must fail when value/awaited or
+initializer/awaited references are swapped; repeated empty payloads can make
+mis-indexed storage look correct.
 
 Issue
 `planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-9c07ab2dcb`

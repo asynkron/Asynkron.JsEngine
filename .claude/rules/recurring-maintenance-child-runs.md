@@ -46,12 +46,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
 - When gathering issue details, comments, stage output, or logs in a recurring
   child agent environment, use supplied Faktorial Source Context first. If more
   evidence is needed, use the Faktorial HTTP API, starting with the compact
-  `/api/logs/<issue>/summary` endpoint. Use narrow, line-capped searches over
-  `.faktorial/logs/ghNNNN.log` only when the summary is insufficient.
-- If a Faktorial issue-detail endpoint returns a compact or preview-only body
-  (for example a payload that truncates markdown with `...`), treat that as
-  partial context and continue with the compact log summary plus bounded raw-log
-  structural searches instead of blocking on source-host reads.
+  `/api/logs/<issue>/summary` endpoint. If an issue-detail endpoint returns only
+  preview/truncated markdown (for example `...`), treat that as partial context
+  and continue with compact-summary plus bounded raw-log structural searches.
+  Use narrow, line-capped searches over `.faktorial/logs/ghNNNN.log` only when
+  the summary is insufficient.
 - Do not run the host `faktorial` daemon binary for issue, log, or state reads
   from an agent. Treat older guidance that recommends `faktorial issue` or
   `faktorial log-summary` as stale for agent runtime context gathering.

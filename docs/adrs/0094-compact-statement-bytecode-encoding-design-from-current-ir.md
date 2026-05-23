@@ -93,14 +93,16 @@ Defer families where payload shape is still moving or object-heavy.
 - Any active IR seam currently being normalized in related issues (#1393,
   #1394, #1396).
 
-### 6.1 Concrete `InstructionKind` classification (current repo state)
+### 6.1 Concrete `InstructionKind` classification (historical planning snapshot)
 
-This table is the build-stage classification source for statement compact
-bytecode readiness. It classifies all current `InstructionKind` values from
+This table is a planning snapshot recorded when ADR 0094 was written. It
+classifies then-current `InstructionKind` values from
 `InstructionKind.cs` using operand payload shapes in `Instructions.cs`.
 Expression payload ownership stays in the expression map documented in
 `docs/expression-bytecode-coverage.md`; this ADR only classifies statement-side
-storage readiness.
+storage readiness. For current support decisions, use live
+`CompactStatementInstructionTaxonomy` and
+`--statement-instruction-storage` diagnostics.
 
 | Family | `InstructionKind` values | Status | Why |
 | --- | --- | --- | --- |

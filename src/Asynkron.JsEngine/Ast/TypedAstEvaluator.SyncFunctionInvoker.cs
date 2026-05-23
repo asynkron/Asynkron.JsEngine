@@ -810,7 +810,7 @@ public static partial class TypedAstEvaluator
                     plan?.GetHashCode() ?? -1);
                 if (plan is not null)
                 {
-                    if (TryInvokeSimpleIrActivationFast(
+                    if (TryInvokeIrFast(
                             arguments,
                             thisValue,
                             callingContext,
@@ -1627,7 +1627,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
         }
 
-        private bool TryInvokeSimpleIrActivationFast<TArgs>(
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private bool TryInvokeIrFast<TArgs>(
             TArgs arguments,
             JsValue thisValue,
             EvaluationContext? callingContext,
@@ -1651,6 +1652,22 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     "simple-ir-activation-fast-path func={Function} argc={ArgumentCount}",
                     _function.Name?.Name ?? "<anonymous>",
                     arguments.Count);
+
+                if (plan.IrCallShape == IrCallShape.SimpleReturnExpression &&
+                    plan.SimpleReturnProgram is { } returnProgram)
+                {
+                    RealmState.Logger?.LogInformation(
+                        "simple-ir-return-fast-path func={Function} argc={ArgumentCount}",
+                        _function.Name?.Name ?? "<anonymous>",
+                        arguments.Count);
+                    result = ExecutionPlanRunner.EvaluateStandaloneExpressionProgram(
+                        returnProgram,
+                        executionEnvironment,
+                        context,
+                        newTarget);
+
+                    return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
+                }
 
                 var runner = new ExecutionPlanRunner(
                     _function,
@@ -1686,6 +1703,28 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             {
                 RealmState.ReturnContext(context);
             }
+        }
+
+        private static bool TryCompleteIrFastExpressionResult(
+            EvaluationContext context,
+            EvaluationContext? callingContext,
+            ref JsValue result)
+        {
+            if (!context.IsThrow)
+            {
+                return true;
+            }
+
+            var thrownValue = context.FlowValue;
+            context.Clear();
+            if (callingContext is not null)
+            {
+                callingContext.SetThrow(thrownValue);
+                result = thrownValue;
+                return true;
+            }
+
+            throw new ThrowSignal(thrownValue);
         }
 
         private bool CanUseSimpleIrActivationFastPath(ExecutionPlan plan, JsValue newTarget)

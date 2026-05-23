@@ -40,6 +40,29 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void FunctionPlan_SimpleReturnExpression_IsMarkedAsIrCallShape()
+    {
+        var pipeline = AstTestHelpers.ParseAndAnalyze("""
+            function add(a, b) {
+                return a + b;
+            }
+
+            function addViaLocal(a, b) {
+                var c = a + b;
+                return c;
+            }
+            """);
+
+        var add = AssertFunctionPlanBuilds(pipeline.Analyzed, "add");
+        var addViaLocal = AssertFunctionPlanBuilds(pipeline.Analyzed, "addViaLocal");
+
+        Assert.Equal(IrCallShape.SimpleReturnExpression, add.IrCallShape);
+        Assert.NotNull(add.SimpleReturnProgram);
+        Assert.Equal(IrCallShape.None, addViaLocal.IrCallShape);
+        Assert.Null(addViaLocal.SimpleReturnProgram);
+    }
+
+    [Fact]
     public async Task DetailedSnapshot_TracksScriptBuilds_Separately()
     {
         ExecutionPlanDiagnostics.Reset();

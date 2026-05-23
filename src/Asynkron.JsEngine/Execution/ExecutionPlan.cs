@@ -57,6 +57,10 @@ internal sealed record ExecutionPlan(
 
     public bool CanUseRawSyncReturn { get; } = ComputeCanUseRawSyncReturn(Instructions);
 
+    public ExpressionProgram? SimpleReturnProgram { get; } = ComputeSimpleReturnProgram(Instructions, EntryPoint);
+
+    public IrCallShape IrCallShape { get; } = ComputeIrCallShape(Instructions, EntryPoint);
+
     public CompactStatementStorageBoundary CreateCompactStatementStorageBoundary() =>
         CompactStatementStorageBoundary ?? CompactStatementStorage.CreateBoundary(
             Instructions,
@@ -102,6 +106,32 @@ internal sealed record ExecutionPlan(
 
         return true;
     }
+
+    private static ExpressionProgram? ComputeSimpleReturnProgram(
+        ImmutableArray<ExecutionInstruction> instructions,
+        int entryPoint)
+    {
+        if ((uint)entryPoint >= (uint)instructions.Length ||
+            !ComputeCanUseRawSyncReturn(instructions))
+        {
+            return null;
+        }
+
+        return instructions[entryPoint] is ReturnInstruction
+        {
+            ReturnProgram: { } returnProgram,
+            AwaitedProgram: null
+        }
+            ? returnProgram
+            : null;
+    }
+
+    private static IrCallShape ComputeIrCallShape(
+        ImmutableArray<ExecutionInstruction> instructions,
+        int entryPoint) =>
+        ComputeSimpleReturnProgram(instructions, entryPoint) is not null
+            ? IrCallShape.SimpleReturnExpression
+            : IrCallShape.None;
 
     private static bool BlocksRawSyncReturn(ExecutionInstruction instruction) =>
         instruction.Kind is
@@ -187,3 +217,9 @@ internal sealed record ActivationSlotShape(
     ImmutableDictionary<Symbol, int> SlotMap,
     ImmutableArray<(Symbol Name, int SlotIndex)> SlotNames,
     ImmutableArray<int> ParameterSlotIndices);
+
+internal enum IrCallShape
+{
+    None,
+    SimpleReturnExpression
+}

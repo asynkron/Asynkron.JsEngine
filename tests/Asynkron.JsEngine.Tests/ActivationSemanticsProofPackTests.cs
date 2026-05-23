@@ -11,6 +11,7 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     private const string SimpleIrActivationFastPathLog = "simple-ir-activation-fast-path";
+    private const string SimpleIrReturnFastPathLog = "simple-ir-return-fast-path";
 
     [Fact(Timeout = 5000)]
     public async Task SimpleSyncFunction_UsesIrActivationFastPath()
@@ -28,6 +29,52 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
         Assert.Equal(42d, result);
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrReturnFastPathLog, StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task SimpleReturnFunction_UsesIrReturnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function add(a, b) {
+                return a + b;
+            }
+
+            add(20, 22);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrReturnFastPathLog, StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task SimpleReturnFunction_PropagatesThrownExpression()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function boom() {
+                throw new Error("fast path throw");
+            }
+
+            function probe() {
+                return boom();
+            }
+
+            try {
+                probe();
+            } catch (err) {
+                err.message;
+            }
+            """);
+
+        Assert.Equal("fast path throw", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrReturnFastPathLog, StringComparison.Ordinal));
     }
 
     [Theory(Timeout = 5000)]

@@ -48,6 +48,10 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   evidence is needed, use the Faktorial HTTP API, starting with the compact
   `/api/logs/<issue>/summary` endpoint. Use narrow, line-capped searches over
   `.faktorial/logs/ghNNNN.log` only when the summary is insufficient.
+- If a Faktorial issue-detail endpoint returns a compact or preview-only body
+  (for example a payload that truncates markdown with `...`), treat that as
+  partial context and continue with the compact log summary plus bounded raw-log
+  structural searches instead of blocking on source-host reads.
 - Do not run the host `faktorial` daemon binary for issue, log, or state reads
   from an agent. Treat older guidance that recommends `faktorial issue` or
   `faktorial log-summary` as stale for agent runtime context gathering.
@@ -185,6 +189,13 @@ checklist. Running the host `faktorial` binary from an agent can start or
 interfere with the daemon instead of acting as a bounded context helper, so
 future recurring-child agents must prefer supplied Source Context, then the
 HTTP API, then tightly scoped raw-log snippets.
+
+Issue #1586 captured a compact-context edge case where the issue-detail API
+response returned a preview/truncated body (`...`) instead of full markdown.
+The durable lesson is to treat preview payloads as partial context and continue
+with `/api/logs/<issue>/summary` plus bounded `.faktorial/logs/ghNNNN.log`
+searches for structural markers, rather than blocking on external source-host
+fallbacks.
 
 Issue #1464 tightened persistent-compaction evidence guidance: when the slice
 updates an existing semantic home instead of creating a new durable artifact,

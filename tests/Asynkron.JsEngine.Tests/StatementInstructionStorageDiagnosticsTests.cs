@@ -417,6 +417,111 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FunctionDeclaration_DiagnosticsEncoding_WithDescriptor_UsesReferenceTableAndSnapshotAccounting()
+    {
+        var parsedProgram = _engine.ParseProgram("""
+            function declared() {
+                return 1;
+            }
+            """);
+        await _engine.Evaluate(parsedProgram);
+        var declaration = Assert.IsType<FunctionDeclaration>(Assert.Single(parsedProgram.Body));
+        var descriptor = FunctionDeclarationDescriptor.Create(declaration);
+        var instruction = new FunctionDeclarationInstruction(Next: 3, Descriptor: descriptor);
+
+        var expressionPrograms = new StatementDiagnosticsExpressionProgramTable();
+        var bindingTargets = new StatementDiagnosticsBindingTargetProgramTable();
+        var functionDescriptors = new StatementDiagnosticsFunctionDeclarationDescriptorTable();
+        var classDescriptors = new StatementDiagnosticsClassDeclarationDescriptorTable();
+
+        Assert.True(
+            StatementInstructionDiagnosticsCodec.TryEncode(
+                instruction,
+                expressionPrograms,
+                bindingTargets,
+                functionDescriptors,
+                classDescriptors,
+                out var encoded));
+        Assert.Equal(0, encoded.Payload.FunctionDeclarationDescriptorReferenceId);
+        Assert.Equal(descriptor, encoded.Payload.FunctionDeclarationDescriptor);
+        Assert.Equal(1, functionDescriptors.Count);
+        Assert.Equal(0, classDescriptors.Count);
+
+        var decoded = Assert.IsType<FunctionDeclarationInstruction>(
+            StatementInstructionDiagnosticsCodec.Decode(
+                encoded,
+                expressionPrograms,
+                bindingTargets,
+                functionDescriptors,
+                classDescriptors));
+        Assert.Equal(instruction.Next, decoded.Next);
+        Assert.Equal(descriptor, decoded.Descriptor);
+
+        var snapshot = StatementInstructionStorageDiagnostics.Collect(
+            new ExecutionPlan(ImmutableArray.Create<ExecutionInstruction>(instruction), EntryPoint: 0));
+        Assert.True(snapshot.SupportedInstructionCount >= 1);
+        Assert.True(snapshot.FunctionDeclarationDescriptorReferenceTableCount >= 1);
+        Assert.Equal(0, snapshot.ClassDeclarationDescriptorReferenceTableCount);
+        Assert.Contains(snapshot.SupportedInstructionKindHistogram, entry => entry.Key == InstructionKind.FunctionDeclaration);
+    }
+
+    [Fact]
+    public async Task ClassDeclaration_DiagnosticsEncoding_WithDescriptor_UsesReferenceTableAndSnapshotAccounting()
+    {
+        var parsedProgram = _engine.ParseProgram("""
+            class Declared {
+                method() {
+                    return 1;
+                }
+            }
+            """);
+        await _engine.Evaluate(parsedProgram);
+        var declaration = Assert.IsType<ClassDeclaration>(Assert.Single(parsedProgram.Body));
+        var classCache = ((IAstCacheable<ClassDefinitionProgramCache>)declaration.Definition).GetOrCreateCache();
+        var descriptor = new ClassDeclarationDescriptor(declaration.Name, classCache);
+        var instruction = new ClassDeclarationInstruction(Next: 5, descriptor);
+
+        var expressionPrograms = new StatementDiagnosticsExpressionProgramTable();
+        var bindingTargets = new StatementDiagnosticsBindingTargetProgramTable();
+        var functionDescriptors = new StatementDiagnosticsFunctionDeclarationDescriptorTable();
+        var classDescriptors = new StatementDiagnosticsClassDeclarationDescriptorTable();
+
+        Assert.True(
+            StatementInstructionDiagnosticsCodec.TryEncode(
+                instruction,
+                expressionPrograms,
+                bindingTargets,
+                functionDescriptors,
+                classDescriptors,
+                out var encoded));
+        Assert.Equal(0, encoded.Payload.ClassDeclarationDescriptorReferenceId);
+        Assert.Equal(descriptor, encoded.Payload.ClassDeclarationDescriptor);
+        Assert.Equal(0, functionDescriptors.Count);
+        Assert.Equal(1, classDescriptors.Count);
+
+        var decoded = Assert.IsType<ClassDeclarationInstruction>(
+            StatementInstructionDiagnosticsCodec.Decode(
+                encoded,
+                expressionPrograms,
+                bindingTargets,
+                functionDescriptors,
+                classDescriptors));
+        Assert.Equal(instruction.Next, decoded.Next);
+        Assert.Equal(descriptor, decoded.Descriptor);
+
+        var snapshot = StatementInstructionStorageDiagnostics.Collect(
+            new ExecutionPlan(ImmutableArray.Create<ExecutionInstruction>(instruction), EntryPoint: 0));
+        Assert.True(snapshot.SupportedInstructionCount >= 1);
+        Assert.Equal(0, snapshot.FunctionDeclarationDescriptorReferenceTableCount);
+        Assert.True(snapshot.ClassDeclarationDescriptorReferenceTableCount >= 1);
+        Assert.Contains(snapshot.SupportedInstructionKindHistogram, entry => entry.Key == InstructionKind.ClassDeclaration);
+
+        var semanticView = CompactStatementStorage.CreateBoundary(new ExecutionInstruction[] { instruction }).Storage.DecodeSemanticView();
+        var semanticInstruction = Assert.IsType<ClassDeclarationInstruction>(Assert.Single(semanticView));
+        Assert.Equal(descriptor, semanticInstruction.Descriptor);
+    }
+
+    [Fact]
     public void CompactStatementStorageBoundary_ForMixedInstructionKinds_SeparatesSupportedAndDeferredFamilies()
     {
         var instructions = new ExecutionInstruction[]

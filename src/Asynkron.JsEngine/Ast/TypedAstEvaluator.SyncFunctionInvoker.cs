@@ -2338,10 +2338,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 {
                     var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
                     slots[i].Value = value;
-                    if (_function.HasClosures)
-                    {
-                        env.DefineParameterFast(_parameterNames[i], value);
-                    }
                 }
             }
             else
@@ -2488,19 +2484,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             if (slots is not null && functionEnvironment._slotCount > 0 && _parameterNames.Length > 0)
             {
                 slots[0].Value = arg0;
-                if (_function.HasClosures)
-                {
-                    functionEnvironment.DefineParameterFast(_parameterNames[0], arg0);
-                }
 
                 // Bind remaining parameters to undefined (when function has more params than args)
                 for (var i = 1; i < _parameterNames.Length; i++)
                 {
                     slots[i].Value = JsValue.Undefined;
-                    if (_function.HasClosures)
-                    {
-                        functionEnvironment.DefineParameterFast(_parameterNames[i], JsValue.Undefined);
-                    }
                 }
             }
             else if (_parameterNames.Length > 0)
@@ -2571,19 +2559,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             if (slots is not null && reuseEnvironment._slotCount > 0 && _parameterNames.Length > 0)
             {
                 slots[0].Value = arg0;
-                if (_function.HasClosures)
-                {
-                    reuseEnvironment.DefineParameterFast(_parameterNames[0], arg0);
-                }
 
                 // Bind remaining parameters to undefined (when function has more params than args)
                 for (var i = 1; i < _parameterNames.Length; i++)
                 {
                     slots[i].Value = JsValue.Undefined;
-                    if (_function.HasClosures)
-                    {
-                        reuseEnvironment.DefineParameterFast(_parameterNames[i], JsValue.Undefined);
-                    }
                 }
             }
             else if (_parameterNames.Length > 0)

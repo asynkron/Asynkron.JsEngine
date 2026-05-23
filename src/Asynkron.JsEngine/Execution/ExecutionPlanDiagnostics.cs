@@ -246,4 +246,9 @@ public static class ExecutionPlanDiagnostics
     {
         return ExecutionPlanPrinter.FormatInstruction(instruction);
     }
+
+    internal static string PrintCompactStatementSemanticView(ExecutionPlan plan)
+    {
+        return ExecutionPlanPrinter.Print(plan.CreateCompactStatementStorageBoundary(), plan.EntryPoint);
+    }
 }

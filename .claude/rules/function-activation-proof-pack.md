@@ -28,6 +28,11 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
    `arguments`, and nested-arrow direct eval. Arrow functions inherit the
    enclosing activation's `arguments`; nested non-arrow functions are the
    boundary.
+6. When optimizing arity-specific sync calls, keep struct argument carriers on
+   concrete generic paths until parameter binding consumes them. Do not pass
+   `TwoValueArgs` or similar readonly struct lists through `IReadOnlyList`-typed
+   hot helper parameters or locals, because that boxes the struct and reintroduces
+   the allocation the optimization is trying to remove.
 
 ## Why
 
@@ -49,3 +54,16 @@ durable rule is to prove the observable-binding decision, not just allocation
 avoidance.
 
 Related ADR: `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`.
+
+Issue
+`planitem-planmanual1779530433702731000-reduce-function-call-activation-overhead-s-f3dc144c31`
+and PR #1657 showed the arity-carrier trap directly: after the simple sync
+activation fast path landed, `functioncalls-lite --memory` still reported
+`TwoValueArgs` / `EmptyValueArgs` helper allocations until the typed call path
+preserved generic struct carriers through `SyncFunctionInvoker` and used
+`Array.Empty<JsValue>()` for the runner placeholder. Future activation-overhead
+work should prove both the activation proof pack and the allocation table for
+helper carriers.
+
+Related ADR:
+`docs/adrs/0101-keep-function-call-argument-carriers-typed-through-hot-paths.md`.

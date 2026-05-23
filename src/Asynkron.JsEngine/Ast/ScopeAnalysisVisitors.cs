@@ -133,7 +133,8 @@ internal sealed class DynamicScopeDetector : AstVisitor
 
 /// <summary>
 /// Visitor that detects references to the 'arguments' identifier.
-/// Does not traverse into nested function bodies (they have their own arguments).
+/// Does not traverse into nested non-arrow function bodies (they have their own arguments).
+/// Arrow functions are traversed because they lexically capture outer `arguments`.
 /// </summary>
 internal sealed class ArgumentsReferenceDetector : AstVisitor
 {
@@ -202,8 +203,17 @@ internal sealed class ArgumentsReferenceDetector : AstVisitor
         }
     }
 
-    // Don't traverse into nested functions - they have their own arguments
-    protected override void VisitFunctionExpression(FunctionExpression node) { }
+    // Don't traverse into nested non-arrow functions - they have their own arguments.
+    // Arrow functions inherit the lexical arguments binding from the enclosing function.
+    protected override void VisitFunctionExpression(FunctionExpression node)
+    {
+        if (!node.IsArrow)
+        {
+            return;
+        }
+
+        base.VisitFunctionExpression(node);
+    }
     protected override void VisitFunctionDeclaration(FunctionDeclaration node) { }
 }
 

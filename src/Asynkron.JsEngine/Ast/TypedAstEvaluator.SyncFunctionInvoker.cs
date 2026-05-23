@@ -2307,8 +2307,9 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             {
                 reuseEnvironment.ScopeId = _function.ScopeId;
                 reuseEnvironment.SetSlotMap(_function.SlotMap);
-                // Skip InitializeSlots - for simple functions we only have parameters (no local vars),
-                // and we're about to set the parameter slot directly below. This avoids the Array.Fill.
+                // Ensure backing capacity also covers activation appends (NewTarget/ActiveFunction/Super/etc.)
+                // so repeated calls do not trigger GrowSlots allocations in this reuse path.
+                reuseEnvironment.InitializeSlotsWithCapacity(GetNonNegativeSlotCount(_function.SlotCount), _activationMinimumCapacity);
             }
 
             // Bind this

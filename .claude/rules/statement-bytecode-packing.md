@@ -102,6 +102,14 @@ decode bridge are explicit.
     reference table, while `Yield` and `YieldStar` must remain deferred until
     their suspension, awaited, iterable, and state payloads have explicit compact
     representations and parity tests.
+18. Descriptor-backed declaration instructions can leave the deferred bucket
+    only when the descriptor object itself is table-referenced by the compact
+    owner. For `FunctionDeclaration` and `ClassDeclaration`, encode stable
+    descriptor reference IDs, keep separate function/class descriptor tables,
+    include those table counts in storage diagnostics, and prove semantic
+    decode parity with descriptor-backed synthetic instructions. Do not inline
+    descriptor objects into compact payloads or count declaration support from
+    source-plan histograms alone.
 
 ## Why
 
@@ -251,5 +259,16 @@ broad deferred family can be narrowed when an individual member has a simple
 payload contract: `StoreResumeValue` only needs `Next` and an optional target
 symbol reference, while `Yield` and `YieldStar` still carry suspension payloads
 that need separate normalization before they leave the deferred set.
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-d3f8fd2dad`
+/ PR #1618 promoted `FunctionDeclaration` and `ClassDeclaration` diagnostic
+storage by adding owner-backed descriptor reference tables and focused manual
+descriptor tests. Review-requested AC-6 coverage showed that declaration
+support must be proven with real descriptors, explicit payload reference IDs,
+snapshot reference-table accounting, supported-kind histogram coverage, and
+semantic-view roundtrip assertions. Future declaration-family slices should
+follow that pattern instead of treating descriptor-heavy declaration records as
+supported because a source script happened to lower into those kinds.
 
 Related ADR: `docs/adrs/0094-compact-statement-bytecode-encoding-design-from-current-ir.md`.

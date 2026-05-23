@@ -26,6 +26,7 @@ namespace Asynkron.JsEngine.Execution;
 /// <param name="LayoutId">Stable identity for the expected slot layout, used to validate pooled environments.</param>
 /// <param name="FlatSlotCount">Total number of flat slots needed for O(1) variable access across all scopes.</param>
 /// <param name="FlatSlotMappings">Maps scopeId to array of (slotIndex, flatSlotId) for eager flat slot initialization.</param>
+/// <param name="ActivationSlots">Precomputed slot-shape metadata for function activation setup.</param>
 internal sealed record ExecutionPlan(
     ImmutableArray<ExecutionInstruction> Instructions,
     int EntryPoint,
@@ -39,6 +40,7 @@ internal sealed record ExecutionPlan(
     int LayoutId = 0,
     int FlatSlotCount = 0,
     ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>>? FlatSlotMappings = null,
+    ActivationSlotShape? ActivationSlots = null,
     CompactStatementStorageBoundary? CompactStatementStorageBoundary = null)
 {
     public ImmutableDictionary<Symbol, int> SafeRootSlotMap =>
@@ -58,3 +60,9 @@ internal sealed record ExecutionPlan(
     public CompactStatementStorageBoundary CreateDiagnosticCompactStatementStorageBoundary() =>
         CompactStatementStorage.CreateBoundary(Instructions, CompactStatementBoundaryMode.DiagnosticCoverage);
 }
+
+internal sealed record ActivationSlotShape(
+    int ScopeId,
+    int SlotCount,
+    int LayoutId,
+    ImmutableArray<(Symbol Name, int SlotIndex)> SlotNames);

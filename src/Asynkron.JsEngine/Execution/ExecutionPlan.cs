@@ -61,6 +61,9 @@ internal sealed record ExecutionPlan(
 
     public IrCallShape IrCallShape { get; } = ComputeIrCallShape(Instructions, EntryPoint);
 
+    public SimpleReturnParameterBinaryExpression? SimpleReturnParameterBinary { get; } =
+        ComputeSimpleReturnParameterBinary(Instructions, EntryPoint, ActivationSlots);
+
     public CompactStatementStorageBoundary CreateCompactStatementStorageBoundary() =>
         CompactStatementStorageBoundary ?? CompactStatementStorage.CreateBoundary(
             Instructions,
@@ -132,6 +135,79 @@ internal sealed record ExecutionPlan(
         ComputeSimpleReturnProgram(instructions, entryPoint) is not null
             ? IrCallShape.SimpleReturnExpression
             : IrCallShape.None;
+
+    private static SimpleReturnParameterBinaryExpression? ComputeSimpleReturnParameterBinary(
+        ImmutableArray<ExecutionInstruction> instructions,
+        int entryPoint,
+        ActivationSlotShape? activationSlots)
+    {
+        if (activationSlots is null ||
+            ComputeSimpleReturnProgram(instructions, entryPoint) is not { } program ||
+            program.OperationCount != 3)
+        {
+            return null;
+        }
+
+        var leftLoad = program.GetOperation(0);
+        var rightLoad = program.GetOperation(1);
+        var binary = program.GetOperation(2);
+        if (leftLoad.Kind != ExpressionOpKind.LoadIdentifier ||
+            rightLoad.Kind != ExpressionOpKind.LoadIdentifier ||
+            leftLoad.IsArguments ||
+            rightLoad.IsArguments ||
+            binary.Kind != ExpressionOpKind.Binary ||
+            !IsSupportedSimpleParameterBinaryOperator(binary.Operator))
+        {
+            return null;
+        }
+
+        var identifiers = program.IdentifierConstants.AsSpan();
+        var leftParameterIndex = ResolveParameterSlotIndex(
+            leftLoad.GetIdentifier(identifiers),
+            activationSlots);
+        var rightParameterIndex = ResolveParameterSlotIndex(
+            rightLoad.GetIdentifier(identifiers),
+            activationSlots);
+        if (leftParameterIndex < 0 || rightParameterIndex < 0)
+        {
+            return null;
+        }
+
+        return new SimpleReturnParameterBinaryExpression(
+            binary.Operator,
+            leftParameterIndex,
+            rightParameterIndex);
+    }
+
+    private static bool IsSupportedSimpleParameterBinaryOperator(BinaryOperator op) =>
+        op is BinaryOperator.Add or
+            BinaryOperator.Subtract or
+            BinaryOperator.Multiply or
+            BinaryOperator.Divide;
+
+    private static int ResolveParameterSlotIndex(
+        IdentifierOperand identifier,
+        ActivationSlotShape activationSlots)
+    {
+        if (identifier.ScopeId != activationSlots.ScopeId ||
+            identifier.SlotIndex < 0 ||
+            activationSlots.ParameterSlotIndices.IsDefault)
+        {
+            return -1;
+        }
+
+        var parameterIndex = -1;
+        var parameterSlotIndices = activationSlots.ParameterSlotIndices;
+        for (var i = 0; i < parameterSlotIndices.Length; i++)
+        {
+            if (parameterSlotIndices[i] == identifier.SlotIndex)
+            {
+                parameterIndex = i;
+            }
+        }
+
+        return parameterIndex;
+    }
 
     private static bool BlocksRawSyncReturn(ExecutionInstruction instruction) =>
         instruction.Kind is
@@ -217,6 +293,11 @@ internal sealed record ActivationSlotShape(
     ImmutableDictionary<Symbol, int> SlotMap,
     ImmutableArray<(Symbol Name, int SlotIndex)> SlotNames,
     ImmutableArray<int> ParameterSlotIndices);
+
+internal readonly record struct SimpleReturnParameterBinaryExpression(
+    BinaryOperator Operator,
+    int LeftParameterIndex,
+    int RightParameterIndex);
 
 internal enum IrCallShape
 {

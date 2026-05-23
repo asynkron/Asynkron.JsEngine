@@ -11,6 +11,7 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     private const string SimpleIrActivationFastPathLog = "simple-ir-activation-fast-path";
+    private const string SimpleIrParameterBinaryFastPathLog = "simple-ir-parameter-binary-fast-path";
     private const string SimpleIrReturnFastPathLog = "simple-ir-return-fast-path";
 
     [Fact(Timeout = 5000)]
@@ -30,6 +31,8 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrParameterBinaryFastPathLog, StringComparison.Ordinal));
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrReturnFastPathLog, StringComparison.Ordinal));
     }
 
@@ -46,8 +49,10 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
             """);
 
         Assert.Equal(42d, result);
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrParameterBinaryFastPathLog, StringComparison.Ordinal));
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrReturnFastPathLog, StringComparison.Ordinal));
     }

@@ -1647,6 +1647,22 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             try
             {
                 context.MarkThisInitialized();
+
+                if (plan.SimpleReturnParameterBinary is { } parameterBinary)
+                {
+                    RealmState.Logger?.LogInformation(
+                        "simple-ir-parameter-binary-fast-path func={Function} argc={ArgumentCount}",
+                        _function.Name?.Name ?? "<anonymous>",
+                        arguments.Count);
+                    RealmState.Logger?.LogInformation(
+                        "simple-ir-return-fast-path func={Function} argc={ArgumentCount}",
+                        _function.Name?.Name ?? "<anonymous>",
+                        arguments.Count);
+
+                    result = EvaluateSimpleReturnParameterBinary(arguments, parameterBinary, context);
+                    return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
+                }
+
                 var executionEnvironment = CreateSimpleIrActivationEnvironment(arguments, thisValue, plan);
                 RealmState.Logger?.LogInformation(
                     "simple-ir-activation-fast-path func={Function} argc={ArgumentCount}",
@@ -1703,6 +1719,32 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             {
                 RealmState.ReturnContext(context);
             }
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static JsValue EvaluateSimpleReturnParameterBinary<TArgs>(
+            TArgs arguments,
+            SimpleReturnParameterBinaryExpression expression,
+            EvaluationContext context)
+            where TArgs : IReadOnlyList<JsValue>
+        {
+            var left = GetSimpleReturnParameterArgument(arguments, expression.LeftParameterIndex);
+            var right = GetSimpleReturnParameterArgument(arguments, expression.RightParameterIndex);
+
+            return expression.Operator switch
+            {
+                BinaryOperator.Add => AddValue(left, right, context),
+                BinaryOperator.Subtract => SubtractValue(left, right, context),
+                BinaryOperator.Multiply => MultiplyValue(left, right, context),
+                _ => DivideValue(left, right, context)
+            };
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static JsValue GetSimpleReturnParameterArgument<TArgs>(TArgs arguments, int index)
+            where TArgs : IReadOnlyList<JsValue>
+        {
+            return index < arguments.Count ? arguments[index] : JsValue.Undefined;
         }
 
         private static bool TryCompleteIrFastExpressionResult(

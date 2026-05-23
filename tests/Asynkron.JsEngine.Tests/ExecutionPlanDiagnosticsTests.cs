@@ -58,8 +58,12 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
 
         Assert.Equal(IrCallShape.SimpleReturnExpression, add.IrCallShape);
         Assert.NotNull(add.SimpleReturnProgram);
+        Assert.Equal(BinaryOperator.Add, add.SimpleReturnParameterBinary?.Operator);
+        Assert.Equal(0, add.SimpleReturnParameterBinary?.LeftParameterIndex);
+        Assert.Equal(1, add.SimpleReturnParameterBinary?.RightParameterIndex);
         Assert.Equal(IrCallShape.None, addViaLocal.IrCallShape);
         Assert.Null(addViaLocal.SimpleReturnProgram);
+        Assert.Null(addViaLocal.SimpleReturnParameterBinary);
     }
 
     [Fact]

@@ -42,20 +42,23 @@ maintenance pass, keep the slice repo-local and reviewable:
   `.claude/rules/recurring-maintenance-child-runs.md`; keep this section
   focused on the operational checklist and Build Update template.
 
-1. Choose exactly one docs, tooling, test-fixture, or workflow simplification
+1. Check active sibling child log summaries before choosing a slice so this
+   run intentionally avoids overlapping sibling work; record the sibling check
+   in the issue update.
+2. Choose exactly one docs, tooling, test-fixture, or workflow simplification
    slice. Do not add or change recurrence infrastructure; Faktorial owns the
    recurrence schedule.
-2. Capture a cheap baseline signal before editing. Prefer evidence such as
+3. Capture a cheap baseline signal before editing. Prefer evidence such as
    `rtk make -n quality`, a targeted `rg` check, `git diff --check`, or another
    narrow command tied directly to the chosen slice.
    For issue details, comments, prior stage output, and logs, use supplied Faktorial Source Context first. If more evidence is needed, use the Faktorial HTTP API compact log summary endpoint (`/api/logs/<issue>/summary`) as the bounded fallback, then use narrow searches over `.faktorial/logs/ghNNNN.log` only when the summary is insufficient. Do not run the host `faktorial` daemon binary for issue/log/state reads from an agent. Treat missing `gh` auth as an environment detail, not a blocker.
-3. If the slice adds a new ADR under `docs/adrs/`, reserve the ID with
+4. If the slice adds a new ADR under `docs/adrs/`, reserve the ID with
    `faktorial-api adr-next` first and use the returned `adr_id`; if the lesson
    fits an existing durable document, update that file instead of creating a
    duplicate-number ADR. After writing or renaming ADRs, run a duplicate-prefix
    check over `docs/adrs` and record a clean result in the issue update.
-4. Make only the small change required for that slice.
-5. Capture the matching final signal after editing and record both signals in
+5. Make only the small change required for that slice.
+6. Capture the matching final signal after editing and record both signals in
    the issue update.
 
 Use a compact evidence shape in the issue update so reviewers can compare

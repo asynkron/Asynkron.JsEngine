@@ -52,6 +52,11 @@ internal sealed record ExecutionPlan(
     public ImmutableDictionary<int, ImmutableHashSet<Symbol>> SafeScopeLexicalBindings =>
         ScopeLexicalBindings ?? ImmutableDictionary<int, ImmutableHashSet<Symbol>>.Empty;
 
+    public bool HasOnlyRootFlatSlotMappings { get; } =
+        ComputeHasOnlyRootFlatSlotMappings(RootScopeId, FlatSlotMappings);
+
+    public bool CanUseRawSyncReturn { get; } = ComputeCanUseRawSyncReturn(Instructions);
+
     public CompactStatementStorageBoundary CreateCompactStatementStorageBoundary() =>
         CompactStatementStorageBoundary ?? CompactStatementStorage.CreateBoundary(
             Instructions,
@@ -59,6 +64,120 @@ internal sealed record ExecutionPlan(
 
     public CompactStatementStorageBoundary CreateDiagnosticCompactStatementStorageBoundary() =>
         CompactStatementStorage.CreateBoundary(Instructions, CompactStatementBoundaryMode.DiagnosticCoverage);
+
+    private static bool ComputeHasOnlyRootFlatSlotMappings(
+        int rootScopeId,
+        ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>>? flatSlotMappings)
+    {
+        if (flatSlotMappings is null || flatSlotMappings.Count == 0)
+        {
+            return true;
+        }
+
+        foreach (var mapping in flatSlotMappings)
+        {
+            if (mapping.Key != rootScopeId)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool ComputeCanUseRawSyncReturn(ImmutableArray<ExecutionInstruction> instructions)
+    {
+        if (instructions.IsDefaultOrEmpty)
+        {
+            return true;
+        }
+
+        foreach (var instruction in instructions)
+        {
+            if (BlocksRawSyncReturn(instruction))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool BlocksRawSyncReturn(ExecutionInstruction instruction) =>
+        instruction.Kind is
+            InstructionKind.AwaitAndDiscard or
+            InstructionKind.Yield or
+            InstructionKind.YieldStar or
+            InstructionKind.EnterTry or
+            InstructionKind.EnterCatch or
+            InstructionKind.LeaveTry or
+            InstructionKind.EndFinally or
+            InstructionKind.IteratorInit or
+            InstructionKind.IteratorMoveNext or
+            InstructionKind.IteratorClose or
+            InstructionKind.ForInInit or
+            InstructionKind.ForInMoveNext or
+            InstructionKind.ArrayDestructuringInit or
+            InstructionKind.ArrayDestructuringElement or
+            InstructionKind.ArrayDestructuringRest or
+            InstructionKind.ArrayDestructuringClose ||
+        MayCreateActiveIteratorState(instruction);
+
+    private static bool MayCreateActiveIteratorState(ExecutionInstruction instruction)
+    {
+        if (instruction.Kind is
+            InstructionKind.IteratorInit or
+            InstructionKind.IteratorMoveNext or
+            InstructionKind.IteratorClose or
+            InstructionKind.ForInInit or
+            InstructionKind.ForInMoveNext or
+            InstructionKind.ArrayDestructuringInit or
+            InstructionKind.ArrayDestructuringElement or
+            InstructionKind.ArrayDestructuringRest or
+            InstructionKind.ArrayDestructuringClose or
+            InstructionKind.BindingVariableDeclaration)
+        {
+            return true;
+        }
+
+        return instruction switch
+        {
+            ThrowInstruction { ThrowProgram: { } program } => ContainsBindingTarget(program),
+            EvaluateAndDiscardInstruction { ExpressionProgram: var program } => ContainsBindingTarget(program),
+            AwaitAndDiscardInstruction { AwaitedProgram: var program } => ContainsBindingTarget(program),
+            AssignmentSlotInstruction { ValueProgram: { } program } => ContainsBindingTarget(program),
+            AssignmentSlotInstruction { AwaitedProgram: { } program } => ContainsBindingTarget(program),
+            LogicalCompoundAssignmentSlotInstruction { RhsProgram: { } program } => ContainsBindingTarget(program),
+            LogicalCompoundAssignmentSlotInstruction { AwaitedProgram: { } program } => ContainsBindingTarget(program),
+            CompoundAssignmentSlotInstruction { RhsProgram: { } program } => ContainsBindingTarget(program),
+            CompoundAssignmentSlotInstruction { AwaitedProgram: { } program } => ContainsBindingTarget(program),
+            SimpleVariableDeclarationInstruction { InitializerProgram: { } program } => ContainsBindingTarget(program),
+            SimpleVariableDeclarationInstruction { AwaitedProgram: { } program } => ContainsBindingTarget(program),
+            BranchInstruction { ConditionProgram: var program } => ContainsBindingTarget(program),
+            ReturnInstruction { ReturnProgram: { } program } => ContainsBindingTarget(program),
+            ReturnInstruction { AwaitedProgram: { } program } => ContainsBindingTarget(program),
+            EnterWithInstruction { ObjectProgram: { } program } => ContainsBindingTarget(program),
+            EnterWithInstruction { AwaitedProgram: { } program } => ContainsBindingTarget(program),
+            ForInInitInstruction { ObjectProgram: { } program } => ContainsBindingTarget(program),
+            ForInInitInstruction { AwaitedProgram: { } program } => ContainsBindingTarget(program),
+            IteratorInitInstruction { IterableProgram: { } program } => ContainsBindingTarget(program),
+            IteratorInitInstruction { AwaitedProgram: { } program } => ContainsBindingTarget(program),
+            _ => false
+        };
+    }
+
+    private static bool ContainsBindingTarget(ExpressionProgram program)
+    {
+        foreach (var operation in program.EnumerateOperations())
+        {
+            if (operation.Kind == ExpressionOpKind.ApplyBindingTarget)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }
 
 internal sealed record ActivationSlotShape(
@@ -66,4 +185,5 @@ internal sealed record ActivationSlotShape(
     int SlotCount,
     int LayoutId,
     ImmutableDictionary<Symbol, int> SlotMap,
-    ImmutableArray<(Symbol Name, int SlotIndex)> SlotNames);
+    ImmutableArray<(Symbol Name, int SlotIndex)> SlotNames,
+    ImmutableArray<int> ParameterSlotIndices);

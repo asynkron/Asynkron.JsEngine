@@ -89,6 +89,7 @@ public static partial class TypedAstEvaluator
         private EvaluationContext? _context;
         private int _currentInstructionIndex;
         private bool _done;
+        private bool _completedWithRawSyncReturn;
         private JsEnvironment? _executionEnvironment;
         private bool _privateScopesApplied;
         private int _programCounter;

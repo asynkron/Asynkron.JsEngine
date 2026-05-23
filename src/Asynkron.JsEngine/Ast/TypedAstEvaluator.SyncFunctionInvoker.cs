@@ -1716,35 +1716,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             if (plan.ActivationSlots is not { } activationSlots ||
                 activationSlots.ScopeId != plan.RootScopeId ||
                 activationSlots.LayoutId != plan.LayoutId ||
-                !HasOnlyRootFlatSlotMappings(plan, activationSlots.ScopeId))
+                !plan.HasOnlyRootFlatSlotMappings ||
+                activationSlots.ParameterSlotIndices.IsDefault ||
+                activationSlots.ParameterSlotIndices.Length != _parameterNames.Length)
             {
                 return false;
-            }
-
-            for (var i = 0; i < _parameterNames.Length; i++)
-            {
-                if (!activationSlots.SlotMap.ContainsKey(_parameterNames[i]))
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        private static bool HasOnlyRootFlatSlotMappings(ExecutionPlan plan, int rootScopeId)
-        {
-            if (plan.FlatSlotMappings is null || plan.FlatSlotMappings.Count == 0)
-            {
-                return true;
-            }
-
-            foreach (var scopeId in plan.FlatSlotMappings.Keys)
-            {
-                if (scopeId != rootScopeId)
-                {
-                    return false;
-                }
             }
 
             return true;
@@ -1792,7 +1768,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 rootLexicals,
                 plan.SlotSymbols,
                 activationSlots.LayoutId,
-                activationSlots.ScopeId);
+                activationSlots.ScopeId,
+                activationSlots.SlotNames);
 
             var boundThis = _isStrict ? thisValue : CoerceThisValueForNonStrict(thisValue);
             functionEnvironment._thisValue = boundThis;
@@ -1814,11 +1791,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             ActivationSlotShape activationSlots)
             where TArgs : IReadOnlyList<JsValue>
         {
+            var parameterSlotIndices = activationSlots.ParameterSlotIndices;
             for (var i = 0; i < _parameterNames.Length; i++)
             {
-                var parameterName = _parameterNames[i];
                 var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
-                executionEnvironment.SetSlotDirect(activationSlots.SlotMap[parameterName], value);
+                executionEnvironment.SetSlotDirect(parameterSlotIndices[i], value);
             }
         }
 

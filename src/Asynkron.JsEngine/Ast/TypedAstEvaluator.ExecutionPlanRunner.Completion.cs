@@ -426,6 +426,22 @@ public static partial class TypedAstEvaluator
             return HandleAbruptCompletion(kind, value);
         }
 
+        private bool TryCompleteRawSyncReturn(JsValue value, out JsValue returnValue)
+        {
+            if (_isGenerator || _isAsync || _isScriptMode || _plan?.CanUseRawSyncReturn != true)
+            {
+                returnValue = default;
+                return false;
+            }
+
+            _programCounter = -1;
+            _state = GeneratorState.Completed;
+            _done = true;
+            _completedWithRawSyncReturn = true;
+            returnValue = value;
+            return true;
+        }
+
         /// <summary>
         /// Checks if the current try frame is inside a finally block (FinallyScheduled is true).
         /// Used by Return/Throw instruction handlers to determine if they should terminate

@@ -127,7 +127,8 @@ public static partial class TypedAstEvaluator
                     rootLexicals,
                     _plan.SlotSymbols,
                     activationSlots.LayoutId,
-                    activationSlots.ScopeId);
+                    activationSlots.ScopeId,
+                    activationSlots.SlotNames);
             }
 
             // ES2024 9.2.12 FunctionDeclarationInstantiation step 34-35:

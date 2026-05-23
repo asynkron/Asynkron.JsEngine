@@ -178,8 +178,12 @@ public static partial class TypedAstEvaluator
                 returnVal = pendingReturn;
             }
 
-            var wasInsideScheduledFinally = runner.IsInsideScheduledFinally();
+            if (runner.TryCompleteRawSyncReturn(returnVal, out returnValue))
+            {
+                return InstructionResult.Return;
+            }
 
+            var wasInsideScheduledFinally = runner.IsInsideScheduledFinally();
             if (runner.HandleAbruptCompletionJsValue(AbruptKind.Return, returnVal))
             {
                 if (wasInsideScheduledFinally)

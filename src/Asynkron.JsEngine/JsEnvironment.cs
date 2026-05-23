@@ -3931,7 +3931,8 @@ public sealed class JsEnvironment : IRentable
         ImmutableHashSet<Symbol> lexicalBindings,
         ImmutableArray<Symbol> slotSymbols,
         int layoutId,
-        int scopeId)
+        int scopeId,
+        ImmutableArray<(Symbol Name, int SlotIndex)> slotNames = default)
     {
         var needsRebuild = LayoutId != layoutId || _slots is null || _slots.Length < requiredSlots ||
                            _slotCount < requiredSlots;
@@ -3943,7 +3944,12 @@ public sealed class JsEnvironment : IRentable
 
         InitializeSlots(requiredSlots, scopeId);
 
-        if (!slotMap.IsEmpty)
+        if (!slotNames.IsDefaultOrEmpty)
+        {
+            SetSlotNames(slotNames);
+            AssertSlotMapLayout(slotMap, nameof(ResetSlotLayoutForPlan));
+        }
+        else if (!slotMap.IsEmpty)
         {
             SetSlotMap(slotMap);
         }

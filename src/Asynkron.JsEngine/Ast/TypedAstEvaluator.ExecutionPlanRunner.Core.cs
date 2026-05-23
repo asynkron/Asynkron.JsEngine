@@ -385,6 +385,7 @@ public static partial class TypedAstEvaluator
             JsEnvironment.Current = executionEnvironment;
             try
             {
+                _completedWithRawSyncReturn = false;
                 // Run the plan - for sync functions this completes immediately
                 var result = ExecutePlan(ResumeMode.Next, JsValue.Undefined);
 
@@ -392,7 +393,11 @@ public static partial class TypedAstEvaluator
                 // For sync execution, extract the raw value.
                 // Handle both IteratorResultObject (lightweight) and JsObject (full) cases.
                 JsValue returnValue;
-                if (result.TryGetObject<IteratorResultObject>(out var iteratorResult))
+                if (_completedWithRawSyncReturn)
+                {
+                    returnValue = result;
+                }
+                else if (result.TryGetObject<IteratorResultObject>(out var iteratorResult))
                 {
                     iteratorResult.TryGetProperty("value", out returnValue);
                 }

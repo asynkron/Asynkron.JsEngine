@@ -33,6 +33,12 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
    `TwoValueArgs` or similar readonly struct lists through `IReadOnlyList`-typed
    hot helper parameters or locals, because that boxes the struct and reintroduces
    the allocation the optimization is trying to remove.
+7. When binding parameters into an activation that already has slot storage,
+   update the planned parameter slots directly. Do not call
+   `DefineParameterFast` as a closure mirror for those parameters; it appends a
+   new binding and can reintroduce per-invocation `JsSlot[]` growth. Use
+   `DefineParameterFast` only for dictionary/no-slot fallback paths or real
+   appended activation bindings.
 
 ## Why
 
@@ -67,3 +73,18 @@ helper carriers.
 
 Related ADR:
 `docs/adrs/0101-keep-function-call-argument-carriers-typed-through-hot-paths.md`.
+
+Issue
+`planitem-planmanual1779530433702731000-reduce-function-call-activation-overhead-s-8f7318b9d0`
+and PR #1648 showed the slot-backed closure trap directly: after activation
+slots were initialized to the planned shape, duplicate `DefineParameterFast`
+calls in parameter binding appended extra parameter slots on every invocation.
+The focused proof pack stayed green after writing the existing slots directly,
+and `functioncalls-lite --memory` showed `JsSlot[]` sampled allocations dropping
+from the previously recorded roughly 57k range to 7,781x while `arrayops`
+remained stable at 170x. Future activation-overhead work should pair the proof
+pack with allocation evidence for `JsSlot[]` / `GrowSlots` whenever it changes
+slot-backed binding.
+
+Related ADR:
+`docs/adrs/0099-keep-function-activation-slot-shape-plan-owned.md`.

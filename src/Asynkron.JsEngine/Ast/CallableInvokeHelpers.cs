@@ -19,7 +19,53 @@ public static partial class TypedAstEvaluator
         EvaluationContext? callingContext,
         JsEnvironment? callingEnvironment = null)
     {
-        return InvokeCallableJsValueGeneric(callable, EmptyValueArgs.Instance, thisValue, callingContext, callingEnvironment);
+        return InvokeCallableJsValueGeneric(callable, Array.Empty<JsValue>(), thisValue, callingContext, callingEnvironment);
+    }
+
+    /// <summary>
+    /// Invokes a callable with two arguments and returns the result as JsValue.
+    /// This overload avoids array allocation for common binary helper calls.
+    /// </summary>
+    [MethodImpl(JsEngineConstants.Inlining)]
+    private static JsValue InvokeCallableTwoArgs(
+        IJsCallable callable,
+        JsValue arg0,
+        JsValue arg1,
+        JsValue thisValue,
+        EvaluationContext? callingContext,
+        JsEnvironment? callingEnvironment = null)
+    {
+        if (callable is SyncFunctionInvoker typedFunction && callingContext is not null)
+        {
+            IJsEnvironmentAwareCallable? envAware = null;
+            JsEnvironment? previousEnvironment = null;
+            if (callingEnvironment is not null && callable is IJsEnvironmentAwareCallable environmentAware)
+            {
+                envAware = environmentAware;
+                previousEnvironment = envAware.CallingJsEnvironment;
+                envAware.CallingJsEnvironment = callingEnvironment;
+            }
+
+            IEvaluationContextAwareCallable? contextAware = null;
+            if (callable is IEvaluationContextAwareCallable evaluationContextAware)
+            {
+                contextAware = evaluationContextAware;
+                contextAware.CallingContext = callingContext;
+            }
+
+            try
+            {
+                return typedFunction.InvokeWithContext2(arg0, arg1, thisValue, callingContext);
+            }
+            finally
+            {
+                envAware?.CallingJsEnvironment = previousEnvironment;
+                contextAware?.CallingContext = null;
+            }
+        }
+
+        var args = new TwoValueArgs(arg0, arg1);
+        return InvokeCallableJsValueGeneric(callable, args, thisValue, callingContext, callingEnvironment);
     }
 
     /// <summary>
@@ -70,7 +116,7 @@ public static partial class TypedAstEvaluator
         {
             return callable switch
             {
-                SyncFunctionInvoker typedFunction => typedFunction.InvokeWithContext(arguments, thisValue,
+                SyncFunctionInvoker typedFunction => typedFunction.InvokeWithContext<TArgs>(arguments, thisValue,
                     callingContext),
                 HostFunction hostFunction => hostFunction.InvokeWithContext(arguments, thisValue, callingContext),
                 _ => callable.Invoke(arguments, thisValue)

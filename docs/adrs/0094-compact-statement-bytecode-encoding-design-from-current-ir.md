@@ -112,7 +112,7 @@ storage readiness.
 | Slot fast paths | `IncrementSlot`, `AssignmentSlot`, `LogicalCompoundAssignmentSlot`, `CompoundAssignmentSlot` | Conditional / needs normalization | Mostly scalar/symbol operands plus optional `ExpressionProgram`/`AwaitedProgram`; encode is safe once optional expression fields are normalized to IDs. |
 | Declarations with descriptor payloads | `FunctionDeclaration`, `ClassDeclaration` | Defer | Carry descriptor/program-cache payloads that are object-heavy and should be table-normalized before compact storage migration. |
 | Variable declarations | `SimpleVariableDeclaration`, `BindingVariableDeclaration` | Conditional / needs normalization | `SimpleVariableDeclaration` is close (symbol + optional expression), but `BindingVariableDeclaration` carries `BindingTargetProgram` object payload; keep together until binding payload encoding is finalized. |
-| Environment transitions | `PushEnvironment`, `PopEnvironment`, `BreakableEnter` | Defer | `PushEnvironment` still carries multiple collection/object payloads (`SlotMap`, lexical/flat-slot metadata), but the transitional `SourceBlock` payload must be retired before the plan is published. Needs operand-table normalization first. |
+| Environment transitions | `PushEnvironment`, `PopEnvironment`, `BreakableEnter` | Conditional / needs normalization | `PushEnvironment` now uses normalized diagnostics payload ownership (`EnvironmentTransitionNormalized` + `CompactPushEnvironmentPayload` reference-table seam), but `PopEnvironment`/`BreakableEnter` remain deferred and the family still needs full runtime compact-storage normalization. |
 | Yield/resume | `Yield`, `YieldStar`, `StoreResumeValue` | Defer | Suspension/resume semantics rely on mixed payloads (`AwaitStateKey`, optional awaited/iterable programs, state/result symbols); avoid mixing storage migration with semantic seam work. |
 | Try/catch/finally | `EnterTry`, `EnterCatch`, `LeaveTry`, `EndFinally` | Defer | Handler/finally range metadata plus binding/catch-program payloads are still semantically dense; keep deferred until unwind/catch payload normalization is explicit. |
 | Iteration drivers (`for..of`) | `IteratorInit`, `IteratorMoveNext`, `IteratorClose` | Defer | Iterator state payload includes TDZ bindings, optional awaited/source references, and iterator driver semantics; still object-heavy. |
@@ -454,10 +454,11 @@ Current-worktree rerun evidence:
   - total allocated: `7.09 MB`
 
 Current supported instruction kinds in this diagnostic snapshot are:
-`Return`, `EvaluateAndDiscard`, `SimpleVariableDeclaration`, and
-`BreakableExit`. Current unsupported kinds in the same snapshot are:
-`PushEnvironment`, `PopEnvironment`, `IncrementSlot`, `FunctionDeclaration`,
-`BreakableEnter`, `Branch`, and `CompoundAssignmentSlot`.
+`Return`, `EvaluateAndDiscard`, `SimpleVariableDeclaration`, `BreakableExit`,
+and `PushEnvironment` (`EnvironmentTransitionNormalized` with a compact payload
+reference table). Current unsupported kinds in the same snapshot are:
+`PopEnvironment`, `IncrementSlot`, `FunctionDeclaration`, `BreakableEnter`,
+`Branch`, and `CompoundAssignmentSlot`.
 
 Historical delta note:
 
@@ -542,6 +543,20 @@ supported member must still round-trip through the owner boundary, update the
 taxonomy and diagnostics codec together, and leave `Yield` / `YieldStar`
 explicitly deferred until their awaited/iterable/state payloads have their own
 compact representation and parity proof.
+
+### 7.12 PushEnvironment diagnostic normalization checkpoint
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-0a20470768`
+adds a diagnostic ownership checkpoint for `PushEnvironment` payloads by moving
+the instruction to `EnvironmentTransitionNormalized` and introducing
+`CompactPushEnvironmentPayload` reference-table encode/decode support.
+
+This checkpoint updates diagnostics classification and current-state reporting,
+but it does not switch runtime execution to compact statement storage.
+`ExecutionPlanRunner` remains record-backed; this slice only proves that
+`PushEnvironment` can round-trip through the compact diagnostics boundary with
+explicit payload ownership rather than embedded object payloads.
 
 ### 8. Staged migration
 

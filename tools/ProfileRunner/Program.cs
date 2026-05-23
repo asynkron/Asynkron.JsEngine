@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging;
 const string listCommand = "list";
 var engineKind = EngineKind.Asynkron;
 var reportExpressionProgramStorage = false;
+var reportStatementInstructionStorage = false;
 var positionalArgs = new List<string>();
 
 for (var i = 0; i < args.Length; i++)
@@ -63,6 +64,12 @@ for (var i = 0; i < args.Length; i++)
     if (string.Equals(arg, "--expression-program-storage", StringComparison.OrdinalIgnoreCase))
     {
         reportExpressionProgramStorage = true;
+        continue;
+    }
+
+    if (string.Equals(arg, "--statement-instruction-storage", StringComparison.OrdinalIgnoreCase))
+    {
+        reportStatementInstructionStorage = true;
         continue;
     }
 
@@ -156,6 +163,11 @@ async Task RunWithSharedEnginesAsync(
         PrintExpressionProgramStorage(profileKey, parsed);
     }
 
+    if (reportStatementInstructionStorage)
+    {
+        PrintStatementInstructionStorage(profileKey, parsed);
+    }
+
     for (var i = 0; i < warmup; i++)
     {
         await EvaluateAsync(engine, parsed);
@@ -190,6 +202,11 @@ async Task RunWithFreshEnginesAsync(
         if (reportExpressionProgramStorage)
         {
             PrintExpressionProgramStorage(profileKey, parsed);
+        }
+
+        if (reportStatementInstructionStorage)
+        {
+            PrintStatementInstructionStorage(profileKey, parsed);
         }
     }
 
@@ -362,6 +379,64 @@ void PrintExpressionProgramStorage(string selectedProfileKey, ProgramNode progra
         Console.WriteLine(string.Create(
             CultureInfo.InvariantCulture,
             $"    depth={depth}: {count}"));
+    }
+}
+
+void PrintStatementInstructionStorage(string selectedProfileKey, ProgramNode program)
+{
+    var snapshot = StatementInstructionStorageDiagnostics.Collect(program);
+    Console.WriteLine("Statement instruction storage diagnostics:");
+    Console.WriteLine(string.Create(
+        CultureInfo.InvariantCulture,
+        $"  profile: {selectedProfileKey}"));
+    Console.WriteLine(string.Create(
+        CultureInfo.InvariantCulture,
+        $"  plans: {snapshot.PlanCount}"));
+    Console.WriteLine(string.Create(
+        CultureInfo.InvariantCulture,
+        $"  instructions: {snapshot.InstructionCount}"));
+    Console.WriteLine(string.Create(
+        CultureInfo.InvariantCulture,
+        $"  support_shape: supported={snapshot.SupportedInstructionCount}, unsupported={snapshot.UnsupportedInstructionCount}"));
+    Console.WriteLine(string.Create(
+        CultureInfo.InvariantCulture,
+        $"  owner_storage: encoded_bytes={snapshot.OwnerBackedEncodedBytes}, estimated_compact_encoded_bytes={snapshot.EstimatedCompactEncodedBytes}"));
+    Console.WriteLine(string.Create(
+        CultureInfo.InvariantCulture,
+        $"  operand_tables: operand_entries={snapshot.OperandTableEntryCount}, extra_operand_entries={snapshot.ExtraOperandTableEntryCount}"));
+    Console.WriteLine(string.Create(
+        CultureInfo.InvariantCulture,
+        $"  expression_refs: primary={snapshot.ExpressionReferenceCount}, secondary={snapshot.SecondaryExpressionReferenceCount}, table_count={snapshot.ExpressionProgramReferenceTableCount}"));
+    Console.WriteLine(string.Create(
+        CultureInfo.InvariantCulture,
+        $"  symbols_and_bindings: symbol_operands={snapshot.SymbolOperandCount}, binding_target_operands={snapshot.BindingTargetOperandCount}"));
+
+    PrintTopHistogram("instruction_kind_histogram", snapshot.InstructionKindHistogram);
+    PrintTopHistogram("supported_instruction_kind_histogram", snapshot.SupportedInstructionKindHistogram);
+    PrintTopHistogram("unsupported_instruction_kind_histogram", snapshot.UnsupportedInstructionKindHistogram);
+    PrintTopHistogram("unsupported_family_reason_histogram", snapshot.UnsupportedFamilyReasonHistogram);
+}
+
+void PrintTopHistogram<T>(string label, IReadOnlyList<KeyValuePair<T, long>> histogram)
+{
+    if (histogram.Count == 0)
+    {
+        Console.WriteLine(string.Create(
+            CultureInfo.InvariantCulture,
+            $"  {label}: (empty)"));
+        return;
+    }
+
+    Console.WriteLine(string.Create(
+        CultureInfo.InvariantCulture,
+        $"  {label}:"));
+    var count = Math.Min(10, histogram.Count);
+    for (var i = 0; i < count; i++)
+    {
+        var (key, value) = histogram[i];
+        Console.WriteLine(string.Create(
+            CultureInfo.InvariantCulture,
+            $"    {key}: {value}"));
     }
 }
 

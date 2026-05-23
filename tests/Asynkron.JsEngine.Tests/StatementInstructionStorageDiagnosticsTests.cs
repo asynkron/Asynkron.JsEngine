@@ -330,7 +330,7 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
 
         Assert.Equal(2, storage.InstructionCount);
         Assert.Equal(2, storage.OpcodeStream.Length);
-        Assert.Equal(2, storage.ReferenceTables.ExpressionPrograms.Length);
+        Assert.Equal(1, storage.ReferenceTables.ExpressionPrograms.Length);
         Assert.All(storage.ReferenceTables.ExpressionPrograms, program => Assert.Equal(expressionProgram, program));
     }
 

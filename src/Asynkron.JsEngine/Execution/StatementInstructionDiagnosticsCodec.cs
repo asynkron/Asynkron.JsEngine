@@ -355,6 +355,19 @@ internal static class StatementInstructionDiagnosticsCodec
         return Decode(encoded, new StatementDiagnosticsExpressionProgramTable());
     }
 
+    public static ExecutionInstruction Decode(
+        CompactStatementInstruction encoded,
+        IReadOnlyList<ExpressionProgram?> expressionPrograms)
+    {
+        var payload = encoded.Payload with
+        {
+            PrimaryExpressionProgram = ResolveExpressionProgram(encoded.Payload.PrimaryExpressionProgramReferenceId, encoded.Payload.PrimaryExpressionProgram, expressionPrograms),
+            SecondaryExpressionProgram = ResolveExpressionProgram(encoded.Payload.SecondaryExpressionProgramReferenceId, encoded.Payload.SecondaryExpressionProgram, expressionPrograms)
+        };
+
+        return Decode(encoded with { Payload = payload });
+    }
+
     private static int GetAssignmentSlotFlags(AssignmentSlotInstruction instruction)
     {
         var flags = 0;
@@ -393,5 +406,13 @@ internal static class StatementInstructionDiagnosticsCodec
         StatementDiagnosticsExpressionProgramTable expressionPrograms)
     {
         return expressionPrograms.Resolve(id) ?? embeddedProgram;
+    }
+
+    private static ExpressionProgram? ResolveExpressionProgram(
+        int id,
+        ExpressionProgram? embeddedProgram,
+        IReadOnlyList<ExpressionProgram?> expressionPrograms)
+    {
+        return id >= 0 && id < expressionPrograms.Count ? expressionPrograms[id] ?? embeddedProgram : embeddedProgram;
     }
 }

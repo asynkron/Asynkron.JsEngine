@@ -255,7 +255,7 @@ internal sealed class CompactStatementStorage
         var decoded = ImmutableArray.CreateBuilder<ExecutionInstruction>(InstructionCount);
         for (var i = 0; i < InstructionCount; i++)
         {
-            decoded.Add(StatementInstructionDiagnosticsCodec.Decode(ToEncodedInstruction(i)));
+            decoded.Add(StatementInstructionDiagnosticsCodec.Decode(ToEncodedInstruction(i), ReferenceTables.ExpressionPrograms));
         }
 
         return decoded.MoveToImmutable();
@@ -266,6 +266,12 @@ internal sealed class CompactStatementStorage
         if (value is null)
         {
             return -1;
+        }
+
+        var existing = builder.IndexOf(value);
+        if (existing >= 0)
+        {
+            return existing;
         }
 
         builder.Add(value);
@@ -292,8 +298,8 @@ internal sealed class CompactStatementStorage
                 OperandTable[index],
                 ExtraOperandTable[index]),
             Payload: new CompactStatementPayload(
-                PrimaryExpressionProgram: GetReference(ReferenceTables.ExpressionPrograms, references.PrimaryExpressionIndex),
-                SecondaryExpressionProgram: GetReference(ReferenceTables.ExpressionPrograms, references.SecondaryExpressionIndex),
+                PrimaryExpressionProgramReferenceId: references.PrimaryExpressionIndex,
+                SecondaryExpressionProgramReferenceId: references.SecondaryExpressionIndex,
                 PrimarySymbol: GetReference(ReferenceTables.Symbols, references.PrimarySymbolIndex),
                 SecondarySymbol: GetReference(ReferenceTables.Symbols, references.SecondarySymbolIndex),
                 BindingTargetProgram: GetReference(ReferenceTables.BindingTargets, references.BindingTargetIndex),

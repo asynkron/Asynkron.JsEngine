@@ -63,18 +63,60 @@ Result:
 
 ### Canonical Quality Gate
 
-The in-agent closeout did not run `rtk make quality` after writing this report.
-The build-stage handoff requests the orchestrator `run-quality` profile so the
-canonical internal build/test gate runs after the committed report is present.
+The post-commit orchestrator `run-quality` profile ran the canonical
+`make quality` gate against commit `305e21f7`.
+
+Result:
+- `git diff --check`: passed
+- `make build-internal`: passed
+- `make test-internal-no-build`: passed
+- Internal VSTest summary: Passed 4,074, Failed 0, Skipped 2, Total 4,076
+- Internal VSTest duration: 36 s
+- Embedded web app asset freshness: skipped; `internal/web/app` is not present
+  in this worktree.
+- Post-quality worktree cleanliness: clean
+- Verification result:
+  `planitem-planmanual1779530433702731000-reduce-function-call-activation-overhead-p-0b25b4f88b-1779550438838778000`
+  finished with status `pass`.
 
 ### Big Test262 Throughput
 
-The full `LanguageTests.runsettings` throughput run was not completed in this
-agent turn. The attempted activation-adjacent Test262 command generated 93,709
-test cases and completed the filtered 1,223-test subset successfully. A complete
-LanguageTests throughput number remains a follow-up proof item if the plan owner
-requires whole-suite throughput instead of focused activation/eval/function
-coverage for this closeout.
+```bash
+rtk dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --settings tests/Asynkron.JsEngine.Tests.Test262/LanguageTests.runsettings
+```
+
+Result:
+- VSTest summary: Passed 43,010, Failed 4, Skipped 801, Total 43,815
+- VSTest duration: 20 m 33 s
+- `rtk` summary: 43,010 passed, 4 failed, 801 skipped, 3 warnings in 2
+  projects, 1,540.1 s
+- Process result: non-zero because the full LanguageTests run currently has 4
+  failures.
+- Results file:
+  `/var/folders/2s/_6fw48n95h59ks_q6mn61_5w0000gn/T/rtk_dotnet_testresults_19e557e140d127621/_Plutten_2026-05-23_17_40_32.trx`
+- Captured console log:
+  `/tmp/jsengine-throughput/language-tests-2026-05-23.log`
+
+Failed tests:
+- `ModuleCode("language/module-code/instn-star-ambiguous.js", True)`:
+  ambiguous export expectation mismatch. This path is covered by existing ADR
+  `docs/adrs/0091-keep-module-namespace-construction-resolution-lazy.md`, so
+  it is not activation-specific evidence.
+- `Statements_for_dstr("language/statements/for/dstr/var-ary-ptrn-rest-id-iter-close.js", True)`:
+  `ReferenceError: x is not defined` during iterator-close destructuring.
+- `Statements_forOf_dstr("language/statements/for-of/dstr/var-ary-ptrn-rest-id-iter-close.js", True)`:
+  `ReferenceError: x is not defined` during iterator-close destructuring.
+- `Statements_with("language/statements/with/S12.10_A1.11_T5.js", False)`:
+  dynamic `with` scope lookup produced `ReferenceError: value is not defined`.
+  The `Statements_with` area has existing durable guidance in
+  `docs/adrs/0052-keep-dynamic-with-scope-cleanup-boundaries-identity-based.md`.
+
+Interpretation:
+- AC-4 is now satisfied by whole-suite LanguageTests throughput evidence.
+- The failures are broad language/module/dynamic-scope cases rather than
+  focused function-call activation regressions.
+- The run does not prove improved broad-suite throughput because no prior
+  comparable whole-suite throughput baseline was present in this worktree.
 
 ## Current Profiler Snapshot
 
@@ -133,14 +175,19 @@ Interpretation:
 - The current aggregate profiler proves activation workloads are included and
   produces useful current numbers, but it does not prove an activation setup
   reduction without the missing comparable activation baseline.
+- The full LanguageTests throughput run provides a current broad-suite point
+  at 43,815 tests in 1,540.1 s, but no comparable prior whole-suite throughput
+  report was present, so it cannot support an improvement claim.
 - The strongest remaining owner surfaces are still `JsEnvironment`, `JsSlot[]`,
   `ExecutionPlanRunner`, `EvaluationContext`, mapped/observable arguments object
   storage, and eval-sensitive scope construction.
 
 ## Closeout Conclusion
 
-Focused activation semantics are green, and the activation-adjacent Test262
-subset produced a 1,223/1,223 passing VSTest summary. The aggregate profiler ran
+Focused activation semantics are green, the activation-adjacent Test262 subset
+produced a 1,223/1,223 passing VSTest summary, and the full LanguageTests run
+completed with 43,010 passed, 4 failed, 801 skipped, and 43,815 total. The
+post-commit canonical `run-quality` gate also passed. The aggregate profiler ran
 successfully with all activation profiles included.
 
 The evidence does not support a strong "activation overhead is reduced" claim in
@@ -149,6 +196,8 @@ handoff is absent from this worktree. With the available committed baseline, the
 safe conclusion is:
 
 - no focused semantic regression was observed;
+- full LanguageTests throughput is now recorded, but does not prove a broad
+  throughput win without a retained comparable baseline;
 - `forloop` allocation remains stable at about 7.03-7.05 MB;
 - activation setup cost is still dominated by environment, slot-array, runner,
   context, arguments-object, and eval-scope allocations;

@@ -96,6 +96,12 @@ decode bridge are explicit.
     for diagnostics and parity tests, but runtime storage work still needs an
     explicit normalized operand format for recursive object/array/rest/default
     shapes and their nested expression-program references.
+17. Split broad deferred instruction families when one member has a proven
+    scalar or symbol-only compact payload. For yield/resume work,
+    `StoreResumeValue` can be supported through the existing header plus symbol
+    reference table, while `Yield` and `YieldStar` must remain deferred until
+    their suspension, awaited, iterable, and state payloads have explicit compact
+    representations and parity tests.
 
 ## Why
 
@@ -236,5 +242,14 @@ runtime-ready compact storage. Future agents must not claim
 target graph has a normalized operand representation and parity coverage for
 object/array destructuring, rest elements, defaults, computed names, and nested
 expression-program references.
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-76034c375c`
+/ PR #1617 promoted `StoreResumeValueInstruction` as the first yield/resume
+family member in compact statement diagnostic storage. The lesson is that a
+broad deferred family can be narrowed when an individual member has a simple
+payload contract: `StoreResumeValue` only needs `Next` and an optional target
+symbol reference, while `Yield` and `YieldStar` still carry suspension payloads
+that need separate normalization before they leave the deferred set.
 
 Related ADR: `docs/adrs/0094-compact-statement-bytecode-encoding-design-from-current-ir.md`.

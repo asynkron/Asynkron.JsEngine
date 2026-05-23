@@ -85,6 +85,17 @@
       "show_timing": true,
       "fresh_engine_per_iteration": true
     },
+    "functioncalls-lite": {
+      "name": "FunctionCallsLiteProfile",
+      "description": "20K function calls in a loop - short profiling pass",
+      "script": "functioncalls.js",
+      "mode": "sync",
+      "iterations": 2,
+      "warmup": 1,
+      "show_progress": true,
+      "show_timing": true,
+      "fresh_engine_per_iteration": true
+    },
     "closures": {
       "name": "ClosuresProfile",
       "description": "Closure creation and invocation",

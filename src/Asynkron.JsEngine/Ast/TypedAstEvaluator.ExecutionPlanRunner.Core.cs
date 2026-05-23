@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 
@@ -157,6 +158,44 @@ public static partial class TypedAstEvaluator
             try
             {
                 return runner.EvaluateExpressionProgram(program, environment, context);
+            }
+            finally
+            {
+                JsEnvironment.Current = previousEnvironment;
+                EvaluationContext.Current = previousContext;
+            }
+        }
+
+        internal static double ProfileEvaluateExpressionProgramLoop(
+            ExpressionProgram program,
+            JsEnvironment environment,
+            EvaluationContext context,
+            int iterations,
+            bool expectsNumericResult,
+            JsValue newTarget = default)
+        {
+            var runner = new ExecutionPlanRunner(environment, context, newTarget);
+            var previousContext = EvaluationContext.Current;
+            var previousEnvironment = JsEnvironment.Current;
+            EvaluationContext.Current = context;
+            JsEnvironment.Current = environment;
+            try
+            {
+                var checksum = 0d;
+                for (var i = 0; i < iterations; i++)
+                {
+                    var result = runner.EvaluateExpressionProgram(program, environment, context);
+                    if (result.TryGetDouble(out var number))
+                    {
+                        checksum += number;
+                    }
+                    else if (!expectsNumericResult)
+                    {
+                        checksum += result.Kind == JsValueKind.Object ? 1d : 0d;
+                    }
+                }
+
+                return checksum;
             }
             finally
             {

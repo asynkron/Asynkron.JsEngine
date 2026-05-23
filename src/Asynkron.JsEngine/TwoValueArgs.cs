@@ -8,8 +8,8 @@ using System.Runtime.CompilerServices;
 namespace Asynkron.JsEngine;
 
 /// <summary>
-/// A zero-allocation wrapper for two JsValue arguments that implements IReadOnlyList.
-/// Used to avoid array allocations for common binary callable invocation.
+/// An allocation-free wrapper for two JsValue arguments when carried through generic argument-list paths.
+/// Do not pass this through an IReadOnlyList-typed hot path; that boxes the struct.
 /// </summary>
 [method: MethodImpl(JsEngineConstants.Inlining)]
 public readonly struct TwoValueArgs(JsValue first, JsValue second) : IReadOnlyList<JsValue>

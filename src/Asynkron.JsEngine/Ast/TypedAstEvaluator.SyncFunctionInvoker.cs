@@ -620,6 +620,17 @@ public static partial class TypedAstEvaluator
             return InvokeWithContextSlow(arguments, thisValue, callingContext, newTarget);
         }
 
+        [MethodImpl(JsEngineConstants.Inlining)]
+        public JsValue InvokeWithContext<TArgs>(
+            TArgs arguments,
+            JsValue thisValue,
+            EvaluationContext? callingContext,
+            JsValue newTarget = default)
+            where TArgs : IReadOnlyList<JsValue>
+        {
+            return InvokeWithContextSlow(arguments, thisValue, callingContext, newTarget);
+        }
+
         /// <summary>
         /// Ultra-fast invoke for 1-argument calls - avoids array allocation.
         /// </summary>
@@ -662,11 +673,12 @@ public static partial class TypedAstEvaluator
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private JsValue InvokeWithContextSlow(
-            IReadOnlyList<JsValue> arguments,
+        private JsValue InvokeWithContextSlow<TArgs>(
+            TArgs arguments,
             JsValue thisValue,
             EvaluationContext? callingContext,
             JsValue newTarget)
+            where TArgs : IReadOnlyList<JsValue>
         {
             var context = RealmState.RentContext(pushScope: false);
             var constructErrorRealm = callingContext?.RealmState ?? RealmState;
@@ -1613,14 +1625,15 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
         }
 
-        private bool TryInvokeSimpleIrActivationFast(
-            IReadOnlyList<JsValue> arguments,
+        private bool TryInvokeSimpleIrActivationFast<TArgs>(
+            TArgs arguments,
             JsValue thisValue,
             EvaluationContext? callingContext,
             JsValue newTarget,
             ExecutionPlan plan,
             EvaluationContext context,
             out JsValue result)
+            where TArgs : IReadOnlyList<JsValue>
         {
             result = JsValue.Undefined;
             if (!CanUseSimpleIrActivationFastPath(plan, newTarget))
@@ -1640,7 +1653,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 var runner = new ExecutionPlanRunner(
                     _function,
                     _closure,
-                    arguments,
+                    Array.Empty<JsValue>(),
                     thisValue,
                     this,
                     RealmState,
@@ -1752,10 +1765,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             return false;
         }
 
-        private JsEnvironment CreateSimpleIrActivationEnvironment(
-            IReadOnlyList<JsValue> arguments,
+        private JsEnvironment CreateSimpleIrActivationEnvironment<TArgs>(
+            TArgs arguments,
             JsValue thisValue,
             ExecutionPlan plan)
+            where TArgs : IReadOnlyList<JsValue>
         {
             var functionEnvironment = JsEnvironment.CreateInstance(_closure, true, _isStrict, _function.Source,
                 _functionDescription);
@@ -1792,10 +1806,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             return executionEnvironment;
         }
 
-        private void BindSimpleIrActivationParameters(
-            IReadOnlyList<JsValue> arguments,
+        private void BindSimpleIrActivationParameters<TArgs>(
+            TArgs arguments,
             JsEnvironment executionEnvironment,
             ActivationSlotShape activationSlots)
+            where TArgs : IReadOnlyList<JsValue>
         {
             for (var i = 0; i < _parameterNames.Length; i++)
             {

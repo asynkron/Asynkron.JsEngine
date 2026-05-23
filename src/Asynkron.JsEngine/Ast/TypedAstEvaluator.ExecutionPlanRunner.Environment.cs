@@ -341,9 +341,9 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             if (_executionEnvironment is null)
             {
                 _executionEnvironment = CreateExecutionEnvironment();
+                LogRootScopeIdOnce();
             }
 
-            LogRootScopeIdOnce();
             EnsureFlatSlotsInitialized(_executionEnvironment);
             return _executionEnvironment;
         }

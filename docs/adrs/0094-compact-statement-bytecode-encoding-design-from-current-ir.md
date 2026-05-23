@@ -343,7 +343,7 @@ statement-bytecode work should keep both contracts explicit: shared-table
 encoding for plan-level storage estimates, and compatibility embedding only for
 diagnostic bridges that lack the table context.
 
-### 7.4 Issue #1570 compact storage owner boundary checkpoint
+### 7.5 Issue #1570 compact storage owner boundary checkpoint
 
 Issue
 `planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-7c3e056ff9`

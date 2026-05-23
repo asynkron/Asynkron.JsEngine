@@ -124,8 +124,17 @@ internal sealed class DynamicScopeDetector : AstVisitor
         base.VisitCallExpression(node);
     }
 
-    // Don't traverse into nested functions - they have their own scope
-    protected override void VisitFunctionExpression(FunctionExpression node) { }
+    // Don't traverse into nested non-arrow functions - they have their own scope.
+    // Arrow functions inherit the lexical dynamic scope behavior of the enclosing function.
+    protected override void VisitFunctionExpression(FunctionExpression node)
+    {
+        if (!node.IsArrow)
+        {
+            return;
+        }
+
+        base.VisitFunctionExpression(node);
+    }
     protected override void VisitFunctionDeclaration(FunctionDeclaration node) { }
 
     private bool FoundWithStatement { get; set; }

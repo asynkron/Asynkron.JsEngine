@@ -499,6 +499,32 @@ Compatibility embedding may remain only for diagnostic codec callers without a
 shared table context; compact owner storage should not reintroduce embedded
 expression payloads.
 
+### 7.10 Issue #1609 binding-target reference checkpoint
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-d12c4380f1`
+/ PR #1609 decided the next `BindingVariableDeclaration` step by adding an
+explicit diagnostics reference table for `BindingTargetProgram` payloads. The
+accepted slice keeps runtime execution record-backed, but makes compact
+statement diagnostics encode binding targets as table IDs and decode the
+semantic view through that table, alongside the existing expression-program
+table.
+
+This is still not full runtime compact-storage readiness for
+`BindingVariableDeclaration`. `BindingTargetProgram` remains a recursive object
+graph that can include object and array binding shapes, rest targets, defaults,
+computed names, and nested `ExpressionProgram` payloads. A reference table makes
+the current diagnostic boundary explicit and measurable; it does not normalize
+that graph into scalar operand streams or authorize `ExecutionPlanRunner` to
+consume compact statement storage directly.
+
+Future `BindingVariableDeclaration` runtime-storage work must therefore treat
+the PR #1609 table as a checkpoint, not as the final representation. The
+runtime-ready slice still needs an explicit binding-target operand format,
+nested expression reference ownership, semantic decode parity for object/array
+destructuring shapes, diagnostics accounting, and profiling evidence before
+record-backed instruction storage can be retired for this family.
+
 ### 8. Staged migration
 
 1. Introduce compact storage schema in `ExecutionPlan` behind an internal

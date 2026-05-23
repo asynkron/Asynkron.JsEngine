@@ -76,6 +76,12 @@ decode bridge are explicit.
     Storage diagnostics must request an explicit diagnostic boundary rebuilt
     from the full semantic instruction list so codec-supported families outside
     the sidecar still appear in coverage and byte estimates.
+14. Treat `BindingTargetProgram` reference tables as a diagnostic checkpoint,
+    not as proof that `BindingVariableDeclaration` is runtime compact-storage
+    ready. A binding-target table may preserve the current semantic object graph
+    for diagnostics and parity tests, but runtime storage work still needs an
+    explicit normalized operand format for recursive object/array/rest/default
+    shapes and their nested expression-program references.
 
 ## Why
 
@@ -182,5 +188,17 @@ storage must deduplicate expression programs in the plan-level table, encode
 stable IDs in statement payloads, and decode semantic views through that table.
 Compatibility embedding belongs only in direct diagnostic codec bridges that do
 not have shared-table context.
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-d12c4380f1`
+/ PR #1609 added an explicit diagnostics table for `BindingTargetProgram`
+payloads used by `BindingVariableDeclaration`. The lesson is that this table is
+the correct diagnostic checkpoint because it removes hidden in-payload object
+ownership from the compact statement record, but it is not the same as
+runtime-ready compact storage. Future agents must not claim
+`BindingVariableDeclaration` runtime readiness until the recursive binding
+target graph has a normalized operand representation and parity coverage for
+object/array destructuring, rest elements, defaults, computed names, and nested
+expression-program references.
 
 Related ADR: `docs/adrs/0094-compact-statement-bytecode-encoding-design-from-current-ir.md`.

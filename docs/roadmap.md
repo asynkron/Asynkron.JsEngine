@@ -10,6 +10,7 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - Expression bytecode coverage and failure-code taxonomy are documented and test-linked (`docs/expression-bytecode-coverage.md`).
 - Recent migration reporting keeps runtime/storage boundaries explicit and avoids overclaiming execution-path changes (`docs/expression-bytecode-migration-report-2026-05-23.md`).
 - Activation-slot ownership and observable arguments binding seams are now documented as plan-owned/runtime-consumed boundaries (`docs/adrs/0099-keep-function-activation-slot-shape-plan-owned.md`, `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`).
+- Activation-focused quality guardrails are now explicit: dedicated profile entries and focused activation proof-pack coverage exist to keep optimization work evidence-first (`tools/profile-manifest.json`, `.claude/rules/function-activation-proof-pack.md`, `.claude/rules/performance-profiling-guardrails.md`).
 
 ### What Works Worse
 - Statement execution still relies on record-backed `ExecutionPlan.Instructions`; compact statement storage is diagnostics-oriented rather than runtime-active today.
@@ -26,6 +27,7 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 2. Keep expression-bytecode coverage maps and failure buckets in sync with compiler behavior and representative tests.
 3. Preserve runtime truth boundaries while improving compact storage readiness (no premature claim that compact storage is the runtime contract).
 4. Track activation/eval-sensitive changes with narrow, repeatable proof packs before broadening to larger sweeps.
+5. Keep activation profile loops current for each optimization slice so allocation and hot-path movement are measured rather than inferred.
 
 ## Long-Term Goals
 1. Raise and sustain Test262 compatibility toward full compliance through spec-owned, subsystem-driven slices.
@@ -39,6 +41,10 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - Activation boundary decisions for call setup and arguments behavior:
   - `docs/adrs/0099-keep-function-activation-slot-shape-plan-owned.md`
   - `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`
+- Activation proof/profile guardrails:
+  - `.claude/rules/function-activation-proof-pack.md`
+  - `.claude/rules/performance-profiling-guardrails.md`
+  - `tools/profile-manifest.json`
 - Historical Test262 gap inventory (not a current pass/fail baseline): `docs/remaining-test262-gaps.md`
 - Active diagnostics/runtime implementation surfaces:
   - `src/Asynkron.JsEngine/Execution/StatementInstructionStorageDiagnostics.cs`

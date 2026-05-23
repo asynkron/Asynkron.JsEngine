@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.Tests.Helpers;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -9,6 +10,159 @@ namespace Asynkron.JsEngine.Tests;
 [Category(TestCategories.IteratorRuntime)]
 public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) : InternalTestBase(output)
 {
+    private const string SimpleIrActivationFastPathLog = "simple-ir-activation-fast-path";
+
+    [Fact(Timeout = 5000)]
+    public async Task SimpleSyncFunction_UsesIrActivationFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function add(a, b) {
+                var c = a + b;
+                return c;
+            }
+
+            add(20, 22);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
+    }
+
+    [Theory(Timeout = 5000)]
+    [InlineData("""
+        function probe(a) {
+            return arguments[0];
+        }
+
+        probe(42);
+        """, 42d)]
+    [InlineData("""
+        function probe(a) {
+            eval("var local = a + 1;");
+            return local;
+        }
+
+        probe(41);
+        """, 42d)]
+    [InlineData("""
+        var box = { value: 41 };
+        function probe() {
+            with (box) {
+                return value + 1;
+            }
+        }
+
+        probe();
+        """, 42d)]
+    [InlineData("""
+        function probe(a = 42) {
+            return a;
+        }
+
+        probe();
+        """, 42d)]
+    [InlineData("""
+        function probe(...items) {
+            return items[0];
+        }
+
+        probe(42);
+        """, 42d)]
+    [InlineData("""
+        function probe({ value }) {
+            return value;
+        }
+
+        probe({ value: 42 });
+        """, 42d)]
+    [InlineData("""
+        function probe(a, a) {
+            return a;
+        }
+
+        probe(1, 42);
+        """, 42d)]
+    [InlineData("""
+        function makeReader(a) {
+            return function read() {
+                return a;
+            };
+        }
+
+        var read = makeReader(42);
+        read();
+        """, 42d)]
+    [InlineData("""
+        function* probe(a) {
+            yield a;
+        }
+
+        probe(42).next().value;
+        """, 42d)]
+    [InlineData("""
+        class Probe {
+            constructor(value) {
+                this.value = value;
+            }
+        }
+
+        new Probe(42).value;
+        """, 42d)]
+    [InlineData("""
+        class Base {
+            value() {
+                return 41;
+            }
+        }
+
+        class Probe extends Base {
+            value() {
+                return super.value() + 1;
+            }
+        }
+
+        new Probe().value();
+        """, 42d)]
+    [InlineData("""
+        class Probe {
+            #value = 41;
+            value(delta) {
+                return this.#value + delta;
+            }
+        }
+
+        new Probe().value(1);
+        """, 42d)]
+    public async Task UnsafeActivationShapes_DoNotUseIrActivationFastPath(string script, double expected)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(script);
+
+        Assert.Equal(expected, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncActivation_DoesNotUseIrActivationFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            async function probe(a) {
+                return a + 1;
+            }
+
+            probe(41);
+            "called";
+            """);
+
+        Assert.Equal("called", result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
+    }
+
     [Fact(Timeout = 5000)]
     public async Task SloppySimpleParameters_MapArgumentsObject()
     {

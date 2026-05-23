@@ -1,4 +1,5 @@
 using Asynkron.JsEngine;
+using Asynkron.JsEngine.JsTypes;
 
 Console.WriteLine("=== Event Queue Demo ===\n");
 
@@ -6,7 +7,7 @@ var engine = new JsEngine();
 
 // Example 1: Basic Run usage
 Console.WriteLine("1. Basic Run usage:");
-var result = await engine.Run("10 + 20;");
+var result = await engine.Evaluate("10 + 20;");
 Console.WriteLine($"   Result: {result}\n");
 
 // Example 2: Scheduling tasks
@@ -17,24 +18,21 @@ engine.ScheduleTask(() =>
 {
     counter++;
     Console.WriteLine($"   Task 1 executed (counter: {counter})");
-    return Task.CompletedTask;
 });
 
 engine.ScheduleTask(() =>
 {
     counter++;
     Console.WriteLine($"   Task 2 executed (counter: {counter})");
-    return Task.CompletedTask;
 });
 
 engine.ScheduleTask(() =>
 {
     counter++;
     Console.WriteLine($"   Task 3 executed (counter: {counter})");
-    return Task.CompletedTask;
 });
 
-await engine.Run("let x = 42;");
+await engine.Evaluate("let x = 42;");
 Console.WriteLine($"   Final counter value: {counter}\n");
 
 // Example 3: Tasks scheduling more tasks
@@ -51,13 +49,10 @@ engine.ScheduleTask(() =>
     {
         executionOrder.Add("Task B (scheduled by A)");
         Console.WriteLine("   Task B executed (scheduled by Task A)");
-        return Task.CompletedTask;
     });
-    
-    return Task.CompletedTask;
 });
 
-await engine.Run("let y = 100;");
+await engine.Evaluate("let y = 100;");
 Console.WriteLine($"   Execution order: {string.Join(" -> ", executionOrder)}\n");
 
 // Example 4: Async tasks with delays
@@ -80,7 +75,7 @@ engine.ScheduleTask(async () =>
     Console.WriteLine($"   Async task 2 completed (counter: {asyncCounter})");
 });
 
-await engine.Run("let z = 200;");
+await engine.Evaluate("let z = 200;");
 Console.WriteLine($"   All async tasks completed. Final counter: {asyncCounter}\n");
 
 // Example 5: Integration with host functions
@@ -89,17 +84,16 @@ var messages = new List<string>();
 
 engine.SetGlobalFunction("scheduleWork", args =>
 {
-    var message = args[0]?.ToString() ?? "no message";
+    var message = args.Count > 0 ? args[0].ToString() : "no message";
     engine.ScheduleTask(() =>
     {
         messages.Add(message);
         Console.WriteLine($"   Scheduled work executed: {message}");
-        return Task.CompletedTask;
     });
-    return null;
+    return JsValue.Undefined;
 });
 
-await engine.Run(@"
+await engine.Evaluate(@"
     scheduleWork(""First"");
     scheduleWork(""Second"");
     scheduleWork(""Third"");

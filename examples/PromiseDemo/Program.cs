@@ -1,4 +1,5 @@
 using Asynkron.JsEngine;
+using Asynkron.JsEngine.JsTypes;
 
 Console.WriteLine("=== setTimeout and Promise Demo ===\n");
 
@@ -10,15 +11,15 @@ engine.SetGlobalFunction("log", args =>
     var parts = new List<string>();
     foreach (var arg in args)
     {
-        parts.Add(arg?.ToString() ?? "null");
+        parts.Add(arg.ToString());
     }
     Console.WriteLine($"   {string.Join(" ", parts)}");
-    return null;
+    return JsValue.Undefined;
 });
 
 // Example 1: Basic setTimeout
 Console.WriteLine("1. Basic setTimeout:");
-await engine.Run(@"
+await engine.Evaluate(@"
     let message = ""Hello from setTimeout!"";
     setTimeout(function() {
         log(message);
@@ -28,7 +29,7 @@ Console.WriteLine();
 
 // Example 2: Promise creation and resolution
 Console.WriteLine("2. Promise creation and resolution:");
-await engine.Run(@"
+await engine.Evaluate(@"
     let p = new Promise(function(resolve, reject) {
         resolve(""Promise resolved!"");
     });
@@ -41,7 +42,7 @@ Console.WriteLine();
 
 // Example 3: Promise chaining
 Console.WriteLine("3. Promise chaining:");
-await engine.Run(@"
+await engine.Evaluate(@"
     Promise.resolve(10)
         .then(function(x) {
             log(""Step 1:"", x);
@@ -59,7 +60,7 @@ Console.WriteLine();
 
 // Example 4: Promise with setTimeout
 Console.WriteLine("4. Promise with setTimeout:");
-await engine.Run(@"
+await engine.Evaluate(@"
     let delayedPromise = new Promise(function(resolve, reject) {
         setTimeout(function() {
             resolve(""Async value after delay"");
@@ -74,7 +75,7 @@ Console.WriteLine();
 
 // Example 5: Promise.all
 Console.WriteLine("5. Promise.all:");
-await engine.Run(@"
+await engine.Evaluate(@"
     let p1 = Promise.resolve(1);
     let p2 = Promise.resolve(2);
     let p3 = Promise.resolve(3);
@@ -87,7 +88,7 @@ Console.WriteLine();
 
 // Example 6: Error handling with catch (using bracket notation)
 Console.WriteLine("6. Error handling with catch:");
-await engine.Run(@"
+await engine.Evaluate(@"
     let failingPromise = Promise.reject(""Something went wrong"");
     
     failingPromise[""catch""](function(error) {
@@ -98,7 +99,7 @@ Console.WriteLine();
 
 // Example 7: Promise.race
 Console.WriteLine("7. Promise.race:");
-await engine.Run(@"
+await engine.Evaluate(@"
     let fast = Promise.resolve(""Fast promise"");
     let slow = new Promise(function(resolve) {
         setTimeout(function() {
@@ -119,10 +120,10 @@ engine.SetGlobalFunction("incrementCounter", args =>
 {
     counter++;
     Console.WriteLine($"   Interval tick {counter}");
-    return null;
+    return JsValue.Undefined;
 });
 
-await engine.Run(@"
+await engine.Evaluate(@"
     let count = 0;
     let intervalId = setInterval(function() {
         incrementCounter();

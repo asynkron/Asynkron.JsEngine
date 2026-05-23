@@ -45,12 +45,13 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   before agents use those counts for maintenance scoping.
 - When gathering issue details, comments, stage output, or logs in a recurring
   child agent environment, use supplied Faktorial Source Context first. If more
-  evidence is needed, use the Faktorial HTTP API, starting with the compact
-  `/api/logs/<issue>/summary` endpoint. If an issue-detail endpoint returns only
-  preview/truncated markdown (for example `...`), treat that as partial context
-  and continue with compact-summary plus bounded raw-log structural searches.
-  Use narrow, line-capped searches over `.faktorial/logs/ghNNNN.log` only when
-  the summary is insufficient.
+  evidence is needed, query full issue details/comments from the Faktorial HTTP
+  API issue/dashboard endpoint (for example `/api/issues/<issue>`), then use
+  the compact `/api/logs/<issue>/summary` endpoint, then narrow line-capped
+  searches over `.faktorial/logs/ghNNNN.log` only when API context is still
+  insufficient. If an issue-detail endpoint returns only preview/truncated
+  markdown (for example `...`), treat that as partial context and continue with
+  compact-summary plus bounded raw-log structural searches.
 - Do not run the host `faktorial` daemon binary for issue, log, or state reads
   from an agent. Treat older guidance that recommends `faktorial issue` or
   `faktorial log-summary` as stale for agent runtime context gathering.
@@ -195,6 +196,12 @@ The durable lesson is to treat preview payloads as partial context and continue
 with `/api/logs/<issue>/summary` plus bounded `.faktorial/logs/ghNNNN.log`
 searches for structural markers, rather than blocking on external source-host
 fallbacks.
+
+Issue #1641 / PR #1644 clarified the normal ordering before that compact-log
+fallback: recurring-child agents need full issue body/comment context from the
+Faktorial issue/dashboard API before relying on compact summaries, because
+compact logs are stage history and can omit acceptance criteria, comments, or
+human direction that should steer the bounded slice.
 
 Issue #1464 tightened persistent-compaction evidence guidance: when the slice
 updates an existing semantic home instead of creating a new durable artifact,

@@ -13,7 +13,7 @@ filter="${PERF_FILTER:-Asynkron.JsEngine}"
 depth="${PERF_CALLTREE_DEPTH:-14}"
 width="${PERF_CALLTREE_WIDTH:-8}"
 sibling_cutoff="${PERF_CALLTREE_SIBLING_CUTOFF:-1}"
-profiles="${PERF_PROFILES:-bytecode:EvaluateExpressionProgram ir-arithmetic:ExecuteInstructionLoop forloop:ExecuteInstructionLoop functioncalls-lite:ExecuteInstructionLoop objectcreation:ExecuteInstructionLoop arrayops:ExecuteInstructionLoop}"
+profiles="${PERF_PROFILES:-bytecode:EvaluateExpressionProgram ir-arithmetic:ExecuteInstructionLoop forloop:ExecuteInstructionLoop activation-noargs:InvokeWithContextSlow activation-params:InvokeWithContextSlow activation-arguments:InvokeWithContextSlow activation-closures:InvokeWithContextSlow activation-evalscope:InvokeWithContextSlow functioncalls-lite:ExecuteInstructionLoop objectcreation:ExecuteInstructionLoop arrayops:ExecuteInstructionLoop}"
 
 mkdir -p "$output_dir"
 
@@ -120,6 +120,16 @@ def profile_label(profile: str) -> str:
         return "IR arithmetic loop"
     if profile == "forloop":
         return "IR loop execution"
+    if profile == "activation-noargs":
+        return "Activation no-arg calls"
+    if profile == "activation-params":
+        return "Activation parameter binding"
+    if profile == "activation-arguments":
+        return "Activation arguments object"
+    if profile == "activation-closures":
+        return "Activation nested closures"
+    if profile == "activation-evalscope":
+        return "Activation eval-sensitive scope"
     if profile == "functioncalls-lite":
         return "IR function calls"
     if profile == "objectcreation":
@@ -129,6 +139,8 @@ def profile_label(profile: str) -> str:
     return profile
 
 def category(profile: str) -> str:
+    if profile.startswith("activation-"):
+        return "ACTIVATION"
     return "BYTECODE" if profile == "bytecode" else "IR"
 
 def parse_cpu(profile: str):
@@ -210,6 +222,14 @@ def hints(profile: str, cpu_rows, mem_rows):
         result.append("Dynamic-scope checks are still visible on non-dynamic loop execution; consider caching/proving the no-with path.")
     if "CreateExecutionEnvironment" in names or "CreateArgumentsObject" in names:
         result.append("Function calls are dominated by environment creation, arguments object creation, slot growth, and parameter binding.")
+    if "BindFunctionParameters" in names:
+        result.append("Parameter binding is hot; argument-to-slot write costs are a first-order activation target.")
+    if "CreateExecutionContext" in names:
+        result.append("Execution context creation is visible; context allocation and initialization overhead are significant here.")
+    if "IncreaseSlotArraySize" in names or "GrowSlotArray" in names or "JsSlot[]" in types:
+        result.append("Slot array growth appears in activation-heavy paths; reducing slot churn can cut both CPU and memory cost.")
+    if "SyncFunctionInvoker" in names or "InvokeWithContextSlow" in names:
+        result.append("Call-entry overhead is measurable in the invoker path; this profile is suitable for activation regression tracking.")
     if "ArrayPrototype.Map" in names or "ArrayPrototype.Filter" in names or "ArrayPrototype.Reduce" in names:
         result.append("Array higher-order methods are callback/invocation heavy, not just bytecode interpretation.")
     if "ExecutionPlanRunner" in types or "EvaluationContext" in types or "JsEnvironment" in types:
@@ -239,6 +259,7 @@ lines.append(f"Output: {output_dir}")
 lines.append("")
 lines.append("How to read this:")
 lines.append("- BYTECODE profiles isolate hand-built ExpressionProgram execution.")
+lines.append("- ACTIVATION profiles isolate function-call setup costs (environment/context/arguments/parameter binding).")
 lines.append("- IR profiles execute real script profiles and root CPU call trees at the statement runner or expression VM.")
 lines.append("- Memory numbers are sampled allocation totals by type; use them for direction, not byte-perfect accounting.")
 lines.append("")

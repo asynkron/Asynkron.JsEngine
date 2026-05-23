@@ -173,4 +173,14 @@ codec-supported non-sidecar families remain counted. Future agents need this
 boundary split because narrowing a publishable runtime-storage sidecar must not
 silently narrow the measurement surface that guides later migration slices.
 
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-62870b23dd`
+/ PR #1605 moved `EvaluateAndDiscard` and `AwaitAndDiscard` compact statement
+storage to shared expression-program reference IDs instead of embedded
+per-instruction expression payloads. The lesson is that owner-backed compact
+storage must deduplicate expression programs in the plan-level table, encode
+stable IDs in statement payloads, and decode semantic views through that table.
+Compatibility embedding belongs only in direct diagnostic codec bridges that do
+not have shared-table context.
+
 Related ADR: `docs/adrs/0094-compact-statement-bytecode-encoding-design-from-current-ir.md`.

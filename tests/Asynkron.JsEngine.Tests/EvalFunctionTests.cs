@@ -126,6 +126,36 @@ public sealed class EvalFunctionTests(ITestOutputHelper output) : InternalTestBa
     }
 
     [Fact(Timeout = 5000)]
+    public async Task DirectEvalInFunctionBody_CanObserveArgumentsBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readFirst(a, b) {
+              return eval("arguments[0] + ':' + arguments.length");
+            }
+
+            readFirst('x', 'y');
+        """);
+
+        Assert.Equal("x:2", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DirectEvalInParameterDefault_CanObserveArgumentsBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readDefault(a = eval("arguments.length")) {
+              return a;
+            }
+
+            readDefault();
+        """);
+
+        Assert.Equal(0d, result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task DirectEvalParameterDefaultInArrow_CanDeclareArgumentsWithoutLeakingGlobal()
     {
         await using var engine = CreateEngine();

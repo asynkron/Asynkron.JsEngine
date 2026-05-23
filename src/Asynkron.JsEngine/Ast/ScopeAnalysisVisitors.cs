@@ -158,6 +158,41 @@ internal sealed class ArgumentsReferenceDetector : AstVisitor
         return detector.Found;
     }
 
+    /// <summary>
+    /// Checks whether function parameter defaults or patterns reference 'arguments'.
+    /// This intentionally does not traverse nested function bodies.
+    /// </summary>
+    public static bool ContainsArgumentsReferenceInParameters(ImmutableArray<FunctionParameter> parameters)
+    {
+        var detector = _instance ??= new ArgumentsReferenceDetector();
+        detector.Reset();
+
+        foreach (var parameter in parameters)
+        {
+            if (parameter.DefaultValue is not null)
+            {
+                detector.Visit(parameter.DefaultValue);
+                if (detector.Found)
+                {
+                    return true;
+                }
+            }
+
+            if (parameter.Pattern is not null)
+            {
+                detector.Visit(parameter.Pattern);
+                if (detector.Found)
+                {
+                    return true;
+                }
+            }
+
+            detector.Reset();
+        }
+
+        return false;
+    }
+
     protected override void VisitIdentifierExpression(IdentifierExpression node)
     {
         if (node.Name.Name == "arguments")

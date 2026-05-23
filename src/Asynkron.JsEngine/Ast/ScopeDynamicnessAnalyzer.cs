@@ -48,6 +48,25 @@ public static partial class TypedAstEvaluator
     }
 
     /// <summary>
+    /// Determines whether arguments binding must be created eagerly because it is observable.
+    /// Conservative around direct eval and dynamic scope.
+    /// </summary>
+    internal static bool NeedsArgumentsBinding(FunctionExpression function)
+    {
+        if (UsesArgumentsIdentifier(function))
+        {
+            return true;
+        }
+
+        if (ArgumentsReferenceDetector.ContainsArgumentsReferenceInParameters(function.Parameters))
+        {
+            return true;
+        }
+
+        return !AllowsIdentifierCaching(function);
+    }
+
+    /// <summary>
     /// Determines whether a function body contains inner function expressions (including arrows).
     /// Used to detect if the function creates closures that would capture the invocation environment.
     /// If no inner functions exist, the invocation environment can be pooled for reuse.

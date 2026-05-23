@@ -288,6 +288,54 @@ payloads can be measured through owner-backed expression references, while
 runtime execution remains on `ExecutionInstruction` records and
 `ExpressionProgram` remains the owner of expression operation storage.
 
+### 7.4 Issue #1580 statement-storage diagnostics reporting checkpoint
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-a9b9306ab8`
+extends the diagnostic-only measurement surface by wiring
+`StatementInstructionStorageDiagnostics` into `tools/ProfileRunner` behind
+`--statement-instruction-storage`.
+
+Current-worktree evidence (forloop profile):
+
+- Focused proof pack:
+  `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~StatementInstructionStorageDiagnosticsTests"`
+  - Passed: `7`
+  - Failed: `0`
+- Statement storage diagnostics:
+  `rtk dotnet run --project tools/ProfileRunner/ProfileRunner.csproj -c Release -- forloop --statement-instruction-storage`
+  - plans: `2`
+  - instructions: `18`
+  - supported: `8`
+  - unsupported: `10`
+  - owner-backed encoded bytes: `128`
+  - estimated compact encoded bytes: `184`
+  - operand table entries: `8`
+  - extra operand table entries: `7`
+  - expression references: `primary=5`, `secondary=0`, `table_count=5`
+  - symbols/bindings: `symbol_operands=2`, `binding_target_operands=0`
+  - unsupported-family reasons:
+    - `declaration-and-scope`: `6`
+    - `assignment-and-mutation`: `2`
+    - `branch-control`: `1`
+    - `suspend-and-exception-flow`: `1`
+- Allocation snapshot:
+  `rtk ./tools/profile forloop --memory`
+  - total allocated: `6.99 MB`
+
+Interpretation:
+
+- This slice is **diagnostic-only**. It adds runner visibility for existing
+  storage estimates and histograms; it does not route runtime execution through
+  compact statement storage.
+- Relative to the previous forloop allocation baseline (`7.05 MB` in
+  `docs/expression-bytecode-baseline-2026-05-22.md`), the `6.99 MB` sample is
+  within profiler sampling variance and should be treated as **neutral** for
+  runtime-memory claims.
+- The unsupported-family histogram remains the migration driver: scope and
+  declaration-heavy families still dominate and should be normalized/encoded in
+  later staged slices before any runtime storage flip.
+
 The compatibility overloads on `StatementInstructionDiagnosticsCodec` remain
 intentional: tests and existing diagnostic callers that do not pass a shared
 reference table still need embedded expression programs to round-trip. Future

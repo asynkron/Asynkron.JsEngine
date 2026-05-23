@@ -542,6 +542,53 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void DynamicWithAndGeneratorSeams_StayOnExpectedInstructionShapes()
+    {
+        var withEvalProgram = AstTestHelpers.ParseAndAnalyze("""
+            function withEval(scope) {
+                var local = 1;
+                with (scope) {
+                    eval("local = value + 1");
+                }
+
+                return local;
+            }
+            """);
+        var withEval = AssertFunctionPlanBuilds(withEvalProgram.Analyzed, "withEval");
+        var withInstruction = Assert.Single(withEval.Instructions.OfType<EnterWithInstruction>(), i => i.ObjectProgram is not null);
+        Assert.NotNull(withInstruction.WithScopeSlot);
+        AssertProgramContains<LoadIdentifierExpressionOp>(withInstruction.ObjectProgram, op => op.Name.Name == "scope");
+
+        var evalStatement = Assert.Single(withEval.Instructions.OfType<EvaluateAndDiscardInstruction>());
+        AssertProgramContains<CallExpressionOp>(
+            evalStatement.ExpressionProgram,
+            op => op.IsDirectEval && op.ArgumentCount == 1);
+
+        var withYieldProgram = AstTestHelpers.ParseAndAnalyze("""
+            function* withYield(scopeObj) {
+                with (yield scopeObj) {
+                    yield answer;
+                }
+            }
+            """);
+        var withYield = AssertFunctionPlanBuilds(withYieldProgram.Analyzed, "withYield");
+        var yieldingWithInstruction = Assert.Single(withYield.Instructions.OfType<EnterWithInstruction>(), i => i.ObjectProgram is not null);
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            yieldingWithInstruction.ObjectProgram,
+            op => op.Name.Name!.StartsWith("__yield_lower_resume", StringComparison.Ordinal));
+
+        var relayProgram = AstTestHelpers.ParseAndAnalyze("""
+            async function* relay(values) {
+                yield* await values;
+            }
+            """);
+        var relay = AssertFunctionPlanBuilds(relayProgram.Analyzed, "relay");
+        var yieldStar = Assert.Single(relay.Instructions.OfType<YieldStarInstruction>(), i => i.AwaitedProgram is not null);
+        Assert.Null(yieldStar.IterableProgram);
+        AssertProgramContains<LoadIdentifierExpressionOp>(yieldStar.AwaitedProgram, op => op.Name.Name == "values");
+    }
+
+    [Fact]
     public void StatementInstructionDiagnosticCodec_RoundTrips_EncodeNow_ControlFlowFamilies_FromPlan()
     {
         var pipeline = AstTestHelpers.ParseAndAnalyze("""
@@ -785,13 +832,14 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
         Assert.True(cache.Succeeded, $"{description} should build an IR script plan. Failure: {cache.FailureReason}");
     }
 
-    private static void AssertFunctionPlanBuilds(ProgramNode program, string functionName)
+    private static ExecutionPlan AssertFunctionPlanBuilds(ProgramNode program, string functionName)
     {
         var declaration = Assert.IsType<FunctionDeclaration>(
             program.Body.Single(statement => statement is FunctionDeclaration candidate &&
                                              candidate.Name.Name == functionName));
         var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Function).GetOrCreateCache();
         Assert.True(cache.Succeeded, $"Function '{functionName}' should build an IR plan. Failure: {cache.FailureReason}");
+        return Assert.IsType<ExecutionPlan>(cache.Plan);
     }
 
     private static void AssertClassDefinitionBuilds(ProgramNode program, string className)
@@ -809,6 +857,15 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             member => Assert.True(
                 member.Callable.PlanSeed.Succeeded,
                 $"Class '{className}' member '{member.Name}' should build an IR plan. Failure: {member.Callable.PlanSeed.FailureReason}"));
+    }
+
+    private static void AssertProgramContains<TOp>(ExpressionProgram? program, Func<ExpressionOpView, bool>? predicate = null)
+        where TOp : IExpressionOpMarker
+    {
+        Assert.NotNull(program);
+        Assert.Contains(
+            program.Value.GetOps(TOp.Kind),
+            op => predicate is null || predicate(op));
     }
 
     private static void AssertEqualBucketsWithIntentMessage(

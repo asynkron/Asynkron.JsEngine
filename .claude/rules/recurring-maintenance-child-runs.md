@@ -78,6 +78,12 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   flight. Reserve machine-readable structured schema output for the final build
   result only; avoid emitting final-response-shaped interim status messages
   that can be misclassified as failed stage outcomes in issue logs.
+- When a recurring documentation slice updates agent/operator workflow commands,
+  align command examples with the current agent invocation contract and
+  canonical local gate. In this repo, commands that an agent is expected to run
+  should show the `rtk` prefix and normal verification should point at
+  `rtk make quality`, while repository executable targets themselves must stay
+  wrapper-free per `.claude/rules/pre-pr-required.md`.
 
 ## Why
 
@@ -214,3 +220,11 @@ evidence: when interim progress messages mimic final structured responses, the
 issue log can record false `success=false` stage events before implementation
 completes. The durable policy is to keep interim updates plain and bounded, and
 emit structured schema output only for the actual final build response.
+
+Issue #1650 / PR #1652 was a recurring documentation child that found
+`agents/how-to-worktrees.md` still teaching unwrapped `git`, `gh`, and
+`dotnet build && dotnet test` examples even though the repo-level agent
+contract requires `rtk`-prefixed shell commands and `rtk make quality` is the
+canonical local gate. Future documentation-maintenance children should treat
+stale command examples as workflow drift and fix them in the owned doc instead
+of leaving operators to reconcile conflicting playbooks.

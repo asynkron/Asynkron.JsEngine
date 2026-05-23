@@ -19,6 +19,10 @@ unless the issue explicitly asks for a major migration.
   compatibility work; if a package only advertises a prerelease channel such as
   `next`, do not move to that channel in a routine sweep without an explicit
   pre-release compatibility issue.
+- If a recurring npm sweep re-proves the same safe-line signal and there is no
+  compatible manifest or lockfile update to apply, keep the delivery
+  evidence-only: refresh the dated dependency note or issue evidence, and leave
+  package files unchanged.
 - Record the baseline and final dependency signals in the issue context:
   `outdated`, `audit`, installed versions, and the project build or demo proof
   that owns the dependency.
@@ -45,6 +49,13 @@ and `polka@1.0.0-next.28` only on `next`. The useful maintenance outcome was
 recording that Express 5 and Polka 1.x need dedicated compatibility passes,
 while `package.json` and `package-lock.json` stayed unchanged because there was
 no stable compatible update to apply.
+
+Issue #1649 / PR #1653 repeated the NodeHostDemo npm drift sweep the next day
+and found the same actionable state: Express 4 was still current on
+`latest-4`, Express 5 still required a dedicated migration, and Polka 1.x still
+lived on `next`. The useful recurring-maintenance delivery was refreshing the
+dated README dependency signal only, not manufacturing a package update or
+pulling a major/pre-release line into the routine sweep.
 
 Issue #1571 / PR #1576 applied the same bounded-slice rule to .NET test
 infrastructure. The main test project moved `Microsoft.NET.Test.Sdk` from

@@ -703,6 +703,34 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
     }
 
     [Fact]
+    public async Task Function_ArgumentsVisibleInsideNestedArrowBody()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            function read() {
+                return (() => arguments[0])();
+            }
+            read('captured');
+        ");
+
+        Assert.Equal("captured", result);
+    }
+
+    [Fact]
+    public async Task Function_ArgumentsVisibleInsideNestedArrowDefaultParameter()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            function read(a = (() => arguments.length)()) {
+                return a;
+            }
+            read();
+        ");
+
+        Assert.Equal(0d, result);
+    }
+
+    [Fact]
     public async Task Function_IIFE()
     {
         await using var engine = CreateEngine();

@@ -38,6 +38,7 @@ public static partial class TypedAstEvaluator
 
             var parameterNames = ((IAstCacheable<FunctionParameterNamesPlan>)_function).GetOrCreateCache()
                 .ParameterNames;
+            var needsArgumentsBinding = !_function.IsArrow && NeedsArgumentsBinding(_function);
             var catchParameterNamesRaw = hoistPlan.CatchParameterNames;
             var blockedFunctionVarNames = bodyLexicalNames.Count == 0
                 ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
@@ -57,16 +58,15 @@ public static partial class TypedAstEvaluator
             }
 
             // Per spec step 22.f: when argumentsObjectNeeded, "arguments" blocks AnnexB hoisting
+            var argumentsIsParam = parameterNames.Contains(Symbol.Arguments);
+            var argumentsInBodyLex = bodyLexicalNames.Contains(Symbol.Arguments) &&
+                                     !simpleCatchParameterNames.Contains(Symbol.Arguments);
+            var canSkipForBodyDecl = !hasParameterExpressions && argumentsInBodyLex;
+            var argumentsObjectNeededBySpec = !argumentsIsParam && !canSkipForBodyDecl;
+            var needsArgumentsObject = !_function.IsArrow && argumentsObjectNeededBySpec && needsArgumentsBinding;
+            if (needsArgumentsObject)
             {
-                var argumentsIsParam = parameterNames.Contains(Symbol.Arguments);
-                var argumentsInBodyLex = bodyLexicalNames.Contains(Symbol.Arguments) &&
-                                         !simpleCatchParameterNames.Contains(Symbol.Arguments);
-                var canSkipForBodyDecl = !hasParameterExpressions && argumentsInBodyLex;
-                var argumentsObjectNeeded = !argumentsIsParam && !canSkipForBodyDecl;
-                if (argumentsObjectNeeded)
-                {
-                    blockedFunctionVarNames.Add(Symbol.Arguments);
-                }
+                blockedFunctionVarNames.Add(Symbol.Arguments);
             }
 
             JsEnvironment parameterEnvironment;
@@ -261,7 +261,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
             // Per ES spec 10.2.11 step 18: Arrow functions don't have their own arguments object.
             // They inherit `arguments` from the lexically enclosing function.
-            if (!isArrowFunction)
+            if (needsArgumentsObject)
             {
                 var argumentsObject = _function.CreateArgumentsObject(_arguments, executionEnvironment, _realmState,
                     _callable,

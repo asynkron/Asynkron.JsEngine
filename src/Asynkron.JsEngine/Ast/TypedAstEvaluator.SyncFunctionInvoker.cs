@@ -55,6 +55,7 @@ public static partial class TypedAstEvaluator
         private readonly ImmutableArray<Symbol> _simpleCatchParameterTemplate;
         private readonly HashSet<Symbol> _topLevelLexicalNames;
         private readonly bool _usesArguments;
+        private readonly bool _needsArgumentsBinding;
         private readonly int _functionScopeId;
         private readonly ActivationSlotShape? _activationSlots;
 
@@ -121,6 +122,7 @@ public static partial class TypedAstEvaluator
             // need to check with bindings at runtime)
             _allowIdentifierCache = AllowsIdentifierCaching(_function) && !closure.HasWithObjectInChain();
             _usesArguments = !IsArrowFunction && UsesArgumentsIdentifier(_function);
+            _needsArgumentsBinding = !IsArrowFunction && NeedsArgumentsBinding(_function);
             _functionScopeId = ResolveFunctionScopeId(function);
 
             // Detect simple functions for fast-path invocation
@@ -1289,7 +1291,7 @@ public static partial class TypedAstEvaluator
             {
                 // Create arguments object per ES2024 9.2.12 steps 17-20
                 // Note: argumentsObjectNeeded handles all spec conditions (arrow, param name, lexical binding)
-                if (_argumentsObjectNeeded)
+                if (_argumentsObjectNeeded && _needsArgumentsBinding)
                 {
                     // Create the `arguments` binding up front so parameter default expressions can reference it.
                     var argumentsObject = _function.CreateArgumentsObject(arguments, executionEnvironment, RealmState,

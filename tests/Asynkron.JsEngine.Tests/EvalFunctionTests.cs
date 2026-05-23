@@ -126,6 +126,82 @@ public sealed class EvalFunctionTests(ITestOutputHelper output) : InternalTestBa
     }
 
     [Fact(Timeout = 5000)]
+    public async Task DirectEvalInFunctionBody_CanObserveArgumentsBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readFirst(a, b) {
+              return eval("arguments[0] + ':' + arguments.length");
+            }
+
+            readFirst('x', 'y');
+        """);
+
+        Assert.Equal("x:2", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DirectEvalInParameterDefault_CanObserveArgumentsBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readDefault(a = eval("arguments.length")) {
+              return a;
+            }
+
+            readDefault();
+        """);
+
+        Assert.Equal(0d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DirectEvalInNestedArrowBody_CanObserveEnclosingArgumentsBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readFromArrow() {
+              return (() => eval("arguments.length"))();
+            }
+
+            readFromArrow("x", "y");
+        """);
+
+        Assert.Equal(2d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DirectEvalInNestedArrowDefaultParameter_CanObserveEnclosingArgumentsBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readDefault(a = (() => eval("arguments.length"))()) {
+              return a;
+            }
+
+            readDefault();
+        """);
+
+        Assert.Equal(0d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DirectEvalInNestedArrowInsideGenerator_CanObserveEnclosingArgumentsBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function *readFromGenerator() {
+              return (() => eval("arguments.length"))();
+            }
+
+            var iterator = readFromGenerator("x", "y");
+            iterator.next().value;
+        """);
+
+        Assert.Equal(2d, result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task DirectEvalParameterDefaultInArrow_CanDeclareArgumentsWithoutLeakingGlobal()
     {
         await using var engine = CreateEngine();

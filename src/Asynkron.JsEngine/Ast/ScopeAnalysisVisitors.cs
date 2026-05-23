@@ -124,8 +124,17 @@ internal sealed class DynamicScopeDetector : AstVisitor
         base.VisitCallExpression(node);
     }
 
-    // Don't traverse into nested functions - they have their own scope
-    protected override void VisitFunctionExpression(FunctionExpression node) { }
+    // Don't traverse into nested non-arrow functions - they have their own scope.
+    // Arrow functions inherit the lexical dynamic scope behavior of the enclosing function.
+    protected override void VisitFunctionExpression(FunctionExpression node)
+    {
+        if (!node.IsArrow)
+        {
+            return;
+        }
+
+        base.VisitFunctionExpression(node);
+    }
     protected override void VisitFunctionDeclaration(FunctionDeclaration node) { }
 
     private bool FoundWithStatement { get; set; }
@@ -133,7 +142,8 @@ internal sealed class DynamicScopeDetector : AstVisitor
 
 /// <summary>
 /// Visitor that detects references to the 'arguments' identifier.
-/// Does not traverse into nested function bodies (they have their own arguments).
+/// Does not traverse into nested non-arrow function bodies (they have their own arguments).
+/// Arrow functions are traversed because they lexically capture outer `arguments`.
 /// </summary>
 internal sealed class ArgumentsReferenceDetector : AstVisitor
 {
@@ -158,6 +168,41 @@ internal sealed class ArgumentsReferenceDetector : AstVisitor
         return detector.Found;
     }
 
+    /// <summary>
+    /// Checks whether function parameter defaults or patterns reference 'arguments'.
+    /// This intentionally does not traverse nested function bodies.
+    /// </summary>
+    public static bool ContainsArgumentsReferenceInParameters(ImmutableArray<FunctionParameter> parameters)
+    {
+        var detector = _instance ??= new ArgumentsReferenceDetector();
+        detector.Reset();
+
+        foreach (var parameter in parameters)
+        {
+            if (parameter.DefaultValue is not null)
+            {
+                detector.Visit(parameter.DefaultValue);
+                if (detector.Found)
+                {
+                    return true;
+                }
+            }
+
+            if (parameter.Pattern is not null)
+            {
+                detector.Visit(parameter.Pattern);
+                if (detector.Found)
+                {
+                    return true;
+                }
+            }
+
+            detector.Reset();
+        }
+
+        return false;
+    }
+
     protected override void VisitIdentifierExpression(IdentifierExpression node)
     {
         if (node.Name.Name == "arguments")
@@ -167,8 +212,17 @@ internal sealed class ArgumentsReferenceDetector : AstVisitor
         }
     }
 
-    // Don't traverse into nested functions - they have their own arguments
-    protected override void VisitFunctionExpression(FunctionExpression node) { }
+    // Don't traverse into nested non-arrow functions - they have their own arguments.
+    // Arrow functions inherit the lexical arguments binding from the enclosing function.
+    protected override void VisitFunctionExpression(FunctionExpression node)
+    {
+        if (!node.IsArrow)
+        {
+            return;
+        }
+
+        base.VisitFunctionExpression(node);
+    }
     protected override void VisitFunctionDeclaration(FunctionDeclaration node) { }
 }
 

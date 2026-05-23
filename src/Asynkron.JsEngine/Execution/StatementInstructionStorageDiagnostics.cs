@@ -256,7 +256,6 @@ internal static class StatementInstructionStorageDiagnostics
         {
             return kind switch
             {
-                InstructionKind.PushEnvironment or
                 InstructionKind.PopEnvironment => "declaration-and-scope",
 
                 InstructionKind.EnterTry or

@@ -14,6 +14,7 @@ internal enum CompactStatementPayloadGroup : byte
     AssignmentSlot,
     SimpleVariableDeclaration,
     BindingVariableDeclaration,
+    EnvironmentTransitionNormalized,
     ResumeValueWithTarget,
     FunctionDeclarationDescriptor,
     ClassDeclarationDescriptor,
@@ -53,7 +54,7 @@ internal static class CompactStatementInstructionTaxonomy
             InstructionKind.CompoundAssignmentSlot => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.DeferredAssignmentAndMutation, false),
             InstructionKind.FunctionDeclaration => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.FunctionDeclarationDescriptor, true),
             InstructionKind.ClassDeclaration => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.ClassDeclarationDescriptor, true),
-            InstructionKind.PushEnvironment => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.DeferredDeclarationAndScope, false),
+            InstructionKind.PushEnvironment => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.EnvironmentTransitionNormalized, true),
             InstructionKind.PopEnvironment => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.DeferredDeclarationAndScope, false),
             InstructionKind.EnterTry => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.DeferredSuspendAndExceptionFlow, false),
             InstructionKind.EnterCatch => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.DeferredSuspendAndExceptionFlow, false),
@@ -102,6 +103,7 @@ internal readonly record struct CompactStatementStorageInstructionReferences(
     int BindingTargetIndex,
     int FunctionDeclarationDescriptorIndex,
     int ClassDeclarationDescriptorIndex,
+    int PushEnvironmentPayloadIndex,
     int ScopeId,
     int FlatSlotId,
     bool HasAssignmentMetadata);
@@ -111,7 +113,8 @@ internal sealed record CompactStatementStorageReferenceTables(
     ImmutableArray<Symbol?> Symbols,
     ImmutableArray<BindingTargetProgram?> BindingTargets,
     ImmutableArray<FunctionDeclarationDescriptor?> FunctionDeclarationDescriptors,
-    ImmutableArray<ClassDeclarationDescriptor?> ClassDeclarationDescriptors);
+    ImmutableArray<ClassDeclarationDescriptor?> ClassDeclarationDescriptors,
+    ImmutableArray<CompactPushEnvironmentPayload?> PushEnvironmentPayloads);
 
 internal sealed record CompactStatementStorageBoundary(
     CompactStatementStorage Storage,
@@ -173,6 +176,7 @@ internal sealed class CompactStatementStorage
         var bindingTargetRefs = ImmutableArray.CreateBuilder<BindingTargetProgram?>();
         var functionDeclarationDescriptorRefs = ImmutableArray.CreateBuilder<FunctionDeclarationDescriptor?>();
         var classDeclarationDescriptorRefs = ImmutableArray.CreateBuilder<ClassDeclarationDescriptor?>();
+        var pushEnvironmentPayloadRefs = ImmutableArray.CreateBuilder<CompactPushEnvironmentPayload?>();
         var instructionReferences = ImmutableArray.CreateBuilder<CompactStatementStorageInstructionReferences>();
         var supportedClassifications = new Dictionary<InstructionKind, CompactStatementKindClassification>();
         var deferredClassifications = new Dictionary<InstructionKind, CompactStatementKindClassification>();
@@ -212,6 +216,7 @@ internal sealed class CompactStatementStorage
                 BindingTargetIndex: AddReference(bindingTargetRefs, encoded.Payload.BindingTargetProgram),
                 FunctionDeclarationDescriptorIndex: AddReference(functionDeclarationDescriptorRefs, encoded.Payload.FunctionDeclarationDescriptor),
                 ClassDeclarationDescriptorIndex: AddReference(classDeclarationDescriptorRefs, encoded.Payload.ClassDeclarationDescriptor),
+                PushEnvironmentPayloadIndex: AddReference(pushEnvironmentPayloadRefs, encoded.Payload.PushEnvironmentPayload),
                 ScopeId: encoded.Payload.ScopeId,
                 FlatSlotId: encoded.Payload.FlatSlotId,
                 HasAssignmentMetadata: encoded.Payload.HasAssignmentMetadata));
@@ -228,7 +233,8 @@ internal sealed class CompactStatementStorage
                 symbolRefs.ToImmutable(),
                 bindingTargetRefs.ToImmutable(),
                 functionDeclarationDescriptorRefs.ToImmutable(),
-                classDeclarationDescriptorRefs.ToImmutable()),
+                classDeclarationDescriptorRefs.ToImmutable(),
+                pushEnvironmentPayloadRefs.ToImmutable()),
             instructionReferences.ToImmutable(),
             estimatedCompactByteSize);
 
@@ -321,6 +327,7 @@ internal sealed class CompactStatementStorage
                 BindingTargetProgram: GetReference(ReferenceTables.BindingTargets, references.BindingTargetIndex),
                 FunctionDeclarationDescriptor: GetReference(ReferenceTables.FunctionDeclarationDescriptors, references.FunctionDeclarationDescriptorIndex),
                 ClassDeclarationDescriptor: GetReference(ReferenceTables.ClassDeclarationDescriptors, references.ClassDeclarationDescriptorIndex),
+                PushEnvironmentPayload: GetReference(ReferenceTables.PushEnvironmentPayloads, references.PushEnvironmentPayloadIndex),
                 ScopeId: references.ScopeId,
                 FlatSlotId: references.FlatSlotId,
                 HasAssignmentMetadata: references.HasAssignmentMetadata));

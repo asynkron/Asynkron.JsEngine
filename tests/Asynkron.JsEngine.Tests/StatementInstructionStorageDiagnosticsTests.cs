@@ -64,7 +64,7 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
         Assert.Contains(
             snapshot.SupportedInstructionKindHistogram,
             entry => entry.Key is InstructionKind.SetCompletionValue or InstructionKind.Break or InstructionKind.BreakableExit);
-        Assert.Contains(snapshot.UnsupportedInstructionKindHistogram, entry => entry.Key == InstructionKind.PushEnvironment);
+        Assert.Contains(snapshot.SupportedInstructionKindHistogram, entry => entry.Key == InstructionKind.PushEnvironment);
         Assert.Contains(snapshot.UnsupportedFamilyReasonHistogram, entry => entry.Key == "declaration-and-scope");
     }
 
@@ -528,14 +528,24 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
         {
             new JumpInstruction(4),
             new ReturnInstruction(8, ReturnProgram: ExpressionProgram.Empty),
+            new PushEnvironmentInstruction(
+                Next: 2,
+                PerIterationBindings: ImmutableArray<Symbol>.Empty,
+                ScopeId: 2,
+                SlotCount: 2,
+                SlotMap: ImmutableDictionary<Symbol, int>.Empty,
+                AllowPooling: true,
+                LexicalBindings: ImmutableHashSet<Symbol>.Empty,
+                FlatSlotMappings: ImmutableArray<(int SlotIndex, int FlatSlotId)>.Empty,
+                SlotNames: ImmutableArray<(Symbol Name, int SlotIndex)>.Empty),
             new PopEnvironmentInstruction(ScopeId: 2, AllowPooling: false, Next: 9),
             new BranchInstruction(ConditionProgram: ExpressionProgram.Empty, ConsequentIndex: 3, AlternateIndex: 5)
         };
 
         var boundary = CompactStatementStorage.CreateBoundary(instructions);
 
-        Assert.Equal(2, boundary.Storage.InstructionCount);
-        Assert.Equal(2, boundary.Storage.DecodeSemanticView().Length);
+        Assert.Equal(3, boundary.Storage.InstructionCount);
+        Assert.Equal(3, boundary.Storage.DecodeSemanticView().Length);
         Assert.Contains(
             boundary.SupportedKindClassifications,
             entry => entry.Kind == InstructionKind.Jump &&
@@ -545,6 +555,11 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
             boundary.SupportedKindClassifications,
             entry => entry.Kind == InstructionKind.Return &&
                      entry.PayloadGroup == CompactStatementPayloadGroup.CompletionValueWithOptionalAwait &&
+                     entry.IsSupported);
+        Assert.Contains(
+            boundary.SupportedKindClassifications,
+            entry => entry.Kind == InstructionKind.PushEnvironment &&
+                     entry.PayloadGroup == CompactStatementPayloadGroup.EnvironmentTransitionNormalized &&
                      entry.IsSupported);
         Assert.Contains(
             boundary.DeferredKindClassifications,
@@ -804,6 +819,45 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
         Assert.True(
             expectedFamilyKinds.IsSubsetOf(seenFamilyKinds),
             $"Expected to observe supported control-flow kinds: {string.Join(", ", expectedFamilyKinds.OrderBy(kind => kind))}; actual: {string.Join(", ", seenFamilyKinds.OrderBy(kind => kind))}");
+    }
+
+    [Fact]
+    public void PushEnvironment_DiagnosticsEncoding_RoundTripsOperandPayload()
+    {
+        var perIteration = ImmutableArray.Create(Symbol.Intern("loopValue"));
+        var lexicalBindings = ImmutableHashSet.Create(Symbol.Intern("lexA"), Symbol.Intern("lexB"));
+        var slotMap = ImmutableDictionary<Symbol, int>.Empty
+            .Add(Symbol.Intern("slotA"), 0)
+            .Add(Symbol.Intern("slotB"), 1);
+        var flatSlotMappings = ImmutableArray.Create((SlotIndex: 0, FlatSlotId: 17), (SlotIndex: 1, FlatSlotId: 21));
+        var slotNames = ImmutableArray.Create((Name: Symbol.Intern("slotA"), SlotIndex: 0), (Name: Symbol.Intern("slotB"), SlotIndex: 1));
+        var instruction = new PushEnvironmentInstruction(
+            Next: 7,
+            PerIterationBindings: perIteration,
+            ScopeId: 13,
+            SlotCount: 2,
+            SlotMap: slotMap,
+            AllowPooling: true,
+            LexicalBindings: lexicalBindings,
+            FlatSlotMappings: flatSlotMappings,
+            SlotNames: slotNames);
+
+        var boundary = CompactStatementStorage.CreateBoundary([instruction]);
+        Assert.Contains(boundary.SupportedKindClassifications, entry => entry.Kind == InstructionKind.PushEnvironment);
+        Assert.DoesNotContain(boundary.DeferredKindClassifications, entry => entry.Kind == InstructionKind.PushEnvironment);
+
+        var decoded = Assert.Single(boundary.Storage.DecodeSemanticView());
+        var decodedPush = Assert.IsType<PushEnvironmentInstruction>(decoded);
+        Assert.Equal(instruction.Next, decodedPush.Next);
+        Assert.Equal(instruction.ScopeId, decodedPush.ScopeId);
+        Assert.Equal(instruction.SlotCount, decodedPush.SlotCount);
+        Assert.Equal(instruction.AllowPooling, decodedPush.AllowPooling);
+        Assert.Equal(instruction.PerIterationBindings, decodedPush.PerIterationBindings);
+        Assert.Equal(instruction.LexicalBindings, decodedPush.LexicalBindings);
+        Assert.Equal(instruction.FlatSlotMappings, decodedPush.FlatSlotMappings);
+        Assert.Equal(instruction.SlotNames, decodedPush.SlotNames);
+        Assert.Equal(instruction.SlotMap, decodedPush.SlotMap);
+        Assert.Null(decodedPush.SourceBlock);
     }
 
     private static void AssertEquivalentSupportedInstruction(ExecutionInstruction expected, ExecutionInstruction actual)

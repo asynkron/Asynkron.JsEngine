@@ -2153,15 +2153,10 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         {
             var baseSlots = GetNonNegativeSlotCount(_activationSlots?.SlotCount ?? _function.SlotCount);
             var extras = 0; // 'this' uses dedicated _thisValue/_hasThisValue fast storage.
-
-            if (IsArrowFunction)
-            {
-                extras += 2; // Symbol.Super and Symbol.LexicalThisEnvironment may be defined.
-            }
-            else
-            {
-                extras += 3; // Symbol.NewTarget, Symbol.ActiveFunction, and potential Symbol.Super.
-            }
+            // Keep this reserve aligned to the simple/reuse fast invocation path only.
+            // Non-fast bindings such as NewTarget/ActiveFunction/Super/LexicalThisEnvironment
+            // are initialized in the general invocation environment setup and should not
+            // inflate the fast-path rented slot arrays.
 
             if ((_argumentsObjectNeeded && _needsArgumentsBinding) || _usesArguments)
             {

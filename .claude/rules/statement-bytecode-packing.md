@@ -76,6 +76,13 @@ decode bridge are explicit.
     Storage diagnostics must request an explicit diagnostic boundary rebuilt
     from the full semantic instruction list so codec-supported families outside
     the sidecar still appear in coverage and byte estimates.
+14. Treat historical ADR-supported family lists as snapshots, not current
+    support contracts. Before calling a supported-vs-unsupported delta a
+    regression, re-check the current `CompactStatementInstructionTaxonomy`,
+    `StatementInstructionDiagnosticsCodec`, and the live
+    `--statement-instruction-storage` output. Owner-seam refactors can move
+    kinds between supported and unsupported diagnostic buckets without changing
+    runtime execution.
 
 ## Why
 
@@ -172,5 +179,16 @@ added an explicit diagnostic-coverage boundary so `Return` and other
 codec-supported non-sidecar families remain counted. Future agents need this
 boundary split because narrowing a publishable runtime-storage sidecar must not
 silently narrow the measurement surface that guides later migration slices.
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-9c07ab2dcb`
+/ PR #1607 refreshed the forloop statement-storage diagnostics and found that
+the current supported snapshot no longer matched ADR 0094 section 6.6's original
+narrow measurement-gate family list: `PopEnvironment`, `LeaveTry`, and
+`EndFinally` were no longer supported in that rerun. The lesson is that section
+6.6 is historical evidence, while current support/defer behavior is owned by
+the taxonomy and diagnostics codec. Future agents should record this as
+checkpoint drift from owner-seam refactors unless the current diagnostic proof
+or runtime path shows a real behavior change.
 
 Related ADR: `docs/adrs/0094-compact-statement-bytecode-encoding-design-from-current-ir.md`.

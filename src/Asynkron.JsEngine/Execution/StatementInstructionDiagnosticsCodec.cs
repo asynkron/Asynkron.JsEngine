@@ -17,7 +17,9 @@ internal enum EncodedStatementOpcode : byte
     AssignmentSlot = 10,
     SimpleVariableDeclaration = 11,
     BindingVariableDeclaration = 12,
-    StoreResumeValue = 13
+    StoreResumeValue = 13,
+    FunctionDeclaration = 14,
+    ClassDeclaration = 15
 }
 
 internal readonly record struct CompactStatementInstruction(
@@ -47,6 +49,10 @@ internal readonly record struct CompactStatementPayload(
     Symbol? PrimarySymbol = null,
     Symbol? SecondarySymbol = null,
     BindingTargetProgram? BindingTargetProgram = null,
+    int FunctionDeclarationDescriptorReferenceId = -1,
+    int ClassDeclarationDescriptorReferenceId = -1,
+    FunctionDeclarationDescriptor? FunctionDeclarationDescriptor = null,
+    ClassDeclarationDescriptor? ClassDeclarationDescriptor = null,
     int ScopeId = -1,
     int FlatSlotId = -1,
     bool HasAssignmentMetadata = false)
@@ -63,6 +69,8 @@ internal readonly record struct CompactStatementPayload(
         ((PrimaryExpressionProgramReferenceId < 0 && !PrimaryExpressionProgram.HasValue) ? 0 : ReferencePayloadByteSize) +
         ((SecondaryExpressionProgramReferenceId < 0 && !SecondaryExpressionProgram.HasValue) ? 0 : ReferencePayloadByteSize) +
         ((BindingTargetProgramReferenceId < 0 && BindingTargetProgram is null) ? 0 : ReferencePayloadByteSize) +
+        ((FunctionDeclarationDescriptorReferenceId < 0 && FunctionDeclarationDescriptor is null) ? 0 : ReferencePayloadByteSize) +
+        ((ClassDeclarationDescriptorReferenceId < 0 && ClassDeclarationDescriptor is null) ? 0 : ReferencePayloadByteSize) +
         (PrimarySymbol is null ? 0 : ReferencePayloadByteSize) +
         (SecondarySymbol is null ? 0 : ReferencePayloadByteSize) +
         (HasAssignmentMetadata ? AssignmentMetadataByteSize : 0);
@@ -135,6 +143,68 @@ internal sealed class StatementDiagnosticsBindingTargetProgramTable
     }
 }
 
+internal sealed class StatementDiagnosticsFunctionDeclarationDescriptorTable
+{
+    private readonly Dictionary<FunctionDeclarationDescriptor, int> _indices = [];
+    private readonly List<FunctionDeclarationDescriptor> _descriptors = [];
+
+    public int Count => _descriptors.Count;
+
+    public int GetOrAdd(FunctionDeclarationDescriptor? descriptor)
+    {
+        if (!descriptor.HasValue)
+        {
+            return -1;
+        }
+
+        return GetOrAdd(descriptor.Value);
+    }
+
+    public int GetOrAdd(FunctionDeclarationDescriptor descriptor)
+    {
+        if (_indices.TryGetValue(descriptor, out var existing))
+        {
+            return existing;
+        }
+
+        var created = _descriptors.Count;
+        _descriptors.Add(descriptor);
+        _indices.Add(descriptor, created);
+        return created;
+    }
+
+    public FunctionDeclarationDescriptor? Resolve(int id)
+    {
+        return id >= 0 && id < _descriptors.Count ? _descriptors[id] : null;
+    }
+}
+
+internal sealed class StatementDiagnosticsClassDeclarationDescriptorTable
+{
+    private readonly Dictionary<ClassDeclarationDescriptor, int> _indices = [];
+    private readonly List<ClassDeclarationDescriptor> _descriptors = [];
+
+    public int Count => _descriptors.Count;
+
+    public int GetOrAdd(ClassDeclarationDescriptor descriptor)
+    {
+        if (_indices.TryGetValue(descriptor, out var existing))
+        {
+            return existing;
+        }
+
+        var created = _descriptors.Count;
+        _descriptors.Add(descriptor);
+        _indices.Add(descriptor, created);
+        return created;
+    }
+
+    public ClassDeclarationDescriptor? Resolve(int id)
+    {
+        return id >= 0 && id < _descriptors.Count ? _descriptors[id] : null;
+    }
+}
+
 /// <summary>
 /// Diagnostic-only codec for a small, stable subset of statement instructions.
 /// This is intentionally scoped to parity testing and does not alter runtime execution.
@@ -161,13 +231,17 @@ internal static class StatementInstructionDiagnosticsCodec
             InstructionKind.AssignmentSlot or
             InstructionKind.SimpleVariableDeclaration or
             InstructionKind.BindingVariableDeclaration or
-            InstructionKind.StoreResumeValue;
+            InstructionKind.StoreResumeValue or
+            InstructionKind.FunctionDeclaration or
+            InstructionKind.ClassDeclaration;
     }
 
     public static bool TryEncode(
         ExecutionInstruction instruction,
         StatementDiagnosticsExpressionProgramTable expressionPrograms,
         StatementDiagnosticsBindingTargetProgramTable bindingTargets,
+        StatementDiagnosticsFunctionDeclarationDescriptorTable functionDeclarationDescriptors,
+        StatementDiagnosticsClassDeclarationDescriptorTable classDeclarationDescriptors,
         out CompactStatementInstruction encoded)
     {
         switch (instruction)
@@ -263,6 +337,20 @@ internal static class StatementInstructionDiagnosticsCodec
                     new CompactStatementPayload(
                         PrimarySymbol: storeResumeValue.TargetSymbol));
                 return true;
+            case FunctionDeclarationInstruction functionDeclaration:
+                encoded = new CompactStatementInstruction(
+                    new CompactStatementHeader(EncodedStatementOpcode.FunctionDeclaration, functionDeclaration.Next, 0, 0),
+                    new CompactStatementPayload(
+                        FunctionDeclarationDescriptorReferenceId: functionDeclarationDescriptors.GetOrAdd(functionDeclaration.Descriptor),
+                        FunctionDeclarationDescriptor: functionDeclaration.Descriptor));
+                return true;
+            case ClassDeclarationInstruction classDeclaration:
+                encoded = new CompactStatementInstruction(
+                    new CompactStatementHeader(EncodedStatementOpcode.ClassDeclaration, classDeclaration.Next, 0, 0),
+                    new CompactStatementPayload(
+                        ClassDeclarationDescriptorReferenceId: classDeclarationDescriptors.GetOrAdd(classDeclaration.Descriptor),
+                        ClassDeclarationDescriptor: classDeclaration.Descriptor));
+                return true;
             default:
                 encoded = default;
                 return false;
@@ -278,6 +366,8 @@ internal static class StatementInstructionDiagnosticsCodec
             instruction,
             expressionPrograms,
             new StatementDiagnosticsBindingTargetProgramTable(),
+            new StatementDiagnosticsFunctionDeclarationDescriptorTable(),
+            new StatementDiagnosticsClassDeclarationDescriptorTable(),
             out encoded);
     }
 
@@ -287,6 +377,8 @@ internal static class StatementInstructionDiagnosticsCodec
             instruction,
             new StatementDiagnosticsExpressionProgramTable(),
             new StatementDiagnosticsBindingTargetProgramTable(),
+            new StatementDiagnosticsFunctionDeclarationDescriptorTable(),
+            new StatementDiagnosticsClassDeclarationDescriptorTable(),
             out encoded))
         {
             return false;
@@ -351,7 +443,9 @@ internal static class StatementInstructionDiagnosticsCodec
     public static ExecutionInstruction Decode(
         CompactStatementInstruction encoded,
         StatementDiagnosticsExpressionProgramTable expressionPrograms,
-        StatementDiagnosticsBindingTargetProgramTable bindingTargets)
+        StatementDiagnosticsBindingTargetProgramTable bindingTargets,
+        StatementDiagnosticsFunctionDeclarationDescriptorTable functionDeclarationDescriptors,
+        StatementDiagnosticsClassDeclarationDescriptorTable classDeclarationDescriptors)
     {
         var header = encoded.Header;
         return header.Opcode switch
@@ -410,6 +504,19 @@ internal static class StatementInstructionDiagnosticsCodec
             EncodedStatementOpcode.StoreResumeValue => new StoreResumeValueInstruction(
                 header.NextOrTarget,
                 encoded.Payload.PrimarySymbol),
+            EncodedStatementOpcode.FunctionDeclaration => new FunctionDeclarationInstruction(
+                header.NextOrTarget,
+                ResolveFunctionDeclarationDescriptor(
+                    encoded.Payload.FunctionDeclarationDescriptorReferenceId,
+                    encoded.Payload.FunctionDeclarationDescriptor,
+                    functionDeclarationDescriptors)),
+            EncodedStatementOpcode.ClassDeclaration => new ClassDeclarationInstruction(
+                header.NextOrTarget,
+                ResolveClassDeclarationDescriptor(
+                    encoded.Payload.ClassDeclarationDescriptorReferenceId,
+                    encoded.Payload.ClassDeclarationDescriptor,
+                    classDeclarationDescriptors) ??
+                throw new InvalidOperationException("ClassDeclarationInstruction diagnostic decode requires a descriptor payload.")),
             _ => throw new ArgumentOutOfRangeException(nameof(encoded), header.Opcode, "Unsupported diagnostic opcode")
         };
     }
@@ -418,7 +525,12 @@ internal static class StatementInstructionDiagnosticsCodec
         CompactStatementInstruction encoded,
         StatementDiagnosticsExpressionProgramTable expressionPrograms)
     {
-        return Decode(encoded, expressionPrograms, new StatementDiagnosticsBindingTargetProgramTable());
+        return Decode(
+            encoded,
+            expressionPrograms,
+            new StatementDiagnosticsBindingTargetProgramTable(),
+            new StatementDiagnosticsFunctionDeclarationDescriptorTable(),
+            new StatementDiagnosticsClassDeclarationDescriptorTable());
     }
 
     public static ExecutionInstruction Decode(CompactStatementInstruction encoded)
@@ -426,7 +538,9 @@ internal static class StatementInstructionDiagnosticsCodec
         return Decode(
             encoded,
             new StatementDiagnosticsExpressionProgramTable(),
-            new StatementDiagnosticsBindingTargetProgramTable());
+            new StatementDiagnosticsBindingTargetProgramTable(),
+            new StatementDiagnosticsFunctionDeclarationDescriptorTable(),
+            new StatementDiagnosticsClassDeclarationDescriptorTable());
     }
 
     public static ExecutionInstruction Decode(
@@ -496,5 +610,21 @@ internal static class StatementInstructionDiagnosticsCodec
         StatementDiagnosticsBindingTargetProgramTable bindingTargets)
     {
         return bindingTargets.Resolve(id) ?? embeddedProgram;
+    }
+
+    private static FunctionDeclarationDescriptor? ResolveFunctionDeclarationDescriptor(
+        int id,
+        FunctionDeclarationDescriptor? embeddedDescriptor,
+        StatementDiagnosticsFunctionDeclarationDescriptorTable functionDeclarationDescriptors)
+    {
+        return functionDeclarationDescriptors.Resolve(id) ?? embeddedDescriptor;
+    }
+
+    private static ClassDeclarationDescriptor? ResolveClassDeclarationDescriptor(
+        int id,
+        ClassDeclarationDescriptor? embeddedDescriptor,
+        StatementDiagnosticsClassDeclarationDescriptorTable classDeclarationDescriptors)
+    {
+        return classDeclarationDescriptors.Resolve(id) ?? embeddedDescriptor;
     }
 }

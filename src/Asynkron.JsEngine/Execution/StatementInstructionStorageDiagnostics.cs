@@ -31,6 +31,8 @@ internal static class StatementInstructionStorageDiagnostics
         private readonly Dictionary<string, long> _unsupportedReasonHistogram = [];
         private readonly StatementDiagnosticsExpressionProgramTable _expressionPrograms = new();
         private readonly StatementDiagnosticsBindingTargetProgramTable _bindingTargets = new();
+        private readonly StatementDiagnosticsFunctionDeclarationDescriptorTable _functionDeclarationDescriptors = new();
+        private readonly StatementDiagnosticsClassDeclarationDescriptorTable _classDeclarationDescriptors = new();
         private long _planCount;
         private long _instructionCount;
         private long _supportedInstructionCount;
@@ -90,6 +92,8 @@ internal static class StatementInstructionStorageDiagnostics
                 BindingTargetOperandCount: _bindingTargetOperandCount,
                 ExpressionProgramReferenceTableCount: _expressionPrograms.Count,
                 BindingTargetProgramReferenceTableCount: _bindingTargets.Count,
+                FunctionDeclarationDescriptorReferenceTableCount: _functionDeclarationDescriptors.Count,
+                ClassDeclarationDescriptorReferenceTableCount: _classDeclarationDescriptors.Count,
                 EstimatedCompactEncodedBytes: _estimatedCompactEncodedBytes,
                 InstructionKindHistogram: Sort(_instructionKindHistogram),
                 SupportedInstructionKindHistogram: Sort(_supportedKindHistogram),
@@ -202,7 +206,13 @@ internal static class StatementInstructionStorageDiagnostics
             Increment(_instructionKindHistogram, instruction.Kind);
             VisitNestedPlans(instruction);
 
-            if (StatementInstructionDiagnosticsCodec.TryEncode(instruction, _expressionPrograms, _bindingTargets, out var encoded))
+            if (StatementInstructionDiagnosticsCodec.TryEncode(
+                    instruction,
+                    _expressionPrograms,
+                    _bindingTargets,
+                    _functionDeclarationDescriptors,
+                    _classDeclarationDescriptors,
+                    out var encoded))
             {
                 _supportedInstructionCount++;
                 _ownerBackedEncodedBytes += CompactStatementHeader.FixedByteSize;
@@ -246,8 +256,6 @@ internal static class StatementInstructionStorageDiagnostics
         {
             return kind switch
             {
-                InstructionKind.FunctionDeclaration or
-                InstructionKind.ClassDeclaration or
                 InstructionKind.PushEnvironment or
                 InstructionKind.PopEnvironment => "declaration-and-scope",
 
@@ -342,6 +350,8 @@ internal sealed record StatementInstructionStorageSnapshot(
     long BindingTargetOperandCount,
     int ExpressionProgramReferenceTableCount,
     int BindingTargetProgramReferenceTableCount,
+    int FunctionDeclarationDescriptorReferenceTableCount,
+    int ClassDeclarationDescriptorReferenceTableCount,
     long EstimatedCompactEncodedBytes,
     ImmutableArray<KeyValuePair<InstructionKind, long>> InstructionKindHistogram,
     ImmutableArray<KeyValuePair<InstructionKind, long>> SupportedInstructionKindHistogram,

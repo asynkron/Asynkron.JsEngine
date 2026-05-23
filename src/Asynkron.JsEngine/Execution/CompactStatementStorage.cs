@@ -15,6 +15,8 @@ internal enum CompactStatementPayloadGroup : byte
     SimpleVariableDeclaration,
     BindingVariableDeclaration,
     ResumeValueWithTarget,
+    FunctionDeclarationDescriptor,
+    ClassDeclarationDescriptor,
     DeferredAssignmentAndMutation,
     DeferredDeclarationAndScope,
     DeferredSuspendAndExceptionFlow,
@@ -49,8 +51,8 @@ internal static class CompactStatementInstructionTaxonomy
             InstructionKind.IncrementSlot => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.DeferredAssignmentAndMutation, false),
             InstructionKind.LogicalCompoundAssignmentSlot => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.DeferredAssignmentAndMutation, false),
             InstructionKind.CompoundAssignmentSlot => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.DeferredAssignmentAndMutation, false),
-            InstructionKind.FunctionDeclaration => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.DeferredDeclarationAndScope, false),
-            InstructionKind.ClassDeclaration => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.DeferredDeclarationAndScope, false),
+            InstructionKind.FunctionDeclaration => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.FunctionDeclarationDescriptor, true),
+            InstructionKind.ClassDeclaration => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.ClassDeclarationDescriptor, true),
             InstructionKind.PushEnvironment => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.DeferredDeclarationAndScope, false),
             InstructionKind.PopEnvironment => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.DeferredDeclarationAndScope, false),
             InstructionKind.EnterTry => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.DeferredSuspendAndExceptionFlow, false),
@@ -98,6 +100,8 @@ internal readonly record struct CompactStatementStorageInstructionReferences(
     int PrimarySymbolIndex,
     int SecondarySymbolIndex,
     int BindingTargetIndex,
+    int FunctionDeclarationDescriptorIndex,
+    int ClassDeclarationDescriptorIndex,
     int ScopeId,
     int FlatSlotId,
     bool HasAssignmentMetadata);
@@ -105,7 +109,9 @@ internal readonly record struct CompactStatementStorageInstructionReferences(
 internal sealed record CompactStatementStorageReferenceTables(
     ImmutableArray<ExpressionProgram?> ExpressionPrograms,
     ImmutableArray<Symbol?> Symbols,
-    ImmutableArray<BindingTargetProgram?> BindingTargets);
+    ImmutableArray<BindingTargetProgram?> BindingTargets,
+    ImmutableArray<FunctionDeclarationDescriptor?> FunctionDeclarationDescriptors,
+    ImmutableArray<ClassDeclarationDescriptor?> ClassDeclarationDescriptors);
 
 internal sealed record CompactStatementStorageBoundary(
     CompactStatementStorage Storage,
@@ -165,6 +171,8 @@ internal sealed class CompactStatementStorage
         var expressionRefs = ImmutableArray.CreateBuilder<ExpressionProgram?>();
         var symbolRefs = ImmutableArray.CreateBuilder<Symbol?>();
         var bindingTargetRefs = ImmutableArray.CreateBuilder<BindingTargetProgram?>();
+        var functionDeclarationDescriptorRefs = ImmutableArray.CreateBuilder<FunctionDeclarationDescriptor?>();
+        var classDeclarationDescriptorRefs = ImmutableArray.CreateBuilder<ClassDeclarationDescriptor?>();
         var instructionReferences = ImmutableArray.CreateBuilder<CompactStatementStorageInstructionReferences>();
         var supportedClassifications = new Dictionary<InstructionKind, CompactStatementKindClassification>();
         var deferredClassifications = new Dictionary<InstructionKind, CompactStatementKindClassification>();
@@ -202,6 +210,8 @@ internal sealed class CompactStatementStorage
                 PrimarySymbolIndex: AddReference(symbolRefs, encoded.Payload.PrimarySymbol),
                 SecondarySymbolIndex: AddReference(symbolRefs, encoded.Payload.SecondarySymbol),
                 BindingTargetIndex: AddReference(bindingTargetRefs, encoded.Payload.BindingTargetProgram),
+                FunctionDeclarationDescriptorIndex: AddReference(functionDeclarationDescriptorRefs, encoded.Payload.FunctionDeclarationDescriptor),
+                ClassDeclarationDescriptorIndex: AddReference(classDeclarationDescriptorRefs, encoded.Payload.ClassDeclarationDescriptor),
                 ScopeId: encoded.Payload.ScopeId,
                 FlatSlotId: encoded.Payload.FlatSlotId,
                 HasAssignmentMetadata: encoded.Payload.HasAssignmentMetadata));
@@ -216,7 +226,9 @@ internal sealed class CompactStatementStorage
             new CompactStatementStorageReferenceTables(
                 expressionRefs.ToImmutable(),
                 symbolRefs.ToImmutable(),
-                bindingTargetRefs.ToImmutable()),
+                bindingTargetRefs.ToImmutable(),
+                functionDeclarationDescriptorRefs.ToImmutable(),
+                classDeclarationDescriptorRefs.ToImmutable()),
             instructionReferences.ToImmutable(),
             estimatedCompactByteSize);
 
@@ -301,9 +313,14 @@ internal sealed class CompactStatementStorage
             Payload: new CompactStatementPayload(
                 PrimaryExpressionProgramReferenceId: references.PrimaryExpressionIndex,
                 SecondaryExpressionProgramReferenceId: references.SecondaryExpressionIndex,
+                BindingTargetProgramReferenceId: references.BindingTargetIndex,
+                FunctionDeclarationDescriptorReferenceId: references.FunctionDeclarationDescriptorIndex,
+                ClassDeclarationDescriptorReferenceId: references.ClassDeclarationDescriptorIndex,
                 PrimarySymbol: GetReference(ReferenceTables.Symbols, references.PrimarySymbolIndex),
                 SecondarySymbol: GetReference(ReferenceTables.Symbols, references.SecondarySymbolIndex),
                 BindingTargetProgram: GetReference(ReferenceTables.BindingTargets, references.BindingTargetIndex),
+                FunctionDeclarationDescriptor: GetReference(ReferenceTables.FunctionDeclarationDescriptors, references.FunctionDeclarationDescriptorIndex),
+                ClassDeclarationDescriptor: GetReference(ReferenceTables.ClassDeclarationDescriptors, references.ClassDeclarationDescriptorIndex),
                 ScopeId: references.ScopeId,
                 FlatSlotId: references.FlatSlotId,
                 HasAssignmentMetadata: references.HasAssignmentMetadata));

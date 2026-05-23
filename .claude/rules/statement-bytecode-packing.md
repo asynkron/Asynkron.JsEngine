@@ -293,3 +293,20 @@ the plan-publication invariant, `PopEnvironment` and `BreakableEnter` remain
 deferred, and the runner continues to execute the record-backed semantic view.
 
 Related ADR: `docs/adrs/0094-compact-statement-bytecode-encoding-design-from-current-ir.md`.
+
+## Plan Consolidation Note
+
+Parent follow-on plan: `planmanual1779454308935867000` ("push bytecode from
+diagnostics toward runtime storage").
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-b232307d99`
+consolidates planning ownership for this track. Future planning work for
+statement-bytecode packing should be created as plan children under the parent
+plan above, not as new standalone bytecode planning issues that duplicate the
+same owner surface.
+
+When an older standalone planning issue is found to overlap one of the
+checkpoints documented in this rule, mark it superseded by the parent follow-on
+plan (or by the exact plan child that already owns the slice) and avoid opening
+parallel tracker issues for the same migration step.

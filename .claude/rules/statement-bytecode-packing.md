@@ -60,6 +60,11 @@ decode bridge are explicit.
     against the original `ExecutionInstruction` records. Do not treat a printer
     or diagnostics bridge as permission to change `ExecutionPlanRunner` or to
     hide unsupported/deferred families behind a partial decoded view.
+11. For forloop statement-storage measurement, use the ProfileRunner
+    `--statement-instruction-storage` flag to capture storage diagnostics before
+    comparing profiler allocation samples. Treat small `./tools/profile forloop
+    --memory` differences as sampling context unless the same slice changes
+    runtime storage and proves a real allocation delta.
 
 ## Why
 
@@ -128,5 +133,14 @@ owner decode bridge. The lesson is that diagnostics and printers should migrate
 toward the owner boundary before runtime routing, with focused parity tests for
 decoded semantic output and an explicit guard that `ExecutionPlanRunner` still
 uses the published instruction records until a separate runtime-routing slice.
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-a9b9306ab8`
+/ PR #1594 wired `StatementInstructionStorageDiagnostics` into ProfileRunner via
+`--statement-instruction-storage` and recorded the forloop memory sample as
+neutral, not an optimization win. Future compact statement-storage work should
+keep storage diagnostics and runtime allocation profiling as separate evidence
+channels so a tooling-only diagnostic slice does not overclaim CPU or memory
+impact.
 
 Related ADR: `docs/adrs/0094-compact-statement-bytecode-encoding-design-from-current-ir.md`.

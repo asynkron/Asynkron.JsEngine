@@ -295,6 +295,38 @@ statement-bytecode work should keep both contracts explicit: shared-table
 encoding for plan-level storage estimates, and compatibility embedding only for
 diagnostic bridges that lack the table context.
 
+### 7.4 Issue #1570 compact storage owner boundary checkpoint
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-7c3e056ff9`
+/ PR #1570 introduced the first compact statement storage owner seam on
+`ExecutionPlan` without changing runtime execution. The accepted slice added
+`CompactStatementStorage`, `CompactStatementStorageBoundary`, and
+`CompactStatementInstructionTaxonomy` so supported instructions can be encoded
+into opcode/operand/reference tables while unsupported instruction families
+remain explicitly classified as deferred.
+
+This checkpoint moves beyond diagnostic counters, but it is still not a runtime
+storage migration. `ExecutionPlan.Instructions` remains the execution source of
+truth, and `CreateCompactStatementStorageBoundary()` is an internal seam for
+measurement, decode-parity proof, and incremental owner-backed storage work.
+
+The boundary must keep three contracts together:
+
+1. supported-vs-deferred classification comes from the owner taxonomy, not from
+   scattered diagnostic heuristics;
+2. expression, symbol, and binding-target payloads are stored in owner reference
+   tables outside the opcode stream; and
+3. `DecodeSemanticView()` reconstructs the current `ExecutionInstruction`
+   records for diagnostics and parity tests.
+
+Future slices may expand supported families or start routing selected reads
+through the compact owner only after the same slice updates the owner taxonomy,
+reference tables, decode bridge, diagnostics, printer/test coverage, and
+profiling evidence. Do not treat the existence of
+`CreateCompactStatementStorageBoundary()` as permission to bypass
+record-backed runtime execution.
+
 ### 8. Staged migration
 
 1. Introduce compact storage schema in `ExecutionPlan` behind an internal

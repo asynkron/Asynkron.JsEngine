@@ -39,6 +39,12 @@ decode bridge are explicit.
    default struct payload can contain zero-valued scope or slot ids that look
    populated, so byte estimates and decoded records must branch on a real
    `Has...` flag for optional metadata.
+8. Treat `CompactStatementStorage` as the owner seam for statement compact
+   storage, but not as runtime routing by default. When adding a supported
+   family, update `CompactStatementInstructionTaxonomy`, the owner reference
+   tables, decode parity, diagnostics, and storage accounting together. Keep
+   deferred families explicit in `CompactStatementStorageBoundary` instead of
+   letting unsupported instructions disappear from estimates.
 
 ## Why
 
@@ -78,5 +84,16 @@ or decoded expression operation arrays. The same slice also had to keep
 compatibility overloads embedding expression programs for callers without the
 shared table; without that bridge, diagnostic round-trips can look structurally
 encoded while decoding semantically empty expression payloads.
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-7c3e056ff9`
+/ PR #1570 introduced `CompactStatementStorage` and
+`ExecutionPlan.CreateCompactStatementStorageBoundary()` as the first compact
+statement storage owner boundary. The lesson is that the owner seam centralizes
+taxonomy, opcode/operand/reference tables, and semantic decode parity, but it
+still leaves `ExecutionPlan.Instructions` as the runtime source of truth.
+Future work must not treat the boundary as a hidden runtime migration, and must
+preserve deferred-family visibility so storage estimates and migration scope
+remain honest.
 
 Related ADR: `docs/adrs/0094-compact-statement-bytecode-encoding-design-from-current-ir.md`.

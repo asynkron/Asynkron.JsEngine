@@ -57,6 +57,7 @@ public static partial class TypedAstEvaluator
         private readonly HashSet<Symbol> _topLevelLexicalNames;
         private readonly bool _usesArguments;
         private readonly bool _needsArgumentsBinding;
+        private readonly int _activationMinimumCapacity;
         private readonly int _functionScopeId;
         private readonly ActivationSlotShape? _activationSlots;
 
@@ -128,6 +129,7 @@ public static partial class TypedAstEvaluator
             _needsArgumentsBinding = !IsArrowFunction && NeedsArgumentsBinding(_function);
             _hasCapturedActivationInClosure = HasCapturedActivationInClosure(closure);
             _functionScopeId = ResolveFunctionScopeId(function);
+            _activationMinimumCapacity = ComputeActivationMinimumCapacity();
 
             // Detect simple functions for fast-path invocation
             // A simple function has: no async, no defaults, no destructuring, no body lexicals, no hoisting needed
@@ -2357,14 +2359,18 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             if (_activationSlots is { } activationSlots)
             {
                 functionEnvironment.ScopeId = activationSlots.ScopeId;
-                functionEnvironment.InitializeSlots(GetNonNegativeSlotCount(activationSlots.SlotCount));
+                functionEnvironment.InitializeSlotsWithCapacity(
+                    GetNonNegativeSlotCount(activationSlots.SlotCount),
+                    _activationMinimumCapacity);
                 functionEnvironment.SetSlotNames(activationSlots.SlotNames);
             }
             else
             {
                 functionEnvironment.ScopeId = _functionScopeId;
                 functionEnvironment.SetSlotMap(_function.SlotMap);
-                functionEnvironment.InitializeSlots(GetNonNegativeSlotCount(_function.SlotCount));
+                functionEnvironment.InitializeSlotsWithCapacity(
+                    GetNonNegativeSlotCount(_function.SlotCount),
+                    _activationMinimumCapacity);
             }
 
             JsValue boundThisValue;
@@ -2389,6 +2395,25 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         private static int GetNonNegativeSlotCount(int slotCount)
         {
             return slotCount > 0 ? slotCount : 0;
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private int ComputeActivationMinimumCapacity()
+        {
+            var baseSlots = GetNonNegativeSlotCount(_activationSlots?.SlotCount ?? _function.SlotCount);
+            var extras = 0; // 'this' uses dedicated _thisValue/_hasThisValue storage in this fast invocation path.
+
+            if ((_argumentsObjectNeeded && _needsArgumentsBinding) || _usesArguments)
+            {
+                extras += 1; // Symbol.Arguments
+            }
+
+            if (!IsArrowFunction && _function.Name is not null && !_hasFunctionNameEnvironment)
+            {
+                extras += 1; // Named function expression body binding.
+            }
+
+            return baseSlots + extras;
         }
 
         /// <summary>
@@ -2509,14 +2534,18 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             if (_activationSlots is { } activationSlots)
             {
                 reuseEnvironment.ScopeId = activationSlots.ScopeId;
-                reuseEnvironment.InitializeSlots(GetNonNegativeSlotCount(activationSlots.SlotCount));
+                reuseEnvironment.InitializeSlotsWithCapacity(
+                    GetNonNegativeSlotCount(activationSlots.SlotCount),
+                    _activationMinimumCapacity);
                 reuseEnvironment.SetSlotNames(activationSlots.SlotNames);
             }
             else
             {
                 reuseEnvironment.ScopeId = _function.ScopeId;
                 reuseEnvironment.SetSlotMap(_function.SlotMap);
-                reuseEnvironment.InitializeSlots(GetNonNegativeSlotCount(_function.SlotCount));
+                reuseEnvironment.InitializeSlotsWithCapacity(
+                    GetNonNegativeSlotCount(_function.SlotCount),
+                    _activationMinimumCapacity);
             }
 
             // Bind this

@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -254,6 +255,91 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
         Assert.Equal(1, snapshot.ExpressionProgramReferenceTableCount);
         Assert.True(snapshot.ExpressionReferenceCount >= 3);
         Assert.True(snapshot.SecondaryExpressionReferenceCount >= 1);
+    }
+
+    [Fact]
+    public void CompactStatementStorageBoundary_ReturnThrow_DirectAwaitAndLoweredPayloadsStayDistinct()
+    {
+        var returnLowered = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.LoadLiteralConstant(0)),
+            literalConstants: ImmutableArray.Create(JsValue.FromDouble(1)));
+        var returnAwaited = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.LoadLiteralConstant(0)),
+            literalConstants: ImmutableArray.Create(JsValue.FromDouble(2)));
+        var throwLowered = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.LoadLiteralConstant(0)),
+            literalConstants: ImmutableArray.Create(JsValue.FromDouble(3)));
+        var throwAwaited = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.LoadLiteralConstant(0)),
+            literalConstants: ImmutableArray.Create(JsValue.FromDouble(4)));
+        var returnAwaitState = Symbol.Intern("returnAwaitState");
+        var throwAwaitState = Symbol.Intern("throwAwaitState");
+
+        var instructions = new ExecutionInstruction[]
+        {
+            new ReturnInstruction(1, ReturnProgram: null, returnAwaitState, returnAwaited),
+            new ReturnInstruction(2, ReturnProgram: returnLowered, AwaitStateKey: null, AwaitedProgram: null),
+            new ThrowInstruction(ThrowProgram: null, throwAwaitState, throwAwaited),
+            new ThrowInstruction(ThrowProgram: throwLowered, AwaitStateKey: null, AwaitedProgram: null)
+        };
+
+        var boundary = CompactStatementStorage.CreateBoundary(instructions);
+        var decoded = boundary.Storage.DecodeSemanticView();
+
+        var directReturn = Assert.IsType<ReturnInstruction>(decoded[0]);
+        Assert.Null(directReturn.ReturnProgram);
+        Assert.Equal(returnAwaitState, directReturn.AwaitStateKey);
+        Assert.Equal(returnAwaited, directReturn.AwaitedProgram);
+
+        var loweredReturn = Assert.IsType<ReturnInstruction>(decoded[1]);
+        Assert.Equal(returnLowered, loweredReturn.ReturnProgram);
+        Assert.Null(loweredReturn.AwaitStateKey);
+        Assert.Null(loweredReturn.AwaitedProgram);
+
+        var directThrow = Assert.IsType<ThrowInstruction>(decoded[2]);
+        Assert.Null(directThrow.ThrowProgram);
+        Assert.Equal(throwAwaitState, directThrow.AwaitStateKey);
+        Assert.Equal(throwAwaited, directThrow.AwaitedProgram);
+
+        var loweredThrow = Assert.IsType<ThrowInstruction>(decoded[3]);
+        Assert.Equal(throwLowered, loweredThrow.ThrowProgram);
+        Assert.Null(loweredThrow.AwaitStateKey);
+        Assert.Null(loweredThrow.AwaitedProgram);
+    }
+
+    [Fact]
+    public void Collect_ForReturnThrowDirectAwaitAndLoweredShapes_CountsPrimaryAndSecondaryReferences()
+    {
+        var returnLowered = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.LoadLiteralConstant(0)),
+            literalConstants: ImmutableArray.Create(JsValue.FromDouble(10)));
+        var returnAwaited = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.LoadLiteralConstant(0)),
+            literalConstants: ImmutableArray.Create(JsValue.FromDouble(20)));
+        var throwLowered = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.LoadLiteralConstant(0)),
+            literalConstants: ImmutableArray.Create(JsValue.FromDouble(30)));
+        var throwAwaited = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.LoadLiteralConstant(0)),
+            literalConstants: ImmutableArray.Create(JsValue.FromDouble(40)));
+
+        var plan = new ExecutionPlan(
+            ImmutableArray.Create<ExecutionInstruction>(
+                new ReturnInstruction(1, ReturnProgram: null, Symbol.Intern("returnAwait"), returnAwaited),
+                new ReturnInstruction(2, ReturnProgram: returnLowered, AwaitStateKey: null, AwaitedProgram: null),
+                new ThrowInstruction(ThrowProgram: null, Symbol.Intern("throwAwait"), throwAwaited),
+                new ThrowInstruction(ThrowProgram: throwLowered, AwaitStateKey: null, AwaitedProgram: null)),
+            EntryPoint: 0);
+
+        var snapshot = StatementInstructionStorageDiagnostics.Collect(plan);
+
+        Assert.Equal(4, snapshot.InstructionCount);
+        Assert.Equal(4, snapshot.SupportedInstructionCount);
+        Assert.Equal(0, snapshot.UnsupportedInstructionCount);
+        Assert.Equal(2, snapshot.ExpressionReferenceCount);
+        Assert.Equal(2, snapshot.SecondaryExpressionReferenceCount);
+        Assert.Equal(2, snapshot.SymbolOperandCount);
+        Assert.Equal(4, snapshot.ExpressionProgramReferenceTableCount);
     }
 
     [Fact]

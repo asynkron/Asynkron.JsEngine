@@ -337,10 +337,14 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
     [Fact]
     public void CompactStatementStorageBoundary_AssignmentSlotAndSimpleVariableDeclaration_PreserveSemanticOperandsAndReferencePayloads()
     {
-        var assignmentValueProgram = ExpressionProgram.Empty;
-        var assignmentAwaitedProgram = ExpressionProgram.Empty;
-        var declarationInitializerProgram = ExpressionProgram.Empty;
-        var declarationAwaitedProgram = ExpressionProgram.Empty;
+        var assignmentValueProgram = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.LoadThis));
+        var assignmentAwaitedProgram = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.LoadNewTarget));
+        var declarationInitializerProgram = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.LoadImportMeta));
+        var declarationAwaitedProgram = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.LoadResolvedIdentifierValue));
         var assignmentTarget = Symbol.Intern("target");
         var assignmentAwaitState = Symbol.Intern("assignment-await");
         var declarationTarget = Symbol.Intern("decl");
@@ -376,7 +380,10 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
         Assert.Equal(2, storage.InstructionCount);
         Assert.Equal(4, storage.ReferenceTables.ExpressionPrograms.Length);
         Assert.Equal(4, storage.ReferenceTables.Symbols.Length);
-        Assert.All(storage.ReferenceTables.ExpressionPrograms, program => Assert.Equal(ExpressionProgram.Empty, program));
+        Assert.Equal(assignmentValueProgram, storage.ReferenceTables.ExpressionPrograms[0]);
+        Assert.Equal(assignmentAwaitedProgram, storage.ReferenceTables.ExpressionPrograms[1]);
+        Assert.Equal(declarationInitializerProgram, storage.ReferenceTables.ExpressionPrograms[2]);
+        Assert.Equal(declarationAwaitedProgram, storage.ReferenceTables.ExpressionPrograms[3]);
         Assert.Equal(EncodedStatementOpcode.AssignmentSlot, storage.OpcodeStream[0]);
         Assert.Equal(EncodedStatementOpcode.SimpleVariableDeclaration, storage.OpcodeStream[1]);
         Assert.Equal(9, storage.ExtraOperandTable[0]);

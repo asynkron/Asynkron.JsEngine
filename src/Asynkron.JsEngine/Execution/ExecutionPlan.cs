@@ -52,4 +52,7 @@ internal sealed record ExecutionPlan(
 
     public CompactStatementStorageBoundary CreateCompactStatementStorageBoundary() =>
         CompactStatementStorageBoundary ?? CompactStatementStorage.CreateBoundary(Instructions);
+
+    public CompactStatementStorageBoundary CreateDiagnosticCompactStatementStorageBoundary() =>
+        CompactStatementStorage.CreateBoundary(Instructions, CompactStatementBoundaryMode.DiagnosticCoverage);
 }

@@ -65,7 +65,7 @@ internal static class StatementInstructionStorageDiagnostics
             }
 
             _planCount++;
-            var storageBoundary = plan.CreateCompactStatementStorageBoundary();
+            var storageBoundary = plan.CreateDiagnosticCompactStatementStorageBoundary();
             _estimatedCompactEncodedBytes += storageBoundary.Storage.EstimatedCompactByteSize;
             foreach (var instruction in plan.Instructions)
             {

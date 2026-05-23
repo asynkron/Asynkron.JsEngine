@@ -101,6 +101,32 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
     }
 
     [Fact]
+    public void Collect_ForPlanWithPureControlFlowSidecar_UsesFullDiagnosticCoverageBoundary()
+    {
+        var instructions = new ExecutionInstruction[]
+        {
+            new JumpInstruction(4),
+            new ReturnInstruction(7, ReturnProgram: ExpressionProgram.Empty)
+        };
+
+        var pureControlFlowSidecar = CompactStatementStorage.CreateBoundary(instructions, CompactStatementBoundaryMode.PureControlFlow);
+        var diagnosticCoverageBoundary = CompactStatementStorage.CreateBoundary(instructions, CompactStatementBoundaryMode.DiagnosticCoverage);
+        var plan = new ExecutionPlan(
+            instructions.ToImmutableArray(),
+            EntryPoint: 0,
+            CompactStatementStorageBoundary: pureControlFlowSidecar);
+
+        var snapshot = StatementInstructionStorageDiagnostics.Collect(plan);
+
+        Assert.Equal(2, snapshot.InstructionCount);
+        Assert.Equal(2, snapshot.SupportedInstructionCount);
+        Assert.Equal(0, snapshot.UnsupportedInstructionCount);
+        Assert.Equal(32, snapshot.OwnerBackedEncodedBytes);
+        Assert.Equal(diagnosticCoverageBoundary.Storage.EstimatedCompactByteSize, snapshot.EstimatedCompactEncodedBytes);
+        Assert.Contains(snapshot.SupportedInstructionKindHistogram, entry => entry.Key == InstructionKind.Return);
+    }
+
+    [Fact]
     public async Task Collect_PreservesExecutionPlanInstructionRuntimeShape()
     {
         var parsedProgram = _engine.ParseProgram("""

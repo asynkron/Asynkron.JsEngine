@@ -110,6 +110,15 @@ decode bridge are explicit.
     decode parity with descriptor-backed synthetic instructions. Do not inline
     descriptor objects into compact payloads or count declaration support from
     source-plan histograms alone.
+19. Environment-transition families may be narrowed one member at a time only
+    after the supported member has an explicit table-owned payload shape. For
+    `PushEnvironment`, treat `CompactPushEnvironmentPayload` and the compact
+    owner reference table as a diagnostic checkpoint for scope/slot metadata,
+    not as runtime compact-storage readiness for `PopEnvironment`,
+    `BreakableEnter`, or environment transitions as a whole. Keep
+    `SourceBlock` as an analysis-only payload that must be retired before
+    published plans, and keep `ExecutionPlanRunner` record-backed until a
+    separate runtime-routing slice proves the full environment operand model.
 
 ## Why
 
@@ -270,5 +279,17 @@ snapshot reference-table accounting, supported-kind histogram coverage, and
 semantic-view roundtrip assertions. Future declaration-family slices should
 follow that pattern instead of treating descriptor-heavy declaration records as
 supported because a source script happened to lower into those kinds.
+
+Issue
+`planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-0a20470768`
+/ PR #1616 promoted `PushEnvironment` out of the deferred diagnostics bucket by
+adding `EnvironmentTransitionNormalized` classification plus
+`CompactPushEnvironmentPayload` reference-table encode/decode support. The
+lesson is that collection-heavy scope metadata can become a measured diagnostic
+payload only when the owner boundary explicitly carries every semantic field
+and round-trips the `PushEnvironmentInstruction` record. This remains a
+checkpoint, not a runtime migration: `SourceBlock` retirement stays governed by
+the plan-publication invariant, `PopEnvironment` and `BreakableEnter` remain
+deferred, and the runner continues to execute the record-backed semantic view.
 
 Related ADR: `docs/adrs/0094-compact-statement-bytecode-encoding-design-from-current-ir.md`.

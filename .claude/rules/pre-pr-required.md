@@ -42,6 +42,11 @@ It does **not** replace the mandatory pre-PR checklist above (Roslynator, full
 internal tests, QuickDup, and `dotnet format`); complete those steps before PR
 creation.
 
+Why: issue #1661 / PR #1662 clarified this after recurring maintenance wording
+left room to treat `rtk make quality` as a replacement for the pre-PR checklist.
+The gate is additive local build/test evidence; it must not weaken the required
+PR-readiness steps.
+
 ## Rules
 
 - Do NOT skip any steps

@@ -226,7 +226,12 @@ internal sealed partial class ExecutionPlanBuilder
     {
         if (rootSlotMap.IsEmpty)
         {
-            return new ActivationSlotShape(rootScopeId, rootSlotCount, layoutId, ImmutableArray<(Symbol Name, int SlotIndex)>.Empty);
+            return new ActivationSlotShape(
+                rootScopeId,
+                rootSlotCount,
+                layoutId,
+                ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance),
+                ImmutableArray<(Symbol Name, int SlotIndex)>.Empty);
         }
 
         var slotNames = rootSlotMap
@@ -234,7 +239,7 @@ internal sealed partial class ExecutionPlanBuilder
             .OrderBy(static pair => pair.SlotIndex)
             .ToImmutableArray();
 
-        return new ActivationSlotShape(rootScopeId, rootSlotCount, layoutId, slotNames);
+        return new ActivationSlotShape(rootScopeId, rootSlotCount, layoutId, rootSlotMap, slotNames);
     }
 
     private bool LowerExpressionPayloads()

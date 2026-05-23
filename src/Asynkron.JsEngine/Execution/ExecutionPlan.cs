@@ -65,4 +65,5 @@ internal sealed record ActivationSlotShape(
     int ScopeId,
     int SlotCount,
     int LayoutId,
+    ImmutableDictionary<Symbol, int> SlotMap,
     ImmutableArray<(Symbol Name, int SlotIndex)> SlotNames);

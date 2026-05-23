@@ -1785,6 +1785,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             return executionEnvironment;
         }
 
+        [MethodImpl(JsEngineConstants.Inlining)]
         private void BindSimpleIrActivationParameters<TArgs>(
             TArgs arguments,
             JsEnvironment executionEnvironment,

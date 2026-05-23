@@ -266,6 +266,18 @@ public static partial class TypedAstEvaluator
                             continue;
                         }
 
+                        if (instructionKind == InstructionKind.Return)
+                        {
+                            var result = HandleReturn(this, instruction, ref environment, context, out var returnValue);
+                            if (result == InstructionResult.Return)
+                            {
+                                return returnValue;
+                            }
+
+                            ResetAwaitKeysAfterInstruction(environment);
+                            continue;
+                        }
+
                         var loopResult = InstructionHandlers[(int)instructionKind](this, instruction, ref environment, context, out var loopReturnValue);
                         if (loopResult == InstructionResult.Return)
                         {

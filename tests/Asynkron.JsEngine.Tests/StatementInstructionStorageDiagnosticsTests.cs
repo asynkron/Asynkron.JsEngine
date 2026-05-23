@@ -55,6 +55,7 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
         Assert.True(snapshot.SymbolOperandCount >= 0);
         Assert.True(snapshot.BindingTargetOperandCount >= 0);
         Assert.True(snapshot.ExpressionProgramReferenceTableCount >= 0);
+        Assert.True(snapshot.BindingTargetProgramReferenceTableCount >= 0);
         Assert.True(snapshot.EstimatedCompactEncodedBytes > 0);
         Assert.NotEmpty(snapshot.InstructionKindHistogram);
         Assert.NotEmpty(snapshot.SupportedInstructionKindHistogram);
@@ -96,6 +97,7 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
         Assert.Equal(0, snapshot.SymbolOperandCount);
         Assert.Equal(0, snapshot.BindingTargetOperandCount);
         Assert.Equal(0, snapshot.ExpressionProgramReferenceTableCount);
+        Assert.Equal(0, snapshot.BindingTargetProgramReferenceTableCount);
         Assert.Equal(64, snapshot.EstimatedCompactEncodedBytes);
         Assert.Contains(snapshot.UnsupportedFamilyReasonHistogram, entry => entry.Key == "declaration-and-scope" && entry.Value == 1);
         Assert.Contains(snapshot.UnsupportedFamilyReasonHistogram, entry => entry.Key == "suspend-and-exception-flow" && entry.Value == 2);
@@ -340,6 +342,47 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
         Assert.Equal(2, snapshot.SecondaryExpressionReferenceCount);
         Assert.Equal(2, snapshot.SymbolOperandCount);
         Assert.Equal(4, snapshot.ExpressionProgramReferenceTableCount);
+    }
+
+    [Fact]
+    public void BindingVariableDeclaration_DiagnosticsEncoding_UsesBindingTargetReferenceTableAndRoundTripsNestedShape()
+    {
+        var bindingTarget = new ObjectBindingTargetProgram(
+            ImmutableArray.Create(
+                new ObjectBindingPropertyProgram(
+                    Name: "plain",
+                    Target: new IdentifierBindingTargetProgram(Symbol.Intern("plain")),
+                    DefaultProgram: ExpressionProgram.Empty),
+                new ObjectBindingPropertyProgram(
+                    Name: "computed",
+                    Target: new IdentifierBindingTargetProgram(Symbol.Intern("value")),
+                    DefaultProgram: ExpressionProgram.Empty,
+                    NameProgram: ExpressionProgram.Empty)),
+            RestElement: new IdentifierBindingTargetProgram(Symbol.Intern("rest")));
+
+        var instruction = new BindingVariableDeclarationInstruction(
+            Next: 4,
+            VarKind: VariableKind.Let,
+            TargetProgram: bindingTarget,
+            InitializerProgram: ExpressionProgram.Empty,
+            AwaitStateKey: Symbol.Intern("await_state"),
+            AwaitedProgram: ExpressionProgram.Empty);
+
+        var expressionPrograms = new StatementDiagnosticsExpressionProgramTable();
+        var bindingTargets = new StatementDiagnosticsBindingTargetProgramTable();
+        Assert.True(StatementInstructionDiagnosticsCodec.TryEncode(instruction, expressionPrograms, bindingTargets, out var encoded));
+
+        Assert.True(encoded.Payload.BindingTargetProgramReferenceId >= 0);
+        Assert.Equal(1, bindingTargets.Count);
+
+        var decoded = Assert.IsType<BindingVariableDeclarationInstruction>(
+            StatementInstructionDiagnosticsCodec.Decode(encoded, expressionPrograms, bindingTargets));
+        Assert.Equal(instruction.TargetProgram, decoded.TargetProgram);
+
+        var plan = new ExecutionPlan(ImmutableArray.Create<ExecutionInstruction>(instruction), EntryPoint: 0);
+        var snapshot = StatementInstructionStorageDiagnostics.Collect(plan);
+        Assert.Equal(1, snapshot.BindingTargetOperandCount);
+        Assert.Equal(1, snapshot.BindingTargetProgramReferenceTableCount);
     }
 
     [Fact]

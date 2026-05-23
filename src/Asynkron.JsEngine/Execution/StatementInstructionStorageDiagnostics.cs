@@ -30,6 +30,7 @@ internal static class StatementInstructionStorageDiagnostics
         private readonly Dictionary<InstructionKind, long> _unsupportedKindHistogram = [];
         private readonly Dictionary<string, long> _unsupportedReasonHistogram = [];
         private readonly StatementDiagnosticsExpressionProgramTable _expressionPrograms = new();
+        private readonly StatementDiagnosticsBindingTargetProgramTable _bindingTargets = new();
         private long _planCount;
         private long _instructionCount;
         private long _supportedInstructionCount;
@@ -88,6 +89,7 @@ internal static class StatementInstructionStorageDiagnostics
                 SymbolOperandCount: _symbolOperandCount,
                 BindingTargetOperandCount: _bindingTargetOperandCount,
                 ExpressionProgramReferenceTableCount: _expressionPrograms.Count,
+                BindingTargetProgramReferenceTableCount: _bindingTargets.Count,
                 EstimatedCompactEncodedBytes: _estimatedCompactEncodedBytes,
                 InstructionKindHistogram: Sort(_instructionKindHistogram),
                 SupportedInstructionKindHistogram: Sort(_supportedKindHistogram),
@@ -200,7 +202,7 @@ internal static class StatementInstructionStorageDiagnostics
             Increment(_instructionKindHistogram, instruction.Kind);
             VisitNestedPlans(instruction);
 
-            if (StatementInstructionDiagnosticsCodec.TryEncode(instruction, _expressionPrograms, out var encoded))
+            if (StatementInstructionDiagnosticsCodec.TryEncode(instruction, _expressionPrograms, _bindingTargets, out var encoded))
             {
                 _supportedInstructionCount++;
                 _ownerBackedEncodedBytes += CompactStatementHeader.FixedByteSize;
@@ -340,6 +342,7 @@ internal sealed record StatementInstructionStorageSnapshot(
     long SymbolOperandCount,
     long BindingTargetOperandCount,
     int ExpressionProgramReferenceTableCount,
+    int BindingTargetProgramReferenceTableCount,
     long EstimatedCompactEncodedBytes,
     ImmutableArray<KeyValuePair<InstructionKind, long>> InstructionKindHistogram,
     ImmutableArray<KeyValuePair<InstructionKind, long>> SupportedInstructionKindHistogram,

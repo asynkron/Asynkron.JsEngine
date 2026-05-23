@@ -249,4 +249,141 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
         Assert.Equal(2, storage.ReferenceTables.ExpressionPrograms.Length);
         Assert.All(storage.ReferenceTables.ExpressionPrograms, program => Assert.Equal(expressionProgram, program));
     }
+
+    [Fact]
+    public async Task CompactStatementStorageBoundary_FromScriptPlan_PreservesControlFlowSemanticParity()
+    {
+        var scriptCases = new[]
+        {
+            """
+            for (let i = 0; i < 3; i++) {
+                if (i > 1) {
+                    break;
+                }
+            }
+            """,
+            """
+            let total = 0;
+            for (let i = 0; i < 4; i++) {
+                if ((i % 2) === 0) {
+                    continue;
+                }
+
+                total = total + i;
+            }
+            """,
+            """
+            outer: for (let i = 0; i < 3; i++) {
+                for (let j = 0; j < 3; j++) {
+                    break outer;
+                }
+            }
+            """,
+            """
+            let value = 0;
+            while (value < 3) {
+                value = value + 1;
+            }
+            value;
+            """,
+            """
+            label: {
+                break label;
+            }
+            """,
+            """
+            switch (1) {
+                case 1:
+                    break;
+                default:
+                    break;
+            }
+            """
+        };
+
+        var expectedFamilyKinds = new HashSet<InstructionKind>
+        {
+            InstructionKind.Jump,
+            InstructionKind.Break,
+            InstructionKind.Continue,
+            InstructionKind.SetCompletionValue,
+            InstructionKind.BreakableExit
+        };
+        var seenFamilyKinds = new HashSet<InstructionKind>();
+
+        foreach (var source in scriptCases)
+        {
+            var parsedProgram = _engine.ParseProgram(source);
+            await _engine.Evaluate(parsedProgram);
+
+            var scriptCache = ((IAstCacheable<ScriptPlanCache>)parsedProgram).GetOrCreateCache();
+            var plan = Assert.IsType<ExecutionPlan>(scriptCache.Plan);
+            var boundary = plan.CreateCompactStatementStorageBoundary();
+
+            var expectedSupported = plan.Instructions
+                .Where(instruction =>
+                    expectedFamilyKinds.Contains(instruction.Kind) &&
+                    CompactStatementStorage.TryEncodeSupportedInstruction(instruction, out _))
+                .ToArray();
+            var actualSupported = boundary.Storage.DecodeSemanticView()
+                .Where(instruction => expectedFamilyKinds.Contains(instruction.Kind))
+                .ToArray();
+
+            Assert.Equal(expectedSupported.Length, actualSupported.Length);
+            Assert.NotEmpty(actualSupported);
+
+            for (var i = 0; i < expectedSupported.Length; i++)
+            {
+                AssertEquivalentSupportedInstruction(expectedSupported[i], actualSupported[i]);
+                seenFamilyKinds.Add(expectedSupported[i].Kind);
+            }
+        }
+
+        // Keep Jump covered in semantic parity even when script lowering emits loop-specific
+        // control-flow instructions instead of a direct Jump for this script corpus.
+        var jumpPlan = new ExecutionPlan(ImmutableArray.Create<ExecutionInstruction>(new JumpInstruction(1)), EntryPoint: 0);
+        var jumpBoundary = jumpPlan.CreateCompactStatementStorageBoundary();
+        var jumpExpected = Assert.Single(jumpPlan.Instructions.Where(instruction =>
+            instruction.Kind == InstructionKind.Jump &&
+            CompactStatementStorage.TryEncodeSupportedInstruction(instruction, out _)));
+        var jumpActual = Assert.Single(jumpBoundary.Storage.DecodeSemanticView().Where(instruction => instruction.Kind == InstructionKind.Jump));
+        AssertEquivalentSupportedInstruction(jumpExpected, jumpActual);
+        seenFamilyKinds.Add(InstructionKind.Jump);
+
+        Assert.True(
+            expectedFamilyKinds.IsSubsetOf(seenFamilyKinds),
+            $"Expected to observe supported control-flow kinds: {string.Join(", ", expectedFamilyKinds.OrderBy(kind => kind))}; actual: {string.Join(", ", seenFamilyKinds.OrderBy(kind => kind))}");
+    }
+
+    private static void AssertEquivalentSupportedInstruction(ExecutionInstruction expected, ExecutionInstruction actual)
+    {
+        Assert.Equal(expected.GetType(), actual.GetType());
+        switch (expected)
+        {
+            case JumpInstruction expectedJump:
+                var actualJump = Assert.IsType<JumpInstruction>(actual);
+                Assert.Equal(expectedJump.Next, actualJump.Next);
+                return;
+            case BreakInstruction expectedBreak:
+                var actualBreak = Assert.IsType<BreakInstruction>(actual);
+                Assert.Equal(expectedBreak.TargetIndex, actualBreak.TargetIndex);
+                Assert.Equal(expectedBreak.TargetScopeId, actualBreak.TargetScopeId);
+                return;
+            case ContinueInstruction expectedContinue:
+                var actualContinue = Assert.IsType<ContinueInstruction>(actual);
+                Assert.Equal(expectedContinue.TargetIndex, actualContinue.TargetIndex);
+                Assert.Equal(expectedContinue.TargetScopeId, actualContinue.TargetScopeId);
+                return;
+            case SetCompletionValueInstruction expectedSetCompletion:
+                var actualSetCompletion = Assert.IsType<SetCompletionValueInstruction>(actual);
+                Assert.Equal(expectedSetCompletion.Next, actualSetCompletion.Next);
+                return;
+            case BreakableExitInstruction expectedBreakableExit:
+                var actualBreakableExit = Assert.IsType<BreakableExitInstruction>(actual);
+                Assert.Equal(expectedBreakableExit.Next, actualBreakableExit.Next);
+                return;
+        }
+
+        Assert.Fail($"Unsupported parity instruction kind encountered: {expected.Kind}");
+    }
 }

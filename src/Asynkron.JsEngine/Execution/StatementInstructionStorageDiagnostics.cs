@@ -203,7 +203,7 @@ internal static class StatementInstructionStorageDiagnostics
             if (StatementInstructionDiagnosticsCodec.TryEncode(instruction, _expressionPrograms, out var encoded))
             {
                 _supportedInstructionCount++;
-                _ownerBackedEncodedBytes += EncodedStatementInstruction.FixedHeaderByteSize;
+                _ownerBackedEncodedBytes += CompactStatementHeader.FixedByteSize;
                 _operandTableEntryCount++;
                 _extraOperandTableEntryCount += encoded.Payload.EstimatedCompactByteSize / 8;
                 if (encoded.Payload.PrimaryExpressionProgramReferenceId >= 0)

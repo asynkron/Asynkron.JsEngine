@@ -670,10 +670,10 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             FlatSlotId: 23);
 
         Assert.True(StatementInstructionDiagnosticsCodec.TryEncode(instruction, out var encoded));
-        Assert.Equal(EncodedStatementOpcode.AssignmentSlot, encoded.Opcode);
+        Assert.Equal(EncodedStatementOpcode.AssignmentSlot, encoded.Header.Opcode);
         Assert.Equal(13, encoded.Payload.ScopeId);
         Assert.Equal(23, encoded.Payload.FlatSlotId);
-        Assert.Equal(7, encoded.Extra);
+        Assert.Equal(7, encoded.Header.Extra);
         Assert.Equal(32, encoded.EstimatedCompactByteSize);
 
         var decoded = Assert.IsType<AssignmentSlotInstruction>(StatementInstructionDiagnosticsCodec.Decode(encoded));

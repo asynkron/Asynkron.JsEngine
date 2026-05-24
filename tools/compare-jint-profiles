@@ -166,7 +166,14 @@ run_engine() {
 
 failed=false
 if [[ ${#profiles[@]} -gt 0 ]]; then
-  printf 'profile\tasynkron_ms\tjint_ms\tdelta\n'
+  profile_width=22
+  for profile in "${profiles[@]}"; do
+    if [[ ${#profile} -gt $profile_width ]]; then
+      profile_width=${#profile}
+    fi
+  done
+
+  printf "%-${profile_width}s %12s %8s  %s\n" "profile" "asynkron_ms" "jint_ms" "delta"
 
   for profile in "${profiles[@]}"; do
     a_ms=$(run_engine asynkron "$profile") || failed=true
@@ -175,18 +182,28 @@ if [[ ${#profiles[@]} -gt 0 ]]; then
     if [[ "$a_ms" =~ ^[0-9]+$ && "$j_ms" =~ ^[0-9]+$ && "$a_ms" -gt 0 && "$j_ms" -gt 0 ]]; then
       delta=$(awk -v a="$a_ms" -v j="$j_ms" 'BEGIN {
         if (a < j) {
-          printf "Asynkron %.2fx faster", j / a
+          ratio = j / a
+          if (ratio < 1.10) {
+            printf "Tie"
+          } else {
+            printf "Asynkron %.2fx faster", ratio
+          }
         } else if (j < a) {
-          printf "Jint %.2fx faster", a / j
+          ratio = a / j
+          if (ratio < 1.10) {
+            printf "Tie"
+          } else {
+            printf "Jint %.2fx faster", ratio
+          }
         } else {
-          printf "tie"
+          printf "Tie"
         }
       }')
     else
       delta='n/a'
     fi
 
-    printf '%s\t%s\t%s\t%s\n' "$profile" "$a_ms" "$j_ms" "$delta"
+    printf "%-${profile_width}s %12s %8s  %s\n" "$profile" "$a_ms" "$j_ms" "$delta"
   done
 fi
 

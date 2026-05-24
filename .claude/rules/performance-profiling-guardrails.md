@@ -54,6 +54,12 @@ optimization.
     owner with a CPU profile, then pin descriptor visibility, insertion order,
     extensibility, virtual-provider/private-field exclusions, and later
     `Object.defineProperty` promotion semantics.
+11. For compact JSON serialization optimizations, keep streaming shortcuts on
+    the compact/no-gap path and preserve the semantic fallback for replacers,
+    `toJSON`, raw JSON, pretty-printing, proxy-aware key enumeration, circular
+    checks, and reviver source tracking. Future `json` work must prove the hot
+    owner with a CPU profile, then separate avoidable intermediate string/list
+    allocation from metadata that is required for observable JSON semantics.
 
 ## Why
 
@@ -120,3 +126,15 @@ descriptors. The durable lesson is that object-literal fast paths must stay
 profile-owned and storage-owned while preserving descriptor materialization and
 promotion semantics. Related ADR:
 `docs/adrs/0106-keep-object-literal-default-data-properties-implicit.md`.
+
+Issue `autrun-diqzs4qq1p5s-4e9bf90752` / PR #1696 selected `json` from the
+benchmark table and proved the hot owner with a `json` CPU call tree:
+`JsonHelper` was paying avoidable compact-stringify member/element list
+construction and no-reviver parse-array index string construction. The accepted
+slice streamed compact objects and arrays directly into a `StringBuilder` and
+skipped parent metadata only when no reviver source tracker needs those keys.
+The durable lesson is that JSON fast paths must be profile-owned and limited to
+the non-observable compact/no-reviver cases while leaving the semantic
+replacer, raw JSON, pretty-printing, proxy, circular-check, and reviver paths on
+their existing fallbacks. Detailed measurement note:
+`docs/performance/json-compact-serialization.md`.

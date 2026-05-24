@@ -95,6 +95,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   a single shell invocation when possible. Do not use `rtk cd ...` as a setup
   line or rely on cwd state crossing command examples; prefer explicit path
   flags such as `--project <path>` so the example works exactly as pasted.
+- When a roadmap or documentation-maintenance slice adds or preserves evidence
+  links to repository files, check that each cited path exists before finalizing
+  the slice. If a planned ADR or report citation does not exist, either cite the
+  maintained evidence surface that does exist or keep the roadmap claim
+  boundary-only without the missing file reference.
 
 ## Why
 
@@ -261,3 +266,11 @@ was not actually copy/paste safe because cwd state does not carry between
 independent command invocations. Future docs command maintenance should collapse
 that kind of setup into one runnable command, for example by passing
 `--project` with an explicit path.
+
+Issue `autrun-dir1l0mv6bm8-42faac3141` / PR #1703 fixed a roadmap maintenance
+slice that cited a non-existent
+`docs/adrs/0107-constant-folding-boundaries-and-operator-safety.md`. The
+roadmap still needed to describe constant-folding follow-up boundaries, but the
+durable evidence had to be limited to existing ADRs, reports, and rule files.
+Without this rule, future roadmap children can accidentally turn directional
+claims into broken evidence trails by naming planned or guessed ADR files.

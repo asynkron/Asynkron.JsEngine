@@ -38,7 +38,10 @@ path that can evaluate the assignment.
    binding. Emitter-time shortcuts must require already-stamped slot metadata;
    otherwise let `SlotAssignmentRewriter` decide after scope analysis. Dynamic
    lookup and no-cache paths, especially `with`, must keep generic assignment
-   reference semantics.
+   reference semantics. For `with` plus proxy-observable identifiers, guard both
+   the trap/order behavior and the instruction shape; plain `p = p + rhs` must
+   remain a distinct RHS read followed by writeback, not a compound-assignment
+   shortcut.
 
 ## Why
 
@@ -68,3 +71,11 @@ dynamic assignment lookup. The durable constraint is that assignment
 optimizations are binding optimizations, not just syntax optimizations: the
 rewrite is valid only after slot metadata proves both identifier references are
 the same static slot.
+
+Issue #gh1707 / PR #1710 confirmed the same boundary for plain
+self-referential assignment under `with (proxy)`. The implementation was
+already correct, but the missing regression guard showed why future changes
+must prove both observable proxy trap order (`has` / unscopables / `get` /
+final `set`) and IR shape (`AssignmentSlotInstruction`, not
+`CompoundAssignmentSlotInstruction`) before claiming a dynamic assignment path
+is safe to optimize.
